@@ -123,3 +123,143 @@ export function updateAge(stats){
   }
   return stats;
 }
+
+/**
+ * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
+ * 스탯(배고픔, 수명 등)을 한 번에 차감
+ * 
+ * @param {Object} stats - 현재 디지몬 스탯
+ * @param {Date|number|string} lastSavedAt - 마지막 저장 시간 (Date, timestamp, 또는 ISO string)
+ * @returns {Object} 업데이트된 스탯
+ */
+export function applyLazyUpdate(stats, lastSavedAt) {
+  if (!lastSavedAt) {
+    // 마지막 저장 시간이 없으면 현재 시간으로 설정
+    return { ...stats, lastSavedAt: new Date() };
+  }
+
+  // 마지막 저장 시간을 Date 객체로 변환
+  let lastSaved;
+  if (lastSavedAt instanceof Date) {
+    lastSaved = lastSavedAt;
+  } else if (typeof lastSavedAt === 'number') {
+    lastSaved = new Date(lastSavedAt);
+  } else if (typeof lastSavedAt === 'string') {
+    lastSaved = new Date(lastSavedAt);
+  } else if (lastSavedAt.toDate) {
+    // Firestore Timestamp인 경우
+    lastSaved = lastSavedAt.toDate();
+  } else {
+    // 알 수 없는 형식이면 현재 시간으로 설정
+    return { ...stats, lastSavedAt: new Date() };
+  }
+
+  const now = new Date();
+  const elapsedSeconds = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
+
+  // 경과 시간이 없거나 음수면 그대로 반환
+  if (elapsedSeconds <= 0) {
+    return { ...stats, lastSavedAt: now };
+  }
+
+  // 사망한 경우 더 이상 업데이트하지 않음
+  if (stats.isDead) {
+    return { ...stats, lastSavedAt: now };
+  }
+
+  // 경과 시간만큼 한 번에 업데이트
+  let updatedStats = { ...stats };
+  
+  // updateLifespan을 경과 시간만큼 호출
+  // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
+  updatedStats.lifespanSeconds += elapsedSeconds;
+  updatedStats.timeToEvolveSeconds = Math.max(0, updatedStats.timeToEvolveSeconds - elapsedSeconds);
+
+  // 배고픔 감소 처리
+  if (updatedStats.hungerTimer > 0) {
+    updatedStats.hungerCountdown -= elapsedSeconds;
+    
+    // countdown이 0 이하가 되면 fullness 감소
+    while (updatedStats.hungerCountdown <= 0) {
+      updatedStats.fullness = Math.max(0, updatedStats.fullness - 1);
+      updatedStats.hungerCountdown += updatedStats.hungerTimer * 60;
+      
+      // fullness가 0이 되면 lastHungerZeroAt 기록
+      if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
+        // 마지막 저장 시간부터 fullness가 0이 된 시점 계산
+        const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.hungerCountdown) * 1000;
+        updatedStats.lastHungerZeroAt = timeToZero;
+      }
+    }
+  }
+
+  // 건강 감소 처리
+  if (updatedStats.strengthTimer > 0) {
+    updatedStats.strengthCountdown -= elapsedSeconds;
+    
+    // countdown이 0 이하가 되면 health 감소
+    while (updatedStats.strengthCountdown <= 0) {
+      updatedStats.health = Math.max(0, updatedStats.health - 1);
+      updatedStats.strengthCountdown += updatedStats.strengthTimer * 60;
+    }
+  }
+
+  // 배변 처리
+  if (updatedStats.poopTimer > 0) {
+    updatedStats.poopCountdown -= elapsedSeconds;
+    
+    while (updatedStats.poopCountdown <= 0) {
+      if (updatedStats.poopCount < 8) {
+        updatedStats.poopCount++;
+        updatedStats.poopCountdown += updatedStats.poopTimer * 60;
+        
+        // 8개가 되면 lastMaxPoopTime 기록
+        if (updatedStats.poopCount === 8 && !updatedStats.lastMaxPoopTime) {
+          const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
+          updatedStats.lastMaxPoopTime = timeToMax;
+        }
+      } else {
+        // 이미 8개 이상
+        if (!updatedStats.lastMaxPoopTime) {
+          const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
+          updatedStats.lastMaxPoopTime = timeToMax;
+        } else {
+          // 8시간(28800초) 경과 확인
+          const lastMaxTime = typeof updatedStats.lastMaxPoopTime === 'number' 
+            ? updatedStats.lastMaxPoopTime 
+            : new Date(updatedStats.lastMaxPoopTime).getTime();
+          const elapsedSinceMax = (now.getTime() - lastMaxTime) / 1000;
+          
+          if (elapsedSinceMax >= 28800) {
+            updatedStats.careMistakes++;
+            updatedStats.lastMaxPoopTime = now.getTime();
+          }
+        }
+        updatedStats.poopCountdown += updatedStats.poopTimer * 60;
+      }
+    }
+  }
+
+  // 배고픔이 0이고 12시간(43200초) 경과 시 사망
+  if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
+    const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+      ? updatedStats.lastHungerZeroAt
+      : new Date(updatedStats.lastHungerZeroAt).getTime();
+    const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
+    
+    if (elapsedSinceZero >= 43200) {
+      updatedStats.isDead = true;
+    }
+  } else if (updatedStats.fullness > 0) {
+    // 배고픔이 다시 채워지면 리셋
+    updatedStats.lastHungerZeroAt = null;
+  }
+
+  // 나이 업데이트 (자정 경과 확인)
+  updatedStats = updateAge(updatedStats);
+
+  // 마지막 저장 시간 업데이트
+  updatedStats.lastSavedAt = now;
+
+  return updatedStats;
+}

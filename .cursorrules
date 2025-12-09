@@ -1,0 +1,8 @@
+// 리팩토링 작업 일지 작성 규칙
+// 이 규칙은 모든 주요 코드 변경 시 REFACTORING_LOG.md 파일에 요약을 추가하도록 강제합니다.
+// 형식: [YYYY-MM-DD] [작업 유형] - 목적 및 영향
+// 관련된 파일 리스트를 포함해야 합니다.
+ENFORCE_REFACTORING_LOGGING: "모든 주요 아키텍처 변경, 새로운 서비스 도입 (예: Firebase 연동), 또는 대규모 파일 리팩토링 작업 후에는 반드시 REFACTORING_LOG.md 파일을 열어 작업 내용과 관련 파일 목록을 요약하여 기록해야 합니다."
+
+// 현재 진행 중인 아키텍처 방향성을 명시하여 컨텍스트 강화
+ARCHITECTURE_POLICY: "현재 프로젝트는 LocalStorage/Express 아키텍처에서 Vercel/Firebase (Firestore + Serverless Functions) 기반의 서버리스 아키텍처로 마이그레이션 중입니다. 모든 코드는 이 방향에 맞춰 작성되어야 합니다."

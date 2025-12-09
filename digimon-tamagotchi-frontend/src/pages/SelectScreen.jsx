@@ -1,76 +1,218 @@
 // src/pages/SelectScreen.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { db } from "../firebase";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
 function SelectScreen() {
   const navigate = useNavigate();
+  const { currentUser, logout, isFirebaseAvailable } = useAuth();
   const [slots, setSlots] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // 새 다마고치 만들 때 선택할 기종/버전
   const [device, setDevice] = useState("Digital Monster Color 25th");
   const [version, setVersion] = useState("Ver.1");
 
-  // 슬롯 목록 재로드
-  const loadSlots = () => {
-    const arr = [];
-    for (let i = 1; i <= MAX_SLOTS; i++) {
-      const digimonName = localStorage.getItem(`slot${i}_selectedDigimon`);
-      if (digimonName) {
-        const slotName = localStorage.getItem(`slot${i}_slotName`) || `슬롯${i}`;
-        const createdAt = localStorage.getItem(`slot${i}_createdAt`) || "";
-        const dev = localStorage.getItem(`slot${i}_device`) || "";
-        const ver = localStorage.getItem(`slot${i}_version`) || "";
-        arr.push({
-          id: i,
-          slotName,
-          selectedDigimon: digimonName,
-          createdAt,
-          device: dev,
-          version: ver,
-        });
-      }
+  // Firebase 모드에서만 로그인 체크 (localStorage 모드에서는 체크 안 함)
+  useEffect(() => {
+    if (isFirebaseAvailable && !currentUser) {
+      navigate("/");
     }
-    setSlots(arr);
+  }, [currentUser, navigate, isFirebaseAvailable]);
+
+  // 슬롯 목록 재로드 (Firestore의 /users/{uid}/slots 컬렉션에서 직접 가져오기)
+  const loadSlots = async () => {
+    if (isFirebaseAvailable && !currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      if (isFirebaseAvailable && currentUser) {
+        // db가 null인지 확인
+        if (!db) {
+          throw new Error("Firestore가 초기화되지 않았습니다.");
+        }
+        
+        // Firestore 모드: /users/{uid}/slots 컬렉션에서 직접 가져오기
+        const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
+        const q = query(slotsRef, orderBy('createdAt', 'desc'), limit(MAX_SLOTS));
+        const querySnapshot = await getDocs(q);
+        
+        const userSlots = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          // 문서 ID에서 slotId 추출 (예: "slot1" -> 1)
+          const slotId = parseInt(doc.id.replace('slot', ''));
+          return {
+            id: slotId,
+            ...data,
+          };
+        });
+        
+        setSlots(userSlots);
+      } else {
+        // localStorage 모드
+        const arr = [];
+        for (let i = 1; i <= MAX_SLOTS; i++) {
+          const digimonName = localStorage.getItem(`slot${i}_selectedDigimon`);
+          if (digimonName) {
+            const slotName = localStorage.getItem(`slot${i}_slotName`) || `슬롯${i}`;
+            const createdAt = localStorage.getItem(`slot${i}_createdAt`) || "";
+            const dev = localStorage.getItem(`slot${i}_device`) || "";
+            const ver = localStorage.getItem(`slot${i}_version`) || "";
+            arr.push({
+              id: i,
+              slotName,
+              selectedDigimon: digimonName,
+              createdAt,
+              device: dev,
+              version: ver,
+            });
+          }
+        }
+        setSlots(arr);
+      }
+    } catch (err) {
+      console.error("슬롯 로드 오류:", err);
+      console.error("에러 코드:", err.code);
+      console.error("에러 메시지:", err.message);
+      
+      // Firestore 권한 오류인 경우 특별 처리
+      if (err.code === 'permission-denied') {
+        setError("Firestore 권한 오류가 발생했습니다. Firebase Console에서 보안 규칙을 설정해주세요. (자세한 내용은 FIRESTORE_RULES.md 참고)");
+      } else {
+        setError(`슬롯을 불러오는 중 오류가 발생했습니다: ${err.message || err.code || '알 수 없는 오류'}`);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 마운트 시
   useEffect(() => {
     loadSlots();
-  }, []);
+  }, [isFirebaseAvailable, currentUser]);
 
   // 새 다마고치 시작
-  const handleNewTama = () => {
-    // 빈 슬롯 찾기
-    let slotId = null;
-    for (let i = 1; i <= MAX_SLOTS; i++) {
-      const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
-      if (!existing) {
-        slotId = i;
-        break;
-      }
-    }
-    if (!slotId) {
-      alert("슬롯이 모두 찼습니다!");
+  const handleNewTama = async () => {
+    console.log("새 다마고치 시작 버튼 클릭");
+    console.log("isFirebaseAvailable:", isFirebaseAvailable);
+    console.log("currentUser:", currentUser);
+    
+    if (isFirebaseAvailable && !currentUser) {
+      alert("로그인이 필요합니다.");
+      navigate("/");
       return;
     }
 
-    // Digitama로 시작
-    localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
-    localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
-    localStorage.setItem(`slot${slotId}_device`, device);
-    localStorage.setItem(`slot${slotId}_version`, version);
+    try {
+      let slotId;
+      
+      if (isFirebaseAvailable && currentUser) {
+        console.log("Firestore 모드로 슬롯 생성 시도");
+        
+        // db가 null인지 확인
+        if (!db) {
+          throw new Error("Firestore가 초기화되지 않았습니다. Firebase 설정을 확인하세요.");
+        }
+        
+        // Firestore 모드: /users/{uid}/slots 컬렉션에서 빈 슬롯 찾기
+        const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
+        const querySnapshot = await getDocs(slotsRef);
+        console.log("기존 슬롯 개수:", querySnapshot.docs.length);
+        
+        const usedSlots = new Set(
+          querySnapshot.docs.map(doc => parseInt(doc.id.replace('slot', '')))
+        );
+        console.log("사용 중인 슬롯:", Array.from(usedSlots));
+        
+        // 빈 슬롯 찾기
+        for (let i = 1; i <= MAX_SLOTS; i++) {
+          if (!usedSlots.has(i)) {
+            slotId = i;
+            break;
+          }
+        }
+        
+        if (!slotId) {
+          alert("슬롯이 모두 찼습니다!");
+          return;
+        }
 
-    const slotName = `슬롯${slotId}`;
-    localStorage.setItem(`slot${slotId}_slotName`, slotName);
+        console.log("새 슬롯 ID:", slotId);
 
-    // 생성일 저장
-    const now = new Date();
-    const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-    localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
+        // 생성일
+        const now = new Date();
+        const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+        const slotName = `슬롯${slotId}`;
 
-    navigate(`/game/${slotId}`);
+        // Firestore의 /users/{uid}/slots/{slotId}에 새 슬롯 저장
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        console.log("Firestore에 슬롯 저장 시도:", slotRef.path);
+        
+        await setDoc(slotRef, {
+          selectedDigimon: "Digitama",
+          digimonStats: {},
+          slotName,
+          createdAt: createdAtStr,
+          device,
+          version,
+          updatedAt: new Date(),
+        });
+        
+        console.log("슬롯 저장 완료");
+      } else {
+        console.log("localStorage 모드로 슬롯 생성 시도");
+        // localStorage 모드
+        for (let i = 1; i <= MAX_SLOTS; i++) {
+          const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
+          if (!existing) {
+            slotId = i;
+            break;
+          }
+        }
+        
+        if (!slotId) {
+          alert("슬롯이 모두 찼습니다!");
+          return;
+        }
+
+        console.log("새 슬롯 ID (localStorage):", slotId);
+
+        // localStorage에 저장
+        localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
+        localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
+        localStorage.setItem(`slot${slotId}_device`, device);
+        localStorage.setItem(`slot${slotId}_version`, version);
+        const slotName = `슬롯${slotId}`;
+        localStorage.setItem(`slot${slotId}_slotName`, slotName);
+        const now = new Date();
+        const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+        localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
+        console.log("localStorage 저장 완료");
+      }
+
+      console.log("게임 화면으로 이동:", slotId);
+      navigate(`/game/${slotId}`);
+    } catch (err) {
+      console.error("새 다마고치 생성 오류:", err);
+      console.error("에러 상세:", err.message, err.code);
+      
+      // Firestore 권한 오류인 경우 특별 처리
+      if (err.code === 'permission-denied') {
+        alert(`Firestore 권한 오류가 발생했습니다.\n\nFirebase Console에서 보안 규칙을 설정해주세요:\n1. Firebase Console 접속\n2. Firestore Database → Rules\n3. FIRESTORE_RULES.md 파일 참고하여 규칙 설정\n4. 게시 버튼 클릭`);
+      } else {
+        alert(`다마고치 생성에 실패했습니다.\n에러: ${err.message || err.code || '알 수 없는 오류'}`);
+      }
+    }
   };
 
   // 이어하기
@@ -79,15 +221,31 @@ function SelectScreen() {
   };
 
   // 슬롯 삭제
-  const handleDeleteSlot = (slotId) => {
+  const handleDeleteSlot = async (slotId) => {
+    if (isFirebaseAvailable && !currentUser) {
+      return;
+    }
+
     if (window.confirm(`슬롯 ${slotId}을 정말 삭제하시겠습니까?`)) {
-      localStorage.removeItem(`slot${slotId}_selectedDigimon`);
-      localStorage.removeItem(`slot${slotId}_digimonStats`);
-      localStorage.removeItem(`slot${slotId}_device`);
-      localStorage.removeItem(`slot${slotId}_version`);
-      localStorage.removeItem(`slot${slotId}_slotName`);
-      localStorage.removeItem(`slot${slotId}_createdAt`);
-      loadSlots();
+      try {
+        if (isFirebaseAvailable && currentUser) {
+          // Firestore의 /users/{uid}/slots/{slotId}에서 삭제
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          await deleteDoc(slotRef);
+        } else {
+          // localStorage 모드
+          localStorage.removeItem(`slot${slotId}_selectedDigimon`);
+          localStorage.removeItem(`slot${slotId}_digimonStats`);
+          localStorage.removeItem(`slot${slotId}_device`);
+          localStorage.removeItem(`slot${slotId}_version`);
+          localStorage.removeItem(`slot${slotId}_slotName`);
+          localStorage.removeItem(`slot${slotId}_createdAt`);
+        }
+        loadSlots();
+      } catch (err) {
+        console.error("슬롯 삭제 오류:", err);
+        alert("슬롯 삭제에 실패했습니다.");
+      }
     }
   };
 
@@ -104,20 +262,94 @@ function SelectScreen() {
   };
 
   // "수정" 버튼
-  const handleSaveName = (slotId) => {
+  const handleSaveName = async (slotId) => {
+    if (isFirebaseAvailable && !currentUser) {
+      return;
+    }
+
     const newName = slotNameEdits[slotId] || "";
     if (!newName.trim()) {
       alert("이름이 비어있습니다.");
       return;
     }
-    localStorage.setItem(`slot${slotId}_slotName`, newName);
-    loadSlots();
-    alert(`슬롯 ${slotId} 이름을 "${newName}" 로 변경했습니다.`);
+
+    try {
+      if (isFirebaseAvailable && currentUser) {
+        // Firestore의 /users/{uid}/slots/{slotId}에서 슬롯 이름 업데이트
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          slotName: newName,
+          updatedAt: new Date(),
+        });
+      } else {
+        // localStorage 모드
+        localStorage.setItem(`slot${slotId}_slotName`, newName);
+      }
+      loadSlots();
+      alert(`슬롯 ${slotId} 이름을 "${newName}" 로 변경했습니다.`);
+    } catch (err) {
+      console.error("슬롯 이름 변경 오류:", err);
+      alert("슬롯 이름 변경에 실패했습니다.");
+    }
   };
+
+  // 로그아웃
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/");
+    } catch (err) {
+      console.error("로그아웃 오류:", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">Select Tamagotchi</h1>
+        <div className="flex justify-between items-center mb-4">
+        <h1 className="text-xl font-bold">Select Tamagotchi</h1>
+        <div className="flex items-center space-x-4">
+          {isFirebaseAvailable && currentUser && (
+            <>
+              <div className="flex items-center space-x-2">
+                {currentUser.photoURL && (
+                  <img
+                    src={currentUser.photoURL}
+                    alt="프로필"
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm"
+              >
+                로그아웃
+              </button>
+            </>
+          )}
+          {!isFirebaseAvailable && (
+            <span className="text-sm text-gray-500">localStorage 모드</span>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+        </div>
+      )}
 
       {/* 기종/버전 */}
       <div className="mb-4">
