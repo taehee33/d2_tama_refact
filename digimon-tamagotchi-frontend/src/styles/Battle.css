@@ -1,0 +1,446 @@
+/* src/styles/Battle.css */
+/* 배틀 화면 스타일링 - 도트 감성 */
+
+.battle-modal {
+  min-width: 300px;
+  max-width: 400px;
+}
+
+.battle-mode-button {
+  transition: transform 0.1s ease;
+}
+
+.battle-mode-button:active {
+  transform: scale(0.95);
+}
+
+.quest-mode-button {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.communication-mode-button {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 배틀 스크린 */
+.battle-screen {
+  min-height: 500px;
+}
+
+.battle-area {
+  min-height: 300px;
+  padding: 20px;
+  background: linear-gradient(to bottom, #e0e0e0, #f5f5f5);
+  border: 3px solid #333;
+  border-radius: 8px;
+  position: relative;
+}
+
+.battle-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 200px;
+  position: relative;
+}
+
+/* 플레이어 배지 */
+.battle-badge {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: 2px solid;
+  margin-bottom: 10px;
+}
+
+.badge.user {
+  background-color: #4a90e2;
+  color: white;
+  border-color: #2c5aa0;
+}
+
+.badge.cpu {
+  background-color: #e24a4a;
+  color: white;
+  border-color: #a02c2c;
+}
+
+.digimon-sprite {
+  transition: transform 0.3s ease;
+  position: relative;
+}
+
+/* 플레이어 디지몬 좌우 반전 */
+.player-digimon img,
+.player-sprite {
+  transform: scaleX(-1);
+}
+
+/* 발사체 애니메이션 */
+.projectile {
+  position: absolute;
+  z-index: 50;
+  image-rendering: pixelated;
+}
+
+.projectile.shoot-right {
+  animation: shootRight 0.8s ease-out forwards;
+}
+
+.projectile.shoot-left {
+  animation: shootLeft 0.8s ease-out forwards;
+}
+
+/* 유저 발사체 좌우 반전 */
+.projectile.user-projectile {
+  transform: scaleX(-1);
+}
+
+@keyframes shootRight {
+  0% {
+    left: 200px;
+    opacity: 1;
+  }
+  100% {
+    left: calc(100% - 260px);
+    opacity: 0;
+  }
+}
+
+@keyframes shootLeft {
+  0% {
+    left: calc(100% - 260px);
+    opacity: 1;
+  }
+  100% {
+    left: 200px;
+    opacity: 0;
+  }
+}
+
+/* 타격 텍스트 (💀💀!HIT!💀💀) */
+.hit-text {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 28px;
+  font-weight: bold;
+  color: #ff0000;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 0, 0, 0.5);
+  z-index: 30;
+  animation: hitTextBounce 1s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes hitTextBounce {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-20px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-40px) scale(0.8);
+  }
+}
+
+/* 회피 애니메이션 */
+.dodge-motion {
+  animation: dodgeMotion 0.6s ease-out;
+}
+
+@keyframes dodgeMotion {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(-30px);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* CPU 우측 회피 애니메이션 */
+.enemy-digimon.dodging {
+  animation: dodgeRight 0.5s ease-out;
+}
+
+@keyframes dodgeRight {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateX(10px);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* MISS 텍스트 */
+.miss-text {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  font-weight: bold;
+  color: #ff6b6b;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  z-index: 30;
+  animation: missTextFloat 1s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes missTextFloat {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-50px);
+  }
+}
+
+/* 히트 마커 개선 */
+.hit-markers {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.hit-marker {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 3px solid #333;
+  background-color: transparent;
+  transition: all 0.4s ease;
+  position: relative;
+}
+
+.hit-marker.filled {
+  background-color: #ff4444;
+  border-color: #cc0000;
+  box-shadow: 0 0 12px rgba(255, 68, 68, 0.8), 0 0 20px rgba(255, 68, 68, 0.4);
+  animation: hitMarkerPulse 0.5s ease-out;
+}
+
+@keyframes hitMarkerPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 디지몬 정보 */
+.digimon-info {
+  text-align: center;
+  font-size: 14px;
+}
+
+.digimon-info p {
+  margin: 4px 0;
+}
+
+/* VS 텍스트 */
+.vs-text {
+  color: #666;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 배틀 로그 */
+.battle-log-container {
+  min-height: 100px;
+}
+
+.battle-log {
+  min-height: 30px;
+  padding: 10px;
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.battle-formula,
+.battle-roll {
+  padding: 5px 10px;
+  background-color: #e8f4f8;
+  border-left: 3px solid #4a90e2;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.battle-log-history {
+  font-family: monospace;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.battle-log-history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.battle-log-history::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.battle-log-history::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.battle-log-history::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* 배틀 로그 컬러링 */
+.battle-log-entry {
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.battle-log-entry.user-hit {
+  color: #16a34a;
+  background-color: rgba(34, 197, 94, 0.1);
+  border-left: 3px solid #16a34a;
+}
+
+.battle-log-entry.user-miss {
+  color: #ea580c;
+  background-color: rgba(251, 146, 60, 0.1);
+  border-left: 3px solid #ea580c;
+}
+
+.battle-log-entry.enemy-hit {
+  color: #dc2626;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-left: 3px solid #dc2626;
+}
+
+.battle-log-entry.enemy-miss {
+  color: #2563eb;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-left: 3px solid #2563eb;
+}
+
+.battle-log-entry.current-log {
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 로그 리뷰 화면 */
+.battle-log-review {
+  text-align: left;
+  font-family: monospace;
+}
+
+/* 결과 화면 */
+.battle-result {
+  padding: 20px;
+}
+
+/* 승리 모달 */
+.victory-modal {
+  z-index: 60;
+}
+
+.victory-modal > div {
+  min-width: 400px;
+  max-width: 500px;
+}
+
+/* 도트 감성 스타일 */
+.battle-screen,
+.battle-modal {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* 라운드 준비 모달 */
+.round-ready-modal {
+  z-index: 70;
+}
+
+.round-ready-modal > div {
+  min-width: 400px;
+  max-width: 500px;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .battle-area {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .battle-side {
+    width: 100%;
+  }
+
+  .vs-text {
+    transform: rotate(90deg);
+  }
+
+  .victory-modal > div {
+    min-width: 300px;
+    max-width: 90%;
+  }
+
+  .projectile.shoot-right {
+    animation: shootRightMobile 0.8s ease-out forwards;
+  }
+
+  .projectile.shoot-left {
+    animation: shootLeftMobile 0.8s ease-out forwards;
+  }
+
+  @keyframes shootRightMobile {
+    0% {
+      left: 10%;
+      opacity: 1;
+    }
+    100% {
+      left: 90%;
+      opacity: 0;
+    }
+  }
+
+  @keyframes shootLeftMobile {
+    0% {
+      left: 90%;
+      opacity: 1;
+    }
+    100% {
+      left: 10%;
+      opacity: 0;
+    }
+  }
+}

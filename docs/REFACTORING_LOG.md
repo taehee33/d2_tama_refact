@@ -4,7 +4,888 @@
 
 ---
 
-## [2024-12-19] Ver.1 퀘스트 모드 전체 데이터(Area 1~F) 및 엔진 구현
+## [2025-12-14] 퀘스트 선택 화면 Unlock 정보 표시(클리어 전 ??? 처리)
+
+### 작업 유형
+- UI/UX 개선
+- 정보 블라인드 처리
+
+### 목적 및 영향
+퀘스트 선택 화면에서 각 Area의 Unlock 조건을 표시하되, 클리어 전에는 "???"로 블라인드 처리하여 스포일러를 방지하고 게임의 재미를 높였습니다. 클리어 후에는 실제 Unlock 조건을 표시하여 사용자가 다음 목표를 파악할 수 있도록 했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx` (수정)
+  - **Unlock 정보 표시 추가**
+    - 상태 배지(CLEARED / Challenge!) 바로 아래에 Unlock 정보 표시
+    - `unlockCondition` 필드가 있을 때만 렌더링
+    - 조건부 렌더링:
+      - 클리어 전 (!isCleared): `Unlock: ???` (회색, 흐릿하게, opacity-50)
+      - 클리어 후 (isCleared): `Unlock: [unlockCondition 값]` (예: "Unlock: The Grid")
+    - 스타일링:
+      - 텍스트 크기: `text-xs`
+      - 색상: 클리어 전 `text-gray-400 opacity-50`, 클리어 후 `text-gray-600`
+      - 배지와의 간격: `mt-1`
+      - 우측 정렬: `text-right`
+
+### 주요 개선 사항
+
+#### 1. Unlock 정보 표시
+- 기존: Unlock 정보가 Area 이름 아래에 일반 텍스트로 표시
+- 개선: 상태 배지 아래에 조건부로 표시
+- 클리어 전/후에 따라 다른 스타일 적용
+
+#### 2. 블라인드 처리
+- 클리어 전: "Unlock: ???"로 표시하여 스포일러 방지
+- 클리어 후: 실제 Unlock 조건 표시하여 다음 목표 파악 가능
+
+#### 3. 시각적 피드백
+- 클리어 전: 흐릿한 회색 텍스트로 "알 수 없음" 느낌 강조
+- 클리어 후: 명확한 회색 텍스트로 정보 제공
+
+### 사용 흐름
+1. 퀘스트 선택 화면 진입
+2. 클리어하지 않은 Area: "Unlock: ???" 표시 (흐릿하게)
+3. 클리어한 Area: "Unlock: [조건]" 표시 (명확하게)
+4. 다음 목표 파악 가능
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx`
+
+---
+
+## [2025-12-14] 배틀 로그 용어(CPU) 통일 및 퀘스트 정보 블라인드(???) 처리
+
+### 작업 유형
+- UI/UX 개선
+- 용어 통일
+- 정보 보안(스포일러 방지)
+
+### 목적 및 영향
+배틀 로그에서 "Enemy" 또는 "적"으로 표시되던 용어를 "CPU"로 통일하여 일관성을 높였습니다. 또한 퀘스트 선택 화면에서 아직 클리어하지 않은 퀘스트의 적 정보를 "???"로 블라인드 처리하여 스포일러를 방지하고 게임의 재미를 높였습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (수정)
+  - **배틀 로그 용어 변경**
+    - `Hit Rate(Enemy)` → `Hit Rate(CPU)`
+    - `Roll(Enemy)` → `Roll(CPU)`
+    - `라운드 ${rounds}: 적 공격 성공!` → `라운드 ${rounds}: CPU 공격 성공!`
+    - `라운드 ${rounds}: 적 공격 실패` → `라운드 ${rounds}: CPU 공격 실패`
+
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx` (수정)
+  - **미공개 퀘스트 정보 블라인드 처리**
+    - `isCleared` 변수 추가: `index < clearedQuestIndex`
+    - 클리어 전 (!isCleared):
+      - 적 디지몬 스프라이트 대신 물음표 아이콘(❓) 표시
+      - Boss 이름을 "???"로 표시
+      - Area 이름은 그대로 유지 (단계는 알 수 있게)
+    - 클리어 후 (isCleared):
+      - 적 디지몬 스프라이트와 이름 정상 표시
+    - `digimonDataVer1` import 추가하여 스프라이트 조회
+
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.css` (새로 생성)
+  - **미공개 상태 스타일**
+    - `.unknown-quest-icon`: 물음표 아이콘 스타일
+      - 회색톤 (#9ca3af)
+      - 흐릿한 효과 (opacity 0.5, blur 1px)
+      - 호버 시 약간 선명해짐
+
+### 주요 개선 사항
+
+#### 1. 배틀 로그 용어 통일
+- 기존: "Enemy", "적" 혼용
+- 개선: "CPU"로 통일
+- 일관성 있는 사용자 경험 제공
+
+#### 2. 퀘스트 정보 블라인드 처리
+- 클리어 전: 적 정보 숨김 (스포일러 방지)
+- 클리어 후: 적 정보 공개 (재플레이 시 참고)
+- 게임의 재미와 긴장감 유지
+
+#### 3. 시각적 피드백
+- 물음표 아이콘으로 미공개 상태 명확히 표시
+- 흐릿한 효과로 "알 수 없음" 느낌 강조
+
+### 사용 흐름
+1. 퀘스트 선택 화면 진입
+2. 클리어하지 않은 Area: "???" 및 물음표 아이콘 표시
+3. 클리어한 Area: 적 디지몬 스프라이트와 이름 표시
+4. 배틀 로그: 모든 "Enemy"/"적" 용어가 "CPU"로 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.css`
+
+---
+
+## [2025-12-14] Meramon 스프라이트 수정 및 퀘스트 스테이지 선택(해금) 시스템 구현
+
+### 작업 유형
+- 데이터 수정
+- 게임 상태 관리
+- UI/UX 개선
+- 진행 시스템 구현
+
+### 목적 및 영향
+퀘스트 모드에 스테이지 선택 및 해금 시스템을 추가하여 사용자가 순차적으로 Area를 클리어하며 다음 스테이지를 해금할 수 있도록 개선했습니다. 또한 Meramon의 공격 스프라이트를 추가하여 배틀 연출을 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js` (수정)
+  - **Meramon 스프라이트 수정**
+    - ID 10번 Meramon의 `stats.attackSprite`를 `17`로 설정
+    - 기존: `attackSprite: null`
+    - 변경: `attackSprite: 17`
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - **게임 상태 관리**
+    - `clearedQuestIndex` 상태 추가 (0이면 Area 1 도전 가능, 1이면 Area 2 해금)
+    - 로컬 스토리지에 저장하여 새로고침 후에도 유지
+    - `useEffect`로 로컬 스토리지에서 로드 및 저장
+
+  - **퀘스트 관련 함수 추가**
+    - `handleQuestStart`: 퀘스트 선택 모달 표시
+    - `handleSelectArea`: 선택한 Area로 전투 시작
+    - `handleQuestComplete`: Area 클리어 시 다음 Area 해금
+
+  - **컴포넌트 추가**
+    - `QuestSelectionModal` import 및 렌더링
+    - `quests` 데이터 import
+
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx` (새로 생성)
+  - **퀘스트 선택 화면 구현**
+    - `quests` 배열을 그리드 형태로 표시
+    - Area 상태에 따른 UI:
+      - **Locked**: 인덱스가 `clearedQuestIndex`보다 크면 비활성화 (회색, 자물쇠 아이콘)
+      - **Open**: 인덱스가 `clearedQuestIndex`와 같으면 "Challenge!" 버튼 (활성화)
+      - **Cleared**: 인덱스가 `clearedQuestIndex`보다 작으면 "CLEARED" 뱃지 (다시하기 가능)
+    - Area 클릭 시 `onSelectArea(areaId)` 호출
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **전투 종료 및 해금 연결**
+    - `onQuestClear` prop 추가 (콜백 함수)
+    - 마지막 라운드(Boss) 승리 시:
+      - `handleNextBattle`에서 `onQuestClear()` 호출
+      - Exit 버튼 클릭 시에도 `onQuestClear()` 호출
+    - Area 클리어 시 다음 Area 해금 처리
+
+### 주요 개선 사항
+
+#### 1. Meramon 스프라이트 수정
+- 공격 스프라이트 추가로 배틀 연출 개선
+- `attackSprite: 17` 설정
+
+#### 2. 퀘스트 스테이지 선택 시스템
+- 순차적 해금 시스템 구현
+- 로컬 스토리지에 진행 상황 저장
+- 새로고침 후에도 진행 상황 유지
+
+#### 3. UI/UX 개선
+- 퀘스트 선택 모달로 Area 선택 가능
+- Locked/Open/Cleared 상태를 시각적으로 구분
+- 클리어한 Area는 다시 플레이 가능
+
+#### 4. 진행 시스템
+- Area 클리어 시 자동으로 다음 Area 해금
+- `clearedQuestIndex`로 진행 상황 추적
+
+### 사용 흐름
+1. 배틀 버튼 클릭 → 'Quest Mode' 선택
+2. 퀘스트 선택 모달 표시
+3. 해금된 Area 선택 → 전투 시작
+4. Area 클리어 → 다음 Area 자동 해금
+5. 새로고침 후에도 진행 상황 유지
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/QuestSelectionModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/data/v1/quests.js`
+
+---
+
+## [2025-12-14] 배틀 로그 가독성 개선(순서 변경 및 Bold 처리)
+
+### 작업 유형
+- UI/UX 개선
+- 로그 가독성 향상
+
+### 목적 및 영향
+배틀 로그의 가독성을 향상시키기 위해 로그 데이터 구조를 분리하고, 렌더링 순서를 변경하여 판정 결과를 더 명확하게 표시하도록 개선했습니다. 히트레이트 계산식과 판정 결과를 분리하여 사용자가 전투 과정을 더 쉽게 이해할 수 있게 했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (수정)
+  - **로그 데이터 구조 분리**
+    - 기존 `detail` 필드를 `comparison`으로 변경
+    - `formula`: 히트레이트 계산식 (예: `Hit Rate: ((30 * 100) / (30 + 15)) + 5 = 71.67%`)
+    - `comparison`: 판정 결과 수식 (예: `Hit Rate(User) 71.67 > Roll(User) 26.32 => HIT!! 💀`)
+    - 유저와 적 공격 모두에 적용
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **로그 렌더링 순서 및 스타일 수정**
+    - 렌더링 순서 변경:
+      1. 메인 메시지 (예: `[User] attacks!`)
+      2. `formula` (계산식) - 일반 텍스트
+      3. `comparison` (판정 결과) - **굵은 글씨 (font-weight: 700)**
+    - 하단 로그 창과 로그 리뷰 화면 모두에 적용
+    - 기존 `detail` 필드 제거, `comparison` 필드 사용
+
+### 주요 개선 사항
+
+#### 1. 로그 데이터 구조 분리
+- 기존: `detail` 필드 하나에 모든 정보 포함
+- 개선: `formula`와 `comparison`으로 분리
+  - `formula`: 히트레이트 계산 과정
+  - `comparison`: 최종 판정 결과
+
+#### 2. 렌더링 순서 변경
+- 기존: 메시지 → detail → formula
+- 개선: 메시지 → formula → comparison (Bold)
+- 판정 결과가 더 눈에 띄게 표시됨
+
+#### 3. 스타일 개선
+- `comparison` 필드를 Bold 처리 (font-weight: 700)
+- 계산식과 판정 결과를 시각적으로 구분
+- 가독성 향상
+
+### 사용 흐름
+1. 전투 진행 중 → 계산식 먼저 표시, 그 다음 판정 결과 (Bold)
+2. 로그 리뷰 → 동일한 순서와 스타일로 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+
+---
+
+## [2025-12-14] 배틀 로그 수식 상세화 및 CPU 우측 회피 구현
+
+### 작업 유형
+- UI/UX 개선
+- 애니메이션 추가
+- 로그 상세화
+
+### 목적 및 영향
+배틀 로그에 수학적 근거를 상세히 표시하여 사용자가 전투 결과를 더 명확하게 이해할 수 있도록 개선했습니다. 또한 유저의 공격이 빗나갔을 때 CPU(적) 디지몬이 오른쪽으로 회피하는 애니메이션을 추가하여 시각적 피드백을 강화했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (수정)
+  - **상세 로그 포맷팅**
+    - 로그 객체에 `detail` 필드 추가
+    - Hit(명중) 시: `Hit Rate(${attackerName}) ${hitRate} > Roll(${attackerName}) ${roll} => HIT!! 💀`
+    - Miss(빗나감) 시: `Hit Rate(${attackerName}) ${hitRate} <= Roll(${attackerName}) ${roll} => MISS...`
+    - 유저와 적 공격 모두에 적용
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **상세 로그 렌더링**
+    - 하단 로그 창: 메인 로그 메시지 아래에 `detail` 수식 표시
+    - 로그 리뷰 화면: 승리/패배 모달의 로그 리뷰에도 `detail` 표시
+    - 스타일: 작은 글씨, 연한 색상(opacity 0.8), 등폭(monospace) 폰트
+
+  - **CPU 회피 로직 적용**
+    - 유저 공격이 빗나갔을 때(attacker: "user", hit: false):
+      - CPU(적) 디지몬에 `.dodging` 클래스 추가
+      - 0.5초 후 클래스 제거
+      - 기존 `dodge-motion` 대신 `dodging` 클래스 사용
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **CPU 우측 회피 애니메이션**
+    - `@keyframes dodgeRight` 정의:
+      - 0%: 원위치
+      - 50%: 오른쪽으로 10px 이동, opacity 0.7
+      - 100%: 원위치로 복귀
+    - `.enemy-digimon.dodging` 클래스에 애니메이션 적용
+    - 애니메이션 시간: 0.5초
+
+### 주요 개선 사항
+
+#### 1. 배틀 로그 수식 상세화
+- 기존: 단순 메시지와 공식만 표시
+- 개선: Hit/Miss 판정의 수학적 근거를 명확히 표시
+  - 예: `Hit Rate(User) 37.50 > Roll(User) 25.30 => HIT!! 💀`
+  - 예: `Hit Rate(User) 37.50 <= Roll(User) 45.20 => MISS...`
+- 사용자가 왜 맞았는지/빗나갔는지 쉽게 이해 가능
+
+#### 2. CPU 우측 회피 애니메이션
+- 유저 공격이 빗나갔을 때 CPU가 오른쪽으로 회피
+- 기존 왼쪽 회피(`dodge-motion`)와 대칭되는 애니메이션
+- 더 자연스러운 전투 연출
+
+#### 3. 로그 렌더링 개선
+- 메인 메시지와 상세 수식을 시각적으로 구분
+- 등폭 폰트로 수식 가독성 향상
+- 연한 색상으로 계층 구조 명확화
+
+### 사용 흐름
+1. 전투 진행 중 → 상세 수식이 로그에 실시간 표시
+2. 유저 공격 빗나감 → CPU가 오른쪽으로 회피 애니메이션
+3. 로그 리뷰 → 상세 수식을 다시 확인 가능
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+
+---
+
+## [2025-12-14] 배틀 피드백 강화(해골 이모티콘, 로그 컬러링, 결과창 로그 리뷰)
+
+### 작업 유형
+- UI/UX 개선
+- 시각적 피드백 강화
+- 사용자 경험 개선
+
+### 목적 및 영향
+배틀 화면의 시각적 피드백을 강화하여 사용자가 전투 상황을 더 명확하게 파악할 수 있도록 개선했습니다. 타격 이펙트에 해골 이모티콘을 추가하고, 배틀 로그에 컬러링을 적용하여 공격자와 결과를 시각적으로 구분할 수 있게 했습니다. 또한 결과 화면에서 전투 로그를 다시 볼 수 있는 기능을 추가하여 사용자가 전투 결과를 분석할 수 있도록 했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **타격 텍스트 수정**
+    - "HIT!" → "💀💀!HIT!💀💀"로 변경
+    - 더 강렬한 시각적 피드백 제공
+
+  - **배틀 로그 컬러링**
+    - 로그 렌더링 시 공격자와 결과에 따라 클래스 추가:
+      - `user-hit`: 유저 공격 성공 → 초록색
+      - `user-miss`: 유저 공격 실패 → 주황색
+      - `enemy-hit`: 적 공격 성공 → 빨간색
+      - `enemy-miss`: 적 공격 실패 → 파란색
+    - 현재 진행 중인 로그는 `current-log` 클래스로 강조
+
+  - **로그 리뷰 기능 추가**
+    - `showLogReview` state 추가
+    - 승리/패배 모달에 [Review Log] 버튼 추가
+    - 로그 리뷰 화면:
+      - 전체 전투 로그 리스트 표시 (스크롤 가능)
+      - 각 로그에 컬러링 적용
+      - 계산 공식 및 Roll 결과 표시
+      - [Back] 버튼으로 결과 화면으로 복귀
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **배틀 로그 컬러링 스타일**
+    - `.battle-log-entry.user-hit`: 초록색 텍스트, 연한 초록 배경, 초록 테두리
+    - `.battle-log-entry.user-miss`: 주황색 텍스트, 연한 주황 배경, 주황 테두리
+    - `.battle-log-entry.enemy-hit`: 빨간색 텍스트, 연한 빨강 배경, 빨강 테두리
+    - `.battle-log-entry.enemy-miss`: 파란색 텍스트, 연한 파랑 배경, 파랑 테두리
+    - `.battle-log-entry.current-log`: 현재 로그 강조 (굵은 글씨, 그림자)
+
+  - **로그 리뷰 화면 스타일**
+    - `.battle-log-review`: 모노스페이스 폰트, 왼쪽 정렬
+    - 최대 높이 96 (max-h-96), 스크롤 가능
+
+### 주요 개선 사항
+
+#### 1. 타격 이펙트 강화
+- 기존: "HIT!" 텍스트
+- 개선: "💀💀!HIT!💀💀" 이모티콘 추가
+- 더 강렬하고 재미있는 시각적 피드백
+
+#### 2. 배틀 로그 컬러링
+- 공격자와 결과에 따라 색상 구분
+- 유저 성공: 초록색 (긍정적)
+- 유저 실패: 주황색 (중립적)
+- 적 성공: 빨간색 (부정적)
+- 적 실패: 파란색 (중립적)
+- 시각적으로 전투 흐름을 쉽게 파악 가능
+
+#### 3. 로그 리뷰 기능
+- 승리/패배 후 전투 로그를 다시 볼 수 있음
+- "왜 졌는지/이겼는지" 상세 분석 가능
+- 계산 공식과 Roll 결과를 다시 확인 가능
+- [Back] 버튼으로 결과 화면으로 복귀
+
+### 사용 흐름
+1. 전투 진행 중 → 컬러링된 로그로 실시간 확인
+2. 승리/패배 → [Review Log] 버튼 표시
+3. [Review Log] 클릭 → 전체 로그 리뷰 화면 표시
+4. [Back] 클릭 → 결과 화면으로 복귀
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+
+---
+
+## [2025-12-14] 배틀 라운드 시작 방식을 자동 애니메이션에서 수동 팝업으로 변경
+
+### 작업 유형
+- 성능 최적화
+- UX 개선
+- 애니메이션 제거
+
+### 목적 및 영향
+라운드 시작 시 자동으로 재생되던 오버레이 애니메이션이 렉을 유발하는 문제를 해결하기 위해, 자동 애니메이션을 제거하고 사용자가 직접 시작할 수 있는 준비 팝업으로 변경했습니다. 이를 통해 성능을 개선하고 사용자에게 더 나은 제어권을 제공합니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **기존 오버레이 제거**
+    - `showRoundStart` state 제거
+    - `roundStart` battleState 제거
+    - 자동으로 1.5~2초 후 전투 시작하는 로직 제거
+    - `round-start-overlay` JSX 제거
+
+  - **라운드 준비 모달 구현**
+    - `showReadyModal` state 추가
+    - `ready` battleState 추가
+    - 준비 모달 내용:
+      - 제목: "Round [N]" (예: Round 1)
+      - 부제목: "VS [적 디지몬 이름]"
+      - 버튼:
+        - [Start]: 팝업 닫고 전투 로그 재생 시작
+        - [Exit]: 배틀 종료하고 나가기
+    - `handleRoundStart()`: Start 버튼 핸들러
+    - `handleRoundExit()`: Exit 버튼 핸들러
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **기존 오버레이 스타일 제거**
+    - `.round-start-overlay` 제거
+    - `.round-start-text` 제거
+    - `roundStartFadeOut` 애니메이션 제거
+
+  - **준비 모달 스타일 추가**
+    - `.round-ready-modal`: 화면 중앙에 위치, 반투명 검정 배경
+    - `.round-ready-modal > div`: 깔끔한 박스 디자인 (기존 `.victory-modal > div`와 유사)
+    - 최소 너비 400px, 최대 너비 500px
+
+### 주요 개선 사항
+
+#### 1. 성능 최적화
+- 기존: 자동 애니메이션으로 인한 렉 발생
+- 개선: 애니메이션 제거로 성능 향상
+- 사용자가 직접 시작 버튼을 눌러야 하므로 불필요한 렌더링 방지
+
+#### 2. 사용자 제어권 향상
+- 기존: 자동으로 1.5~2초 후 전투 시작 (강제 대기)
+- 개선: 사용자가 준비되면 [Start] 버튼으로 즉시 시작 가능
+- [Exit] 버튼으로 언제든지 배틀 종료 가능
+
+#### 3. UX 개선
+- 명확한 라운드 정보 표시 (Round 번호, 적 이름)
+- 사용자가 배틀을 시작할 준비가 되었을 때 시작
+- 불필요한 대기 시간 제거
+
+### 사용 흐름
+1. 라운드 진입 → 배틀 결과 즉시 계산
+2. 준비 모달 표시 → "Round [N]" / "VS [적 이름]"
+3. 사용자 선택:
+   - [Start]: 전투 로그 재생 시작
+   - [Exit]: 배틀 종료
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+
+---
+
+## [2025-12-14] 배틀 UI 보정(Round Start, HIT 텍스트, 배지 위치)
+
+### 작업 유형
+- UI/UX 개선
+- 애니메이션 추가
+- 레이아웃 조정
+
+### 목적 및 영향
+배틀 화면의 사용자 경험을 개선하기 위해 라운드 시작 알림을 추가하고, 타격 이펙트를 스프라이트에서 텍스트로 변경하여 더 명확한 시각적 피드백을 제공했습니다. 또한 배지 위치를 조정하여 디지몬 스프라이트와 겹치지 않도록 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **라운드 시작 알림 구현**
+    - 배틀 진입 시 "Round [N] Start!" 오버레이 표시
+    - `showRoundStart` state 추가
+    - `battleState`에 "roundStart" 상태 추가
+    - 1.5~2초 후 오버레이가 사라지면서 전투 로그 재생 시작
+
+  - **타격 이펙트 변경**
+    - 기존 스프라이트 번갈아 보여주기 방식 제거
+    - 피격된 디지몬 머리 위에 "HIT!" 텍스트 표시
+    - `hitEffect` state를 `hitText` state로 변경
+    - MISS 텍스트와 유사한 방식으로 구현
+
+  - **발사체 방향 수정**
+    - 유저 발사체에 `transform: scaleX(-1)` 적용
+    - `user-projectile` 클래스 추가하여 유저 발사체만 좌우 반전
+
+  - **배지 텍스트 및 위치 수정**
+    - "ME" → "USER"로 변경
+    - 배지 위치를 `top: -30px`로 조정하여 디지몬 스프라이트와 겹치지 않도록 개선
+    - `margin-bottom: 10px` 추가
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **라운드 시작 오버레이 스타일**
+    - `.round-start-overlay`: 화면 중앙, 반투명 배경
+    - `.round-start-text`: 큰 글씨 (64px), 흰색, 그림자 효과
+    - `roundStartFadeOut` 애니메이션: 페이드 아웃 효과
+
+  - **타격 텍스트 스타일**
+    - `.hit-text`: "HIT!" 텍스트 스타일
+    - 빨간색, 굵은 폰트 (28px), 그림자 효과
+    - `hitTextBounce` 애니메이션: 위로 튀어오르며 사라지는 효과
+
+  - **배지 위치 조정**
+    - `.battle-badge`: `top: -30px`로 변경 (기존 -10px)
+    - `margin-bottom: 10px` 추가
+
+  - **발사체 스타일**
+    - `.projectile.user-projectile`: `transform: scaleX(-1)` 추가
+    - 유저 발사체만 좌우 반전 적용
+
+### 주요 개선 사항
+
+#### 1. 라운드 시작 알림
+- 배틀 진입 시 즉시 전투가 시작되지 않고 라운드 시작 알림 표시
+- 사용자가 배틀 시작을 명확히 인지할 수 있음
+- 1.5~2초 후 자동으로 전투 시작
+
+#### 2. 타격 이펙트 개선
+- 기존: 스프라이트 이미지 번갈아 표시 (복잡함)
+- 개선: "HIT!" 텍스트로 명확한 피드백
+- MISS 텍스트와 일관된 스타일
+
+#### 3. 발사체 방향 수정
+- 유저 발사체가 적을 향하도록 좌우 반전
+- 더 자연스러운 공격 연출
+
+#### 4. 배지 위치 조정
+- 디지몬 스프라이트와 겹치지 않도록 위쪽으로 이동
+- 시각적 가독성 향상
+
+### 애니메이션 타이밍
+- 라운드 시작 오버레이: 1.5~2초 (랜덤)
+- HIT! 텍스트: 1초
+- MISS 텍스트: 1초 (기존 유지)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+
+---
+
+## [2025-12-14] 배틀 연출 고도화(발사체, 타격감, 상세 로그)
+
+### 작업 유형
+- 애니메이션 시스템 전면 개편
+- UI/UX 개선
+- 배틀 로그 상세화
+
+### 목적 및 영향
+배틀 애니메이션을 Body Transformation 방식에서 Projectile Launch(발사체) 방식으로 전면 개편했습니다. 발사체가 날아가는 시각적 연출과 타격/회피 이펙트를 추가하여 배틀의 몰입감을 크게 향상시켰습니다. 또한 배틀 로그에 계산 공식을 포함시켜 사용자가 확률 계산을 이해할 수 있도록 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (전면 개편)
+  - **발사체 시스템 구현**
+    - 공격 시 디지몬 이미지를 교체하지 않고 별도의 `<img className="projectile" />` 요소 생성
+    - 유저 공격: 왼쪽에서 오른쪽으로 날아가는 애니메이션 (`shoot-right`)
+    - 적 공격: 오른쪽에서 왼쪽으로 날아가는 애니메이션 (`shoot-left`)
+    - 발사체 이미지는 `attackSprite` 사용 (없으면 기본 `sprite`)
+    - 발사체 비행 시간: 800ms
+
+  - **타격(Hit) 연출**
+    - 타격 시 상대방 디지몬 위에 타격 이펙트 오버레이 표시
+    - 2개의 스프라이트를 번갈아 보여주는 깜빡임 애니메이션 (`hit-flash-1`, `hit-flash-2`)
+    - 타격 이펙트 스프라이트 경로 상수 정의: `HIT_SPRITE_1`, `HIT_SPRITE_2` (나중에 실제 경로로 교체 가능)
+
+  - **회피(Miss) 연출**
+    - 발사체가 닿기 직전에 상대방이 뒤로 빠지거나 투명해지는 애니메이션 (`dodge-motion`)
+    - 상대방 머리 위에 "MISS" 텍스트가 위로 올라가며 사라지는 효과 (`missTextFloat`)
+
+  - **배틀 로그 상세화**
+    - 현재 턴의 계산 공식 표시 (`battle-formula`)
+    - Roll 결과 표시 (`battle-roll`)
+    - 전체 배틀 로그 히스토리에 각 턴의 상세 정보 포함
+
+  - **UI 텍스트 수정**
+    - 플레이어 배지: "YOU" → "ME"
+    - 적 배지: "CPU" 추가
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (전면 개편)
+  - **발사체 애니메이션**
+    - `.projectile.shoot-right`: 왼쪽에서 오른쪽으로 이동하는 애니메이션
+    - `.projectile.shoot-left`: 오른쪽에서 왼쪽으로 이동하는 애니메이션
+    - 발사체는 절대 위치로 배틀 영역 위에 오버레이
+
+  - **타격 이펙트 스타일**
+    - `.hit-effect`: 타격 이펙트 컨테이너 (절대 위치)
+    - `.hit-flash-1`, `.hit-flash-2`: 번갈아 깜빡이는 애니메이션
+
+  - **회피 애니메이션**
+    - `.dodge-motion`: 뒤로 빠지며 투명해지는 애니메이션
+    - `.miss-text`: "MISS" 텍스트가 위로 올라가며 사라지는 효과
+
+  - **배지 스타일**
+    - `.badge.me`: 파란색 계열 (기존 player-badge)
+    - `.badge.cpu`: 빨간색 계열 (새로 추가)
+
+  - **배틀 로그 스타일**
+    - `.battle-formula`: 계산 공식 표시 스타일 (파란색 테두리)
+    - `.battle-roll`: Roll 결과 표시 스타일
+
+  - **반응형 디자인**
+    - 모바일 환경에서 발사체 애니메이션 경로 조정
+
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (수정)
+  - **배틀 로그 상세화**
+    - 각 로그에 `formula` 필드 추가: 히트레이트 계산 공식 문자열
+    - 예: `"Hit Rate: ((30 * 100) / (30 + 50)) + 0 = 37.50%"`
+    - `roll` 필드는 기존에 있음 (유지)
+
+### 주요 개선 사항
+
+#### 1. 발사체 시스템
+- 기존: 디지몬 이미지를 공격 스프라이트로 교체
+- 개선: 별도의 발사체 이미지가 날아가는 시각적 연출
+- 효과: 더 명확한 공격 시각화, 몰입감 향상
+
+#### 2. 타격 연출
+- 타격 이펙트 오버레이로 명확한 피격 표시
+- 깜빡임 애니메이션으로 타격감 강화
+- 나중에 실제 타격 이펙트 스프라이트로 교체 가능
+
+#### 3. 회피 연출
+- 회피 애니메이션으로 회피 상황 명확히 표시
+- "MISS" 텍스트로 시각적 피드백 제공
+
+#### 4. 배틀 로그 상세화
+- 계산 공식 표시로 확률 계산 과정 투명화
+- Roll 결과 표시로 확률 검증 가능
+- 사용자가 배틀 결과를 더 잘 이해할 수 있음
+
+#### 5. UI 개선
+- "ME" / "CPU" 배지로 플레이어/적 구분 명확화
+- 배지 색상으로 시각적 구분 강화
+
+### 애니메이션 타이밍
+- 발사체 비행: 800ms
+- 타격 이펙트: 500ms
+- 회피 애니메이션: 600ms
+- MISS 텍스트: 1000ms
+- 전체 턴 간격: 1.5~2초 (랜덤)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js`
+
+---
+
+## [2025-12-14] 배틀 UX 개선(속도, 공격모션, 수동 진행, 좌우반전)
+
+### 작업 유형
+- UX/UI 개선
+- 애니메이션 개선
+- 흐름 제어 개선
+
+### 목적 및 영향
+배틀 시스템의 사용자 경험을 전면 개선했습니다. 전투 속도를 조절하고, 승리 시 자동 진행을 방지하여 사용자가 결과를 확인하고 선택할 수 있도록 했습니다. 또한 플레이어 디지몬을 좌우 반전시켜 적을 바라보게 하고, 공격 시 공격 스프라이트를 사용하도록 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **배틀 템포 개선**
+    - 턴 재생 속도를 1.5~2초로 조절 (랜덤하게 1500ms ~ 2000ms)
+    - 기존 1초에서 더 여유롭게 변경하여 사용자가 전투를 더 잘 관찰할 수 있도록 함
+
+  - **자동 진행 방지 및 결과 모달**
+    - 승리 시 `battleState`를 "victory"로 설정하여 자동 진행 방지
+    - 승리 모달(`victory-modal`) 표시:
+      - 일반 승리: "WIN!" 메시지 + [Next Battle] / [Exit] 버튼
+      - 퀘스트 클리어: "Quest Cleared!" 메시지 + [Exit] 버튼만 표시
+    - 패배 시 기존과 동일하게 "LOSE..." 메시지 표시
+
+  - **공격 모션 및 스프라이트**
+    - 공격 시 `attackSprite` 사용 (없으면 기본 `sprite` 사용)
+    - `currentSprite` state로 공격 중 스프라이트 관리
+    - 공격 애니메이션 종료 후 원래 스프라이트로 복원
+
+  - **플레이어 식별**
+    - 플레이어 디지몬 상단에 "YOU" 배지 추가
+    - 플레이어 디지몬 이미지 좌우 반전 (`scaleX(-1)`) 적용하여 적을 바라보게 함
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **플레이어 디지몬 좌우 반전**
+    - `.player-digimon img`, `.player-sprite`: `transform: scaleX(-1)` 적용
+    - 모든 애니메이션에서 좌우 반전 유지:
+      - `playerAttackLunge`: 공격 시 좌우 반전 유지하면서 돌진
+      - `playerShake`: 피격 시 좌우 반전 유지하면서 흔들림
+      - `playerDodgeBack`: 회피 시 좌우 반전 유지하면서 회피
+
+  - **플레이어 배지 스타일**
+    - `.battle-badge`, `.player-badge`: 파란색 배경, 흰색 텍스트, 그림자 효과
+    - 디지몬 상단에 절대 위치로 배치
+
+  - **히트 마커 개선**
+    - 크기 증가 (20px → 24px)
+    - 채워진 상태 시 발광 효과 강화 (box-shadow 증가)
+    - `hitMarkerPulse` 애니메이션 추가: 채워질 때 펄스 효과
+
+  - **승리 모달 스타일**
+    - `.victory-modal`: 오버레이 스타일 (z-index: 60)
+    - 버튼 2개 (Next Battle / Exit) 가로 배치
+    - 반응형 디자인 지원
+
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js` (수정)
+  - **attackSprite 필드 추가**
+    - 모든 디지몬의 `stats` 객체에 `attackSprite: null` 필드 추가
+    - 공격 스프라이트가 없으면 기본 `sprite` 사용
+    - JSDoc 주석에 `attackSprite` 필드 설명 추가
+
+### 주요 개선 사항
+
+#### 1. 배틀 템포 조절
+- 기존: 1초 간격으로 턴 재생
+- 개선: 1.5~2초 간격으로 랜덤하게 재생 (더 여유롭게 관찰 가능)
+
+#### 2. 자동 진행 방지
+- 기존: 승리 시 자동으로 다음 라운드로 진행
+- 개선: 승리 모달 표시 → 사용자가 [Next Battle] 또는 [Exit] 선택
+
+#### 3. 퀘스트 클리어 처리
+- 퀘스트 클리어 시 "Quest Cleared!" 메시지 표시
+- [Next Battle] 버튼 없이 [Exit] 버튼만 표시
+- 무한 루프 방지
+
+#### 4. 공격 모션 개선
+- 공격 시 `attackSprite` 사용 (있는 경우)
+- 공격 애니메이션 종료 후 원래 스프라이트로 복원
+- 돌진 거리 증가 (30px → 40px)
+
+#### 5. 플레이어 식별 개선
+- "YOU" 배지 추가로 플레이어 명확히 식별
+- 플레이어 디지몬 좌우 반전으로 적을 바라보게 함
+- 모든 애니메이션에서 좌우 반전 유지
+
+#### 6. 히트 마커 시각적 개선
+- 크기 증가 및 발광 효과 강화
+- 채워질 때 펄스 애니메이션 추가
+
+### 사용 흐름 개선
+1. 배틀 시작 → 전투 진행 (1.5~2초 간격)
+2. 승리 시 → 승리 모달 표시
+   - 일반 승리: [Next Battle] / [Exit] 선택
+   - 퀘스트 클리어: [Exit]만 표시
+3. 패배 시 → "LOSE..." 메시지 → 게임 화면 복귀
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+---
+
+## [2025-12-14] 배틀 모드 선택 및 턴제 전투 애니메이션 UI 구현
+
+### 작업 유형
+- UI 컴포넌트 구현
+- 전투 애니메이션 구현
+- 배틀 시스템 UI 통합
+
+### 목적 및 영향
+배틀 모드 선택 모달과 턴제 전투 화면을 구현했습니다. 사용자가 배틀 아이콘을 클릭하면 모달이 나타나고, 퀘스트 모드를 선택하면 실제 전투 화면이 표시됩니다. 전투는 엔진이 즉시 계산하지만, UI는 로그를 1초 간격으로 재생하여 시각적인 전투 연출을 제공합니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleSelectionModal.jsx` (신규 생성)
+  - **배틀 모드 선택 모달**
+    - [Quest Mode] 버튼: 클릭 시 `handleQuestStart()` 실행
+    - [Communication] 버튼: 비활성화 상태, 클릭 시 "아직 준비 중입니다!" 알림
+    - 닫기 버튼 포함
+    - 도트 감성 스타일링
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (신규 생성)
+  - **턴제 전투 화면**
+    - 레이아웃:
+      - 좌측: 유저 디지몬 (이미지, 이름, Power)
+      - 우측: 적 디지몬 (이미지, 이름, Power)
+      - 상단: 라운드 정보 (예: "Round 1 - Betamon")
+      - 중앙: 히트 마커 (양쪽에 빈 동그라미 3개, 맞을 때마다 채워짐)
+    - 전투 애니메이션:
+      - 공격 시: 공격자 이미지가 앞으로 튀어나가는 애니메이션 (`attackLunge`)
+      - 피격 시: 피해자 이미지가 흔들리는 애니메이션 (`shake`) + 히트 마커 채워짐
+      - 회피 시: 피해자가 뒤로 빠지거나 흐릿해지는 애니메이션 (`dodgeBack`)
+    - Replay 로직:
+      - `playQuestRound`가 반환한 `logs` 배열을 1초 간격으로 순회
+      - 각 로그에 따라 애니메이션 클래스 적용
+      - 히트 마커 실시간 업데이트
+    - 결과 처리:
+      - 승리 시: "WIN!" 메시지 + 다음 라운드 진행 버튼
+      - 패배 시: "LOSE..." 메시지 + 게임 화면 복귀 버튼
+      - Area 클리어 시: 보상 메시지 표시
+
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (신규 생성)
+  - **배틀 화면 스타일링**
+    - 도트 감성 스타일 (`image-rendering: pixelated`)
+    - 애니메이션 클래스:
+      - `.shake`: 흔들림 애니메이션 (피격 시)
+      - `.attack-lung` / `user-attack-hit`, `enemy-attack-hit`: 공격 애니메이션
+      - `.hit-flash`: 피격 깜빡임 애니메이션
+      - `.dodgeBack` / `user-attack-miss`, `enemy-attack-miss`: 회피 애니메이션
+    - 히트 마커 스타일:
+      - 빈 상태: 투명 배경, 검은 테두리
+      - 채워진 상태: 빨간 배경, 빨간 테두리, 발광 효과
+    - 반응형 디자인 지원
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - **배틀 시스템 통합**
+    - 배틀 관련 상태 추가:
+      - `showBattleSelectionModal`: 배틀 모드 선택 모달 표시 여부
+      - `showBattleScreen`: 배틀 스크린 표시 여부
+      - `currentQuestArea`: 현재 퀘스트 Area ID
+      - `currentQuestRound`: 현재 라운드 인덱스
+    - `handleMenuClick`: "battle" 케이스 추가 → 배틀 모드 선택 모달 표시
+    - `handleQuestStart()`: 퀘스트 시작 (Area 1부터 시작)
+    - `handleBattleComplete()`: 배틀 완료 처리
+      - 승리 시: 배틀 기록 업데이트 (`battles`, `battlesWon`, `battlesForEvolution` 증가)
+      - 패배 시: 배틀 기록 업데이트 (`battles`, `battlesLost` 증가)
+      - Area 클리어 시: 보상 메시지 표시 및 배틀 종료
+      - 다음 라운드로 진행 또는 게임 화면 복귀
+
+### 전투 애니메이션 상세
+
+#### 공격 애니메이션 (`attackLunge`)
+- 공격자가 앞으로 30px 이동 후 원위치
+- 0.5초 동안 실행
+
+#### 피격 애니메이션 (`shake`)
+- 피해자가 좌우로 흔들림 (-5px ~ +5px)
+- 0.5초 동안 실행
+- 히트 마커가 채워짐
+
+#### 회피 애니메이션 (`dodgeBack`)
+- 피해자가 뒤로 20px 이동하며 투명도 감소 (50%)
+- 0.5초 동안 실행
+
+### 히트 마커 시스템
+- 양쪽에 빈 동그라미 3개 표시
+- 명중 시 해당 마커가 빨간색으로 채워짐
+- 발광 효과로 시각적 피드백 제공
+- 먼저 3개를 채운 쪽이 승리
+
+### 배틀 로그 재생
+- 엔진이 즉시 계산한 결과를 `logs` 배열로 받음
+- 각 로그를 1초 간격으로 순회하며 애니메이션 재생
+- 로그 메시지 실시간 표시
+- 모든 로그 재생 완료 후 결과 화면 표시
+
+### 사용 흐름
+1. 사용자가 배틀 아이콘 클릭
+2. 배틀 모드 선택 모달 표시
+3. [Quest Mode] 버튼 클릭
+4. 배틀 스크린 표시 (Area 1, Round 0)
+5. 전투 애니메이션 재생 (1초 간격)
+6. 승리/패배 결과 표시
+7. 승리 시: 다음 라운드로 진행 또는 Area 클리어
+8. 패배 시: 게임 화면으로 복귀
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleSelectionModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+
+---
+
+## [2025-12-14] Ver.1 퀘스트 모드 전체 데이터(Area 1~F) 및 엔진 구현
 
 ### 작업 유형
 - 퀘스트 데이터 구현
@@ -149,7 +1030,7 @@ const areaResult = playQuestArea(
 
 ---
 
-## [2024-12-19] DMC 배틀 공식(HitRate + Type Advantage) 엔진 구현
+## [2025-12-14] DMC 배틀 공식(HitRate + Type Advantage) 엔진 구현
 
 ### 작업 유형
 - 배틀 시스템 구현
@@ -254,7 +1135,7 @@ console.log(result.log);       // 상세 로그 배열
 
 ---
 
-## [2024-12-19] Ver.1 전체 진화 트리 데이터 입력 (Baby I ~ Super Ultimate)
+## [2025-12-14] Ver.1 전체 진화 트리 데이터 입력 (Baby I ~ Super Ultimate)
 
 ### 작업 유형
 - 데이터 전면 업데이트
@@ -425,7 +1306,7 @@ console.log(result.log);       // 상세 로그 배열
 
 ---
 
-## [2024-12-19] Ver.1 성장기/성숙기 데이터 및 진화 조건 입력
+## [2025-12-14] Ver.1 성장기/성숙기 데이터 및 진화 조건 입력
 
 ### 작업 유형
 - 데이터 대량 추가
@@ -531,7 +1412,7 @@ Ver.1 진화 트리 이미지를 기반으로 성장기(Child)와 성숙기(Adul
 
 ---
 
-## [2024-12-19] Botamon/Koromon 초기 진화 데이터 입력
+## [2025-12-14] Botamon/Koromon 초기 진화 데이터 입력
 
 ### 작업 유형
 - 데이터 입력
@@ -645,7 +1526,7 @@ evolutions: [
 
 ---
 
-## [2024-12-19] 진화 상세 피드백 구현 및 Lifespan 버그 수정
+## [2025-12-14] 진화 상세 피드백 구현 및 Lifespan 버그 수정
 
 ### 작업 유형
 - 진화 로직 고도화
@@ -763,7 +1644,7 @@ evolutions: [
 
 ---
 
-## [2024-12-19] DMC 스타일 진화 판정 엔진 구현
+## [2025-12-14] DMC 스타일 진화 판정 엔진 구현
 
 ### 작업 유형
 - 진화 로직 구현
@@ -867,7 +1748,7 @@ if(evolutionTarget) {
 
 ---
 
-## [2024-12-19] 스탯 데이터 구조 확장(Energy, Overdose 등) 및 UI 반영
+## [2025-12-14] 스탯 데이터 구조 확장(Energy, Overdose 등) 및 UI 반영
 
 ### 작업 유형
 - 데이터 구조 확장
@@ -952,7 +1833,7 @@ if(evolutionTarget) {
 
 ---
 
-## [2024-12-19] 스탯 로직(Hunger/Strength) 모듈화 및 매뉴얼 규칙 적용
+## [2025-12-14] 스탯 로직(Hunger/Strength) 모듈화 및 매뉴얼 규칙 적용
 
 ### 작업 유형
 - 로직 모듈화
@@ -1066,7 +1947,7 @@ function applyEatResult(old, type) {
 
 ---
 
-## [2024-12-19] 데이터 소스 마이그레이션 (v1)
+## [2025-12-14] 데이터 소스 마이그레이션 (v1)
 
 ### 작업 유형
 - 데이터 소스 변경
@@ -1137,7 +2018,7 @@ Game.jsx에서 옛날 데이터 파일(`digimondata_digitalmonstercolor25th_ver1
 
 ---
 
-## [2024-12-19] 폴더 구조 재설계 및 매뉴얼 기반 데이터 스키마 정의
+## [2025-12-14] 폴더 구조 재설계 및 매뉴얼 기반 데이터 스키마 정의
 
 ### 작업 유형
 - 프로젝트 구조 재설계
@@ -1350,7 +2231,7 @@ src/
 
 ---
 
-## [2024-12-19] 클라이언트 타이머 도입 및 실시간 UI 업데이트 구현
+## [2025-12-14] 클라이언트 타이머 도입 및 실시간 UI 업데이트 구현
 
 ### 작업 유형
 - 실시간 UI 업데이트
@@ -1428,7 +2309,7 @@ src/
 
 ---
 
-## [2024-12-19] 데이터 저장 완료 후 페이지 이동 및 로딩 상태 관리 개선
+## [2025-12-14] 데이터 저장 완료 후 페이지 이동 및 로딩 상태 관리 개선
 
 ### 작업 유형
 - 비동기 로직 개선
@@ -1501,7 +2382,7 @@ src/
 
 ---
 
-## [2024-12-19] 전역 인증 상태 관리 개선 및 리디렉션 로직 정리
+## [2025-12-14] 전역 인증 상태 관리 개선 및 리디렉션 로직 정리
 
 ### 작업 유형
 - 인증 상태 관리 개선
@@ -1558,7 +2439,7 @@ AuthContext의 `onAuthStateChanged` 리스너를 활용하여 전역 인증 상�
 
 ---
 
-## [2024-12-19] Backend 폴더 제거 및 프로젝트 정리
+## [2025-12-14] Backend 폴더 제거 및 프로젝트 정리
 
 ### 작업 유형
 - 프로젝트 구조 정리
@@ -1637,7 +2518,7 @@ d2_tama_refact/
 
 ---
 
-## [2024-12-19] Google 로그인 계정 선택 강제 및 로그아웃 기능 추가
+## [2025-12-14] Google 로그인 계정 선택 강제 및 로그아웃 기능 추가
 
 ### 작업 유형
 - 기능 개선
@@ -1686,7 +2567,7 @@ d2_tama_refact/
 
 ---
 
-## [2024-12-19] Firebase/LocalStorage 이중 모드 지원 구현
+## [2025-12-14] Firebase/LocalStorage 이중 모드 지원 구현
 
 ### 작업 유형
 - 기능 추가
@@ -1749,7 +2630,7 @@ Game.jsx의 모든 저장 작업이 mode 값에 따라 분기 처리됩니다:
 
 ---
 
-## [2024-12-19] localStorage 완전 제거 및 Firestore 전용 전환
+## [2025-12-14] localStorage 완전 제거 및 Firestore 전용 전환
 
 ### 작업 유형
 - 코드 리팩토링
@@ -1828,7 +2709,7 @@ users/{uid}/slots/{slotId}
 
 ---
 
-## [2024-12-19] Firebase Google 로그인 및 Firestore 직접 연동 구현
+## [2025-12-14] Firebase Google 로그인 및 Firestore 직접 연동 구현
 
 ### 작업 유형
 - 인증 시스템 구현
@@ -1901,7 +2782,7 @@ users/
 
 ---
 
-## [2024-12-19] localStorage → Firestore 직접 호출 리팩토링
+## [2025-12-14] localStorage → Firestore 직접 호출 리팩토링
 
 ### 작업 유형
 - 데이터 저장소 마이그레이션
@@ -1941,7 +2822,7 @@ users/{userId}/slots/{slotId}
 
 ---
 
-## [2024-12-19] Lazy Update 로직 구현 (node-cron 제거)
+## [2025-12-14] Lazy Update 로직 구현 (node-cron 제거)
 
 ### 작업 유형
 - 아키텍처 변경

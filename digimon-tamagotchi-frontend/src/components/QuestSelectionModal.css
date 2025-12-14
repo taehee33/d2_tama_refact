@@ -1,0 +1,14 @@
+/* QuestSelectionModal.css */
+.unknown-quest-icon {
+  font-size: 4rem;
+  color: #9ca3af;
+  opacity: 0.5;
+  filter: blur(1px);
+  transition: all 0.3s ease;
+}
+
+.unknown-quest-icon:hover {
+  opacity: 0.7;
+  filter: blur(0.5px);
+}
+

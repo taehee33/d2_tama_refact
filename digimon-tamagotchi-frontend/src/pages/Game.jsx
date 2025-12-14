@@ -11,6 +11,10 @@ import StatsPopup from "../components/StatsPopup";
 import FeedPopup from "../components/FeedPopup";
 import SettingsModal from "../components/SettingsModal";
 import MenuIconButtons from "../components/MenuIconButtons";
+import BattleSelectionModal from "../components/BattleSelectionModal";
+import BattleScreen from "../components/BattleScreen";
+import QuestSelectionModal from "../components/QuestSelectionModal";
+import { quests } from "../data/v1/quests";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats";
@@ -126,6 +130,14 @@ function Game(){
   // ★ (B) 훈련 팝업
   const [showTrainPopup, setShowTrainPopup]= useState(false);
 
+  // 배틀 관련 상태
+  const [showBattleSelectionModal, setShowBattleSelectionModal] = useState(false);
+  const [showBattleScreen, setShowBattleScreen] = useState(false);
+  const [currentQuestArea, setCurrentQuestArea] = useState(null);
+  const [currentQuestRound, setCurrentQuestRound] = useState(0);
+  const [clearedQuestIndex, setClearedQuestIndex] = useState(0); // 0이면 Area 1 도전 가능, 1이면 Area 2 해금...
+  const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false);
+
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
 
@@ -240,6 +252,19 @@ function Game(){
 
     loadSlot();
   },[slotId, currentUser, navigate, isFirebaseAvailable, mode]);
+
+  // clearedQuestIndex 로컬 스토리지에서 로드
+  useEffect(() => {
+    const savedClearedQuestIndex = localStorage.getItem(`slot${slotId}_clearedQuestIndex`);
+    if (savedClearedQuestIndex !== null) {
+      setClearedQuestIndex(parseInt(savedClearedQuestIndex, 10));
+    }
+  }, [slotId]);
+
+  // clearedQuestIndex 로컬 스토리지에 저장
+  useEffect(() => {
+    localStorage.setItem(`slot${slotId}_clearedQuestIndex`, clearedQuestIndex.toString());
+  }, [clearedQuestIndex, slotId]);
 
   // (2) 시계만 업데이트 (스탯은 Lazy Update로 처리)
   useEffect(()=>{
@@ -700,8 +725,65 @@ function Game(){
       case "train":
         setShowTrainPopup(true);
         break;
+      case "battle":
+        setShowBattleSelectionModal(true);
+        break;
       default:
         console.log("menu:", menu);
+    }
+  };
+
+  // 퀘스트 시작 핸들러
+  const handleQuestStart = () => {
+    // 퀘스트 선택 모달 표시
+    setShowQuestSelectionModal(true);
+  };
+
+  const handleSelectArea = (areaId) => {
+    setCurrentQuestArea(areaId);
+    setCurrentQuestRound(0);
+    setShowQuestSelectionModal(false);
+    setShowBattleScreen(true);
+  };
+
+  const handleQuestComplete = () => {
+    // 현재 깬 Area가 clearedQuestIndex와 같으면 다음 Area 해금
+    const currentAreaIndex = quests.findIndex(q => q.areaId === currentQuestArea);
+    if (currentAreaIndex === clearedQuestIndex) {
+      setClearedQuestIndex(prev => prev + 1);
+    }
+  };
+
+  // 배틀 완료 핸들러
+  const handleBattleComplete = (battleResult) => {
+    if (battleResult.win) {
+      // 승리 시 배틀 기록 업데이트
+      const updatedStats = {
+        ...digimonStats,
+        battles: (digimonStats.battles || 0) + 1,
+        battlesWon: (digimonStats.battlesWon || 0) + 1,
+        battlesForEvolution: (digimonStats.battlesForEvolution || 0) + 1,
+      };
+      setDigimonStatsAndSave(updatedStats);
+
+      // Area 클리어 확인
+      if (battleResult.isAreaClear) {
+        alert(battleResult.reward || "Area 클리어!");
+        setShowBattleScreen(false);
+        setCurrentQuestArea(null);
+        setCurrentQuestRound(0);
+      } else {
+        // 다음 라운드로 진행
+        setCurrentQuestRound(prev => prev + 1);
+      }
+    } else {
+      // 패배 시 배틀 기록 업데이트
+      const updatedStats = {
+        ...digimonStats,
+        battles: (digimonStats.battles || 0) + 1,
+        battlesLost: (digimonStats.battlesLost || 0) + 1,
+      };
+      setDigimonStatsAndSave(updatedStats);
     }
   };
 
@@ -891,6 +973,45 @@ function Game(){
           digimonStats={digimonStats}
           setDigimonStatsAndSave={setDigimonStatsAndSave}
           onTrainResult={handleTrainResult}
+        />
+      )}
+
+      {/* 배틀 모드 선택 모달 */}
+      {showBattleSelectionModal && (
+        <BattleSelectionModal
+          onClose={() => setShowBattleSelectionModal(false)}
+          onQuestStart={handleQuestStart}
+        />
+      )}
+
+      {/* 퀘스트 선택 모달 */}
+      {showQuestSelectionModal && (
+        <QuestSelectionModal
+          quests={quests}
+          clearedQuestIndex={clearedQuestIndex}
+          onSelectArea={handleSelectArea}
+          onClose={() => setShowQuestSelectionModal(false)}
+        />
+      )}
+
+      {/* 배틀 스크린 */}
+      {showBattleScreen && currentQuestArea && (
+        <BattleScreen
+          userDigimon={newDigimonDataVer1[selectedDigimon] || {
+            id: selectedDigimon,
+            name: selectedDigimon,
+            stats: digimonDataVer1[selectedDigimon] || {},
+          }}
+          userStats={digimonStats}
+          areaId={currentQuestArea}
+          roundIndex={currentQuestRound}
+          onBattleComplete={handleBattleComplete}
+          onQuestClear={handleQuestComplete}
+          onClose={() => {
+            setShowBattleScreen(false);
+            setCurrentQuestArea(null);
+            setCurrentQuestRound(0);
+          }}
         />
       )}
     </div>

@@ -20,6 +20,7 @@
  * @property {number} stats.minWeight - 최소 체중
  * @property {string} stats.type - 속성 ("Vaccine", "Data", "Virus", "Free" 또는 null)
  * @property {string} stats.sleepTime - 수면 시간 (HH:MM 형식)
+ * @property {number} stats.attackSprite - 공격 스프라이트 번호 (공격 시 사용, null이면 기본 sprite 사용)
  * @property {Object} evolutionCriteria - 진화 조건
  * @property {Array} evolutions - 진화 경로 배열
  */
@@ -41,6 +42,7 @@ export const digimonDataVer1 = {
       minWeight: 0,
       type: null,
       sleepTime: null,
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: null, // 진화 불가
     evolutions: [],
@@ -60,6 +62,7 @@ export const digimonDataVer1 = {
       minWeight: 0,
       type: null,
       sleepTime: null,
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: null, // 진화 불가
     evolutions: [],
@@ -81,6 +84,7 @@ export const digimonDataVer1 = {
       minWeight: 0,
       type: null,
       sleepTime: null,
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
       // 8초 후 자동 진화
@@ -113,7 +117,9 @@ export const digimonDataVer1 = {
       maxEnergy: 0, // Energy: 0
       minWeight: 5, // Min Weight: 5
       type: "Free", // Free
-      sleepTime: null, // Sleep: null
+      sleepTime: null,
+      attackSprite: 1, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: null
+      //attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
       // 10분 후 진화
@@ -146,7 +152,8 @@ export const digimonDataVer1 = {
       maxEnergy: 0, // Energy: 0
       minWeight: 10, // Min Weight: 10
       type: "Free", // Free
-      sleepTime: "20:00", // Sleep: 20:00
+      sleepTime: "20:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
     },
     evolutionCriteria: {
       // 12시간 후 진화
@@ -187,7 +194,9 @@ export const digimonDataVer1 = {
       maxEnergy: 20, // Energy: 20
       minWeight: 20, // Min Weight: 20
       type: "Vaccine", // Vaccine
-      sleepTime: "20:00", // Sleep: 20:00
+      sleepTime: "20:00",
+      attackSprite: 4, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
+      //attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
       // 24시간 후 진화
@@ -261,7 +270,8 @@ export const digimonDataVer1 = {
       maxEnergy: 20, // Energy: 20
       minWeight: 20, // Min Weight: 20
       type: "Virus", // Virus
-      sleepTime: "21:00", // Sleep: 21:00
+      sleepTime: "21:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
       // 24시간 후 진화
@@ -335,7 +345,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
       type: "Vaccine", // Vaccine
-      sleepTime: "21:00", // Sleep: 21:00
+      sleepTime: "21:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -361,7 +372,7 @@ export const digimonDataVer1 = {
     id: "Devimon",
     name: "Devimon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 300, // TODO: Check actual sprite
     stats: {
       hungerCycle: 48, // Hunger Loss: 48 Minutes
       strengthCycle: 48, // Strength Loss: 48 Minutes
@@ -371,7 +382,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 40, // Min Weight: 40
       type: "Virus", // Virus
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -397,7 +409,7 @@ export const digimonDataVer1 = {
     id: "Airdramon",
     name: "Airdramon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 330, // TODO: Check actual sprite
     stats: {
       hungerCycle: 38, // Hunger Loss: 38 Minutes
       strengthCycle: 38, // Strength Loss: 38 Minutes
@@ -407,7 +419,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
       type: "Vaccine", // Vaccine
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -433,7 +446,7 @@ export const digimonDataVer1 = {
     id: "Numemon",
     name: "Numemon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 360, // TODO: Check actual sprite
     stats: {
       hungerCycle: 28, // Hunger Loss: 28 Minutes
       strengthCycle: 28, // Strength Loss: 28 Minutes
@@ -443,7 +456,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 10, // Min Weight: 10
       type: "Virus", // Virus
-      sleepTime: "00:00", // Sleep: 00:00
+      sleepTime: "00:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -469,7 +483,7 @@ export const digimonDataVer1 = {
     id: "Tyranomon",
     name: "Tyranomon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 290, // TODO: Check actual sprite
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes
@@ -479,7 +493,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 20, // Min Weight: 20
       type: "Data", // Data
-      sleepTime: "22:00", // Sleep: 22:00
+      sleepTime: "22:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 22:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -505,7 +520,7 @@ export const digimonDataVer1 = {
     id: "Meramon",
     name: "Meramon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 315, // TODO: Check actual sprite
     stats: {
       hungerCycle: 48, // Hunger Loss: 48 Minutes
       strengthCycle: 48, // Strength Loss: 48 Minutes
@@ -515,7 +530,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
       type: "Data", // Data
-      sleepTime: "00:00", // Sleep: 00:00
+      sleepTime: "00:00",
+      attackSprite: 17, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -541,7 +557,7 @@ export const digimonDataVer1 = {
     id: "Seadramon",
     name: "Seadramon",
     stage: "Adult",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 330, // TODO: Check actual sprite
     stats: {
       hungerCycle: 38, // Hunger Loss: 38 Minutes
       strengthCycle: 38, // Strength Loss: 38 Minutes
@@ -551,7 +567,8 @@ export const digimonDataVer1 = {
       maxEnergy: 30, // Energy: 30
       minWeight: 20, // Min Weight: 20
       type: "Data", // Data
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -577,7 +594,7 @@ export const digimonDataVer1 = {
     id: "MetalGreymonVirus",
     name: "Metal Greymon (Virus)",
     stage: "Perfect",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 375, // TODO: Check actual sprite
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes
@@ -587,7 +604,8 @@ export const digimonDataVer1 = {
       maxEnergy: 40, // Energy: 40
       minWeight: 40, // Min Weight: 40
       type: "Virus", // Virus
-      sleepTime: "20:00", // Sleep: 20:00
+      sleepTime: "20:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -617,7 +635,7 @@ export const digimonDataVer1 = {
     id: "Monzaemon",
     name: "Monzaemon",
     stage: "Perfect",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 405, // TODO: Check actual sprite
     stats: {
       hungerCycle: 48, // Hunger Loss: 48 Minutes
       strengthCycle: 48, // Strength Loss: 48 Minutes
@@ -627,7 +645,8 @@ export const digimonDataVer1 = {
       maxEnergy: 40, // Energy: 40
       minWeight: 40, // Min Weight: 40
       type: "Vaccine", // Vaccine
-      sleepTime: "21:00", // Sleep: 21:00
+      sleepTime: "21:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -657,7 +676,7 @@ export const digimonDataVer1 = {
     id: "Mamemon",
     name: "Mamemon",
     stage: "Perfect",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 390, // TODO: Check actual sprite
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes
@@ -667,7 +686,8 @@ export const digimonDataVer1 = {
       maxEnergy: 40, // Energy: 40
       minWeight: 5, // Min Weight: 5
       type: "Data", // Data
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -697,7 +717,7 @@ export const digimonDataVer1 = {
     id: "BlitzGreymon",
     name: "Blitz Greymon",
     stage: "Ultimate",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 420, // TODO: Check actual sprite
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes
@@ -707,7 +727,8 @@ export const digimonDataVer1 = {
       maxEnergy: 50, // Energy: 50
       minWeight: 50, // Min Weight: 50
       type: "Virus", // Virus
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 조그레스 진화
@@ -730,7 +751,7 @@ export const digimonDataVer1 = {
     id: "ShinMonzaemon",
     name: "Shin Monzaemon",
     stage: "Ultimate",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 450, // TODO: Check actual sprite
     stats: {
       hungerCycle: 48, // Hunger Loss: 48 Minutes
       strengthCycle: 48, // Strength Loss: 48 Minutes
@@ -740,7 +761,8 @@ export const digimonDataVer1 = {
       maxEnergy: 50, // Energy: 50
       minWeight: 40, // Min Weight: 40
       type: "Vaccine", // Vaccine
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
@@ -751,7 +773,7 @@ export const digimonDataVer1 = {
     id: "BanchoMamemon",
     name: "Bancho Mamemon",
     stage: "Ultimate",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 435, // TODO: Check actual sprite
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes
@@ -761,7 +783,8 @@ export const digimonDataVer1 = {
       maxEnergy: 50, // Energy: 50
       minWeight: 5, // Min Weight: 5
       type: "Data", // Data
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
@@ -772,7 +795,7 @@ export const digimonDataVer1 = {
     id: "OmegamonAlterS",
     name: "Omegamon Alter-S",
     stage: "Super Ultimate",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 465, // TODO: Check actual sprite
     stats: {
       hungerCycle: 66, // Hunger Loss: 66 Minutes
       strengthCycle: 66, // Strength Loss: 66 Minutes
@@ -782,7 +805,8 @@ export const digimonDataVer1 = {
       maxEnergy: 50, // Energy: 50
       minWeight: 40, // Min Weight: 40
       type: "Virus", // Virus
-      sleepTime: "23:00", // Sleep: 23:00
+      sleepTime: "23:00",
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
@@ -793,7 +817,7 @@ export const digimonDataVer1 = {
     id: "CresGarurumon",
     name: "Cres Garurumon",
     stage: "Ultimate",
-    sprite: 0, // TODO: Check actual sprite
+    sprite: 480, // TODO: Check actual sprite
     stats: {
       hungerCycle: 0, // Placeholder
       strengthCycle: 0, // Placeholder
@@ -803,7 +827,8 @@ export const digimonDataVer1 = {
       maxEnergy: 0, // Placeholder
       minWeight: 0, // Placeholder
       type: null, // Placeholder
-      sleepTime: null, // Placeholder
+      sleepTime: null,
+      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Placeholder
     },
     evolutionCriteria: null, // Jogress 파트너용
     evolutions: [], // Jogress 파트너용

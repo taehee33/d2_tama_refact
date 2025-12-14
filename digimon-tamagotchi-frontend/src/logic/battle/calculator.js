@@ -67,6 +67,10 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
   // 히트레이트 계산
   const userHitRate = calculateHitRate(userPower, enemyPower, userAttrBonus);
   const enemyHitRate = calculateHitRate(enemyPower, userPower, enemyAttrBonus);
+  
+  // 계산 공식 문자열 생성
+  const userFormula = `Hit Rate: ((${userPower} * 100) / (${userPower} + ${enemyPower})) + ${userAttrBonus} = ${userHitRate.toFixed(2)}%`;
+  const enemyFormula = `Hit Rate: ((${enemyPower} * 100) / (${enemyPower} + ${userPower})) + ${enemyAttrBonus} = ${enemyHitRate.toFixed(2)}%`;
 
   // 배틀 진행 (최대 100라운드로 제한하여 무한 루프 방지)
   while (userHits < 3 && enemyHits < 3 && rounds < 100) {
@@ -85,6 +89,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         hit: true,
         roll: userRoll.toFixed(2),
         hitRate: userHitRate.toFixed(2),
+        formula: userFormula,
+        comparison: `Hit Rate(User) ${userHitRate.toFixed(2)} > Roll(User) ${userRoll.toFixed(2)} => HIT!! 💀`,
         message: `라운드 ${rounds}: 유저 공격 성공! (${userHits}/3)`,
       });
     } else {
@@ -95,6 +101,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         hit: false,
         roll: userRoll.toFixed(2),
         hitRate: userHitRate.toFixed(2),
+        formula: userFormula,
+        comparison: `Hit Rate(User) ${userHitRate.toFixed(2)} <= Roll(User) ${userRoll.toFixed(2)} => MISS...`,
         message: `라운드 ${rounds}: 유저 공격 실패`,
       });
     }
@@ -117,7 +125,9 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         hit: true,
         roll: enemyRoll.toFixed(2),
         hitRate: enemyHitRate.toFixed(2),
-        message: `라운드 ${rounds}: 적 공격 성공! (${enemyHits}/3)`,
+        formula: enemyFormula,
+        comparison: `Hit Rate(CPU) ${enemyHitRate.toFixed(2)} > Roll(CPU) ${enemyRoll.toFixed(2)} => HIT!! 💀`,
+        message: `라운드 ${rounds}: CPU 공격 성공! (${enemyHits}/3)`,
       });
     } else {
       log.push({
@@ -127,7 +137,9 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         hit: false,
         roll: enemyRoll.toFixed(2),
         hitRate: enemyHitRate.toFixed(2),
-        message: `라운드 ${rounds}: 적 공격 실패`,
+        formula: enemyFormula,
+        comparison: `Hit Rate(CPU) ${enemyHitRate.toFixed(2)} <= Roll(CPU) ${enemyRoll.toFixed(2)} => MISS...`,
+        message: `라운드 ${rounds}: CPU 공격 실패`,
       });
     }
 
