@@ -27,6 +27,9 @@ import { handleHungerTick, feedMeat, willRefuseMeat } from "../logic/stats/hunge
 import { handleStrengthTick, feedProtein, willRefuseProtein } from "../logic/stats/strength";
 // 매뉴얼 기반 진화 판정 로직 import
 import { checkEvolution, findEvolutionTarget } from "../logic/evolution/checker";
+// 훈련 로직 (Ver1) import
+import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
+import TrainPopup from "../components/TrainPopup";
 
 // 호환성을 위해 새 데이터를 옛날 형식으로 변환
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
@@ -39,11 +42,7 @@ if (process.env.NODE_ENV === 'development') {
     '새 데이터 Botamon 예시': newDigimonDataVer1['Botamon'],
     '변환된 데이터 Botamon 예시': digimonDataVer1['Botamon'],
   });
-}
-
-// ★ (A) 훈련 로직 (Ver1) import
-import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
-import TrainPopup from "../components/TrainPopup"; 
+} 
 
 // 예시: Ver1 디지몬 목록
 const ver1DigimonList = [
