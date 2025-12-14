@@ -4,6 +4,84 @@
 
 ---
 
+## [2024-12-19] 클라이언트 타이머 도입 및 실시간 UI 업데이트 구현
+
+### 작업 유형
+- 실시간 UI 업데이트
+- 클라이언트 사이드 타이머 구현
+- 사용자 경험 개선
+
+### 목적 및 영향
+사용자가 게임을 플레이하는 동안 Time to Evolve, Lifespan, Waste(똥) 등의 시간 관련 스탯이 실시간으로 업데이트되도록 클라이언트 타이머를 도입했습니다:
+- 1초마다 UI가 실시간으로 업데이트되어 사용자가 시간 경과를 즉시 확인 가능
+- 똥이 실시간으로 쌓이는 모습을 UI에 반영
+- Firestore 쓰기 작업은 사용자 액션 시에만 실행하여 비용 절감
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - **updateLifespan import 추가**: `stats.js`에서 `updateLifespan` 함수 import
+  - **클라이언트 타이머 구현**: `useEffect`와 `setInterval`을 사용하여 1초마다 UI 업데이트
+  - **함수형 업데이트 사용**: `setDigimonStats`에 함수형 업데이트를 사용하여 최신 상태 참조
+  - **사망 상태 체크**: 사망한 경우 타이머 중지
+  - **메모리 누수 방지**: `useEffect` cleanup 함수에서 `clearInterval` 호출
+
+### 주요 변경사항
+
+#### Game.jsx - 클라이언트 타이머 구현
+- **타이머 설정**: `useEffect` 내에서 `setInterval`로 1초마다 실행되는 타이머 생성
+- **updateLifespan 호출**: 매초 `updateLifespan(prevStats, 1)` 호출하여 1초 경과 처리
+- **실시간 UI 업데이트**: 
+  - `lifespanSeconds` 증가
+  - `timeToEvolveSeconds` 감소
+  - `fullness` 감소 (hungerTimer에 따라)
+  - `health` 감소 (strengthTimer에 따라)
+  - `poopCount` 증가 (poopTimer에 따라)
+- **사망 감지**: 사망 상태 변경 시 `setShowDeathConfirm(true)` 호출
+- **메모리 상태만 업데이트**: Firestore 쓰기 작업 없이 메모리 상태만 업데이트
+
+#### stats.js - updateLifespan 함수 활용
+- 기존 `updateLifespan` 함수를 활용하여 1초 경과 처리
+- 배고픔, 건강, 똥(poop) 누적 로직이 이미 구현되어 있음
+- 사망 조건 처리 포함
+
+### 타이머 동작 방식
+1. **타이머 시작**: 컴포넌트 마운트 시 `useEffect` 실행
+2. **1초마다 실행**: `setInterval`로 1초마다 콜백 함수 실행
+3. **상태 업데이트**: `updateLifespan`으로 1초 경과 처리 후 `setDigimonStats` 호출
+4. **UI 반영**: React가 상태 변경을 감지하여 UI 자동 업데이트
+5. **타이머 정리**: 컴포넌트 언마운트 시 `clearInterval`로 타이머 제거
+
+### 실시간 업데이트 항목
+- **Time to Evolve**: 매초 1초씩 감소
+- **Lifespan**: 매초 1초씩 증가
+- **Fullness**: `hungerTimer`에 따라 주기적으로 감소
+- **Health**: `strengthTimer`에 따라 주기적으로 감소
+- **Poop Count**: `poopTimer`에 따라 주기적으로 증가 (최대 8개)
+- **Care Mistakes**: 똥이 8개인 상태로 8시간 경과 시 증가
+
+### Firestore 쓰기 전략
+- **클라이언트 타이머**: 메모리 상태만 업데이트 (Firestore 쓰기 없음)
+- **사용자 액션**: 먹이주기, 훈련하기, 진화하기, 청소하기 등 액션 시에만 Firestore에 저장
+- **비용 절감**: 매초 Firestore 쓰기를 하지 않아 비용 절감 및 성능 향상
+
+### 메모리 누수 방지
+- **useEffect cleanup**: 컴포넌트 언마운트 시 `clearInterval(timer)` 호출
+- **사망 시 중지**: `digimonStats.isDead`가 true일 때 타이머 중지
+- **함수형 업데이트**: `setDigimonStats`에 함수형 업데이트를 사용하여 최신 상태 참조
+
+### 사용자 경험 개선
+- **실시간 피드백**: 시간 경과를 즉시 확인 가능
+- **시각적 효과**: 똥이 실시간으로 쌓이는 모습을 UI에 반영
+- **반응성 향상**: 1초마다 UI가 업데이트되어 게임이 살아있는 느낌 제공
+
+### 참고사항
+- `updateLifespan` 함수는 `stats.js`에 이미 구현되어 있어 재사용
+- Firestore 쓰기는 사용자 액션 시에만 실행되므로 비용 효율적
+- 함수형 업데이트를 사용하여 타이머가 매초 재설정되지 않도록 최적화
+- 사망한 디지몬은 타이머가 중지되어 불필요한 업데이트 방지
+
+---
+
 ## [2024-12-19] 데이터 저장 완료 후 페이지 이동 및 로딩 상태 관리 개선
 
 ### 작업 유형

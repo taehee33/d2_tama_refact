@@ -13,7 +13,7 @@ import SettingsModal from "../components/SettingsModal";
 import MenuIconButtons from "../components/MenuIconButtons";
 
 import digimonAnimations from "../data/digimonAnimations";
-import { initializeStats, applyLazyUpdate } from "../data/stats";
+import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats";
 import { digimonDataVer1 } from "../data/digimondata_digitalmonstercolor25th_ver1";
 import { evolutionConditionsVer1 } from "../data/evolution_digitalmonstercolor25th_ver1";
 
@@ -228,6 +228,43 @@ function Game(){
       clearInterval(clock);
     };
   },[]);
+
+  // (3) 클라이언트 타이머: 1초마다 UI 실시간 업데이트 (Time to Evolve, Lifespan, Waste 등)
+  // 주의: Firestore 쓰기는 하지 않음. 메모리 상태만 업데이트하여 UI에 반영
+  useEffect(()=>{
+    // 사망한 경우 타이머 중지
+    if(digimonStats.isDead) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      // 함수형 업데이트를 사용하여 최신 상태를 참조
+      setDigimonStats((prevStats) => {
+        // 사망한 경우 업데이트 중지
+        if(prevStats.isDead) {
+          return prevStats;
+        }
+
+        // updateLifespan을 호출하여 1초 경과 처리
+        // 이 함수는 lifespanSeconds 증가, timeToEvolveSeconds 감소, 
+        // 배고픔/건강 감소, 똥(poop) 누적 등을 처리
+        const updatedStats = updateLifespan(prevStats, 1);
+        
+        // 사망 상태 변경 감지
+        if(!prevStats.isDead && updatedStats.isDead){
+          setShowDeathConfirm(true);
+        }
+        
+        // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
+        return updatedStats;
+      });
+    }, 1000);
+
+    // 컴포넌트 언마운트 시 타이머 정리 (메모리 누수 방지)
+    return () => {
+      clearInterval(timer);
+    };
+  }, [digimonStats.isDead]); // isDead가 변경될 때만 재설정
 
   async function setDigimonStatsAndSave(newStats){
     // Lazy Update 적용: 액션 시점에 경과 시간 반영
