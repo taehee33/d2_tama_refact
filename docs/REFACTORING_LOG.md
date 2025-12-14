@@ -4,6 +4,219 @@
 
 ---
 
+## [2024-12-19] 폴더 구조 재설계 및 매뉴얼 기반 데이터 스키마 정의
+
+### 작업 유형
+- 프로젝트 구조 재설계
+- 데이터 스키마 정의
+- 로직 모듈화
+- 문서화
+
+### 목적 및 영향
+Digital Monster Color 매뉴얼을 기반으로 프로젝트 구조를 재설계하고, 상세한 데이터 스키마와 로직 모듈을 정의했습니다:
+- 버전별/기능별 폴더 구조로 코드 조직화
+- 매뉴얼 기반 상세 데이터 스키마 정의
+- 로직 모듈화로 유지보수성 향상
+- Humulos 스타일 복잡한 육성 시스템 구현을 위한 기반 마련
+
+### 변경된 파일
+- **새 폴더 구조 생성**:
+  - `src/data/v1/` - Ver.1 데이터 파일들
+  - `src/logic/stats/` - 스탯 관리 로직
+  - `src/logic/food/` - 음식 관련 로직
+  - `src/logic/training/` - 훈련 관련 로직
+  - `src/logic/battle/` - 배틀 관련 로직
+  - `src/logic/evolution/` - 진화 관련 로직
+
+- `docs/DIGITAL_MONSTER_COLOR_MANUAL.md` (신규)
+  - Digital Monster Color 공식 매뉴얼을 마크다운 형식으로 저장
+  - 모든 게임 메커니즘 문서화
+
+- `src/data/v1/defaultStats.js` (신규)
+  - 매뉴얼 기반 기본 스탯 정의
+  - 표시되는 스탯: age, weight, hunger, strength, effort, energy, winRatio
+  - 숨겨진 스탯: type, power, basePower, careMistakes, proteinOverdose, injuries 등
+  - 진화 시 리셋되는 스탯: trainings, overfeeds, sleepDisturbances, battlesForEvolution 등
+
+- `src/data/v1/digimons.js` (신규)
+  - 매뉴얼 기반 상세 디지몬 데이터 스키마
+  - 필수 필드: id, name, stage, sprite
+  - stats 객체: hungerCycle, strengthCycle, poopCycle, maxOverfeed, basePower, maxEnergy, minWeight, type
+  - evolutionCriteria 객체: mistakes, trainings, overfeeds, battles, winRatio, minWeight, minStrength, minEffort, requiredType
+
+- `src/data/v1/evolution.js` (신규)
+  - 매뉴얼 기반 진화 조건 정의
+  - 복합 조건 체크 함수 구조
+
+- `src/logic/stats/stats.js` (신규)
+  - 스탯 초기화 및 업데이트 로직
+  - initializeStats, updateLifespan, updateAge, applyLazyUpdate 함수
+
+- `src/logic/stats/hunger.js` (신규)
+  - 배고픔 관리 로직
+  - feedMeat, checkOverfeed, decreaseHunger 함수
+
+- `src/logic/food/meat.js` (신규)
+  - 고기 먹이기 로직
+  - 매뉴얼: "add one heart to the hunger meter, and add one gigabyte to their weight"
+  - 오버피드 체크: "feeding 10 more meat after having full hearts"
+
+- `src/logic/food/protein.js` (신규)
+  - 프로틴 먹이기 로직
+  - 매뉴얼: "add one heart to the strength meter and two gigabytes to their weight"
+  - "Every four Protein will increase your Energy and Protein Overdose by 1 each"
+
+- `src/logic/training/train.js` (신규)
+  - 훈련 로직 (Ver.1-Ver.5)
+  - 매뉴얼: "Every four trainings will add one Effort Heart"
+  - "Your Digimon will also lose 1 gigabyte of weight every time they train"
+  - "If training is successful, you will also gain a strength heart"
+
+- `src/logic/battle/hitrate.js` (신규)
+  - 배틀 히트레이트 계산 로직
+  - 매뉴얼 공식: `hitrate = ((playerPower * 100)/(playerPower + opponentPower)) + attributeAdvantage`
+  - 속성 상성 계산: Vaccine > Virus > Data > Vaccine
+  - 파워 계산: Base Power + Strength Hearts 보너스 + Traited Egg 보너스
+  - 부상 확률 계산: 승리 20%, 패배 10% + (프로틴 과다 * 10%)
+
+- `src/logic/evolution/index.js` (신규)
+  - 진화 조건 체크 로직
+  - 매뉴얼 기반 복합 조건 체크: mistakes, trainings, overfeeds, battles, winRatio, minWeight, minStrength, minEffort, requiredType
+
+- 각 폴더의 `index.js` 파일들 (신규)
+  - 통합 export를 위한 인덱스 파일
+
+### 새로운 폴더 구조
+```
+src/
+  data/
+    v1/
+      defaultStats.js      # 기본 스탯 정의
+      digimons.js          # 디지몬 데이터 스키마
+      evolution.js         # 진화 조건 정의
+      index.js             # 통합 export
+    # 기존 파일들은 호환성을 위해 유지
+  
+  logic/
+    stats/
+      stats.js             # 스탯 관리 로직
+      hunger.js            # 배고픔 관리 로직
+      index.js             # 통합 export
+    food/
+      meat.js              # 고기 먹이기 로직
+      protein.js           # 프로틴 먹이기 로직
+      index.js             # 통합 export
+    training/
+      train.js             # 훈련 로직 (Ver.1-Ver.5)
+      index.js             # 통합 export
+    battle/
+      hitrate.js           # 배틀 히트레이트 계산
+      index.js             # 통합 export
+    evolution/
+      index.js             # 진화 조건 체크 로직
+```
+
+### 데이터 스키마 정의
+
+#### 디지몬 데이터 스키마 (digimons.js)
+```javascript
+{
+  id: "Agumon",
+  name: "Agumon",
+  stage: "Child",
+  sprite: 240,
+  stats: {
+    hungerCycle: 5,        // 배고픔 감소 주기 (분)
+    strengthCycle: 5,      // 힘 감소 주기 (분)
+    poopCycle: 120,        // 똥 생성 주기 (분, Stage별로 다름)
+    maxOverfeed: 4,        // 최대 오버피드 허용치
+    basePower: 0,          // 기본 파워
+    maxEnergy: 100,        // 최대 에너지 (DP)
+    minWeight: 10,         // 최소 체중
+    type: "Vaccine",       // 속성
+  },
+  evolutionCriteria: {
+    timeToEvolveSeconds: 86400,  // 24시간
+    mistakes: { max: 3 },          // 실수 3개 이하
+    battles: 15,                  // 최소 15번 배틀
+    winRatio: 40,                 // 최소 40% 승률
+    // ... 기타 조건
+  },
+}
+```
+
+#### 기본 스탯 스키마 (defaultStats.js)
+- **표시되는 스탯**: age, weight, hunger, strength, effort, energy, winRatio
+- **숨겨진 스탯**: type, power, basePower, careMistakes, proteinOverdose, injuries, battlesWon, battlesLost
+- **진화 시 리셋**: trainings, overfeeds, sleepDisturbances, battlesForEvolution, careMistakes, proteinOverdose, injuries
+
+### 로직 모듈화
+
+#### Stats 로직 (logic/stats/)
+- `stats.js`: 스탯 초기화 및 시간 경과 처리
+- `hunger.js`: 배고픔 관리 (고기 먹기, 오버피드 체크)
+
+#### Food 로직 (logic/food/)
+- `meat.js`: 고기 먹이기 (배고픔 +1, 체중 +1, 오버피드 체크)
+- `protein.js`: 프로틴 먹이기 (힘 +1, 체중 +2, 4개당 Energy +1, Protein Overdose +1)
+
+#### Training 로직 (logic/training/)
+- `train.js`: Ver.1-Ver.5 훈련 로직
+- Ver.1: 5라운드 중 3회 이상 성공 시 훈련 성공
+- 4회 훈련마다 effort +1
+- 훈련 시 체중 -1 (성공 시 힘 +1/+3)
+
+#### Battle 로직 (logic/battle/)
+- `hitrate.js`: 히트레이트 계산, 속성 상성, 파워 계산, 부상 확률
+
+#### Evolution 로직 (logic/evolution/)
+- `index.js`: 복합 진화 조건 체크 (mistakes, trainings, overfeeds, battles, winRatio 등)
+
+### 매뉴얼 반영 사항
+
+#### Status 섹션
+- Age, Weight, Hunger, Strength, Effort, Energy, Win Ratio 구현
+- Type (속성), Power, Care Mistakes, Protein Overdose 구현
+
+#### Food 섹션
+- Meat: 배고픔 +1, 체중 +1, 오버피드 로직
+- Protein: 힘 +1, 체중 +2, 4개당 Energy +1, Protein Overdose +1
+
+#### Training 섹션
+- Ver.1 훈련 로직 구현
+- 4회 훈련마다 effort +1
+- 훈련 시 체중 감소, 성공 시 힘 증가
+
+#### Battles 섹션
+- 히트레이트 공식 구현
+- 속성 상성 계산 (Vaccine > Virus > Data > Vaccine)
+- 파워 보너스 계산 (Strength Hearts, Traited Egg)
+- 부상 확률 계산
+
+#### Evolution 섹션
+- 진화 시간표 반영 (8초, 10분, 12시간, 24시간, 36시간, 48시간)
+- 복합 진화 조건 구조 정의 (mistakes, trainings, overfeeds, battles, winRatio 등)
+
+### 호환성 유지
+- 기존 파일들은 호환성을 위해 유지
+- 새 구조와 기존 구조를 병행 사용 가능
+- 점진적 마이그레이션 가능
+
+### 다음 단계
+1. 기존 코드의 import 경로를 새 구조로 점진적 변경
+2. 매뉴얼의 모든 디지몬 데이터 추가
+3. 진화 조건 로직 완전 구현
+4. 배틀 시스템 구현
+5. 자동 진화 시스템 구현
+
+### 참고사항
+- 매뉴얼은 `docs/DIGITAL_MONSTER_COLOR_MANUAL.md`에 저장
+- 새 스키마는 매뉴얼의 모든 규칙을 반영하도록 설계
+- 로직 모듈은 매뉴얼의 각 섹션(Status, Food, Training, Battles)을 기반으로 구성
+- 기존 코드와의 호환성을 위해 기존 파일 유지
+
+---
+
 ## [2024-12-19] 클라이언트 타이머 도입 및 실시간 UI 업데이트 구현
 
 ### 작업 유형
