@@ -119,3 +119,4 @@ npm install
 - [ ] Lazy Update 작동
 - [ ] 콘솔 에러 없음
 
+

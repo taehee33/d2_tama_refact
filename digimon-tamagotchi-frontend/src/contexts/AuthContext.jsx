@@ -34,6 +34,10 @@ export const AuthProvider = ({ children }) => {
     }
     
     const provider = new GoogleAuthProvider();
+    // 매번 계정 선택 창이 뜨도록 prompt 옵션 추가
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
     try {
       const result = await signInWithPopup(auth, provider);
       return result; // UserCredential 반환

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 const SettingsModal = ({
   onClose,
@@ -12,6 +14,8 @@ const SettingsModal = ({
   timeSpeed, setTimeSpeed,
   customTime, setCustomTime
 }) => {
+  const navigate = useNavigate();
+  const { logout, isFirebaseAvailable, currentUser } = useAuth();
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
   const [localHeight, setLocalHeight] = useState(height);
@@ -57,6 +61,19 @@ const SettingsModal = ({
     setDeveloperMode(localDevMode);
     // TODO: timeMode, timeSpeed, customTime 등도 저장 로직
     onClose();
+  };
+
+  // 로그아웃 처리
+  const handleLogout = async () => {
+    try {
+      if (isFirebaseAvailable && currentUser) {
+        await logout();
+        navigate("/");
+      }
+    } catch (error) {
+      console.error("로그아웃 오류:", error);
+      alert("로그아웃에 실패했습니다.");
+    }
   };
 
   return (
@@ -130,6 +147,18 @@ const SettingsModal = ({
             />
           </div>
         </div>
+
+        {/* 로그아웃 버튼 (Firebase 모드에서만 표시) */}
+        {isFirebaseAvailable && currentUser && (
+          <div className="mb-4 pb-4 border-b">
+            <button
+              className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded"
+              onClick={handleLogout}
+            >
+              로그아웃
+            </button>
+          </div>
+        )}
 
         {/* Save / Cancel */}
         <div className="flex justify-end space-x-2 mt-4">

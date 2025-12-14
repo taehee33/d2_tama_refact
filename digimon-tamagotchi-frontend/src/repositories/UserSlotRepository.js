@@ -218,3 +218,4 @@ class UserSlotRepository {
 export const userSlotRepository = new UserSlotRepository();
 export default userSlotRepository;
 
+

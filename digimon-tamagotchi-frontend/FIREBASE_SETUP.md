@@ -91,3 +91,4 @@ const slot = await slotRepository.getSlot(slotId);
 
 이 파일들을 Repository 패턴으로 변경하면 Firestore 전환이 쉬워집니다.
 
+

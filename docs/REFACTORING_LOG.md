@@ -4,6 +4,327 @@
 
 ---
 
+## [2024-12-19] 데이터 저장 완료 후 페이지 이동 및 로딩 상태 관리 개선
+
+### 작업 유형
+- 비동기 로직 개선
+- 에러 처리 강화
+- 사용자 경험 개선
+- 로딩 상태 관리
+
+### 목적 및 영향
+데이터 저장이 완료된 후에만 페이지 이동하도록 보장하고, Game.jsx에서 데이터 로딩이 완료될 때까지 불필요한 리디렉션을 방지하도록 개선했습니다:
+- 데이터 저장 실패 시 페이지 이동 방지
+- 명확한 에러 메시지 제공
+- 로딩 상태 표시로 사용자 경험 개선
+- 데이터 로딩 완료 전 리디렉션 방지
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+  - **비동기 로직 개선**: `handleNewTama` 함수에서 데이터 저장 완료 후에만 `navigate` 호출
+  - **저장 성공 확인**: `saveSuccess` 플래그를 사용하여 저장 성공 여부 확인
+  - **에러 처리 강화**: localStorage 저장 시도/캐치 추가
+  - **페이지 이동 조건**: `saveSuccess && slotId`가 모두 true일 때만 페이지 이동
+  - **에러 발생 시 처리**: 에러 발생 시 알림 표시 후 `return`으로 페이지 이동 방지
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - **로딩 상태 관리**: `isLoadingSlot` state 추가하여 슬롯 데이터 로딩 상태 추적
+  - **로딩 표시**: 데이터 로딩 중일 때 로딩 스피너와 메시지 표시
+  - **리디렉션 개선**: Firebase 모드에서 로그인 체크 시 로딩 상태를 false로 설정한 후 리디렉션
+  - **에러 처리**: try/catch/finally 블록으로 에러 발생 시에도 로딩 상태 해제
+  - **데이터 로딩 완료 보장**: `finally` 블록에서 항상 `setIsLoadingSlot(false)` 호출
+
+### 주요 변경사항
+
+#### SelectScreen.jsx - handleNewTama 함수
+- **저장 성공 확인**: `saveSuccess` 플래그로 Firestore 또는 localStorage 저장 성공 여부 확인
+- **localStorage 에러 처리**: localStorage 저장 시도/캐치로 저장 실패 시 에러 발생
+- **조건부 페이지 이동**: `if (saveSuccess && slotId)` 조건으로 저장 성공 시에만 페이지 이동
+- **에러 시 처리**: catch 블록에서 에러 메시지 표시 후 `return`으로 함수 종료
+
+#### Game.jsx - 슬롯 로드 로직
+- **로딩 상태 추가**: `const [isLoadingSlot, setIsLoadingSlot] = useState(true)` 추가
+- **로딩 시작**: `loadSlot` 함수 시작 시 `setIsLoadingSlot(true)` 호출
+- **로딩 완료**: `finally` 블록에서 `setIsLoadingSlot(false)` 호출
+- **로딩 UI**: `isLoadingSlot`이 true일 때 로딩 스피너와 메시지 표시
+- **리디렉션 개선**: Firebase 모드에서 로그인 체크 시 로딩 상태를 false로 설정한 후 리디렉션
+
+### 데이터 저장 흐름
+1. **SelectScreen**: "새 다마고치 시작" 버튼 클릭
+2. **슬롯 찾기**: 빈 슬롯 찾기
+3. **데이터 저장**: Firestore 또는 localStorage에 데이터 저장
+4. **저장 성공 확인**: `saveSuccess` 플래그로 저장 성공 여부 확인
+5. **페이지 이동**: 저장 성공 시에만 `/game/${slotId}`로 이동
+
+### 데이터 로딩 흐름
+1. **Game.jsx 마운트**: `isLoadingSlot = true`로 시작
+2. **모드 확인**: Firebase 모드인지 localStorage 모드인지 확인
+3. **데이터 로드**: Firestore 또는 localStorage에서 슬롯 데이터 로드
+4. **로딩 완료**: `finally` 블록에서 `isLoadingSlot = false`로 설정
+5. **UI 표시**: 로딩 중일 때는 로딩 UI, 완료 후 게임 화면 표시
+
+### 사용자 경험 개선
+- **명확한 피드백**: 데이터 저장 실패 시 명확한 에러 메시지 표시
+- **로딩 표시**: 데이터 로딩 중 로딩 스피너로 진행 상황 표시
+- **안정성 향상**: 데이터 저장 완료 전 페이지 이동 방지로 데이터 손실 방지
+- **에러 처리**: 모든 에러 케이스에 대한 적절한 처리
+
+### 참고사항
+- localStorage 저장은 동기 작업이지만, 에러 발생 가능성을 고려하여 try/catch로 감쌈
+- Firestore 저장은 비동기 작업이므로 `await`로 완료 대기
+- 로딩 상태는 `finally` 블록에서 항상 해제하여 무한 로딩 방지
+- Firebase 모드에서 로그인 체크 실패 시에도 로딩 상태를 해제한 후 리디렉션
+
+---
+
+## [2024-12-19] 전역 인증 상태 관리 개선 및 리디렉션 로직 정리
+
+### 작업 유형
+- 인증 상태 관리 개선
+- 사용자 경험 개선
+- 코드 정리
+
+### 목적 및 영향
+AuthContext의 `onAuthStateChanged` 리스너를 활용하여 전역 인증 상태를 관리하고, SelectScreen에서 자동으로 인증 상태를 감지하여 리디렉션하도록 개선했습니다:
+- 전역 인증 상태 구독을 통한 자동 리디렉션
+- 불필요한 팝업 제거로 사용자 경험 개선
+- 로그인 성공 후 단순한 리디렉션으로 코드 단순화
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+  - **전역 인증 상태 구독**: AuthContext의 `currentUser`를 구독하여 자동으로 인증 상태 감지
+  - **자동 리디렉션**: Firebase 모드에서 `currentUser`가 null일 경우 자동으로 로그인 페이지로 리디렉션
+  - **팝업 제거**: "로그인이 필요합니다" alert 제거, 대신 자동 리디렉션 사용
+  - **handleNewTama 함수**: 버튼 클릭 시에도 인증 체크하되 팝업 없이 리디렉션
+
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+  - **로그인 성공 리디렉션**: 로그인 성공 시 단순히 `/select`로 이동
+  - **state 전달 제거**: `navigate("/select", { state: { mode: 'firebase' } })` → `navigate("/select")`
+  - **로컬 모드 리디렉션**: localStorage 모드로 이동할 때도 state 전달 제거
+
+### 주요 변경사항
+
+#### SelectScreen.jsx
+- **전역 인증 상태 구독**: `useAuth()` 훅으로 `currentUser`를 구독
+- **자동 리디렉션 로직**: `useEffect`에서 `currentUser`가 null이고 Firebase 모드일 경우 자동으로 `/`로 리디렉션
+- **팝업 제거**: `alert("로그인이 필요합니다.")` 제거
+- **handleNewTama 함수**: 버튼 클릭 시에도 인증 체크하되 팝업 없이 리디렉션
+
+#### Login.jsx
+- **로그인 성공 처리**: Firestore에 유저 정보 저장 후 단순히 `/select`로 이동
+- **state 전달 제거**: AuthContext의 `onAuthStateChanged` 리스너가 자동으로 `currentUser`를 업데이트하므로 별도 state 전달 불필요
+- **로컬 모드 리디렉션**: localStorage 모드로 이동할 때도 state 전달 제거
+
+### 인증 상태 관리 흐름
+1. **AuthContext**: `onAuthStateChanged` 리스너가 Firebase 인증 상태 변경을 감지
+2. **전역 상태 업데이트**: 인증 상태 변경 시 `currentUser` 상태 자동 업데이트
+3. **SelectScreen 구독**: `useAuth()` 훅으로 `currentUser` 구독
+4. **자동 리디렉션**: `currentUser`가 null이고 Firebase 모드일 경우 자동으로 로그인 페이지로 리디렉션
+
+### 사용자 경험 개선
+- **자동 리디렉션**: 로그인하지 않은 상태에서 SelectScreen 접근 시 자동으로 로그인 페이지로 이동
+- **팝업 제거**: 불필요한 "로그인이 필요합니다" 팝업 제거로 더 부드러운 사용자 경험
+- **상태 동기화**: AuthContext의 전역 상태를 통해 모든 컴포넌트에서 일관된 인증 상태 유지
+
+### 참고사항
+- AuthContext는 이미 `onAuthStateChanged` 리스너를 사용하여 전역 인증 상태를 관리하고 있음
+- SelectScreen은 이 전역 상태를 구독하여 자동으로 인증 상태를 감지
+- 로그인 성공 후 별도의 state 전달 없이도 SelectScreen에서 자동으로 인증 상태를 인식
+- 로컬 모드(`mode === 'local'`)로 온 경우는 인증 체크를 건너뜀
+
+---
+
+## [2024-12-19] Backend 폴더 제거 및 프로젝트 정리
+
+### 작업 유형
+- 프로젝트 구조 정리
+- 불필요한 파일 제거
+- 아키텍처 단순화
+
+### 목적 및 영향
+프로젝트가 Firebase/Vercel 서버리스 아키텍처로 완전히 전환되었으므로, 더 이상 필요하지 않은 Express 기반 백엔드 폴더를 제거했습니다:
+- Express 서버 및 관련 의존성 제거
+- 프로젝트 구조 단순화
+- 순수한 React + Firebase 클라이언트 앱으로 정리
+
+### 변경된 파일
+- **backend/** 폴더 전체 삭제
+  - `server.js` (Express 서버 파일)
+  - `package.json` (백엔드 의존성)
+  - `node_modules/` (백엔드 의존성 패키지)
+  - `build/` (빌드 결과물)
+
+- `digimon-tamagotchi-frontend/package.json`
+  - 확인 결과: 백엔드 관련 스크립트 없음 (이미 정리되어 있음)
+  - 현재 스크립트: `start`, `build`, `test`, `eject` (순수 React 앱 스크립트만 유지)
+  - `concurrently`, `server`, `start-dev` 등의 백엔드 관련 스크립트 없음
+
+### 제거된 내용
+- Express 서버 (`server.js`)
+- node-cron (서버 사이드 스케줄링)
+- cross-fetch (서버 사이드 HTTP 요청)
+- Express 관련 의존성 및 설정
+
+### 프로젝트 구조 변화
+**Before:**
+```
+d2_tama_refact/
+  ├── backend/          # Express 서버 (제거됨)
+  │   ├── server.js
+  │   ├── package.json
+  │   └── node_modules/
+  └── digimon-tamagotchi-frontend/
+      └── package.json
+```
+
+**After:**
+```
+d2_tama_refact/
+  └── digimon-tamagotchi-frontend/
+      └── package.json  # 순수 React 앱만 유지
+```
+
+### 주요 변경사항
+
+#### Backend 폴더 삭제
+- Express 기반 백엔드 서버 전체 제거
+- 서버 사이드 의존성 제거 (node-cron, express, cross-fetch)
+- 빌드 결과물 및 node_modules 제거
+
+#### Package.json 확인
+- 백엔드 관련 스크립트 없음 확인
+- 순수 React 앱 스크립트만 유지:
+  - `start`: React 개발 서버 시작
+  - `build`: React 앱 빌드
+  - `test`: 테스트 실행
+  - `eject`: Create React App eject
+
+### 아키텍처 정리
+프로젝트가 완전히 서버리스 아키텍처로 전환되었습니다:
+- **클라이언트**: React 앱 (Firebase SDK 사용)
+- **백엔드**: Firebase (Firestore + Authentication + Serverless Functions)
+- **호스팅**: Vercel (프론트엔드) + Firebase (백엔드)
+
+### 참고사항
+- Express 서버는 더 이상 필요하지 않음 (Firebase로 완전 전환)
+- 모든 데이터 저장/인증은 Firebase를 통해 처리
+- Lazy Update 패턴으로 서버 사이드 스케줄링 불필요
+- 프로젝트가 순수한 클라이언트 앱으로 단순화됨
+
+---
+
+## [2024-12-19] Google 로그인 계정 선택 강제 및 로그아웃 기능 추가
+
+### 작업 유형
+- 기능 개선
+- 테스트 환경 개선
+- 사용자 경험 향상
+
+### 목적 및 영향
+테스트 환경 개선을 위해 Google 로그인 시 매번 계정 선택 창이 뜨도록 하고, 게임 내에서 로그아웃할 수 있는 기능을 추가했습니다:
+- Google 로그인 시 `prompt: 'select_account'` 옵션을 강제하여 매번 계정 선택 창 표시
+- SettingsModal에 로그아웃 버튼 추가로 게임 중간에 계정 전환 가능
+- 로그아웃 후 자동으로 로그인 페이지로 리디렉션
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/contexts/AuthContext.jsx`
+  - **Google 로그인 개선**: `GoogleAuthProvider`에 `setCustomParameters({ prompt: 'select_account' })` 추가
+  - 매번 로그인 시 계정 선택 창이 표시되어 테스트 시 여러 계정 전환 용이
+
+- `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+  - **로그아웃 기능 추가**: `useAuth` 훅으로 `logout`, `isFirebaseAvailable`, `currentUser` 가져오기
+  - **로그아웃 버튼**: Firebase 모드에서만 표시되는 로그아웃 버튼 추가
+  - **리디렉션**: 로그아웃 성공 시 `navigate("/")`로 로그인 페이지로 이동
+  - **에러 처리**: 로그아웃 실패 시 에러 메시지 표시
+
+### 주요 변경사항
+
+#### AuthContext.jsx
+- `signInWithGoogle()` 함수에서 `provider.setCustomParameters({ prompt: 'select_account' })` 추가
+- 매번 로그인 시 Google 계정 선택 창이 표시되어 테스트 환경 개선
+
+#### SettingsModal.jsx
+- `useNavigate()` 훅 추가로 페이지 이동 기능 구현
+- `useAuth()` 훅으로 인증 관련 함수 및 상태 가져오기
+- Firebase 모드에서만 로그아웃 버튼 표시 (조건부 렌더링)
+- 로그아웃 버튼 클릭 시 `logout()` 호출 후 로그인 페이지로 리디렉션
+- 로그아웃 실패 시 사용자에게 알림 표시
+
+### 사용자 경험 개선
+- **계정 전환 용이**: 매번 계정 선택 창이 표시되어 여러 계정으로 테스트 가능
+- **게임 중 로그아웃**: Settings 모달에서 바로 로그아웃하여 계정 전환 가능
+- **테스트 효율성**: 개발 및 테스트 시 계정 전환이 간편해짐
+
+### 참고사항
+- `prompt: 'select_account'` 옵션은 Google OAuth의 표준 파라미터로, 매번 계정 선택 창을 강제로 표시
+- 로그아웃 버튼은 Firebase 모드에서만 표시되며, localStorage 모드에서는 표시되지 않음
+- 로그아웃 후 자동으로 로그인 페이지로 이동하여 새로운 계정으로 로그인 가능
+
+---
+
+## [2024-12-19] Firebase/LocalStorage 이중 모드 지원 구현
+
+### 작업 유형
+- 기능 추가
+- 데이터 저장소 분기 처리
+- 라우팅 상태 관리
+
+### 목적 및 영향
+사용자가 Firebase 인증 없이도 로컬 저장소 모드로 게임을 시작할 수 있도록 지원했습니다:
+- SelectScreen에서 "로컬 저장소 모드 시작" 버튼 추가로 Firebase Auth 없이 게임 시작 가능
+- Login.jsx는 Firebase 로그인만 전담하되, 로그인 후 mode: 'firebase' 상태 전달
+- Game.jsx에서 mode 값(firebase/local)을 기반으로 데이터 저장 로직 분기 처리
+- React Router의 location.state를 활용하여 페이지 간 mode 상태 전달
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+  - **로컬 모드 시작 버튼**: `handleNewTamaLocal()` 함수 추가
+  - **로컬 모드 슬롯 생성**: localStorage에 초기 데이터 저장 후 Game.jsx로 이동 (mode: 'local')
+  - **Firebase 모드 슬롯 생성**: 기존 로직 유지하되 Game.jsx로 이동 시 mode: 'firebase' 전달
+  - **이어하기 기능**: 현재 모드에 따라 state에 mode 값 전달
+
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+  - **Firebase 로그인 후**: SelectScreen으로 이동 시 `navigate("/select", { state: { mode: 'firebase' } })` 전달
+  - **로컬 모드 시작**: Firebase 미설정 시 SelectScreen으로 이동 시 mode: 'local' 전달
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - **mode 상태 관리**: `useLocation()` 훅으로 location.state에서 mode 값 가져오기
+  - **슬롯 로드 분기**: mode에 따라 Firestore 또는 localStorage에서 데이터 로드
+  - **스탯 저장 분기**: `setDigimonStatsAndSave()` 함수에서 mode에 따라 Firestore 또는 localStorage 저장
+  - **Lazy Update 분기**: `applyLazyUpdateBeforeAction()` 함수에서 mode에 따라 데이터 소스 선택
+  - **디지몬 이름 저장 분기**: `setSelectedDigimonAndSave()` 함수에서 mode에 따라 저장 방식 분기
+  - **청소 기능 분기**: `cleanCycle()` 함수에서 mode에 따라 저장 방식 분기
+
+### 데이터 저장 로직 분기
+Game.jsx의 모든 저장 작업이 mode 값에 따라 분기 처리됩니다:
+- **mode === 'firebase'**: Firestore의 `users/{uid}/slots/{slotId}` 경로에 저장
+- **mode === 'local'**: localStorage의 `slot{slotId}_*` 키에 저장
+
+### 주요 변경사항
+
+#### SelectScreen.jsx
+- `handleNewTamaLocal()`: 로컬 모드로 새 다마고치 시작 (Firebase Auth 불필요)
+- `handleNewTama()`: Firebase 모드로 새 다마고치 시작 (기존 로직 유지)
+- `handleContinue()`: 현재 모드에 따라 state에 mode 값 전달
+- UI에 "로컬 저장소 모드 시작" 버튼 추가
+
+#### Login.jsx
+- Firebase 로그인 성공 시 SelectScreen으로 이동할 때 mode: 'firebase' 전달
+- localStorage 모드 시작 시 SelectScreen으로 이동할 때 mode: 'local' 전달
+
+#### Game.jsx
+- `mode` 변수: location.state에서 가져오거나, 기본값은 현재 인증 상태 기반
+- 모든 데이터 저장/로드 작업이 mode 값에 따라 Firestore 또는 localStorage로 분기
+- Lazy Update 로직도 mode에 따라 적절한 데이터 소스에서 마지막 저장 시간 조회
+
+### 참고사항
+- React Router v6의 `navigate(path, { state })`를 사용하여 페이지 간 상태 전달
+- `useLocation()` 훅으로 전달받은 state 접근
+- mode 값이 없을 경우 현재 인증 상태를 기반으로 자동 판단 (firebase 또는 local)
+- Firebase 모드에서는 인증이 필수이며, 미인증 시 Login 페이지로 리디렉션
+
+---
+
 ## [2024-12-19] localStorage 완전 제거 및 Firestore 전용 전환
 
 ### 작업 유형

@@ -50,7 +50,9 @@ function Login() {
           updatedAt: new Date(),
         }, { merge: true });
 
-        // 로그인 성공 후 유저의 UID를 사용하여 SelectScreen으로 리디렉션
+        // 로그인 성공 후 SelectScreen으로 리디렉션
+        // AuthContext의 onAuthStateChanged 리스너가 currentUser를 업데이트하므로
+        // SelectScreen에서 자동으로 인증 상태를 감지함
         navigate("/select");
       }
     } catch (err) {
@@ -99,7 +101,7 @@ function Login() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 mb-3"
             >
           {loading ? (
             <>
@@ -121,6 +123,12 @@ function Login() {
             </>
           )}
         </button>
+            <button
+              onClick={handleLocalStorageMode}
+              className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
+            >
+              로컬 저장소 모드 시작
+            </button>
           </>
         )}
       </div>

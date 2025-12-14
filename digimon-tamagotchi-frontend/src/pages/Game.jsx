@@ -1,6 +1,6 @@
 // src/pages/Game.jsx
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -52,7 +52,11 @@ function formatLifespan(sec=0){
 function Game(){
   const { slotId } = useParams();
   const navigate= useNavigate();
+  const location = useLocation();
   const { currentUser, isFirebaseAvailable } = useAuth();
+  
+  // mode 값 가져오기 (location.state에서 가져오거나, 기본값은 firebase)
+  const mode = location.state?.mode || (isFirebaseAvailable && currentUser ? 'firebase' : 'local');
 
   const [selectedDigimon, setSelectedDigimon]= useState("Digitama");
   const [digimonStats, setDigimonStats]= useState(
@@ -102,65 +106,120 @@ function Game(){
   // ★ (B) 훈련 팝업
   const [showTrainPopup, setShowTrainPopup]= useState(false);
 
-  // (1) SLOT LOAD - Firestore에서 슬롯 데이터 로드 및 Lazy Update 적용
+  // 로딩 상태 관리
+  const [isLoadingSlot, setIsLoadingSlot] = useState(true);
+
+  // (1) SLOT LOAD - mode에 따라 Firestore 또는 localStorage에서 슬롯 데이터 로드
   useEffect(()=>{
-    if(!slotId) return;
-    if(!isFirebaseAvailable || !currentUser) {
+    if(!slotId) {
+      setIsLoadingSlot(false);
+      return;
+    }
+    
+    // Firebase 모드인데 로그인 안 되어 있으면 리디렉션
+    // 단, 데이터 로딩이 완료된 후에만 리디렉션
+    if(mode === 'firebase' && (!isFirebaseAvailable || !currentUser)) {
+      setIsLoadingSlot(false);
       navigate("/");
       return;
     }
 
     const loadSlot = async () => {
+      setIsLoadingSlot(true);
       try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        const slotSnap = await getDoc(slotRef);
-        
-        if(slotSnap.exists()) {
-          const slotData = slotSnap.data();
+        if(mode === 'firebase' && isFirebaseAvailable && currentUser) {
+          // Firestore 모드
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          const slotSnap = await getDoc(slotRef);
           
-          setSlotName(slotData.slotName || `슬롯${slotId}`);
-          setSlotCreatedAt(slotData.createdAt || "");
-          setSlotDevice(slotData.device || "");
-          setSlotVersion(slotData.version || "Ver.1");
+          if(slotSnap.exists()) {
+            const slotData = slotSnap.data();
+            
+            setSlotName(slotData.slotName || `슬롯${slotId}`);
+            setSlotCreatedAt(slotData.createdAt || "");
+            setSlotDevice(slotData.device || "");
+            setSlotVersion(slotData.version || "Ver.1");
 
-          const savedName = slotData.selectedDigimon || "Digitama";
-          let savedStats = slotData.digimonStats || {};
-          
-          if(Object.keys(savedStats).length === 0){
+            const savedName = slotData.selectedDigimon || "Digitama";
+            let savedStats = slotData.digimonStats || {};
+            
+            if(Object.keys(savedStats).length === 0){
+              const ns = initializeStats("Digitama", {}, digimonDataVer1);
+              setSelectedDigimon("Digitama");
+              setDigimonStats(ns);
+            } else {
+              // Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간 적용
+              const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
+              savedStats = applyLazyUpdate(savedStats, lastSavedAt);
+              
+              setSelectedDigimon(savedName);
+              setDigimonStats(savedStats);
+              
+              // 업데이트된 스탯을 Firestore에 저장
+              await updateDoc(slotRef, {
+                digimonStats: savedStats,
+                lastSavedAt: savedStats.lastSavedAt,
+                updatedAt: new Date(),
+              });
+            }
+          } else {
             const ns = initializeStats("Digitama", {}, digimonDataVer1);
             setSelectedDigimon("Digitama");
             setDigimonStats(ns);
-          } else {
-            // Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간 적용
-            const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
-            savedStats = applyLazyUpdate(savedStats, lastSavedAt);
-            
-            setSelectedDigimon(savedName);
-            setDigimonStats(savedStats);
-            
-            // 업데이트된 스탯을 Firestore에 저장
-            await updateDoc(slotRef, {
-              digimonStats: savedStats,
-              lastSavedAt: savedStats.lastSavedAt,
-              updatedAt: new Date(),
-            });
+            setSlotName(`슬롯${slotId}`);
           }
         } else {
-          const ns = initializeStats("Digitama", {}, digimonDataVer1);
-          setSelectedDigimon("Digitama");
-          setDigimonStats(ns);
-          setSlotName(`슬롯${slotId}`);
+          // localStorage 모드
+          const digimonName = localStorage.getItem(`slot${slotId}_selectedDigimon`);
+          const statsJson = localStorage.getItem(`slot${slotId}_digimonStats`);
+          const slotName = localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`;
+          const createdAt = localStorage.getItem(`slot${slotId}_createdAt`) || "";
+          const device = localStorage.getItem(`slot${slotId}_device`) || "";
+          const version = localStorage.getItem(`slot${slotId}_version`) || "Ver.1";
+          
+          setSlotName(slotName);
+          setSlotCreatedAt(createdAt);
+          setSlotDevice(device);
+          setSlotVersion(version);
+          
+          if(digimonName) {
+            let savedStats = statsJson ? JSON.parse(statsJson) : {};
+            
+            if(Object.keys(savedStats).length === 0){
+              const ns = initializeStats("Digitama", {}, digimonDataVer1);
+              setSelectedDigimon("Digitama");
+              setDigimonStats(ns);
+            } else {
+              // Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간 적용
+              const lastSavedAt = savedStats.lastSavedAt || new Date();
+              savedStats = applyLazyUpdate(savedStats, lastSavedAt);
+              
+              setSelectedDigimon(digimonName);
+              setDigimonStats(savedStats);
+              
+              // 업데이트된 스탯을 localStorage에 저장
+              localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(savedStats));
+            }
+          } else {
+            const ns = initializeStats("Digitama", {}, digimonDataVer1);
+            setSelectedDigimon("Digitama");
+            setDigimonStats(ns);
+            setSlotName(`슬롯${slotId}`);
+          }
         }
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         const ns = initializeStats("Digitama", {}, digimonDataVer1);
         setSelectedDigimon("Digitama");
         setDigimonStats(ns);
+      } finally {
+        // 데이터 로딩 완료
+        setIsLoadingSlot(false);
       }
     };
 
     loadSlot();
-  },[slotId, currentUser, navigate, isFirebaseAvailable]);
+  },[slotId, currentUser, navigate, isFirebaseAvailable, mode]);
 
   // (2) 시계만 업데이트 (스탯은 Lazy Update로 처리)
   useEffect(()=>{
@@ -177,15 +236,21 @@ function Game(){
     
     setDigimonStats(finalStats);
     
-    // Firestore에 저장 (먹이/훈련 등 액션 시점에 저장)
-    if(slotId && currentUser){
+    // mode에 따라 Firestore 또는 localStorage에 저장
+    if(slotId){
       try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await updateDoc(slotRef, {
-          digimonStats: finalStats,
-          lastSavedAt: finalStats.lastSavedAt || new Date(),
-          updatedAt: new Date(),
-        });
+        if(mode === 'firebase' && currentUser){
+          // Firestore에 저장
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          await updateDoc(slotRef, {
+            digimonStats: finalStats,
+            lastSavedAt: finalStats.lastSavedAt || new Date(),
+            updatedAt: new Date(),
+          });
+        } else {
+          // localStorage에 저장
+          localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(finalStats));
+        }
       } catch (error) {
         console.error("스탯 저장 오류:", error);
       }
@@ -193,27 +258,45 @@ function Game(){
   }
 
   // 액션 전에 Lazy Update 적용하는 헬퍼 함수
-  // Firestore에서 마지막 저장 시간을 가져와 경과 시간을 계산하여 스탯 업데이트
+  // mode에 따라 Firestore 또는 localStorage에서 마지막 저장 시간을 가져와 경과 시간을 계산하여 스탯 업데이트
   async function applyLazyUpdateBeforeAction() {
-    if(!slotId || !currentUser) {
+    if(!slotId) {
       return digimonStats;
     }
 
     try {
-      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-      const slotSnap = await getDoc(slotRef);
-      
-      if(slotSnap.exists()) {
-        const slotData = slotSnap.data();
-        const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
-        const updated = applyLazyUpdate(digimonStats, lastSavedAt);
+      if(mode === 'firebase' && currentUser){
+        // Firestore 모드
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        const slotSnap = await getDoc(slotRef);
         
-        // 사망 상태 변경 감지
-        if(!digimonStats.isDead && updated.isDead){
-          setShowDeathConfirm(true);
+        if(slotSnap.exists()) {
+          const slotData = slotSnap.data();
+          const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
+          const updated = applyLazyUpdate(digimonStats, lastSavedAt);
+          
+          // 사망 상태 변경 감지
+          if(!digimonStats.isDead && updated.isDead){
+            setShowDeathConfirm(true);
+          }
+          
+          return updated;
         }
-        
-        return updated;
+      } else {
+        // localStorage 모드
+        const statsJson = localStorage.getItem(`slot${slotId}_digimonStats`);
+        if(statsJson) {
+          const savedStats = JSON.parse(statsJson);
+          const lastSavedAt = savedStats.lastSavedAt || digimonStats.lastSavedAt;
+          const updated = applyLazyUpdate(digimonStats, lastSavedAt);
+          
+          // 사망 상태 변경 감지
+          if(!digimonStats.isDead && updated.isDead){
+            setShowDeathConfirm(true);
+          }
+          
+          return updated;
+        }
       }
     } catch (error) {
       console.error("Lazy Update 적용 오류:", error);
@@ -223,13 +306,19 @@ function Game(){
   }
   async function setSelectedDigimonAndSave(name){
     setSelectedDigimon(name);
-    if(slotId && currentUser){
+    if(slotId){
       try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await updateDoc(slotRef, {
-          selectedDigimon: name,
-          updatedAt: new Date(),
-        });
+        if(mode === 'firebase' && currentUser){
+          // Firestore에 저장
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          await updateDoc(slotRef, {
+            selectedDigimon: name,
+            updatedAt: new Date(),
+          });
+        } else {
+          // localStorage에 저장
+          localStorage.setItem(`slot${slotId}_selectedDigimon`, name);
+        }
       } catch (error) {
         console.error("디지몬 이름 저장 오류:", error);
       }
@@ -403,15 +492,21 @@ function Game(){
         lastSavedAt: now
       };
       setDigimonStats(updatedStats);
-      // Firestore에 저장 (청소 시 저장)
-      if(slotId && currentUser){
+      // mode에 따라 Firestore 또는 localStorage에 저장 (청소 시 저장)
+      if(slotId){
         try {
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await updateDoc(slotRef, {
-            digimonStats: updatedStats,
-            lastSavedAt: now,
-            updatedAt: now,
-          });
+          if(mode === 'firebase' && currentUser){
+            // Firestore에 저장
+            const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+            await updateDoc(slotRef, {
+              digimonStats: updatedStats,
+              lastSavedAt: now,
+              updatedAt: now,
+            });
+          } else {
+            // localStorage에 저장
+            localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(updatedStats));
+          }
         } catch (error) {
           console.error("청소 상태 저장 오류:", error);
         }
@@ -492,6 +587,18 @@ function Game(){
         console.log("menu:", menu);
     }
   };
+
+  // 로딩 중일 때 표시
+  if (isLoadingSlot) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">슬롯 데이터 로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 화면 렌더
   return (

@@ -172,3 +172,4 @@ npm start
 3. **Firebase Console**: Firestore 데이터베이스에서 실제 데이터 확인
 4. **콘솔 로그**: `console.log`로 디버깅 정보 확인
 
+

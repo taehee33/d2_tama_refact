@@ -122,3 +122,4 @@ await slotRepository.saveDigimonStats(slotId, newStats);
 | `deleteSlot(slotId)` | 슬롯 삭제 | `Promise<void>` |
 | `findEmptySlot(maxSlots)` | 빈 슬롯 찾기 | `Promise<number\|null>` |
 
+
