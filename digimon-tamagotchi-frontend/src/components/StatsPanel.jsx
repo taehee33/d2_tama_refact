@@ -21,7 +21,7 @@ const StatsPanel = ({ stats }) => {
       <p>Age: {stats.age || 0}</p>
       <p>Weight: {stats.weight || 0}</p>
       <p>Strength: {stats.strength || 0}</p>
-      <p>Stamina: {stats.stamina || 0}</p>
+      <p>Energy (DP): {stats.energy !== undefined ? stats.energy : (stats.stamina || 0)}</p>
 
       {/* WinRate = 0% */}
       <p>WinRate: {stats.winRate || 0}%</p>
@@ -31,6 +31,15 @@ const StatsPanel = ({ stats }) => {
 
       <p>Fullness: {fullnessDisplay(stats.fullness, stats.maxOverfeed)}</p>
       <p>Health: {stats.health || 0}</p>
+      
+      {/* 개발자용 추가 정보 */}
+      <div className="mt-2 pt-2 border-t border-gray-300">
+        <p className="text-xs text-gray-600">Dev Info:</p>
+        <p className="text-xs">Protein Overdose: {stats.proteinOverdose || 0}</p>
+        <p className="text-xs">Overfeeds: {stats.overfeeds || 0}</p>
+        <p className="text-xs">Battles: {stats.battles || 0}</p>
+        <p className="text-xs">Wins: {stats.battlesWon || 0} / Losses: {stats.battlesLost || 0}</p>
+      </div>
     </div>
   );
 };

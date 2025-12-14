@@ -9,8 +9,14 @@ export {
 } from './stats';
 
 export {
+  handleHungerTick,
   feedMeat,
-  checkOverfeed,
-  decreaseHunger,
+  willRefuseMeat,
 } from './hunger';
+
+export {
+  handleStrengthTick,
+  feedProtein,
+  willRefuseProtein,
+} from './strength';
 

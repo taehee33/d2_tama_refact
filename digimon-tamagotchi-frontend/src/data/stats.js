@@ -27,6 +27,19 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // ★ trainingCount는 새 디지몬 생성(진화) 시 무조건 0
   merged.trainingCount = 0;
 
+  // 매뉴얼 기반 필드 초기화 (진화 시 리셋되는 필드)
+  merged.overfeeds = 0;
+  merged.proteinOverdose = 0;
+  merged.battlesForEvolution = 0;
+  merged.careMistakes = 0;
+  
+  // 매뉴얼 기반 필드 초기화 (진화 시 유지되는 필드)
+  merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
+  merged.battles = oldStats.battles !== undefined ? oldStats.battles : (merged.battles || 0);
+  merged.battlesWon = oldStats.battlesWon !== undefined ? oldStats.battlesWon : (merged.battlesWon || 0);
+  merged.battlesLost = oldStats.battlesLost !== undefined ? oldStats.battlesLost : (merged.battlesLost || 0);
+  merged.winRate = oldStats.winRate !== undefined ? oldStats.winRate : (merged.winRate || 0);
+
   // 타이머 계산
   merged.hungerCountdown   = merged.hungerTimer   * 60;
   merged.strengthCountdown = merged.strengthTimer * 60;
@@ -52,27 +65,10 @@ export function updateLifespan(stats, deltaSec=1){
   s.lifespanSeconds += deltaSec;
   s.timeToEvolveSeconds= Math.max(0, s.timeToEvolveSeconds - deltaSec);
 
-  // fullness--
-  if(s.hungerTimer>0){
-    s.hungerCountdown -= deltaSec;
-    if(s.hungerCountdown<=0){
-      s.fullness= Math.max(0, s.fullness-1);
-      s.hungerCountdown= s.hungerTimer*60;
-      if(s.fullness===0 && !s.lastHungerZeroAt){
-        s.lastHungerZeroAt= Date.now();
-      }
-    }
-  }
-  // health--
-  if(s.strengthTimer>0){
-    s.strengthCountdown -= deltaSec;
-    if(s.strengthCountdown<=0){
-      s.health= Math.max(0, s.health-1);
-      s.strengthCountdown= s.strengthTimer*60;
-    }
-  }
+  // 배고픔/힘 감소 로직은 handleHungerTick, handleStrengthTick으로 이동
+  // 이 함수는 lifespanSeconds, timeToEvolveSeconds, poop만 처리
 
-  // hunger=0 => 12h->사망
+  // hunger=0 => 12h->사망 (이 로직은 handleHungerTick에서 처리하지만, 여기서도 체크)
   if(s.fullness>0){
     s.lastHungerZeroAt= null;
   } else if(s.fullness===0 && s.lastHungerZeroAt){

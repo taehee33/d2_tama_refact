@@ -109,7 +109,7 @@ export default function StatsPopup({
           <li>Sprite: {sprite}</li>
           <li>Stage: {evolutionStage}</li>
           <li>Strength: {strength || 0}</li>
-          <li>Stamina: {stamina || 0}</li>
+          <li>Energy (DP): {stats.energy !== undefined ? stats.energy : (stamina || 0)}</li>
           <li>Effort: {effort || 0}</li>
           <li>WinRate: {winRate || 0}%</li>
           <li>CareMistakes: {careMistakes || 0}</li>
@@ -138,6 +138,15 @@ export default function StatsPopup({
           <li>PoopCount: {poopCount}</li>
           {/* ★ lastMaxPoopTime 표시 */}
           <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
+          
+          {/* 매뉴얼 기반 추가 필드 */}
+          <li className="mt-2 pt-2 border-t border-gray-300">--- 매뉴얼 기반 필드 ---</li>
+          <li>Protein Overdose: {stats.proteinOverdose || 0}</li>
+          <li>Overfeeds: {stats.overfeeds || 0}</li>
+          <li>Battles: {stats.battles || 0}</li>
+          <li>Battles Won: {stats.battlesWon || 0}</li>
+          <li>Battles Lost: {stats.battlesLost || 0}</li>
+          <li>Battles for Evolution: {stats.battlesForEvolution || 0}</li>
         </ul>
 
         {/* devMode => select box */}

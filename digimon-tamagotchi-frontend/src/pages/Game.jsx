@@ -14,8 +14,28 @@ import MenuIconButtons from "../components/MenuIconButtons";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats";
-import { digimonDataVer1 } from "../data/digimondata_digitalmonstercolor25th_ver1";
+// 새 데이터 구조 import
+import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
+import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { evolutionConditionsVer1 } from "../data/evolution_digitalmonstercolor25th_ver1";
+// 매뉴얼 기반 스탯 로직 import
+import { handleHungerTick, feedMeat, willRefuseMeat } from "../logic/stats/hunger";
+import { handleStrengthTick, feedProtein, willRefuseProtein } from "../logic/stats/strength";
+// 매뉴얼 기반 진화 판정 로직 import
+import { checkEvolution, findEvolutionTarget } from "../logic/evolution/checker";
+
+// 호환성을 위해 새 데이터를 옛날 형식으로 변환
+const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
+
+// 디버깅: 새 데이터가 제대로 import되었는지 확인
+if (process.env.NODE_ENV === 'development') {
+  console.log('[Game.jsx] 새 데이터 import 확인:', {
+    'newDigimonDataVer1 키 개수': Object.keys(newDigimonDataVer1).length,
+    '변환된 digimonDataVer1 키 개수': Object.keys(digimonDataVer1).length,
+    '새 데이터 Botamon 예시': newDigimonDataVer1['Botamon'],
+    '변환된 데이터 Botamon 예시': digimonDataVer1['Botamon'],
+  });
+}
 
 // ★ (A) 훈련 로직 (Ver1) import
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
@@ -245,10 +265,33 @@ function Game(){
           return prevStats;
         }
 
-        // updateLifespan을 호출하여 1초 경과 처리
-        // 이 함수는 lifespanSeconds 증가, timeToEvolveSeconds 감소, 
-        // 배고픔/건강 감소, 똥(poop) 누적 등을 처리
-        const updatedStats = updateLifespan(prevStats, 1);
+        // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
+        let updatedStats = updateLifespan(prevStats, 1);
+        
+        // 매뉴얼 기반 배고픔/힘 감소 로직 적용
+        // prevStats에서 evolutionStage를 통해 디지몬 데이터 찾기
+        const currentDigimonName = prevStats.evolutionStage ? 
+          Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === prevStats.evolutionStage) || "Digitama" :
+          "Digitama";
+        const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
+        
+        // 매뉴얼 기반 배고픔/힘 감소 처리
+        updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1);
+        updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1);
+        
+        // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
+        if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt){
+          const elapsed = (Date.now() - updatedStats.lastHungerZeroAt) / 1000;
+          if(elapsed >= 43200){ // 12시간 = 43200초
+            updatedStats.isDead = true;
+          }
+        }
+        if(updatedStats.health === 0 && updatedStats.lastStrengthZeroAt){
+          const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
+          if(elapsed >= 43200){
+            updatedStats.isDead = true;
+          }
+        }
         
         // 사망 상태 변경 감지
         if(!prevStats.isDead && updatedStats.isDead){
@@ -387,28 +430,57 @@ function Game(){
     
     if(updatedStats.isDead && !developerMode) return;
     
+    // 현재 디지몬 데이터 가져오기 (새 데이터 구조 사용 - evolutionCriteria 포함)
+    // selectedDigimon이 없으면 evolutionStage를 통해 찾기
+    const digimonName = selectedDigimon || (updatedStats.evolutionStage ? 
+      Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === updatedStats.evolutionStage) : 
+      "Digitama");
+    
+    const currentDigimonData = newDigimonDataVer1[digimonName];
+    if(!currentDigimonData) {
+      console.error(`No data for ${digimonName} in newDigimonDataVer1!`);
+      console.error('Available keys:', Object.keys(newDigimonDataVer1));
+      console.error('selectedDigimon:', selectedDigimon);
+      console.error('evolutionStage:', updatedStats.evolutionStage);
+      return;
+    }
+    
     if(developerMode) {
       // 개발자 모드에서는 바로 진화 가능
-      const evo= evolutionConditionsVer1[selectedDigimon];
+      const evo= evolutionConditionsVer1[digimonName];
       if(evo && evo.evolution.length > 0){
         await handleEvolution(evo.evolution[0].next);
       }
       return;
     }
     
-    const evo= evolutionConditionsVer1[selectedDigimon];
-    if(!evo) return;
-    for(let e of evo.evolution){
-      let test={...updatedStats};
-      if(developerMode){
-        test.timeToEvolveSeconds=0;
-      }
-      if(e.condition.check(test)){
-        await handleEvolution(e.next);
-        return;
-      }
+    // 매뉴얼 기반 진화 판정 (상세 결과 객체 반환)
+    // 5번째 인자로 전체 데이터 맵 전달 (targetName 찾기용) - 새 데이터 사용
+    const evolutionResult = checkEvolution(updatedStats, currentDigimonData, evolutionConditionsVer1, digimonName, newDigimonDataVer1);
+    
+    if(evolutionResult.success) {
+      // 진화 성공
+      const targetId = evolutionResult.targetId;
+      // targetName 찾기 (Fallback 처리) - 새 데이터 사용
+      const targetData = newDigimonDataVer1[targetId];
+      const targetName = targetData?.name || targetData?.id || targetId;
+      alert(`디지몬 진화~~~! 🎉\n\n곧 ${targetName}으로 진화합니다!`);
+      await handleEvolution(targetId);
+    } else if(evolutionResult.reason === "NOT_READY") {
+      // 시간 부족
+      const remainingSeconds = evolutionResult.remainingTime;
+      const mm = Math.floor(remainingSeconds / 60);
+      const ss = Math.floor(remainingSeconds % 60);
+      alert(`아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초`);
+    } else if(evolutionResult.reason === "CONDITIONS_UNMET") {
+      // 조건 부족
+      const detailsText = evolutionResult.details
+        .map(d => `• ${d.target}: ${d.missing}`)
+        .join("\n");
+      alert(`진화 조건을 만족하지 못했어!\n\n[부족한 조건]\n${detailsText}`);
     }
   }
+  
   async function handleEvolution(newName){
     if(!digimonDataVer1[newName]){
       console.error(`No data for ${newName} in digimonDataVer1! fallback => Digitama`);
@@ -416,7 +488,23 @@ function Game(){
     }
     const currentStats = await applyLazyUpdateBeforeAction();
     const old={...currentStats};
-    const nx= initializeStats(newName, old, digimonDataVer1);
+    
+    // 진화 시 스탯 리셋 (매뉴얼 규칙)
+    // careMistakes, overfeeds, battlesForEvolution, proteinOverdose, injuries 등은 initializeStats에서 리셋됨
+    // 하지만 여기서 명시적으로 리셋하여 확실히 함
+    const resetStats = {
+      ...old,
+      careMistakes: 0,
+      overfeeds: 0,
+      battlesForEvolution: 0,
+      proteinOverdose: 0,
+      injuries: 0,
+      trainings: 0,
+      sleepDisturbances: 0,
+      trainingCount: 0,
+    };
+    
+    const nx= initializeStats(newName, resetStats, digimonDataVer1);
     await setDigimonStatsAndSave(nx);
     await setSelectedDigimonAndSave(newName);
   }
@@ -448,9 +536,10 @@ function Game(){
     
     // 업데이트된 스탯으로 작업
     setDigimonStats(updatedStats);
-    const limit= 5+(updatedStats.maxOverfeed||0);
+    
+    // 매뉴얼 기반 거부 체크
     if(type==="meat"){
-      if(updatedStats.fullness>= limit){
+      if(willRefuseMeat(updatedStats)){
         setCurrentAnimation("foodRejectRefuse");
         setShowFood(false);
         setFeedStep(0);
@@ -458,7 +547,7 @@ function Game(){
         return;
       }
     } else {
-      if(updatedStats.fullness>=limit && updatedStats.health>=5){
+      if(willRefuseProtein(updatedStats)){
         setCurrentAnimation("foodRejectRefuse");
         setShowFood(false);
         setFeedStep(0);
@@ -486,23 +575,14 @@ function Game(){
     setTimeout(()=> eatCycle(step+1,type),500);
   }
   function applyEatResult(old,type){
-    let s={...old};
-    const limit=5+(s.maxOverfeed||0);
+    // 매뉴얼 기반 먹이기 로직 사용
     if(type==="meat"){
-      if(s.fullness<limit){
-        s.fullness++;
-        s.weight++;
-      }
+      const result = feedMeat(old);
+      return result.updatedStats;
     } else {
-      if(s.fullness<5){
-        s.fullness= Math.min(limit, s.fullness+2);
-      }
-      if(s.health<5){
-        s.health++;
-      }
-      s.weight+=2;
+      const result = feedProtein(old);
+      return result.updatedStats;
     }
-    return s;
   }
 
   // 똥 청소

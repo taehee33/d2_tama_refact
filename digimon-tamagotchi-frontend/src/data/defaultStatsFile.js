@@ -5,7 +5,8 @@ export const defaultStats = {
     age: 0,
     weight: 0,
     strength: 0,
-    stamina: 0,
+    stamina: 0, // 기존 필드 (호환성 유지)
+    energy: 0, // 매뉴얼의 DP 개념 (Energy/DP)
     effort: 0,
     health: 0,
     fullness: 0,
@@ -22,6 +23,7 @@ export const defaultStats = {
     poopTimer: 0,
   
     maxOverfeed: 0,
+    overfeeds: 0, // 오버피드 횟수 누적
     isDead: false,
     lastHungerZeroAt: null,
   
@@ -32,4 +34,11 @@ export const defaultStats = {
     power: 0,
     attackSprite: 0,
     altAttackSprite: 65535,
+    
+    // 매뉴얼 기반 추가 필드
+    proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7)
+    battles: 0, // 총 배틀 횟수 (진화 조건용)
+    battlesWon: 0, // 총 승리 횟수 (진화 조건용)
+    battlesLost: 0, // 총 패배 횟수 (진화 조건용)
+    battlesForEvolution: 0, // 진화를 위한 배틀 횟수 (진화 시 리셋)
   };

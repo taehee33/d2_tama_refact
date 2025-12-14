@@ -2,63 +2,42 @@
 // Digital Monster Color 매뉴얼 기반 배고픔 관리 로직
 
 /**
- * 고기 먹기 처리
- * 매뉴얼: "Giving this to a Digimon will add one heart to the hunger meter, and add one gigabyte to their weight."
- * 
- * @param {Object} stats - 현재 스탯
- * @returns {Object} 업데이트된 스탯
- */
-export function feedMeat(stats) {
-  const s = { ...stats };
-  
-  // 배고픔 하트 +1 (최대 5)
-  s.hunger = Math.min(5, s.hunger + 1);
-  
-  // 체중 +1 Gigabyte
-  s.weight = s.weight + 1;
-  
-  // 오버피드 체크: 배고픔이 가득 찬 상태에서 10개 더 먹으면 오버피드
-  // TODO: 오버피드 로직 구현 필요
-  
-  return s;
-}
-
-/**
- * 오버피드 체크
- * 매뉴얼: "You can overfeed by feeding 10 more meat after having full hearts."
- * 
- * @param {Object} stats - 현재 스탯
- * @param {number} meatFed - 먹은 고기 개수
- * @returns {boolean} 오버피드 여부
- */
-export function checkOverfeed(stats, meatFed) {
-  // 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드
-  if (stats.hunger >= 5 && meatFed >= 10) {
-    return true;
-  }
-  return false;
-}
-
-/**
- * 배고픔 감소 처리
+ * 시간 경과에 따른 배고픔 감소 처리
  * 매뉴얼: "As time proceeds, these hearts will empty at a set rate"
+ * 오버피드 상태면 감소 지연: "Overfeeding will give you one extra Hunger Loss cycle before one of your hearts drop."
  * 
- * @param {Object} stats - 현재 스탯
+ * @param {Object} currentStats - 현재 스탯
+ * @param {Object} digimonData - 디지몬 데이터 (hungerCycle 정보 포함)
  * @param {number} deltaSec - 경과 시간 (초)
  * @returns {Object} 업데이트된 스탯
  */
-export function decreaseHunger(stats, deltaSec) {
-  const s = { ...stats };
+export function handleHungerTick(currentStats, digimonData, deltaSec = 1) {
+  if (currentStats.isDead) return currentStats;
+
+  const s = { ...currentStats };
   
-  if (s.hungerTimer > 0) {
+  // hungerTimer는 어댑터를 통해 hungerCycle로 변환됨
+  const hungerCycle = s.hungerTimer || 0;
+  
+  if (hungerCycle > 0) {
+    s.hungerCountdown = s.hungerCountdown || (hungerCycle * 60);
     s.hungerCountdown -= deltaSec;
+    
     if (s.hungerCountdown <= 0) {
-      s.hunger = Math.max(0, s.hunger - 1);
-      s.hungerCountdown = s.hungerTimer * 60;
-      
-      // 배고픔이 0이 되면 시간 기록
-      if (s.hunger === 0 && !s.lastHungerZeroAt) {
-        s.lastHungerZeroAt = Date.now();
+      // 오버피드 상태 체크: 오버피드가 있으면 한 사이클 더 지연
+      if (s.overfeeds > 0) {
+        // 오버피드가 있으면 감소하지 않고 카운트다운만 리셋 (한 사이클 지연)
+        s.hungerCountdown = hungerCycle * 60;
+        s.overfeeds = Math.max(0, s.overfeeds - 1); // 오버피드 카운트 감소
+      } else {
+        // 정상적으로 배고픔 감소
+        s.fullness = Math.max(0, s.fullness - 1);
+        s.hungerCountdown = hungerCycle * 60;
+        
+        // 배고픔이 0이 되면 시간 기록
+        if (s.fullness === 0 && !s.lastHungerZeroAt) {
+          s.lastHungerZeroAt = Date.now();
+        }
       }
     }
   }
@@ -66,3 +45,56 @@ export function decreaseHunger(stats, deltaSec) {
   return s;
 }
 
+/**
+ * 고기 먹기 처리
+ * 매뉴얼: "Giving this to a Digimon will add one heart to the hunger meter, and add one gigabyte to their weight."
+ * "You can overfeed by feeding 10 more meat after having full hearts."
+ * 
+ * @param {Object} currentStats - 현재 스탯
+ * @returns {Object} 업데이트된 스탯 및 결과 정보
+ */
+export function feedMeat(currentStats) {
+  const s = { ...currentStats };
+  
+  const maxHunger = 5 + (s.maxOverfeed || 0);
+  const wasFull = s.fullness >= 5;
+  
+  // 배고픔이 가득 찬 상태에서 10개 더 먹으면 오버피드
+  if (wasFull) {
+    // 오버피드 카운트 증가 (연속으로 먹은 고기 개수 추적)
+    s.consecutiveMeatFed = (s.consecutiveMeatFed || 0) + 1;
+    
+    if (s.consecutiveMeatFed >= 10) {
+      // 오버피드 발생
+      s.overfeeds = (s.overfeeds || 0) + 1;
+      s.consecutiveMeatFed = 0; // 리셋
+    }
+  } else {
+    // 배고픔이 가득 차지 않았으면 연속 카운트 리셋
+    s.consecutiveMeatFed = 0;
+  }
+  
+  // 배고픔 하트 +1 (최대 maxHunger)
+  if (s.fullness < maxHunger) {
+    s.fullness++;
+    s.weight++;
+  }
+  
+  return {
+    updatedStats: s,
+    wasOverfed: s.overfeeds > (currentStats.overfeeds || 0),
+    canEatMore: s.fullness < maxHunger,
+  };
+}
+
+/**
+ * 고기 거부 체크
+ * 매뉴얼: "continuing to feed it until it refuses to will result in an Overfeed"
+ * 
+ * @param {Object} stats - 현재 스탯
+ * @returns {boolean} 고기 거부 여부
+ */
+export function willRefuseMeat(stats) {
+  const maxHunger = 5 + (stats.maxOverfeed || 0);
+  return stats.fullness >= maxHunger;
+}

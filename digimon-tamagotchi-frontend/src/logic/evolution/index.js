@@ -1,6 +1,8 @@
 // src/logic/evolution/index.js
 // 진화 관련 로직 통합 export
 
+export { checkEvolution, findEvolutionTarget } from './checker';
+
 // TODO: 진화 조건 체크 로직 추가 예정
 export function checkEvolutionConditions(stats, digimonData, evolutionCriteria) {
   // 매뉴얼 기반 진화 조건 체크

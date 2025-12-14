@@ -4,6 +4,1139 @@
 
 ---
 
+## [2024-12-19] Ver.1 퀘스트 모드 전체 데이터(Area 1~F) 및 엔진 구현
+
+### 작업 유형
+- 퀘스트 데이터 구현
+- 퀘스트 엔진 구현
+- 배틀 시스템 통합
+
+### 목적 및 영향
+Digital Monster Color Ver.1 퀘스트 모드를 완전히 구현했습니다. Area 1부터 Area F까지 모든 퀘스트 데이터를 입력하고, 퀘스트 엔진을 구현하여 실제 게임에서 퀘스트 모드를 플레이할 수 있게 되었습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/quests.js` (신규 생성)
+  - **퀘스트 데이터 구조 정의**
+    - `quests` 배열: Area 1 ~ Area 7, Area F (총 8개 Area)
+    - 각 Area는 여러 적(Enemy)을 포함하며, 마지막 적은 Boss
+    - 적 데이터 구조:
+      - `enemyId`: 디지몬 ID (digimons.js 참조)
+      - `name`: 디지몬 이름
+      - `attribute`: 속성 (Vaccine, Data, Virus, Free)
+      - `power`: 파워 (퀘스트 전용 값, 도감 값과 다를 수 있음)
+      - `isBoss`: 보스 여부
+    - `unlockCondition`: Area 언락 조건 (예: "The Grid", "DMC Logo", "Box Art")
+
+  - **헬퍼 함수**
+    - `getQuestArea(areaId)`: Area ID로 퀘스트 데이터 찾기
+    - `getQuestEnemy(areaId, roundIndex)`: Area의 특정 Round(적) 데이터 가져오기
+
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js` (신규 생성)
+  - **퀘스트 엔진 구현**
+    - `playQuestRound(userDigimon, userStats, areaId, roundIndex)` 함수
+      - 지정된 Area와 Round의 적 데이터를 가져옴
+      - `calculator.js`의 `simulateBattle`을 실행하여 배틀 수행
+      - **중요**: 적의 `power`는 퀘스트 데이터의 값을 강제로 적용 (도감 값 무시)
+      - 반환값:
+        - `win`: 승리 여부 (boolean)
+        - `logs`: 배틀 로그 배열
+        - `enemy`: 적 정보 { name, power, attribute, isBoss }
+        - `isAreaClear`: Area 클리어 여부
+        - `reward`: 보상 (Area 클리어 시)
+        - `rounds`, `userHits`, `enemyHits`: 추가 배틀 정보
+
+    - `playQuestArea(userDigimon, userStats, areaId)` 함수
+      - Area의 모든 라운드를 순차적으로 플레이
+      - 한 번이라도 패배하면 중단
+      - 전체 Area 플레이 결과 반환
+
+- `digimon-tamagotchi-frontend/src/logic/battle/index.js` (수정)
+  - 퀘스트 엔진 함수들 export 추가
+
+### 퀘스트 데이터 상세
+
+#### Area 1: The Grid (Unlock: "The Grid")
+- Betamon (Virus, Power: 15)
+- Agumon (Vaccine, Power: 19)
+- Meramon (Boss, Data, Power: 23)
+
+#### Area 2
+- Numemon (Virus, Power: 19)
+- Seadramon (Data, Power: 23)
+- Devimon (Boss, Virus, Power: 28)
+
+#### Area 3
+- Tyrannomon (Data, Power: 28)
+- Airdramon (Vaccine, Power: 37)
+- Greymon (Boss, Vaccine, Power: 45)
+
+#### Area 4: DMC Logo (Unlock: "DMC Logo")
+- Seadramon (Data, Power: 45)
+- Meramon (Data, Power: 55)
+- Devimon (Virus, Power: 65)
+- Mamemon (Boss, Data, Power: 80)
+
+#### Area 5
+- Airdramon (Vaccine, Power: 55)
+- Tyrannomon (Data, Power: 70)
+- Greymon (Vaccine, Power: 85)
+- Metal Greymon (Virus) (Boss, Power: 105)
+
+#### Area 6
+- Meramon (Data, Power: 55)
+- Mamemon (Data, Power: 80)
+- Monzaemon (Vaccine, Power: 95)
+- Bancho Mamemon (Boss, Data, Power: 120)
+
+#### Area 7
+- Numemon (Virus, Power: 75)
+- Metal Greymon (Virus) (Power: 90)
+- Monzaemon (Vaccine, Power: 110)
+- Blitz Greymon (Virus, Power: 130)
+- Shin Monzaemon (Boss, Vaccine, Power: 145)
+
+#### Area F (Final): Box Art (Unlock: "Box Art")
+- Metal Greymon (Virus) (Power: 85)
+- Bancho Mamemon (Data, Power: 100)
+- Shin Monzaemon (Vaccine, Power: 135)
+- Blitz Greymon (Virus, Power: 160)
+- Omegamon Alter-S (Boss, Virus, Power: 220)
+
+### 주요 특징
+
+1. **퀘스트 전용 파워 값**
+   - 적의 파워는 도감 값이 아닌 퀘스트 데이터의 값을 사용
+   - 같은 디지몬이라도 Area에 따라 다른 파워를 가질 수 있음
+
+2. **Boss 시스템**
+   - 각 Area의 마지막 적은 `isBoss: true`로 표시
+   - Boss를 처치하면 Area 클리어
+
+3. **언락 시스템**
+   - 일부 Area는 특정 조건을 만족해야 언락됨
+   - `unlockCondition` 필드로 관리
+
+4. **배틀 로그**
+   - 각 배틀의 상세 로그를 제공
+   - 승패, 라운드 수, 명중 횟수 등 모든 정보 포함
+
+### 사용 예시
+```javascript
+import { playQuestRound, playQuestArea } from '../logic/battle';
+import { digimonDataVer1 } from '../data/v1/digimons';
+
+// 단일 라운드 플레이
+const result = playQuestRound(
+  userDigimon,    // digimons.js의 디지몬 데이터
+  userStats,      // 유저 스탯
+  "area1",        // Area ID
+  0               // Round 인덱스 (0부터 시작)
+);
+
+// 전체 Area 플레이
+const areaResult = playQuestArea(
+  userDigimon,
+  userStats,
+  "area1"
+);
+```
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/v1/quests.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/index.js`
+
+---
+
+## [2024-12-19] DMC 배틀 공식(HitRate + Type Advantage) 엔진 구현
+
+### 작업 유형
+- 배틀 시스템 구현
+- 속성 상성 로직 구현
+- 배틀 시뮬레이터 구현
+
+### 목적 및 영향
+Digital Monster Color 매뉴얼 기반 배틀 계산기를 구현했습니다. 속성 상성 시스템과 히트레이트 계산 공식을 정확히 반영하고, 턴제 배틀 시뮬레이터를 추가하여 실제 배틀 결과를 시뮬레이션할 수 있게 되었습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/types.js` (신규 생성)
+  - **속성 상성 시스템 구현**
+    - Vaccine > Virus > Data > Vaccine 삼각 상성 관계 정의
+    - `getAttributeBonus(attackerAttr, defenderAttr)` 함수
+      - 유리한 경우: +5 반환
+      - 불리한 경우: -5 반환
+      - 무관한 경우: 0 반환
+      - Free 속성은 상성 없음
+
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (신규 생성)
+  - **히트레이트 계산기**
+    - `calculateHitRate(attackerPower, defenderPower, attrBonus)` 함수
+      - 매뉴얼 공식: `((p1 * 100) / (p1 + p2)) + bonus`
+      - 결과값을 0~100 사이로 클램핑
+      - 분모가 0인 경우 기본값 50% 반환
+
+  - **배틀 시뮬레이터**
+    - `simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)` 함수
+      - 턴제 시뮬레이션 수행
+      - 라운드마다 서로 한 번씩 공격
+      - 각 공격은 `Math.random() * 100 < hitRate` 여부로 명중 판정
+      - 먼저 3번 명중(Hits)시킨 쪽이 승리
+      - 반환값:
+        - `won`: 승패 여부 (boolean)
+        - `rounds`: 총 라운드 수 (number)
+        - `log`: 배틀 로그 배열 (누가 때렸고 맞았는지 상세 정보)
+        - `userHits`: 유저 명중 횟수
+        - `enemyHits`: 적 명중 횟수
+        - `userHitRate`, `enemyHitRate`: 각각의 히트레이트
+        - `userAttrBonus`, `enemyAttrBonus`: 각각의 속성 보너스
+
+- `digimon-tamagotchi-frontend/src/logic/battle/index.js` (수정)
+  - 새로운 배틀 계산기 함수들 export 추가
+  - 기존 `hitrate.js` 함수들과의 호환성 유지
+
+### 배틀 시스템 상세
+
+#### 속성 상성 관계
+```
+Vaccine > Virus > Data > Vaccine (삼각 상성)
+Free: 상성 없음
+```
+
+#### 히트레이트 계산 공식
+```
+hitRate = ((attackerPower * 100) / (attackerPower + defenderPower)) + attrBonus
+```
+- `attrBonus`: 속성 보너스 (-5, 0, 또는 +5)
+- 결과값은 0~100 사이로 클램핑
+
+#### 배틀 규칙
+1. **턴제 시스템**: 라운드마다 유저와 적이 각각 한 번씩 공격
+2. **명중 판정**: `Math.random() * 100 < hitRate`로 결정
+3. **승리 조건**: 먼저 상대에게 3번 명중시킨 쪽이 승리
+4. **최대 라운드**: 무한 루프 방지를 위해 최대 100라운드로 제한
+
+#### 배틀 로그 구조
+```javascript
+{
+  round: 1,
+  attacker: "user" | "enemy",
+  defender: "user" | "enemy",
+  hit: true | false,
+  roll: "45.23", // 랜덤 값
+  hitRate: "65.50", // 히트레이트
+  message: "라운드 1: 유저 공격 성공! (1/3)"
+}
+```
+
+### 사용 예시
+```javascript
+import { simulateBattle, calculateHitRate, getAttributeBonus } from '../logic/battle';
+
+// 배틀 시뮬레이션
+const result = simulateBattle(
+  userDigimon,    // 유저 디지몬 데이터
+  userStats,      // 유저 스탯
+  enemyDigimon,   // 적 디지몬 데이터
+  enemyStats      // 적 스탯
+);
+
+console.log(result.won);      // true/false
+console.log(result.rounds);    // 총 라운드 수
+console.log(result.log);       // 상세 로그 배열
+```
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/types.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/index.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/hitrate.js` (기존 파일, 호환성 유지)
+
+---
+
+## [2024-12-19] Ver.1 전체 진화 트리 데이터 입력 (Baby I ~ Super Ultimate)
+
+### 작업 유형
+- 데이터 전면 업데이트
+- 완전한 진화 트리 구현
+- 모든 스탯 값 정확 반영
+
+### 목적 및 영향
+사용자가 제공한 18장의 상세 스탯 카드 및 진화 트리 이미지를 분석하여 `digimons.js`를 전면 업데이트했습니다. Baby I부터 Super Ultimate까지 모든 단계의 디지몬 데이터를 정확히 반영하고, 모든 수치(Hunger Loss, Strength Loss, Sleep Time, Power, Energy, Min Weight 등)를 이미지 분석 데이터에 맞춰 입력했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js` (전면 재작성)
+  - **전체 디지몬 데이터 구조 재정의**
+  - **sleepTime 필드 추가**: 수면 시간을 "HH:MM" 형식으로 저장
+  - **진화 우선순위 적용**: 까다로운 진화 조건을 배열 앞쪽에, Numemon 같은 Fallback 진화를 맨 뒤에 배치
+
+### 추가/업데이트된 디지몬 목록
+
+#### Baby I (In-Training I)
+1. **Botamon** (ID: 1, Free)
+   - Power: 0, Min Weight: 5, Energy: 0
+   - Hunger Loss: 3분, Strength Loss: 3분
+   - Sleep: null
+   - 진화: Koromon (Time 10분)
+
+#### Baby II (In-Training II)
+2. **Koromon** (ID: 2, Free)
+   - Power: 0, Min Weight: 10, Energy: 0
+   - Hunger Loss: 30분, Strength Loss: 30분
+   - Sleep: 20:00
+   - 진화: Agumon (Mistakes [0, 3]), Betamon (Mistakes [4, 99])
+
+#### Child (Rookie)
+3. **Agumon** (ID: 3, Vaccine)
+   - Power: 30, Min Weight: 20, Energy: 20
+   - Hunger Loss: 48분, Strength Loss: 48분
+   - Sleep: 20:00
+   - 진화: Greymon, Devimon, Tyranomon, Meramon, Numemon (Fallback)
+
+4. **Betamon** (ID: 4, Virus)
+   - Power: 25, Min Weight: 20, Energy: 20
+   - Hunger Loss: 38분, Strength Loss: 38분
+   - Sleep: 21:00
+   - 진화: Devimon, Meramon, Airdramon, Seadramon, Numemon (Fallback)
+
+#### Adult (Champion)
+5. **Greymon** (ID: 5, Vaccine)
+   - Power: 50, Min Weight: 30, Energy: 30
+   - Hunger Loss: 59분, Strength Loss: 59분
+   - Sleep: 21:00
+   - 진화: Metal Greymon (Virus) (Battles 15+, WinRatio 80%+)
+
+6. **Devimon** (ID: 6, Virus)
+   - Power: 50, Min Weight: 40, Energy: 30
+   - Hunger Loss: 48분, Strength Loss: 48분
+   - Sleep: 23:00
+   - 진화: Metal Greymon (Virus) (Battles 15+, WinRatio 80%+)
+
+7. **Airdramon** (ID: 7, Vaccine)
+   - Power: 50, Min Weight: 30, Energy: 30
+   - Hunger Loss: 38분, Strength Loss: 38분
+   - Sleep: 23:00
+   - 진화: Metal Greymon (Virus) (Battles 15+, WinRatio 80%+)
+
+8. **Numemon** (ID: 8, Virus)
+   - Power: 40, Min Weight: 10, Energy: 30
+   - Hunger Loss: 28분, Strength Loss: 28분
+   - Sleep: 00:00
+   - 진화: Monzaemon (Battles 15+, WinRatio 80%+)
+
+9. **Tyranomon** (ID: 9, Data)
+   - Power: 45, Min Weight: 20, Energy: 30
+   - Hunger Loss: 59분, Strength Loss: 59분
+   - Sleep: 22:00
+   - 진화: Mamemon (Battles 15+, WinRatio 80%+)
+
+10. **Meramon** (ID: 10, Data)
+    - Power: 45, Min Weight: 30, Energy: 30
+    - Hunger Loss: 48분, Strength Loss: 48분
+    - Sleep: 00:00
+    - 진화: Mamemon (Battles 15+, WinRatio 80%+)
+
+11. **Seadramon** (ID: 11, Data)
+    - Power: 45, Min Weight: 20, Energy: 30
+    - Hunger Loss: 38분, Strength Loss: 38분
+    - Sleep: 23:00
+    - 진화: Mamemon (Battles 15+, WinRatio 80%+)
+
+#### Perfect (Ultimate)
+12. **Metal Greymon (Virus)** (ID: 12, Virus)
+    - Power: 100, Min Weight: 40, Energy: 40
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - Sleep: 20:00
+    - 진화: Blitz Greymon (Mistakes [0, 1], Battles 15+, WinRatio 80%+)
+
+13. **Monzaemon** (ID: 13, Vaccine)
+    - Power: 100, Min Weight: 40, Energy: 40
+    - Hunger Loss: 48분, Strength Loss: 48분
+    - Sleep: 21:00
+    - 진화: Shin Monzaemon (Mistakes [0, 1], Battles 15+, WinRatio 80%+)
+
+14. **Mamemon** (ID: 14, Data)
+    - Power: 85, Min Weight: 5, Energy: 40
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - Sleep: 23:00
+    - 진화: Bancho Mamemon (Mistakes [0, 1], Battles 15+, WinRatio 80%+)
+
+#### Ultimate
+15. **Blitz Greymon** (ID: 15, Virus)
+    - Power: 170, Min Weight: 50, Energy: 50
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - Sleep: 23:00
+    - 진화: Omegamon Alter-S (Jogress with Cres Garurumon)
+
+16. **Shin Monzaemon** (ID: 16, Vaccine)
+    - Power: 170, Min Weight: 40, Energy: 50
+    - Hunger Loss: 48분, Strength Loss: 48분
+    - Sleep: 23:00
+    - 진화: [] (최종 단계)
+
+17. **Bancho Mamemon** (ID: 17, Data)
+    - Power: 150, Min Weight: 5, Energy: 50
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - Sleep: 23:00
+    - 진화: [] (최종 단계)
+
+#### Super Ultimate
+18. **Omegamon Alter-S** (ID: 18, Virus)
+    - Power: 200, Min Weight: 40, Energy: 50
+    - Hunger Loss: 66분, Strength Loss: 66분
+    - Sleep: 23:00
+    - 진화: [] (최종 단계)
+
+#### Jogress 파트너
+19. **Cres Garurumon** (ID: 19, Ultimate)
+    - Placeholder (Jogress 파트너용)
+    - Blitz Greymon과 조그레스하여 Omegamon Alter-S 진화
+
+### 주요 변경 사항
+
+1. **스탯 필드 정확 반영**
+   - 모든 Hunger Loss / Strength Loss 값을 분 단위 정수로 변환
+   - Sleep Time을 "HH:MM" 형식으로 저장
+   - Power, Energy, Min Weight 값 정확히 반영
+
+2. **진화 조건 우선순위**
+   - 까다로운 진화 조건(상위 루트)을 배열 앞쪽에 배치
+   - Numemon 같은 Fallback 진화를 맨 뒤에 배치
+   - 조건 체크 순서가 진화 결과에 영향을 주도록 설계
+
+3. **Perfect 단계 진화 조건**
+   - Mistakes [0, 1] 조건 추가
+   - Battles 15+, WinRatio 80%+ 조건 유지
+
+4. **Jogress 진화 구현**
+   - Blitz Greymon → Omegamon Alter-S (Jogress with Cres Garurumon)
+   - `jogress: true` 플래그 및 `partner` 필드 추가
+
+5. **최종 단계 디지몬**
+   - Shin Monzaemon, Bancho Mamemon, Omegamon Alter-S는 `evolutionCriteria: null`, `evolutions: []`로 설정
+
+### 데이터 소스
+- 18장의 상세 스탯 카드 이미지 (사용자 제공)
+- Ver.1 진화 트리 이미지 (사용자 제공)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/data/v1/evolution.js` (향후 업데이트 필요)
+
+---
+
+## [2024-12-19] Ver.1 성장기/성숙기 데이터 및 진화 조건 입력
+
+### 작업 유형
+- 데이터 대량 추가
+- 진화 트리 구현
+- 스탯 데이터 업데이트
+
+### 목적 및 영향
+Ver.1 진화 트리 이미지를 기반으로 성장기(Child)와 성숙기(Adult) 디지몬들의 데이터를 대량 추가했습니다. 이미지에서 확인한 스탯 값(Power, Min Weight, Energy, Hunger Loss, Strength Loss 등)을 반영하고, 복잡한 진화 조건을 구현했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js` (대폭 수정)
+  - **Agumon (Child)**: 스탯 업데이트 및 진화 조건 추가
+    - Power: 30, Min Weight: 20, Energy: 20
+    - Hunger Loss: 48분, Strength Loss: 48분
+    - 진화 대상: Greymon, Tyranomon, Devimon, Meramon, Numemon (5가지 경로)
+  - **Betamon (Child)**: 스탯 업데이트 및 진화 조건 추가
+    - Power: 25, Min Weight: 20, Energy: 20
+    - Hunger Loss: 38분, Strength Loss: 38분
+    - 진화 대상: Airdramon, Seadramon, Devimon, Meramon, Numemon (5가지 경로)
+  - **Greymon (Adult)**: 스탯 업데이트
+    - Power: 50, Min Weight: 30, Energy: 30
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - 진화 대상: Metal Greymon (Virus) (15+ Battles, 80%+ Win Ratio)
+  - **Tyranomon (Adult)**: 신규 추가
+    - Power: 45, Min Weight: 20, Energy: 30
+    - Hunger Loss: 59분, Strength Loss: 59분
+    - 진화 대상: Mamemon (15+ Battles, 80%+ Win Ratio)
+  - **Meramon (Adult)**: 신규 추가
+    - 진화 대상: Metal Greymon (Virus) (15+ Battles, 80%+ Win Ratio)
+  - **Seadramon (Adult)**: 신규 추가
+    - 진화 대상: Metal Greymon (Virus) (15+ Battles, 80%+ Win Ratio)
+  - **Numemon (Adult)**: 신규 추가
+    - Power: 40, Min Weight: 10, Energy: 30
+    - Hunger Loss: 28분, Strength Loss: 28분
+    - 진화 대상: Monzaemon (15+ Battles, 80%+ Win Ratio)
+  - **Devimon (Adult)**: 신규 추가
+    - Power: 50, Min Weight: 40, Energy: 30
+    - Hunger Loss: 48분, Strength Loss: 48분
+    - 진화 대상: Metal Greymon (Virus) (15+ Battles, 80%+ Win Ratio)
+  - **Airdramon (Adult)**: 신규 추가
+    - Power: 50, Min Weight: 30, Energy: 30
+    - Hunger Loss: 38분, Strength Loss: 38분
+    - 진화 대상: Metal Greymon (Virus) (15+ Battles, 80%+ Win Ratio)
+  - **Metal Greymon (Virus) (Perfect)**: 신규 추가
+  - **Mamemon (Perfect)**: 신규 추가
+  - **Monzaemon (Perfect)**: 신규 추가
+
+- `digimon-tamagotchi-frontend/src/data/v1/evolution.js` (대폭 수정)
+  - **Agumon 진화 조건**: 9가지 경로 구현
+    - Greymon: 0-3 Care Mistakes, 32+ Training
+    - Tyranomon: 4+ Care Mistakes, 5-15 Training, 3+ Overfeed, 4-5 Sleep Disturbances
+    - Devimon: 0-3 Care Mistakes, 0-31 Training
+    - Meramon: 4+ Care Mistakes, 16+ Training, 3+ Overfeed, 6+ Sleep Disturbances
+    - Numemon: 5가지 조건 (Choose one)
+  - **Betamon 진화 조건**: 8가지 경로 구현
+    - Airdramon: 4+ Care Mistakes, 8-31 Training, 0-3 Overfeed, 9+ Sleep Disturbances
+    - Seadramon: 4+ Care Mistakes, 8-31 Training, 4+ Overfeed, 0-8 Sleep Disturbances
+    - Devimon: 0-3 Care Mistakes, 48+ Training
+    - Meramon: 0-3 Care Mistakes, 0-47 Training
+    - Numemon: 4가지 조건 (Choose one)
+  - **Adult → Perfect 진화 조건**: 모든 성숙기 디지몬에 15+ Battles, 80%+ Win Ratio 조건 추가
+    - Greymon → Metal Greymon (Virus)
+    - Tyranomon → Mamemon
+    - Meramon → Metal Greymon (Virus)
+    - Seadramon → Metal Greymon (Virus)
+    - Numemon → Monzaemon
+    - Devimon → Metal Greymon (Virus)
+    - Airdramon → Metal Greymon (Virus)
+
+### 진화 트리 구조
+
+#### Child → Adult 진화 경로
+1. **Agumon → Adult**
+   - Greymon: 0-3 실수, 32+ 훈련
+   - Tyranomon: 4+ 실수, 5-15 훈련, 3+ 오버피드, 4-5 수면 방해
+   - Devimon: 0-3 실수, 0-31 훈련
+   - Meramon: 4+ 실수, 16+ 훈련, 3+ 오버피드, 6+ 수면 방해
+   - Numemon: 5가지 조건 중 하나 (실패 진화)
+
+2. **Betamon → Adult**
+   - Airdramon: 4+ 실수, 8-31 훈련, 0-3 오버피드, 9+ 수면 방해
+   - Seadramon: 4+ 실수, 8-31 훈련, 4+ 오버피드, 0-8 수면 방해
+   - Devimon: 0-3 실수, 48+ 훈련
+   - Meramon: 0-3 실수, 0-47 훈련
+   - Numemon: 4가지 조건 중 하나 (실패 진화)
+
+#### Adult → Perfect 진화 조건
+- 모든 성숙기 디지몬: 15+ 배틀, 80%+ 승률 필요
+
+### 데이터 소스
+- Ver.1 진화 트리 이미지 (사용자 제공)
+- 각 디지몬의 상세 정보 카드 이미지 (Power, Min Weight, Energy, Hunger Loss, Strength Loss 등)
+
+### 미완성 항목
+- Perfect 단계 디지몬들의 스탯 값 (TODO 주석으로 표시)
+- Ultimate, Super Ultimate 단계 디지몬 데이터 (향후 추가 예정)
+- 일부 디지몬의 sprite 번호 (0으로 임시 설정, TODO 주석으로 표시)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/data/v1/evolution.js`
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js` (기존 로직 활용)
+
+---
+
+## [2024-12-19] Botamon/Koromon 초기 진화 데이터 입력
+
+### 작업 유형
+- 데이터 입력
+- 에러 핸들링 개선
+- 버그 수정
+
+### 목적 및 영향
+Botamon과 Koromon의 진화 데이터를 추가하고, 진화 체커에서 디지몬 이름을 찾을 수 없을 때의 예외 처리를 개선했습니다. "N/A" 대신 정상적인 피드백이 표시되도록 수정했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js` (수정)
+  - **Botamon**: `evolutions` 배열 추가
+    - Koromon으로 진화 (10분 후, `timeToEvolveSeconds: 600`)
+  - **Koromon**: `evolutions` 배열 추가
+    - Agumon으로 진화 (실수 0~3회)
+    - Betamon으로 진화 (실수 4회 이상)
+  - **Agumon, Betamon**: 기본 데이터 확인 (이미 존재함)
+
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js` (수정)
+  - `checkEvolution` 함수에 `digimonDataMap` 파라미터 추가 (5번째 인자)
+  - `targetName` 찾기 로직에 예외 처리 추가:
+    - `digimonDataMap`에서 디지몬 데이터 찾기
+    - 찾을 수 없으면 `"Unknown Digimon (ID: ${targetName})"` 형식으로 표시
+    - "N/A" 대신 구체적인 정보 제공
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - `checkEvolution` 호출 시 `digimonDataVer1`을 5번째 인자로 전달
+  - 진화 성공 시 `targetName`을 올바르게 표시하도록 수정
+
+### 진화 데이터 구조
+
+#### Botamon → Koromon
+```javascript
+evolutions: [
+  {
+    targetId: "Koromon",
+    targetName: "Koromon",
+    condition: {
+      type: "time",
+      value: 600, // 10분 = 600초
+    },
+  },
+]
+```
+
+#### Koromon → Agumon / Betamon
+```javascript
+evolutions: [
+  {
+    targetId: "Agumon",
+    targetName: "Agumon",
+    condition: {
+      type: "mistakes",
+      value: [0, 3], // 실수 0~3회
+    },
+  },
+  {
+    targetId: "Betamon",
+    targetName: "Betamon",
+    condition: {
+      type: "mistakes",
+      value: [4, 99], // 실수 4회 이상
+    },
+  },
+]
+```
+
+### 에러 핸들링 개선
+
+#### Before
+- 디지몬 이름을 찾을 수 없을 때 "N/A" 표시
+- 구체적인 정보 부족
+
+#### After
+- `digimonDataMap`에서 디지몬 데이터 찾기
+- 찾을 수 없으면 `"Unknown Digimon (ID: ${targetId})"` 형식으로 표시
+- 구체적인 ID 정보 제공
+
+### 버그 수정
+
+#### 문제
+- 진화 버튼 클릭 시 "N/A" 표시
+- 시간 부족 시 정상적인 피드백이 표시되지 않음
+
+#### 해결
+- `targetName` 찾기 로직에 예외 처리 추가
+- `digimonDataMap`을 통해 디지몬 이름 정확히 찾기
+- Fallback 처리로 항상 의미 있는 정보 제공
+
+### 테스트 시나리오
+
+1. **Botamon 진화 테스트**:
+   - Botamon 선택 후 10분 대기
+   - Evolution 버튼 클릭
+   - "디지몬 진화~~~! 🎉 곧 Koromon으로 변신합니다!" 메시지 확인
+
+2. **시간 부족 테스트**:
+   - Botamon 선택 후 5분 대기
+   - Evolution 버튼 클릭
+   - "아직 진화할 준비가 안 됐어! 남은 시간: 5분 0초" 메시지 확인
+
+3. **조건 부족 테스트**:
+   - Koromon 선택 후 실수 5회 발생
+   - Evolution 버튼 클릭
+   - "진화 조건을 만족하지 못했어! [부족한 조건] ..." 메시지 확인
+
+### 다음 단계
+1. 모든 디지몬의 `evolutions` 배열 추가
+2. 진화 조건 타입 확장 (time, mistakes 외 추가)
+3. 진화 애니메이션 및 효과 추가
+
+---
+
+## [2024-12-19] 진화 상세 피드백 구현 및 Lifespan 버그 수정
+
+### 작업 유형
+- 진화 로직 고도화
+- 사용자 피드백 시스템
+- 버그 수정
+
+### 목적 및 영향
+진화 시도 시 사용자에게 상세한 피드백을 제공하고, Lifespan이 버튼 클릭에 의해 수정되지 않도록 보장했습니다. 진화 실패 시 구체적인 사유를 알려주어 사용자가 무엇이 부족한지 명확히 알 수 있게 했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js` (수정)
+  - `checkEvolution` 함수가 단순 ID 반환이 아닌 상세 결과 객체를 반환하도록 변경
+  - 반환 형식:
+    - 성공: `{ success: true, reason: "SUCCESS", targetId: "..." }`
+    - 시간 부족: `{ success: false, reason: "NOT_READY", remainingTime: ... }`
+    - 조건 불만족: `{ success: false, reason: "CONDITIONS_UNMET", details: [...] }`
+  - 각 진화 후보별로 조건 체크 및 실패 사유 분석
+  - `details` 배열에 각 후보별 부족한 조건 상세 정보 포함
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - `handleEvolutionButton`: 진화 결과 객체를 처리하여 상세 피드백 제공
+    - 성공 시: `alert("디지몬 진화~~~! 🎉\n\n곧 ${targetName}으로 변신합니다!")`
+    - 시간 부족 시: `alert("아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초")`
+    - 조건 부족 시: `alert("진화 조건을 만족하지 못했어!\n\n[부족한 조건]\n${detailsText}")`
+  - Lifespan 버그 수정: `handleEvolutionButton` 내부에서 `lifespanSeconds`를 수정하는 로직이 없음을 확인 (이미 올바르게 구현됨)
+
+### 진화 피드백 시스템
+
+#### 결과 객체 구조
+```javascript
+// 성공
+{
+  success: true,
+  reason: "SUCCESS",
+  targetId: "Greymon"
+}
+
+// 시간 부족
+{
+  success: false,
+  reason: "NOT_READY",
+  remainingTime: 3600 // 초 단위
+}
+
+// 조건 불만족
+{
+  success: false,
+  reason: "CONDITIONS_UNMET",
+  details: [
+    {
+      target: "Greymon",
+      missing: "배틀 (현재: 0, 필요: 15), 승률 (현재: 0%, 필요: 40%)"
+    }
+  ]
+}
+```
+
+#### 체크하는 조건들
+- 실수 (mistakes): 범위 체크
+- 오버피드 (overfeeds): 범위 체크
+- 배틀 (battles): 최소값 체크
+- 승률 (winRatio): 최소값 체크
+- 훈련 (trainings): 최소값 체크
+- 체중 (minWeight): 최소값 체크
+- 힘 (minStrength): 최소값 체크
+- 노력치 (minEffort): 최소값 체크
+- 속성 (requiredType): 필수 속성 체크
+
+### 사용자 피드백
+
+#### 성공 메시지
+```
+디지몬 진화~~~! 🎉
+
+곧 Greymon으로 변신합니다!
+```
+
+#### 시간 부족 메시지
+```
+아직 진화할 준비가 안 됐어!
+
+남은 시간: 60분 30초
+```
+
+#### 조건 부족 메시지
+```
+진화 조건을 만족하지 못했어!
+
+[부족한 조건]
+• Greymon: 배틀 (현재: 0, 필요: 15), 승률 (현재: 0%, 필요: 40%)
+• Betamon: 실수 (현재: 2, 필요: 최대 3)
+```
+
+### Lifespan 버그 수정
+
+#### 확인 사항
+- `handleEvolutionButton` 내부에서 `lifespanSeconds`를 직접 수정하는 로직이 없음을 확인
+- `lifespanSeconds`는 오직 `useEffect`의 `setInterval` 타이머에서만 증가
+- `applyLazyUpdateBeforeAction`은 마지막 저장 시간부터 현재까지의 경과 시간을 계산하여 스탯을 업데이트하지만, `lifespanSeconds`는 정상적으로 증가함
+
+#### 보장 사항
+- 버튼 클릭이 `lifespanSeconds`에 직접적인 영향을 주지 않음
+- `lifespanSeconds`는 시간 경과에 따라만 증가
+
+### 장점
+1. **사용자 경험 향상**: 진화 실패 시 구체적인 사유를 알 수 있어 다음 행동 계획 수립 가능
+2. **디버깅 용이**: 개발자가 진화 조건을 쉽게 확인 가능
+3. **명확한 피드백**: 시간 부족, 조건 부족 등 상황별로 명확한 메시지 제공
+4. **버그 수정**: Lifespan이 버튼 클릭에 의해 수정되지 않음을 보장
+
+### 다음 단계
+1. 진화 애니메이션 추가
+2. 진화 성공 시 특별 효과 추가
+3. 진화 조건을 UI에 표시 (진화 가능 여부 미리 보기)
+
+---
+
+## [2024-12-19] DMC 스타일 진화 판정 엔진 구현
+
+### 작업 유형
+- 진화 로직 구현
+- 매뉴얼 규칙 적용
+- 코드 리팩토링
+
+### 목적 및 영향
+Digital Monster Color 매뉴얼 규칙을 기반으로 한 진화 판정 엔진을 구현했습니다. 기존의 단순한 진화 로직을 매뉴얼의 복합 조건(mistakes, overfeeds, battles, winRatio, training 등)을 정확히 체크하는 시스템으로 교체했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js` (신규)
+  - `checkEvolution`: 매뉴얼 기반 진화 판정 함수
+    - 1단계: 시간 체크 (`timeToEvolveSeconds`가 0 이하인지 확인)
+    - 2단계: 조건 매칭 (mistakes, overfeeds, battles, winRatio, training, minWeight, minStrength, minEffort, requiredType)
+    - 3단계: 진화 대상 반환 (조건을 만족하는 첫 번째 진화 대상의 ID 반환)
+  - `findEvolutionTarget`: 진화 대상 찾기 함수 (기존 로직과의 호환성 유지)
+
+- `digimon-tamagotchi-frontend/src/logic/evolution/index.js` (수정)
+  - `checkEvolution`, `findEvolutionTarget` export 추가
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - `handleEvolutionButton`: `checkEvolution` 함수 사용하도록 변경
+  - `handleEvolution`: 진화 성공 시 스탯 리셋 로직 추가
+    - `careMistakes`, `overfeeds`, `battlesForEvolution`, `proteinOverdose`, `injuries`, `trainings`, `sleepDisturbances`, `trainingCount` 리셋
+
+### 진화 판정 로직
+
+#### 체크하는 조건들
+1. **시간 체크**: `timeToEvolveSeconds`가 0 이하인지 확인
+2. **mistakes**: 범위 체크 (min/max)
+3. **overfeeds**: 범위 체크 (단일 값 또는 배열)
+4. **battles**: 최소값 체크 (총 배틀 횟수)
+5. **winRatio**: 최소값 체크 (승률 %)
+6. **trainings**: 최소값 체크 (훈련 횟수)
+7. **minWeight**: 최소 체중 체크
+8. **minStrength**: 최소 힘 체크
+9. **minEffort**: 최소 노력치 체크
+10. **requiredType**: 필수 속성 체크
+
+#### 진화 대상 결정
+- 조건을 모두 만족하면 `evolutionConditionsVer1`에서 진화 대상을 찾음
+- 조건을 만족하는 첫 번째 진화 대상의 ID를 반환
+- 조건을 만족하는 대상이 없으면 `null` 반환
+
+### 진화 시 스탯 리셋
+
+매뉴얼 규칙에 따라 진화 시 다음 스탯이 리셋됩니다:
+- `careMistakes`: 0
+- `overfeeds`: 0
+- `battlesForEvolution`: 0
+- `proteinOverdose`: 0
+- `injuries`: 0
+- `trainings`: 0
+- `sleepDisturbances`: 0
+- `trainingCount`: 0
+
+진화 시 유지되는 스탯:
+- `energy`
+- `battles`
+- `battlesWon`
+- `battlesLost`
+- `winRate`
+
+### 코드 구조 개선
+
+#### Before (기존 로직)
+```javascript
+// 단순 조건 체크
+for(let e of evo.evolution){
+  if(e.condition.check(test)){
+    await handleEvolution(e.next);
+    return;
+  }
+}
+```
+
+#### After (매뉴얼 기반)
+```javascript
+// 매뉴얼 기반 복합 조건 체크
+const evolutionTarget = checkEvolution(
+  updatedStats, 
+  currentDigimonData, 
+  evolutionConditionsVer1, 
+  selectedDigimon
+);
+if(evolutionTarget) {
+  await handleEvolution(evolutionTarget);
+}
+```
+
+### 장점
+1. **매뉴얼 규칙 정확 반영**: 복합 조건을 정확히 체크
+2. **코드 재사용성**: 순수 함수로 구현되어 테스트 및 재사용 용이
+3. **유지보수성 향상**: 진화 조건이 명확하게 분리됨
+4. **확장성**: 새로운 진화 조건 추가가 쉬움
+
+### 다음 단계
+1. 모든 디지몬의 진화 조건을 `digimons.js`에 추가
+2. 진화 조건 테스트 코드 작성
+3. 진화 애니메이션 및 효과 추가
+
+---
+
+## [2024-12-19] 스탯 데이터 구조 확장(Energy, Overdose 등) 및 UI 반영
+
+### 작업 유형
+- 데이터 구조 확장
+- UI 업데이트
+- 초기화 로직 수정
+
+### 목적 및 영향
+매뉴얼 기반 로직을 지원하기 위해 스탯 데이터 구조를 확장하고, 개발자가 확인할 수 있도록 UI에 반영했습니다. Energy(DP), Protein Overdose, Overfeed Count, Battles/Wins 등의 필드를 추가하여 매뉴얼 규칙을 정확히 구현할 수 있는 기반을 마련했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js` (수정)
+  - `energy: 0` 추가 - 매뉴얼의 DP 개념 (기존 stamina와 병행)
+  - `proteinOverdose: 0` 추가 - 프로틴 과다 복용 횟수 (최대 7)
+  - `overfeeds: 0` 추가 - 오버피드 횟수 누적
+  - `battles: 0` 추가 - 총 배틀 횟수 (진화 조건용)
+  - `battlesWon: 0` 추가 - 총 승리 횟수 (진화 조건용)
+  - `battlesLost: 0` 추가 - 총 패배 횟수 (진화 조건용)
+  - `battlesForEvolution: 0` 추가 - 진화를 위한 배틀 횟수 (진화 시 리셋)
+
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx` (수정)
+  - `Stamina` 라벨을 `Energy (DP)`로 변경
+  - `energy` 필드 표시 (stamina가 없으면 energy 사용)
+  - 개발자용 정보 섹션 추가:
+    - Protein Overdose
+    - Overfeeds
+    - Battles
+    - Wins / Losses
+
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx` (수정)
+  - `Stamina` 라벨을 `Energy (DP)`로 변경
+  - 매뉴얼 기반 필드 섹션 추가:
+    - Protein Overdose
+    - Overfeeds
+    - Battles
+    - Battles Won / Lost
+    - Battles for Evolution
+
+- `digimon-tamagotchi-frontend/src/data/stats.js` (수정)
+  - `initializeStats` 함수에서 새 필드 초기화 로직 추가:
+    - 진화 시 리셋되는 필드: `overfeeds`, `proteinOverdose`, `battlesForEvolution`, `careMistakes`
+    - 진화 시 유지되는 필드: `energy`, `battles`, `battlesWon`, `battlesLost`, `winRate`
+
+### 데이터 구조 확장
+
+#### 추가된 필드
+```javascript
+{
+  // 매뉴얼 기반 필드
+  energy: 0,              // Energy/DP (기존 stamina와 병행)
+  proteinOverdose: 0,     // 프로틴 과다 복용 횟수 (최대 7)
+  overfeeds: 0,           // 오버피드 횟수 누적
+  battles: 0,             // 총 배틀 횟수
+  battlesWon: 0,          // 총 승리 횟수
+  battlesLost: 0,         // 총 패배 횟수
+  battlesForEvolution: 0, // 진화를 위한 배틀 횟수 (진화 시 리셋)
+}
+```
+
+#### 초기화 로직
+- **진화 시 리셋**: `overfeeds`, `proteinOverdose`, `battlesForEvolution`, `careMistakes`
+- **진화 시 유지**: `energy`, `battles`, `battlesWon`, `battlesLost`, `winRate`
+
+### UI 업데이트
+
+#### StatsPanel.jsx
+- Energy (DP) 표시 (stamina 대신 energy 우선 사용)
+- 개발자용 정보 섹션 추가 (Protein Overdose, Overfeeds, Battles, Wins/Losses)
+
+#### StatsPopup.jsx
+- Energy (DP) 표시
+- 매뉴얼 기반 필드 섹션 추가
+
+### 호환성
+- 기존 `stamina` 필드는 유지되어 하위 호환성 보장
+- `energy`가 없으면 `stamina`를 사용하도록 fallback 처리
+
+### 다음 단계
+1. 배틀 시스템 구현 시 `battles`, `battlesWon`, `battlesLost` 필드 활용
+2. 진화 조건 체크 시 `overfeeds`, `battlesForEvolution` 필드 활용
+3. 프로틴 먹이기 로직에서 `proteinOverdose` 필드 활용 (이미 구현됨)
+4. 오버피드 로직에서 `overfeeds` 필드 활용 (이미 구현됨)
+
+---
+
+## [2024-12-19] 스탯 로직(Hunger/Strength) 모듈화 및 매뉴얼 규칙 적용
+
+### 작업 유형
+- 로직 모듈화
+- 매뉴얼 규칙 적용
+- 코드 리팩토링
+
+### 목적 및 영향
+Game.jsx에 하드코딩되어 있던 배고픔/힘 감소 로직을 매뉴얼 기반 순수 함수로 모듈화했습니다. 오버피드, 프로틴 효과 등 매뉴얼 규칙을 정확히 반영하여 게임 로직의 정확성과 유지보수성을 향상시켰습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/stats/hunger.js` (수정)
+  - `handleHungerTick`: 시간 경과에 따른 배고픔 감소 처리
+    - 오버피드 상태면 감소 지연 로직 포함 (매뉴얼: "Overfeeding will give you one extra Hunger Loss cycle")
+    - 배고픔이 0이 되면 시간 기록
+  - `feedMeat`: 고기 먹기 처리
+    - Hunger +1, Weight +1 (매뉴얼 규칙)
+    - 배고픔이 가득 찬 상태에서 10개 더 먹으면 오버피드 발생
+    - 오버피드 카운트 추적
+  - `willRefuseMeat`: 고기 거부 체크
+
+- `digimon-tamagotchi-frontend/src/logic/stats/strength.js` (신규)
+  - `handleStrengthTick`: 시간 경과에 따른 힘 감소 처리
+    - 힘이 0이 되면 시간 기록
+  - `feedProtein`: 프로틴 먹기 처리
+    - Strength +1, Weight +2 (매뉴얼 규칙)
+    - 4개마다 Energy +1, Protein Overdose +1 (매뉴얼 규칙)
+  - `willRefuseProtein`: 프로틴 거부 체크
+
+- `digimon-tamagotchi-frontend/src/logic/stats/index.js` (수정)
+  - `handleHungerTick`, `feedMeat`, `willRefuseMeat` export 추가
+  - `handleStrengthTick`, `feedProtein`, `willRefuseProtein` export 추가
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - 클라이언트 타이머에서 `handleHungerTick`, `handleStrengthTick` 사용
+  - `handleFeed` 함수에서 `willRefuseMeat`, `willRefuseProtein` 사용
+  - `applyEatResult` 함수를 `feedMeat`, `feedProtein` 사용하도록 변경
+  - 배고픔/힘이 0이고 12시간 경과 시 사망 체크 로직 추가
+
+- `digimon-tamagotchi-frontend/src/data/stats.js` (수정)
+  - `updateLifespan` 함수에서 배고픔/힘 감소 로직 제거
+  - 이제 `lifespanSeconds`, `timeToEvolveSeconds`, `poop`만 처리
+  - 배고픔/힘 감소는 `handleHungerTick`, `handleStrengthTick`에서 처리
+
+### 매뉴얼 규칙 적용
+
+#### 배고픔 (Hunger)
+- **고기 먹기**: Hunger +1, Weight +1
+- **오버피드**: 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드 발생
+- **오버피드 효과**: "Overfeeding will give you one extra Hunger Loss cycle before one of your hearts drop"
+- **거부**: 배고픔이 최대치(5 + maxOverfeed)에 도달하면 거부
+
+#### 힘 (Strength)
+- **프로틴 먹기**: Strength +1, Weight +2
+- **프로틴 효과**: 4개마다 Energy +1, Protein Overdose +1 (최대 7)
+- **거부**: 힘과 배고픔이 모두 가득 찬 경우 거부
+
+### 코드 구조 개선
+
+#### Before (하드코딩)
+```javascript
+// Game.jsx 내부
+function applyEatResult(old, type) {
+  let s = {...old};
+  const limit = 5 + (s.maxOverfeed || 0);
+  if(type === "meat") {
+    if(s.fullness < limit) {
+      s.fullness++;
+      s.weight++;
+    }
+  } else {
+    // ...
+  }
+  return s;
+}
+```
+
+#### After (모듈화)
+```javascript
+// logic/stats/hunger.js
+export function feedMeat(currentStats) {
+  // 매뉴얼 규칙 정확히 반영
+  // 오버피드 로직 포함
+}
+
+// Game.jsx
+function applyEatResult(old, type) {
+  if(type === "meat") {
+    const result = feedMeat(old);
+    return result.updatedStats;
+  } else {
+    const result = feedProtein(old);
+    return result.updatedStats;
+  }
+}
+```
+
+### 장점
+1. **매뉴얼 규칙 정확 반영**: 오버피드, 프로틴 효과 등이 정확히 구현됨
+2. **코드 재사용성**: 순수 함수로 구현되어 테스트 및 재사용 용이
+3. **유지보수성 향상**: 로직이 모듈화되어 수정 및 확장이 쉬움
+4. **일관성**: 모든 곳에서 동일한 로직 사용
+
+### 주의사항
+- `applyLazyUpdate` 함수는 아직 기존 로직을 사용 중 (별도 리팩토링 필요)
+- `updateLifespan`에서 배고픔/힘 감소 로직을 제거했으므로, 다른 곳에서 사용 시 주의 필요
+
+### 다음 단계
+1. `applyLazyUpdate` 함수도 새 로직을 사용하도록 리팩토링
+2. 배고픔/힘이 0이고 12시간 경과 시 사망 로직을 `handleHungerTick`, `handleStrengthTick` 내부로 이동
+3. 테스트 코드 작성
+
+---
+
+## [2024-12-19] 데이터 소스 마이그레이션 (v1)
+
+### 작업 유형
+- 데이터 소스 변경
+- 호환성 어댑터 구현
+- 점진적 마이그레이션
+
+### 목적 및 영향
+Game.jsx에서 옛날 데이터 파일(`digimondata_digitalmonstercolor25th_ver1.js`) 대신 새로 만든 데이터 파일(`data/v1/digimons.js`)을 사용하도록 변경했습니다. 기존 코드와의 호환성을 위해 어댑터 패턴을 적용하여 필드명 차이를 해결했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/adapter.js` (신규)
+  - 새 데이터 구조를 옛날 구조로 변환하는 호환성 어댑터
+  - `adaptNewDataToOldFormat`: 단일 디지몬 데이터 변환
+  - `adaptDataMapToOldFormat`: 전체 데이터 맵 변환
+  - 필드 매핑:
+    - `sprite` → `sprite` (동일)
+    - `stage` → `evolutionStage`
+    - `evolutionCriteria.timeToEvolveSeconds` → `timeToEvolveSeconds`
+    - `stats.hungerCycle` → `hungerTimer`
+    - `stats.strengthCycle` → `strengthTimer`
+    - `stats.poopCycle` → `poopTimer`
+    - `stats.maxOverfeed` → `maxOverfeed`
+    - `stats.minWeight` → `minWeight`
+    - `stats.maxEnergy` → `maxStamina`
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - 옛날 데이터 import 제거: `import { digimonDataVer1 } from "../data/digimondata_digitalmonstercolor25th_ver1"`
+  - 새 데이터 import 추가: `import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons"`
+  - 어댑터 import: `import { adaptDataMapToOldFormat } from "../data/v1/adapter"`
+  - 어댑터를 통해 변환된 데이터 사용: `const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1)`
+
+### 호환성 전략
+- **어댑터 패턴 적용**: 새 데이터 구조를 옛날 구조로 변환하여 기존 코드 수정 최소화
+- **점진적 마이그레이션**: Game.jsx의 다른 부분은 수정하지 않고, 데이터 소스만 변경
+- **필드 매핑**: 새 구조의 중첩된 객체(`stats`, `evolutionCriteria`)를 옛날 구조의 평면 필드로 변환
+
+### 장점
+1. **코드 수정 최소화**: Game.jsx의 대부분 코드를 수정하지 않고 데이터 소스만 변경
+2. **기존 기능 유지**: 어댑터를 통해 기존 로직이 그대로 작동
+3. **점진적 마이그레이션**: 나중에 Game.jsx를 새 구조에 맞게 리팩토링 가능
+4. **데이터 소스 통일**: 새로 만든 매뉴얼 기반 데이터 구조 사용
+
+### 단점
+1. **중간 변환 단계**: 어댑터를 통해 변환하므로 약간의 성능 오버헤드 (무시 가능한 수준)
+2. **임시 해결책**: 어댑터는 임시 해결책이며, 장기적으로는 Game.jsx를 새 구조에 맞게 리팩토링 필요
+3. **필드 매핑 복잡도**: 새 구조와 옛날 구조의 차이로 인한 매핑 로직 필요
+
+### 예상 문제점 및 해결 방안
+1. **누락된 필드**: 새 데이터에 없는 필드가 옛날 코드에서 사용될 경우
+   - 해결: 어댑터에서 기본값(0 또는 null) 반환
+2. **타입 불일치**: 새 데이터의 타입이 옛날 코드와 다를 경우
+   - 해결: 어댑터에서 타입 변환 처리
+3. **데이터 불완전성**: 새 데이터에 일부 디지몬이 아직 추가되지 않은 경우
+   - 해결: 어댑터에서 null 체크 및 fallback 처리
+4. **진화 조건 차이**: 새 구조의 `evolutionCriteria`가 옛날 구조와 다를 경우
+   - 해결: `evolutionConditionsVer1`은 여전히 옛날 파일 사용 (별도 마이그레이션 필요)
+
+### 테스트 필요 사항
+- [ ] 게임 화면에서 디지몬이 정상적으로 표시되는지 확인
+- [ ] 진화 기능이 정상 작동하는지 확인
+- [ ] 스탯 업데이트가 정상 작동하는지 확인
+- [ ] 먹이기, 훈련 등 모든 기능이 정상 작동하는지 확인
+
+### 다음 단계
+1. Game.jsx를 새 데이터 구조에 맞게 전면 리팩토링 (어댑터 제거)
+2. `evolutionConditionsVer1`도 새 구조로 마이그레이션
+3. 다른 컴포넌트들도 새 데이터 구조 사용하도록 변경
+
+---
+
 ## [2024-12-19] 폴더 구조 재설계 및 매뉴얼 기반 데이터 스키마 정의
 
 ### 작업 유형
