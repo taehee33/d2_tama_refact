@@ -47,7 +47,7 @@ export function calculateHitRate(attackerPower, defenderPower, attrBonus = 0) {
  * @returns {number} returns.rounds - 총 라운드 수
  * @returns {Array} returns.log - 배틀 로그 (누가 때렸고 맞았는지 배열)
  */
-export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats) {
+export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats, userName = "User", enemyName = "CPU") {
   const log = [];
   let userHits = 0; // 유저가 적에게 명중한 횟수
   let enemyHits = 0; // 적이 유저에게 명중한 횟수
@@ -90,8 +90,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         roll: userRoll.toFixed(2),
         hitRate: userHitRate.toFixed(2),
         formula: userFormula,
-        comparison: `Hit Rate(User) ${userHitRate.toFixed(2)} > Roll(User) ${userRoll.toFixed(2)} => HIT!! 💀`,
-        message: `라운드 ${rounds}: 유저 공격 성공! (${userHits}/3)`,
+        comparison: `Hit Rate(${userName}) ${userHitRate.toFixed(2)} > Roll(${userName}) ${userRoll.toFixed(2)} => HIT!! 💀`,
+        message: `라운드 ${rounds}: ${userName} 공격 성공! (${userHits}/3)`,
       });
     } else {
       log.push({
@@ -102,8 +102,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         roll: userRoll.toFixed(2),
         hitRate: userHitRate.toFixed(2),
         formula: userFormula,
-        comparison: `Hit Rate(User) ${userHitRate.toFixed(2)} <= Roll(User) ${userRoll.toFixed(2)} => MISS...`,
-        message: `라운드 ${rounds}: 유저 공격 실패`,
+        comparison: `Hit Rate(${userName}) ${userHitRate.toFixed(2)} <= Roll(${userName}) ${userRoll.toFixed(2)} => MISS...`,
+        message: `라운드 ${rounds}: ${userName} 공격 실패`,
       });
     }
 
@@ -126,8 +126,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         roll: enemyRoll.toFixed(2),
         hitRate: enemyHitRate.toFixed(2),
         formula: enemyFormula,
-        comparison: `Hit Rate(CPU) ${enemyHitRate.toFixed(2)} > Roll(CPU) ${enemyRoll.toFixed(2)} => HIT!! 💀`,
-        message: `라운드 ${rounds}: CPU 공격 성공! (${enemyHits}/3)`,
+        comparison: `Hit Rate(${enemyName}) ${enemyHitRate.toFixed(2)} > Roll(${enemyName}) ${enemyRoll.toFixed(2)} => HIT!! 💀`,
+        message: `라운드 ${rounds}: ${enemyName} 공격 성공! (${enemyHits}/3)`,
       });
     } else {
       log.push({
@@ -138,8 +138,8 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats)
         roll: enemyRoll.toFixed(2),
         hitRate: enemyHitRate.toFixed(2),
         formula: enemyFormula,
-        comparison: `Hit Rate(CPU) ${enemyHitRate.toFixed(2)} <= Roll(CPU) ${enemyRoll.toFixed(2)} => MISS...`,
-        message: `라운드 ${rounds}: CPU 공격 실패`,
+        comparison: `Hit Rate(${enemyName}) ${enemyHitRate.toFixed(2)} <= Roll(${enemyName}) ${enemyRoll.toFixed(2)} => MISS...`,
+        message: `라운드 ${rounds}: ${enemyName} 공격 실패`,
       });
     }
 

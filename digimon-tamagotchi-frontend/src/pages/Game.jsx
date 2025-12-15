@@ -14,6 +14,8 @@ import MenuIconButtons from "../components/MenuIconButtons";
 import BattleSelectionModal from "../components/BattleSelectionModal";
 import BattleScreen from "../components/BattleScreen";
 import QuestSelectionModal from "../components/QuestSelectionModal";
+import CommunicationModal from "../components/CommunicationModal";
+import SparringModal from "../components/SparringModal";
 import DeathPopup from "../components/DeathPopup";
 import { quests } from "../data/v1/quests";
 
@@ -138,6 +140,10 @@ function Game(){
   const [currentQuestRound, setCurrentQuestRound] = useState(0);
   const [clearedQuestIndex, setClearedQuestIndex] = useState(0); // 0이면 Area 1 도전 가능, 1이면 Area 2 해금...
   const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false);
+  const [showCommunicationModal, setShowCommunicationModal] = useState(false);
+  const [showSparringModal, setShowSparringModal] = useState(false);
+  const [battleType, setBattleType] = useState(null); // 'quest' | 'sparring'
+  const [sparringEnemySlot, setSparringEnemySlot] = useState(null); // 스파링 상대 슬롯 정보
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -783,6 +789,27 @@ function Game(){
     setCurrentQuestArea(areaId);
     setCurrentQuestRound(0);
     setShowQuestSelectionModal(false);
+    setBattleType('quest');
+    setSparringEnemySlot(null);
+    setShowBattleScreen(true);
+  };
+
+  // Communication 시작 핸들러
+  const handleCommunicationStart = () => {
+    setShowCommunicationModal(true);
+  };
+
+  // Sparring 시작 핸들러
+  const handleSparringStart = () => {
+    setShowSparringModal(true);
+  };
+
+  // Sparring 슬롯 선택 핸들러
+  const handleSparringSlotSelect = (enemySlot) => {
+    setSparringEnemySlot(enemySlot);
+    setBattleType('sparring');
+    setCurrentQuestArea(null);
+    setCurrentQuestRound(0);
     setShowBattleScreen(true);
   };
 
@@ -796,6 +823,20 @@ function Game(){
 
   // 배틀 완료 핸들러
   const handleBattleComplete = (battleResult) => {
+    // Sparring 모드는 기록하지 않음
+    if (battleType === 'sparring') {
+      if (battleResult.win) {
+        alert("Practice Match Completed - WIN!");
+      } else {
+        alert("Practice Match Completed - LOSE...");
+      }
+      setShowBattleScreen(false);
+      setBattleType(null);
+      setSparringEnemySlot(null);
+      return;
+    }
+
+    // Quest 모드: 기존 로직 유지
     if (battleResult.win) {
       // 승리 시 배틀 기록 업데이트
       const updatedStats = {
@@ -1016,6 +1057,25 @@ function Game(){
         <BattleSelectionModal
           onClose={() => setShowBattleSelectionModal(false)}
           onQuestStart={handleQuestStart}
+          onCommunicationStart={handleCommunicationStart}
+        />
+      )}
+
+      {/* Communication 모달 */}
+      {showCommunicationModal && (
+        <CommunicationModal
+          onClose={() => setShowCommunicationModal(false)}
+          onSparringStart={handleSparringStart}
+        />
+      )}
+
+      {/* Sparring 모달 */}
+      {showSparringModal && (
+        <SparringModal
+          onClose={() => setShowSparringModal(false)}
+          onSelectSlot={handleSparringSlotSelect}
+          currentSlotId={parseInt(slotId)}
+          mode={mode}
         />
       )}
 
@@ -1030,7 +1090,7 @@ function Game(){
       )}
 
       {/* 배틀 스크린 */}
-      {showBattleScreen && currentQuestArea && (
+      {showBattleScreen && (currentQuestArea || battleType === 'sparring') && (
         <BattleScreen
           userDigimon={newDigimonDataVer1[selectedDigimon] || {
             id: selectedDigimon,
@@ -1038,14 +1098,19 @@ function Game(){
             stats: digimonDataVer1[selectedDigimon] || {},
           }}
           userStats={digimonStats}
+          userSlotName={slotName || `슬롯${slotId}`}
           areaId={currentQuestArea}
           roundIndex={currentQuestRound}
+          battleType={battleType}
+          sparringEnemySlot={sparringEnemySlot}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {
             setShowBattleScreen(false);
             setCurrentQuestArea(null);
             setCurrentQuestRound(0);
+            setBattleType(null);
+            setSparringEnemySlot(null);
           }}
         />
       )}

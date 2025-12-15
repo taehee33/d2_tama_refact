@@ -4,6 +4,172 @@
 
 ---
 
+## [2025-12-16] 스파링 모드 리소스 동기화 및 UI 버그 수정
+
+### 작업 유형
+- 버그 수정
+- UI/UX 개선
+- 데이터 동기화
+
+### 목적 및 영향
+Sparring 모드에서 Ghost 디지몬의 스프라이트와 데이터가 제대로 표시되지 않던 문제를 수정하고, 배틀 로그에 실제 디지몬 이름을 표시하도록 개선했습니다. 또한 Sparring 모드의 승리 화면에서 불필요한 "Next Battle" 버튼을 제거하고, 슬롯 선택 목록에서 파워가 0으로 표시되던 버그를 수정했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **Ghost 디지몬 스프라이트 및 데이터 동기화**
+    - Sparring 모드일 때 `enemy` 객체에 `sprite`, `attackSprite`, `digimonId` 필드 추가
+    - 적 디지몬 이미지 렌더링 시 Sparring 모드일 때 `enemyData.sprite` 우선 사용
+    - 공격 발사체 스프라이트도 `enemyData.attackSprite` 우선 사용
+    - 적 이름을 `Ghost ${enemyDigimonData.name}` 형식으로 변경
+  - **배틀 종료 화면 로직 수정**
+    - Sparring 모드일 때 승리 화면에서 "Next Battle" 버튼 제거
+    - "Practice Match Completed!" 메시지 표시
+    - "Return to Menu" 버튼만 표시
+
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js` (수정)
+  - **배틀 로그 명칭 구체화**
+    - `simulateBattle` 함수에 `userName`, `enemyName` 파라미터 추가
+    - 로그 메시지에서 "유저", "CPU" 대신 실제 디지몬 이름 사용
+    - `comparison` 필드에도 실제 디지몬 이름 반영
+    - 예: "라운드 1: Agumon 공격 성공!" / "Hit Rate(Agumon) 71.67 > Roll(Agumon) 26.32 => HIT!! 💀"
+
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js` (수정)
+  - **Quest 모드에서도 디지몬 이름 전달**
+    - `playQuestRound`에서 `simulateBattle` 호출 시 디지몬 이름 전달
+
+- `digimon-tamagotchi-frontend/src/components/SparringModal.jsx` (수정)
+  - **슬롯 선택 목록 파워 표시 버그 수정**
+    - `calculatePower` 함수 import 추가
+    - `digimonDataVer1` import 추가
+    - 파워 계산 로직 개선:
+      - `slot.digimonStats?.power` 우선 사용
+      - 없으면 `calculatePower(slot.digimonStats, digimonData)` 사용
+      - 없으면 `digimonData.stats.basePower` 사용
+    - 실제 파워 값이 정확하게 표시되도록 수정
+
+### 주요 개선 사항
+
+#### 1. Ghost 디지몬 데이터 동기화
+- Sparring 모드에서 선택된 슬롯의 디지몬 스프라이트가 정확히 표시됨
+- 공격 스프라이트도 올바르게 적용됨
+- 적 이름이 "Ghost [디지몬 이름]" 형식으로 표시됨
+
+#### 2. 배틀 로그 가독성 향상
+- 실제 디지몬 이름이 로그에 표시되어 어떤 디지몬끼리 싸우는지 명확히 파악 가능
+- Quest 모드와 Sparring 모드 모두에 적용
+
+#### 3. Sparring 모드 UI 개선
+- 연속 전투가 아닌 Sparring 모드의 특성에 맞게 "Next Battle" 버튼 제거
+- "Practice Match Completed!" 메시지로 연습전임을 명확히 표시
+
+#### 4. 파워 표시 버그 수정
+- 슬롯 선택 목록에서 실제 파워 값이 정확하게 표시됨
+- `calculatePower` 함수를 사용하여 Strength Hearts 보너스 등이 반영된 실제 파워 표시
+
+### 사용 흐름
+1. Sparring 모드에서 슬롯 선택 → 실제 파워 값 확인 가능
+2. 배틀 시작 → Ghost 디지몬의 올바른 스프라이트 표시
+3. 배틀 로그 → 실제 디지몬 이름으로 표시 (예: "Agumon 공격 성공!")
+4. 승리 시 → "Practice Match Completed!" 메시지와 "Return to Menu" 버튼만 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/SparringModal.jsx`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/questEngine.js`
+
+---
+
+## [2025-12-15] 배틀 메뉴 계층화 및 스파링(Self-PvP) 모드 추가
+
+### 작업 유형
+- 기능 추가
+- UI/UX 개선
+- 배틀 시스템 확장
+
+### 목적 및 영향
+배틀 메뉴를 계층화하여 Quest Mode와 Communication 모드를 분리하고, Communication 하위에 Sparring (Self PvP) 모드를 추가했습니다. 사용자는 자신의 다른 슬롯과 대전할 수 있으며, 스파링 모드는 배틀 기록에 영향을 주지 않습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/BattleSelectionModal.jsx` (수정)
+  - **Communication 버튼 활성화**
+    - `onCommunicationStart` prop 추가
+    - Communication 버튼 클릭 시 하위 메뉴로 이동
+
+- `digimon-tamagotchi-frontend/src/components/CommunicationModal.jsx` (신규 생성)
+  - **Communication 하위 메뉴 모달**
+    - Sparring (Self PvP): 활성화, 클릭 시 SparringModal로 이동
+    - Arena (Ghost): 비활성화 (Coming Soon)
+    - Live Duel: 비활성화 (Coming Soon)
+
+- `digimon-tamagotchi-frontend/src/components/SparringModal.jsx` (신규 생성)
+  - **Sparring 슬롯 선택 모달**
+    - 현재 슬롯을 제외한 모든 슬롯 리스트 표시
+    - Firebase/LocalStorage 모드 지원
+    - 슬롯 정보: 슬롯 이름, 디지몬 이름, Power 표시
+    - 슬롯 선택 시 `onSelectSlot` 콜백 호출
+
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - **배틀 타입 및 상태 관리**
+    - `battleType` 상태 추가 ('quest' | 'sparring')
+    - `sparringEnemySlot` 상태 추가 (스파링 상대 슬롯 정보)
+    - `showCommunicationModal`, `showSparringModal` 상태 추가
+  - **핸들러 추가**
+    - `handleCommunicationStart`: Communication 모달 표시
+    - `handleSparringStart`: Sparring 모달 표시
+    - `handleSparringSlotSelect`: 스파링 슬롯 선택 처리
+  - **배틀 완료 처리 수정**
+    - `battleType === 'sparring'`일 때 배틀 기록(battles, wins, losses) 업데이트하지 않음
+    - "Practice Match Completed" 메시지 표시
+  - **BattleScreen props 전달**
+    - `userSlotName`: 유저 슬롯 이름 전달
+    - `battleType`: 배틀 타입 전달
+    - `sparringEnemySlot`: 스파링 상대 슬롯 정보 전달
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **Sparring 모드 지원**
+    - `battleType`, `sparringEnemySlot`, `userSlotName` props 추가
+    - Sparring 모드일 때 `simulateBattle` 직접 호출
+    - 적 디지몬 이름에 "(Ghost)" 접두사 추가
+    - 적 슬롯 이름을 배지에 표시
+  - **UI 개선**
+    - 유저 배지: 슬롯 이름 표시 (예: "슬롯1 - 아구몬")
+    - CPU 배지: Sparring 모드일 때 상대 슬롯 이름 표시
+    - 라운드 정보: Sparring 모드일 때 "Sparring" 표시
+
+### 주요 개선 사항
+
+#### 1. 배틀 메뉴 계층화
+- **1단계**: Battle Mode Selection (Quest Mode / Communication)
+- **2단계**: Communication 하위 메뉴 (Sparring / Arena / Live Duel)
+- **3단계**: Sparring 슬롯 선택
+
+#### 2. Sparring (Self PvP) 모드
+- 자신의 다른 슬롯과 대전 가능
+- 배틀 기록에 영향 없음 (연습전)
+- 슬롯 정보 표시로 어떤 슬롯끼리 대전하는지 명확히 표시
+
+#### 3. UI 개선
+- 슬롯 번호와 이름을 배지에 표시
+- Sparring 모드와 Quest 모드 구분
+- 적 디지몬 이름에 "(Ghost)" 접두사 추가
+
+### 사용 흐름
+1. Battle 버튼 클릭 → Battle Mode Selection 모달
+2. Communication 선택 → Communication 모달
+3. Sparring (Self PvP) 선택 → Sparring 슬롯 선택 모달
+4. 상대 슬롯 선택 → 배틀 시작
+5. 배틀 완료 → "Practice Match Completed" 메시지 (기록 없음)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleSelectionModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/CommunicationModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/SparringModal.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+
+---
+
 ## [2025-12-15] 배틀 공격 시 전진(Lunge) 애니메이션 추가
 
 ### 작업 유형

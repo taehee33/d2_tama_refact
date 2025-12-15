@@ -68,7 +68,9 @@ export function playQuestRound(userDigimon, userStats, areaId, roundIndex) {
     userDigimon,
     userStats,
     enemyDigimon,
-    enemyStats
+    enemyStats,
+    userDigimon.name || userDigimon.id || "User",
+    questEnemy.name || "CPU"
   );
 
   // Area 클리어 여부 확인

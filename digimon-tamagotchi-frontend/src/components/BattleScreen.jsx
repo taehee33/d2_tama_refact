@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { playQuestRound } from "../logic/battle/questEngine";
+import { simulateBattle } from "../logic/battle/calculator";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { getQuestArea } from "../data/v1/quests";
 import "../styles/Battle.css";
@@ -12,8 +13,11 @@ import "../styles/Battle.css";
 export default function BattleScreen({
   userDigimon,
   userStats,
+  userSlotName,
   areaId,
   roundIndex,
+  battleType,
+  sparringEnemySlot,
   onBattleComplete,
   onQuestClear,
   onClose,
@@ -48,8 +52,68 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (battleState === "loading") {
-      // 배틀 실행 (즉시 결과 계산)
-      const result = playQuestRound(userDigimon, userStats, areaId, roundIndex);
+      let result;
+      
+      if (battleType === 'sparring' && sparringEnemySlot) {
+        // Sparring 모드: 직접 simulateBattle 호출
+        const enemyDigimonData = newDigimonDataVer1[sparringEnemySlot.selectedDigimon] || {
+          id: sparringEnemySlot.selectedDigimon,
+          name: sparringEnemySlot.selectedDigimon,
+          stats: {},
+        };
+        
+        // 적 스탯에서 power 계산 (digimonStats.power 또는 basePower 사용)
+        const enemyPower = sparringEnemySlot.digimonStats?.power || enemyDigimonData.stats?.basePower || 0;
+        
+        const enemyStats = {
+          power: enemyPower,
+          type: enemyDigimonData.stats?.type || null,
+        };
+        
+        // 배틀 시뮬레이션 (슬롯 정보로 이름 통일: 슬롯명(디지몬명) 형식)
+        const userDigimonName = userDigimon.name || userDigimon.id || "Unknown";
+        const enemyDigimonName = enemyDigimonData.name || enemyDigimonData.id || "Unknown";
+        const userName = userSlotName 
+          ? `${userSlotName}(${userDigimonName})`
+          : userDigimonName;
+        // 스파링 모드에서는 항상 상대 디지몬명 앞에 (Ghost) 추가
+        const enemyName = sparringEnemySlot?.slotName
+          ? `(Ghost) ${sparringEnemySlot.slotName}(${enemyDigimonName})`
+          : `(Ghost) ${enemyDigimonName}`;
+        
+        const battleResult = simulateBattle(
+          userDigimon, 
+          userStats, 
+          enemyDigimonData, 
+          enemyStats,
+          userName,
+          enemyName
+        );
+        
+        result = {
+          win: battleResult.won,
+          logs: battleResult.log,
+          enemy: {
+            name: `(Ghost) ${enemyDigimonData.name || enemyDigimonData.id}`,
+            power: enemyPower,
+            attribute: enemyStats.type,
+            isBoss: false,
+            slotName: sparringEnemySlot.slotName,
+            sprite: enemyDigimonData.sprite || 0,
+            attackSprite: enemyDigimonData.stats?.attackSprite || enemyDigimonData.sprite || 0,
+            digimonId: enemyDigimonData.id || sparringEnemySlot.selectedDigimon,
+          },
+          isAreaClear: false,
+          reward: null,
+          rounds: battleResult.rounds,
+          userHits: battleResult.userHits,
+          enemyHits: battleResult.enemyHits,
+        };
+      } else {
+        // Quest 모드: 기존 로직
+        result = playQuestRound(userDigimon, userStats, areaId, roundIndex);
+      }
+      
       setBattleResult(result);
       setEnemyData(result.enemy);
       setCurrentLogIndex(0);
@@ -64,7 +128,7 @@ export default function BattleScreen({
       setHasRoundStarted(false); // 새로운 라운드 시작 시 리셋
       setBattleState("ready");
     }
-  }, [battleState, userDigimon, userStats, areaId, roundIndex]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, battleType, sparringEnemySlot]);
 
   // 적 디지몬 데이터 가져오기
   const getEnemyDigimonData = () => {
@@ -104,7 +168,10 @@ export default function BattleScreen({
           const attackSprite = userDigimonData?.stats?.attackSprite || userDigimonData?.sprite || 0;
           setProjectile({ type: "user", sprite: attackSprite });
         } else {
-          const attackSprite = enemyDigimonData?.stats?.attackSprite || enemyDigimonData?.sprite || 0;
+          // Sparring 모드일 때는 enemyData에서 attackSprite 가져오기
+          const attackSprite = battleType === 'sparring' && enemyData?.attackSprite !== undefined
+            ? enemyData.attackSprite
+            : (enemyDigimonData?.stats?.attackSprite || enemyDigimonData?.sprite || 0);
           setProjectile({ type: "enemy", sprite: attackSprite });
         }
 
@@ -234,7 +301,9 @@ export default function BattleScreen({
       {showReadyModal && !hasRoundStarted && (
         <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70">
           <div className="bg-white p-8 rounded-lg shadow-xl text-center" style={{ minWidth: "400px" }}>
-            <h2 className="text-4xl font-bold mb-2">Round {roundIndex + 1}</h2>
+            <h2 className="text-4xl font-bold mb-2">
+              {battleType === 'sparring' ? 'Sparring' : `Round ${roundIndex + 1}`}
+            </h2>
             <p className="text-xl text-gray-700 mb-6">VS {enemyData?.name || "Unknown"}</p>
             <div className="flex gap-4 justify-center">
               <button
@@ -258,7 +327,9 @@ export default function BattleScreen({
         {/* 라운드 정보 */}
         <div className="text-center mb-4">
           <h2 className="text-2xl font-bold">
-            Round {roundIndex + 1} - {enemyData?.name || "Unknown"}
+            {battleType === 'sparring' 
+              ? `Sparring - ${enemyData?.name || "Unknown"}`
+              : `Round ${roundIndex + 1} - ${enemyData?.name || "Unknown"}`}
           </h2>
           {enemyData?.isBoss && (
             <span className="text-red-600 font-bold">BOSS</span>
@@ -274,7 +345,9 @@ export default function BattleScreen({
           {/* 유저 디지몬 */}
           <div className="battle-side user-side">
             {/* 플레이어 배지 */}
-            <div className="battle-badge badge user">USER</div>
+            <div className="battle-badge badge user">
+              {userSlotName || "USER"}
+            </div>
             <div
               ref={userDigimonRef}
               className="digimon-sprite player-digimon"
@@ -340,7 +413,11 @@ export default function BattleScreen({
           {/* 적 디지몬 */}
           <div className="battle-side enemy-side">
             {/* 적 배지 */}
-            <div className="battle-badge badge cpu">CPU</div>
+            <div className="battle-badge badge cpu">
+              {battleType === 'sparring' && enemyData?.slotName 
+                ? enemyData.slotName 
+                : "CPU"}
+            </div>
             <div
               ref={enemyDigimonRef}
               className="digimon-sprite enemy-digimon"
@@ -348,7 +425,9 @@ export default function BattleScreen({
             >
               <img
                 ref={enemyDigimonImgRef}
-                src={`/images/${enemyDigimonData?.sprite || 0}.png`}
+                src={`/images/${(battleType === 'sparring' && enemyData?.sprite !== undefined) 
+                  ? enemyData.sprite 
+                  : (enemyDigimonData?.sprite || 0)}.png`}
                 alt={enemyData?.name || "Enemy Digimon"}
                 className={projectile?.type === "enemy" ? "animate-attack-cpu" : ""}
                 style={{
@@ -455,6 +534,25 @@ export default function BattleScreen({
                       className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
                     >
                       Exit
+                    </button>
+                  </div>
+                </>
+              ) : battleType === 'sparring' ? (
+                <>
+                  <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
+                  <p className="text-gray-700 mb-6">Practice Match Completed!</p>
+                  <div className="flex gap-4 justify-center flex-wrap">
+                    <button
+                      onClick={() => setShowLogReview(true)}
+                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+                    >
+                      Review Log
+                    </button>
+                    <button
+                      onClick={handleExit}
+                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                    >
+                      Return to Menu
                     </button>
                   </div>
                 </>

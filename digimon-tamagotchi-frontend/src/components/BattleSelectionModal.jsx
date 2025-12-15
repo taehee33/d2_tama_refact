@@ -4,11 +4,11 @@
 import React from "react";
 import "../styles/Battle.css";
 
-export default function BattleSelectionModal({ onClose, onQuestStart }) {
+export default function BattleSelectionModal({ onClose, onQuestStart, onCommunicationStart }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-4 text-center">배틀 모드 선택</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">Battle Mode Selection</h2>
         
         <div className="flex flex-col space-y-4">
           <button
@@ -23,10 +23,10 @@ export default function BattleSelectionModal({ onClose, onQuestStart }) {
           
           <button
             onClick={() => {
-              alert("아직 준비 중입니다!");
+              onCommunicationStart();
+              onClose();
             }}
-            className="battle-mode-button communication-mode-button px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-            disabled
+            className="battle-mode-button communication-mode-button px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
             [Communication]
           </button>
