@@ -205,13 +205,13 @@
 
 @keyframes attack-lunge-user {
   0% {
-    transform: translateX(0);
+    transform: scaleX(-1) translateX(0);
   }
   30% {
-    transform: translateX(30px);
+    transform: scaleX(-1) translateX(-30px);
   }
   100% {
-    transform: translateX(0);
+    transform: scaleX(-1) translateX(0);
   }
 }
 
