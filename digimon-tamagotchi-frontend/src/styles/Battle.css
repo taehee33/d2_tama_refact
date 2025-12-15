@@ -194,6 +194,39 @@
   }
 }
 
+/* 공격 전진(Lunge) 애니메이션 */
+.animate-attack-user {
+  animation: attack-lunge-user 0.4s ease-out;
+}
+
+.animate-attack-cpu {
+  animation: attack-lunge-cpu 0.4s ease-out;
+}
+
+@keyframes attack-lunge-user {
+  0% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(30px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes attack-lunge-cpu {
+  0% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-30px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
 /* MISS 텍스트 */
 .miss-text {
   position: absolute;

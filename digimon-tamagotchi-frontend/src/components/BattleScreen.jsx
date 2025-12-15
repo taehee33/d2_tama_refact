@@ -34,7 +34,9 @@ export default function BattleScreen({
   const [missText, setMissText] = useState(null); // { target: "user" | "enemy" }
   
   const userDigimonRef = useRef(null);
+  const userDigimonImgRef = useRef(null);
   const enemyDigimonRef = useRef(null);
+  const enemyDigimonImgRef = useRef(null);
   const battleAreaRef = useRef(null);
 
   // 배틀 시작 시 적 데이터 가져오기 및 배틀 실행
@@ -279,9 +281,10 @@ export default function BattleScreen({
               style={{ position: "relative" }}
             >
               <img
+                ref={userDigimonImgRef}
                 src={`/images/${userDigimonData?.sprite || 0}.png`}
                 alt={userDigimonData?.name || "User Digimon"}
-                className="player-sprite"
+                className={`player-sprite ${projectile?.type === "user" ? "animate-attack-user" : ""}`}
                 style={{
                   imageRendering: "pixelated",
                   width: "120px",
@@ -344,8 +347,10 @@ export default function BattleScreen({
               style={{ position: "relative" }}
             >
               <img
+                ref={enemyDigimonImgRef}
                 src={`/images/${enemyDigimonData?.sprite || 0}.png`}
                 alt={enemyData?.name || "Enemy Digimon"}
+                className={projectile?.type === "enemy" ? "animate-attack-cpu" : ""}
                 style={{
                   imageRendering: "pixelated",
                   width: "120px",

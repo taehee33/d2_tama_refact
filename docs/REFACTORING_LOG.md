@@ -4,6 +4,124 @@
 
 ---
 
+## [2025-12-15] 배틀 공격 시 전진(Lunge) 애니메이션 추가
+
+### 작업 유형
+- UI/UX 개선
+- 배틀 애니메이션 강화
+
+### 목적 및 영향
+배틀 화면에서 공격하는 디지몬이 앞으로 튀어나가는(Lunge) 애니메이션을 추가하여 공격의 타격감과 시각적 피드백을 강화했습니다. 유저와 CPU 디지몬 모두 공격 시 전진 모션을 보여줍니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/styles/Battle.css` (수정)
+  - **공격 전진 애니메이션 추가**
+    - `@keyframes attack-lunge-user`: 유저 디지몬이 오른쪽으로 30px 전진 후 원위치로 복귀
+    - `@keyframes attack-lunge-cpu`: CPU 디지몬이 왼쪽으로 30px 전진 후 원위치로 복귀
+    - `.animate-attack-user`: 유저 공격 애니메이션 클래스 (0.4초, ease-out)
+    - `.animate-attack-cpu`: CPU 공격 애니메이션 클래스 (0.4초, ease-out)
+
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx` (수정)
+  - **디지몬 이미지 ref 추가**
+    - `userDigimonImgRef`: 유저 디지몬 이미지 참조
+    - `enemyDigimonImgRef`: 적 디지몬 이미지 참조
+  - **조건부 애니메이션 클래스 적용**
+    - 유저 디지몬 이미지: `projectile?.type === "user"`일 때 `animate-attack-user` 클래스 추가
+    - 적 디지몬 이미지: `projectile?.type === "enemy"`일 때 `animate-attack-cpu` 클래스 추가
+    - 발사체가 생성되는 시점에 자동으로 애니메이션 트리거
+
+### 주요 개선 사항
+
+#### 1. 공격 전진 애니메이션
+- **유저 공격**: 오른쪽으로 30px 전진 (적 방향)
+- **CPU 공격**: 왼쪽으로 30px 전진 (유저 방향)
+- 애니메이션 시간: 0.4초 (발사체 비행 시간 0.8초와 조화)
+- Ease-out 타이밍으로 자연스러운 움직임
+
+#### 2. 시각적 피드백 강화
+- 발사체가 날아가는 동안 공격자가 전진하여 공격의 연속성 강조
+- 공격의 타격감과 몰입도 향상
+
+#### 3. 자동 트리거
+- 발사체(`projectile`) 상태가 설정되면 자동으로 애니메이션 시작
+- 별도의 상태 관리 없이 기존 발사체 로직과 통합
+
+### 사용 흐름
+1. 배틀 로그 재생 중 공격 턴 감지
+2. 발사체 생성 (`setProjectile({ type: "user" | "enemy" })`)
+3. 해당 디지몬 이미지에 전진 애니메이션 클래스 자동 적용
+4. 0.4초 동안 전진 애니메이션 재생
+5. 발사체가 목표에 도달한 후 타격/회피 처리
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+
+---
+
+## [2025-12-14] 사망 원인 표시 기능 구현
+
+### 작업 유형
+- UI/UX 개선
+- 게임 피드백 강화
+
+### 목적 및 영향
+디지몬이 사망했을 때 사망 원인을 명확하게 표시하여 사용자가 왜 사망했는지 파악할 수 있도록 했습니다. 굶주림, 부상 과다, 수명 종료 등 다양한 사망 원인을 구분하여 표시합니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정)
+  - **사망 원인 상태 추가**
+    - `const [deathReason, setDeathReason] = useState(null);` 상태 추가
+  - **사망 원인 설정 로직 추가**
+    - 타이머에서 사망 체크 시 원인 설정:
+      - 굶주림: `fullness === 0`이고 12시간 경과 시 `setDeathReason('STARVATION (굶주림)')`
+      - 부상 과다: `health === 0`이고 12시간 경과 시 `setDeathReason('INJURY (부상 과다)')`
+      - 수명 종료: `lifespanSeconds >= maxLifespan` 시 `setDeathReason('OLD AGE (수명 다함)')`
+    - Lazy Update에서 사망 감지 시에도 동일한 원인 설정 로직 적용
+  - **DeathPopup 컴포넌트 통합**
+    - 기존 인라인 사망 확인 UI를 `DeathPopup` 컴포넌트로 교체
+    - `reason={deathReason}` prop 전달
+    - `handleDeathConfirm`에서 사망 원인 초기화 (`setDeathReason(null)`)
+  - **DeathPopup import 추가**
+    - `import DeathPopup from "../components/DeathPopup";` 추가
+
+- `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx` (신규 생성)
+  - **사망 팝업 컴포넌트 구현**
+    - 모달 형태의 사망 확인 팝업
+    - "YOUR DIGIMON HAS DIED" 제목 표시
+    - `reason` prop이 있을 경우 "Cause: {reason}" 표시
+    - 사망 확인 버튼 제공
+
+### 주요 개선 사항
+
+#### 1. 사망 원인 분류
+- **STARVATION (굶주림)**: 배고픔이 0이고 12시간 경과
+- **INJURY (부상 과다)**: 힘이 0이고 12시간 경과
+- **OLD AGE (수명 다함)**: 수명이 최대치에 도달
+
+#### 2. UI 개선
+- 기존: 단순한 인라인 사망 확인 메시지
+- 개선: 모달 형태의 전용 DeathPopup 컴포넌트
+- 사망 원인을 명확하게 표시하여 사용자 피드백 강화
+
+#### 3. 사망 원인 감지 로직
+- 타이머 기반 실시간 감지
+- Lazy Update 기반 감지 (게임 재진입 시)
+- 두 경로 모두 동일한 원인 설정 로직 적용
+
+### 사용 흐름
+1. 디지몬이 사망 조건에 도달
+2. 사망 원인 자동 감지 및 설정
+3. DeathPopup 모달 표시 (사망 원인 포함)
+4. 사용자가 "사망 확인" 버튼 클릭
+5. 사망 원인 초기화 및 다음 단계 진행
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx`
+
+---
+
 ## [2025-12-14] 퀘스트 선택 화면 Unlock 정보 표시(클리어 전 ??? 처리)
 
 ### 작업 유형

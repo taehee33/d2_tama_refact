@@ -14,6 +14,7 @@ import MenuIconButtons from "../components/MenuIconButtons";
 import BattleSelectionModal from "../components/BattleSelectionModal";
 import BattleScreen from "../components/BattleScreen";
 import QuestSelectionModal from "../components/QuestSelectionModal";
+import DeathPopup from "../components/DeathPopup";
 import { quests } from "../data/v1/quests";
 
 import digimonAnimations from "../data/digimonAnimations";
@@ -88,6 +89,7 @@ function Game(){
 
   // 사망확인
   const [showDeathConfirm, setShowDeathConfirm]= useState(false);
+  const [deathReason, setDeathReason] = useState(null);
 
   // 슬롯 정보
   const [slotName, setSlotName]= useState("");
@@ -308,13 +310,23 @@ function Game(){
           const elapsed = (Date.now() - updatedStats.lastHungerZeroAt) / 1000;
           if(elapsed >= 43200){ // 12시간 = 43200초
             updatedStats.isDead = true;
+            setDeathReason('STARVATION (굶주림)');
           }
         }
         if(updatedStats.health === 0 && updatedStats.lastStrengthZeroAt){
           const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
           if(elapsed >= 43200){
             updatedStats.isDead = true;
+            setDeathReason('INJURY (부상 과다)');
           }
+        }
+        
+        // 수명 종료 체크 (lifespanSeconds가 최대치에 도달했는지 확인)
+        // updateLifespan에서 처리되지만, 여기서도 확인
+        const maxLifespan = currentDigimonData?.maxLifespan || 999999;
+        if(updatedStats.lifespanSeconds >= maxLifespan && !updatedStats.isDead){
+          updatedStats.isDead = true;
+          setDeathReason('OLD AGE (수명 다함)');
         }
         
         // 사망 상태 변경 감지
@@ -381,6 +393,20 @@ function Game(){
           
           // 사망 상태 변경 감지
           if(!digimonStats.isDead && updated.isDead){
+            // 사망 원인 확인 (Lazy Update에서 감지된 경우)
+            if(updated.fullness === 0 && updated.lastHungerZeroAt){
+              const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
+              if(elapsed >= 43200){
+                setDeathReason('STARVATION (굶주림)');
+              }
+            } else if(updated.health === 0 && updated.lastStrengthZeroAt){
+              const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
+              if(elapsed >= 43200){
+                setDeathReason('INJURY (부상 과다)');
+              }
+            } else {
+              setDeathReason('OLD AGE (수명 다함)');
+            }
             setShowDeathConfirm(true);
           }
           
@@ -396,6 +422,20 @@ function Game(){
           
           // 사망 상태 변경 감지
           if(!digimonStats.isDead && updated.isDead){
+            // 사망 원인 확인 (Lazy Update에서 감지된 경우)
+            if(updated.fullness === 0 && updated.lastHungerZeroAt){
+              const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
+              if(elapsed >= 43200){
+                setDeathReason('STARVATION (굶주림)');
+              }
+            } else if(updated.health === 0 && updated.lastStrengthZeroAt){
+              const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
+              if(elapsed >= 43200){
+                setDeathReason('INJURY (부상 과다)');
+              }
+            } else {
+              setDeathReason('OLD AGE (수명 다함)');
+            }
             setShowDeathConfirm(true);
           }
           
@@ -550,6 +590,7 @@ function Game(){
     await setDigimonStatsAndSave(nx);
     await setSelectedDigimonAndSave(ohaka);
     setShowDeathConfirm(false);
+    setDeathReason(null); // 사망 원인 초기화
   }
 
   // 먹이 - Lazy Update 적용 후 Firestore에 저장
@@ -852,15 +893,10 @@ function Game(){
       </button>
 
       {showDeathConfirm && (
-        <div className="mt-4 bg-red-100 p-2 rounded">
-          <p className="text-red-600 font-bold">디지몬이 사망했습니다! 사망 확인?</p>
-          <button
-            onClick={handleDeathConfirm}
-            className="px-3 py-1 bg-gray-700 text-white rounded"
-          >
-            사망 확인
-          </button>
-        </div>
+        <DeathPopup
+          onConfirm={handleDeathConfirm}
+          reason={deathReason}
+        />
       )}
 
       <div className="mt-2 text-lg">
