@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "../firebase";
 
 import Canvas from "../components/Canvas";
@@ -16,6 +16,7 @@ import BattleScreen from "../components/BattleScreen";
 import QuestSelectionModal from "../components/QuestSelectionModal";
 import CommunicationModal from "../components/CommunicationModal";
 import SparringModal from "../components/SparringModal";
+import ArenaScreen from "../components/ArenaScreen";
 import DeathPopup from "../components/DeathPopup";
 import { quests } from "../data/v1/quests";
 
@@ -142,8 +143,12 @@ function Game(){
   const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false);
   const [showCommunicationModal, setShowCommunicationModal] = useState(false);
   const [showSparringModal, setShowSparringModal] = useState(false);
-  const [battleType, setBattleType] = useState(null); // 'quest' | 'sparring'
+  const [showArenaScreen, setShowArenaScreen] = useState(false);
+  const [battleType, setBattleType] = useState(null); // 'quest' | 'sparring' | 'arena'
   const [sparringEnemySlot, setSparringEnemySlot] = useState(null); // 스파링 상대 슬롯 정보
+  const [arenaChallenger, setArenaChallenger] = useState(null); // Arena 챌린저 정보
+  const [arenaEnemyId, setArenaEnemyId] = useState(null); // Arena Enemy Entry ID (Firestore Document ID)
+  const [myArenaEntryId, setMyArenaEntryId] = useState(null); // 내 Arena Entry ID
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -804,6 +809,29 @@ function Game(){
     setShowSparringModal(true);
   };
 
+  // Arena 시작 핸들러
+  const handleArenaStart = () => {
+    setShowArenaScreen(true);
+  };
+
+  // Arena 배틀 시작 핸들러
+  const handleArenaBattleStart = (challenger, myEntryId = null) => {
+    if (!challenger.id) {
+      console.error("Arena Challenger에 Document ID가 없습니다:", challenger);
+      alert("배틀을 시작할 수 없습니다. Challenger 데이터에 문제가 있습니다.");
+      return;
+    }
+    console.log("Arena 배틀 시작:", { challengerId: challenger.id, challenger, myEntryId });
+    setArenaChallenger(challenger);
+    setArenaEnemyId(challenger.id); // 상대방의 Document ID 저장
+    setMyArenaEntryId(myEntryId); // 내 디지몬의 Document ID 저장
+    setBattleType('arena');
+    setCurrentQuestArea(null);
+    setCurrentQuestRound(0);
+    setShowBattleScreen(true);
+    setShowArenaScreen(false); // ArenaScreen 닫기
+  };
+
   // Sparring 슬롯 선택 핸들러
   const handleSparringSlotSelect = (enemySlot) => {
     setSparringEnemySlot(enemySlot);
@@ -822,7 +850,7 @@ function Game(){
   };
 
   // 배틀 완료 핸들러
-  const handleBattleComplete = (battleResult) => {
+  const handleBattleComplete = async (battleResult) => {
     // Sparring 모드는 기록하지 않음
     if (battleType === 'sparring') {
       if (battleResult.win) {
@@ -833,6 +861,93 @@ function Game(){
       setShowBattleScreen(false);
       setBattleType(null);
       setSparringEnemySlot(null);
+      return;
+    }
+
+    // Arena 모드: Firestore에 결과 반영
+    if (battleType === 'arena' && arenaChallenger && currentUser) {
+      // 디버깅 로그
+      console.log("Arena Result Update:", {
+        battleType,
+        challengerId: arenaEnemyId || arenaChallenger.id,
+        challengerUserId: arenaChallenger.userId,
+        myEntryId: myArenaEntryId,
+        result: battleResult.win ? 'WIN' : 'LOSE',
+        battleResult,
+      });
+
+      const enemyEntryId = arenaEnemyId || arenaChallenger.id;
+      if (!enemyEntryId) {
+        console.error("Arena Enemy Entry ID가 없습니다. 업데이트를 건너뜁니다.");
+        alert("배틀 결과를 저장할 수 없습니다. Enemy Entry ID가 없습니다.");
+        setShowBattleScreen(false);
+        setBattleType(null);
+        setArenaChallenger(null);
+        setArenaEnemyId(null);
+        setMyArenaEntryId(null);
+        setShowArenaScreen(true); // Arena 화면으로 복귀
+        return;
+      }
+
+      try {
+        // Document ID를 사용하여 정확한 문서 타겟팅
+        const challengerRef = doc(db, 'arena_entries', enemyEntryId);
+        console.log("업데이트할 문서 참조:", challengerRef.path);
+
+        if (battleResult.win) {
+          // 내가 승리 → 상대방 losses +1
+          await updateDoc(challengerRef, {
+            'record.losses': increment(1),
+          });
+          console.error("✅ DB Update Success: 상대방 losses +1");
+        } else {
+          // 내가 패배 → 상대방 wins +1
+          await updateDoc(challengerRef, {
+            'record.wins': increment(1),
+          });
+          console.error("✅ DB Update Success: 상대방 wins +1");
+        }
+
+        // 전투 기록 저장 (arena_battle_logs 컬렉션)
+        const userDigimonName = selectedDigimon || "Unknown";
+        const enemyDigimonName = arenaChallenger.digimonSnapshot?.digimonName || "Unknown";
+        const logSummary = battleResult.win
+          ? `${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName} defeated ${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName}`
+          : `${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName} defeated ${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName}`;
+
+        const battleLogData = {
+          attackerId: currentUser.uid,
+          attackerName: currentUser.displayName || slotName || `슬롯${slotId}`,
+          defenderId: arenaChallenger.userId,
+          defenderName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
+          defenderEntryId: enemyEntryId, // 상대방 Entry ID
+          myEntryId: myArenaEntryId, // 내 Entry ID (있을 경우)
+          winnerId: battleResult.win ? currentUser.uid : arenaChallenger.userId,
+          timestamp: serverTimestamp(),
+          logSummary: logSummary,
+        };
+
+        const battleLogsRef = collection(db, 'arena_battle_logs');
+        const logDocRef = await addDoc(battleLogsRef, battleLogData);
+        console.error("✅ DB Update Success: 배틀 로그 저장 완료, ID:", logDocRef.id);
+
+        alert("✅ 배틀 결과가 성공적으로 저장되었습니다!");
+      } catch (error) {
+        console.error("❌ DB Update Failed:", error);
+        console.error("오류 상세:", {
+          code: error.code,
+          message: error.message,
+          challengerId: enemyEntryId,
+        });
+        alert(`❌ 배틀 결과 저장 실패:\n${error.message || error.code || "알 수 없는 오류"}`);
+      }
+
+      setShowBattleScreen(false);
+      setBattleType(null);
+      setArenaChallenger(null);
+      setArenaEnemyId(null);
+      setMyArenaEntryId(null);
+      setShowArenaScreen(true); // Arena 화면으로 복귀
       return;
     }
 
@@ -1066,6 +1181,17 @@ function Game(){
         <CommunicationModal
           onClose={() => setShowCommunicationModal(false)}
           onSparringStart={handleSparringStart}
+          onArenaStart={handleArenaStart}
+        />
+      )}
+
+      {/* Arena Screen */}
+      {showArenaScreen && (
+        <ArenaScreen
+          onClose={() => setShowArenaScreen(false)}
+          onStartBattle={handleArenaBattleStart}
+          currentSlotId={parseInt(slotId)}
+          mode={mode}
         />
       )}
 
@@ -1090,7 +1216,7 @@ function Game(){
       )}
 
       {/* 배틀 스크린 */}
-      {showBattleScreen && (currentQuestArea || battleType === 'sparring') && (
+      {showBattleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
         <BattleScreen
           userDigimon={newDigimonDataVer1[selectedDigimon] || {
             id: selectedDigimon,
@@ -1103,6 +1229,7 @@ function Game(){
           roundIndex={currentQuestRound}
           battleType={battleType}
           sparringEnemySlot={sparringEnemySlot}
+          arenaChallenger={arenaChallenger}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {

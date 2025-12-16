@@ -4,7 +4,7 @@
 import React from "react";
 import "../styles/Battle.css";
 
-export default function CommunicationModal({ onClose, onSparringStart }) {
+export default function CommunicationModal({ onClose, onSparringStart, onArenaStart }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
@@ -22,12 +22,13 @@ export default function CommunicationModal({ onClose, onSparringStart }) {
           </button>
           
           <button
-            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-            disabled
-            title="Coming Soon"
+            onClick={() => {
+              onArenaStart();
+              onClose();
+            }}
+            className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
             Arena (Ghost)
-            <span className="text-xs block mt-1">Coming Soon</span>
           </button>
           
           <button
