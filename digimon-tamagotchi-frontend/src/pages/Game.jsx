@@ -1236,8 +1236,17 @@ function Game(){
             setShowBattleScreen(false);
             setCurrentQuestArea(null);
             setCurrentQuestRound(0);
+            
+            // Arena 모드일 때는 Arena 화면으로 복귀
+            if (battleType === 'arena') {
+              setShowArenaScreen(true);
+            }
+            
             setBattleType(null);
             setSparringEnemySlot(null);
+            setArenaChallenger(null);
+            setArenaEnemyId(null);
+            setMyArenaEntryId(null);
           }}
         />
       )}
