@@ -460,7 +460,7 @@ export default function BattleScreen({
                 imageRendering: "pixelated",
                 zIndex: 50,
                 left: projectile.type === "user" ? "200px" : "calc(100% - 260px)",
-                top: "50%",
+                top: "calc(50% - 40px)", // 디지몬 스프라이트의 상단 부분에서 발사되도록 조정
                 transform: projectile.type === "user" ? "translateY(-50%) scaleX(-1)" : "translateY(-50%)",
               }}
             />
