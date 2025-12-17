@@ -14,9 +14,10 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    setLocalSeasonId(currentSeasonId || 1);
+    setLocalSeasonId(Number(currentSeasonId) || 1);
     setLocalSeasonName(seasonName || `Season ${currentSeasonId || 1}`);
     setLocalSeasonDuration(seasonDuration || "");
   }, [currentSeasonId, seasonName, seasonDuration]);
@@ -80,6 +81,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
 
     try {
       setArchiving(true);
+      setIsProcessing(true);
       const currentId = Number(localSeasonId) || 1;
 
       // 시즌 랭킹 Top 50 (seasonWins 기준)
@@ -120,7 +122,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
       await setDoc(
         configRef,
         {
-          currentSeasonId: nextSeason,
+          currentSeasonId: Number(nextSeason),
           seasonName: `Season ${nextSeason}`,
           seasonDuration: localSeasonDuration || "",
         },
@@ -134,7 +136,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
         await updateDoc(entryRef, {
           "record.seasonWins": 0,
           "record.seasonLosses": 0,
-          "record.seasonId": nextSeason,
+          "record.seasonId": Number(nextSeason),
         });
       }
 
@@ -151,11 +153,14 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
 
       alert("시즌 종료 및 아카이브 저장 완료. 시즌이 다음 시즌으로 전환되었습니다.");
     } catch (err) {
-      console.error("시즌 종료/아카이브 오류:", err);
-      console.error("복합 인덱스가 필요할 수 있습니다. Firestore 콘솔 제안 링크를 확인하세요.");
-      alert(`시즌 종료 중 오류가 발생했습니다.\n${err.message || err.code || "알 수 없는 오류"}`);
+      console.error("End Season Error:", err);
+      const tip = err?.message?.toLowerCase().includes("index")
+        ? "\n\n콘솔(F12)의 파란색 링크를 클릭하여 인덱스를 생성하세요."
+        : "";
+      alert(`시즌 종료 실패: ${err.message || err.code || "알 수 없는 오류"}${tip}`);
     } finally {
       setArchiving(false);
+      setIsProcessing(false);
     }
   };
 

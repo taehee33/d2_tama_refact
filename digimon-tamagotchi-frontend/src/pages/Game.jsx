@@ -79,6 +79,35 @@ function formatLifespan(sec=0){
   return `${d} day, ${mm} min, ${ss} sec`;
 }
 
+  // 수면 스케줄 체크
+  const getSleepSchedule = (name) => {
+    const data = digimonDataVer1[name] || {};
+    return data.sleepSchedule || { start: 22, end: 6 };
+  };
+
+  const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
+    const hour = nowDate.getHours();
+    const { start, end } = schedule || { start: 22, end: 6 };
+    if (start === end) return false;
+    if (start < end) {
+      return hour >= start && hour < end;
+    }
+    // 자정 넘김
+    return hour >= start || hour < end;
+  };
+
+// 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
+function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
+  const until = Date.now() + 10 * 60 * 1000; // 10분
+  setWakeUntilCb(until);
+  const updated = {
+    ...digimonStats,
+    wakeUntil: until,
+    sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
+  };
+  setStatsCb(updated);
+}
+
 function Game(){
   const { slotId } = useParams();
   const navigate= useNavigate();
@@ -159,6 +188,12 @@ function Game(){
   // Admin Modal
   const [showAdminModal, setShowAdminModal] = useState(false);
 
+  // 수면/조명 상태
+  const [isLightsOn, setIsLightsOn] = useState(true);
+  const [wakeUntil, setWakeUntil] = useState(null);
+  const [dailySleepMistake, setDailySleepMistake] = useState(false);
+  const [isSleeping, setIsSleeping] = useState(false);
+
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
 
@@ -225,6 +260,10 @@ function Game(){
               
               setSelectedDigimon(savedName);
               setDigimonStats(savedStats);
+              if (savedStats.isLightsOn !== undefined) setIsLightsOn(savedStats.isLightsOn);
+              if (savedStats.wakeUntil) setWakeUntil(savedStats.wakeUntil);
+              if (savedStats.dailySleepMistake !== undefined) setDailySleepMistake(savedStats.dailySleepMistake);
+              setIsSleeping(false);
               
               // 업데이트된 스탯을 Firestore에 저장
               await updateDoc(slotRef, {
@@ -266,7 +305,11 @@ function Game(){
               savedStats = applyLazyUpdate(savedStats, lastSavedAt);
               
               setSelectedDigimon(digimonName);
-              setDigimonStats(savedStats);
+                setDigimonStats(savedStats);
+                if (savedStats.isLightsOn !== undefined) setIsLightsOn(savedStats.isLightsOn);
+                if (savedStats.wakeUntil) setWakeUntil(savedStats.wakeUntil);
+                if (savedStats.dailySleepMistake !== undefined) setDailySleepMistake(savedStats.dailySleepMistake);
+              setIsSleeping(false);
               
               // 업데이트된 스탯을 localStorage에 저장
               localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(savedStats));
@@ -342,6 +385,46 @@ function Game(){
         // 매뉴얼 기반 배고픔/힘 감소 처리
         updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1);
         updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1);
+
+        // 수면 로직
+        updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
+        const schedule = getSleepSchedule(currentDigimonName);
+        const nowMs = Date.now();
+        const nowDate = new Date(nowMs);
+        const inSchedule = isWithinSleepSchedule(schedule, nowDate);
+        const wakeOverride = wakeUntil && nowMs < wakeUntil;
+        const sleepingNow = inSchedule && !wakeOverride;
+
+        // 일자 변경 시 일일 수면 케어 미스 리셋
+        const todayKey = nowDate.toDateString();
+        if (updatedStats.sleepMistakeDate !== todayKey) {
+          updatedStats.sleepMistakeDate = todayKey;
+          updatedStats.dailySleepMistake = false;
+          setDailySleepMistake(false);
+        }
+
+        if (sleepingNow && isLightsOn) {
+          if (!updatedStats.sleepLightOnStart) {
+            updatedStats.sleepLightOnStart = nowMs;
+          } else {
+            const elapsed = nowMs - updatedStats.sleepLightOnStart;
+            if (elapsed >= 30 * 60 * 1000 && !dailySleepMistake && !updatedStats.dailySleepMistake) {
+              updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+              updatedStats.dailySleepMistake = true;
+              setDailySleepMistake(true);
+              updatedStats.sleepLightOnStart = nowMs;
+            }
+          }
+        } else {
+          updatedStats.sleepLightOnStart = null;
+        }
+
+        setIsSleeping(sleepingNow);
+        if (sleepingNow) {
+          setCurrentAnimation("sleep");
+        } else if (currentAnimation === "sleep") {
+          setCurrentAnimation("idle");
+        }
         
         // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
         if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt){
@@ -373,6 +456,9 @@ function Game(){
         }
         
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
+        updatedStats.isLightsOn = isLightsOn;
+        updatedStats.wakeUntil = wakeUntil;
+        updatedStats.dailySleepMistake = dailySleepMistake;
         return updatedStats;
       });
     }, 1000);
@@ -386,7 +472,13 @@ function Game(){
   async function setDigimonStatsAndSave(newStats){
     // Lazy Update 적용: 액션 시점에 경과 시간 반영
     const updatedStats = await applyLazyUpdateBeforeAction();
-    const finalStats = { ...updatedStats, ...newStats };
+    const finalStats = { 
+      ...updatedStats, 
+      ...newStats,
+      isLightsOn,
+      wakeUntil,
+      dailySleepMistake,
+    };
     
     setDigimonStats(finalStats);
     
@@ -789,6 +881,14 @@ function Game(){
 
   // 메뉴 클릭 (train 버튼 시)
   const handleMenuClick = (menu)=>{
+    // 수면 중 인터랙션 시 10분 깨우고 sleepDisturbances 증가
+    const schedule = getSleepSchedule(selectedDigimon);
+    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    if (nowSleeping) {
+      wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave);
+      setIsSleeping(false);
+    }
+
     setActiveMenu(menu);
     switch(menu){
       case "eat":
@@ -1036,6 +1136,11 @@ function Game(){
   // 화면 렌더
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
+      {/* Lights Off Overlay */}
+      {!isLightsOn && (
+        <div className="fixed inset-0 bg-black" style={{ opacity: 0.6, pointerEvents: "none", zIndex: 40 }}></div>
+      )}
+
       <h2 className="text-lg font-bold mb-2">
         슬롯 {slotId} - {selectedDigimon}
       </h2>
@@ -1166,6 +1271,12 @@ function Game(){
         className="px-4 py-2 bg-red-500 text-white rounded mt-4"
       >
         Reset Digimon
+      </button>
+      <button
+        onClick={() => setIsLightsOn((prev) => !prev)}
+        className="px-4 py-2 bg-yellow-500 text-white rounded mt-2"
+      >
+        {isLightsOn ? "Lights Off" : "Lights On"}
       </button>
 
       {developerMode && slotVersion==="Ver.1" && (

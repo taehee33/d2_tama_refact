@@ -90,3 +90,24 @@ export const digimonDataVer1 = {
 
   // 필요 시 Perfect/Ultimate/SU 추가
 };
+
+// 수면 스케줄 기본값 매핑 (시작/끝 시각: 24h, end가 start보다 작으면 자정 넘김)
+const sleepScheduleByStage = {
+  Digitama: { start: 20, end: 8 },
+  Baby1: { start: 20, end: 8 },
+  Baby2: { start: 20, end: 8 },
+  Child: { start: 21, end: 7 },
+  Adult: { start: 22, end: 6 },
+  Perfect: { start: 22, end: 6 },
+  Ultimate: { start: 23, end: 7 },
+  SuperUltimate: { start: 23, end: 7 },
+  Ohakadamon: { start: 0, end: 0 },
+};
+
+Object.keys(digimonDataVer1).forEach((key) => {
+  const entry = digimonDataVer1[key];
+  const stage = entry.evolutionStage || entry.stage || "Adult";
+  if (!entry.sleepSchedule) {
+    entry.sleepSchedule = sleepScheduleByStage[stage] || { start: 22, end: 6 };
+  }
+});

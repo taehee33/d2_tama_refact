@@ -86,6 +86,37 @@ Dev 모드에서 접근 가능한 Admin Panel을 추가해 시즌 설정(이름/
 ### 관련 파일
 - `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
 
+---
+
+## [2025-12-17] Sleep & Lights 시스템 (Time-based)
+
+### 작업 유형
+- 기능 추가
+- 게임 로직
+- UI/UX 개선
+
+### 목적 및 영향
+수면 스케줄 기반으로 조명 관리, 수면 방해, 케어 미스(30분 방치) 로직을 추가하여 보다 현실적인 수면 시스템을 구현했습니다. 인터랙션 시 10분 깨우기와 Dark Overlay, 수면 스프라이트 적용으로 UX를 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/digimondata_digitalmonstercolor25th_ver1.js`
+  - 수면 스케줄 기본값(stage별 start/end) 자동 주입
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 상태: `isLightsOn`, `wakeUntil`, `dailySleepMistake`, `isSleeping`
+  - 수면 판단(스케줄 + wakeUntil), 조명 케어 미스 30분 처리, 하루 1회 제한
+  - 수면 중 인터랙션 시 10분 깨우기 + `sleepDisturbances` 증가
+  - Lights 토글 버튼, Dark Overlay, 수면 시 sleep 애니메이션 적용
+
+### 주요 개선 사항
+- 스케줄 기반 수면/기상 판단, wakeUntil로 일시 깨움
+- 조명 ON 상태로 30분 방치 시 careMistakes +1 (일 1회)
+- 수면 방해 시 10분 깨우기 및 sleepDisturbances 카운트
+- 수면 시 Sleep 애니메이션, Lights Off 시 화면 어둡게 오버레이
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/digimondata_digitalmonstercolor25th_ver1.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
 ### 주요 개선 사항
 - 시즌/누적 전적을 분리 관리하여 시즌제 경쟁 지원
 - 상위 랭커 리스트로 Arena 참여 동기 부여
