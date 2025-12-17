@@ -4,6 +4,23 @@
 
 ---
 
+## [2025-12-17] UI Upgrade: Expanded Leaderboard filters to support All-Time, Current Season, and browsable Past Season archives.
+
+### 작업 유형
+- UI/UX 개선
+- 기능 확장
+
+### 목적 및 영향
+- 리더보드 필터를 All-Time, Current Season, Past Season(아카이브)까지 확장해 시즌별 기록 탐색성을 높였습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+---
+
 ## [2025-12-17] Game 화면 UI 정리 (Select/Reset)
 
 ### 작업 유형

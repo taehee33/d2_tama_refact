@@ -1,9 +1,10 @@
 // src/pages/Game.jsx
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "../firebase";
+import { getSleepStatus } from "../hooks/useGameLogic";
 
 import Canvas from "../components/Canvas";
 import StatsPanel from "../components/StatsPanel";
@@ -111,11 +112,8 @@ function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
 function Game(){
   const { slotId } = useParams();
   const navigate= useNavigate();
-  const location = useLocation();
   const { currentUser, isFirebaseAvailable } = useAuth();
-  
-  // mode 값 가져오기 (location.state에서 가져오거나, 기본값은 firebase)
-  const mode = location.state?.mode || (isFirebaseAvailable && currentUser ? 'firebase' : 'local');
+  const mode = 'firebase';
 
   const [selectedDigimon, setSelectedDigimon]= useState("Digitama");
   const [digimonStats, setDigimonStats]= useState(
@@ -193,11 +191,14 @@ function Game(){
   const [wakeUntil, setWakeUntil] = useState(null);
   const [dailySleepMistake, setDailySleepMistake] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
+  const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'TIRED' | 'SLEEPING'
+  const tiredStartRef = useRef(null);
+  const tiredCountedRef = useRef(false);
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
 
-  // (1) SLOT LOAD - mode에 따라 Firestore 또는 localStorage에서 슬롯 데이터 로드
+  // (1) SLOT LOAD - Firestore에서 슬롯 데이터 로드
   useEffect(()=>{
     if(!slotId) {
       setIsLoadingSlot(false);
@@ -223,8 +224,7 @@ function Game(){
     loadArenaConfig();
     
     // Firebase 모드인데 로그인 안 되어 있으면 리디렉션
-    // 단, 데이터 로딩이 완료된 후에만 리디렉션
-    if(mode === 'firebase' && (!isFirebaseAvailable || !currentUser)) {
+    if(!isFirebaseAvailable || !currentUser) {
       setIsLoadingSlot(false);
       navigate("/");
       return;
@@ -233,93 +233,45 @@ function Game(){
     const loadSlot = async () => {
       setIsLoadingSlot(true);
       try {
-        if(mode === 'firebase' && isFirebaseAvailable && currentUser) {
-          // Firestore 모드
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          const slotSnap = await getDoc(slotRef);
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        const slotSnap = await getDoc(slotRef);
+        
+        if(slotSnap.exists()) {
+          const slotData = slotSnap.data();
           
-          if(slotSnap.exists()) {
-            const slotData = slotSnap.data();
-            
-            setSlotName(slotData.slotName || `슬롯${slotId}`);
-            setSlotCreatedAt(slotData.createdAt || "");
-            setSlotDevice(slotData.device || "");
-            setSlotVersion(slotData.version || "Ver.1");
+          setSlotName(slotData.slotName || `슬롯${slotId}`);
+          setSlotCreatedAt(slotData.createdAt || "");
+          setSlotDevice(slotData.device || "");
+          setSlotVersion(slotData.version || "Ver.1");
+          setIsLightsOn(slotData.isLightsOn !== undefined ? slotData.isLightsOn : true);
+          setWakeUntil(slotData.wakeUntil || null);
+          if (slotData.dailySleepMistake !== undefined) setDailySleepMistake(slotData.dailySleepMistake);
 
-            const savedName = slotData.selectedDigimon || "Digitama";
-            let savedStats = slotData.digimonStats || {};
-            
-            if(Object.keys(savedStats).length === 0){
-              const ns = initializeStats("Digitama", {}, digimonDataVer1);
-              setSelectedDigimon("Digitama");
-              setDigimonStats(ns);
-            } else {
-              // Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간 적용
-              const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
-              savedStats = applyLazyUpdate(savedStats, lastSavedAt);
-              
-              setSelectedDigimon(savedName);
-              setDigimonStats(savedStats);
-              if (savedStats.isLightsOn !== undefined) setIsLightsOn(savedStats.isLightsOn);
-              if (savedStats.wakeUntil) setWakeUntil(savedStats.wakeUntil);
-              if (savedStats.dailySleepMistake !== undefined) setDailySleepMistake(savedStats.dailySleepMistake);
-              setIsSleeping(false);
-              
-              // 업데이트된 스탯을 Firestore에 저장
-              await updateDoc(slotRef, {
-                digimonStats: savedStats,
-                lastSavedAt: savedStats.lastSavedAt,
-                updatedAt: new Date(),
-              });
-            }
-          } else {
+          const savedName = slotData.selectedDigimon || "Digitama";
+          let savedStats = slotData.digimonStats || {};
+          
+          if(Object.keys(savedStats).length === 0){
             const ns = initializeStats("Digitama", {}, digimonDataVer1);
             setSelectedDigimon("Digitama");
             setDigimonStats(ns);
-            setSlotName(`슬롯${slotId}`);
+          } else {
+            const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
+            savedStats = applyLazyUpdate(savedStats, lastSavedAt);
+            
+            setSelectedDigimon(savedName);
+            setDigimonStats(savedStats);
+            
+            await updateDoc(slotRef, {
+              digimonStats: savedStats,
+              lastSavedAt: savedStats.lastSavedAt,
+              updatedAt: new Date(),
+            });
           }
         } else {
-          // localStorage 모드
-          const digimonName = localStorage.getItem(`slot${slotId}_selectedDigimon`);
-          const statsJson = localStorage.getItem(`slot${slotId}_digimonStats`);
-          const slotName = localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`;
-          const createdAt = localStorage.getItem(`slot${slotId}_createdAt`) || "";
-          const device = localStorage.getItem(`slot${slotId}_device`) || "";
-          const version = localStorage.getItem(`slot${slotId}_version`) || "Ver.1";
-          
-          setSlotName(slotName);
-          setSlotCreatedAt(createdAt);
-          setSlotDevice(device);
-          setSlotVersion(version);
-          
-          if(digimonName) {
-            let savedStats = statsJson ? JSON.parse(statsJson) : {};
-            
-            if(Object.keys(savedStats).length === 0){
-              const ns = initializeStats("Digitama", {}, digimonDataVer1);
-              setSelectedDigimon("Digitama");
-              setDigimonStats(ns);
-            } else {
-              // Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간 적용
-              const lastSavedAt = savedStats.lastSavedAt || new Date();
-              savedStats = applyLazyUpdate(savedStats, lastSavedAt);
-              
-              setSelectedDigimon(digimonName);
-                setDigimonStats(savedStats);
-                if (savedStats.isLightsOn !== undefined) setIsLightsOn(savedStats.isLightsOn);
-                if (savedStats.wakeUntil) setWakeUntil(savedStats.wakeUntil);
-                if (savedStats.dailySleepMistake !== undefined) setDailySleepMistake(savedStats.dailySleepMistake);
-              setIsSleeping(false);
-              
-              // 업데이트된 스탯을 localStorage에 저장
-              localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(savedStats));
-            }
-          } else {
-            const ns = initializeStats("Digitama", {}, digimonDataVer1);
-            setSelectedDigimon("Digitama");
-            setDigimonStats(ns);
-            setSlotName(`슬롯${slotId}`);
-          }
+          const ns = initializeStats("Digitama", {}, digimonDataVer1);
+          setSelectedDigimon("Digitama");
+          setDigimonStats(ns);
+          setSlotName(`슬롯${slotId}`);
         }
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
@@ -327,13 +279,12 @@ function Game(){
         setSelectedDigimon("Digitama");
         setDigimonStats(ns);
       } finally {
-        // 데이터 로딩 완료
         setIsLoadingSlot(false);
       }
     };
 
     loadSlot();
-  },[slotId, currentUser, navigate, isFirebaseAvailable, mode]);
+  },[slotId, currentUser, navigate, isFirebaseAvailable]);
 
   // clearedQuestIndex 로컬 스토리지에서 로드
   useEffect(() => {
@@ -470,129 +421,87 @@ function Game(){
   }, [digimonStats.isDead]); // isDead가 변경될 때만 재설정
 
   async function setDigimonStatsAndSave(newStats){
-    // Lazy Update 적용: 액션 시점에 경과 시간 반영
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    const finalStats = { 
-      ...updatedStats, 
+    const baseStats = await applyLazyUpdateBeforeAction();
+    const now = new Date();
+    const finalStats = {
+      ...baseStats,
       ...newStats,
       isLightsOn,
       wakeUntil,
       dailySleepMistake,
+      lastSavedAt: now,
     };
-    
+
     setDigimonStats(finalStats);
-    
-    // mode에 따라 Firestore 또는 localStorage에 저장
-    if(slotId){
+
+    if(slotId && currentUser){
       try {
-        if(mode === 'firebase' && currentUser){
-          // Firestore에 저장
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await updateDoc(slotRef, {
-            digimonStats: finalStats,
-            lastSavedAt: finalStats.lastSavedAt || new Date(),
-            updatedAt: new Date(),
-          });
-        } else {
-          // localStorage에 저장
-          localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(finalStats));
-        }
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          digimonStats: finalStats,
+          isLightsOn,
+          wakeUntil,
+          lastSavedAt: finalStats.lastSavedAt,
+          updatedAt: now,
+        });
       } catch (error) {
         console.error("스탯 저장 오류:", error);
       }
     }
   }
 
-  // 액션 전에 Lazy Update 적용하는 헬퍼 함수
-  // mode에 따라 Firestore 또는 localStorage에서 마지막 저장 시간을 가져와 경과 시간을 계산하여 스탯 업데이트
+  // 액션 전에 Lazy Update 적용하는 헬퍼 함수 (Firestore 전용)
   async function applyLazyUpdateBeforeAction() {
-    if(!slotId) {
+    if(!slotId || !currentUser) {
       return digimonStats;
     }
 
     try {
-      if(mode === 'firebase' && currentUser){
-        // Firestore 모드
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        const slotSnap = await getDoc(slotRef);
+      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+      const slotSnap = await getDoc(slotRef);
+      
+      if(slotSnap.exists()) {
+        const slotData = slotSnap.data();
+        const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
+        const updated = applyLazyUpdate(digimonStats, lastSavedAt);
         
-        if(slotSnap.exists()) {
-          const slotData = slotSnap.data();
-          const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
-          const updated = applyLazyUpdate(digimonStats, lastSavedAt);
-          
-          // 사망 상태 변경 감지
-          if(!digimonStats.isDead && updated.isDead){
-            // 사망 원인 확인 (Lazy Update에서 감지된 경우)
-            if(updated.fullness === 0 && updated.lastHungerZeroAt){
-              const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
-              if(elapsed >= 43200){
-                setDeathReason('STARVATION (굶주림)');
-              }
-            } else if(updated.health === 0 && updated.lastStrengthZeroAt){
-              const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
-              if(elapsed >= 43200){
-                setDeathReason('INJURY (부상 과다)');
-              }
-            } else {
-              setDeathReason('OLD AGE (수명 다함)');
+        // 사망 상태 변경 감지
+        if(!digimonStats.isDead && updated.isDead){
+          if(updated.fullness === 0 && updated.lastHungerZeroAt){
+            const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
+            if(elapsed >= 43200){
+              setDeathReason('STARVATION (굶주림)');
             }
-            setShowDeathConfirm(true);
-          }
-          
-          return updated;
-        }
-      } else {
-        // localStorage 모드
-        const statsJson = localStorage.getItem(`slot${slotId}_digimonStats`);
-        if(statsJson) {
-          const savedStats = JSON.parse(statsJson);
-          const lastSavedAt = savedStats.lastSavedAt || digimonStats.lastSavedAt;
-          const updated = applyLazyUpdate(digimonStats, lastSavedAt);
-          
-          // 사망 상태 변경 감지
-          if(!digimonStats.isDead && updated.isDead){
-            // 사망 원인 확인 (Lazy Update에서 감지된 경우)
-            if(updated.fullness === 0 && updated.lastHungerZeroAt){
-              const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
-              if(elapsed >= 43200){
-                setDeathReason('STARVATION (굶주림)');
-              }
-            } else if(updated.health === 0 && updated.lastStrengthZeroAt){
-              const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
-              if(elapsed >= 43200){
-                setDeathReason('INJURY (부상 과다)');
-              }
-            } else {
-              setDeathReason('OLD AGE (수명 다함)');
+          } else if(updated.health === 0 && updated.lastStrengthZeroAt){
+            const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
+            if(elapsed >= 43200){
+              setDeathReason('INJURY (부상 과다)');
             }
-            setShowDeathConfirm(true);
+          } else {
+            setDeathReason('OLD AGE (수명 다함)');
           }
-          
-          return updated;
+          setShowDeathConfirm(true);
         }
+        
+        return updated;
       }
     } catch (error) {
       console.error("Lazy Update 적용 오류:", error);
     }
-    
+
     return digimonStats;
   }
   async function setSelectedDigimonAndSave(name){
     setSelectedDigimon(name);
-    if(slotId){
+    if(slotId && currentUser){
       try {
-        if(mode === 'firebase' && currentUser){
-          // Firestore에 저장
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await updateDoc(slotRef, {
-            selectedDigimon: name,
-            updatedAt: new Date(),
-          });
-        } else {
-          // localStorage에 저장
-          localStorage.setItem(`slot${slotId}_selectedDigimon`, name);
-        }
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          selectedDigimon: name,
+          isLightsOn,
+          wakeUntil,
+          updatedAt: new Date(),
+        });
       } catch (error) {
         console.error("디지몬 이름 저장 오류:", error);
       }
@@ -609,6 +518,13 @@ function Game(){
   let idleFrames= idleOff.map(n=> `${digimonStats.sprite + n}`);
   let eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
   let rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
+
+  // 수면/피곤 상태에서는 고정 슬립 프레임
+  if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+    idleFrames = [`${digimonStats.sprite + 12}`, `${digimonStats.sprite + 13}`];
+    eatFramesArr = idleFrames;
+    rejectFramesArr = idleFrames;
+  }
 
   if(digimonStats.isDead){
     idleFrames= [ `${digimonStats.sprite+15}` ];
@@ -804,21 +720,16 @@ function Game(){
         lastSavedAt: now
       };
       setDigimonStats(updatedStats);
-      // mode에 따라 Firestore 또는 localStorage에 저장 (청소 시 저장)
-      if(slotId){
+      if(slotId && currentUser){
         try {
-          if(mode === 'firebase' && currentUser){
-            // Firestore에 저장
-            const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-            await updateDoc(slotRef, {
-              digimonStats: updatedStats,
-              lastSavedAt: now,
-              updatedAt: now,
-            });
-          } else {
-            // localStorage에 저장
-            localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(updatedStats));
-          }
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          await updateDoc(slotRef, {
+            digimonStats: updatedStats,
+            isLightsOn,
+            wakeUntil,
+            lastSavedAt: now,
+            updatedAt: now,
+          });
         } catch (error) {
           console.error("청소 상태 저장 오류:", error);
         }
@@ -891,7 +802,7 @@ function Game(){
 
     // Lights 토글은 electric 버튼에 매핑
     if (menu === "electric") {
-      setIsLightsOn((prev) => !prev);
+      handleToggleLights();
       setActiveMenu(menu);
       return;
     }
@@ -917,6 +828,38 @@ function Game(){
         console.log("menu:", menu);
     }
   };
+
+  // 수면 상태 계산 및 TIRED 케어미스 처리
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const status = getSleepStatus({
+        sleepSchedule: getSleepSchedule(selectedDigimon),
+        isLightsOn,
+        wakeUntil,
+        now: new Date(),
+      });
+      setSleepStatus(status);
+
+      if (status === "TIRED") {
+        if (!tiredStartRef.current) {
+          tiredStartRef.current = Date.now();
+          tiredCountedRef.current = false;
+        }
+        const threshold = developerMode ? 60 * 1000 : 30 * 60 * 1000; // 테스트 모드는 1분, 기본 30분
+        if (!tiredCountedRef.current && tiredStartRef.current && (Date.now() - tiredStartRef.current) >= threshold) {
+          tiredCountedRef.current = true;
+          setDigimonStatsAndSave({
+            ...digimonStats,
+            careMistakes: (digimonStats.careMistakes || 0) + 1,
+          });
+        }
+      } else {
+        tiredStartRef.current = null;
+        tiredCountedRef.current = false;
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [selectedDigimon, isLightsOn, wakeUntil, developerMode, digimonStats]);
 
   // 퀘스트 시작 핸들러
   const handleQuestStart = () => {
@@ -980,6 +923,23 @@ function Game(){
     const currentAreaIndex = quests.findIndex(q => q.areaId === currentQuestArea);
     if (currentAreaIndex === clearedQuestIndex) {
       setClearedQuestIndex(prev => prev + 1);
+    }
+  };
+
+  // 조명 토글: 상태 및 Firestore 동기화
+  const handleToggleLights = async () => {
+    const next = !isLightsOn;
+    setIsLightsOn(next);
+    if(slotId && currentUser){
+      try{
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          isLightsOn: next,
+          updatedAt: new Date(),
+        });
+      } catch (error){
+        console.error("조명 상태 저장 오류:", error);
+      }
     }
   };
 
@@ -1142,14 +1102,12 @@ function Game(){
 
   // 화면 렌더
   return (
-    <div className="min-h-screen bg-gray-200">
-      <div className="p-4">
-        <button onClick={()=> navigate("/select")} className="mb-2 px-3 py-1 bg-gray-400 text-white rounded">
-          ← Select 화면
-        </button>
-      </div>
+    <>
+      <button onClick={()=> navigate("/select")} className="mb-2 px-3 py-1 bg-gray-400 text-white rounded">
+        ← Select 화면
+      </button>
 
-      <div className="flex flex-col items-center p-4">
+      <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
         <h2 className="text-lg font-bold mb-2">
           슬롯 {slotId} - {selectedDigimon}
         </h2>
@@ -1180,6 +1138,25 @@ function Game(){
                 zIndex: 3,
               }}
             />
+          )}
+          {/* 수면/피곤 상태 아이콘 */}
+          {(sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                zIndex: 4,
+                background: "rgba(0,0,0,0.4)",
+                color: "white",
+                padding: "4px 8px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                fontSize: 12,
+              }}
+            >
+              {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
+            </div>
           )}
           <Canvas
             style={{ position:"absolute", top:0,left:0, zIndex:2 }}
@@ -1222,7 +1199,7 @@ function Game(){
       </div>
 
       <div className="flex space-x-4 mt-4">
-        <StatsPanel stats={digimonStats} />
+        <StatsPanel stats={digimonStats} sleepStatus={sleepStatus} />
         <MenuIconButtons
           width={width}
           height={height}
@@ -1418,7 +1395,7 @@ function Game(){
         />
       )}
       </div>
-    </div>
+    </>
   );
 }
 
