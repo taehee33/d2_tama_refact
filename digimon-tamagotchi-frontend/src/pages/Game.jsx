@@ -1167,6 +1167,18 @@ function Game(){
             zIndex:1
           }}
         />
+        {/* Lights Off Overlay (게임 화면만) */}
+        {!isLightsOn && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              pointerEvents: "none",
+              zIndex: 3,
+            }}
+          />
+        )}
         <Canvas
           style={{ position:"absolute", top:0,left:0, zIndex:2 }}
           width={width}
@@ -1209,26 +1221,12 @@ function Game(){
 
       <div className="flex space-x-4 mt-4">
         <StatsPanel stats={digimonStats} />
-        <div style={{ position: "relative" }}>
-          {/* Lights Off Overlay (배틀/게임 영역만) */}
-          {!isLightsOn && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundColor: "rgba(0,0,0,0.6)",
-                pointerEvents: "none",
-                zIndex: 30,
-              }}
-            />
-          )}
-          <MenuIconButtons
-            width={width}
-            height={height}
-            activeMenu={activeMenu}
-            onMenuClick={handleMenuClick}
-          />
-        </div>
+        <MenuIconButtons
+          width={width}
+          height={height}
+          activeMenu={activeMenu}
+          onMenuClick={handleMenuClick}
+        />
       </div>
 
       <button
@@ -1288,12 +1286,6 @@ function Game(){
         className="px-4 py-2 bg-red-500 text-white rounded mt-4"
       >
         Reset Digimon
-      </button>
-      <button
-        onClick={() => setIsLightsOn((prev) => !prev)}
-        className="px-4 py-2 bg-yellow-500 text-white rounded mt-2"
-      >
-        {isLightsOn ? "Lights Off" : "Lights On"}
       </button>
 
       {developerMode && slotVersion==="Ver.1" && (
