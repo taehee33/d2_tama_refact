@@ -14,7 +14,9 @@ import {
   doc, 
   updateDoc,
   serverTimestamp,
-  increment
+  increment,
+  limit,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
@@ -22,8 +24,10 @@ import { calculatePower } from "../logic/battle/hitrate";
 import "../styles/Battle.css";
 
 const MAX_ENTRIES = 3;
+const CURRENT_SEASON_ID = 1;
+const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [myEntries, setMyEntries] = useState([]);
   const [challengers, setChallengers] = useState([]);
@@ -32,16 +36,22 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [registering, setRegistering] = useState(false);
   const [showSlotSelection, setShowSlotSelection] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
-  const [activeTab, setActiveTab] = useState('challengers'); // 'challengers' | 'battleLog'
+  const [activeTab, setActiveTab] = useState('challengers'); // 'challengers' | 'battleLog' | 'leaderboard'
   const [logFilter, setLogFilter] = useState('all'); // 'all' | entryId
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [leaderboardEntries, setLeaderboardEntries] = useState([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardMode, setLeaderboardMode] = useState('all'); // 'all' | 'season'
+  const [seasonDurationText, setSeasonDurationText] = useState("");
+  const [seasonName, setSeasonName] = useState(`Season ${currentSeasonId}`);
 
   useEffect(() => {
     if (isFirebaseAvailable && currentUser && mode !== 'local') {
       loadMyEntries();
       loadChallengers();
+      loadArenaConfig();
     } else {
       setLoading(false);
     }
@@ -51,7 +61,26 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     if (activeTab === 'battleLog' && isFirebaseAvailable && currentUser && mode !== 'local') {
       loadBattleLogs();
     }
-  }, [activeTab, currentUser, isFirebaseAvailable, mode]);
+    if (activeTab === 'leaderboard' && isFirebaseAvailable && currentUser && mode !== 'local') {
+      loadLeaderboard(leaderboardMode);
+    }
+  }, [activeTab, currentUser, isFirebaseAvailable, mode, leaderboardMode]);
+
+  // 시즌 설정 로드
+  const loadArenaConfig = async () => {
+    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    try {
+      const configRef = doc(db, 'game_settings', 'arena_config');
+      const snap = await getDoc(configRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.seasonDuration) setSeasonDurationText(data.seasonDuration);
+        if (data.seasonName) setSeasonName(data.seasonName);
+      }
+    } catch (error) {
+      console.error("Arena 설정 로드 오류:", error);
+    }
+  };
 
   // 내 등록된 디지몬 목록 로드
   const loadMyEntries = async () => {
@@ -145,6 +174,46 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       console.error("배틀 로그 로드 오류:", error);
     } finally {
       setLoadingLogs(false);
+    }
+  };
+
+  // 리더보드 로드
+  const loadLeaderboard = async (modeType = 'all') => {
+    if (!isFirebaseAvailable || mode === 'local') return;
+
+    try {
+      setLeaderboardLoading(true);
+      const entriesRef = collection(db, 'arena_entries');
+
+      let q;
+      if (modeType === 'season') {
+        // 시즌 랭킹: seasonId == CURRENT_SEASON_ID, seasonWins 내림차순
+        q = query(
+          entriesRef,
+          where('record.seasonId', '==', currentSeasonId || CURRENT_SEASON_ID),
+          orderBy('record.seasonWins', 'desc'),
+          limit(LEADERBOARD_LIMIT)
+        );
+      } else {
+        // 전체 랭킹: wins 내림차순
+        q = query(
+          entriesRef,
+          orderBy('record.wins', 'desc'),
+          limit(LEADERBOARD_LIMIT)
+        );
+      }
+
+      const querySnapshot = await getDocs(q);
+      const list = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setLeaderboardEntries(list);
+    } catch (error) {
+      console.error("리더보드 로드 오류:", error);
+      console.error("복합 인덱스 오류가 발생할 수 있습니다. Firestore 콘솔에서 제안 링크를 따라 인덱스를 생성하세요.");
+    } finally {
+      setLeaderboardLoading(false);
     }
   };
 
@@ -458,6 +527,16 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           >
             Battle Log
           </button>
+          <button
+            onClick={() => setActiveTab('leaderboard')}
+            className={`px-4 py-2 font-bold transition-colors ${
+              activeTab === 'leaderboard'
+                ? 'border-b-2 border-blue-500 text-blue-500'
+                : 'text-gray-600 hover:text-gray-800'
+            }`}
+          >
+            Leaderboard
+          </button>
         </div>
 
         {/* Challengers 탭 */}
@@ -604,6 +683,89 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Leaderboard 탭 */}
+        {activeTab === 'leaderboard' && (
+          <div>
+            <h3 className="text-xl font-bold mb-3">Leaderboard</h3>
+            <p className="text-xs text-gray-500 mb-2">
+              {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
+            </p>
+
+            {/* 토글: 전체 / 시즌 */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setLeaderboardMode('all')}
+                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                  leaderboardMode === 'all'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                🏆 All-Time
+              </button>
+              <button
+                onClick={() => setLeaderboardMode('season')}
+                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                  leaderboardMode === 'season'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                📅 Season {CURRENT_SEASON_ID}
+              </button>
+            </div>
+
+            {leaderboardLoading ? (
+              <p className="text-gray-600">로딩 중...</p>
+            ) : leaderboardEntries.length === 0 ? (
+              <p className="text-gray-600">랭킹 데이터가 없습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {leaderboardEntries.map((entry, idx) => {
+                  const rank = idx + 1;
+                  const record = entry.record || { wins: 0, losses: 0, seasonWins: 0, seasonLosses: 0 };
+                  const wins = leaderboardMode === 'season' ? (record.seasonWins || 0) : (record.wins || 0);
+                  const losses = leaderboardMode === 'season' ? (record.seasonLosses || 0) : (record.losses || 0);
+                  const total = wins + losses;
+                  const winRate = total === 0 ? 0 : Math.round((wins / total) * 100);
+                  const digimonName = entry.digimonSnapshot?.digimonName || 'Unknown';
+
+                  const rankClass =
+                    rank === 1 ? 'bg-yellow-100 border-yellow-300'
+                    : rank === 2 ? 'bg-gray-100 border-gray-300'
+                    : rank === 3 ? 'bg-amber-100 border-amber-300'
+                    : 'bg-white border-gray-200';
+
+                  return (
+                    <div
+                      key={entry.id}
+                      className={`p-3 border-2 rounded-lg flex items-center justify-between ${rankClass}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="text-lg font-bold w-8 text-center">
+                          {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
+                        </div>
+                        <div>
+                          <p className="font-bold">
+                            {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonName}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            Wins: {wins} / Win Rate: {winRate}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 mt-4">
+              * 복합 인덱스(seasonId + seasonWins) 필요 시 Firestore 콘솔의 제안 링크로 생성하세요.
+            </p>
           </div>
         )}
 

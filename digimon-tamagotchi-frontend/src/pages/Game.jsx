@@ -17,6 +17,7 @@ import QuestSelectionModal from "../components/QuestSelectionModal";
 import CommunicationModal from "../components/CommunicationModal";
 import SparringModal from "../components/SparringModal";
 import ArenaScreen from "../components/ArenaScreen";
+import AdminModal from "../components/AdminModal";
 import DeathPopup from "../components/DeathPopup";
 import { quests } from "../data/v1/quests";
 
@@ -37,6 +38,10 @@ import TrainPopup from "../components/TrainPopup";
 
 // 호환성을 위해 새 데이터를 옛날 형식으로 변환
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
+// Arena 시즌 관리 상수 (기본값)
+const DEFAULT_SEASON_ID = 1;
+// Dev 모드 여부 (간단 토글)
+const IS_DEV_MODE = true;
 
 // 디버깅: 새 데이터가 제대로 import되었는지 확인
 if (process.env.NODE_ENV === 'development') {
@@ -149,6 +154,12 @@ function Game(){
   const [arenaChallenger, setArenaChallenger] = useState(null); // Arena 챌린저 정보
   const [arenaEnemyId, setArenaEnemyId] = useState(null); // Arena Enemy Entry ID (Firestore Document ID)
   const [myArenaEntryId, setMyArenaEntryId] = useState(null); // 내 Arena Entry ID
+  const [currentSeasonId, setCurrentSeasonId] = useState(DEFAULT_SEASON_ID);
+  const [seasonName, setSeasonName] = useState(`Season ${DEFAULT_SEASON_ID}`);
+  const [seasonDuration, setSeasonDuration] = useState("");
+
+  // Admin Modal
+  const [showAdminModal, setShowAdminModal] = useState(false);
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -159,6 +170,24 @@ function Game(){
       setIsLoadingSlot(false);
       return;
     }
+
+    // Arena 시즌 설정 로드
+    const loadArenaConfig = async () => {
+      if (!db) return;
+      try {
+        const configRef = doc(db, 'game_settings', 'arena_config');
+        const snap = await getDoc(configRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.currentSeasonId) setCurrentSeasonId(data.currentSeasonId);
+          if (data.seasonName) setSeasonName(data.seasonName);
+          if (data.seasonDuration) setSeasonDuration(data.seasonDuration);
+        }
+      } catch (error) {
+        console.error("Arena 설정 로드 오류:", error);
+      }
+    };
+    loadArenaConfig();
     
     // Firebase 모드인데 로그인 안 되어 있으면 리디렉션
     // 단, 데이터 로딩이 완료된 후에만 리디렉션
@@ -849,6 +878,13 @@ function Game(){
     }
   };
 
+  // Admin 설정 반영 콜백
+  const handleAdminConfigUpdated = (config) => {
+    if (config.currentSeasonId) setCurrentSeasonId(config.currentSeasonId);
+    if (config.seasonName) setSeasonName(config.seasonName);
+    if (config.seasonDuration) setSeasonDuration(config.seasonDuration);
+  };
+
   // 배틀 완료 핸들러
   const handleBattleComplete = async (battleResult) => {
     // Sparring 모드는 기록하지 않음
@@ -895,17 +931,21 @@ function Game(){
         console.log("업데이트할 문서 참조:", challengerRef.path);
 
         if (battleResult.win) {
-          // 내가 승리 → 상대방 losses +1
+          // 내가 승리 → 상대방 losses +1, 시즌 패배 +1
           await updateDoc(challengerRef, {
             'record.losses': increment(1),
+            'record.seasonLosses': increment(1),
+            'record.seasonId': currentSeasonId,
           });
-          console.error("✅ DB Update Success: 상대방 losses +1");
+          console.error("✅ DB Update Success: 상대방 losses +1 (seasonLosses 포함)");
         } else {
-          // 내가 패배 → 상대방 wins +1
+          // 내가 패배 → 상대방 wins +1, 시즌 승리 +1
           await updateDoc(challengerRef, {
             'record.wins': increment(1),
+            'record.seasonWins': increment(1),
+            'record.seasonId': currentSeasonId,
           });
-          console.error("✅ DB Update Success: 상대방 wins +1");
+          console.error("✅ DB Update Success: 상대방 wins +1 (seasonWins 포함)");
         }
 
         // 전투 기록 저장 (arena_battle_logs 컬렉션)
@@ -1192,6 +1232,7 @@ function Game(){
           onStartBattle={handleArenaBattleStart}
           currentSlotId={parseInt(slotId)}
           mode={mode}
+          currentSeasonId={currentSeasonId}
         />
       )}
 
@@ -1249,6 +1290,27 @@ function Game(){
             setMyArenaEntryId(null);
           }}
         />
+      )}
+
+      {/* Admin Modal (Dev 전용) */}
+      {IS_DEV_MODE && (
+        <>
+          <button
+            onClick={() => setShowAdminModal(true)}
+            className="fixed bottom-4 right-4 px-4 py-2 bg-gray-700 text-white rounded-lg shadow hover:bg-gray-800 transition-colors z-50"
+          >
+            ⚙️ Admin
+          </button>
+          {showAdminModal && (
+            <AdminModal
+              onClose={() => setShowAdminModal(false)}
+              currentSeasonId={currentSeasonId}
+              seasonName={seasonName}
+              seasonDuration={seasonDuration}
+              onConfigUpdated={handleAdminConfigUpdated}
+            />
+          )}
+        </>
       )}
     </div>
   );

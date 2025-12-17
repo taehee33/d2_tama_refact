@@ -4,6 +4,74 @@
 
 ---
 
+## [2025-12-17] Arena 리더보드(시즌/전체) 추가
+
+### 작업 유형
+- 기능 추가
+- 데이터 연동
+- UI/UX 개선
+
+### 목적 및 영향
+Arena 모드에 All-Time 및 시즌별 리더보드를 추가하여 경쟁 요소를 강화했습니다. 시즌 ID를 도입해 시즌 전적과 누적 전적을 모두 관리하며, 상위 랭커를 한눈에 확인할 수 있습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `CURRENT_SEASON_ID` 상수 추가
+  - Arena 배틀 결과 저장 시 시즌 전적(`seasonWins`, `seasonLosses`, `seasonId`)을 함께 업데이트
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+  - Leaderboard 탭 추가 (All-Time / Season 토글)
+  - Firestore에서 승수/시즌 승수 기준 상위 랭킹 조회 (최대 20개)
+  - 순위/테이머명/디지몬명/승수/승률 표시, 1~3위 강조
+  - 인덱스 오류 발생 시 콘솔 안내 추가
+
+---
+
+## [2025-12-17] Arena Admin Panel & Season Archive
+
+### 작업 유형
+- 기능 추가
+- 관리 도구
+- 데이터 관리
+
+### 목적 및 영향
+Dev 모드에서 접근 가능한 Admin Panel을 추가해 시즌 설정(이름/기간/ID)을 수정하고, 시즌 종료 시 아카이브 저장 및 시즌 전적 리셋을 지원합니다. 아카이브 관리(삭제) 기능으로 지난 시즌 기록을 정리할 수 있습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - Dev 전용 Admin 진입 버튼 추가 (`IS_DEV_MODE`)
+  - `currentSeasonId/seasonName/seasonDuration` 상태 관리 및 ArenaScreen/AdminModal에 전달
+  - Arena 배틀 결과 업데이트 시 시즌 전적 필드(seasonWins/seasonLosses/seasonId) 사용
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+  - 시즌 기간(seasonDuration) UI 표시 (Leaderboard 탭 상단)
+  - Leaderboard 시즌 조회 시 동적 시즌 ID 사용
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx` (신규)
+  - 시즌 설정 수정 (Season ID/Name/Duration)
+  - End Season & Archive: 시즌 Top 50을 `season_archives`에 저장, 시즌 ID 증가, 시즌 전적 리셋
+  - 아카이브 조회/삭제 기능
+
+### 주요 기능
+- Dev 모드 Admin 버튼 → AdminModal 열기
+- 시즌 설정 업데이트 (game_settings/arena_config)
+- 시즌 종료 시 Top 50 스냅샷을 season_archives에 저장 후 시즌 ID +1
+- 시즌 전적(seasonWins/Losses) 리셋 및 seasonId 갱신
+- 아카이브 목록 조회 및 삭제
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+
+### 주요 개선 사항
+- 시즌/누적 전적을 분리 관리하여 시즌제 경쟁 지원
+- 상위 랭커 리스트로 Arena 참여 동기 부여
+- 인덱스 오류 시 안내 메시지로 디버깅 편의성 제공
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+
+---
+
 ## [2025-12-16] 스파링 모드 리소스 동기화 및 UI 버그 수정
 
 ### 작업 유형
