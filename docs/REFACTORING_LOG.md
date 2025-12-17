@@ -61,6 +61,31 @@ Dev 모드에서 접근 가능한 Admin Panel을 추가해 시즌 설정(이름/
 - `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
 - `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
 
+---
+
+## [2025-12-17] Arena Leaderboard 필터 확장 (Current/All/Past)
+
+### 작업 유형
+- UI/UX 개선
+- 데이터 조회 확장
+
+### 목적 및 영향
+리더보드 필터를 Current Season, All-Time, Past Seasons 3가지로 확장해 시즌별/누적/과거 아카이브별 랭킹을 손쉽게 조회할 수 있게 했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+  - 리더보드 필터 3-way(현재/전체/과거) 버튼 추가
+  - Past 선택 시 season_archives에서 드롭다운 제공, 선택된 아카이브의 entries 배열을 그대로 표시
+  - Current/All은 기존 arena_entries 쿼리 유지(정렬만 조정)
+
+### 주요 개선 사항
+- Current: 현재 시즌 seasonWins 기준 정렬
+- All-Time: 누적 wins 기준 정렬
+- Past: season_archives 문서 entries를 직접 표시, 아카이브 없으면 안내 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+
 ### 주요 개선 사항
 - 시즌/누적 전적을 분리 관리하여 시즌제 경쟁 지원
 - 상위 랭커 리스트로 Arena 참여 동기 부여

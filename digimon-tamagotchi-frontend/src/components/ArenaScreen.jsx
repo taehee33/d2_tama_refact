@@ -43,15 +43,20 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [leaderboardEntries, setLeaderboardEntries] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
-  const [leaderboardMode, setLeaderboardMode] = useState('all'); // 'all' | 'season'
+  // leaderboardMode: 'current' | 'all' | 'past'
+  const [leaderboardMode, setLeaderboardMode] = useState('current');
   const [seasonDurationText, setSeasonDurationText] = useState("");
   const [seasonName, setSeasonName] = useState(`Season ${currentSeasonId}`);
+  const [archivesList, setArchivesList] = useState([]);
+  const [selectedArchiveId, setSelectedArchiveId] = useState("");
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   useEffect(() => {
     if (isFirebaseAvailable && currentUser && mode !== 'local') {
       loadMyEntries();
       loadChallengers();
       loadArenaConfig();
+      loadArchivesList();
     } else {
       setLoading(false);
     }
@@ -62,9 +67,16 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       loadBattleLogs();
     }
     if (activeTab === 'leaderboard' && isFirebaseAvailable && currentUser && mode !== 'local') {
-      loadLeaderboard(leaderboardMode);
+      if (leaderboardMode === 'past') {
+        // 과거 시즌: 아카이브 선택 시 로드, 아니라면 목록만 유지
+        if (selectedArchiveId) {
+          loadArchiveEntries(selectedArchiveId);
+        }
+      } else {
+        loadLeaderboard(leaderboardMode);
+      }
     }
-  }, [activeTab, currentUser, isFirebaseAvailable, mode, leaderboardMode]);
+  }, [activeTab, currentUser, isFirebaseAvailable, mode, leaderboardMode, selectedArchiveId]);
 
   // 시즌 설정 로드
   const loadArenaConfig = async () => {
@@ -186,8 +198,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       const entriesRef = collection(db, 'arena_entries');
 
       let q;
-      if (modeType === 'season') {
-        // 시즌 랭킹: seasonId == CURRENT_SEASON_ID, seasonWins 내림차순
+      if (modeType === 'current') {
+        // 현재 시즌 랭킹: seasonId == currentSeasonId, seasonWins 내림차순
         q = query(
           entriesRef,
           where('record.seasonId', '==', currentSeasonId || CURRENT_SEASON_ID),
@@ -212,6 +224,44 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     } catch (error) {
       console.error("리더보드 로드 오류:", error);
       console.error("복합 인덱스 오류가 발생할 수 있습니다. Firestore 콘솔에서 제안 링크를 따라 인덱스를 생성하세요.");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  // 아카이브 목록 로드
+  const loadArchivesList = async () => {
+    if (!isFirebaseAvailable || mode === 'local') return;
+    try {
+      setArchiveLoading(true);
+      const colRef = collection(db, 'season_archives');
+      const q = query(colRef, orderBy('seasonId', 'desc'));
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setArchivesList(list);
+    } catch (error) {
+      console.error("아카이브 목록 로드 오류:", error);
+    } finally {
+      setArchiveLoading(false);
+    }
+  };
+
+  // 과거 시즌 아카이브 항목 로드
+  const loadArchiveEntries = async (archiveId) => {
+    if (!archiveId) return;
+    try {
+      setLeaderboardLoading(true);
+      const arcRef = doc(db, 'season_archives', archiveId);
+      const snap = await getDoc(arcRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        const entries = data.entries || [];
+        setLeaderboardEntries(entries);
+      } else {
+        setLeaderboardEntries([]);
+      }
+    } catch (error) {
+      console.error("과거 시즌 로드 오류:", error);
     } finally {
       setLeaderboardLoading(false);
     }
@@ -707,9 +757,25 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
             </div>
 
             {/* 토글: 전체 / 시즌 */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-wrap gap-2 mb-4">
               <button
-                onClick={() => setLeaderboardMode('all')}
+                onClick={() => {
+                  setLeaderboardMode('current');
+                  setSelectedArchiveId("");
+                }}
+                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                  leaderboardMode === 'current'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                📅 Current Season
+              </button>
+              <button
+                onClick={() => {
+                  setLeaderboardMode('all');
+                  setSelectedArchiveId("");
+                }}
                 className={`px-4 py-2 rounded-lg font-bold transition-colors ${
                   leaderboardMode === 'all'
                     ? 'bg-yellow-500 text-white'
@@ -719,16 +785,42 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 🏆 All-Time
               </button>
               <button
-                onClick={() => setLeaderboardMode('season')}
+                onClick={() => setLeaderboardMode('past')}
                 className={`px-4 py-2 rounded-lg font-bold transition-colors ${
-                  leaderboardMode === 'season'
-                    ? 'bg-blue-500 text-white'
+                  leaderboardMode === 'past'
+                    ? 'bg-purple-500 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                📅 Season {CURRENT_SEASON_ID}
+                📚 Past Seasons
               </button>
             </div>
+
+            {leaderboardMode === 'past' && (
+              <div className="mb-4">
+                {archiveLoading ? (
+                  <p className="text-gray-600">과거 시즌 목록 로딩 중...</p>
+                ) : archivesList.length === 0 ? (
+                  <p className="text-gray-600">No archived seasons found</p>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-700">Select Season:</label>
+                    <select
+                      className="border rounded px-3 py-2"
+                      value={selectedArchiveId}
+                      onChange={(e) => setSelectedArchiveId(e.target.value)}
+                    >
+                      <option value="">-- 선택 --</option>
+                      {archivesList.map((arc) => (
+                        <option key={arc.id} value={arc.id}>
+                          {arc.seasonName || arc.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
 
             {leaderboardLoading ? (
               <p className="text-gray-600">로딩 중...</p>
