@@ -1142,69 +1142,71 @@ function Game(){
 
   // 화면 렌더
   return (
-    <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
-
-      <h2 className="text-lg font-bold mb-2">
-        슬롯 {slotId} - {selectedDigimon}
-      </h2>
-      <p>슬롯 이름: {slotName}</p>
-      <p>생성일: {slotCreatedAt}</p>
-      <p>기종: {slotDevice} / 버전: {slotVersion}</p>
-
-      <button onClick={()=> navigate("/select")} className="mb-2 px-3 py-1 bg-gray-400 text-white rounded">
-        ← Select 화면
-      </button>
-
-      <div style={{position:"relative", width,height, border:"2px solid #555"}}>
-        <img
-          src={`/images/${backgroundNumber}.png`}
-          alt="bg"
-          style={{
-            position:"absolute",
-            top:0,left:0,
-            width:"100%",height:"100%",
-            imageRendering:"pixelated",
-            zIndex:1
-          }}
-        />
-        {/* Lights Off Overlay (게임 화면만) */}
-        {!isLightsOn && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              pointerEvents: "none",
-              zIndex: 3,
-            }}
-          />
-        )}
-        <Canvas
-          style={{ position:"absolute", top:0,left:0, zIndex:2 }}
-          width={width}
-          height={height}
-          currentAnimation={currentAnimation}
-          idleFrames={idleFrames}
-          eatFrames={eatFramesArr}
-          foodRejectFrames={rejectFramesArr}
-          showFood={showFood}
-          feedStep={feedStep}
-          foodSizeScale={foodSizeScale}
-          developerMode={developerMode}
-          foodSprites={(feedType==="protein")? proteinSprites: meatSprites}
-          poopCount={digimonStats.poopCount || 0}
-          showPoopCleanAnimation={showPoopCleanAnimation}
-          cleanStep={cleanStep}
-        />
+    <div className="min-h-screen bg-gray-200">
+      <div className="p-4">
+        <button onClick={()=> navigate("/select")} className="mb-2 px-3 py-1 bg-gray-400 text-white rounded">
+          ← Select 화면
+        </button>
       </div>
 
-      <button
-        onClick={handleEvolutionButton}
-        disabled={!isEvoEnabled}
-        className={`mt-2 px-4 py-2 text-white rounded ${isEvoEnabled? "bg-green-500":"bg-gray-500"}`}
-      >
-        Evolution
-      </button>
+      <div className="flex flex-col items-center p-4">
+        <h2 className="text-lg font-bold mb-2">
+          슬롯 {slotId} - {selectedDigimon}
+        </h2>
+        <p>슬롯 이름: {slotName}</p>
+        <p>생성일: {slotCreatedAt}</p>
+        <p>기종: {slotDevice} / 버전: {slotVersion}</p>
+
+        <div style={{position:"relative", width,height, border:"2px solid #555"}}>
+          <img
+            src={`/images/${backgroundNumber}.png`}
+            alt="bg"
+            style={{
+              position:"absolute",
+              top:0,left:0,
+              width:"100%",height:"100%",
+              imageRendering:"pixelated",
+              zIndex:1
+            }}
+          />
+          {/* Lights Off Overlay (게임 화면만) */}
+          {!isLightsOn && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                pointerEvents: "none",
+                zIndex: 3,
+              }}
+            />
+          )}
+          <Canvas
+            style={{ position:"absolute", top:0,left:0, zIndex:2 }}
+            width={width}
+            height={height}
+            currentAnimation={currentAnimation}
+            idleFrames={idleFrames}
+            eatFrames={eatFramesArr}
+            foodRejectFrames={rejectFramesArr}
+            showFood={showFood}
+            feedStep={feedStep}
+            foodSizeScale={foodSizeScale}
+            developerMode={developerMode}
+            foodSprites={(feedType==="protein")? proteinSprites: meatSprites}
+            poopCount={digimonStats.poopCount || 0}
+            showPoopCleanAnimation={showPoopCleanAnimation}
+            cleanStep={cleanStep}
+          />
+        </div>
+
+        <button
+          onClick={handleEvolutionButton}
+          disabled={!isEvoEnabled}
+          className={`mt-2 px-4 py-2 text-white rounded ${isEvoEnabled? "bg-green-500":"bg-gray-500"}`}
+        >
+          Evolution
+        </button>
 
       {showDeathConfirm && (
         <DeathPopup
@@ -1280,13 +1282,6 @@ function Game(){
           />
         </div>
       )}
-
-      <button
-        onClick={resetDigimon}
-        className="px-4 py-2 bg-red-500 text-white rounded mt-4"
-      >
-        Reset Digimon
-      </button>
 
       {developerMode && slotVersion==="Ver.1" && (
         <div className="mt-2 p-2 border">
@@ -1422,6 +1417,7 @@ function Game(){
           onConfigUpdated={handleAdminConfigUpdated}
         />
       )}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,27 @@
 
 ---
 
+## [2025-12-17] Game 화면 UI 정리 (Select/Reset)
+
+### 작업 유형
+- UI/UX 개선
+- 유지보수
+
+### 목적 및 영향
+- Select 화면 이동 버튼을 루트 상단으로 올려 슬롯 선택 화면으로 더 빠르게 이동할 수 있게 했습니다.
+- Reset Digimon 버튼을 제거해 우발적인 초기화를 방지하고 UI를 단순화했습니다.
+- Select 버튼 영역 배경을 메인 화면과 동일하게 적용해 상단 여백의 색상 불일치를 해소했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - Select 화면 이동 버튼을 루트 직하로 이동하여 DOM 순서를 반영
+  - Reset Digimon 버튼 제거
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+---
+
 ## [2025-12-17] Arena 리더보드(시즌/전체) 추가
 
 ### 작업 유형
