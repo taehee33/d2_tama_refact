@@ -40,8 +40,6 @@ import TrainPopup from "../components/TrainPopup";
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
 // Arena 시즌 관리 상수 (기본값)
 const DEFAULT_SEASON_ID = 1;
-// Dev 모드 여부 (간단 토글)
-const IS_DEV_MODE = true;
 
 // 디버깅: 새 데이터가 제대로 import되었는지 확인
 if (process.env.NODE_ENV === 'development') {
@@ -1233,6 +1231,8 @@ function Game(){
           currentSlotId={parseInt(slotId)}
           mode={mode}
           currentSeasonId={currentSeasonId}
+          isDevMode={developerMode}
+          onOpenAdmin={() => setShowAdminModal(true)}
         />
       )}
 
@@ -1292,25 +1292,15 @@ function Game(){
         />
       )}
 
-      {/* Admin Modal (Dev 전용) */}
-      {IS_DEV_MODE && (
-        <>
-          <button
-            onClick={() => setShowAdminModal(true)}
-            className="fixed bottom-4 right-4 px-4 py-2 bg-gray-700 text-white rounded-lg shadow hover:bg-gray-800 transition-colors z-50"
-          >
-            ⚙️ Admin
-          </button>
-          {showAdminModal && (
-            <AdminModal
-              onClose={() => setShowAdminModal(false)}
-              currentSeasonId={currentSeasonId}
-              seasonName={seasonName}
-              seasonDuration={seasonDuration}
-              onConfigUpdated={handleAdminConfigUpdated}
-            />
-          )}
-        </>
+      {/* Admin Modal (Dev 모드에서만 표시) */}
+      {developerMode && showAdminModal && (
+        <AdminModal
+          onClose={() => setShowAdminModal(false)}
+          currentSeasonId={currentSeasonId}
+          seasonName={seasonName}
+          seasonDuration={seasonDuration}
+          onConfigUpdated={handleAdminConfigUpdated}
+        />
       )}
     </div>
   );

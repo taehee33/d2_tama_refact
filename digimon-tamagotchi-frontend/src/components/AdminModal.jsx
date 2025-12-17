@@ -173,7 +173,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" style={{ zIndex: 80 }}>
       <div className="bg-white p-6 rounded-lg shadow-xl max-w-3xl w-full m-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold">Arena Admin</h2>

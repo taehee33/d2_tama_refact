@@ -27,7 +27,7 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [myEntries, setMyEntries] = useState([]);
   const [challengers, setChallengers] = useState([]);
@@ -689,10 +689,22 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         {/* Leaderboard 탭 */}
         {activeTab === 'leaderboard' && (
           <div>
-            <h3 className="text-xl font-bold mb-3">Leaderboard</h3>
-            <p className="text-xs text-gray-500 mb-2">
-              {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="text-xl font-bold">Leaderboard</h3>
+                <p className="text-xs text-gray-500">
+                  {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
+                </p>
+              </div>
+              {isDevMode && (
+                <button
+                  onClick={onOpenAdmin}
+                  className="px-3 py-1 bg-gray-700 text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+                >
+                  ⚙️ Arena Admin
+                </button>
+              )}
+            </div>
 
             {/* 토글: 전체 / 시즌 */}
             <div className="flex gap-2 mb-4">
