@@ -884,9 +884,16 @@ function Game(){
     // 수면 중 인터랙션 시 10분 깨우고 sleepDisturbances 증가
     const schedule = getSleepSchedule(selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
+    if (nowSleeping && menu !== "electric") {
       wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave);
       setIsSleeping(false);
+    }
+
+    // Lights 토글은 electric 버튼에 매핑
+    if (menu === "electric") {
+      setIsLightsOn((prev) => !prev);
+      setActiveMenu(menu);
+      return;
     }
 
     setActiveMenu(menu);
@@ -1136,10 +1143,6 @@ function Game(){
   // 화면 렌더
   return (
     <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
-      {/* Lights Off Overlay */}
-      {!isLightsOn && (
-        <div className="fixed inset-0 bg-black" style={{ opacity: 0.6, pointerEvents: "none", zIndex: 40 }}></div>
-      )}
 
       <h2 className="text-lg font-bold mb-2">
         슬롯 {slotId} - {selectedDigimon}
@@ -1206,12 +1209,26 @@ function Game(){
 
       <div className="flex space-x-4 mt-4">
         <StatsPanel stats={digimonStats} />
-        <MenuIconButtons
-          width={width}
-          height={height}
-          activeMenu={activeMenu}
-          onMenuClick={handleMenuClick}
-        />
+        <div style={{ position: "relative" }}>
+          {/* Lights Off Overlay (배틀/게임 영역만) */}
+          {!isLightsOn && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                pointerEvents: "none",
+                zIndex: 30,
+              }}
+            />
+          )}
+          <MenuIconButtons
+            width={width}
+            height={height}
+            activeMenu={activeMenu}
+            onMenuClick={handleMenuClick}
+          />
+        </div>
       </div>
 
       <button
