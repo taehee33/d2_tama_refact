@@ -123,3 +123,5 @@ await slotRepository.saveDigimonStats(slotId, newStats);
 | `findEmptySlot(maxSlots)` | 빈 슬롯 찾기 | `Promise<number\|null>` |
 
 
+
+

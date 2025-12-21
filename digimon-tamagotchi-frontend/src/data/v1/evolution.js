@@ -1,7 +1,15 @@
 // src/data/v1/evolution.js
-// Digital Monster Color 매뉴얼 기반 진화 조건 정의
+// ⚠️ DEPRECATED: 이 파일은 더 이상 사용되지 않습니다.
+// 모든 진화 조건은 src/data/v1/digimons.js의 구조화된 데이터 형식으로 통합되었습니다.
+// 
+// 마이그레이션 가이드:
+// - 함수 기반 조건 (condition.check) → conditions 객체로 변환
+// - 다중 조건 (같은 targetId) → conditionGroups 배열로 변환
+// 
+// 레거시 호환성을 위해 일시적으로 유지되지만, 새로운 진화 조건은 digimons.js에만 추가하세요.
 
 /**
+ * @deprecated 이 데이터는 더 이상 사용되지 않습니다. digimons.js를 사용하세요.
  * 진화 조건 체크 함수
  * 매뉴얼의 진화 규칙을 반영하여 복합 조건을 체크
  */

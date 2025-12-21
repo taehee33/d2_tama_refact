@@ -28,7 +28,8 @@ import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats"
 // 새 데이터 구조 import
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
-import { evolutionConditionsVer1 } from "../data/evolution_digitalmonstercolor25th_ver1";
+// Deprecated: evolutionConditionsVer1은 더 이상 사용하지 않음 (Data-Driven 방식으로 전환)
+// import { evolutionConditionsVer1 } from "../data/evolution_digitalmonstercolor25th_ver1";
 // 매뉴얼 기반 스탯 로직 import
 import { handleHungerTick, feedMeat, willRefuseMeat } from "../logic/stats/hunger";
 import { handleStrengthTick, feedProtein, willRefuseProtein } from "../logic/stats/strength";
@@ -201,6 +202,7 @@ function Game(){
   // 진화 애니메이션 상태
   const [isEvolving, setIsEvolving] = useState(false);
   const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
+  const [evolvedDigimonName, setEvolvedDigimonName] = useState(null); // 진화된 디지몬 이름
   const [showEvolutionGuide, setShowEvolutionGuide] = useState(false);
   const tiredStartRef = useRef(null);
   const tiredCountedRef = useRef(false);
@@ -566,17 +568,30 @@ function Game(){
     }
     
     if(developerMode) {
-      // 개발자 모드에서는 바로 진화 가능 (애니메이션 없이)
-      const evo= evolutionConditionsVer1[digimonName];
-      if(evo && evo.evolution.length > 0){
-        await handleEvolution(evo.evolution[0].next);
+      // 개발자 모드: 시간 조건만 무시하고 다른 조건은 체크
+      // 시간 조건을 임시로 0으로 설정하여 체크
+      const statsForCheck = {
+        ...updatedStats,
+        timeToEvolveSeconds: 0, // 시간 조건만 무시
+      };
+      const evolutionResult = checkEvolution(statsForCheck, currentDigimonData, digimonName, newDigimonDataVer1);
+      
+      if(evolutionResult.success) {
+        const targetId = evolutionResult.targetId;
+        const targetData = newDigimonDataVer1[targetId];
+        const evolvedName = targetData?.name || targetData?.id || targetId;
+        setEvolvedDigimonName(evolvedName);
+        setEvolutionStage('complete');
+        await handleEvolution(targetId);
+      } else {
+        alert(`진화 조건을 만족하지 못했습니다!\n\n${evolutionResult.details?.map(d => `${d.target}: ${d.missing}`).join('\n') || evolutionResult.reason}`);
       }
       return;
     }
     
     // 매뉴얼 기반 진화 판정 (상세 결과 객체 반환)
-    // 5번째 인자로 전체 데이터 맵 전달 (targetName 찾기용) - 새 데이터 사용
-    const evolutionResult = checkEvolution(updatedStats, currentDigimonData, evolutionConditionsVer1, digimonName, newDigimonDataVer1);
+    // Data-Driven 방식: digimons.js의 evolutions 배열을 직접 사용
+    const evolutionResult = checkEvolution(updatedStats, currentDigimonData, digimonName, newDigimonDataVer1);
     
     if(evolutionResult.success) {
       // 진화 성공 - 애니메이션 시작
@@ -599,6 +614,10 @@ function Game(){
           
           // Step 3: Complete - 실제 진화 처리
           setTimeout(async () => {
+            // 진화된 디지몬 이름 저장
+            const targetData = newDigimonDataVer1[targetId];
+            const evolvedName = targetData?.name || targetData?.id || targetId;
+            setEvolvedDigimonName(evolvedName);
             await handleEvolution(targetId);
             setIsEvolving(false);
             setEvolutionStage('idle');
@@ -807,13 +826,13 @@ function Game(){
       return;
     }
     
-    const evo= evolutionConditionsVer1[selectedDigimon];
-    if(evo){
-      for(let e of evo.evolution){
-        if(e.condition.check(digimonStats)){
-          setIsEvoEnabled(true);
-          return;
-        }
+    // Data-Driven 방식: digimons.js의 evolutions 배열 사용
+    const currentDigimonData = newDigimonDataVer1[selectedDigimon];
+    if(currentDigimonData && currentDigimonData.evolutions){
+      const evolutionResult = checkEvolution(digimonStats, currentDigimonData, selectedDigimon, newDigimonDataVer1);
+      if(evolutionResult.success){
+        setIsEvoEnabled(true);
+        return;
       }
     }
     setIsEvoEnabled(false);
@@ -1212,6 +1231,7 @@ function Game(){
             poopCount={digimonStats.poopCount || 0}
             showPoopCleanAnimation={showPoopCleanAnimation}
             cleanStep={cleanStep}
+            sleepStatus={sleepStatus}
           />
         </div>
 
@@ -1453,17 +1473,25 @@ function Game(){
             "Digitama")]}
           currentStats={digimonStats}
           digimonDataMap={newDigimonDataVer1}
-          evolutionConditions={evolutionConditionsVer1}
           onClose={() => setShowEvolutionGuide(false)}
         />
       )}
 
       {/* 진화 애니메이션 완료 메시지 */}
-      {evolutionStage === 'complete' && (
+      {evolutionStage === 'complete' && evolvedDigimonName && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
           <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
-            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text">🎉 진화 완료! 🎉</h2>
-            <p className="text-xl text-black pixel-art-text">새로운 디지몬으로 진화했습니다!</p>
+            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text">디지몬 진화~~~!</h2>
+            <p className="text-2xl font-bold text-black mb-6 pixel-art-text">{evolvedDigimonName}</p>
+            <button
+              onClick={() => {
+                setEvolutionStage('idle');
+                setEvolvedDigimonName(null);
+              }}
+              className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
+            >
+              확인
+            </button>
           </div>
         </div>
       )}

@@ -4,6 +4,90 @@
 
 ---
 
+## [2025-12-17] 진화 시스템 리팩토링 (Data-Driven 통합)
+
+### 작업 유형
+- 아키텍처 개편
+- 데이터 구조 통합
+- 코드 리팩토링
+
+### 목적 및 영향
+파편화된 진화 로직(evolution.js, _ver1.js)을 digimons.js의 구조화된 JSON 데이터로 통합하여 유지보수성을 향상시키고, 코드 수정 없이 데이터 추가만으로 새로운 진화 루트를 생성할 수 있도록 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+  - 진화 조건을 새로운 스키마로 변환
+  - `conditions`: 단일 조건 그룹 (AND Logic)
+  - `conditionGroups`: 다중 조건 그룹 (OR Logic) - Numemon 같은 복합 진화 조건 지원
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js`
+  - 함수 실행 방식에서 데이터 해석기(Interpreter) 패턴으로 변경
+  - `checkConditions()` 헬퍼 함수 추가: conditions 객체를 해석하여 스탯과 비교
+  - OR 로직 처리: conditionGroups 배열을 순회하며 하나라도 통과하면 success 반환
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx`
+  - 단일 데이터 소스(digimons.js)만 참조하도록 단순화
+  - 다중 진화 루트 표시: conditionGroups가 있는 경우 "진화 방법 1", "진화 방법 2" 형식으로 표시
+  - `convertConditionsToRequirements()` 함수 추가: conditions 객체를 requirements 형식으로 변환
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `checkEvolution()` 호출 시 evolutionConditionsVer1 파라미터 제거
+  - 개발자 모드에서도 digimons.js의 evolutions 배열 사용
+  - 진화 가능 여부 체크 로직을 Data-Driven 방식으로 변경
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+  - `checkEvolutionAvailability()`에 battles, winRatio 지원 추가
+- `digimon-tamagotchi-frontend/src/data/v1/evolution.js`
+  - Deprecated 표시 추가 (레거시 호환성 유지)
+- `digimon-tamagotchi-frontend/src/data/evolution_digitalmonstercolor25th_ver1.js`
+  - Deprecated 표시 추가 (레거시 호환성 유지)
+
+### 주요 기능
+- **데이터 구조 통합**: 모든 진화 조건을 digimons.js 하나로 통합
+- **다중 조건 지원**: Numemon처럼 여러 진화 루트를 conditionGroups로 표현
+- **데이터 해석기 패턴**: 함수 실행 대신 데이터를 해석하여 판정
+- **UI 연동**: 진화 가이드 모달이 통합된 데이터를 참조하여 다중 진화 루트를 명확히 표시
+
+### 기술적 세부 사항
+- **새로운 스키마**:
+  ```javascript
+  // Case 1: 단일 조건 (AND Logic)
+  {
+    targetId: "Greymon",
+    conditions: {
+      careMistakes: { max: 3 },
+      trainings: { min: 32 }
+    }
+  }
+  
+  // Case 2: 다중 조건 (OR Logic)
+  {
+    targetId: "Numemon",
+    conditionGroups: [
+      { careMistakes: { min: 4 }, trainings: { max: 4 } },
+      { careMistakes: { min: 4 }, overfeeds: { max: 2 } },
+      // ... 더 많은 루트
+    ]
+  }
+  ```
+- **조건 비교 로직**:
+  - `min`: `stats.val >= min`
+  - `max`: `stats.val <= max`
+  - 둘 다 있으면: `min <= stats.val <= max`
+- **OR 로직 처리**: conditionGroups 배열을 순회하며 하나라도 통과하면 success 반환
+
+### 결과 / 성과
+- **유지보수성 향상**: 진화 밸런스 패치 시 digimons.js 파일 하나만 수정하면 로직과 UI(도감)가 동시에 반영됨
+- **확장성 확보**: 코드 수정 없이 데이터 추가만으로 새로운 진화 루트 생성 가능
+- **코드 단순화**: 복잡한 함수 파싱 로직 제거, 명확한 데이터 구조로 가독성 향상
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js`
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/data/v1/evolution.js` (Deprecated)
+- `digimon-tamagotchi-frontend/src/data/evolution_digitalmonstercolor25th_ver1.js` (Deprecated)
+
+---
+
 ## [2025-12-21] 진화 시스템 고도화: 조건 로직 검증, 애니메이션 연출, 그리고 진화 가이드 UI 구현
 
 ### 작업 유형

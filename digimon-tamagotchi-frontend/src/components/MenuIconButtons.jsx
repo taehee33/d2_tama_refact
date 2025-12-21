@@ -5,14 +5,14 @@ import "../styles/MenuIconButtons.css";
 const MenuIconButtons = ({ width, height, activeMenu, onMenuClick }) => {
   const iconPath = (iconName) => {
     const iconMap = {
-      status: "/images/191.png",
-      eat: "/images/193.png",
-      train: "/images/195.png",
-      battle: "/images/197.png",
-      bathroom: "/images/199.png",
-      electric: "/images/201.png",
-      heal: "/images/203.png",
-      callSign: "/images/205.png",
+      status: "/images/190.png",
+      eat: "/images/192.png",
+      train: "/images/194.png",
+      battle: "/images/196.png",
+      bathroom: "/images/198.png",
+      electric: "/images/200.png",
+      heal: "/images/202.png",
+      callSign: "/images/204.png",
     };
     return iconMap[iconName];
   };

@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from "react";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
+const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/images/538.png"]; // Zzz 스프라이트
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -42,6 +43,8 @@ const Canvas = ({
   // ★ (2) 청소 애니메이션
   showPoopCleanAnimation=false,
   cleanStep=0,
+  // ★ (3) 수면 상태 (Zzz 애니메이션)
+  sleepStatus="AWAKE", // 'AWAKE' | 'TIRED' | 'SLEEPING'
 }) => {
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
@@ -63,7 +66,8 @@ const Canvas = ({
     idleFrames,eatFrames,foodRejectFrames,
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
-    poopCount,showPoopCleanAnimation,cleanStep
+    poopCount,showPoopCleanAnimation,cleanStep,
+    sleepStatus
   ]);
 
   function initImages(){
@@ -94,6 +98,13 @@ const Canvas = ({
     // poop, clean
     imageSources["poop"]= poopSprite;    // "/images/533.png"
     imageSources["clean"]= cleanSprite;  // "/images/534.png"
+    
+    // Zzz 스프라이트 (수면 상태일 때)
+    if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+      zzzSprites.forEach((src, idx)=>{
+        imageSources[`zzz${idx}`]= src;
+      });
+    }
 
     let loaded=0;
     const total= Object.keys(imageSources).length;
@@ -212,6 +223,27 @@ const Canvas = ({
           ctx.drawImage(cImg, xPos, topY, w, h);
           ctx.drawImage(cImg, xPos, midY, w, h);
           ctx.drawImage(cImg, xPos, botY, w, h);
+        }
+      }
+
+      // ★ (6) Zzz 애니메이션 (수면 상태)
+      if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+        const zzzFrameIdx = Math.floor(frame/speed) % zzzSprites.length;
+        const zzzKey = `zzz${zzzFrameIdx}`;
+        const zzzImg = spriteCache.current[zzzKey];
+        if(zzzImg && zzzImg.naturalWidth > 0){
+          // 디지몬 머리 위에 표시
+          const zzzW = width * 0.3;
+          const zzzH = height * 0.2;
+          const zzzX = (width - zzzW) / 2;
+          const zzzY = (height - height*0.4) / 2 - zzzH; // 디지몬 위쪽
+          ctx.drawImage(zzzImg, zzzX, zzzY, zzzW, zzzH);
+          
+          if(developerMode){
+            ctx.fillStyle="yellow";
+            ctx.font="12px sans-serif";
+            ctx.fillText(`Zzz: ${535 + zzzFrameIdx}.png`, zzzX, zzzY - 2);
+          }
         }
       }
 

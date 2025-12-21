@@ -94,10 +94,7 @@ export const digimonDataVer1 = {
       {
         targetId: "Botamon",
         targetName: "Botamon",
-        condition: {
-          type: "time",
-          value: 8, // 8초
-        },
+        // 시간 조건은 evolutionCriteria에서 처리되므로 conditions 없음
       },
     ],
   },
@@ -129,10 +126,7 @@ export const digimonDataVer1 = {
       {
         targetId: "Koromon",
         targetName: "Koromon",
-        condition: {
-          type: "time",
-          value: 600, // 10분 = 600초
-        },
+        // 시간 조건은 evolutionCriteria에서 처리되므로 conditions 없음
       },
     ],
   },
@@ -163,17 +157,15 @@ export const digimonDataVer1 = {
       {
         targetId: "Agumon",
         targetName: "Agumon",
-        condition: {
-          type: "mistakes",
-          value: [0, 3], // Mistakes [0, 3]
+        conditions: {
+          careMistakes: { max: 3 }, // 0-3 Care Mistakes
         },
       },
       {
         targetId: "Betamon",
         targetName: "Betamon",
-        condition: {
-          type: "mistakes",
-          value: [4, 99], // Mistakes [4, 99]
+        conditions: {
+          careMistakes: { min: 4 }, // 4+ Care Mistakes
         },
       },
     ],
@@ -207,50 +199,56 @@ export const digimonDataVer1 = {
       {
         targetId: "Greymon",
         targetName: "Greymon",
-        condition: {
-          type: "mistakes",
-          value: [0, 3], // Mistakes [0, 3]
-          trainings: 32, // Training 32+
+        // Case 1: 단일 조건 그룹 (모든 조건 만족 시 진화 - AND Logic)
+        conditions: {
+          careMistakes: { max: 3 }, // 0-3 Care Mistakes
+          trainings: { min: 32 },   // 32+ Training
         },
       },
       {
         targetId: "Devimon",
         targetName: "Devimon",
-        condition: {
-          type: "mistakes",
-          value: [0, 3], // Mistakes [0, 3]
-          trainings: [0, 31], // Training 0-31
+        conditions: {
+          careMistakes: { max: 3 }, // 0-3 Care Mistakes
+          trainings: { max: 31 },   // 0-31 Training
         },
       },
       {
         targetId: "Tyranomon",
         targetName: "Tyranomon",
-        condition: {
-          type: "mistakes",
-          value: [4, 99], // Mistakes [4, 99]
-          trainings: [5, 15], // Training 5-15
-          overfeeds: [3, 99], // Overfeed 3+
-          sleepDisturbances: [4, 5], // SleepDisturb 4-5
+        conditions: {
+          careMistakes: { min: 4 },           // 4+ Care Mistakes
+          trainings: { min: 5, max: 15 },    // 5-15 Training
+          overfeeds: { min: 3 },             // 3+ Overfeed
+          sleepDisturbances: { min: 4, max: 5 }, // 4-5 Sleep Disturbances
         },
       },
       {
         targetId: "Meramon",
         targetName: "Meramon",
-        condition: {
-          type: "mistakes",
-          value: [4, 99], // Mistakes [4, 99]
-          trainings: [16, 99], // Training 16+
-          overfeeds: [3, 99], // Overfeed 3+
-          sleepDisturbances: [6, 99], // SleepDisturb 6+
+        conditions: {
+          careMistakes: { min: 4 },      // 4+ Care Mistakes
+          trainings: { min: 16 },        // 16+ Training
+          overfeeds: { min: 3 },         // 3+ Overfeed
+          sleepDisturbances: { min: 6 }, // 6+ Sleep Disturbances
         },
       },
-      // Fallback 진화는 맨 뒤에 배치
+      // Case 2: 다중 조건 그룹 (배열 내 조건 중 하나라도 만족 시 진화 - OR Logic)
       {
         targetId: "Numemon",
         targetName: "Numemon",
-        condition: {
-          type: "fallback", // Fallback 진화
-        },
+        conditionGroups: [
+          // 루트 1: 4+ Care Mistakes, 0-4 Training
+          { careMistakes: { min: 4 }, trainings: { max: 4 } },
+          // 루트 2: 4+ Care Mistakes, 0-2 Overfeed
+          { careMistakes: { min: 4 }, overfeeds: { max: 2 } },
+          // 루트 3: 4+ Care Mistakes, 5-15 Training, 3+ Overfeed, 0-3 Sleep Disturbances
+          { careMistakes: { min: 4 }, trainings: { min: 5, max: 15 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 3 } },
+          // 루트 4: 4+ Care Mistakes, 5-15 Training, 3+ Overfeed, 6+ Sleep Disturbances
+          { careMistakes: { min: 4 }, trainings: { min: 5, max: 15 }, overfeeds: { min: 3 }, sleepDisturbances: { min: 6 } },
+          // 루트 5: 4+ Care Mistakes, 16+ Training, 3+ Overfeed, 0-5 Sleep Disturbances
+          { careMistakes: { min: 4 }, trainings: { min: 16 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 5 } },
+        ],
       },
     ],
   },
@@ -282,50 +280,53 @@ export const digimonDataVer1 = {
       {
         targetId: "Devimon",
         targetName: "Devimon",
-        condition: {
-          type: "mistakes",
-          value: [0, 3], // Mistakes [0, 3]
-          trainings: [48, 99], // Training 48+
+        conditions: {
+          careMistakes: { max: 3 }, // 0-3 Care Mistakes
+          trainings: { min: 48 },   // 48+ Training
         },
       },
       {
         targetId: "Meramon",
         targetName: "Meramon",
-        condition: {
-          type: "mistakes",
-          value: [0, 3], // Mistakes [0, 3]
-          trainings: [0, 47], // Training 0-47
+        conditions: {
+          careMistakes: { max: 3 }, // 0-3 Care Mistakes
+          trainings: { max: 47 },    // 0-47 Training
         },
       },
       {
         targetId: "Airdramon",
         targetName: "Airdramon",
-        condition: {
-          type: "mistakes",
-          value: [4, 99], // Mistakes [4, 99]
-          trainings: [8, 31], // Training 8-31
-          overfeeds: [0, 3], // Overfeed 0-3
-          sleepDisturbances: [9, 99], // SleepDisturb 9+
+        conditions: {
+          careMistakes: { min: 4 },           // 4+ Care Mistakes
+          trainings: { min: 8, max: 31 },      // 8-31 Training
+          overfeeds: { max: 3 },              // 0-3 Overfeed
+          sleepDisturbances: { min: 9 },      // 9+ Sleep Disturbances
         },
       },
       {
         targetId: "Seadramon",
         targetName: "Seadramon",
-        condition: {
-          type: "mistakes",
-          value: [4, 99], // Mistakes [4, 99]
-          trainings: [8, 31], // Training 8-31
-          overfeeds: [4, 99], // Overfeed 4+
-          sleepDisturbances: [0, 8], // SleepDisturb 0-8
+        conditions: {
+          careMistakes: { min: 4 },           // 4+ Care Mistakes
+          trainings: { min: 8, max: 31 },     // 8-31 Training
+          overfeeds: { min: 4 },              // 4+ Overfeed
+          sleepDisturbances: { max: 8 },      // 0-8 Sleep Disturbances
         },
       },
-      // Fallback 진화는 맨 뒤에 배치
+      // Case 2: 다중 조건 그룹 (OR Logic)
       {
         targetId: "Numemon",
         targetName: "Numemon",
-        condition: {
-          type: "fallback", // Fallback 진화
-        },
+        conditionGroups: [
+          // 루트 1: 4+ Care Mistakes, 0-7 Training
+          { careMistakes: { min: 4 }, trainings: { max: 7 } },
+          // 루트 2: 4+ Care Mistakes, 32+ Training
+          { careMistakes: { min: 4 }, trainings: { min: 32 } },
+          // 루트 3: 4+ Care Mistakes, 8-31 Training, 4+ Overfeed, 9+ Sleep Disturbances
+          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, overfeeds: { min: 4 }, sleepDisturbances: { min: 9 } },
+          // 루트 4: 4+ Care Mistakes, 8-31 Training, 0-3 Overfeed, 0-8 Sleep Disturbances
+          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, overfeeds: { max: 3 }, sleepDisturbances: { max: 8 } },
+        ],
       },
     ],
   },
@@ -358,10 +359,9 @@ export const digimonDataVer1 = {
       {
         targetId: "MetalGreymonVirus",
         targetName: "Metal Greymon (Virus)",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -395,10 +395,9 @@ export const digimonDataVer1 = {
       {
         targetId: "MetalGreymonVirus",
         targetName: "Metal Greymon (Virus)",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -432,10 +431,9 @@ export const digimonDataVer1 = {
       {
         targetId: "MetalGreymonVirus",
         targetName: "Metal Greymon (Virus)",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -469,10 +467,9 @@ export const digimonDataVer1 = {
       {
         targetId: "Monzaemon",
         targetName: "Monzaemon",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -506,10 +503,9 @@ export const digimonDataVer1 = {
       {
         targetId: "Mamemon",
         targetName: "Mamemon",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -543,10 +539,9 @@ export const digimonDataVer1 = {
       {
         targetId: "Mamemon",
         targetName: "Mamemon",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -578,12 +573,11 @@ export const digimonDataVer1 = {
     },
     evolutions: [
       {
-        targetId: "Mamemon",
-        targetName: "Mamemon",
-        condition: {
-          type: "battles",
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        targetId: "MetalGreymonVirus",
+        targetName: "Metal Greymon (Virus)",
+        conditions: {
+          battles: { min: 15 },    // 15+ Battles
+          winRatio: { min: 80 },   // 80%+ Win Ratio
         },
       },
     ],
@@ -620,11 +614,10 @@ export const digimonDataVer1 = {
       {
         targetId: "BlitzGreymon",
         targetName: "Blitz Greymon",
-        condition: {
-          type: "mistakes",
-          value: [0, 1], // Mistakes [0, 1]
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          careMistakes: { max: 1 },  // 0-1 Care Mistakes
+          battles: { min: 15 },       // 15+ Battles
+          winRatio: { min: 80 },      // 80%+ Win Ratio
         },
       },
     ],
@@ -661,11 +654,10 @@ export const digimonDataVer1 = {
       {
         targetId: "ShinMonzaemon",
         targetName: "Shin Monzaemon",
-        condition: {
-          type: "mistakes",
-          value: [0, 1], // Mistakes [0, 1]
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          careMistakes: { max: 1 },  // 0-1 Care Mistakes
+          battles: { min: 15 },      // 15+ Battles
+          winRatio: { min: 80 },     // 80%+ Win Ratio
         },
       },
     ],
@@ -702,11 +694,10 @@ export const digimonDataVer1 = {
       {
         targetId: "BanchoMamemon",
         targetName: "Bancho Mamemon",
-        condition: {
-          type: "mistakes",
-          value: [0, 1], // Mistakes [0, 1]
-          battles: 15, // Battles 15+
-          winRatio: 80, // WinRatio 80%+
+        conditions: {
+          careMistakes: { max: 1 },  // 0-1 Care Mistakes
+          battles: { min: 15 },      // 15+ Battles
+          winRatio: { min: 80 },     // 80%+ Win Ratio
         },
       },
     ],
@@ -738,8 +729,8 @@ export const digimonDataVer1 = {
       {
         targetId: "OmegamonAlterS",
         targetName: "Omegamon Alter-S",
-        condition: {
-          type: "jogress",
+        // 조그레스는 특별한 케이스이므로 conditions 대신 jogress 플래그 사용
+        jogress: {
           partner: "CresGarurumon", // Jogress with Cres Garurumon
         },
       },

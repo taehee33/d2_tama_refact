@@ -71,8 +71,10 @@ export function checkEvolutionAvailability(currentStats, requirements) {
   if (requirements.minLevel !== undefined) {
     const level = currentStats.age || 0;
     if (level < requirements.minLevel) {
-      missingConditions.push(`레벨: ${level} / ${requirements.minLevel} (부족 ❌)`);
+      missingConditions.push(`레벨: ${level} (현재) >= ${requirements.minLevel} (진화기준) (부족 ❌)`);
       isAvailable = false;
+    } else {
+      missingConditions.push(`레벨: ${level} (현재) >= ${requirements.minLevel} (진화기준) (달성 ✅)`);
     }
   }
 
@@ -80,8 +82,10 @@ export function checkEvolutionAvailability(currentStats, requirements) {
   if (requirements.minPower !== undefined) {
     const power = currentStats.power || currentStats.basePower || 0;
     if (power < requirements.minPower) {
-      missingConditions.push(`파워: ${power} / ${requirements.minPower} (부족 ❌)`);
+      missingConditions.push(`파워: ${power} (현재) >= ${requirements.minPower} (진화기준) (부족 ❌)`);
       isAvailable = false;
+    } else {
+      missingConditions.push(`파워: ${power} (현재) >= ${requirements.minPower} (진화기준) (달성 ✅)`);
     }
   }
 
@@ -89,78 +93,214 @@ export function checkEvolutionAvailability(currentStats, requirements) {
   if (requirements.minWins !== undefined) {
     const wins = currentStats.battlesWon || 0;
     if (wins < requirements.minWins) {
-      missingConditions.push(`승리: ${wins} / ${requirements.minWins} (부족 ❌)`);
+      missingConditions.push(`승리: ${wins} (현재) >= ${requirements.minWins} (진화기준) (부족 ❌)`);
       isAvailable = false;
     } else {
-      missingConditions.push(`승리: ${wins} / ${requirements.minWins} (달성 ✅)`);
+      missingConditions.push(`승리: ${wins} (현재) >= ${requirements.minWins} (진화기준) (달성 ✅)`);
     }
   }
 
-  // 케어 미스 체크
-  if (requirements.maxMistakes !== undefined) {
+  // 케어 미스 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minMistakes !== undefined || requirements.maxMistakes !== undefined) {
     const mistakes = currentStats.careMistakes || 0;
-    if (mistakes > requirements.maxMistakes) {
-      missingConditions.push(`케어 미스: ${mistakes} / ${requirements.maxMistakes} (초과 ❌)`);
-      isAvailable = false;
-    } else {
-      missingConditions.push(`케어 미스: ${mistakes} / ${requirements.maxMistakes} (달성 ✅)`);
+    const min = requirements.minMistakes;
+    const max = requirements.maxMistakes;
+    let isMet = true;
+    let rangeText = '';
+    
+    if (min !== undefined && max !== undefined) {
+      rangeText = `${min}~${max}`;
+      if (mistakes < min || mistakes > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (min !== undefined) {
+      rangeText = `${min}+`;
+      if (mistakes < min) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (max !== undefined) {
+      rangeText = `~${max}`;
+      if (mistakes > max) {
+        isMet = false;
+        isAvailable = false;
+      }
     }
+    
+    missingConditions.push(
+      `케어 미스: ${mistakes} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+    );
   }
 
-  // 훈련 횟수 체크
-  if (requirements.minTrainings !== undefined) {
+  // 훈련 횟수 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minTrainings !== undefined || requirements.maxTrainings !== undefined) {
     const trainings = currentStats.trainings || currentStats.trainingCount || 0;
-    if (trainings < requirements.minTrainings) {
-      missingConditions.push(`훈련: ${trainings} / ${requirements.minTrainings} (부족 ❌)`);
-      isAvailable = false;
-    } else {
-      missingConditions.push(`훈련: ${trainings} / ${requirements.minTrainings} (달성 ✅)`);
+    const min = requirements.minTrainings;
+    const max = requirements.maxTrainings;
+    let isMet = true;
+    let rangeText = '';
+    
+    if (min !== undefined && max !== undefined) {
+      rangeText = `${min}~${max}`;
+      if (trainings < min || trainings > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (min !== undefined) {
+      rangeText = `${min}+`;
+      if (trainings < min) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (max !== undefined) {
+      rangeText = `~${max}`;
+      if (trainings > max) {
+        isMet = false;
+        isAvailable = false;
+      }
     }
+    
+    missingConditions.push(
+      `훈련: ${trainings} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+    );
   }
 
-  if (requirements.maxTrainings !== undefined) {
-    const trainings = currentStats.trainings || currentStats.trainingCount || 0;
-    if (trainings > requirements.maxTrainings) {
-      missingConditions.push(`훈련: ${trainings} / ${requirements.maxTrainings} (초과 ❌)`);
-      isAvailable = false;
-    }
-  }
-
-  // 오버피드 체크
-  if (requirements.minOverfeeds !== undefined) {
+  // 오버피드 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minOverfeeds !== undefined || requirements.maxOverfeeds !== undefined) {
     const overfeeds = currentStats.overfeeds || 0;
-    if (overfeeds < requirements.minOverfeeds) {
-      missingConditions.push(`오버피드: ${overfeeds} / ${requirements.minOverfeeds} (부족 ❌)`);
+    const min = requirements.minOverfeeds;
+    const max = requirements.maxOverfeeds;
+    let isMet = true;
+    let rangeText = '';
+    
+    if (min !== undefined && max !== undefined) {
+      rangeText = `${min}~${max}`;
+      if (overfeeds < min || overfeeds > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (min !== undefined) {
+      rangeText = `${min}+`;
+      if (overfeeds < min) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (max !== undefined) {
+      rangeText = `~${max}`;
+      if (overfeeds > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    }
+    
+    missingConditions.push(
+      `오버피드: ${overfeeds} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+    );
+  }
+
+  // 수면 방해 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minSleepDisturbances !== undefined || requirements.maxSleepDisturbances !== undefined) {
+    const disturbances = currentStats.sleepDisturbances || 0;
+    const min = requirements.minSleepDisturbances;
+    const max = requirements.maxSleepDisturbances;
+    let isMet = true;
+    let rangeText = '';
+    
+    if (min !== undefined && max !== undefined) {
+      rangeText = `${min}~${max}`;
+      if (disturbances < min || disturbances > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (min !== undefined) {
+      rangeText = `${min}+`;
+      if (disturbances < min) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (max !== undefined) {
+      rangeText = `~${max}`;
+      if (disturbances > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    }
+    
+    missingConditions.push(
+      `수면 방해: ${disturbances} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+    );
+  }
+
+  // 배틀 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minBattles !== undefined || requirements.maxBattles !== undefined) {
+    const totalBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
+    const min = requirements.minBattles;
+    const max = requirements.maxBattles;
+    let isMet = true;
+    let rangeText = '';
+    
+    if (min !== undefined && max !== undefined) {
+      rangeText = `${min}~${max}`;
+      if (totalBattles < min || totalBattles > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (min !== undefined) {
+      rangeText = `${min}+`;
+      if (totalBattles < min) {
+        isMet = false;
+        isAvailable = false;
+      }
+    } else if (max !== undefined) {
+      rangeText = `~${max}`;
+      if (totalBattles > max) {
+        isMet = false;
+        isAvailable = false;
+      }
+    }
+    
+    missingConditions.push(
+      `배틀: ${totalBattles} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+    );
+  }
+
+  // 승률 체크 (min과 max를 한 줄로 통합)
+  if (requirements.minWinRatio !== undefined || requirements.maxWinRatio !== undefined) {
+    const totalBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
+    if (totalBattles === 0) {
+      missingConditions.push(`승률: 배틀을 하지 않았습니다 (부족 ❌)`);
       isAvailable = false;
     } else {
-      missingConditions.push(`오버피드: ${overfeeds} / ${requirements.minOverfeeds} (달성 ✅)`);
-    }
-  }
-
-  if (requirements.maxOverfeeds !== undefined) {
-    const overfeeds = currentStats.overfeeds || 0;
-    if (overfeeds > requirements.maxOverfeeds) {
-      missingConditions.push(`오버피드: ${overfeeds} / ${requirements.maxOverfeeds} (초과 ❌)`);
-      isAvailable = false;
-    }
-  }
-
-  // 수면 방해 체크
-  if (requirements.minSleepDisturbances !== undefined) {
-    const disturbances = currentStats.sleepDisturbances || 0;
-    if (disturbances < requirements.minSleepDisturbances) {
-      missingConditions.push(`수면 방해: ${disturbances} / ${requirements.minSleepDisturbances} (부족 ❌)`);
-      isAvailable = false;
-    } else {
-      missingConditions.push(`수면 방해: ${disturbances} / ${requirements.minSleepDisturbances} (달성 ✅)`);
-    }
-  }
-
-  if (requirements.maxSleepDisturbances !== undefined) {
-    const disturbances = currentStats.sleepDisturbances || 0;
-    if (disturbances > requirements.maxSleepDisturbances) {
-      missingConditions.push(`수면 방해: ${disturbances} / ${requirements.maxSleepDisturbances} (초과 ❌)`);
-      isAvailable = false;
+      const winRatio = ((currentStats.battlesWon || 0) / totalBattles) * 100;
+      const min = requirements.minWinRatio;
+      const max = requirements.maxWinRatio;
+      let isMet = true;
+      let rangeText = '';
+      
+      if (min !== undefined && max !== undefined) {
+        rangeText = `${min}~${max}%`;
+        if (winRatio < min || winRatio > max) {
+          isMet = false;
+          isAvailable = false;
+        }
+      } else if (min !== undefined) {
+        rangeText = `${min}+%`;
+        if (winRatio < min) {
+          isMet = false;
+          isAvailable = false;
+        }
+      } else if (max !== undefined) {
+        rangeText = `~${max}%`;
+        if (winRatio > max) {
+          isMet = false;
+          isAvailable = false;
+        }
+      }
+      
+      missingConditions.push(
+        `승률: ${winRatio.toFixed(1)}% (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      );
     }
   }
 
