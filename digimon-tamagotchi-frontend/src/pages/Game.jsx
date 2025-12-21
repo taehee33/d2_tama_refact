@@ -620,7 +620,7 @@ function Game(){
             setEvolvedDigimonName(evolvedName);
             await handleEvolution(targetId);
             setIsEvolving(false);
-            setEvolutionStage('idle');
+            // evolutionStage는 'complete'로 유지하여 확인 버튼을 눌러야만 닫히도록 함
           }, 500);
         }, 2000);
       }, 2000);
@@ -1481,12 +1481,13 @@ function Game(){
       {evolutionStage === 'complete' && evolvedDigimonName && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
           <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
-            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text">디지몬 진화~~~!</h2>
-            <p className="text-2xl font-bold text-black mb-6 pixel-art-text">{evolvedDigimonName}</p>
+            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
+            <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
             <button
               onClick={() => {
                 setEvolutionStage('idle');
                 setEvolvedDigimonName(null);
+                setIsEvolving(false);
               }}
               className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
             >
