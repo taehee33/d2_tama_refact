@@ -16,3 +16,64 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* 진화 애니메이션 - Shaking */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* 진화 애니메이션 - Flashing */
+.evolution-flashing {
+  animation: flash 0.1s infinite;
+}
+
+@keyframes flash {
+  0%, 100% {
+    filter: invert(0);
+  }
+  50% {
+    filter: invert(1);
+  }
+}
+
+/* 픽셀 아트 스타일 - 기존 메뉴 스타일과 일관성 유지 */
+.pixel-art-modal {
+  border: 2px solid #000;
+  border-radius: 8px;
+}
+
+.pixel-art-text {
+  font-weight: bold;
+}
+
+.pixel-art-button {
+  border: 2px solid #000;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.pixel-art-button:hover {
+  opacity: 0.9;
+}
+
+.pixel-art-button:active {
+  opacity: 0.8;
+}
+
+.pixel-art-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pixel-art-card {
+  border: 2px solid #000;
+  border-radius: 4px;
+}

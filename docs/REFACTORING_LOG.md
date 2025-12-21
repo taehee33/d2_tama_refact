@@ -4,6 +4,53 @@
 
 ---
 
+## [2025-12-21] 진화 시스템 고도화: 조건 로직 검증, 애니메이션 연출, 그리고 진화 가이드 UI 구현
+
+### 작업 유형
+- 기능 추가
+- UI/UX 개선
+- 애니메이션 구현
+
+### 목적 및 영향
+진화 시스템을 고도화하여 사용자가 진화 조건을 명확히 파악하고, 진화 시 시각적 피드백을 받을 수 있도록 개선했습니다. 진화 가이드 모달을 통해 모든 진화 루트와 달성 현황을 한눈에 확인할 수 있으며, 진화 애니메이션으로 더욱 몰입감 있는 경험을 제공합니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+  - `checkEvolutionAvailability(currentStats, requirements)` 함수 추가
+  - 진화 조건을 체크하고 부족한 조건을 반환하는 유틸 함수
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx` (신규)
+  - 진화 가이드 모달 컴포넌트 생성
+  - 현재 디지몬에서 진화 가능한 모든 루트를 카드 리스트로 표시
+  - 각 진화 루트별 달성 현황을 프로그레스 텍스트로 표시
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 진화 애니메이션 상태 추가 (`isEvolving`, `evolutionStage`)
+  - 진화 애니메이션 시퀀스 구현 (Shaking → Flashing → Complete)
+  - 진화 버튼 옆에 '❓' 버튼 추가 (진화 가이드 모달 열기)
+  - `EvolutionGuideModal` 컴포넌트 통합
+- `digimon-tamagotchi-frontend/src/index.css`
+  - 진화 애니메이션 CSS 추가 (`@keyframes shake`, `@keyframes flash`)
+  - 픽셀 아트/레트로 스타일 클래스 추가 (`.pixel-art-modal`, `.pixel-art-text`, `.pixel-art-button`, `.pixel-art-card`)
+
+### 주요 기능
+- **진화 조건 체크**: `checkEvolutionAvailability` 함수로 조건 만족 여부와 부족한 조건 확인
+- **진화 가이드 모달**: 모든 진화 루트와 달성 현황을 한눈에 확인
+- **진화 애니메이션**: 3단계 애니메이션 (Shaking → Flashing → Complete)
+- **픽셀 아트 스타일**: 레트로 게임 느낌의 UI 스타일 적용
+
+### 기술적 세부 사항
+- 진화 애니메이션은 `setTimeout`을 사용하여 순차적으로 실행
+- Canvas에 인라인 스타일로 애니메이션 적용 (`animation`, `filter` 속성)
+- 진화 가이드 모달은 `evolutionConditionsVer1`와 `digimons.js`의 `evolutions` 배열을 매칭하여 표시
+- 조건 체크는 기존 `evolutions` 배열의 `condition` 객체를 `requirements` 형식으로 변환하여 처리
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+
+---
+
 ## [2025-12-17] UI Upgrade: Expanded Leaderboard filters to support All-Time, Current Season, and browsable Past Season archives.
 
 ### 작업 유형

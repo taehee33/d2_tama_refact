@@ -20,6 +20,7 @@ import SparringModal from "../components/SparringModal";
 import ArenaScreen from "../components/ArenaScreen";
 import AdminModal from "../components/AdminModal";
 import DeathPopup from "../components/DeathPopup";
+import EvolutionGuideModal from "../components/EvolutionGuideModal";
 import { quests } from "../data/v1/quests";
 
 import digimonAnimations from "../data/digimonAnimations";
@@ -68,16 +69,20 @@ const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
 
 // 시간 포맷
 function formatTimeToEvolve(sec=0){
-  const m = Math.floor(sec/60);
-  const s = sec % 60;
-  return `${m}m ${s}s`;
+  const d = Math.floor(sec/86400);
+  const r = sec %86400;
+  const h = Math.floor(r/3600);
+  const m = Math.floor((r % 3600)/60);
+  const s = r % 60;
+  return `${d} day, ${h} hour, ${m} min, ${s} sec`;
 }
 function formatLifespan(sec=0){
   const d = Math.floor(sec/86400);
   const r = sec %86400;
-  const mm= Math.floor(r/60);
-  const ss= r%60;
-  return `${d} day, ${mm} min, ${ss} sec`;
+  const h = Math.floor(r/3600);
+  const m = Math.floor((r % 3600)/60);
+  const s = r % 60;
+  return `${d} day, ${h} hour, ${m} min, ${s} sec`;
 }
 
   // 수면 스케줄 체크
@@ -192,6 +197,11 @@ function Game(){
   const [dailySleepMistake, setDailySleepMistake] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'TIRED' | 'SLEEPING'
+
+  // 진화 애니메이션 상태
+  const [isEvolving, setIsEvolving] = useState(false);
+  const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
+  const [showEvolutionGuide, setShowEvolutionGuide] = useState(false);
   const tiredStartRef = useRef(null);
   const tiredCountedRef = useRef(false);
 
@@ -556,7 +566,7 @@ function Game(){
     }
     
     if(developerMode) {
-      // 개발자 모드에서는 바로 진화 가능
+      // 개발자 모드에서는 바로 진화 가능 (애니메이션 없이)
       const evo= evolutionConditionsVer1[digimonName];
       if(evo && evo.evolution.length > 0){
         await handleEvolution(evo.evolution[0].next);
@@ -569,13 +579,32 @@ function Game(){
     const evolutionResult = checkEvolution(updatedStats, currentDigimonData, evolutionConditionsVer1, digimonName, newDigimonDataVer1);
     
     if(evolutionResult.success) {
-      // 진화 성공
+      // 진화 성공 - 애니메이션 시작
       const targetId = evolutionResult.targetId;
       // targetName 찾기 (Fallback 처리) - 새 데이터 사용
       const targetData = newDigimonDataVer1[targetId];
       const targetName = targetData?.name || targetData?.id || targetId;
-      alert(`디지몬 진화~~~! 🎉\n\n곧 ${targetName}으로 진화합니다!`);
-      await handleEvolution(targetId);
+      
+      // 진화 애니메이션 시작
+      setIsEvolving(true);
+      setEvolutionStage('shaking');
+      
+      // Step 1: Shaking (2초)
+      setTimeout(() => {
+        setEvolutionStage('flashing');
+        
+        // Step 2: Flashing (2초)
+        setTimeout(() => {
+          setEvolutionStage('complete');
+          
+          // Step 3: Complete - 실제 진화 처리
+          setTimeout(async () => {
+            await handleEvolution(targetId);
+            setIsEvolving(false);
+            setEvolutionStage('idle');
+          }, 500);
+        }, 2000);
+      }, 2000);
     } else if(evolutionResult.reason === "NOT_READY") {
       // 시간 부족
       const remainingSeconds = evolutionResult.remainingTime;
@@ -1159,7 +1188,16 @@ function Game(){
             </div>
           )}
           <Canvas
-            style={{ position:"absolute", top:0,left:0, zIndex:2 }}
+            style={{
+              position:"absolute",
+              top:0,
+              left:0,
+              zIndex:2,
+              animation: evolutionStage === 'shaking' ? 'shake 0.5s infinite' : 'none',
+              filter: evolutionStage === 'flashing' ? 'invert(1)' : 'none',
+              transition: evolutionStage === 'flashing' ? 'filter 0.1s' : 'none',
+            }}
+            className={evolutionStage === 'flashing' ? 'evolution-flashing' : ''}
             width={width}
             height={height}
             currentAnimation={currentAnimation}
@@ -1177,13 +1215,22 @@ function Game(){
           />
         </div>
 
-        <button
-          onClick={handleEvolutionButton}
-          disabled={!isEvoEnabled}
-          className={`mt-2 px-4 py-2 text-white rounded ${isEvoEnabled? "bg-green-500":"bg-gray-500"}`}
-        >
-          Evolution
-        </button>
+        <div className="flex items-center space-x-2 mt-2">
+          <button
+            onClick={handleEvolutionButton}
+            disabled={!isEvoEnabled || isEvolving}
+            className={`px-4 py-2 text-white rounded pixel-art-button ${isEvoEnabled && !isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"}`}
+          >
+            Evolution
+          </button>
+          <button
+            onClick={() => setShowEvolutionGuide(true)}
+            className="px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600"
+            title="진화 가이드"
+          >
+            ❓
+          </button>
+        </div>
 
       {showDeathConfirm && (
         <DeathPopup
@@ -1393,6 +1440,32 @@ function Game(){
           seasonDuration={seasonDuration}
           onConfigUpdated={handleAdminConfigUpdated}
         />
+      )}
+
+      {/* Evolution Guide Modal */}
+      {showEvolutionGuide && (
+        <EvolutionGuideModal
+          currentDigimonName={selectedDigimon || (digimonStats.evolutionStage ? 
+            Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage) : 
+            "Digitama")}
+          currentDigimonData={newDigimonDataVer1[selectedDigimon || (digimonStats.evolutionStage ? 
+            Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage) : 
+            "Digitama")]}
+          currentStats={digimonStats}
+          digimonDataMap={newDigimonDataVer1}
+          evolutionConditions={evolutionConditionsVer1}
+          onClose={() => setShowEvolutionGuide(false)}
+        />
+      )}
+
+      {/* 진화 애니메이션 완료 메시지 */}
+      {evolutionStage === 'complete' && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
+          <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
+            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text">🎉 진화 완료! 🎉</h2>
+            <p className="text-xl text-black pixel-art-text">새로운 디지몬으로 진화했습니다!</p>
+          </div>
+        </div>
       )}
       </div>
     </>
