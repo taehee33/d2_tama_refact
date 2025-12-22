@@ -148,18 +148,6 @@ const SettingsModal = ({
           </div>
         </div>
 
-        {/* 로그아웃 버튼 (Firebase 모드에서만 표시) */}
-        {isFirebaseAvailable && currentUser && (
-          <div className="mb-4 pb-4 border-b">
-            <button
-              className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded"
-              onClick={handleLogout}
-            >
-              로그아웃
-            </button>
-          </div>
-        )}
-
         {/* Save / Cancel */}
         <div className="flex justify-end space-x-2 mt-4">
           <button className="px-4 py-2 bg-gray-300 rounded" onClick={onClose}>

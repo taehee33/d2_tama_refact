@@ -1,7 +1,18 @@
 // src/components/DeathPopup.jsx
 import React from "react";
 
-export default function DeathPopup({ onConfirm, reason }) {
+export default function DeathPopup({ isOpen, onConfirm, onClose, reason }) {
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    if (onConfirm) {
+      onConfirm();
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-xl text-center max-w-md">
@@ -15,7 +26,7 @@ export default function DeathPopup({ onConfirm, reason }) {
         )}
         <div className="flex gap-4 justify-center">
           <button
-            onClick={onConfirm}
+            onClick={handleConfirm}
             className="px-6 py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-800 transition-colors"
           >
             사망 확인

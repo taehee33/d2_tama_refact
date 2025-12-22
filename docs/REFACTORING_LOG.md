@@ -4,6 +4,106 @@
 
 ---
 
+## [2025-12-22] Game 화면 우측 상단 UI 통일 (설정 버튼 + 구글 로그인 프로필)
+
+### 작업 유형
+- UI 개선
+- 사용자 경험 향상
+- 레이아웃 통일
+
+### 목적 및 영향
+Game 화면과 Select 화면의 UI를 통일하여 일관된 사용자 경험을 제공하고, 우측 상단에 설정 버튼과 프로필 정보를 함께 배치하여 접근성을 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `logout` 함수를 `useAuth`에서 가져오도록 수정
+  - `handleLogout` 함수 추가: 로그아웃 처리 및 로그인 페이지로 리디렉션
+  - 우측 상단에 `fixed` 위치의 UI 컨테이너 추가 (`top-4 right-4 z-50`)
+  - Settings 버튼을 우측 상단으로 이동 (기존 위치에서 제거)
+  - SelectScreen과 동일한 프로필 UI 추가:
+    - 프로필 이미지 (photoURL)
+    - 사용자 이름 (displayName 또는 email)
+    - 로그아웃 버튼
+  - localStorage 모드일 때 표시되는 텍스트 추가
+  - 프로필 UI 스타일: `bg-white bg-opacity-90`로 반투명 배경 적용
+
+### 주요 기능
+- **UI 통일**: Select 화면과 Game 화면의 프로필 UI 스타일 및 레이아웃 통일
+- **접근성 개선**: Settings 버튼과 프로필 정보를 화면 우측 상단에 고정 배치
+- **반응형 디자인**: 프로필 이미지 크기 (w-8 h-8)와 버튼 스타일을 Select 화면과 동일하게 맞춤
+
+### 기술적 세부 사항
+- **레이아웃**: `flex items-center gap-2`로 가로 정렬
+- **위치**: `fixed top-4 right-4 z-50`로 게임 화면 위에 고정
+- **스타일 통일**: 
+  - 프로필 이미지: `w-8 h-8 rounded-full`
+  - 프로필 텍스트: `text-sm text-gray-600`
+  - 로그아웃 버튼: `px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm`
+  - Settings 버튼: `px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded`
+
+### 결과 / 성과
+- **UI 일관성**: Select 화면과 Game 화면의 프로필 UI가 동일한 스타일로 통일됨
+- **사용자 경험 향상**: 설정과 프로필 정보에 쉽게 접근 가능
+- **코드 재사용성**: SelectScreen의 프로필 UI 로직을 Game 화면에 재사용
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2025-12-22] 사망 팝업 무한 루프 수정 및 수동 확인 버튼 추가
+
+### 작업 유형
+- 버그 수정
+- UI 개선
+- 상태 관리 개선
+
+### 목적 및 영향
+사망 팝업이 무한 루프로 반복 표시되는 문제를 해결하고, 사용자가 원할 때 사망 정보를 다시 확인할 수 있는 수동 버튼을 추가하여 사용자 경험을 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `isDeathModalOpen` state 추가: 사망 모달의 표시 여부를 제어
+  - `hasSeenDeathPopup` state 추가: 사망 팝업이 자동으로 한 번 떴는지 체크하는 플래그
+  - 사망 팝업 자동 실행 로직 수정: `isDead && !hasSeenDeathPopup` 조건으로 한 번만 자동 표시
+  - '💀 Death Info' 버튼 추가: 사망 시에만 표시되며, 클릭 시 사망 모달을 다시 열 수 있음
+  - `DeathPopup` 컴포넌트에 `isOpen`, `onClose` props 전달
+  - 리셋 시 `hasSeenDeathPopup` 플래그도 초기화
+- `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx`
+  - `isOpen` prop 추가: 모달 표시 여부 제어
+  - `onClose` prop 추가: 모달 닫기 핸들러
+  - `isOpen`이 false일 때 null 반환하여 렌더링 최적화
+  - 확인 버튼 클릭 시 `onConfirm`과 `onClose` 모두 호출
+
+### 주요 기능
+- **무한 루프 방지**: `hasSeenDeathPopup` 플래그로 사망 팝업이 한 번만 자동으로 표시되도록 제어
+- **수동 확인 버튼**: 사망 상태일 때 '💀 Death Info' 버튼이 표시되어 사용자가 원할 때 사망 정보를 다시 확인 가능
+- **상태 관리 개선**: `isDeathModalOpen` state로 모달 표시 여부를 명확히 제어
+
+### 기술적 세부 사항
+- **상태 관리**:
+  ```javascript
+  const [isDeathModalOpen, setIsDeathModalOpen] = useState(false);
+  const [hasSeenDeathPopup, setHasSeenDeathPopup] = useState(false);
+  ```
+- **자동 팝업 조건**: `if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup)`
+- **수동 버튼 표시 조건**: `{digimonStats.isDead && <button>💀 Death Info</button>}`
+- **리셋 시 초기화**: 리셋 함수에서 `setHasSeenDeathPopup(false)` 호출
+
+### 결과 / 성과
+- **버그 수정**: 사망 팝업 무한 루프 문제 해결
+- **사용자 경험 개선**: 사망 정보를 원할 때 다시 확인할 수 있는 기능 추가
+- **코드 품질 향상**: 상태 관리 로직이 더 명확하고 예측 가능하게 개선
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2025-12-17] 진화 시스템 리팩토링 (Data-Driven 통합)
 
 ### 작업 유형

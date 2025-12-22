@@ -37,7 +37,7 @@ import { handleStrengthTick, feedProtein, willRefuseProtein } from "../logic/sta
 import { checkEvolution, findEvolutionTarget } from "../logic/evolution/checker";
 // 훈련 로직 (Ver1) import
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
-import TrainPopup from "../components/TrainPopup";
+import TrainPopup from "../components/TrainPopup"; 
 
 // 호환성을 위해 새 데이터를 옛날 형식으로 변환
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
@@ -118,7 +118,7 @@ function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
 function Game(){
   const { slotId } = useParams();
   const navigate= useNavigate();
-  const { currentUser, isFirebaseAvailable } = useAuth();
+  const { currentUser, logout, isFirebaseAvailable } = useAuth();
   const mode = 'firebase';
 
   const [selectedDigimon, setSelectedDigimon]= useState("Digitama");
@@ -129,6 +129,8 @@ function Game(){
   // 사망확인
   const [showDeathConfirm, setShowDeathConfirm]= useState(false);
   const [deathReason, setDeathReason] = useState(null);
+  const [isDeathModalOpen, setIsDeathModalOpen] = useState(false); // 사망 모달 표시 여부
+  const [hasSeenDeathPopup, setHasSeenDeathPopup] = useState(false); // 사망 팝업이 자동으로 한 번 떴는지 체크
 
   // 슬롯 정보
   const [slotName, setSlotName]= useState("");
@@ -264,13 +266,13 @@ function Game(){
           
           if(Object.keys(savedStats).length === 0){
             const ns = initializeStats("Digitama", {}, digimonDataVer1);
-            setSelectedDigimon("Digitama");
-            setDigimonStats(ns);
-          } else {
+        setSelectedDigimon("Digitama");
+        setDigimonStats(ns);
+      } else {
             const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
             savedStats = applyLazyUpdate(savedStats, lastSavedAt);
             
-            setSelectedDigimon(savedName);
+        setSelectedDigimon(savedName);
             setDigimonStats(savedStats);
             
             await updateDoc(slotRef, {
@@ -278,11 +280,11 @@ function Game(){
               lastSavedAt: savedStats.lastSavedAt,
               updatedAt: new Date(),
             });
-          }
-        } else {
+      }
+    } else {
           const ns = initializeStats("Digitama", {}, digimonDataVer1);
-          setSelectedDigimon("Digitama");
-          setDigimonStats(ns);
+      setSelectedDigimon("Digitama");
+      setDigimonStats(ns);
           setSlotName(`슬롯${slotId}`);
         }
       } catch (error) {
@@ -413,9 +415,10 @@ function Game(){
           setDeathReason('OLD AGE (수명 다함)');
         }
         
-        // 사망 상태 변경 감지
-        if(!prevStats.isDead && updatedStats.isDead){
-          setShowDeathConfirm(true);
+        // 사망 상태 변경 감지 (한 번만 자동으로 팝업 표시)
+        if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
+          setIsDeathModalOpen(true);
+          setHasSeenDeathPopup(true);
         }
         
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
@@ -492,7 +495,10 @@ function Game(){
           } else {
             setDeathReason('OLD AGE (수명 다함)');
           }
-          setShowDeathConfirm(true);
+          if(!hasSeenDeathPopup){
+            setIsDeathModalOpen(true);
+            setHasSeenDeathPopup(true);
+          }
         }
         
         return updated;
@@ -586,8 +592,8 @@ function Game(){
       } else {
         alert(`진화 조건을 만족하지 못했습니다!\n\n${evolutionResult.details?.map(d => `${d.target}: ${d.missing}`).join('\n') || evolutionResult.reason}`);
       }
-      return;
-    }
+        return;
+      }
     
     // 매뉴얼 기반 진화 판정 (상세 결과 객체 반환)
     // Data-Driven 방식: digimons.js의 evolutions 배열을 직접 사용
@@ -683,7 +689,8 @@ function Game(){
     const nx= initializeStats(ohaka, old, digimonDataVer1);
     await setDigimonStatsAndSave(nx);
     await setSelectedDigimonAndSave(ohaka);
-    setShowDeathConfirm(false);
+    setIsDeathModalOpen(false);
+    setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
     setDeathReason(null); // 사망 원인 초기화
   }
 
@@ -808,7 +815,8 @@ function Game(){
     const ns = initializeStats("Digitama", {}, digimonDataVer1);
     await setDigimonStatsAndSave(ns);
     await setSelectedDigimonAndSave("Digitama");
-    setShowDeathConfirm(false);
+    setIsDeathModalOpen(false);
+    setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
   }
 
   // evo 버튼 상태 (간단하게 현재 스탯으로 확인, 실제 진화는 클릭 시 Lazy Update 적용)
@@ -1149,32 +1157,85 @@ function Game(){
   }
 
   // 화면 렌더
+  // 로그아웃 핸들러
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/");
+    } catch (err) {
+      console.error("로그아웃 오류:", err);
+    }
+  };
+
   return (
     <>
-      <button onClick={()=> navigate("/select")} className="mb-2 px-3 py-1 bg-gray-400 text-white rounded">
-        ← Select 화면
-      </button>
+      {/* 왼쪽 상단 UI 컨테이너 (Select 화면 버튼) */}
+      <div className="fixed top-4 left-4 z-50">
+        <button 
+          onClick={()=> navigate("/select")} 
+          className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+        >
+          ← Select 화면
+        </button>
+      </div>
 
-      <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
-        <h2 className="text-lg font-bold mb-2">
-          슬롯 {slotId} - {selectedDigimon}
-        </h2>
-        <p>슬롯 이름: {slotName}</p>
-        <p>생성일: {slotCreatedAt}</p>
-        <p>기종: {slotDevice} / 버전: {slotVersion}</p>
+      {/* 우측 상단 UI 컨테이너 (Settings + 프로필) */}
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        {/* Settings 버튼 */}
+        <button
+          onClick={() => setShowSettingsModal(true)}
+          className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded pixel-art-button"
+          title="설정"
+        >
+          ⚙️
+        </button>
+        
+        {/* 프로필 UI (SelectScreen과 동일한 스타일) */}
+        {isFirebaseAvailable && currentUser && (
+          <>
+            <div className="flex items-center space-x-2">
+              {currentUser.photoURL && (
+                <img
+                  src={currentUser.photoURL}
+                  alt="프로필"
+                  className="w-8 h-8 rounded-full"
+                />
+              )}
+              <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
+            >
+              로그아웃
+            </button>
+          </>
+        )}
+        {!isFirebaseAvailable && (
+          <span className="text-sm text-gray-500">localStorage 모드</span>
+        )}
+      </div>
 
-        <div style={{position:"relative", width,height, border:"2px solid #555"}}>
-          <img
-            src={`/images/${backgroundNumber}.png`}
-            alt="bg"
-            style={{
-              position:"absolute",
-              top:0,left:0,
-              width:"100%",height:"100%",
-              imageRendering:"pixelated",
-              zIndex:1
-            }}
-          />
+    <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
+      <h2 className="text-lg font-bold mb-2">
+        슬롯 {slotId} - {selectedDigimon}
+      </h2>
+      <p>슬롯 이름: {slotName}</p>
+      <p>생성일: {slotCreatedAt}</p>
+      <p>기종: {slotDevice} / 버전: {slotVersion}</p>
+
+      <div style={{position:"relative", width,height, border:"2px solid #555"}}>
+        <img
+          src={`/images/${backgroundNumber}.png`}
+          alt="bg"
+          style={{
+            position:"absolute",
+            top:0,left:0,
+            width:"100%",height:"100%",
+            imageRendering:"pixelated",
+            zIndex:1
+          }}
+        />
           {/* Lights Off Overlay (게임 화면만) */}
           {!isLightsOn && (
             <div
@@ -1206,7 +1267,7 @@ function Game(){
               {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
             </div>
           )}
-          <Canvas
+        <Canvas
             style={{
               position:"absolute",
               top:0,
@@ -1217,32 +1278,32 @@ function Game(){
               transition: evolutionStage === 'flashing' ? 'filter 0.1s' : 'none',
             }}
             className={evolutionStage === 'flashing' ? 'evolution-flashing' : ''}
-            width={width}
-            height={height}
-            currentAnimation={currentAnimation}
-            idleFrames={idleFrames}
-            eatFrames={eatFramesArr}
-            foodRejectFrames={rejectFramesArr}
-            showFood={showFood}
-            feedStep={feedStep}
-            foodSizeScale={foodSizeScale}
-            developerMode={developerMode}
-            foodSprites={(feedType==="protein")? proteinSprites: meatSprites}
-            poopCount={digimonStats.poopCount || 0}
-            showPoopCleanAnimation={showPoopCleanAnimation}
-            cleanStep={cleanStep}
+          width={width}
+          height={height}
+          currentAnimation={currentAnimation}
+          idleFrames={idleFrames}
+          eatFrames={eatFramesArr}
+          foodRejectFrames={rejectFramesArr}
+          showFood={showFood}
+          feedStep={feedStep}
+          foodSizeScale={foodSizeScale}
+          developerMode={developerMode}
+          foodSprites={(feedType==="protein")? proteinSprites: meatSprites}
+          poopCount={digimonStats.poopCount || 0}
+          showPoopCleanAnimation={showPoopCleanAnimation}
+          cleanStep={cleanStep}
             sleepStatus={sleepStatus}
-          />
-        </div>
+        />
+      </div>
 
         <div className="flex items-center space-x-2 mt-2">
-          <button
-            onClick={handleEvolutionButton}
+      <button
+        onClick={handleEvolutionButton}
             disabled={!isEvoEnabled || isEvolving}
             className={`px-4 py-2 text-white rounded pixel-art-button ${isEvoEnabled && !isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"}`}
-          >
-            Evolution
-          </button>
+      >
+        Evolution
+      </button>
           <button
             onClick={() => setShowEvolutionGuide(true)}
             className="px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600"
@@ -1250,11 +1311,22 @@ function Game(){
           >
             ❓
           </button>
+          {digimonStats.isDead && (
+            <button
+              onClick={() => setIsDeathModalOpen(true)}
+              className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900"
+              title="사망 정보"
+            >
+              💀 Death Info
+            </button>
+          )}
         </div>
 
-      {showDeathConfirm && (
+      {isDeathModalOpen && (
         <DeathPopup
+          isOpen={isDeathModalOpen}
           onConfirm={handleDeathConfirm}
+          onClose={() => setIsDeathModalOpen(false)}
           reason={deathReason}
         />
       )}
@@ -1275,12 +1347,6 @@ function Game(){
         />
       </div>
 
-      <button
-        onClick={()=> setShowSettingsModal(true)}
-        className="px-4 py-2 bg-yellow-500 text-white rounded mt-4"
-      >
-        Settings
-      </button>
 
       {showStatsPopup && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -1493,7 +1559,7 @@ function Game(){
             >
               확인
             </button>
-          </div>
+    </div>
         </div>
       )}
       </div>
