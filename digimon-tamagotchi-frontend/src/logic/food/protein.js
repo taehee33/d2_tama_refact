@@ -13,11 +13,13 @@ export function feedProtein(stats) {
   const s = { ...stats };
   
   // 힘 하트 +1 (최대 5)
-  const oldStrength = s.strength;
-  s.strength = Math.min(5, s.strength + 1);
+  const oldStrength = s.strength || 0;
+  if (s.strength < 5) {
+    s.strength = (s.strength || 0) + 1;
+  }
   
   // 체중 +2 Gigabyte
-  s.weight = s.weight + 2;
+  s.weight = (s.weight || 0) + 2;
   
   // 프로틴 카운트 증가 (4개당 Energy +1, Protein Overdose +1)
   const proteinCount = (s.proteinCount || 0) + 1;
@@ -25,7 +27,8 @@ export function feedProtein(stats) {
   
   // 4개마다 Energy +1, Protein Overdose +1
   if (proteinCount % 4 === 0) {
-    s.energy = Math.min(s.maxEnergy || 100, s.energy + 1);
+    const maxEnergy = s.maxEnergy || s.maxStamina || 100;
+    s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
     s.proteinOverdose = Math.min(7, (s.proteinOverdose || 0) + 1); // 최대 7
   }
   
@@ -44,7 +47,7 @@ export function feedProtein(stats) {
  * @returns {boolean} 프로틴 거부 여부
  */
 export function willRefuseProtein(stats) {
-  // 힘이 가득 찬 상태에서 건강도 가득 찬 경우 거부
-  return stats.strength >= 5 && stats.health >= 5;
+  // 힘이 가득 찬 경우 거부
+  return stats.strength >= 5;
 }
 

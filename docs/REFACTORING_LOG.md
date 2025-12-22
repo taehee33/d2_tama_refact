@@ -4,6 +4,287 @@
 
 ---
 
+## [2025-12-23] StatsPanel/Popup UI 개편 및 변수명 통일, Ver.1 상세 스펙 뷰 구현
+
+### 작업 유형
+- UI 개선
+- 변수명 통일
+- 기능 추가
+
+### 목적 및 영향
+StatsPanel과 StatsPopup의 UI를 개편하고, 변수명을 통일하여 코드 일관성을 향상시켰습니다. 또한 StatsPopup에 Ver.1 스펙 뷰를 추가하여 사용자가 종족 고정 파라미터와 개체 상태값을 명확히 구분하여 확인할 수 있게 되었습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+  - 헤더 추가: `<h2>StatsPanel</h2>` (컨테이너 최상단, 중앙 정렬)
+  - `energy` 통일: `stamina` fallback 제거, `energy`만 사용
+  
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `health` 필드 완전 제거 (표시 및 개발자 모드 수정 기능)
+  - `energy` 통일: `stamina` fallback 제거, `energy`만 사용
+  - `hungerTimer` 통일: `hungerCycle` 대신 `hungerTimer` 사용
+  - 탭 UI 구현: `[ Old ]` | `[ New ]` 탭 추가
+  - Old 탭: 기존 팝업 내용 유지 (health 제거)
+  - New 탭: Ver.1 스펙 뷰 구현
+    - Sec 1: 종(Species) 고정 파라미터
+    - Sec 2: 개체(Instance) 상태값
+    - Sec 3: 행동 델타 규칙 (Action Delta)
+    - Sec 4: 진화 판정 카운터
+    - Sec 5: 내부/고급 카운터
+  - `digimonData` prop 추가: 종족 고정 파라미터 표시용
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - StatsPopup에 `digimonData` prop 전달 추가
+  - 모달 래퍼 div 제거 (StatsPopup 내부에서 처리)
+  
+- `docs/game_mechanics.md`
+  - Ver.1 오리지널 스펙 상세 섹션 추가
+  - 종(Species) 고정 파라미터 테이블 추가
+  - 개체(Instance) 상태값, 행동 델타 규칙, 진화 판정 카운터, 배틀/컨디션 내부 로직 설명 추가
+
+### 주요 기능
+
+#### 1. StatsPanel UI 개선
+- 헤더 추가로 컴포넌트 식별 용이
+- `energy` 변수명 통일로 일관성 향상
+
+#### 2. StatsPopup 탭 구조
+- **Old 탭**: 기존 스타일 유지 (레거시 호환)
+- **New 탭**: Ver.1 스펙 기반 구조화된 뷰
+  - 5개 섹션으로 정보 분류
+  - 종족값과 상태값 구분
+  - 타이머 남은 시간 표시
+
+#### 3. 변수명 통일
+- `health` → 완전 제거 (이미 `strength`로 통일됨)
+- `stamina` → `energy`로 통일 (fallback 제거)
+- `hungerCycle` → `hungerTimer`로 통일 (adapter에서 변환)
+
+#### 4. Ver.1 스펙 뷰 (New 탭)
+- **Sec 1**: Sleep Time, Max DP, Min Weight, Stomach Capacity, Lifespan
+- **Sec 2**: Age, Weight, Hunger, Strength, Energy, Win Ratio, Flags
+- **Sec 3**: Action Delta 규칙 (고정 텍스트)
+- **Sec 4**: Care Mistakes, Training Count, Overfeeds, Sleep Disturbances, Total Battles
+- **Sec 5**: Timers (남은 시간 포함), PoopCount, Lifespan, Time to Evolve
+
+### 기술적 세부 사항
+
+#### 타이머 남은 시간 계산
+```javascript
+const formatCountdown = (countdown) => {
+  if (!countdown || countdown <= 0) return '0s';
+  const minutes = Math.floor(countdown / 60);
+  const seconds = countdown % 60;
+  return `${minutes}m ${seconds}s`;
+};
+```
+
+#### 종족 고정 파라미터 추출
+```javascript
+const speciesData = digimonData?.stats || {};
+const speciesHungerTimer = speciesData.hungerCycle || hungerTimer || 0;
+const stomachCapacity = 5 + (speciesData.maxOverfeed || maxOverfeed || 0);
+```
+
+### 결과 / 성과
+- **변수명 통일**: `health`, `stamina`, `hungerCycle` 혼용 문제 해결
+- **UI 개선**: 탭 구조로 정보 접근성 향상
+- **Ver.1 스펙 준수**: 종족값과 상태값을 명확히 구분하여 표시
+- **가독성 향상**: 섹션별로 정보를 구조화하여 이해하기 쉬움
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/game_mechanics.md`
+
+---
+
+## [2025-12-23] DigimonInfoModal 메뉴 선택형 구조 구현 및 Activity Logs 시스템
+
+### 작업 유형
+- UI 개선
+- 기능 추가
+- 데이터 구조 확장
+
+### 목적 및 영향
+'?' 버튼 모달을 메뉴 선택형 구조로 개편하여 사용자가 Digimon Info, Evolution Guide, Activity Logs를 쉽게 탐색할 수 있도록 개선했습니다. 또한 Activity Logs 시스템을 구현하여 주요 액션(Feed, Train, Battle, Clean, CareMistake)을 기록하고 표시할 수 있게 되었습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx` (신규)
+  - EvolutionGuideModal.jsx를 기반으로 메뉴 선택형 구조로 재구성
+  - MENU, INFO, EVOLUTION, LOGS 4개 뷰 구현
+  - 헤더 UI: MENU일 때는 타이틀만, 그 외에는 "← Back" 버튼과 타이틀 표시
+  
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx` (Deprecated)
+  - DigimonInfoModal.jsx로 대체됨 (EVOLUTION 뷰에 통합)
+  
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+  - `initializeActivityLogs()` 함수 추가: 로그 배열 초기화
+  - `addActivityLog()` 함수 추가: 로그 추가 (최대 100개 유지)
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `showEvolutionGuide` → `showDigimonInfo`로 변경
+  - `activityLogs` state 추가 및 Firestore에서 로드/저장
+  - 각 액션마다 Activity Log 추가:
+    - Feed: "Fed Meat" / "Fed Protein"
+    - Train: "Training Success (X/5 hits)" / "Training Failed (X/5 hits)"
+    - Battle: "Battle Won" / "Battle Lost" / "Battle Won - Area Cleared!"
+    - Clean: "Cleaned Poop"
+    - CareMistake: "Care Mistake: Tired for too long"
+  - `setDigimonStatsAndSave()` 함수에 `updatedLogs` 파라미터 추가
+
+### 주요 기능
+
+#### 1. 메뉴 선택형 구조
+- **MENU View**: 3개의 큰 버튼 (Digimon Info, Evolution Guide, Activity Logs)
+- **INFO View**: 현재 디지몬의 상세 스펙 표시
+  - Profile: 이름, 스테이지, 속성, 스프라이트
+  - Specs: Base Power, Max DP, Lifespan, Min Weight
+  - Cycles: Hunger, Strength, Poop 주기 (분 단위)
+  - Status: Age, Weight, Win Rate, Fullness, Strength, Energy
+- **EVOLUTION View**: 기존 진화 가이드 UI (진화 트리 및 조건 달성 확인)
+- **LOGS View**: 활동 로그 리스트 (최신순, "MM/DD HH:mm - [Action] 내용" 형식)
+
+#### 2. Activity Logs 시스템
+- **데이터 구조**: Firestore 슬롯의 `activityLogs` 배열
+- **로그 포맷**: `{ type: 'FEED', text: 'Fed Meat', timestamp: Date.now() }`
+- **로그 타입**: 'FEED', 'TRAIN', 'BATTLE', 'CLEAN', 'CAREMISTAKE'
+- **최대 개수**: 100개 (오래된 것부터 삭제)
+- **자동 저장**: 각 액션 시 Firestore에 자동 저장
+
+#### 3. 헤더 UI
+- MENU일 때: "Digimon Menu" 타이틀만 표시
+- 그 외: "← Back" 버튼 + 해당 뷰 타이틀 표시
+
+### 기술적 세부 사항
+
+#### Activity Logs 초기화
+```javascript
+const logs = initializeActivityLogs(slotData.activityLogs);
+setActivityLogs(logs);
+```
+
+#### Activity Log 추가
+```javascript
+const updatedLogs = addActivityLog(activityLogs, 'FEED', 'Fed Meat');
+setDigimonStatsAndSave(updatedStats, updatedLogs);
+```
+
+#### Cycles 표시
+- `hungerCycle`, `strengthCycle`, `poopCycle`을 초 단위에서 분 단위로 변환
+- 예: `3600초` → `60m`
+
+### 결과 / 성과
+- **사용자 경험 향상**: 메뉴 선택형 구조로 정보 접근성 개선
+- **활동 추적**: 주요 액션을 자동으로 기록하여 육성 이력 확인 가능
+- **코드 구조 개선**: EvolutionGuideModal을 DigimonInfoModal로 통합하여 유지보수성 향상
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+---
+
+## [2025-12-22] 게임 로직 Ver.1 오리지널 스펙 전면 리팩토링
+
+### 작업 유형
+- 게임 로직 개선
+- 데이터 구조 통일
+- Ver.1 스펙 준수
+
+### 목적 및 영향
+게임 로직을 Ver.1 오리지널 스펙에 맞춰 전면 리팩토링하여 일관성 있는 게임플레이를 제공하고, 데이터 구조를 통일하여 유지보수성을 향상시켰습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `health` 필드 제거 (strength로 통일)
+  - `isInjured` 필드 추가 (부상 상태 플래그)
+  
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+  - `health` → `strength`로 통일 (힘 감소 처리)
+  - `lastStrengthZeroAt` 기록 로직 추가 (힘이 0이 되면 기록)
+  - 힘이 0이고 12시간 경과 시 사망 로직 추가
+  - 똥 8개 시 `careMistakes++` 대신 `isInjured: true` 설정
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `health` → `strength`로 통일
+  - 수면 중 먹이/훈련/배틀 시도 시 수면 방해 처리 추가
+  - 배틀 완료 시 Weight -4g, Energy -1 소모 로직 추가
+  
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+  - `Health` 표시 제거 (UI는 Fullness와 Strength 2개만 표시)
+  
+- `digimon-tamagotchi-frontend/src/logic/food/meat.js`
+  - `hunger` → `fullness`로 통일
+  - 오버피드 로직 개선 (연속 고기 10개 추적)
+  
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+  - `willRefuseProtein` 수정 (health 체크 제거)
+  - Energy 회복 로직 개선
+  
+- `digimon-tamagotchi-frontend/src/data/train_digitalmonstercolor25th_ver1.js`
+  - Ver.1 스펙 적용: 5번 중 3번 이상 성공 시 Strength +1
+  - Weight -2g, Energy -1 소모 (결과와 상관없이)
+  - 훈련 횟수(trainings)는 성공/실패 무관하게 +1
+
+### 주요 기능
+
+#### 1. 데이터 구조 및 명칭 통일
+- **Strength 통일**: `health` 변수를 모두 삭제하고 `strength`로 통일
+- **UI 하트 표시**: Fullness와 Strength 2개만 표시
+- **DP/Energy**: 변수명 및 UI 'DP/Energy'로 통일
+- **부상(Injury) 로직**: 똥 8개 시 `careMistakes` 대신 `isInjured: true` 설정
+
+#### 2. 액션별 수치 변화 (Ver.1 스펙)
+- **Food (Meat)**: Weight +1g, Fullness +1
+- **Protein**: Weight +2g, Strength +1, Energy 회복 (4개당 +1)
+- **Train**: 
+  - Weight -2g, Energy -1 (결과와 상관없이)
+  - 5번 중 3번 이상 성공 시 Strength +1
+  - 훈련 횟수(trainings)는 성공/실패 무관하게 +1
+- **Battle**: Weight -4g, Energy -1 (승패 무관)
+
+#### 3. 수면 방해 (Sleep Disturbance)
+- 수면 중(`isSleeping`)에 밥, 훈련, 배틀 시도 시:
+  - `sleepDisturbances` +1
+  - `wakeUntil`을 현재시간 + 10분으로 설정하여 잠시 깨움
+
+### 기술적 세부 사항
+
+#### 힘(Strength) 감소 로직
+- `strengthTimer` 주기마다 `strength` -1
+- `strength`가 0이 되면 `lastStrengthZeroAt` 기록
+- `strength`가 0이고 12시간(43200초) 경과 시 사망
+
+#### 부상(Injury) 로직
+- 똥 8개가 되면 `isInjured: true` 설정
+- 똥 청소 시 `isInjured: false`로 리셋
+- 기존의 `careMistakes++` 로직 제거
+
+#### 훈련 성공 판정
+- 5번 중 3번 이상 성공 시 훈련 성공 (Strength +1)
+- 3번 미만 성공 시 훈련 실패 (Strength 안 오름)
+- 결과와 상관없이 Weight -2g, Energy -1 소모
+
+### 결과 / 성과
+- **데이터 구조 통일**: `health` → `strength`로 완전 통일
+- **Ver.1 스펙 준수**: 모든 액션의 수치 변화가 Ver.1 스펙에 맞춰짐
+- **수면 방해 로직 개선**: 수면 중 액션 시도 시 명확한 피드백 제공
+- **부상 시스템 개선**: 똥 8개 시 `isInjured` 플래그로 명확한 상태 관리
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/logic/food/meat.js`
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+- `digimon-tamagotchi-frontend/src/data/train_digitalmonstercolor25th_ver1.js`
+
+---
+
 ## [2025-12-22] Game 화면 우측 상단 UI 통일 (설정 버튼 + 구글 로그인 프로필)
 
 ### 작업 유형

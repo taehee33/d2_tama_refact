@@ -189,14 +189,20 @@ export function applyLazyUpdate(stats, lastSavedAt) {
     }
   }
 
-  // 건강 감소 처리
+  // 힘 감소 처리
   if (updatedStats.strengthTimer > 0) {
     updatedStats.strengthCountdown -= elapsedSeconds;
     
-    // countdown이 0 이하가 되면 health 감소
+    // countdown이 0 이하가 되면 strength 감소
     while (updatedStats.strengthCountdown <= 0) {
-      updatedStats.health = Math.max(0, updatedStats.health - 1);
+      updatedStats.strength = Math.max(0, updatedStats.strength - 1);
       updatedStats.strengthCountdown += updatedStats.strengthTimer * 60;
+      
+      // strength가 0이 되면 lastStrengthZeroAt 기록
+      if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
+        const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
+        updatedStats.lastStrengthZeroAt = timeToZero;
+      }
     }
   }
 
@@ -214,25 +220,21 @@ export function applyLazyUpdate(stats, lastSavedAt) {
           const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
           updatedStats.lastMaxPoopTime = timeToMax;
         }
-      } else {
-        // 이미 8개 이상
-        if (!updatedStats.lastMaxPoopTime) {
-          const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
-          updatedStats.lastMaxPoopTime = timeToMax;
         } else {
-          // 8시간(28800초) 경과 확인
-          const lastMaxTime = typeof updatedStats.lastMaxPoopTime === 'number' 
-            ? updatedStats.lastMaxPoopTime 
-            : new Date(updatedStats.lastMaxPoopTime).getTime();
-          const elapsedSinceMax = (now.getTime() - lastMaxTime) / 1000;
-          
-          if (elapsedSinceMax >= 28800) {
-            updatedStats.careMistakes++;
-            updatedStats.lastMaxPoopTime = now.getTime();
+          // 이미 8개 이상
+          if (!updatedStats.lastMaxPoopTime) {
+            const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
+            updatedStats.lastMaxPoopTime = timeToMax;
+            // 똥 8개가 되면 부상 상태로 설정
+            updatedStats.isInjured = true;
+          } else {
+            // 이미 8개였고, 계속 8개 이상이면 부상 상태 유지
+            if (updatedStats.poopCount >= 8) {
+              updatedStats.isInjured = true;
+            }
           }
+          updatedStats.poopCountdown += updatedStats.poopTimer * 60;
         }
-        updatedStats.poopCountdown += updatedStats.poopTimer * 60;
-      }
     }
   }
 
@@ -249,6 +251,21 @@ export function applyLazyUpdate(stats, lastSavedAt) {
   } else if (updatedStats.fullness > 0) {
     // 배고픔이 다시 채워지면 리셋
     updatedStats.lastHungerZeroAt = null;
+  }
+
+  // 힘이 0이고 12시간(43200초) 경과 시 사망
+  if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
+    const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
+      ? updatedStats.lastStrengthZeroAt
+      : new Date(updatedStats.lastStrengthZeroAt).getTime();
+    const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
+    
+    if (elapsedSinceZero >= 43200) {
+      updatedStats.isDead = true;
+    }
+  } else if (updatedStats.strength > 0) {
+    // 힘이 다시 채워지면 리셋
+    updatedStats.lastStrengthZeroAt = null;
   }
 
   // 나이 업데이트 (자정 경과 확인)

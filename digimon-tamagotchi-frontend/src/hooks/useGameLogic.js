@@ -310,6 +310,44 @@ export function checkEvolutionAvailability(currentStats, requirements) {
   };
 }
 
+/**
+ * Activity Logs 관련 유틸리티 함수
+ */
+
+/**
+ * Activity Logs 배열을 초기화합니다.
+ * @param {Array} existingLogs - 기존 로그 배열 (없으면 빈 배열)
+ * @returns {Array} 초기화된 로그 배열
+ */
+export function initializeActivityLogs(existingLogs = []) {
+  return Array.isArray(existingLogs) ? existingLogs : [];
+}
+
+/**
+ * Activity Log를 추가합니다.
+ * @param {Array} currentLogs - 현재 로그 배열
+ * @param {string} type - 로그 타입 ('FEED', 'TRAIN', 'BATTLE', 'CLEAN', 'CAREMISTAKE', etc.)
+ * @param {string} text - 로그 텍스트
+ * @returns {Array} 업데이트된 로그 배열
+ */
+export function addActivityLog(currentLogs = [], type, text) {
+  const logs = initializeActivityLogs(currentLogs);
+  const newLog = {
+    type,
+    text,
+    timestamp: Date.now(),
+  };
+  
+  // 최대 100개까지만 유지 (오래된 것부터 삭제)
+  const maxLogs = 100;
+  const updatedLogs = [...logs, newLog];
+  if (updatedLogs.length > maxLogs) {
+    return updatedLogs.slice(-maxLogs);
+  }
+  
+  return updatedLogs;
+}
+
 export default getSleepStatus;
 
 

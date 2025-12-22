@@ -8,7 +8,6 @@ export const defaultStats = {
     stamina: 0, // 기존 필드 (호환성 유지)
     energy: 0, // 매뉴얼의 DP 개념 (Energy/DP)
     effort: 0,
-    health: 0,
     fullness: 0,
     winRate: 0,
     careMistakes: 0,
@@ -41,4 +40,5 @@ export const defaultStats = {
     battlesWon: 0, // 총 승리 횟수 (진화 조건용)
     battlesLost: 0, // 총 패배 횟수 (진화 조건용)
     battlesForEvolution: 0, // 진화를 위한 배틀 횟수 (진화 시 리셋)
+    isInjured: false, // 부상 상태 (똥 8개 시 true)
   };

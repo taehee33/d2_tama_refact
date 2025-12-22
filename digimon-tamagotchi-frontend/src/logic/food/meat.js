@@ -11,20 +11,32 @@
 export function feedMeat(stats) {
   const s = { ...stats };
   
-  // 배고픔 하트 +1 (최대 5)
-  const oldHunger = s.hunger;
-  s.hunger = Math.min(5, s.hunger + 1);
+  // 배고픔 하트 +1 (최대 5 + 오버피드 허용치)
+  const maxFullness = 5 + (s.maxOverfeed || 0);
+  const oldFullness = s.fullness || 0;
+  
+  if (s.fullness < maxFullness) {
+    s.fullness = (s.fullness || 0) + 1;
+  }
   
   // 체중 +1 Gigabyte
-  s.weight = s.weight + 1;
+  s.weight = (s.weight || 0) + 1;
   
-  // 오버피드 체크: 배고픔이 가득 찬 상태에서 10개 더 먹으면 오버피드
-  // TODO: 연속으로 먹은 고기 개수 추적 필요
+  // 오버피드 체크: 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드
+  if (oldFullness >= 5) {
+    s.consecutiveMeatFed = (s.consecutiveMeatFed || 0) + 1;
+    if (s.consecutiveMeatFed >= 10) {
+      s.overfeeds = (s.overfeeds || 0) + 1;
+      s.consecutiveMeatFed = 0; // 리셋
+    }
+  } else {
+    s.consecutiveMeatFed = 0; // 배고픔이 가득 차지 않았으면 리셋
+  }
   
   return {
     updatedStats: s,
-    hungerIncreased: s.hunger > oldHunger,
-    canEatMore: s.hunger < 5 + (s.maxOverfeed || 0), // 오버피드 허용치까지
+    fullnessIncreased: s.fullness > oldFullness,
+    canEatMore: s.fullness < maxFullness,
   };
 }
 
@@ -53,7 +65,7 @@ export function checkOverfeed(stats, consecutiveMeatFed) {
  * @returns {boolean} 고기 거부 여부
  */
 export function willRefuseMeat(stats) {
-  const maxHunger = 5 + (stats.maxOverfeed || 0);
-  return stats.hunger >= maxHunger;
+  const maxFullness = 5 + (stats.maxOverfeed || 0);
+  return (stats.fullness || 0) >= maxFullness;
 }
 

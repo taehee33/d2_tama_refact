@@ -18,10 +18,11 @@ function fullnessDisplay(fullness=0, maxOverfeed=0){
 const StatsPanel = ({ stats, sleepStatus = "AWAKE" }) => {
   return (
     <div className="border p-2 bg-white shadow-md text-sm w-48">
+      <h2 className="text-center font-bold mb-2 text-base">StatsPanel</h2>
       <p>Age: {stats.age || 0}</p>
       <p>Weight: {stats.weight || 0}</p>
       <p>Strength: {stats.strength || 0}</p>
-      <p>Energy (DP): {stats.energy !== undefined ? stats.energy : (stats.stamina || 0)}</p>
+      <p>Energy (DP): {stats.energy || 0}</p>
 
       {/* WinRate = 0% */}
       <p>WinRate: {stats.winRate || 0}%</p>
@@ -31,7 +32,6 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE" }) => {
       <p>Sleep: {sleepStatus}</p>
 
       <p>Fullness: {fullnessDisplay(stats.fullness, stats.maxOverfeed)}</p>
-      <p>Health: {stats.health || 0}</p>
       
       {/* 개발자용 추가 정보 */}
       <div className="mt-2 pt-2 border-t border-gray-300">
