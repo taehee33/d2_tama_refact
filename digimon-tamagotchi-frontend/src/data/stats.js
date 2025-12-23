@@ -38,6 +38,12 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.isInjured = false; // 부상 상태 리셋
   merged.injuredAt = null; // 부상 시간 리셋
   merged.healedDosesCurrent = 0; // 치료제 횟수 리셋
+  // 호출 상태 초기화 (진화 시 리셋)
+  merged.callStatus = {
+    hunger: { isActive: false, startedAt: null },
+    strength: { isActive: false, startedAt: null },
+    sleep: { isActive: false, startedAt: null }
+  };
   
   // 매뉴얼 기반 필드 초기화 (진화 시 유지되는 필드)
   merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
@@ -299,6 +305,107 @@ export function applyLazyUpdate(stats, lastSavedAt) {
       updatedStats.isDead = true;
     }
   }
+
+  // 호출(Call) 시스템 처리 (Lazy Update)
+  // callStatus 초기화 (없으면 생성)
+  if (!updatedStats.callStatus) {
+    updatedStats.callStatus = {
+      hunger: { isActive: false, startedAt: null },
+      strength: { isActive: false, startedAt: null },
+      sleep: { isActive: false, startedAt: null }
+    };
+  }
+
+  const callStatus = updatedStats.callStatus;
+  const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  const SLEEP_CALL_TIMEOUT = 60 * 60 * 1000; // 60분
+
+  // Hunger 호출 처리
+  if (updatedStats.fullness === 0) {
+    // 배고픔이 0이면 호출 활성화 (아직 활성화되지 않은 경우)
+    if (!callStatus.hunger.isActive && updatedStats.lastHungerZeroAt) {
+      // lastHungerZeroAt 시점에 호출 시작
+      const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+        ? updatedStats.lastHungerZeroAt
+        : new Date(updatedStats.lastHungerZeroAt).getTime();
+      callStatus.hunger.isActive = true;
+      callStatus.hunger.startedAt = hungerZeroTime;
+    }
+    
+    // 호출이 활성화되어 있고 타임아웃 경과 시 careMistakes 증가
+    if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
+      const startedAt = typeof callStatus.hunger.startedAt === 'number'
+        ? callStatus.hunger.startedAt
+        : new Date(callStatus.hunger.startedAt).getTime();
+      const elapsed = now.getTime() - startedAt;
+      
+      if (elapsed > HUNGER_CALL_TIMEOUT) {
+        // 10분 경과 시 careMistakes +1
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        
+        // 추가 실수 계산: (방치시간) / (TimerCycle + 10분) 만큼 추가 실수
+        if (updatedStats.hungerTimer > 0) {
+          const timerCycleMs = updatedStats.hungerTimer * 60 * 1000;
+          const additionalMistakes = Math.floor(elapsed / (timerCycleMs + HUNGER_CALL_TIMEOUT));
+          updatedStats.careMistakes += additionalMistakes;
+        }
+        
+        // 호출 리셋
+        callStatus.hunger.isActive = false;
+        callStatus.hunger.startedAt = null;
+      }
+    }
+  } else {
+    // 배고픔이 0이 아니면 호출 리셋
+    callStatus.hunger.isActive = false;
+    callStatus.hunger.startedAt = null;
+  }
+
+  // Strength 호출 처리
+  if (updatedStats.strength === 0) {
+    // 힘이 0이면 호출 활성화 (아직 활성화되지 않은 경우)
+    if (!callStatus.strength.isActive && updatedStats.lastStrengthZeroAt) {
+      // lastStrengthZeroAt 시점에 호출 시작
+      const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
+        ? updatedStats.lastStrengthZeroAt
+        : new Date(updatedStats.lastStrengthZeroAt).getTime();
+      callStatus.strength.isActive = true;
+      callStatus.strength.startedAt = strengthZeroTime;
+    }
+    
+    // 호출이 활성화되어 있고 타임아웃 경과 시 careMistakes 증가
+    if (callStatus.strength.isActive && callStatus.strength.startedAt) {
+      const startedAt = typeof callStatus.strength.startedAt === 'number'
+        ? callStatus.strength.startedAt
+        : new Date(callStatus.strength.startedAt).getTime();
+      const elapsed = now.getTime() - startedAt;
+      
+      if (elapsed > STRENGTH_CALL_TIMEOUT) {
+        // 10분 경과 시 careMistakes +1
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        
+        // 추가 실수 계산: (방치시간) / (TimerCycle + 10분) 만큼 추가 실수
+        if (updatedStats.strengthTimer > 0) {
+          const timerCycleMs = updatedStats.strengthTimer * 60 * 1000;
+          const additionalMistakes = Math.floor(elapsed / (timerCycleMs + STRENGTH_CALL_TIMEOUT));
+          updatedStats.careMistakes += additionalMistakes;
+        }
+        
+        // 호출 리셋
+        callStatus.strength.isActive = false;
+        callStatus.strength.startedAt = null;
+      }
+    }
+  } else {
+    // 힘이 0이 아니면 호출 리셋
+    callStatus.strength.isActive = false;
+    callStatus.strength.startedAt = null;
+  }
+
+  // Sleep 호출 처리 (수면 주기당 1회만)
+  // 수면 호출은 실시간으로만 처리 (Lazy Update에서는 처리하지 않음)
+  // 이유: 수면 호출은 수면 시간이 시작될 때 한 번만 발생해야 하므로
 
   // 나이 업데이트 (자정 경과 확인)
   updatedStats = updateAge(updatedStats);

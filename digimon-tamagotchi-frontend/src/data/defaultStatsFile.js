@@ -46,4 +46,10 @@ export const defaultStats = {
     injuredAt: null, // 부상 당한 시각 (6시간 사망 체크용)
     injuries: 0, // 이 단계에서 누적된 부상 횟수 (15회 사망 체크용)
     healedDosesCurrent: 0, // 현재 투여된 치료제 횟수
+    // 호출(Call) 시스템
+    callStatus: {
+      hunger: { isActive: false, startedAt: null }, // 제한시간 10분
+      strength: { isActive: false, startedAt: null }, // 제한시간 10분
+      sleep: { isActive: false, startedAt: null }     // 제한시간 60분
+    },
   };

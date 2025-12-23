@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "../firebase";
-import { getSleepStatus } from "../hooks/useGameLogic";
+import { getSleepStatus, checkCalls, resetCallStatus, checkCallTimeouts } from "../hooks/useGameLogic";
 
 import Canvas from "../components/Canvas";
 import StatsPanel from "../components/StatsPanel";
@@ -217,6 +217,12 @@ function Game(){
   // 치료 애니메이션 상태
   const [showHealAnimation, setShowHealAnimation] = useState(false);
   const [healStep, setHealStep] = useState(0);
+
+  // 호출(Call) 팝업 상태
+  const [showCallModal, setShowCallModal] = useState(false);
+  // 호출(Call) Toast 상태
+  const [showCallToast, setShowCallToast] = useState(false);
+  const [callToastMessage, setCallToastMessage] = useState("");
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -446,6 +452,11 @@ function Game(){
           updatedStats.isDead = true;
           setDeathReason('OLD AGE (수명 다함)');
         }
+        
+        // 호출(Call) 시스템 체크 및 타임아웃 처리
+        const sleepSchedule = getSleepSchedule(selectedDigimon);
+        updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date());
+        updatedStats = checkCallTimeouts(updatedStats, new Date());
         
         // 사망 상태 변경 감지 (한 번만 자동으로 팝업 표시)
         if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
@@ -794,7 +805,16 @@ function Game(){
       setShowFood(false);
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
-      const updatedStats = applyEatResult(currentStats, type);
+      let updatedStats = applyEatResult(currentStats, type);
+      
+      // 호출 해제: fullness > 0이 되면 hunger 호출 리셋
+      if (updatedStats.fullness > 0) {
+        updatedStats = resetCallStatus(updatedStats, 'hunger');
+      }
+      // 단백질을 먹었고 strength > 0이 되면 strength 호출 리셋
+      if (type === "protein" && updatedStats.strength > 0) {
+        updatedStats = resetCallStatus(updatedStats, 'strength');
+      }
       
       // Activity Log 추가
       const logText = type === "meat" ? "Fed Meat" : "Fed Protein";
@@ -886,12 +906,18 @@ function Game(){
     // userSelections: 길이5의 "U"/"D" 배열
     // doVer1Training -> stats 업데이트
     const result= doVer1Training(updatedStats, userSelections);
+    let finalStats = result.updatedStats;
+    
+    // 호출 해제: strength > 0이 되면 strength 호출 리셋
+    if (finalStats.strength > 0) {
+      finalStats = resetCallStatus(finalStats, 'strength');
+    }
     
     // Activity Log 추가
     const logText = result.isSuccess ? `Training Success (${result.hits}/5 hits)` : `Training Failed (${result.hits}/5 hits)`;
     const updatedLogs = addActivityLog(activityLogs, 'TRAIN', logText);
     
-    setDigimonStatsAndSave(result.updatedStats, updatedLogs);
+    setDigimonStatsAndSave(finalStats, updatedLogs);
     // 그냥 콘솔
     console.log("훈련 결과:", result);
   }
@@ -969,6 +995,9 @@ function Game(){
         break;
       case "heal":
         handleHeal();
+        break;
+      case "callSign":
+        setShowCallModal(true);
         break;
       default:
         console.log("menu:", menu);
@@ -1145,6 +1174,13 @@ function Game(){
   const handleToggleLights = async () => {
     const next = !isLightsOn;
     setIsLightsOn(next);
+    
+    // 호출 해제: 불이 꺼지면 sleep 호출 리셋
+    if (!next) {
+      const updatedStats = resetCallStatus(digimonStats, 'sleep');
+      setDigimonStats(updatedStats);
+    }
+    
     if(slotId && currentUser){
       try{
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
@@ -1402,7 +1438,7 @@ function Game(){
         {/* Settings 버튼 */}
         <button
           onClick={() => setShowSettingsModal(true)}
-          className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded pixel-art-button"
+          className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
           title="설정"
         >
           ⚙️
@@ -1485,7 +1521,7 @@ function Game(){
               {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
             </div>
           )}
-          {/* 부상 상태 아이콘 (해골) */}
+          {/* 부상 상태 아이콘 (병원 십자가) */}
           {digimonStats.isInjured && !digimonStats.isDead && (
             <div
               style={{
@@ -1502,7 +1538,7 @@ function Game(){
                 animation: "float 2s ease-in-out infinite",
               }}
             >
-              💀
+              🏥부상🏥
             </div>
           )}
           {/* 치료 연출 (주사기) */}
@@ -1519,6 +1555,162 @@ function Game(){
               }}
             >
               💉
+            </div>
+          )}
+          {/* 호출(Call) 아이콘 */}
+          {digimonStats.callStatus && (
+            (digimonStats.callStatus.hunger?.isActive || 
+             digimonStats.callStatus.strength?.isActive || 
+             digimonStats.callStatus.sleep?.isActive) && (
+              <button
+                onClick={() => {
+                  const messages = [];
+                  if (digimonStats.callStatus.hunger?.isActive) messages.push("Hungry!");
+                  if (digimonStats.callStatus.strength?.isActive) messages.push("No Energy!");
+                  if (digimonStats.callStatus.sleep?.isActive) messages.push("Sleepy!");
+                  
+                  setCallToastMessage(messages.join(" "));
+                  setShowCallToast(true);
+                  setTimeout(() => {
+                    setShowCallToast(false);
+                  }, 2000);
+                }}
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  right: 8,
+                  zIndex: 4,
+                  background: "rgba(255, 165, 0, 0.8)",
+                  color: "white",
+                  border: "2px solid #000",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 24,
+                  cursor: "pointer",
+                  animation: "blink 1s infinite",
+                  fontWeight: "bold",
+                }}
+                title="Call Icon - Click to see reason"
+              >
+                📣
+              </button>
+            )
+          )}
+          {/* 호출 Toast 메시지 (간략) */}
+          {showCallToast && (
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 6,
+                background: "rgba(0, 0, 0, 0.8)",
+                color: "white",
+                padding: "16px 24px",
+                borderRadius: 8,
+                fontSize: 20,
+                fontWeight: "bold",
+                border: "2px solid #fff",
+                animation: "fadeInOut 2s ease-in-out",
+              }}
+            >
+              {callToastMessage}
+            </div>
+          )}
+          {/* 호출 상세 정보 팝업 (callSign 버튼 클릭 시) */}
+          {showCallModal && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+              onClick={() => setShowCallModal(false)}
+            >
+              <div
+                className="bg-white p-6 rounded-lg shadow-xl w-96 max-h-[80vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  border: "3px solid #000",
+                }}
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold">📣 Call Status Log</h2>
+                  <button
+                    onClick={() => setShowCallModal(false)}
+                    className="text-red-500 hover:text-red-700 text-2xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  {digimonStats.callStatus?.hunger?.isActive && (
+                    <div className="border-2 border-red-400 p-3 rounded bg-red-50">
+                      <h3 className="font-bold text-lg text-red-700 mb-2">🍽️ Hunger Call</h3>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Status:</strong> Active</p>
+                        <p><strong>Started At:</strong> {digimonStats.callStatus.hunger.startedAt 
+                          ? new Date(digimonStats.callStatus.hunger.startedAt).toLocaleString('ko-KR')
+                          : 'N/A'}</p>
+                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.hunger.startedAt 
+                          ? `${Math.floor((Date.now() - digimonStats.callStatus.hunger.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.hunger.startedAt) / 1000) % 60)}초`
+                          : 'N/A'}</p>
+                        <p><strong>Timeout:</strong> 10분</p>
+                        <p><strong>Reason:</strong> Fullness reached 0</p>
+                        <p className="text-red-600 font-semibold">⚠️ If ignored for 10 minutes, Care Mistake will increase!</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {digimonStats.callStatus?.strength?.isActive && (
+                    <div className="border-2 border-blue-400 p-3 rounded bg-blue-50">
+                      <h3 className="font-bold text-lg text-blue-700 mb-2">💪 Strength Call</h3>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Status:</strong> Active</p>
+                        <p><strong>Started At:</strong> {digimonStats.callStatus.strength.startedAt 
+                          ? new Date(digimonStats.callStatus.strength.startedAt).toLocaleString('ko-KR')
+                          : 'N/A'}</p>
+                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.strength.startedAt 
+                          ? `${Math.floor((Date.now() - digimonStats.callStatus.strength.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.strength.startedAt) / 1000) % 60)}초`
+                          : 'N/A'}</p>
+                        <p><strong>Timeout:</strong> 10분</p>
+                        <p><strong>Reason:</strong> Strength reached 0</p>
+                        <p className="text-blue-600 font-semibold">⚠️ If ignored for 10 minutes, Care Mistake will increase!</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {digimonStats.callStatus?.sleep?.isActive && (
+                    <div className="border-2 border-purple-400 p-3 rounded bg-purple-50">
+                      <h3 className="font-bold text-lg text-purple-700 mb-2">😴 Sleep Call</h3>
+                      <div className="text-sm space-y-1">
+                        <p><strong>Status:</strong> Active</p>
+                        <p><strong>Started At:</strong> {digimonStats.callStatus.sleep.startedAt 
+                          ? new Date(digimonStats.callStatus.sleep.startedAt).toLocaleString('ko-KR')
+                          : 'N/A'}</p>
+                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.sleep.startedAt 
+                          ? `${Math.floor((Date.now() - digimonStats.callStatus.sleep.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.sleep.startedAt) / 1000) % 60)}초`
+                          : 'N/A'}</p>
+                        <p><strong>Timeout:</strong> 60분</p>
+                        <p><strong>Reason:</strong> Sleep time and lights are ON</p>
+                        <p className="text-purple-600 font-semibold">⚠️ If ignored for 60 minutes, Care Mistake will increase!</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {(!digimonStats.callStatus?.hunger?.isActive && 
+                    !digimonStats.callStatus?.strength?.isActive && 
+                    !digimonStats.callStatus?.sleep?.isActive) && (
+                    <div className="border-2 border-gray-300 p-3 rounded bg-gray-50">
+                      <p className="text-gray-600">No active calls at the moment.</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs text-gray-500">
+                    💡 <strong>Tip:</strong> Respond to calls before timeout to avoid Care Mistakes!
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         <Canvas

@@ -4,6 +4,131 @@
 
 ---
 
+## [2025-12-23] Feature: Implemented Call System with Independent Timers and Lazy Mistake Calculation
+
+### 작업 유형
+- 기능 구현
+- 시스템 확장
+- UI 개선
+
+### 목적 및 영향
+'Call(호출)' 시스템을 구현하여 디지몬이 배고픔, 힘 부족, 수면 필요 시 사용자에게 알림을 보내고, 일정 시간 내에 응답하지 않으면 자동으로 careMistakes가 증가하도록 했습니다. Independent State 방식으로 각 호출 상태를 독립적으로 관리합니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `callStatus` 객체 추가 (hunger, strength, sleep 각각 isActive, startedAt 필드)
+  
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+  - 진화 시 `callStatus` 리셋 추가
+  - `applyLazyUpdate`에 호출 상태 확인 및 careMistakes 계산 로직 추가
+  - Hunger/Strength: 10분 타임아웃, 반복 실수 계산
+  - Sleep: 60분 타임아웃, 1회 실수
+  
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+  - `checkCalls()` 함수 추가 (호출 트리거 로직)
+  - `resetCallStatus()` 함수 추가 (호출 해제)
+  - `checkCallTimeouts()` 함수 추가 (실시간 타임아웃 체크)
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `checkCalls`, `resetCallStatus`, `checkCallTimeouts` import 추가
+  - Lazy Update 타이머에 호출 체크 로직 추가
+  - `handleFeed`: fullness > 0 시 hunger 호출 리셋, protein 시 strength 호출 리셋
+  - `handleTrainResult`: strength > 0 시 strength 호출 리셋
+  - `handleToggleLights`: 불이 꺼지면 sleep 호출 리셋
+  - Call Icon UI 추가 (우측 하단, 깜빡임 애니메이션)
+  - Toast 메시지 UI 추가 (클릭 시 "Hungry!", "No Energy!", "Sleepy!" 표시)
+  
+- `digimon-tamagotchi-frontend/src/index.css`
+  - `@keyframes blink` 애니메이션 추가 (Call Icon 깜빡임)
+
+### 주요 기능
+
+#### 1. 데이터 스키마 확장
+- **callStatus 객체**:
+  ```javascript
+  callStatus: {
+    hunger: { isActive: false, startedAt: null },   // 제한시간 10분
+    strength: { isActive: false, startedAt: null }, // 제한시간 10분
+    sleep: { isActive: false, startedAt: null }     // 제한시간 60분
+  }
+  ```
+
+#### 2. 호출 트리거 로직
+- **Hunger**: `fullness === 0`이고 `callStatus.hunger.isActive`가 false면 활성화
+- **Strength**: `strength === 0`이고 `callStatus.strength.isActive`가 false면 활성화
+- **Sleep**: 수면 시간이고 `isLightsOn === true`이고 `callStatus.sleep.isActive`가 false면 활성화
+
+#### 3. Lazy Update 로직 (오프라인 처리)
+- **Hunger/Strength (반복 실수)**:
+  - 호출이 활성화되어 있고 `(CurrentTime - startedAt) > 10분`이면 `careMistakes +1`
+  - 추가로 `(방치시간) / (TimerCycle + 10분)` 만큼 추가 실수 계산
+- **Sleep (1회 실수)**:
+  - 호출이 활성화되어 있고 `(CurrentTime - startedAt) > 60분`이면 `careMistakes +1`
+  - 수면은 반복되지 않음
+
+#### 4. 호출 해제 로직
+- **밥 먹기(Feed)**: `fullness > 0`이 되는 순간 `callStatus.hunger` 리셋
+- **단백질/훈련**: `strength > 0`이 되는 순간 `callStatus.strength` 리셋
+- **불 끄기**: `isLightsOn`이 false가 되는 순간 `callStatus.sleep` 리셋
+- **타임아웃**: 실시간으로 앱을 켜두고 있을 때도, 10분/60분이 지나면 자동으로 아이콘이 꺼지고 `careMistakes +1` 처리
+
+#### 5. UI 구현
+- **Call Icon (📣)**: 화면 우측 하단에 표시, 하나라도 `isActive`이면 점등 (CSS animation blink)
+- **Toast 메시지**: 클릭 시 "Hungry!", "No Energy!", "Sleepy!" 중 원인을 텍스트로 표시 (2초 후 자동 사라짐)
+
+### 기술적 세부 사항
+
+#### 호출 트리거
+```javascript
+// Hunger 호출 트리거
+if (updatedStats.fullness === 0 && !callStatus.hunger.isActive) {
+  callStatus.hunger.isActive = true;
+  callStatus.hunger.startedAt = now.getTime();
+}
+```
+
+#### Lazy Update에서 호출 처리
+```javascript
+// Hunger 호출 타임아웃 체크
+if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
+  const elapsed = now.getTime() - startedAt;
+  if (elapsed > HUNGER_CALL_TIMEOUT) {
+    updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+    // 추가 실수 계산
+    if (updatedStats.hungerTimer > 0) {
+      const timerCycleMs = updatedStats.hungerTimer * 60 * 1000;
+      const additionalMistakes = Math.floor(elapsed / (timerCycleMs + HUNGER_CALL_TIMEOUT));
+      updatedStats.careMistakes += additionalMistakes;
+    }
+    callStatus.hunger.isActive = false;
+    callStatus.hunger.startedAt = null;
+  }
+}
+```
+
+#### 호출 해제
+```javascript
+// 밥 먹기 후 호출 해제
+if (updatedStats.fullness > 0) {
+  updatedStats = resetCallStatus(updatedStats, 'hunger');
+}
+```
+
+### 결과 / 성과
+- **자동 Care Mistake 판정**: 사용자가 오프라인 상태에서도 호출을 무시하면 자동으로 careMistakes 증가
+- **Independent State**: 각 호출 상태를 독립적으로 관리하여 정확한 타임아웃 계산
+- **시각적 피드백**: Call Icon과 Toast 메시지로 사용자에게 명확한 알림 제공
+- **반복 실수 계산**: Hunger/Strength는 타이머 주기를 고려하여 반복 실수를 정확히 계산
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+
+---
+
 ## [2025-12-23] 치료(Heal), 부상(Injury), 사망(Death), 단백질 과다(Overdose) 시스템 전면 구현
 
 ### 작업 유형

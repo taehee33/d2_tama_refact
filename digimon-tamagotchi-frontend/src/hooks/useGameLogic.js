@@ -350,4 +350,143 @@ export function addActivityLog(currentLogs = [], type, text) {
 
 export default getSleepStatus;
 
+/**
+ * 호출(Call) 상태를 체크하고 필요시 활성화한다.
+ * @param {Object} stats - 현재 디지몬 스탯
+ * @param {boolean} isLightsOn - 조명 상태
+ * @param {Object} sleepSchedule - 수면 스케줄
+ * @param {Date} now - 현재 시간
+ * @returns {Object} 업데이트된 스탯
+ */
+export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
+  let updatedStats = { ...stats };
+  
+  // callStatus 초기화
+  if (!updatedStats.callStatus) {
+    updatedStats.callStatus = {
+      hunger: { isActive: false, startedAt: null },
+      strength: { isActive: false, startedAt: null },
+      sleep: { isActive: false, startedAt: null }
+    };
+  }
+
+  const callStatus = updatedStats.callStatus;
+
+  // Hunger 호출 트리거
+  if (updatedStats.fullness === 0 && !callStatus.hunger.isActive) {
+    callStatus.hunger.isActive = true;
+    callStatus.hunger.startedAt = now.getTime();
+  }
+
+  // Strength 호출 트리거
+  if (updatedStats.strength === 0 && !callStatus.strength.isActive) {
+    callStatus.strength.isActive = true;
+    callStatus.strength.startedAt = now.getTime();
+  }
+
+  // Sleep 호출 트리거 (수면 시간이고 불이 켜져있을 때)
+  const hour = now.getHours();
+  const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
+  const isSleepTime = (() => {
+    if (start === end) return false;
+    if (start < end) return hour >= start && hour < end;
+    return hour >= start || hour < end;
+  })();
+
+  if (isSleepTime && isLightsOn && !callStatus.sleep.isActive) {
+    callStatus.sleep.isActive = true;
+    callStatus.sleep.startedAt = now.getTime();
+  }
+
+  return updatedStats;
+}
+
+/**
+ * 호출 상태를 리셋한다.
+ * @param {Object} stats - 현재 디지몬 스탯
+ * @param {string} callType - 'hunger' | 'strength' | 'sleep'
+ * @returns {Object} 업데이트된 스탯
+ */
+export function resetCallStatus(stats, callType) {
+  const updatedStats = { ...stats };
+  
+  if (!updatedStats.callStatus) {
+    updatedStats.callStatus = {
+      hunger: { isActive: false, startedAt: null },
+      strength: { isActive: false, startedAt: null },
+      sleep: { isActive: false, startedAt: null }
+    };
+  }
+
+  if (updatedStats.callStatus[callType]) {
+    updatedStats.callStatus[callType].isActive = false;
+    updatedStats.callStatus[callType].startedAt = null;
+  }
+
+  return updatedStats;
+}
+
+/**
+ * 호출 타임아웃을 체크하고 careMistakes를 증가시킨다.
+ * @param {Object} stats - 현재 디지몬 스탯
+ * @param {Date} now - 현재 시간
+ * @returns {Object} 업데이트된 스탯
+ */
+export function checkCallTimeouts(stats, now = new Date()) {
+  let updatedStats = { ...stats };
+  
+  if (!updatedStats.callStatus) {
+    return updatedStats;
+  }
+
+  const callStatus = updatedStats.callStatus;
+  const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  const SLEEP_CALL_TIMEOUT = 60 * 60 * 1000; // 60분
+
+  // Hunger 호출 타임아웃 체크
+  if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
+    const startedAt = typeof callStatus.hunger.startedAt === 'number'
+      ? callStatus.hunger.startedAt
+      : new Date(callStatus.hunger.startedAt).getTime();
+    const elapsed = now.getTime() - startedAt;
+    
+    if (elapsed > HUNGER_CALL_TIMEOUT) {
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+    }
+  }
+
+  // Strength 호출 타임아웃 체크
+  if (callStatus.strength.isActive && callStatus.strength.startedAt) {
+    const startedAt = typeof callStatus.strength.startedAt === 'number'
+      ? callStatus.strength.startedAt
+      : new Date(callStatus.strength.startedAt).getTime();
+    const elapsed = now.getTime() - startedAt;
+    
+    if (elapsed > STRENGTH_CALL_TIMEOUT) {
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      callStatus.strength.isActive = false;
+      callStatus.strength.startedAt = null;
+    }
+  }
+
+  // Sleep 호출 타임아웃 체크
+  if (callStatus.sleep.isActive && callStatus.sleep.startedAt) {
+    const startedAt = typeof callStatus.sleep.startedAt === 'number'
+      ? callStatus.sleep.startedAt
+      : new Date(callStatus.sleep.startedAt).getTime();
+    const elapsed = now.getTime() - startedAt;
+    
+    if (elapsed > SLEEP_CALL_TIMEOUT) {
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      callStatus.sleep.isActive = false;
+      callStatus.sleep.startedAt = null;
+    }
+  }
+
+  return updatedStats;
+}
+
 
