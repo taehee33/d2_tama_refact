@@ -116,6 +116,7 @@ function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
     wakeUntil: until,
     sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
   };
+  // 수면 방해 로그는 호출하는 쪽에서 추가 (액션별로 다른 메시지)
   setStatsCb(updated);
 }
 
@@ -455,13 +456,74 @@ function Game(){
         
         // 호출(Call) 시스템 체크 및 타임아웃 처리
         const sleepSchedule = getSleepSchedule(selectedDigimon);
+        const oldCallStatus = { ...prevStats.callStatus };
         updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date());
+        
+        // 호출 시작 로그 추가
+        if (!oldCallStatus?.hunger?.isActive && updatedStats.callStatus?.hunger?.isActive) {
+          const updatedLogs = addActivityLog(activityLogs, 'CALL', 'Call: Hungry!');
+          setActivityLogs(updatedLogs);
+        }
+        if (!oldCallStatus?.strength?.isActive && updatedStats.callStatus?.strength?.isActive) {
+          const updatedLogs = addActivityLog(activityLogs, 'CALL', 'Call: No Energy!');
+          setActivityLogs(updatedLogs);
+        }
+        if (!oldCallStatus?.sleep?.isActive && updatedStats.callStatus?.sleep?.isActive) {
+          const updatedLogs = addActivityLog(activityLogs, 'CALL', 'Call: Sleepy!');
+          setActivityLogs(updatedLogs);
+        }
+        
+        const oldCareMistakes = prevStats.careMistakes || 0;
         updatedStats = checkCallTimeouts(updatedStats, new Date());
+        
+        // 케어 미스 로그 추가 (호출 타임아웃)
+        if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
+          const mistakesAdded = (updatedStats.careMistakes || 0) - oldCareMistakes;
+          let logText = '';
+          if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
+            logText = `Care Mistake: Ignored Hunger Call (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
+          } else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
+            logText = `Care Mistake: Ignored Strength Call (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
+          } else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
+            logText = `Care Mistake: Lights left on (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
+          }
+          if (logText) {
+            const updatedLogs = addActivityLog(activityLogs, 'CARE_MISTAKE', logText);
+            setActivityLogs(updatedLogs);
+          }
+        }
+        
+        // 배변 로그 추가 (poopCount 증가 시)
+        const oldPoopCount = prevStats.poopCount || 0;
+        if ((updatedStats.poopCount || 0) > oldPoopCount) {
+          const newPoopCount = updatedStats.poopCount || 0;
+          let logText = `Pooped (Total: ${oldPoopCount}→${newPoopCount})`;
+          if (newPoopCount === 8 && updatedStats.isInjured) {
+            logText += ' - Injury: Too much poop (8 piles)';
+          }
+          const updatedLogs = addActivityLog(activityLogs, 'POOP', logText);
+          setActivityLogs(updatedLogs);
+        }
         
         // 사망 상태 변경 감지 (한 번만 자동으로 팝업 표시)
         if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
           setIsDeathModalOpen(true);
           setHasSeenDeathPopup(true);
+          // 사망 로그 추가
+          const reason = deathReason || 'Unknown';
+          const updatedLogs = addActivityLog(activityLogs, 'DEATH', `Death: Passed away (Reason: ${reason})`);
+          setActivityLogs(updatedLogs);
+          // Firestore에도 저장 (비동기 처리)
+          if(slotId && currentUser){
+            const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+            updateDoc(slotRef, {
+              digimonStats: { ...updatedStats, activityLogs: updatedLogs },
+              activityLogs: updatedLogs,
+              updatedAt: new Date(),
+            }).catch((error) => {
+              console.error("사망 로그 저장 오류:", error);
+            });
+          }
         }
         
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
@@ -734,7 +796,10 @@ function Game(){
     };
     
     const nx= initializeStats(newName, resetStats, digimonDataVer1);
-    await setDigimonStatsAndSave(nx);
+    const newDigimonData = digimonDataVer1[newName] || {};
+    const newDigimonName = newDigimonData.name || newName;
+    const updatedLogs = addActivityLog(activityLogs, 'EVOLUTION', `Evolution: Evolved to ${newDigimonName}!`);
+    await setDigimonStatsAndSave(nx, updatedLogs);
     await setSelectedDigimonAndSave(newName);
   }
 
@@ -770,6 +835,8 @@ function Game(){
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
       wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      const updatedLogs = addActivityLog(activityLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
+      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1 }, updatedLogs);
     }
     
     // 업데이트된 스탯으로 작업
@@ -781,6 +848,8 @@ function Game(){
         setCurrentAnimation("foodRejectRefuse");
         setShowFood(false);
         setFeedStep(0);
+        const updatedLogs = addActivityLog(activityLogs, 'FEED', 'Feed: Refused (Already stuffed)');
+        setDigimonStatsAndSave(updatedStats, updatedLogs);
         setTimeout(()=> setCurrentAnimation("idle"),2000);
         return;
       }
@@ -789,6 +858,8 @@ function Game(){
         setCurrentAnimation("foodRejectRefuse");
         setShowFood(false);
         setFeedStep(0);
+        const updatedLogs = addActivityLog(activityLogs, 'FEED', 'Feed: Refused (Already stuffed)');
+        setDigimonStatsAndSave(updatedStats, updatedLogs);
         setTimeout(()=> setCurrentAnimation("idle"),2000);
         return;
       }
@@ -805,6 +876,12 @@ function Game(){
       setShowFood(false);
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
+      const oldFullness = currentStats.fullness || 0;
+      const oldWeight = currentStats.weight || 0;
+      const oldStrength = currentStats.strength || 0;
+      const oldEnergy = currentStats.energy || 0;
+      const oldOverfeeds = currentStats.overfeeds || 0;
+      
       let updatedStats = applyEatResult(currentStats, type);
       
       // 호출 해제: fullness > 0이 되면 hunger 호출 리셋
@@ -816,8 +893,32 @@ function Game(){
         updatedStats = resetCallStatus(updatedStats, 'strength');
       }
       
-      // Activity Log 추가
-      const logText = type === "meat" ? "Fed Meat" : "Fed Protein";
+      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
+      const newFullness = updatedStats.fullness || 0;
+      const newWeight = updatedStats.weight || 0;
+      const newStrength = updatedStats.strength || 0;
+      const newEnergy = updatedStats.energy || 0;
+      const newOverfeeds = updatedStats.overfeeds || 0;
+      
+      // 델타 계산
+      const weightDelta = newWeight - oldWeight;
+      const fullnessDelta = newFullness - oldFullness;
+      const strengthDelta = newStrength - oldStrength;
+      const energyDelta = newEnergy - oldEnergy;
+      const overfeedsDelta = newOverfeeds - oldOverfeeds;
+      
+      let logText = '';
+      if (type === "meat") {
+        if (newOverfeeds > oldOverfeeds) {
+          logText = `Overfeed: Stuffed! (Wt +${weightDelta}g, Hun +${fullnessDelta}, Overfeed +${overfeedsDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness}, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
+        } else {
+          logText = `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
+        }
+      } else {
+        const energyText = energyDelta > 0 ? `, En +${energyDelta}` : '';
+        const energyResultText = newEnergy > oldEnergy ? `, En ${oldEnergy}→${newEnergy}` : '';
+        logText = `Feed: Protein (Wt +${weightDelta}g, Str +${strengthDelta}${energyText}) => (Wt ${oldWeight}→${newWeight}g, Str ${oldStrength}→${newStrength}${energyResultText})`;
+      }
       const updatedLogs = addActivityLog(activityLogs, 'FEED', logText);
       
       setDigimonStatsAndSave(updatedStats, updatedLogs);
@@ -855,6 +956,9 @@ function Game(){
       setShowPoopCleanAnimation(false);
       setCleanStep(0);
       const now = new Date();
+      const oldPoopCount = digimonStats.poopCount || 0;
+      const wasInjured = digimonStats.isInjured || false;
+      
       const updatedStats = {
         ...digimonStats,
         poopCount: 0,
@@ -864,7 +968,11 @@ function Game(){
       };
       
       // Activity Log 추가
-      const updatedLogs = addActivityLog(activityLogs, 'CLEAN', 'Cleaned Poop');
+      let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
+      if (wasInjured) {
+        logText += ' - Injury healed!';
+      }
+      const updatedLogs = addActivityLog(activityLogs, 'CLEAN', logText);
       
       setDigimonStats(updatedStats);
       if(slotId && currentUser){
@@ -899,12 +1007,25 @@ function Game(){
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
       wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      const updatedLogs = addActivityLog(activityLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
+      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1 }, updatedLogs);
     }
     
     setDigimonStats(updatedStats);
     
+    // 에너지 부족 체크
+    if ((updatedStats.energy || 0) <= 0) {
+      const updatedLogs = addActivityLog(activityLogs, 'TRAIN', 'Training: Skipped (Not enough Energy)');
+      setDigimonStatsAndSave(updatedStats, updatedLogs);
+      return;
+    }
+    
     // userSelections: 길이5의 "U"/"D" 배열
     // doVer1Training -> stats 업데이트
+    const oldWeight = updatedStats.weight || 0;
+    const oldStrength = updatedStats.strength || 0;
+    const oldEnergy = updatedStats.energy || 0;
+    
     const result= doVer1Training(updatedStats, userSelections);
     let finalStats = result.updatedStats;
     
@@ -913,8 +1034,22 @@ function Game(){
       finalStats = resetCallStatus(finalStats, 'strength');
     }
     
-    // Activity Log 추가
-    const logText = result.isSuccess ? `Training Success (${result.hits}/5 hits)` : `Training Failed (${result.hits}/5 hits)`;
+    // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
+    const newWeight = finalStats.weight || 0;
+    const newStrength = finalStats.strength || 0;
+    const newEnergy = finalStats.energy || 0;
+    
+    // 델타 계산
+    const weightDelta = newWeight - oldWeight;
+    const strengthDelta = newStrength - oldStrength;
+    const energyDelta = newEnergy - oldEnergy;
+    
+    let logText = '';
+    if (result.isSuccess) {
+      logText = `Training: Success (Str +${strengthDelta}, Wt ${weightDelta}g, En ${energyDelta}) => (Str ${oldStrength}→${newStrength}, Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
+    } else {
+      logText = `Training: Fail (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
+    }
     const updatedLogs = addActivityLog(activityLogs, 'TRAIN', logText);
     
     setDigimonStatsAndSave(finalStats, updatedLogs);
@@ -1176,18 +1311,26 @@ function Game(){
     setIsLightsOn(next);
     
     // 호출 해제: 불이 꺼지면 sleep 호출 리셋
+    let updatedStats = digimonStats;
     if (!next) {
-      const updatedStats = resetCallStatus(digimonStats, 'sleep');
+      updatedStats = resetCallStatus(digimonStats, 'sleep');
       setDigimonStats(updatedStats);
     }
+    
+    // Activity Log 추가
+    const logText = next ? 'Lights: ON' : 'Lights: OFF';
+    const updatedLogs = addActivityLog(activityLogs, 'ACTION', logText);
     
     if(slotId && currentUser){
       try{
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         await updateDoc(slotRef, {
           isLightsOn: next,
+          digimonStats: updatedStats,
+          activityLogs: updatedLogs,
           updatedAt: new Date(),
         });
+        setActivityLogs(updatedLogs);
       } catch (error){
         console.error("조명 상태 저장 오류:", error);
       }
@@ -1316,14 +1459,22 @@ function Game(){
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
       wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      const updatedLogs = addActivityLog(activityLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
+      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1 }, updatedLogs);
     }
     
     // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
+    const oldWeight = updatedStats.weight || 0;
+    const oldEnergy = updatedStats.energy || 0;
+    
     const battleStats = {
       ...updatedStats,
       weight: Math.max(0, (updatedStats.weight || 0) - 4),
       energy: Math.max(0, (updatedStats.energy || 0) - 1),
     };
+    
+    const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';
+    const rank = battleResult.rank || battleResult.enemy?.rank || '';
     
     if (battleResult.win) {
       // 승리 시 배틀 기록 업데이트
@@ -1346,12 +1497,22 @@ function Game(){
         finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
       }
       
-      // Activity Log 추가
-      let logText = battleResult.isAreaClear 
-        ? `Battle Won - Area Cleared! (${battleResult.reward || ''})`
-        : 'Battle Won';
+      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
+      const newWeight = battleStats.weight || 0;
+      const newEnergy = battleStats.energy || 0;
+      
+      // 델타 계산
+      const weightDelta = newWeight - oldWeight;
+      const energyDelta = newEnergy - oldEnergy;
+      
+      let logText = '';
+      if (battleResult.isAreaClear) {
+        logText = `Battle: Win vs ${enemyName} (Area Cleared! ${battleResult.reward || ''}) (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
+      } else {
+        logText = `Battle: Win vs ${enemyName}${rank ? ` (Rank ${rank})` : ''} (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
+      }
       if (isInjured) {
-        logText += ' - Injured during battle!';
+        logText += ' - Battle: Injured! (Chance hit)';
       }
       const updatedLogs = addActivityLog(activityLogs, 'BATTLE', logText);
       
@@ -1387,10 +1548,17 @@ function Game(){
         finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
       }
       
-      // Activity Log 추가
-      let logText = 'Battle Lost';
+      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
+      const newWeight = battleStats.weight || 0;
+      const newEnergy = battleStats.energy || 0;
+      
+      // 델타 계산
+      const weightDelta = newWeight - oldWeight;
+      const energyDelta = newEnergy - oldEnergy;
+      
+      let logText = `Battle: Loss vs ${enemyName} (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
       if (isInjured) {
-        logText += ' - Injured during battle!';
+        logText += ' - Battle: Injured! (Chance hit)';
       }
       const updatedLogs = addActivityLog(activityLogs, 'BATTLE', logText);
       
@@ -1538,7 +1706,7 @@ function Game(){
                 animation: "float 2s ease-in-out infinite",
               }}
             >
-              🏥부상🏥
+              🏥😵‍💫🏥
             </div>
           )}
           {/* 치료 연출 (주사기) */}
