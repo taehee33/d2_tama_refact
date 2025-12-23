@@ -4,6 +4,63 @@
 
 ---
 
+## [2025-12-23] Feature: Persisted Sprite Settings with Uniform Scale and Reset options
+
+### 작업 유형
+- 기능 구현
+- UI 개선
+- 사용자 경험 향상
+
+### 목적 및 영향
+스프라이트 크기 설정을 localStorage에 저장하여 사용자가 설정한 크기를 유지하고, Uniform Scale(비율 고정) 기능과 Reset Size 버튼을 추가하여 더 편리하게 스프라이트 크기를 조절할 수 있도록 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `loadSpriteSettings()` 함수 추가: localStorage에서 스프라이트 설정 로드
+  - `saveSpriteSettings()` 함수 추가: 스프라이트 설정을 localStorage에 저장
+  - `width`, `height` 초기값을 localStorage에서 로드하도록 수정
+  - `useEffect`로 width/height 변경 시 자동 저장
+  
+- `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+  - `uniformScale` state 추가: 비율 고정 체크박스 상태
+  - `aspectRatio` state 추가: 현재 비율 저장
+  - `handleUniformScaleToggle()` 함수 추가: 체크박스 토글 및 비율 기준점 설정
+  - `handleLocalWidthChange()` 수정: Uniform Scale 활성화 시 height 자동 조정
+  - `handleLocalHeightChange()` 수정: Uniform Scale 활성화 시 width 자동 조정
+  - `handleResetSize()` 함수 추가: 기본값(300x200)으로 리셋
+  - UI에 Uniform Scale 체크박스 추가
+  - UI에 Reset Size 버튼 추가
+  - Uniform Scale 슬라이더 제거 (체크박스 방식으로 변경)
+
+### 주요 기능
+
+#### 1. localStorage 저장/로드
+- **키**: `digimon_view_settings`
+- **저장 데이터**: `{ width: number, height: number }`
+- 앱 시작 시 자동 로드, 변경 시 자동 저장
+
+#### 2. Uniform Scale (비율 고정)
+- 체크박스로 활성화/비활성화
+- 활성화 시:
+  - Width 변경 → Height가 현재 비율에 맞춰 자동 조정
+  - Height 변경 → Width가 현재 비율에 맞춰 자동 조정
+  - 체크박스 활성화 시점의 비율을 기준점으로 사용
+
+#### 3. Reset Size 버튼
+- 클릭 시 Width와 Height를 기본값(300x200)으로 리셋
+- 즉시 적용 (Save 버튼 없이)
+
+### 사용자 경험 개선
+- 설정이 브라우저를 닫아도 유지됨
+- 비율을 유지하면서 크기 조절 가능
+- 한 번의 클릭으로 기본값으로 복원 가능
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+
+---
+
 ## [2025-12-23] Feature: Implemented Call System with Independent Timers and Lazy Mistake Calculation
 
 ### 작업 유형

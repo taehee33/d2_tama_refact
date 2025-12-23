@@ -143,9 +143,43 @@ function Game(){
   const [slotDevice, setSlotDevice]= useState("");
   const [slotVersion, setSlotVersion]= useState("");
 
-  // Canvas/UI
-  const [width, setWidth]= useState(300);
-  const [height, setHeight]= useState(200);
+  // Canvas/UI - localStorage에서 로드
+  const loadSpriteSettings = () => {
+    try {
+      const saved = localStorage.getItem('digimon_view_settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        return {
+          width: settings.width || 300,
+          height: settings.height || 200,
+        };
+      }
+    } catch (error) {
+      console.error('Sprite settings 로드 오류:', error);
+    }
+    return { width: 300, height: 200 };
+  };
+
+  const [width, setWidth]= useState(() => loadSpriteSettings().width);
+  const [height, setHeight]= useState(() => loadSpriteSettings().height);
+  
+  // Sprite 설정 저장 함수
+  const saveSpriteSettings = (newWidth, newHeight) => {
+    try {
+      const settings = {
+        width: newWidth,
+        height: newHeight,
+      };
+      localStorage.setItem('digimon_view_settings', JSON.stringify(settings));
+    } catch (error) {
+      console.error('Sprite settings 저장 오류:', error);
+    }
+  };
+  
+  // width/height 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveSpriteSettings(width, height);
+  }, [width, height]);
   const [backgroundNumber, setBackgroundNumber]= useState(162);
   const [currentAnimation, setCurrentAnimation]= useState("idle");
 
