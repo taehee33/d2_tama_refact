@@ -28,7 +28,7 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
   merged.strength = oldStats.strength !== undefined ? oldStats.strength : merged.strength;
   merged.effort = oldStats.effort !== undefined ? oldStats.effort : merged.effort;
 
-  // trainingCount는 새 디지몬 생성(진화) 시 무조건 0
+  // trainings는 새 디지몬 생성(진화) 시 무조건 0
   merged.trainings = 0;
   merged.overfeeds = 0;
   merged.sleepDisturbances = 0;

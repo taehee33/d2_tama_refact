@@ -39,9 +39,9 @@ export default function TrainPopup({
   // === (1) 훈련 시작 ===
   function startTrain() {
     // 1~6번 패턴 순환
-    // -> trainingCount를 사용 (기존 stats에 누적)
+    // -> trainings를 사용 (기존 stats에 누적)
     // -> 0이면 1번 패턴, 1이면 2번 패턴... 5면 6번 패턴, 6이면 다시 1번
-    const tCount = digimonStats.trainingCount || 0;
+    const tCount = digimonStats.trainings || 0;
     const patternIndex = tCount % 6; // 0~5
     const pattern = defensePatterns[patternIndex];
 

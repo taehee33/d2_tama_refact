@@ -179,7 +179,7 @@ function checkConditions(conditions, stats, missingConditions) {
 
   // trainings 체크
   if (conditions.trainings !== undefined) {
-    const val = stats.trainings || stats.trainingCount || 0;
+    const val = stats.trainings || 0;
     if (conditions.trainings.min !== undefined && val < conditions.trainings.min) {
       missingConditions.push(`훈련 (현재: ${val}, 필요: >= ${conditions.trainings.min})`);
       allMet = false;

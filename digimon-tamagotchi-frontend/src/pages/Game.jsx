@@ -32,13 +32,16 @@ import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 // Deprecated: evolutionConditionsVer1은 더 이상 사용하지 않음 (Data-Driven 방식으로 전환)
 // import { evolutionConditionsVer1 } from "../data/evolution_digitalmonstercolor25th_ver1";
 // 매뉴얼 기반 스탯 로직 import
-import { handleHungerTick, feedMeat, willRefuseMeat } from "../logic/stats/hunger";
+import { handleHungerTick } from "../logic/stats/hunger";
+import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { handleStrengthTick, feedProtein, willRefuseProtein } from "../logic/stats/strength";
 // 매뉴얼 기반 진화 판정 로직 import
 import { checkEvolution, findEvolutionTarget } from "../logic/evolution/checker";
 // 훈련 로직 (Ver1) import
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
-import TrainPopup from "../components/TrainPopup"; 
+import TrainPopup from "../components/TrainPopup";
+// 배틀 부상 확률 계산 import
+import { calculateInjuryChance } from "../logic/battle/calculator"; 
 
 // 호환성을 위해 새 데이터를 옛날 형식으로 변환
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
@@ -210,6 +213,10 @@ function Game(){
   const [activityLogs, setActivityLogs] = useState([]);
   const tiredStartRef = useRef(null);
   const tiredCountedRef = useRef(false);
+
+  // 치료 애니메이션 상태
+  const [showHealAnimation, setShowHealAnimation] = useState(false);
+  const [healStep, setHealStep] = useState(0);
 
   // 로딩 상태 관리
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -409,7 +416,26 @@ function Game(){
           const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
           if(elapsed >= 43200){
             updatedStats.isDead = true;
-            setDeathReason('INJURY (부상 과다)');
+            setDeathReason('EXHAUSTION (힘 소진)');
+          }
+        }
+        
+        // 부상 과다 사망 체크: injuries >= 15
+        if((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead){
+          updatedStats.isDead = true;
+          setDeathReason('INJURY OVERLOAD (부상 과다: 15회)');
+        }
+        
+        // 부상 방치 사망 체크: isInjured 상태이고 6시간 경과
+        if(updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead){
+          const injuredTime = typeof updatedStats.injuredAt === 'number'
+            ? updatedStats.injuredAt
+            : new Date(updatedStats.injuredAt).getTime();
+          const elapsedSinceInjury = Date.now() - injuredTime;
+          
+          if(elapsedSinceInjury >= 21600000){ // 6시간 = 21600000ms
+            updatedStats.isDead = true;
+            setDeathReason('INJURY NEGLECT (부상 방치: 6시간)');
           }
         }
         
@@ -508,7 +534,17 @@ function Game(){
           } else if(updated.strength === 0 && updated.lastStrengthZeroAt){
             const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
             if(elapsed >= 43200){
-              setDeathReason('INJURY (부상 과다)');
+              setDeathReason('EXHAUSTION (힘 소진)');
+            }
+          } else if((updated.injuries || 0) >= 15){
+            setDeathReason('INJURY OVERLOAD (부상 과다: 15회)');
+          } else if(updated.isInjured && updated.injuredAt){
+            const injuredTime = typeof updated.injuredAt === 'number'
+              ? updated.injuredAt
+              : new Date(updated.injuredAt).getTime();
+            const elapsedSinceInjury = Date.now() - injuredTime;
+            if(elapsedSinceInjury >= 21600000){
+              setDeathReason('INJURY NEGLECT (부상 방치: 6시간)');
             }
           } else {
             setDeathReason('OLD AGE (수명 다함)');
@@ -683,7 +719,7 @@ function Game(){
       injuries: 0,
       trainings: 0,
       sleepDisturbances: 0,
-      trainingCount: 0,
+      trainings: 0,
     };
     
     const nx= initializeStats(newName, resetStats, digimonDataVer1);
@@ -931,10 +967,78 @@ function Game(){
       case "battle":
         setShowBattleSelectionModal(true);
         break;
+      case "heal":
+        handleHeal();
+        break;
       default:
         console.log("menu:", menu);
     }
   };
+
+  // 치료(Heal) 액션
+  async function handleHeal() {
+    const updatedStats = await applyLazyUpdateBeforeAction();
+    if (updatedStats.isDead) return;
+    
+    // 수면 중 치료 시도 시 수면 방해 처리
+    const schedule = getSleepSchedule(selectedDigimon);
+    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    if (nowSleeping) {
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'CARE_MISTAKE', 'Sleep Disturbance: Healed while sleeping');
+      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+    }
+    
+    setDigimonStats(updatedStats);
+    
+    // 부상이 없으면 치료 불가
+    if (!updatedStats.isInjured) {
+      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', 'Not injured!');
+      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+      alert("Not injured!");
+      return;
+    }
+    
+    // 치료 연출 시작
+    setShowHealAnimation(true);
+    setHealStep(0);
+    healCycle(0, updatedStats);
+  }
+  
+  async function healCycle(step, currentStats) {
+    if (step >= 1) {
+      setShowHealAnimation(false);
+      setHealStep(0);
+      
+      // 치료 로직
+      const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
+      const requiredDoses = currentDigimonData.stats?.healDoses || 1; // 기본값 1
+      const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
+      
+      let updatedStats = {
+        ...currentStats,
+        healedDosesCurrent: newHealedDoses,
+      };
+      
+      // 필요 치료 횟수 충족 시 완전 회복
+      if (newHealedDoses >= requiredDoses) {
+        updatedStats.isInjured = false;
+        updatedStats.injuredAt = null;
+        updatedStats.healedDosesCurrent = 0;
+        
+        const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', 'Fully Healed!');
+        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+        alert("Fully Healed!");
+      } else {
+        const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', `Need more medicine... (${newHealedDoses}/${requiredDoses})`);
+        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+      }
+      return;
+    }
+    
+    setHealStep(step);
+    setTimeout(() => healCycle(step + 1, currentStats), 500);
+  }
 
   // 수면 상태 계산 및 TIRED 케어미스 처리
   useEffect(() => {
@@ -1194,10 +1298,25 @@ function Game(){
         battlesForEvolution: (battleStats.battlesForEvolution || 0) + 1,
       };
       
+      // 부상 확률 체크 (승리 시 20%)
+      const proteinOverdose = battleStats.proteinOverdose || 0;
+      const injuryChance = calculateInjuryChance(true, proteinOverdose);
+      const isInjured = Math.random() * 100 < injuryChance;
+      
+      if (isInjured) {
+        finalStats.isInjured = true;
+        finalStats.injuredAt = Date.now();
+        finalStats.injuries = (battleStats.injuries || 0) + 1;
+        finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+      }
+      
       // Activity Log 추가
-      const logText = battleResult.isAreaClear 
+      let logText = battleResult.isAreaClear 
         ? `Battle Won - Area Cleared! (${battleResult.reward || ''})`
         : 'Battle Won';
+      if (isInjured) {
+        logText += ' - Injured during battle!';
+      }
       const updatedLogs = addActivityLog(activityLogs, 'BATTLE', logText);
       
       setDigimonStatsAndSave(finalStats, updatedLogs);
@@ -1220,8 +1339,24 @@ function Game(){
         battlesLost: (battleStats.battlesLost || 0) + 1,
       };
       
+      // 부상 확률 체크 (패배 시 10% + 프로틴 과다 * 10%, 최대 80%)
+      const proteinOverdose = battleStats.proteinOverdose || 0;
+      const injuryChance = calculateInjuryChance(false, proteinOverdose);
+      const isInjured = Math.random() * 100 < injuryChance;
+      
+      if (isInjured) {
+        finalStats.isInjured = true;
+        finalStats.injuredAt = Date.now();
+        finalStats.injuries = (battleStats.injuries || 0) + 1;
+        finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+      }
+      
       // Activity Log 추가
-      const updatedLogs = addActivityLog(activityLogs, 'BATTLE', 'Battle Lost');
+      let logText = 'Battle Lost';
+      if (isInjured) {
+        logText += ' - Injured during battle!';
+      }
+      const updatedLogs = addActivityLog(activityLogs, 'BATTLE', logText);
       
       setDigimonStatsAndSave(finalStats, updatedLogs);
     }
@@ -1348,6 +1483,42 @@ function Game(){
               }}
             >
               {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
+            </div>
+          )}
+          {/* 부상 상태 아이콘 (해골) */}
+          {digimonStats.isInjured && !digimonStats.isDead && (
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                left: 8,
+                zIndex: 4,
+                background: "rgba(255,0,0,0.6)",
+                color: "white",
+                padding: "4px 8px",
+                borderRadius: 8,
+                fontWeight: "bold",
+                fontSize: 16,
+                animation: "float 2s ease-in-out infinite",
+              }}
+            >
+              💀
+            </div>
+          )}
+          {/* 치료 연출 (주사기) */}
+          {showHealAnimation && (
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 5,
+                fontSize: 32,
+                animation: "fadeInOut 1.5s ease-in-out",
+              }}
+            >
+              💉
             </div>
           )}
         <Canvas

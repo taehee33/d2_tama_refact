@@ -24,14 +24,20 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     ? oldStats.effort
     : merged.effort;
 
-  // ★ trainingCount는 새 디지몬 생성(진화) 시 무조건 0
-  merged.trainingCount = 0;
+  // ★ trainings는 새 디지몬 생성(진화) 시 무조건 0
+  merged.trainings = 0;
 
   // 매뉴얼 기반 필드 초기화 (진화 시 리셋되는 필드)
   merged.overfeeds = 0;
-  merged.proteinOverdose = 0;
+  merged.consecutiveMeatFed = 0; // 오버피드 연속 카운트도 리셋
+  merged.proteinCount = 0; // 단백질 누적 개수 리셋
+  merged.proteinOverdose = 0; // 단백질 과다 리셋
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
+  merged.injuries = 0; // 부상 횟수 리셋
+  merged.isInjured = false; // 부상 상태 리셋
+  merged.injuredAt = null; // 부상 시간 리셋
+  merged.healedDosesCurrent = 0; // 치료제 횟수 리셋
   
   // 매뉴얼 기반 필드 초기화 (진화 시 유지되는 필드)
   merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
@@ -226,11 +232,20 @@ export function applyLazyUpdate(stats, lastSavedAt) {
             const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
             updatedStats.lastMaxPoopTime = timeToMax;
             // 똥 8개가 되면 부상 상태로 설정
-            updatedStats.isInjured = true;
+            if (!updatedStats.isInjured) {
+              // 처음 부상 발생 시에만 injuries 증가 및 시간 기록
+              updatedStats.isInjured = true;
+              updatedStats.injuredAt = timeToMax;
+              updatedStats.injuries = (updatedStats.injuries || 0) + 1;
+              updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+            }
           } else {
             // 이미 8개였고, 계속 8개 이상이면 부상 상태 유지
-            if (updatedStats.poopCount >= 8) {
+            if (updatedStats.poopCount >= 8 && !updatedStats.isInjured) {
               updatedStats.isInjured = true;
+              updatedStats.injuredAt = now.getTime();
+              updatedStats.injuries = (updatedStats.injuries || 0) + 1;
+              updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
             }
           }
           updatedStats.poopCountdown += updatedStats.poopTimer * 60;
@@ -266,6 +281,23 @@ export function applyLazyUpdate(stats, lastSavedAt) {
   } else if (updatedStats.strength > 0) {
     // 힘이 다시 채워지면 리셋
     updatedStats.lastStrengthZeroAt = null;
+  }
+
+  // 부상 과다 사망 체크: injuries >= 15
+  if ((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead) {
+    updatedStats.isDead = true;
+  }
+
+  // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
+  if (updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead) {
+    const injuredTime = typeof updatedStats.injuredAt === 'number'
+      ? updatedStats.injuredAt
+      : new Date(updatedStats.injuredAt).getTime();
+    const elapsedSinceInjury = now.getTime() - injuredTime;
+    
+    if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
+      updatedStats.isDead = true;
+    }
   }
 
   // 나이 업데이트 (자정 경과 확인)

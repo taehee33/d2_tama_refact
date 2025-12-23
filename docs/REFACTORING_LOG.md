@@ -4,6 +4,233 @@
 
 ---
 
+## [2025-12-23] 치료(Heal), 부상(Injury), 사망(Death), 단백질 과다(Overdose) 시스템 전면 구현
+
+### 작업 유형
+- 기능 구현
+- 시스템 확장
+- UI 개선
+
+### 목적 및 영향
+치료, 부상, 사망, 단백질 과다 시스템을 전면 구현하여 게임의 깊이와 전략성을 향상시켰습니다. 부상 발생 조건, 치료 시스템, 사망 조건을 명확히 정의하고 UI로 시각화했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `proteinCount: 0` 추가 (먹인 단백질 누적 개수)
+  - `injuredAt: null` 추가 (부상 당한 시각)
+  - `injuries: 0` 추가 (누적 부상 횟수)
+  - `healedDosesCurrent: 0` 추가 (현재 투여된 치료제 횟수)
+  
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+  - 진화 시 `proteinCount`, `injuries`, `isInjured`, `injuredAt`, `healedDosesCurrent` 리셋 추가
+  - 똥 8개 부상 발생 시 `injuries +1`, `injuredAt` 기록, `healedDosesCurrent` 리셋
+  - 부상 과다 사망 체크: `injuries >= 15`
+  - 부상 방치 사망 체크: `isInjured` 상태이고 6시간(21600000ms) 경과
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `showHealAnimation`, `healStep` 상태 추가
+  - `handleHeal()` 함수 구현 (치료 액션)
+  - `healCycle()` 함수 구현 (치료 연출)
+  - `handleMenuClick`에 "heal" 케이스 추가
+  - 배틀 부상 발생 시 `injuries +1`, `healedDosesCurrent` 리셋
+  - 사망 체크 로직에 부상 과다/방치 조건 추가
+  - 해골 아이콘 UI 추가 (부상 상태 표시)
+  - 치료 연출 UI 추가 (주사기, 알약, 반짝임)
+  
+- `digimon-tamagotchi-frontend/src/index.css`
+  - `@keyframes float` 애니메이션 추가 (해골 아이콘)
+  - `@keyframes fadeInOut` 애니메이션 추가 (치료 연출)
+
+### 주요 기능
+
+#### 1. 데이터 스키마 확장
+- **부상 관련 필드**:
+  - `isInjured` (Bool): 현재 부상 여부
+  - `injuredAt` (Timestamp): 부상 당한 시각 (6시간 사망 체크용)
+  - `injuries` (Number): 이 단계에서 누적된 부상 횟수 (15회 사망 체크용)
+  - `healedDosesCurrent` (Number): 현재 투여된 치료제 횟수
+  
+- **단백질 과다 필드**:
+  - `proteinCount` (Number): 먹인 단백질 누적 개수
+  - `proteinOverdose` (Number): 단백질 과다 수치 (4개당 +1, 최대 7)
+
+#### 2. 단백질 과다 로직
+- 단백질을 먹일 때마다 `proteinCount +1`
+- `proteinCount % 4 === 0`이 될 때마다 `proteinOverdose +1` 증가 (최대 7)
+- 진화 시 `proteinCount`, `proteinOverdose` 리셋
+
+#### 3. 부상 발생 로직
+- **Case A: 배틀 (`handleBattleComplete`)**:
+  - 승리 시: 20% 확률로 부상
+  - 패배 시: `10 + (proteinOverdose * 10)`% 확률로 부상 (최대 80%)
+  - 부상 발생 시: `isInjured = true`, `injuredAt = Date.now()`, `injuries +1`, `healedDosesCurrent = 0`
+  
+- **Case B: 똥 (`applyLazyUpdate`)**:
+  - 똥(`poopCount`)이 8개가 되면 즉시 `isInjured = true`
+  - 처음 부상 발생 시에만 `injuries +1`, `injuredAt` 기록, `healedDosesCurrent = 0`
+
+#### 4. 사망(Death) 체크 로직
+- 기존 사망 로직에 다음 조건 추가:
+  1. **부상 과다**: `injuries >= 15` 이면 사망 (`isDead = true`)
+  2. **부상 방치**: `isInjured` 상태이고, `Date.now() - injuredAt >= 6시간(21600000ms)` 이면 사망
+
+#### 5. 치료(Heal) 액션 구현
+- 'Bandage' 아이콘 클릭 시 실행
+- `isInjured`가 false면 "Not injured!" 알림
+- `isInjured`가 true면:
+  - `healedDosesCurrent +1`
+  - 현재 디지몬의 필요 치료 횟수(`digimonData.stats.healDoses`)와 비교
+  - **충족 시**: `isInjured = false`, `injuredAt = null`, `healedDosesCurrent = 0`, "Fully Healed!" 알림
+  - **미충족 시**: "Need more medicine... (현재/필요)" 알림 (아직 부상 상태 유지)
+- 수면 중 치료 시도 시 수면 방해 처리
+
+#### 6. UI 구현
+- **해골 아이콘**: `isInjured`가 true일 때 디지몬 옆에 '💀' 아이콘이 둥둥 떠있게 표시 (좌측 상단)
+- **치료 연출**: 치료 버튼 클릭 시 주사기(💉), 알약(💊), 반짝임(✨) 이모지가 잠깐 나타났다 사라지는 연출
+
+### 기술적 세부 사항
+
+#### 부상 발생 시 처리
+```javascript
+if (isInjured) {
+  finalStats.isInjured = true;
+  finalStats.injuredAt = Date.now();
+  finalStats.injuries = (battleStats.injuries || 0) + 1;
+  finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+}
+```
+
+#### 사망 체크 로직
+```javascript
+// 부상 과다 사망 체크: injuries >= 15
+if ((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead) {
+  updatedStats.isDead = true;
+}
+
+// 부상 방치 사망 체크: isInjured 상태이고 6시간 경과
+if (updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead) {
+  const elapsedSinceInjury = now.getTime() - injuredTime;
+  if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
+    updatedStats.isDead = true;
+  }
+}
+```
+
+#### 치료 로직
+```javascript
+const requiredDoses = currentDigimonData.stats?.healDoses || 1;
+const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
+
+if (newHealedDoses >= requiredDoses) {
+  // 완전 회복
+  updatedStats.isInjured = false;
+  updatedStats.injuredAt = null;
+  updatedStats.healedDosesCurrent = 0;
+}
+```
+
+### 결과 / 성과
+- **시스템 완성도 향상**: 부상, 치료, 사망 시스템이 완전히 구현됨
+- **게임 깊이 증가**: 전략적 요소 추가 (치료 타이밍, 부상 관리)
+- **시각적 피드백**: 해골 아이콘과 치료 연출로 상태를 명확히 표시
+- **Ver.1 스펙 준수**: 매뉴얼 기반 로직 구현
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+
+---
+
+## [2025-12-23] 배틀 부상 확률 로직 구현, 오버피드 저장, 변수명 통일 (Ver.1 완벽 구현)
+
+### 작업 유형
+- 기능 구현
+- 버그 수정
+- 변수명 통일
+
+### 목적 및 영향
+배틀 부상 확률 로직을 Ver.1 스펙에 맞게 구현하고, 오버피드 연속성을 보장하며, 변수명을 통일하여 코드 일관성을 향상시켰습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 배틀 부상 확률 로직 구현: 승리 시 20%, 패배 시 10% + (프로틴 과다 * 10%) 확률
+  - `calculateInjuryChance` 함수 import 및 사용
+  - 부상 발생 시 Activity Log에 "Injured during battle!" 기록
+  - `feedMeat` import 경로 수정 (`logic/food/meat.js`)
+  
+- `digimon-tamagotchi-frontend/src/data/train_digitalmonstercolor25th_ver1.js`
+  - `trainingCount` 제거, `trainings`로 통일
+  - `effort` 증가 로직을 `trainings` 기준으로 수정 (4회마다)
+  
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+  - `trainingCount` → `trainings`로 변경
+  - `consecutiveMeatFed` 초기화 추가 (진화 시 리셋)
+  
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `consecutiveMeatFed: 0` 필드 추가
+  
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+  - `trainingCount` fallback 제거, `trainings`만 사용
+  
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js`
+  - `trainingCount` fallback 제거, `trainings`만 사용
+  
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `trainingCount` → `trainings`로 변경
+  
+- `digimon-tamagotchi-frontend/src/components/TrainPopup.jsx`
+  - `trainingCount` → `trainings`로 변경
+
+### 주요 기능
+
+#### 1. 배틀 부상 확률 로직
+- **승리 시**: 20% 확률로 부상 발생
+- **패배 시**: `10 + (proteinOverdose * 10)`% 확률로 부상 발생 (최대 80%)
+- 부상 발생 시 `isInjured = true`, `injuredAt = Date.now()` 설정
+- Activity Log에 "Injured during battle!" 기록
+
+#### 2. 오버피드 연속성 보장
+- `consecutiveMeatFed` 필드를 `defaultStatsFile.js`에 추가
+- Firestore에 `consecutiveMeatFed` 저장 (새로고침 해도 연속 카운트 유지)
+- 진화 시 `consecutiveMeatFed` 리셋
+
+#### 3. 변수명 통일
+- 프로젝트 전체에서 `trainingCount` → `trainings`로 통일
+- `effort` 증가 로직을 `trainings` 기준으로 수정 (4회마다)
+
+### 기술적 세부 사항
+
+#### 배틀 부상 확률 계산
+```javascript
+const proteinOverdose = battleStats.proteinOverdose || 0;
+const injuryChance = calculateInjuryChance(battleResult.win, proteinOverdose);
+const isInjured = Math.random() * 100 < injuryChance;
+```
+
+#### 오버피드 연속성
+- `consecutiveMeatFed`는 `digimonStats`에 포함되어 Firestore에 자동 저장됨
+- `setDigimonStatsAndSave()`를 통해 모든 스탯과 함께 저장
+
+### 결과 / 성과
+- **Ver.1 스펙 완벽 구현**: 배틀 부상 확률 로직이 매뉴얼과 일치
+- **오버피드 연속성 보장**: 새로고침 해도 연속 카운트 유지
+- **변수명 통일**: `trainings`로 통일하여 코드 일관성 향상
+- **코드 품질 향상**: 불필요한 fallback 제거
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/data/train_digitalmonstercolor25th_ver1.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/logic/battle/hitrate.js`
+- `digimon-tamagotchi-frontend/src/logic/food/meat.js`
+
+---
+
 ## [2025-12-23] StatsPanel/Popup UI 개편 및 변수명 통일, Ver.1 상세 스펙 뷰 구현
 
 ### 작업 유형

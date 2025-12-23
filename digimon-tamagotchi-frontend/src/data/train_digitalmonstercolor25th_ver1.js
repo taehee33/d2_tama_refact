@@ -41,10 +41,9 @@ export function doVer1Training(digimonStats, partialResults) {
   
     // 훈련 횟수++ (성공/실패 무관하게)
     s.trainings = (s.trainings || 0) + 1;
-    s.trainingCount = (s.trainingCount || 0) + 1; // 호환성 유지
   
-    // 4회마다 effort+1
-    if (s.trainingCount % 4 === 0) {
+    // 4회마다 effort+1 (trainings 기준)
+    if (s.trainings % 4 === 0) {
       s.effort = Math.min(5, (s.effort || 0) + 1);
     }
   

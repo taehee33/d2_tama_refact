@@ -165,3 +165,21 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats,
   };
 }
 
+/**
+ * 부상 확률 계산
+ * 매뉴얼: "you have a 20% chance of getting injured when you win, and a 10% chance when you lose."
+ * "That 10% chance is increased by 10% for every Protein Overdose you have, for a maximum of 80%."
+ * 
+ * @param {boolean} won - 승리 여부
+ * @param {number} proteinOverdose - 프로틴 과다 수치
+ * @returns {number} 부상 확률 (0-100)
+ */
+export function calculateInjuryChance(won, proteinOverdose) {
+  if (won) {
+    return 20; // 승리 시 20%
+  } else {
+    // 패배 시 10% + (프로틴 과다 * 10%)
+    return Math.min(80, 10 + (proteinOverdose || 0) * 10);
+  }
+}
+

@@ -135,7 +135,7 @@ export function checkEvolutionAvailability(currentStats, requirements) {
 
   // 훈련 횟수 체크 (min과 max를 한 줄로 통합)
   if (requirements.minTrainings !== undefined || requirements.maxTrainings !== undefined) {
-    const trainings = currentStats.trainings || currentStats.trainingCount || 0;
+    const trainings = currentStats.trainings || 0;
     const min = requirements.minTrainings;
     const max = requirements.maxTrainings;
     let isMet = true;

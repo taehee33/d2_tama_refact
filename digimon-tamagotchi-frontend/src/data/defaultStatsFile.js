@@ -23,6 +23,7 @@ export const defaultStats = {
   
     maxOverfeed: 0,
     overfeeds: 0, // 오버피드 횟수 누적
+    consecutiveMeatFed: 0, // 연속으로 먹은 고기 개수 (오버피드 체크용)
     isDead: false,
     lastHungerZeroAt: null,
   
@@ -35,10 +36,14 @@ export const defaultStats = {
     altAttackSprite: 65535,
     
     // 매뉴얼 기반 추가 필드
-    proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7)
+    proteinCount: 0, // 먹인 단백질 누적 개수
+    proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7, 4개당 +1)
     battles: 0, // 총 배틀 횟수 (진화 조건용)
     battlesWon: 0, // 총 승리 횟수 (진화 조건용)
     battlesLost: 0, // 총 패배 횟수 (진화 조건용)
     battlesForEvolution: 0, // 진화를 위한 배틀 횟수 (진화 시 리셋)
-    isInjured: false, // 부상 상태 (똥 8개 시 true)
+    isInjured: false, // 부상 상태 (똥 8개, 배틀 부상 시 true)
+    injuredAt: null, // 부상 당한 시각 (6시간 사망 체크용)
+    injuries: 0, // 이 단계에서 누적된 부상 횟수 (15회 사망 체크용)
+    healedDosesCurrent: 0, // 현재 투여된 치료제 횟수
   };

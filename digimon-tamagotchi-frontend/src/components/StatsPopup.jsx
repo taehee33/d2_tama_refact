@@ -53,7 +53,6 @@ export default function StatsPopup({
     energy,
     poopCount=0,
     lastMaxPoopTime,
-    trainingCount=0,
     trainings=0,
     overfeeds=0,
     sleepDisturbances=0,
@@ -159,7 +158,7 @@ export default function StatsPopup({
           <li>Power: {power || 0}</li>
           <li>Attack Sprite: {attackSprite || 0}</li>
           <li>Alt Attack Sprite: {altAttackSprite || 0}</li>
-          <li>Training: {trainingCount}회</li>
+          <li>Training: {trainings}회</li>
 
           <li>PoopCount: {poopCount}</li>
           {/* ★ lastMaxPoopTime 표시 */}
@@ -282,7 +281,7 @@ export default function StatsPopup({
         <h3 className="font-bold text-base mb-2">4. 진화 판정 카운터</h3>
         <ul className="space-y-1">
           <li>Care Mistakes: {careMistakes || 0}</li>
-          <li>Training Count: {trainings || trainingCount || 0}</li>
+          <li>Training Count: {trainings || 0}</li>
           <li>Overfeeds: {overfeeds || 0}</li>
           <li>Sleep Disturbances: {sleepDisturbances || 0}</li>
           <li>Total Battles: {battles || 0} (Wins: {battlesWon || 0}, Losses: {battlesLost || 0})</li>
