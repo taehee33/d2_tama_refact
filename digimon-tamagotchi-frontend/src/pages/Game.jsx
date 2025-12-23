@@ -21,6 +21,7 @@ import ArenaScreen from "../components/ArenaScreen";
 import AdminModal from "../components/AdminModal";
 import DeathPopup from "../components/DeathPopup";
 import DigimonInfoModal from "../components/DigimonInfoModal";
+import HealModal from "../components/HealModal";
 import { initializeActivityLogs, addActivityLog } from "../hooks/useGameLogic";
 import { quests } from "../data/v1/quests";
 
@@ -252,6 +253,8 @@ function Game(){
   // 치료 애니메이션 상태
   const [showHealAnimation, setShowHealAnimation] = useState(false);
   const [healStep, setHealStep] = useState(0);
+  // 치료 모달 상태
+  const [showHealModal, setShowHealModal] = useState(false);
 
   // 호출(Call) 팝업 상태
   const [showCallModal, setShowCallModal] = useState(false);
@@ -1069,6 +1072,7 @@ function Game(){
     }
     
     // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
+    // 훈련 결과가 확정된 바로 그 시점에 로그 생성
     const newWeight = finalStats.weight || 0;
     const newStrength = finalStats.strength || 0;
     const newEnergy = finalStats.energy || 0;
@@ -1078,15 +1082,21 @@ function Game(){
     const strengthDelta = newStrength - oldStrength;
     const energyDelta = newEnergy - oldEnergy;
     
+    // 로그 포맷 엄격히 지키기
     let logText = '';
     if (result.isSuccess) {
       logText = `Training: Success (Str +${strengthDelta}, Wt ${weightDelta}g, En ${energyDelta}) => (Str ${oldStrength}→${newStrength}, Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
     } else {
       logText = `Training: Fail (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
     }
-    const updatedLogs = addActivityLog(activityLogs, 'TRAIN', logText);
     
-    setDigimonStatsAndSave(finalStats, updatedLogs);
+    // activityLogs를 최신 상태로 가져와서 로그 추가
+    const currentLogs = finalStats.activityLogs || activityLogs || [];
+    const updatedLogs = addActivityLog(currentLogs, 'TRAIN', logText);
+    
+    // 로그를 포함한 최종 스탯 저장
+    const finalStatsWithLogs = { ...finalStats, activityLogs: updatedLogs };
+    setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs);
     // 그냥 콘솔
     console.log("훈련 결과:", result);
   }
@@ -1189,11 +1199,21 @@ function Game(){
     
     setDigimonStats(updatedStats);
     
-    // 부상이 없으면 치료 불가
+    // 부상이 없으면 치료 불가 - 모달로 표시
     if (!updatedStats.isInjured) {
-      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', 'Not injured!');
-      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-      alert("Not injured!");
+      setShowHealModal(true);
+      return;
+    }
+    
+    // 치료 모달 열기
+    setShowHealModal(true);
+  }
+  
+  // 치료 모달에서 실제 치료 실행
+  async function executeHeal() {
+    const updatedStats = await applyLazyUpdateBeforeAction();
+    if (updatedStats.isDead || !updatedStats.isInjured) {
+      setShowHealModal(false);
       return;
     }
     
@@ -1226,11 +1246,15 @@ function Game(){
         
         const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', 'Fully Healed!');
         setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-        alert("Fully Healed!");
+        // 모달은 유지하되 상태 업데이트 (완치 메시지 표시)
       } else {
         const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', `Need more medicine... (${newHealedDoses}/${requiredDoses})`);
         setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+        // 모달은 유지하되 상태 업데이트 (진행 중 메시지 표시)
       }
+      
+      // 스탯 업데이트하여 모달이 최신 상태를 반영하도록 함
+      setDigimonStats(updatedStats);
       return;
     }
     
@@ -2190,6 +2214,17 @@ function Game(){
           digimonDataMap={newDigimonDataVer1}
           activityLogs={activityLogs}
           onClose={() => setShowDigimonInfo(false)}
+        />
+      )}
+
+      {/* Heal Modal */}
+      {showHealModal && (
+        <HealModal
+          isInjured={digimonStats.isInjured || false}
+          currentDoses={digimonStats.healedDosesCurrent || 0}
+          requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
+          onHeal={executeHeal}
+          onClose={() => setShowHealModal(false)}
         />
       )}
 
