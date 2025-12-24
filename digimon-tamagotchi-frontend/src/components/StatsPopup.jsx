@@ -1,5 +1,6 @@
 // src/components/StatsPopup.jsx
 import React, { useState } from "react";
+import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 
 // 시간 포맷 (일/분/초)
 function formatTime(sec=0){
@@ -27,11 +28,8 @@ function fullnessDisplay(fullness=0, maxOverfeed=0){
   return `${base}${over>0 ? "(+" + over + ")" : ""}`;
 }
 
-// timestamp -> 'YYYY.MM.DD HH:mm:ss' 식 변환
-function formatTimestamp(ts){
-  if(!ts) return "N/A";
-  return new Date(ts).toLocaleString(); 
-}
+// timestamp 포맷팅은 utils/dateUtils에서 import
+const formatTimestamp = formatTimestampUtil;
 
 export default function StatsPopup({
   stats,

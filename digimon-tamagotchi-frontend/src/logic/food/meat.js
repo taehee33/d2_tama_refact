@@ -23,11 +23,17 @@ export function feedMeat(stats) {
   s.weight = (s.weight || 0) + 1;
   
   // 오버피드 체크: 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드
+  let isOverfeed = false;
   if (oldFullness >= 5) {
     s.consecutiveMeatFed = (s.consecutiveMeatFed || 0) + 1;
     if (s.consecutiveMeatFed >= 10) {
       s.overfeeds = (s.overfeeds || 0) + 1;
       s.consecutiveMeatFed = 0; // 리셋
+      isOverfeed = true;
+      
+      // 오버피드 효과: hungerCountdown에 한 주기 시간(hungerTimer * 60초)을 더해줘서 배고픔 감소를 1회 지연
+      const hungerCycleSeconds = (s.hungerTimer || 0) * 60;
+      s.hungerCountdown = (s.hungerCountdown || 0) + hungerCycleSeconds;
     }
   } else {
     s.consecutiveMeatFed = 0; // 배고픔이 가득 차지 않았으면 리셋
@@ -37,6 +43,7 @@ export function feedMeat(stats) {
     updatedStats: s,
     fullnessIncreased: s.fullness > oldFullness,
     canEatMore: s.fullness < maxFullness,
+    isOverfeed: isOverfeed,
   };
 }
 

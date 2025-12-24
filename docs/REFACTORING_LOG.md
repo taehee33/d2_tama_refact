@@ -4,6 +4,166 @@
 
 ---
 
+## [2025-12-23] Fix: Log persistence & Timestamp, Feat: Manual-based Meat/Protein Logic (Overfeed cycle delay, 4-Protein bonus)
+
+### 작업 유형
+- 버그 수정
+- 기능 구현
+- 로직 정밀화
+- 사용자 경험 향상
+
+### 목적 및 영향
+Activity Log의 안정성을 더욱 강화하고, 매뉴얼 기반의 Meat/Protein 로직을 정밀하게 구현하여 게임 메커니즘의 정확성을 높였습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/logic/food/meat.js`
+  - `feedMeat()`: 오버피드 발생 시 `hungerCountdown`에 `hungerTimer * 60` (한 주기 시간)을 더해주는 로직 추가
+  - 오버피드 효과: 배고픔 감소를 1회 지연시키는 메커니즘 구현
+  - 반환값에 `isOverfeed` 플래그 추가
+  
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+  - `feedProtein()`: 4회 보너스 로직은 이미 구현되어 있음 (확인 완료)
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 모든 `setActivityLogs()` 호출을 함수형 업데이트 패턴 `(prevLogs) => ...`로 변경하여 이전 로그 보존 보장
+  - `eatCycle()`: Meat 오버피드 효과 적용 및 로그 개선
+  - `eatCycle()`: Protein 4회 보너스 로그 개선
+  - `cleanCycle()`: 함수형 업데이트 패턴 적용
+  - `handleToggleLights()`: 함수형 업데이트 패턴 적용
+  
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `consecutiveMeatFed: 0` 필드 확인 (이미 존재, Firestore 저장됨)
+
+### 주요 기능
+
+#### 1. Activity Log 안정화 강화
+- **문제**: `setActivityLogs` 직접 호출 시 이전 로그가 덮어씌워질 수 있는 위험
+- **해결**: 
+  - 모든 `setActivityLogs()` 호출을 함수형 업데이트 패턴으로 변경
+  - `setActivityLogs((prevLogs) => addActivityLog(prevLogs, ...))` 형식으로 이전 로그 보존 보장
+  - 진화 시에도 로그 배열 초기화하지 않고 계승
+
+#### 2. Meat (고기) 로직 정밀 구현
+- **기본 효과**: Weight +1g, Fullness +1 (max 제한 확인)
+- **오버피드(Overfeed) 발동**:
+  - `consecutiveMeatFed`가 10이 되는 순간:
+    - `overfeeds` +1 증가
+    - **효과**: `hungerCountdown`에 `hungerTimer * 60` (한 주기 시간)을 더해줘서 배고픔 감소를 1회 지연
+    - `consecutiveMeatFed` = 0 (리셋)
+    - 로그: "Overfeed! Hunger drop delayed (Wt +1g, HungerCycle +Xmin)"
+- **저장**: `consecutiveMeatFed` 변수가 Firestore에 저장되어 새로고침에도 유지
+
+#### 3. Protein (단백질) 로직 정밀 구현
+- **기본 효과**: Weight +2g, Strength +1 (Max 제한 확인)
+- **4회 보너스 로직**:
+  - `proteinCount` +1 증가
+  - `proteinCount % 4 === 0` 일 때마다:
+    - `energy` +1 (Max 제한 확인)
+    - `proteinOverdose` +1 (Max 7 제한)
+    - 로그: "Feed: Protein (...) - Protein Bonus! (En +1, Overdose +1) => (...)"
+- **일반 로그**: "Feed: Protein (Wt +2g, Str +1) => (...)"
+
+#### 4. 배틀/스파링 기록 구분 (이미 완료)
+- **Sparring**: 배틀 횟수/승률에 영향 없음. 로그에만 "Sparring Practice" 기록
+- **Battle/Arena**: 승패에 따라 `battles`, `wins`, `losses` 증가 및 저장
+
+### 사용자 경험 개선
+- Activity Log가 더욱 안정적으로 유지되어 모든 활동 내역 추적 가능
+- Meat 오버피드 효과가 정확하게 작동하여 게임 밸런스 향상
+- Protein 4회 보너스 로직이 명확하게 표시되어 사용자 이해도 향상
+- 모든 로그가 함수형 업데이트로 보존되어 데이터 손실 방지
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/food/meat.js`
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+
+---
+
+## [2025-12-23] Fix: Log persistence, Timestamp formatting, Age calculation, and Battle record logic
+
+### 작업 유형
+- 버그 수정
+- 기능 개선
+- 사용자 경험 향상
+
+### 목적 및 영향
+Activity Log의 안정성을 개선하고, 타임스탬프 포맷팅을 추가하며, 나이 계산 로직을 경과 시간 기반으로 수정하고, 배틀 기록 로직을 개선했습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/utils/dateUtils.js` (신규)
+  - `formatTimestamp()` 함수: 타임스탬프를 읽기 쉬운 형식으로 포맷팅 (MM/DD HH:mm)
+  - `formatElapsedTime()` 함수: 경과 시간을 읽기 쉬운 형식으로 포맷팅
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 모든 `addActivityLog()` 호출에서 `currentLogs` 사용하도록 수정 (이전 로그 보존)
+  - `handleEvolution()`: 진화 시 `activityLogs` 계승하도록 수정
+  - `handleBattleComplete()`: Sparring 모드는 배틀 횟수에 반영하지 않고 로그만 남기도록 수정
+  - 모든 액션 핸들러에서 `activityLogs`를 최신 상태로 가져와서 로그 추가
+  
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+  - `applyLazyUpdate()`: 나이 계산 로직 추가 (경과 시간 기반: `(CurrentTime - birthTime) / (24 * 60 * 60 * 1000)`)
+  - `initializeStats()`: `birthTime` 이어받기 로직 추가 (진화 시 유지)
+  
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+  - `birthTime: null` 필드 추가 (디지몬 생성 시간)
+  
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+  - `formatTimestamp` import 추가
+  - Activity Log 화면에서 타임스탬프 포맷팅 적용
+  
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `formatTimestamp` import 추가
+  - 타임스탬프 표시에 포맷팅 적용
+
+### 주요 기능
+
+#### 1. Activity Log 안정화
+- **문제**: 똥(Pooped) 이벤트 발생 시 이전 로그가 사라지거나, 진화 시 로그가 초기화되는 현상
+- **해결**: 
+  - 모든 `addActivityLog()` 호출에서 `currentLogs = updatedStats.activityLogs || activityLogs || []` 패턴 사용
+  - 이전 로그 배열을 항상 보존하도록 수정
+  - 진화 시 `activityLogs` 필드를 초기화하지 않고 계승
+  - 훈련, 배틀의 모든 분기(성공/실패/중도취소)에서 로그가 반드시 남도록 확인
+
+#### 2. 타임스탬프 포맷팅
+- **기존**: `1766...` 같은 밀리초 타임스탬프 표시
+- **개선**: 
+  - `formatTimestamp()` 함수 생성 (MM/DD HH:mm 형식)
+  - Activity Log 화면에서 포맷팅된 시간 표시
+  - Stats UI에서도 타임스탬프 포맷팅 적용
+
+#### 3. 배틀 기록 및 스파링 구분
+- **Sparring(스파링)**: 
+  - 배틀 횟수/승률에 반영하지 않음
+  - 로그에만 "Sparring Practice (No record)"로 기록
+- **Real Battle(아레나/통신)**: 
+  - `battles`, `battlesWon`, `battlesLost` 스탯이 확실히 증가하고 저장되도록 로직 점검
+
+#### 4. Age(나이) 증가 로직 수정
+- **기존**: 단순 +1 증가
+- **개선**: 
+  - 경과 시간 기반 계산: `(CurrentTime - birthTime) / (24 * 60 * 60 * 1000)`
+  - `applyLazyUpdate()` 함수 내에 나이 계산 로직 추가
+  - 진화 시 `birthTime` 유지하여 나이 계속 증가
+
+### 사용자 경험 개선
+- Activity Log가 안정적으로 유지되어 모든 활동 내역 추적 가능
+- 타임스탬프가 읽기 쉬운 형식으로 표시되어 시간 파악 용이
+- 나이가 정확하게 계산되어 디지몬의 실제 나이를 확인 가능
+- 배틀 기록이 정확하게 구분되어 기록됨
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/utils/dateUtils.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+
+---
+
 ## [2025-12-23] Fix: Training Log accuracy and Reskinned Heal Modal to Pixel UI
 
 ### 작업 유형

@@ -3,6 +3,7 @@ export const defaultStats = {
     sprite: 133,
     evolutionStage: "Digitama",
     age: 0,
+    birthTime: null, // 디지몬 생성 시간 (나이 계산용)
     weight: 0,
     strength: 0,
     stamina: 0, // 기존 필드 (호환성 유지)

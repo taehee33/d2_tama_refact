@@ -14,8 +14,10 @@ export function feedProtein(stats) {
   
   // 힘 하트 +1 (최대 5)
   const oldStrength = s.strength || 0;
-  if (s.strength < 5) {
-    s.strength = (s.strength || 0) + 1;
+  const currentStrength = s.strength || 0;
+  // Strength가 5 미만일 때만 증가 (최대 5)
+  if (currentStrength < 5) {
+    s.strength = currentStrength + 1;
   }
   
   // 체중 +2 Gigabyte

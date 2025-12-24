@@ -14,6 +14,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.age = oldStats.age || merged.age;
   merged.weight = oldStats.weight || merged.weight;
   merged.lifespanSeconds= oldStats.lifespanSeconds || merged.lifespanSeconds;
+  // birthTime 이어받기 (없으면 현재 시간으로 설정)
+  // 진화 시에는 birthTime을 유지 (나이 계속 증가)
+  merged.birthTime = oldStats.birthTime || Date.now();
 
   // ★ 추가: strength, effort 이어받기
   merged.strength = (oldStats.strength!==undefined)
@@ -177,6 +180,19 @@ export function applyLazyUpdate(stats, lastSavedAt) {
 
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
+  
+  // 나이 계산 (경과 시간 기반)
+  if (updatedStats.birthTime) {
+    const birthTime = typeof updatedStats.birthTime === 'number' 
+      ? updatedStats.birthTime 
+      : new Date(updatedStats.birthTime).getTime();
+    const ageInDays = Math.floor((now.getTime() - birthTime) / (24 * 60 * 60 * 1000));
+    updatedStats.age = Math.max(0, ageInDays);
+  } else {
+    // birthTime이 없으면 현재 시간으로 설정하고 age는 0
+    updatedStats.birthTime = now.getTime();
+    updatedStats.age = 0;
+  }
   
   // updateLifespan을 경과 시간만큼 호출
   // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
