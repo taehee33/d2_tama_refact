@@ -181,16 +181,19 @@ const Canvas = ({
         }
       }
 
-      // ★ (4) 똥 표시
+      // ★ (4) 똥 표시 (정확한 개수만큼 렌더링, 위치 분산)
       const poopImg= spriteCache.current["poop"];
       if(poopImg && poopImg.naturalWidth>0){
         // poopCount => 0..8
-        // 예) i=0 => #1 => poopPositions[0], ...
-        // i<poopCount => 1..poopCount
-        for(let i=0; i<poopCount; i++){
+        // Array.from을 사용하여 정확한 개수만큼 렌더링
+        const validPoopCount = Math.min(Math.max(0, poopCount), 8); // 0-8 범위 제한
+        Array.from({ length: validPoopCount }).forEach((_, i) => {
           const pos= poopPositions[i];
-          const px= pos.xRatio*width;
-          const py= pos.yRatio*height;
+          // 위치 분산: 각 똥마다 약간의 오프셋 추가 (겹치지 않도록)
+          const offsetX = (i % 2 === 0 ? 1 : -1) * (width * 0.02); // 짝수/홀수에 따라 좌우 분산
+          const offsetY = (i < 4 ? 1 : -1) * (height * 0.01); // 상하 분산
+          const px= pos.xRatio*width + offsetX;
+          const py= pos.yRatio*height + offsetY;
           const pw= width*0.2; // 똥 크기 (임의)
           const ph= height*0.2;
           ctx.drawImage(poopImg, px - pw/2, py - ph/2, pw,ph);
@@ -199,7 +202,7 @@ const Canvas = ({
             ctx.fillStyle="purple";
             ctx.fillText(`Poop#${i+1}`, px - pw/2, (py - ph/2)-2);
           }
-        }
+        });
       }
 
       // ★ (5) 청소 애니메이션

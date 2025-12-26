@@ -4478,3 +4478,77 @@ users/{userId}/slots/{slotId}
 - 사망한 디지몬은 더 이상 업데이트하지 않음
 
 ---
+
+## [2025-12-23] Fix: Battle/Sparring logic separation (WinRate calculation) and Poop rendering/positioning issues
+
+### 작업 유형
+- 버그 수정
+- 로직 분리 및 개선
+- UI 렌더링 개선
+
+### 목적 및 영향
+배틀과 스파링 로직을 명확히 분리하여 승률 계산의 정확성을 보장하고, 똥 렌더링 버그를 수정하여 UI 안정성을 향상시켰습니다.
+
+### 변경된 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `handleBattleComplete()`: Sparring 모드와 Real Battle 모드 로직 분리
+  - Sparring: Weight -4g, Energy -1만 감소, battles/wins/losses/winRate 변경 없음
+  - Real Battle: Weight -4g, Energy -1 감소, battles +1, 승리시 wins +1, 패배시 losses +1, 승률 재계산
+  - 승률 계산: `newWinRate = Math.round((newWins / newBattles) * 100)` (0으로 나누기 방지)
+  - 로그 형식 개선: 승률 정보 포함 ("Rate: X%")
+  
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+  - 똥 렌더링 로직 개선: `Array.from({ length: validPoopCount })` 패턴 사용
+  - 위치 분산: 각 똥마다 오프셋 추가하여 겹치지 않도록 개선
+  - `validPoopCount` 범위 제한 (0-8) 추가
+  
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `handleCleanPoop()`: 청소 로그 메시지 개선 ("Injury healed! (Poop removed)")
+
+### 주요 기능
+
+#### 1. 배틀 vs 스파링 로직 분리
+- **Sparring 모드**:
+  - `battleType === 'sparring'`일 때
+  - Weight -4g, Energy -1 감소 (기존 유지)
+  - **중요**: `battles`, `wins`, `losses`, `winRate` 스탯은 절대 변경하지 않음
+  - 로그: "Sparring: Practice Match (Wt -4g, En -1) => (Wt X→Yg, En A→B)"
+  
+- **Real Battle 모드** (Quest/Arena):
+  - Weight -4g, Energy -1 감소
+  - `battles` +1 증가
+  - 승리 시: `wins` +1, `battlesForEvolution` +1
+  - 패배 시: `losses` +1
+  - **승률 재계산**: `newWinRate = Math.round((newWins / newBattles) * 100)`
+  - 0으로 나누기 방지: `newBattles > 0` 체크
+  - 로그: "Battle: Win/Loss vs [Enemy] (Rate: X%, Wt -4g, En -1) => ..."
+
+#### 2. 똥(Poop) 렌더링 버그 수정
+- **문제**: 똥 개수가 UI에서 깜빡이거나 제대로 표시되지 않음
+- **해결**:
+  - `Array.from({ length: validPoopCount })` 패턴 사용하여 정확한 개수만큼 렌더링
+  - `validPoopCount = Math.min(Math.max(0, poopCount), 8)` 범위 제한
+  - 위치 분산: 각 똥마다 오프셋 추가
+    - 짝수/홀수 인덱스에 따라 좌우 분산 (`offsetX`)
+    - 상하 분산 (`offsetY`)
+  - 겹치지 않도록 위치 조정
+
+#### 3. 청소(Clean) 로직 개선
+- 청소 실행 시 `poopCount`를 0으로 설정
+- `isInjured` 여부 체크 및 로그에 반영
+- 로그: "Cleaned Poop (Full flush, X → 0) - Injury healed! (Poop removed)" (부상 상태였을 경우)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- Sparring 모드는 연습 전용이므로 승률에 영향을 주지 않음
+- Real Battle만 승률 계산에 반영됨
+- 똥 렌더링은 Canvas 기반이므로 key prop은 필요 없음 (React 컴포넌트가 아님)
+- 위치 분산은 시각적 개선을 위한 것으로, 게임 로직에는 영향 없음
+
+---
+
+---
