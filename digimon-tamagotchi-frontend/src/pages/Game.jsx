@@ -618,6 +618,7 @@ function Game(){
     digimonStats,
     setDigimonStats,
     setSelectedDigimon,
+    setSelectedDigimonAndSave,
     setDigimonStatsAndSave,
     applyLazyUpdateBeforeAction,
     setActivityLogs,

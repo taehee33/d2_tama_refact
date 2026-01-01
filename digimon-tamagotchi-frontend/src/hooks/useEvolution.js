@@ -14,6 +14,7 @@ import { addActivityLog } from "./useGameLogic";
  * @param {Object} params.digimonStats - 현재 디지몬 스탯
  * @param {Function} params.setDigimonStats - 스탯 업데이트 함수
  * @param {Function} params.setSelectedDigimon - 선택된 디지몬 설정 함수
+ * @param {Function} params.setSelectedDigimonAndSave - 선택된 디지몬 저장 함수
  * @param {Function} params.setDigimonStatsAndSave - 스탯 저장 함수
  * @param {Function} params.applyLazyUpdateBeforeAction - Lazy Update 적용 함수
  * @param {Function} params.setActivityLogs - Activity Logs 설정 함수
@@ -31,6 +32,7 @@ export function useEvolution({
   digimonStats,
   setDigimonStats,
   setSelectedDigimon,
+  setSelectedDigimonAndSave,
   setDigimonStatsAndSave,
   applyLazyUpdateBeforeAction,
   setActivityLogs,
