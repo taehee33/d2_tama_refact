@@ -4,6 +4,68 @@
 
 ---
 
+## [2026-01-01] Cleanup: Docker 관련 레거시 파일 제거
+
+### 작업 유형
+- 프로젝트 정리
+- 레거시 파일 제거
+- 아키텍처 단순화
+
+### 목적 및 영향
+프로젝트가 Vercel/Firebase 서버리스 아키텍처로 완전히 전환되었으므로, 더 이상 사용되지 않는 Docker 관련 레거시 파일들을 제거하여 프로젝트 구조를 단순화했습니다.
+
+### 제거된 파일
+- **`Dockerfile`** (루트)
+  - Express 백엔드 서버를 Docker 컨테이너로 실행하기 위한 설정 파일
+  - `backend/` 폴더를 참조하지만, 루트에 `backend/` 폴더가 존재하지 않아 작동하지 않음
+  
+- **`docker-compose.yml`** (루트)
+  - Docker Compose를 통한 멀티 컨테이너 서비스 설정 파일
+  - `backend` 서비스를 정의하지만, 실제 백엔드 폴더가 없어 작동하지 않음
+  
+- **`.devcontainer/devcontainer.json`**
+  - VS Code Dev Container 설정 파일
+  - `docker-compose.yml`의 `backend` 서비스를 참조하지만, 작동하지 않음
+  - 일반적인 프로젝트 실행 (`npm start`)에는 전혀 영향 없음
+
+### 분석 결과
+- **현재 아키텍처**: Vercel/Firebase 서버리스 (Express 서버 없음)
+- **배포 방식**: Vercel 자동 배포 (Docker 불필요)
+- **프로젝트 실행**: `cd digimon-tamagotchi-frontend && npm start` (로컬 Node.js 환경)
+- **Docker 사용 여부**: 없음 (package.json, README, 문서 모두 Docker 언급 없음)
+
+### 영향 분석
+- ✅ **프로젝트 실행**: 영향 없음 (`npm start`는 Docker와 무관)
+- ✅ **빌드**: 영향 없음 (`npm run build`는 Docker와 무관)
+- ✅ **배포**: 영향 없음 (Vercel 자동 배포 사용)
+- ✅ **개발 환경**: 영향 없음 (Dev Container 미사용)
+
+### 프로젝트 구조 변화
+**Before:**
+```
+d2_tama_refact/
+  ├── Dockerfile              # 제거됨
+  ├── docker-compose.yml      # 제거됨
+  ├── .devcontainer/          # 제거됨
+  │   └── devcontainer.json
+  └── digimon-tamagotchi-frontend/
+```
+
+**After:**
+```
+d2_tama_refact/
+  └── digimon-tamagotchi-frontend/
+      └── (순수 React + Firebase 클라이언트 앱)
+```
+
+### 관련 파일
+- `Dockerfile` (제거됨)
+- `docker-compose.yml` (제거됨)
+- `.devcontainer/devcontainer.json` (제거됨)
+- `docs/REFACTORING_LOG.md` (이 문서)
+
+---
+
 ## [2025-12-23] Fix: Log persistence & Timestamp, Feat: Manual-based Meat/Protein Logic (Overfeed cycle delay, 4-Protein bonus)
 
 ### 작업 유형

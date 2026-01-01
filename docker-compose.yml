@@ -1,6 +1,0 @@
-version: "3.8"  # 이 줄을 추가하세요 (혹시 버전 관련 경고가 나오지 않도록)
-services:
-  backend:
-    build: .
-    ports:
-      - "3000:3000"

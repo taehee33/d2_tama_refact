@@ -1,17 +1,17 @@
 // src/pages/Game.jsx
-import React, { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "../firebase";
 import { getSleepStatus, checkCalls, resetCallStatus, checkCallTimeouts } from "../hooks/useGameLogic";
 
-import Canvas from "../components/Canvas";
-import StatsPanel from "../components/StatsPanel";
+import GameScreen from "../components/GameScreen";
+import ControlPanel from "../components/ControlPanel";
 import StatsPopup from "../components/StatsPopup";
 import FeedPopup from "../components/FeedPopup";
 import SettingsModal from "../components/SettingsModal";
-import MenuIconButtons from "../components/MenuIconButtons";
+
 import BattleSelectionModal from "../components/BattleSelectionModal";
 import BattleScreen from "../components/BattleScreen";
 import QuestSelectionModal from "../components/QuestSelectionModal";
@@ -23,6 +23,8 @@ import DeathPopup from "../components/DeathPopup";
 import DigimonInfoModal from "../components/DigimonInfoModal";
 import HealModal from "../components/HealModal";
 import { initializeActivityLogs, addActivityLog } from "../hooks/useGameLogic";
+import { useGameActions } from "../hooks/useGameActions";
+import { useGameState } from "../hooks/useGameState";
 import { quests } from "../data/v1/quests";
 
 import digimonAnimations from "../data/digimonAnimations";
@@ -124,147 +126,150 @@ function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
 
 function Game(){
   const { slotId } = useParams();
-  const navigate= useNavigate();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
-  const mode = 'firebase';
+  // useGameState 훅 호출
+  const {
+    gameState,
+    modals,
+    setModals,
+    toggleModal,
+    closeAllModals,
+    flags,
+    ui,
+    refs,
+    actions,
+  } = useGameState({
+    slotId,
+    digimonDataVer1,
+    defaultSeasonId: DEFAULT_SEASON_ID,
+  });
 
-  const [selectedDigimon, setSelectedDigimon]= useState("Digitama");
-  const [digimonStats, setDigimonStats]= useState(
-    initializeStats("Digitama", {}, digimonDataVer1)
-  );
 
-  // 사망확인
-  const [showDeathConfirm, setShowDeathConfirm]= useState(false);
-  const [deathReason, setDeathReason] = useState(null);
-  const [isDeathModalOpen, setIsDeathModalOpen] = useState(false); // 사망 모달 표시 여부
-  const [hasSeenDeathPopup, setHasSeenDeathPopup] = useState(false); // 사망 팝업이 자동으로 한 번 떴는지 체크
 
-  // 슬롯 정보
-  const [slotName, setSlotName]= useState("");
-  const [slotCreatedAt, setSlotCreatedAt]= useState("");
-  const [slotDevice, setSlotDevice]= useState("");
-  const [slotVersion, setSlotVersion]= useState("");
 
-  // Canvas/UI - localStorage에서 로드
-  const loadSpriteSettings = () => {
-    try {
-      const saved = localStorage.getItem('digimon_view_settings');
-      if (saved) {
-        const settings = JSON.parse(saved);
-        return {
-          width: settings.width || 300,
-          height: settings.height || 200,
-        };
-      }
-    } catch (error) {
-      console.error('Sprite settings 로드 오류:', error);
-    }
-    return { width: 300, height: 200 };
-  };
+  const navigate= useNavigate();
+  const location = useLocation();
+  // location.state에서 mode를 가져오거나, 기본값으로 현재 인증 상태 기반 결정
+  const mode = location.state?.mode || ((isFirebaseAvailable && currentUser) ? 'firebase' : 'local');
 
-  const [width, setWidth]= useState(() => loadSpriteSettings().width);
-  const [height, setHeight]= useState(() => loadSpriteSettings().height);
-  
-  // Sprite 설정 저장 함수
-  const saveSpriteSettings = (newWidth, newHeight) => {
-    try {
-      const settings = {
-        width: newWidth,
-        height: newHeight,
-      };
-      localStorage.setItem('digimon_view_settings', JSON.stringify(settings));
-    } catch (error) {
-      console.error('Sprite settings 저장 오류:', error);
-    }
-  };
-  
-  // width/height 변경 시 localStorage에 저장
-  useEffect(() => {
-    saveSpriteSettings(width, height);
-  }, [width, height]);
-  const [backgroundNumber, setBackgroundNumber]= useState(162);
-  const [currentAnimation, setCurrentAnimation]= useState("idle");
+  // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
+  const {
+    selectedDigimon,
+    setSelectedDigimon,
+    digimonStats,
+    setDigimonStats,
+    activityLogs,
+    setActivityLogs,
+    slotName,
+    setSlotName,
+    slotCreatedAt,
+    setSlotCreatedAt,
+    slotDevice,
+    setSlotDevice,
+    slotVersion,
+    setSlotVersion,
+    currentQuestArea,
+    setCurrentQuestArea,
+    currentQuestRound,
+    setCurrentQuestRound,
+    clearedQuestIndex,
+    setClearedQuestIndex,
+    battleType,
+    setBattleType,
+    sparringEnemySlot,
+    setSparringEnemySlot,
+    arenaChallenger,
+    setArenaChallenger,
+    arenaEnemyId,
+    setArenaEnemyId,
+    myArenaEntryId,
+    setMyArenaEntryId,
+    currentSeasonId,
+    setCurrentSeasonId,
+    seasonName,
+    setSeasonName,
+    seasonDuration,
+    setSeasonDuration,
+  } = gameState;
 
-  // 팝업
-  const [showStatsPopup, setShowStatsPopup]= useState(false);
-  const [showFeedPopup, setShowFeedPopup]= useState(false);
-  const [showSettingsModal, setShowSettingsModal]= useState(false);
-  const [activeMenu, setActiveMenu]= useState(null);
+  const {
+    developerMode,
+    setDeveloperMode,
+    isEvolving,
+    setIsEvolving,
+    isSleeping,
+    setIsSleeping,
+    isLoadingSlot,
+    setIsLoadingSlot,
+    isEvoEnabled,
+    setIsEvoEnabled,
+    hasSeenDeathPopup,
+    setHasSeenDeathPopup,
+    dailySleepMistake,
+    setDailySleepMistake,
+  } = flags;
 
-  const [developerMode, setDeveloperMode]= useState(false);
+  const {
+    activeMenu,
+    setActiveMenu,
+    currentAnimation,
+    setCurrentAnimation,
+    backgroundNumber,
+    setBackgroundNumber,
+    width,
+    setWidth,
+    height,
+    setHeight,
+    feedType,
+    setFeedType,
+    feedStep,
+    setFeedStep,
+    foodSizeScale,
+    setFoodSizeScale,
+    cleanStep,
+    setCleanStep,
+    healStep,
+    setHealStep,
+    customTime,
+    setCustomTime,
+    timeSpeed,
+    setTimeSpeed,
+    evolutionStage,
+    setEvolutionStage,
+    evolvedDigimonName,
+    setEvolvedDigimonName,
+    deathReason,
+    setDeathReason,
+    isLightsOn,
+    setIsLightsOn,
+    wakeUntil,
+    setWakeUntil,
+    sleepStatus,
+    setSleepStatus,
+    callToastMessage,
+    setCallToastMessage,
+  } = ui;
 
-  // 시간
-  const [customTime, setCustomTime]= useState(new Date());
-  const [timeSpeed, setTimeSpeed]= useState(1);
-
-  // feed
-  const [feedType, setFeedType]= useState(null);
-  const [showFood, setShowFood]= useState(false);
-  const [feedStep, setFeedStep]= useState(0);
-  const [foodSizeScale, setFoodSizeScale]= useState(0.31);
+  const { tiredStartRef, tiredCountedRef } = refs;
 
   const meatSprites= ["/images/526.png","/images/527.png","/images/528.png","/images/529.png"];
   const proteinSprites= ["/images/530.png","/images/531.png","/images/532.png"];
 
-  // (A) 청소 애니
-  const [showPoopCleanAnimation, setShowPoopCleanAnimation]= useState(false);
-  const [cleanStep, setCleanStep]= useState(0);
-
-  // ★ (B) 훈련 팝업
-  const [showTrainPopup, setShowTrainPopup]= useState(false);
-
-  // 배틀 관련 상태
-  const [showBattleSelectionModal, setShowBattleSelectionModal] = useState(false);
-  const [showBattleScreen, setShowBattleScreen] = useState(false);
-  const [currentQuestArea, setCurrentQuestArea] = useState(null);
-  const [currentQuestRound, setCurrentQuestRound] = useState(0);
-  const [clearedQuestIndex, setClearedQuestIndex] = useState(0); // 0이면 Area 1 도전 가능, 1이면 Area 2 해금...
-  const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false);
-  const [showCommunicationModal, setShowCommunicationModal] = useState(false);
-  const [showSparringModal, setShowSparringModal] = useState(false);
-  const [showArenaScreen, setShowArenaScreen] = useState(false);
-  const [battleType, setBattleType] = useState(null); // 'quest' | 'sparring' | 'arena'
-  const [sparringEnemySlot, setSparringEnemySlot] = useState(null); // 스파링 상대 슬롯 정보
-  const [arenaChallenger, setArenaChallenger] = useState(null); // Arena 챌린저 정보
-  const [arenaEnemyId, setArenaEnemyId] = useState(null); // Arena Enemy Entry ID (Firestore Document ID)
-  const [myArenaEntryId, setMyArenaEntryId] = useState(null); // 내 Arena Entry ID
-  const [currentSeasonId, setCurrentSeasonId] = useState(DEFAULT_SEASON_ID);
-  const [seasonName, setSeasonName] = useState(`Season ${DEFAULT_SEASON_ID}`);
-  const [seasonDuration, setSeasonDuration] = useState("");
-
-  // Admin Modal
-  const [showAdminModal, setShowAdminModal] = useState(false);
-
-  // 수면/조명 상태
-  const [isLightsOn, setIsLightsOn] = useState(true);
-  const [wakeUntil, setWakeUntil] = useState(null);
-  const [dailySleepMistake, setDailySleepMistake] = useState(false);
-  const [isSleeping, setIsSleeping] = useState(false);
-  const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'TIRED' | 'SLEEPING'
-
-  // 진화 애니메이션 상태
-  const [isEvolving, setIsEvolving] = useState(false);
-  const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
-  const [evolvedDigimonName, setEvolvedDigimonName] = useState(null); // 진화된 디지몬 이름
-  const [showDigimonInfo, setShowDigimonInfo] = useState(false);
-  const [activityLogs, setActivityLogs] = useState([]);
-  const tiredStartRef = useRef(null);
-  const tiredCountedRef = useRef(false);
-
-  // 치료 애니메이션 상태
-  const [showHealAnimation, setShowHealAnimation] = useState(false);
-  const [healStep, setHealStep] = useState(0);
-  // 치료 모달 상태
-  const [showHealModal, setShowHealModal] = useState(false);
-
-  // 호출(Call) 팝업 상태
-  const [showCallModal, setShowCallModal] = useState(false);
-  // 호출(Call) Toast 상태
-  const [showCallToast, setShowCallToast] = useState(false);
-  const [callToastMessage, setCallToastMessage] = useState("");
-
-  // 로딩 상태 관리
-  const [isLoadingSlot, setIsLoadingSlot] = useState(true);
+  // width/height 변경 시 localStorage에 저장
+  useEffect(() => {
+    const saveSpriteSettings = (newWidth, newHeight) => {
+      try {
+        const settings = {
+          width: newWidth,
+          height: newHeight,
+        };
+        localStorage.setItem('digimon_view_settings', JSON.stringify(settings));
+      } catch (error) {
+        console.error('Sprite settings 저장 오류:', error);
+      }
+    };
+    saveSpriteSettings(width, height);
+  }, [width, height]);
 
   // (1) SLOT LOAD - Firestore에서 슬롯 데이터 로드
   useEffect(()=>{
@@ -292,9 +297,63 @@ function Game(){
     loadArenaConfig();
     
     // Firebase 모드인데 로그인 안 되어 있으면 리디렉션
-    if(!isFirebaseAvailable || !currentUser) {
+    // 로컬 모드일 때는 리디렉션하지 않음
+    if(mode === 'firebase' && (!isFirebaseAvailable || !currentUser)) {
       setIsLoadingSlot(false);
       navigate("/");
+      return;
+    }
+    
+    // 로컬 모드일 때는 Firebase 체크를 건너뛰고 localStorage에서 로드
+    if(mode === 'local') {
+      const loadSlotLocal = async () => {
+        setIsLoadingSlot(true);
+        try {
+          const savedName = localStorage.getItem(`slot${slotId}_selectedDigimon`) || "Digitama";
+          const savedStatsStr = localStorage.getItem(`slot${slotId}_digimonStats`);
+          const savedStats = savedStatsStr ? JSON.parse(savedStatsStr) : {};
+          
+          setSlotName(localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`);
+          setSlotCreatedAt(localStorage.getItem(`slot${slotId}_createdAt`) || "");
+          setSlotDevice(localStorage.getItem(`slot${slotId}_device`) || "");
+          setSlotVersion(localStorage.getItem(`slot${slotId}_version`) || "Ver.1");
+          
+          const isLightsOnSaved = localStorage.getItem(`slot${slotId}_isLightsOn`);
+          if (isLightsOnSaved !== null) setIsLightsOn(isLightsOnSaved === 'true');
+          
+          const wakeUntilSaved = localStorage.getItem(`slot${slotId}_wakeUntil`);
+          if (wakeUntilSaved) setWakeUntil(parseInt(wakeUntilSaved));
+          
+          const dailySleepMistakeSaved = localStorage.getItem(`slot${slotId}_dailySleepMistake`);
+          if (dailySleepMistakeSaved !== null) setDailySleepMistake(dailySleepMistakeSaved === 'true');
+          
+          // Activity Logs 로드
+          const logsStr = localStorage.getItem(`slot${slotId}_activityLogs`);
+          const logs = logsStr ? JSON.parse(logsStr) : [];
+          setActivityLogs(initializeActivityLogs(logs));
+          
+          if(Object.keys(savedStats).length === 0){
+            const ns = initializeStats("Digitama", {}, digimonDataVer1);
+            ns.birthTime = Date.now();
+            setSelectedDigimon("Digitama");
+            setDigimonStats(ns);
+          } else {
+            const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
+            const updatedStats = applyLazyUpdate(savedStats, lastSavedAt);
+            setSelectedDigimon(savedName);
+            setDigimonStats(updatedStats);
+          }
+        } catch (error) {
+          console.error("로컬 슬롯 로드 오류:", error);
+          const ns = initializeStats("Digitama", {}, digimonDataVer1);
+          setSelectedDigimon("Digitama");
+          setDigimonStats(ns);
+        } finally {
+          setIsLoadingSlot(false);
+        }
+      };
+      
+      loadSlotLocal();
       return;
     }
 
@@ -358,7 +417,7 @@ function Game(){
     };
 
     loadSlot();
-  },[slotId, currentUser, navigate, isFirebaseAvailable]);
+  },[slotId, currentUser, navigate, isFirebaseAvailable, mode]);
 
   // clearedQuestIndex 로컬 스토리지에서 로드
   useEffect(() => {
@@ -557,7 +616,7 @@ function Game(){
         
         // 사망 상태 변경 감지 (한 번만 자동으로 팝업 표시)
         if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
-          setIsDeathModalOpen(true);
+          toggleModal('deathModal', true);
           setHasSeenDeathPopup(true);
           // 사망 로그 추가 (이전 로그 보존 - 함수형 업데이트)
           const reason = deathReason || 'Unknown';
@@ -715,7 +774,7 @@ function Game(){
             setDeathReason('OLD AGE (수명 다함)');
           }
           if(!hasSeenDeathPopup){
-            setIsDeathModalOpen(true);
+            toggleModal('deathModal', true);
             setHasSeenDeathPopup(true);
           }
         }
@@ -728,6 +787,51 @@ function Game(){
 
     return digimonStats;
   }
+  // useGameActions 훅 호출
+  const {
+    handleFeed: handleFeedFromHook,
+    handleTrainResult: handleTrainResultFromHook,
+    handleBattleComplete: handleBattleCompleteFromHook,
+    handleCleanPoop: handleCleanPoopFromHook,
+  } = useGameActions({
+    digimonStats,
+    setDigimonStats,
+    setDigimonStatsAndSave,
+    applyLazyUpdateBeforeAction,
+    setActivityLogs,
+    activityLogs,
+    selectedDigimon,
+    wakeUntil,
+    setWakeUntil,
+    digimonData: digimonDataVer1,
+    setCurrentAnimation,
+    setShowFood: (value) => toggleModal('food', value),
+    setFeedStep,
+    setFeedType,
+    setShowPoopCleanAnimation: (value) => toggleModal('poopCleanAnimation', value),
+    setCleanStep,
+    slotId,
+    currentUser,
+    slotName,
+    isLightsOn,
+    dailySleepMistake,
+    battleType,
+    setShowBattleScreen: (value) => toggleModal('battleScreen', value),
+    setBattleType,
+    setSparringEnemySlot,
+    arenaChallenger,
+    arenaEnemyId,
+    myArenaEntryId,
+    setArenaChallenger,
+    setArenaEnemyId,
+    setMyArenaEntryId,
+    setShowArenaScreen: (value) => toggleModal('arenaScreen', value),
+    currentSeasonId,
+    currentQuestArea,
+    setCurrentQuestArea,
+    setCurrentQuestRound,
+  });
+
   async function setSelectedDigimonAndSave(name){
     setSelectedDigimon(name);
     if(slotId && currentUser){
@@ -743,8 +847,8 @@ function Game(){
         console.error("디지몬 이름 저장 오류:", error);
       }
     }
-  }
 
+  }
   // 애니메이션
   let idleAnimId=1, eatAnimId=2, rejectAnimId=3;
   if(selectedDigimon==="Digitama") idleAnimId=90;
@@ -915,64 +1019,18 @@ function Game(){
     const nx= initializeStats(ohaka, old, digimonDataVer1);
     await setDigimonStatsAndSave(nx);
     await setSelectedDigimonAndSave(ohaka);
-    setIsDeathModalOpen(false);
+    toggleModal('deathModal', false);
     setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
     setDeathReason(null); // 사망 원인 초기화
   }
 
   // 먹이 - Lazy Update 적용 후 Firestore에 저장
-  async function handleFeed(type){
-    // 액션 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    if(updatedStats.isDead) return;
-    
-    // 수면 중 먹이 시도 시 수면 방해 처리
-    const schedule = getSleepSchedule(selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
-      const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
-      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1, activityLogs: updatedLogs }, updatedLogs);
-    }
-    
-    // 업데이트된 스탯으로 작업
-    setDigimonStats(updatedStats);
-    
-    // 매뉴얼 기반 거부 체크
-    if(type==="meat"){
-      if(willRefuseMeat(updatedStats)){
-        setCurrentAnimation("foodRejectRefuse");
-        setShowFood(false);
-        setFeedStep(0);
-        const currentLogs = updatedStats.activityLogs || activityLogs || [];
-        const updatedLogs = addActivityLog(currentLogs, 'FEED', 'Feed: Refused (Already stuffed)');
-        setDigimonStatsAndSave(updatedStats, updatedLogs);
-        setTimeout(()=> setCurrentAnimation("idle"),2000);
-        return;
-      }
-    } else {
-      if(willRefuseProtein(updatedStats)){
-        setCurrentAnimation("foodRejectRefuse");
-        setShowFood(false);
-        setFeedStep(0);
-        const currentLogs = updatedStats.activityLogs || activityLogs || [];
-        const updatedLogs = addActivityLog(currentLogs, 'FEED', 'Feed: Refused (Already stuffed)');
-        setDigimonStatsAndSave(updatedStats, updatedLogs);
-        setTimeout(()=> setCurrentAnimation("idle"),2000);
-        return;
-      }
-    }
-    setFeedType(type);
-    setShowFood(true);
-    setFeedStep(0);
-    eatCycle(0, type);
-  }
+
   async function eatCycle(step,type){
     const frameCount= (type==="protein"?3:4);
     if(step>=frameCount){
       setCurrentAnimation("idle");
-      setShowFood(false);
+      toggleModal('food', false);
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
       const oldFullness = currentStats.fullness || 0;
@@ -1080,20 +1138,9 @@ function Game(){
   }
 
   // 똥 청소
-  async function handleCleanPoop(){
-    // 액션 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    if(updatedStats.poopCount<=0){
-      return;
-    }
-    setDigimonStats(updatedStats);
-    setShowPoopCleanAnimation(true);
-    setCleanStep(0);
-    cleanCycle(0);
-  }
   async function cleanCycle(step){
     if(step>3){
-      setShowPoopCleanAnimation(false);
+      toggleModal('poopCleanAnimation', false);
       setCleanStep(0);
       const now = new Date();
       const oldPoopCount = digimonStats.poopCount || 0;
@@ -1140,73 +1187,7 @@ function Game(){
   }
 
   // ★ (C) 훈련
-  async function handleTrainResult(userSelections){
-    // 액션 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    
-    // 수면 중 훈련 시도 시 수면 방해 처리
-    const schedule = getSleepSchedule(selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
-      const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
-      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1, activityLogs: updatedLogs }, updatedLogs);
-    }
-    
-    setDigimonStats(updatedStats);
-    
-    // 에너지 부족 체크
-    if ((updatedStats.energy || 0) <= 0) {
-      const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'TRAIN', 'Training: Skipped (Not enough Energy)');
-      setDigimonStatsAndSave(updatedStats, updatedLogs);
-      return;
-    }
-    
-    // userSelections: 길이5의 "U"/"D" 배열
-    // doVer1Training -> stats 업데이트
-    const oldWeight = updatedStats.weight || 0;
-    const oldStrength = updatedStats.strength || 0;
-    const oldEnergy = updatedStats.energy || 0;
-    
-    const result= doVer1Training(updatedStats, userSelections);
-    let finalStats = result.updatedStats;
-    
-    // 호출 해제: strength > 0이 되면 strength 호출 리셋
-    if (finalStats.strength > 0) {
-      finalStats = resetCallStatus(finalStats, 'strength');
-    }
-    
-    // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
-    // 훈련 결과가 확정된 바로 그 시점에 로그 생성
-    const newWeight = finalStats.weight || 0;
-    const newStrength = finalStats.strength || 0;
-    const newEnergy = finalStats.energy || 0;
-    
-    // 델타 계산
-    const weightDelta = newWeight - oldWeight;
-    const strengthDelta = newStrength - oldStrength;
-    const energyDelta = newEnergy - oldEnergy;
-    
-    // 로그 포맷 엄격히 지키기
-    let logText = '';
-    if (result.isSuccess) {
-      logText = `Training: Success (Str +${strengthDelta}, Wt ${weightDelta}g, En ${energyDelta}) => (Str ${oldStrength}→${newStrength}, Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
-    } else {
-      logText = `Training: Fail (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
-    }
-    
-    // activityLogs를 최신 상태로 가져와서 로그 추가
-    const currentLogs = finalStats.activityLogs || activityLogs || [];
-    const updatedLogs = addActivityLog(currentLogs, 'TRAIN', logText);
-    
-    // 로그를 포함한 최종 스탯 저장
-    const finalStatsWithLogs = { ...finalStats, activityLogs: updatedLogs };
-    setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs);
-    // 그냥 콘솔
-    console.log("훈련 결과:", result);
-  }
+
 
   // 리셋
   async function resetDigimon(){
@@ -1214,13 +1195,11 @@ function Game(){
     const ns = initializeStats("Digitama", {}, digimonDataVer1);
     await setDigimonStatsAndSave(ns);
     await setSelectedDigimonAndSave("Digitama");
-    setIsDeathModalOpen(false);
+    toggleModal('deathModal', false);
     setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
   }
 
   // evo 버튼 상태 (간단하게 현재 스탯으로 확인, 실제 진화는 클릭 시 Lazy Update 적용)
-  const [isEvoEnabled, setIsEvoEnabled] = useState(false);
-  
   // 진화 가능 여부 확인 (현재 스탯 기준, 실제 진화 시에는 Lazy Update 적용)
   useEffect(() => {
     if(digimonStats.isDead && !developerMode) {
@@ -1265,25 +1244,25 @@ function Game(){
     setActiveMenu(menu);
     switch(menu){
       case "eat":
-        setShowFeedPopup(true);
+        toggleModal('feed', true);
         break;
       case "status":
-        setShowStatsPopup(true);
+        toggleModal('stats', true);
         break;
       case "bathroom":
-        handleCleanPoop();
+        handleCleanPoopFromHook();
         break;
       case "train":
-        setShowTrainPopup(true);
+        toggleModal('train', true);
         break;
       case "battle":
-        setShowBattleSelectionModal(true);
+        toggleModal('battleSelection', true);
         break;
       case "heal":
         handleHeal();
         break;
       case "callSign":
-        setShowCallModal(true);
+        toggleModal('call', true);
         break;
       default:
         console.log("menu:", menu);
@@ -1308,31 +1287,31 @@ function Game(){
     
     // 부상이 없으면 치료 불가 - 모달로 표시
     if (!updatedStats.isInjured) {
-      setShowHealModal(true);
+      toggleModal('heal', true);
       return;
     }
     
     // 치료 모달 열기
-    setShowHealModal(true);
+    toggleModal('heal', true);
   }
   
   // 치료 모달에서 실제 치료 실행
   async function executeHeal() {
     const updatedStats = await applyLazyUpdateBeforeAction();
     if (updatedStats.isDead || !updatedStats.isInjured) {
-      setShowHealModal(false);
+      toggleModal('heal', false);
       return;
     }
     
     // 치료 연출 시작
-    setShowHealAnimation(true);
+    toggleModal('heal', true);
     setHealStep(0);
     healCycle(0, updatedStats);
   }
   
   async function healCycle(step, currentStats) {
     if (step >= 1) {
-      setShowHealAnimation(false);
+      toggleModal('heal', false);
       setHealStep(0);
       
       // 치료 로직
@@ -1410,31 +1389,31 @@ function Game(){
   // 퀘스트 시작 핸들러
   const handleQuestStart = () => {
     // 퀘스트 선택 모달 표시
-    setShowQuestSelectionModal(true);
+    toggleModal('questSelection', true);
   };
 
   const handleSelectArea = (areaId) => {
     setCurrentQuestArea(areaId);
     setCurrentQuestRound(0);
-    setShowQuestSelectionModal(false);
+    toggleModal('questSelection', false);
     setBattleType('quest');
     setSparringEnemySlot(null);
-    setShowBattleScreen(true);
+    toggleModal('battleScreen', true);
   };
 
   // Communication 시작 핸들러
   const handleCommunicationStart = () => {
-    setShowCommunicationModal(true);
+    toggleModal('communication', true);
   };
 
   // Sparring 시작 핸들러
   const handleSparringStart = () => {
-    setShowSparringModal(true);
+    toggleModal('sparring', true);
   };
 
   // Arena 시작 핸들러
   const handleArenaStart = () => {
-    setShowArenaScreen(true);
+    toggleModal('arenaScreen', true);
   };
 
   // Arena 배틀 시작 핸들러
@@ -1451,8 +1430,8 @@ function Game(){
     setBattleType('arena');
     setCurrentQuestArea(null);
     setCurrentQuestRound(0);
-    setShowBattleScreen(true);
-    setShowArenaScreen(false); // ArenaScreen 닫기
+    toggleModal('battleScreen', true);
+    toggleModal('arenaScreen', false); // ArenaScreen 닫기
   };
 
   // Sparring 슬롯 선택 핸들러
@@ -1461,7 +1440,7 @@ function Game(){
     setBattleType('sparring');
     setCurrentQuestArea(null);
     setCurrentQuestRound(0);
-    setShowBattleScreen(true);
+    toggleModal('battleScreen', true);
   };
 
   const handleQuestComplete = () => {
@@ -1515,236 +1494,7 @@ function Game(){
   };
 
   // 배틀 완료 핸들러
-  const handleBattleComplete = async (battleResult) => {
-    // Sparring 모드는 배틀 횟수에 반영하지 않고 로그만 남김
-    if (battleType === 'sparring') {
-      const updatedStats = await applyLazyUpdateBeforeAction();
-      const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'BATTLE', 'Sparring Practice (No record)');
-      setDigimonStatsAndSave(updatedStats, updatedLogs);
-      
-      if (battleResult.win) {
-        alert("Practice Match Completed - WIN!");
-      } else {
-        alert("Practice Match Completed - LOSE...");
-      }
-      setShowBattleScreen(false);
-      setBattleType(null);
-      setSparringEnemySlot(null);
-      return;
-    }
 
-    // Arena 모드: Firestore에 결과 반영
-    if (battleType === 'arena' && arenaChallenger && currentUser) {
-      // 디버깅 로그
-      console.log("Arena Result Update:", {
-        battleType,
-        challengerId: arenaEnemyId || arenaChallenger.id,
-        challengerUserId: arenaChallenger.userId,
-        myEntryId: myArenaEntryId,
-        result: battleResult.win ? 'WIN' : 'LOSE',
-        battleResult,
-      });
-
-      const enemyEntryId = arenaEnemyId || arenaChallenger.id;
-      if (!enemyEntryId) {
-        console.error("Arena Enemy Entry ID가 없습니다. 업데이트를 건너뜁니다.");
-        alert("배틀 결과를 저장할 수 없습니다. Enemy Entry ID가 없습니다.");
-        setShowBattleScreen(false);
-        setBattleType(null);
-        setArenaChallenger(null);
-        setArenaEnemyId(null);
-        setMyArenaEntryId(null);
-        setShowArenaScreen(true); // Arena 화면으로 복귀
-        return;
-      }
-
-      try {
-        // Document ID를 사용하여 정확한 문서 타겟팅
-        const challengerRef = doc(db, 'arena_entries', enemyEntryId);
-        console.log("업데이트할 문서 참조:", challengerRef.path);
-
-        if (battleResult.win) {
-          // 내가 승리 → 상대방 losses +1, 시즌 패배 +1
-          await updateDoc(challengerRef, {
-            'record.losses': increment(1),
-            'record.seasonLosses': increment(1),
-            'record.seasonId': currentSeasonId,
-          });
-          console.error("✅ DB Update Success: 상대방 losses +1 (seasonLosses 포함)");
-        } else {
-          // 내가 패배 → 상대방 wins +1, 시즌 승리 +1
-          await updateDoc(challengerRef, {
-            'record.wins': increment(1),
-            'record.seasonWins': increment(1),
-            'record.seasonId': currentSeasonId,
-          });
-          console.error("✅ DB Update Success: 상대방 wins +1 (seasonWins 포함)");
-        }
-
-        // 전투 기록 저장 (arena_battle_logs 컬렉션)
-        const userDigimonName = selectedDigimon || "Unknown";
-        const enemyDigimonName = arenaChallenger.digimonSnapshot?.digimonName || "Unknown";
-        const logSummary = battleResult.win
-          ? `${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName} defeated ${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName}`
-          : `${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName} defeated ${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName}`;
-
-        const battleLogData = {
-          attackerId: currentUser.uid,
-          attackerName: currentUser.displayName || slotName || `슬롯${slotId}`,
-          defenderId: arenaChallenger.userId,
-          defenderName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
-          defenderEntryId: enemyEntryId, // 상대방 Entry ID
-          myEntryId: myArenaEntryId, // 내 Entry ID (있을 경우)
-          winnerId: battleResult.win ? currentUser.uid : arenaChallenger.userId,
-          timestamp: serverTimestamp(),
-          logSummary: logSummary,
-        };
-
-        const battleLogsRef = collection(db, 'arena_battle_logs');
-        const logDocRef = await addDoc(battleLogsRef, battleLogData);
-        console.error("✅ DB Update Success: 배틀 로그 저장 완료, ID:", logDocRef.id);
-
-        alert("✅ 배틀 결과가 성공적으로 저장되었습니다!");
-      } catch (error) {
-        console.error("❌ DB Update Failed:", error);
-        console.error("오류 상세:", {
-          code: error.code,
-          message: error.message,
-          challengerId: enemyEntryId,
-        });
-        alert(`❌ 배틀 결과 저장 실패:\n${error.message || error.code || "알 수 없는 오류"}`);
-      }
-
-      setShowBattleScreen(false);
-      setBattleType(null);
-      setArenaChallenger(null);
-      setArenaEnemyId(null);
-      setMyArenaEntryId(null);
-      setShowArenaScreen(true); // Arena 화면으로 복귀
-      return;
-    }
-
-    // Quest 모드: Ver.1 스펙 적용
-    // 배틀 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    
-    // 수면 중 배틀 시도 시 수면 방해 처리
-    const schedule = getSleepSchedule(selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
-      const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'CARE_MISTAKE', 'Disturbed Sleep! (Wake +10m, Mistake +1)');
-      setDigimonStatsAndSave({ ...updatedStats, sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1, activityLogs: updatedLogs }, updatedLogs);
-    }
-    
-    // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
-    const oldWeight = updatedStats.weight || 0;
-    const oldEnergy = updatedStats.energy || 0;
-    
-    const battleStats = {
-      ...updatedStats,
-      weight: Math.max(0, (updatedStats.weight || 0) - 4),
-      energy: Math.max(0, (updatedStats.energy || 0) - 1),
-    };
-    
-    const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';
-    const rank = battleResult.rank || battleResult.enemy?.rank || '';
-    
-    if (battleResult.win) {
-      // 승리 시 배틀 기록 업데이트
-      const finalStats = {
-        ...battleStats,
-        battles: (battleStats.battles || 0) + 1,
-        battlesWon: (battleStats.battlesWon || 0) + 1,
-        battlesForEvolution: (battleStats.battlesForEvolution || 0) + 1,
-      };
-      
-      // 부상 확률 체크 (승리 시 20%)
-      const proteinOverdose = battleStats.proteinOverdose || 0;
-      const injuryChance = calculateInjuryChance(true, proteinOverdose);
-      const isInjured = Math.random() * 100 < injuryChance;
-      
-      if (isInjured) {
-        finalStats.isInjured = true;
-        finalStats.injuredAt = Date.now();
-        finalStats.injuries = (battleStats.injuries || 0) + 1;
-        finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
-      }
-      
-      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      
-      // 델타 계산
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
-      
-      let logText = '';
-      if (battleResult.isAreaClear) {
-        logText = `Battle: Win vs ${enemyName} (Area Cleared! ${battleResult.reward || ''}) (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
-      } else {
-        logText = `Battle: Win vs ${enemyName}${rank ? ` (Rank ${rank})` : ''} (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
-      }
-      if (isInjured) {
-        logText += ' - Battle: Injured! (Chance hit)';
-      }
-      // activityLogs를 최신 상태로 가져와서 로그 추가 (이전 로그 보존)
-      const currentLogs = finalStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'BATTLE', logText);
-      
-      setDigimonStatsAndSave(finalStats, updatedLogs);
-
-      // Area 클리어 확인
-      if (battleResult.isAreaClear) {
-        alert(battleResult.reward || "Area 클리어!");
-        setShowBattleScreen(false);
-        setCurrentQuestArea(null);
-        setCurrentQuestRound(0);
-      } else {
-        // 다음 라운드로 진행
-        setCurrentQuestRound(prev => prev + 1);
-      }
-    } else {
-      // 패배 시 배틀 기록 업데이트
-      const finalStats = {
-        ...battleStats,
-        battles: (battleStats.battles || 0) + 1,
-        battlesLost: (battleStats.battlesLost || 0) + 1,
-      };
-      
-      // 부상 확률 체크 (패배 시 10% + 프로틴 과다 * 10%, 최대 80%)
-      const proteinOverdose = battleStats.proteinOverdose || 0;
-      const injuryChance = calculateInjuryChance(false, proteinOverdose);
-      const isInjured = Math.random() * 100 < injuryChance;
-      
-      if (isInjured) {
-        finalStats.isInjured = true;
-        finalStats.injuredAt = Date.now();
-        finalStats.injuries = (battleStats.injuries || 0) + 1;
-        finalStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
-      }
-      
-      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      
-      // 델타 계산
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
-      
-      let logText = `Battle: Loss vs ${enemyName} (Wt ${weightDelta}g, En ${energyDelta}) => (Wt ${oldWeight}→${newWeight}g, En ${oldEnergy}→${newEnergy})`;
-      if (isInjured) {
-        logText += ' - Battle: Injured! (Chance hit)';
-      }
-      // activityLogs를 최신 상태로 가져와서 로그 추가 (이전 로그 보존)
-      const currentLogs = finalStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'BATTLE', logText);
-      
-      setDigimonStatsAndSave(finalStats, updatedLogs);
-    }
-  };
 
   // 로딩 중일 때 표시
   if (isLoadingSlot) {
@@ -1752,7 +1502,7 @@ function Game(){
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-4 text-gray-600">슬롯 데이터 로딩 중...</p>
+          <p className="mt-2 text-gray-600">슬롯 데이터 로딩 중...</p>
         </div>
       </div>
     );
@@ -1785,7 +1535,7 @@ function Game(){
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         {/* Settings 버튼 */}
         <button
-          onClick={() => setShowSettingsModal(true)}
+          onClick={() => toggleModal('settings', true)}
           className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
           title="설정"
         >
@@ -1818,279 +1568,54 @@ function Game(){
         )}
       </div>
 
-    <div className="flex flex-col items-center min-h-screen p-4 bg-gray-200">
-      <h2 className="text-lg font-bold mb-2">
-        슬롯 {slotId} - {selectedDigimon}
-      </h2>
-      <p>슬롯 이름: {slotName}</p>
-      <p>생성일: {slotCreatedAt}</p>
-      <p>기종: {slotDevice} / 버전: {slotVersion}</p>
-
-      <div style={{position:"relative", width,height, border:"2px solid #555"}}>
-        <img
-          src={`/images/${backgroundNumber}.png`}
-          alt="bg"
-          style={{
-            position:"absolute",
-            top:0,left:0,
-            width:"100%",height:"100%",
-            imageRendering:"pixelated",
-            zIndex:1
-          }}
-        />
-          {/* Lights Off Overlay (게임 화면만) */}
-          {!isLightsOn && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                backgroundColor: "rgba(0,0,0,0.6)",
-                pointerEvents: "none",
-                zIndex: 3,
-              }}
-            />
-          )}
-          {/* 수면/피곤 상태 아이콘 */}
-          {(sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && (
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                zIndex: 4,
-                background: "rgba(0,0,0,0.4)",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 8,
-                fontWeight: "bold",
-                fontSize: 12,
-              }}
-            >
-              {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
-            </div>
-          )}
-          {/* 부상 상태 아이콘 (병원 십자가) */}
-          {digimonStats.isInjured && !digimonStats.isDead && (
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                left: 8,
-                zIndex: 4,
-                background: "rgba(255,0,0,0.6)",
-                color: "white",
-                padding: "4px 8px",
-                borderRadius: 8,
-                fontWeight: "bold",
-                fontSize: 16,
-                animation: "float 2s ease-in-out infinite",
-              }}
-            >
-              🏥😵‍💫🏥
-            </div>
-          )}
-          {/* 치료 연출 (주사기) */}
-          {showHealAnimation && (
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 5,
-                fontSize: 32,
-                animation: "fadeInOut 1.5s ease-in-out",
-              }}
-            >
-              💉
-            </div>
-          )}
-          {/* 호출(Call) 아이콘 */}
-          {digimonStats.callStatus && (
-            (digimonStats.callStatus.hunger?.isActive || 
-             digimonStats.callStatus.strength?.isActive || 
-             digimonStats.callStatus.sleep?.isActive) && (
-              <button
-                onClick={() => {
-                  const messages = [];
-                  if (digimonStats.callStatus.hunger?.isActive) messages.push("Hungry!");
-                  if (digimonStats.callStatus.strength?.isActive) messages.push("No Energy!");
-                  if (digimonStats.callStatus.sleep?.isActive) messages.push("Sleepy!");
-                  
-                  setCallToastMessage(messages.join(" "));
-                  setShowCallToast(true);
-                  setTimeout(() => {
-                    setShowCallToast(false);
-                  }, 2000);
-                }}
-                style={{
-                  position: "absolute",
-                  bottom: 8,
-                  right: 8,
-                  zIndex: 4,
-                  background: "rgba(255, 165, 0, 0.8)",
-                  color: "white",
-                  border: "2px solid #000",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  fontSize: 24,
-                  cursor: "pointer",
-                  animation: "blink 1s infinite",
-                  fontWeight: "bold",
-                }}
-                title="Call Icon - Click to see reason"
-              >
-                📣
-              </button>
-            )
-          )}
-          {/* 호출 Toast 메시지 (간략) */}
-          {showCallToast && (
-            <div
-              style={{
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 6,
-                background: "rgba(0, 0, 0, 0.8)",
-                color: "white",
-                padding: "16px 24px",
-                borderRadius: 8,
-                fontSize: 20,
-                fontWeight: "bold",
-                border: "2px solid #fff",
-                animation: "fadeInOut 2s ease-in-out",
-              }}
-            >
-              {callToastMessage}
-            </div>
-          )}
-          {/* 호출 상세 정보 팝업 (callSign 버튼 클릭 시) */}
-          {showCallModal && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-              onClick={() => setShowCallModal(false)}
-            >
-              <div
-                className="bg-white p-6 rounded-lg shadow-xl w-96 max-h-[80vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  border: "3px solid #000",
-                }}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold">📣 Call Status Log</h2>
-                  <button
-                    onClick={() => setShowCallModal(false)}
-                    className="text-red-500 hover:text-red-700 text-2xl font-bold"
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  {digimonStats.callStatus?.hunger?.isActive && (
-                    <div className="border-2 border-red-400 p-3 rounded bg-red-50">
-                      <h3 className="font-bold text-lg text-red-700 mb-2">🍽️ Hunger Call</h3>
-                      <div className="text-sm space-y-1">
-                        <p><strong>Status:</strong> Active</p>
-                        <p><strong>Started At:</strong> {digimonStats.callStatus.hunger.startedAt 
-                          ? new Date(digimonStats.callStatus.hunger.startedAt).toLocaleString('ko-KR')
-                          : 'N/A'}</p>
-                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.hunger.startedAt 
-                          ? `${Math.floor((Date.now() - digimonStats.callStatus.hunger.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.hunger.startedAt) / 1000) % 60)}초`
-                          : 'N/A'}</p>
-                        <p><strong>Timeout:</strong> 10분</p>
-                        <p><strong>Reason:</strong> Fullness reached 0</p>
-                        <p className="text-red-600 font-semibold">⚠️ If ignored for 10 minutes, Care Mistake will increase!</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {digimonStats.callStatus?.strength?.isActive && (
-                    <div className="border-2 border-blue-400 p-3 rounded bg-blue-50">
-                      <h3 className="font-bold text-lg text-blue-700 mb-2">💪 Strength Call</h3>
-                      <div className="text-sm space-y-1">
-                        <p><strong>Status:</strong> Active</p>
-                        <p><strong>Started At:</strong> {digimonStats.callStatus.strength.startedAt 
-                          ? new Date(digimonStats.callStatus.strength.startedAt).toLocaleString('ko-KR')
-                          : 'N/A'}</p>
-                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.strength.startedAt 
-                          ? `${Math.floor((Date.now() - digimonStats.callStatus.strength.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.strength.startedAt) / 1000) % 60)}초`
-                          : 'N/A'}</p>
-                        <p><strong>Timeout:</strong> 10분</p>
-                        <p><strong>Reason:</strong> Strength reached 0</p>
-                        <p className="text-blue-600 font-semibold">⚠️ If ignored for 10 minutes, Care Mistake will increase!</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {digimonStats.callStatus?.sleep?.isActive && (
-                    <div className="border-2 border-purple-400 p-3 rounded bg-purple-50">
-                      <h3 className="font-bold text-lg text-purple-700 mb-2">😴 Sleep Call</h3>
-                      <div className="text-sm space-y-1">
-                        <p><strong>Status:</strong> Active</p>
-                        <p><strong>Started At:</strong> {digimonStats.callStatus.sleep.startedAt 
-                          ? new Date(digimonStats.callStatus.sleep.startedAt).toLocaleString('ko-KR')
-                          : 'N/A'}</p>
-                        <p><strong>Elapsed Time:</strong> {digimonStats.callStatus.sleep.startedAt 
-                          ? `${Math.floor((Date.now() - digimonStats.callStatus.sleep.startedAt) / 1000 / 60)}분 ${Math.floor(((Date.now() - digimonStats.callStatus.sleep.startedAt) / 1000) % 60)}초`
-                          : 'N/A'}</p>
-                        <p><strong>Timeout:</strong> 60분</p>
-                        <p><strong>Reason:</strong> Sleep time and lights are ON</p>
-                        <p className="text-purple-600 font-semibold">⚠️ If ignored for 60 minutes, Care Mistake will increase!</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {(!digimonStats.callStatus?.hunger?.isActive && 
-                    !digimonStats.callStatus?.strength?.isActive && 
-                    !digimonStats.callStatus?.sleep?.isActive) && (
-                    <div className="border-2 border-gray-300 p-3 rounded bg-gray-50">
-                      <p className="text-gray-600">No active calls at the moment.</p>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs text-gray-500">
-                    💡 <strong>Tip:</strong> Respond to calls before timeout to avoid Care Mistakes!
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        <Canvas
-            style={{
-              position:"absolute",
-              top:0,
-              left:0,
-              zIndex:2,
-              animation: evolutionStage === 'shaking' ? 'shake 0.5s infinite' : 'none',
-              filter: evolutionStage === 'flashing' ? 'invert(1)' : 'none',
-              transition: evolutionStage === 'flashing' ? 'filter 0.1s' : 'none',
-            }}
-            className={evolutionStage === 'flashing' ? 'evolution-flashing' : ''}
-          width={width}
-          height={height}
-          currentAnimation={currentAnimation}
-          idleFrames={idleFrames}
-          eatFrames={eatFramesArr}
-          foodRejectFrames={rejectFramesArr}
-          showFood={showFood}
-          feedStep={feedStep}
-          foodSizeScale={foodSizeScale}
-          developerMode={developerMode}
-          foodSprites={(feedType==="protein")? proteinSprites: meatSprites}
-          poopCount={digimonStats.poopCount || 0}
-          showPoopCleanAnimation={showPoopCleanAnimation}
-          cleanStep={cleanStep}
-            sleepStatus={sleepStatus}
-        />
+      <div className="text-center mb-1">
+        <h2 className="text-base font-bold">
+          슬롯 {slotId} - {selectedDigimon}
+        </h2>
+        <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
+        <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
       </div>
+      <div className="flex flex-col items-center w-full">
+      <GameScreen
+        width={width}
+        height={height}
+        backgroundNumber={backgroundNumber}
+        currentAnimation={currentAnimation}
+        idleFrames={idleFrames}
+        eatFrames={eatFramesArr}
+        foodRejectFrames={rejectFramesArr}
+        showFood={modals.food}
+        feedStep={feedStep}
+        feedType={feedType}
+        foodSizeScale={foodSizeScale}
+        meatSprites={meatSprites}
+        proteinSprites={proteinSprites}
+        poopCount={digimonStats.poopCount || 0}
+        showPoopCleanAnimation={modals.poopCleanAnimation}
+        cleanStep={cleanStep}
+        sleepStatus={sleepStatus}
+        isLightsOn={isLightsOn}
+        digimonStats={digimonStats}
+        showHealAnimation={modals.healAnimation}
+        showCallToast={modals.callToast}
+        callToastMessage={callToastMessage}
+        showCallModal={modals.call}
+        onCallIconClick={() => {
+          const messages = [];
+          if (digimonStats.callStatus?.hunger?.isActive) messages.push("Hungry!");
+          if (digimonStats.callStatus?.strength?.isActive) messages.push("No Energy!");
+          if (digimonStats.callStatus?.sleep?.isActive) messages.push("Sleepy!");
+          setCallToastMessage(messages.join(" "));
+          toggleModal('callToast', true);
+          setTimeout(() => toggleModal('callToast', false), 2000);
+        }}
+        onCallModalClose={() => toggleModal('call', false)}
+        evolutionStage={evolutionStage}
+        developerMode={developerMode}
+      />
 
-        <div className="flex items-center space-x-2 mt-2">
+
+        <div className="flex items-center justify-center space-x-2 mt-1">
       <button
         onClick={handleEvolutionButton}
             disabled={!isEvoEnabled || isEvolving}
@@ -2099,7 +1624,7 @@ function Game(){
         Evolution
       </button>
           <button
-            onClick={() => setShowDigimonInfo(true)}
+            onClick={() => toggleModal('digimonInfo', true)}
             className="px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600"
             title="Digimon Info"
           >
@@ -2107,7 +1632,7 @@ function Game(){
           </button>
           {digimonStats.isDead && (
             <button
-              onClick={() => setIsDeathModalOpen(true)}
+              onClick={() => toggleModal('deathModal', true)}
               className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900"
               title="사망 정보"
             >
@@ -2116,60 +1641,61 @@ function Game(){
           )}
         </div>
 
-      {isDeathModalOpen && (
+      {modals.deathModal && (
         <DeathPopup
-          isOpen={isDeathModalOpen}
+          isOpen={modals.deathModal}
           onConfirm={handleDeathConfirm}
-          onClose={() => setIsDeathModalOpen(false)}
+          onClose={() => toggleModal('deathModal', false)}
           reason={deathReason}
         />
       )}
 
-      <div className="mt-2 text-lg">
-        <p>Time to Evolve: {formatTimeToEvolve(digimonStats.timeToEvolveSeconds)}</p>
-        <p>Lifespan: {formatLifespan(digimonStats.lifespanSeconds)}</p>
-        <p>Current Time: {customTime.toLocaleString()}</p>
+      <div className="mt-1 text-sm text-center">
+        <p className="text-xs">Time to Evolve: {formatTimeToEvolve(digimonStats.timeToEvolveSeconds)}</p>
+        <p className="text-xs">Lifespan: {formatLifespan(digimonStats.lifespanSeconds)}</p>
+        <p className="text-xs">Current Time: {customTime.toLocaleString()}</p>
       </div>
 
-      <div className="flex space-x-4 mt-4">
-        <StatsPanel stats={digimonStats} sleepStatus={sleepStatus} />
-        <MenuIconButtons
-          width={width}
-          height={height}
-          activeMenu={activeMenu}
-          onMenuClick={handleMenuClick}
-        />
+      <div className="flex justify-center w-full">
+      <ControlPanel
+        width={width}
+        height={height}
+        activeMenu={activeMenu}
+        onMenuClick={handleMenuClick}
+        stats={digimonStats}
+        sleepStatus={sleepStatus}
+      />
       </div>
 
 
-      {showStatsPopup && (
+      {modals.stats && (
         <StatsPopup
           stats={digimonStats}
           digimonData={newDigimonDataVer1[selectedDigimon || (digimonStats.evolutionStage ? 
             Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage) : 
             "Digitama")]}
-          onClose={()=> setShowStatsPopup(false)}
+          onClose={()=> toggleModal('stats', false)}
           devMode={developerMode}
           onChangeStats={(ns)=> setDigimonStatsAndSave(ns)}
         />
       )}
 
-      {showFeedPopup && (
+      {modals.feed && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <FeedPopup
-            onClose={()=> setShowFeedPopup(false)}
+            onClose={()=> toggleModal('feed', false)}
             onSelect={(foodType)=>{
-              setShowFeedPopup(false);
-              handleFeed(foodType);
+              toggleModal('feed', false);
+              handleFeedFromHook(foodType);
             }}
           />
         </div>
       )}
 
-      {showSettingsModal && (
+      {modals.settings && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <SettingsModal
-            onClose={()=> setShowSettingsModal(false)}
+            onClose={()=> toggleModal('settings', false)}
             developerMode={developerMode}
             setDeveloperMode={setDeveloperMode}
             width={width}
@@ -2189,7 +1715,7 @@ function Game(){
       )}
 
       {developerMode && slotVersion==="Ver.1" && (
-        <div className="mt-2 p-2 border">
+        <div className="mt-1 p-2 border">
           <label className="mr-1">Dev Digimon Select:</label>
           <select
             onChange={(e)=>{
@@ -2216,50 +1742,50 @@ function Game(){
       )}
 
       {/* ★ (D) 훈련 팝업 */}
-      {showTrainPopup && (
+      {modals.train && (
         <TrainPopup
-          onClose={()=> setShowTrainPopup(false)}
+          onClose={()=> toggleModal('train', false)}
           digimonStats={digimonStats}
           setDigimonStatsAndSave={setDigimonStatsAndSave}
-          onTrainResult={handleTrainResult}
+          onTrainResult={handleTrainResultFromHook}
         />
       )}
 
       {/* 배틀 모드 선택 모달 */}
-      {showBattleSelectionModal && (
+      {modals.battleSelection && (
         <BattleSelectionModal
-          onClose={() => setShowBattleSelectionModal(false)}
+          onClose={() => toggleModal('battleSelection', false)}
           onQuestStart={handleQuestStart}
           onCommunicationStart={handleCommunicationStart}
         />
       )}
 
       {/* Communication 모달 */}
-      {showCommunicationModal && (
+      {modals.communication && (
         <CommunicationModal
-          onClose={() => setShowCommunicationModal(false)}
+          onClose={() => toggleModal('communication', false)}
           onSparringStart={handleSparringStart}
           onArenaStart={handleArenaStart}
         />
       )}
 
       {/* Arena Screen */}
-      {showArenaScreen && (
+      {modals.arenaScreen && (
         <ArenaScreen
-          onClose={() => setShowArenaScreen(false)}
+          onClose={() => toggleModal('arenaScreen', false)}
           onStartBattle={handleArenaBattleStart}
           currentSlotId={parseInt(slotId)}
           mode={mode}
           currentSeasonId={currentSeasonId}
           isDevMode={developerMode}
-          onOpenAdmin={() => setShowAdminModal(true)}
+          onOpenAdmin={() => toggleModal('admin', true)}
         />
       )}
 
       {/* Sparring 모달 */}
-      {showSparringModal && (
+      {modals.sparring && (
         <SparringModal
-          onClose={() => setShowSparringModal(false)}
+          onClose={() => toggleModal('sparring', false)}
           onSelectSlot={handleSparringSlotSelect}
           currentSlotId={parseInt(slotId)}
           mode={mode}
@@ -2267,17 +1793,17 @@ function Game(){
       )}
 
       {/* 퀘스트 선택 모달 */}
-      {showQuestSelectionModal && (
+      {modals.questSelection && (
         <QuestSelectionModal
           quests={quests}
           clearedQuestIndex={clearedQuestIndex}
           onSelectArea={handleSelectArea}
-          onClose={() => setShowQuestSelectionModal(false)}
+          onClose={() => toggleModal('questSelection', false)}
         />
       )}
 
       {/* 배틀 스크린 */}
-      {showBattleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
+      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
         <BattleScreen
           userDigimon={newDigimonDataVer1[selectedDigimon] || {
             id: selectedDigimon,
@@ -2291,16 +1817,16 @@ function Game(){
           battleType={battleType}
           sparringEnemySlot={sparringEnemySlot}
           arenaChallenger={arenaChallenger}
-          onBattleComplete={handleBattleComplete}
+          onBattleComplete={handleBattleCompleteFromHook}
           onQuestClear={handleQuestComplete}
           onClose={() => {
-            setShowBattleScreen(false);
+            toggleModal('battleScreen', false);
             setCurrentQuestArea(null);
             setCurrentQuestRound(0);
             
             // Arena 모드일 때는 Arena 화면으로 복귀
             if (battleType === 'arena') {
-              setShowArenaScreen(true);
+              toggleModal('arenaScreen', true);
             }
             
             setBattleType(null);
@@ -2313,9 +1839,9 @@ function Game(){
       )}
 
       {/* Admin Modal (Dev 모드에서만 표시) */}
-      {developerMode && showAdminModal && (
+      {developerMode && modals.admin && (
         <AdminModal
-          onClose={() => setShowAdminModal(false)}
+          onClose={() => toggleModal('admin', false)}
           currentSeasonId={currentSeasonId}
           seasonName={seasonName}
           seasonDuration={seasonDuration}
@@ -2324,7 +1850,7 @@ function Game(){
       )}
 
       {/* Digimon Info Modal */}
-      {showDigimonInfo && (
+      {modals.digimonInfo && (
         <DigimonInfoModal
           currentDigimonName={selectedDigimon || (digimonStats.evolutionStage ? 
             Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage) : 
@@ -2335,18 +1861,18 @@ function Game(){
           currentStats={digimonStats}
           digimonDataMap={newDigimonDataVer1}
           activityLogs={activityLogs}
-          onClose={() => setShowDigimonInfo(false)}
+          onClose={() => toggleModal('digimonInfo', false)}
         />
       )}
 
       {/* Heal Modal */}
-      {showHealModal && (
+      {modals.heal && (
         <HealModal
           isInjured={digimonStats.isInjured || false}
           currentDoses={digimonStats.healedDosesCurrent || 0}
           requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
           onHeal={executeHeal}
-          onClose={() => setShowHealModal(false)}
+          onClose={() => toggleModal('heal', false)}
         />
       )}
 
@@ -2354,7 +1880,7 @@ function Game(){
       {evolutionStage === 'complete' && evolvedDigimonName && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
           <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
-            <h2 className="text-3xl font-bold text-black mb-4 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
+            <h2 className="text-3xl font-bold text-black mb-2 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
             <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
             <button
               onClick={() => {
@@ -2369,9 +1895,10 @@ function Game(){
     </div>
         </div>
       )}
-      </div>
+    </div>
     </>
   );
 }
+
 
 export default Game;

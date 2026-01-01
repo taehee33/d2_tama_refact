@@ -188,19 +188,27 @@ const Canvas = ({
         // Array.from을 사용하여 정확한 개수만큼 렌더링
         const validPoopCount = Math.min(Math.max(0, poopCount), 8); // 0-8 범위 제한
         Array.from({ length: validPoopCount }).forEach((_, i) => {
-          const pos= poopPositions[i];
+          // 유니크한 위치 계산을 위해 poopCount와 index 조합 사용
+          const posIndex = i % poopPositions.length; // 위치 배열 인덱스
+          const pos= poopPositions[posIndex];
+          
           // 위치 분산: 각 똥마다 약간의 오프셋 추가 (겹치지 않도록)
-          const offsetX = (i % 2 === 0 ? 1 : -1) * (width * 0.02); // 짝수/홀수에 따라 좌우 분산
-          const offsetY = (i < 4 ? 1 : -1) * (height * 0.01); // 상하 분산
+          // index와 poopCount를 조합하여 더 정확한 분산
+          const offsetX = Math.sin(i * 0.5) * (width * 0.03); // 사인파를 사용한 자연스러운 분산
+          const offsetY = Math.cos(i * 0.7) * (height * 0.02); // 코사인파를 사용한 자연스러운 분산
           const px= pos.xRatio*width + offsetX;
           const py= pos.yRatio*height + offsetY;
-          const pw= width*0.2; // 똥 크기 (임의)
+          const pw= width*0.2; // 똥 크기
           const ph= height*0.2;
-          ctx.drawImage(poopImg, px - pw/2, py - ph/2, pw,ph);
+          
+          // 둥둥 떠다니는 애니메이션 효과 (약간의 상하 움직임)
+          const floatOffset = Math.sin(frame * 0.05 + i) * 2; // 프레임 기반 부드러운 움직임
+          
+          ctx.drawImage(poopImg, px - pw/2, py - ph/2 + floatOffset, pw, ph);
 
           if(developerMode){
             ctx.fillStyle="purple";
-            ctx.fillText(`Poop#${i+1}`, px - pw/2, (py - ph/2)-2);
+            ctx.fillText(`Poop#${i+1} (${validPoopCount})`, px - pw/2, (py - ph/2 + floatOffset)-2);
           }
         });
       }
