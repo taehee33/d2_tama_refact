@@ -26,6 +26,8 @@ import { initializeActivityLogs, addActivityLog } from "../hooks/useGameLogic";
 import { useGameActions } from "../hooks/useGameActions";
 import { useGameState } from "../hooks/useGameState";
 import { useGameData } from "../hooks/useGameData";
+import { useEvolution } from "../hooks/useEvolution";
+import { useDeath } from "../hooks/useDeath";
 import { quests } from "../data/v1/quests";
 
 import digimonAnimations from "../data/digimonAnimations";
@@ -607,6 +609,43 @@ function Game(){
     setCurrentQuestArea,
     setCurrentQuestRound,
   });
+  // useEvolution 훅 호출 (진화 로직)
+  const {
+    evolve,
+    handleEvolutionButton,
+    checkEvolutionReady,
+  } = useEvolution({
+    digimonStats,
+    setDigimonStats,
+    setSelectedDigimon,
+    setDigimonStatsAndSave,
+    applyLazyUpdateBeforeAction,
+    setActivityLogs,
+    activityLogs,
+    selectedDigimon,
+    developerMode,
+    setIsEvolving,
+    setEvolutionStage,
+    setEvolvedDigimonName,
+    digimonDataVer1,
+    newDigimonDataVer1,
+  });
+
+  // useDeath 훅 호출 (죽음/환생 로직)
+  const {
+    confirmDeath: handleDeathConfirm,
+    checkDeathCondition,
+  } = useDeath({
+    digimonStats,
+    setDigimonStatsAndSave,
+    setSelectedDigimonAndSave,
+    applyLazyUpdateBeforeAction,
+    toggleModal,
+    setHasSeenDeathPopup,
+    digimonDataVer1,
+    perfectStages,
+  });
+
 
   async function setSelectedDigimonAndSave(name){
     setSelectedDigimon(name);
@@ -649,156 +688,6 @@ function Game(){
     rejectFramesArr= [ `${digimonStats.sprite+15}` ];
   }
 
-  // 진화
-  async function handleEvolutionButton(){
-    // 액션 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    setDigimonStats(updatedStats);
-    
-    if(updatedStats.isDead && !developerMode) return;
-    
-    // 현재 디지몬 데이터 가져오기 (새 데이터 구조 사용 - evolutionCriteria 포함)
-    // selectedDigimon이 없으면 evolutionStage를 통해 찾기
-    const digimonName = selectedDigimon || (updatedStats.evolutionStage ? 
-      Object.keys(newDigimonDataVer1).find(key => newDigimonDataVer1[key]?.stage === updatedStats.evolutionStage) : 
-      "Digitama");
-    
-    const currentDigimonData = newDigimonDataVer1[digimonName];
-    if(!currentDigimonData) {
-      console.error(`No data for ${digimonName} in newDigimonDataVer1!`);
-      console.error('Available keys:', Object.keys(newDigimonDataVer1));
-      console.error('selectedDigimon:', selectedDigimon);
-      console.error('evolutionStage:', updatedStats.evolutionStage);
-      return;
-    }
-    
-    if(developerMode) {
-      // 개발자 모드: 시간 조건만 무시하고 다른 조건은 체크
-      // 시간 조건을 임시로 0으로 설정하여 체크
-      const statsForCheck = {
-        ...updatedStats,
-        timeToEvolveSeconds: 0, // 시간 조건만 무시
-      };
-      const evolutionResult = checkEvolution(statsForCheck, currentDigimonData, digimonName, newDigimonDataVer1);
-      
-      if(evolutionResult.success) {
-        const targetId = evolutionResult.targetId;
-        const targetData = newDigimonDataVer1[targetId];
-        const evolvedName = targetData?.name || targetData?.id || targetId;
-        setEvolvedDigimonName(evolvedName);
-        setEvolutionStage('complete');
-        await handleEvolution(targetId);
-      } else {
-        alert(`진화 조건을 만족하지 못했습니다!\n\n${evolutionResult.details?.map(d => `${d.target}: ${d.missing}`).join('\n') || evolutionResult.reason}`);
-      }
-        return;
-      }
-    
-    // 매뉴얼 기반 진화 판정 (상세 결과 객체 반환)
-    // Data-Driven 방식: digimons.js의 evolutions 배열을 직접 사용
-    const evolutionResult = checkEvolution(updatedStats, currentDigimonData, digimonName, newDigimonDataVer1);
-    
-    if(evolutionResult.success) {
-      // 진화 성공 - 애니메이션 시작
-      const targetId = evolutionResult.targetId;
-      // targetName 찾기 (Fallback 처리) - 새 데이터 사용
-      const targetData = newDigimonDataVer1[targetId];
-      const targetName = targetData?.name || targetData?.id || targetId;
-      
-      // 진화 애니메이션 시작
-      setIsEvolving(true);
-      setEvolutionStage('shaking');
-      
-      // Step 1: Shaking (2초)
-      setTimeout(() => {
-        setEvolutionStage('flashing');
-        
-        // Step 2: Flashing (2초)
-        setTimeout(() => {
-          setEvolutionStage('complete');
-          
-          // Step 3: Complete - 실제 진화 처리
-          setTimeout(async () => {
-            // 진화된 디지몬 이름 저장
-            const targetData = newDigimonDataVer1[targetId];
-            const evolvedName = targetData?.name || targetData?.id || targetId;
-            setEvolvedDigimonName(evolvedName);
-            await handleEvolution(targetId);
-            setIsEvolving(false);
-            // evolutionStage는 'complete'로 유지하여 확인 버튼을 눌러야만 닫히도록 함
-          }, 500);
-        }, 2000);
-      }, 2000);
-    } else if(evolutionResult.reason === "NOT_READY") {
-      // 시간 부족
-      const remainingSeconds = evolutionResult.remainingTime;
-      const mm = Math.floor(remainingSeconds / 60);
-      const ss = Math.floor(remainingSeconds % 60);
-      alert(`아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초`);
-    } else if(evolutionResult.reason === "CONDITIONS_UNMET") {
-      // 조건 부족
-      const detailsText = evolutionResult.details
-        .map(d => `• ${d.target}: ${d.missing}`)
-        .join("\n");
-      alert(`진화 조건을 만족하지 못했어!\n\n[부족한 조건]\n${detailsText}`);
-    }
-  }
-  
-  async function handleEvolution(newName){
-    if(!digimonDataVer1[newName]){
-      console.error(`No data for ${newName} in digimonDataVer1! fallback => Digitama`);
-      newName="Digitama";
-    }
-    const currentStats = await applyLazyUpdateBeforeAction();
-    const old={...currentStats};
-    
-    // 진화 시 스탯 리셋 (매뉴얼 규칙)
-    // careMistakes, overfeeds, battlesForEvolution, proteinOverdose, injuries 등은 initializeStats에서 리셋됨
-    // 하지만 여기서 명시적으로 리셋하여 확실히 함
-    const resetStats = {
-      ...old,
-      careMistakes: 0,
-      overfeeds: 0,
-      battlesForEvolution: 0,
-      proteinOverdose: 0,
-      injuries: 0,
-      trainings: 0,
-      sleepDisturbances: 0,
-      trainings: 0,
-    };
-    
-    const nx= initializeStats(newName, resetStats, digimonDataVer1);
-    // 진화 시 activityLogs 계승 (초기화하지 않음)
-    const existingLogs = currentStats.activityLogs || activityLogs || [];
-    const newDigimonData = digimonDataVer1[newName] || {};
-    const newDigimonName = newDigimonData.name || newName;
-    const updatedLogs = addActivityLog(existingLogs, 'EVOLUTION', `Evolution: Evolved to ${newDigimonName}!`);
-    // activityLogs를 계승한 상태로 저장
-    const nxWithLogs = { ...nx, activityLogs: updatedLogs };
-    await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
-    await setSelectedDigimonAndSave(newName);
-  }
-
-  async function handleDeathConfirm(){
-    // 최신 스탯 가져오기
-    const currentStats = await applyLazyUpdateBeforeAction();
-    
-    let ohaka="Ohakadamon1";
-    if(perfectStages.includes(currentStats.evolutionStage)){
-      ohaka="Ohakadamon2";
-    }
-    if(!digimonDataVer1[ohaka]){
-      console.error(`No data for ${ohaka} in digimonDataVer1!? fallback => Digitama`);
-      ohaka="Digitama";
-    }
-    const old= {...currentStats};
-    const nx= initializeStats(ohaka, old, digimonDataVer1);
-    await setDigimonStatsAndSave(nx);
-    await setSelectedDigimonAndSave(ohaka);
-    toggleModal('deathModal', false);
-    setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
-    setDeathReason(null); // 사망 원인 초기화
-  }
 
   // 먹이 - Lazy Update 적용 후 Firestore에 저장
 
