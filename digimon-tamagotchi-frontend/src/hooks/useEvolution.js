@@ -104,7 +104,9 @@ export function useEvolution({
       const targetName = targetData?.name || targetData?.id || targetId;
       
       // 진화 애니메이션 시작
-      setIsEvolving(true);
+      if (typeof setIsEvolving === 'function') {
+        setIsEvolving(true);
+      }
       setEvolutionStage('shaking');
       
       // Step 1: Shaking (2초)
@@ -122,7 +124,9 @@ export function useEvolution({
             const evolvedName = targetData?.name || targetData?.id || targetId;
             setEvolvedDigimonName(evolvedName);
             await evolve(targetId);
-            setIsEvolving(false);
+            if (typeof setIsEvolving === 'function') {
+              setIsEvolving(false);
+            }
             // evolutionStage는 'complete'로 유지하여 확인 버튼을 눌러야만 닫히도록 함
           }, 500);
         }, 2000);

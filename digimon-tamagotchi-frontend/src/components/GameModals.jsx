@@ -110,8 +110,6 @@ export default function GameModals({
     evolvedDigimonName,
     setEvolutionStage,
     setEvolvedDigimonName,
-    setIsEvolving,
-    setDeveloperMode,
     setWidth,
     setHeight,
     setBackgroundNumber,
@@ -120,7 +118,7 @@ export default function GameModals({
     setFoodSizeScale,
   } = ui || {};
 
-  const { developerMode, mode } = flags || {};
+  const { developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode } = flags || {};
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
@@ -186,7 +184,7 @@ export default function GameModals({
           <SettingsModal
             onClose={() => toggleModal('settings', false)}
             developerMode={developerMode}
-            setDeveloperMode={setDeveloperMode}
+            setDeveloperMode={setDeveloperMode || (() => {})}
             width={width}
             height={height}
             setWidth={setWidth}

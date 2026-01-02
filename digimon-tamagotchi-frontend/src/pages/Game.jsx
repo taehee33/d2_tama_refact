@@ -141,7 +141,7 @@ function Game(){
     setHasSeenDeathPopup,
     dailySleepMistake,
     setDailySleepMistake,
-  } = flags;
+  } = flags || {};
 
   const {
     activeMenu,
@@ -958,7 +958,7 @@ async function setSelectedDigimonAndSave(name) {
         handlers={handlers}
         data={data}
         ui={ui}
-        flags={{ developerMode, mode }}
+        flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode }}
       />
       )}
     </>
