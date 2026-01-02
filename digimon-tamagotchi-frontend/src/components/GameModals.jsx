@@ -1,0 +1,387 @@
+// src/components/GameModals.jsx
+// Game.jsx의 모든 모달 렌더링 로직을 분리한 컴포넌트
+
+import React from "react";
+import StatsPopup from "./StatsPopup";
+import FeedPopup from "./FeedPopup";
+import SettingsModal from "./SettingsModal";
+import TrainPopup from "./TrainPopup";
+import BattleSelectionModal from "./BattleSelectionModal";
+import BattleScreen from "./BattleScreen";
+import QuestSelectionModal from "./QuestSelectionModal";
+import CommunicationModal from "./CommunicationModal";
+import SparringModal from "./SparringModal";
+import ArenaScreen from "./ArenaScreen";
+import AdminModal from "./AdminModal";
+import DeathPopup from "./DeathPopup";
+import DigimonInfoModal from "./DigimonInfoModal";
+import HealModal from "./HealModal";
+
+/**
+ * GameModals 컴포넌트
+ * Game.jsx의 모든 모달 렌더링을 담당하는 컴포넌트
+ * 
+ * @param {Object} props
+ * @param {Object} props.modals - 모달 상태 객체
+ * @param {Function} props.toggleModal - 모달 토글 함수
+ * @param {Object} props.gameState - 게임 상태 (stats, selectedDigimon, 등)
+ * @param {Object} props.handlers - 모든 핸들러 함수들
+ * @param {Object} props.data - 기타 필요한 데이터 (digimonData, quests, 등)
+ * @param {Object} props.ui - UI 상태 (width, height, 등)
+ * @param {Object} props.flags - 플래그 상태 (developerMode, 등)
+ */
+export default function GameModals({
+  modals,
+  toggleModal,
+  gameState,
+  handlers,
+  data,
+  ui,
+  flags,
+}) {
+  // 필수 props가 없으면 렌더링하지 않음
+  if (!modals || !toggleModal || !gameState || !handlers || !data || !ui || !flags) {
+    console.warn('GameModals: 필수 props가 누락되었습니다.', { modals, toggleModal, gameState, handlers, data, ui, flags });
+    return null;
+  }
+
+  const {
+    digimonStats,
+    selectedDigimon,
+    slotId,
+    slotName,
+    slotVersion,
+    currentQuestArea,
+    currentQuestRound,
+    clearedQuestIndex,
+    battleType,
+    sparringEnemySlot,
+    arenaChallenger,
+    currentSeasonId,
+    activityLogs,
+    deathReason,
+  } = gameState || {};
+
+  const {
+    handleFeed,
+    handleTrainResult,
+    handleBattleComplete,
+    handleQuestStart,
+    handleCommunicationStart,
+    handleSparringStart,
+    handleArenaStart,
+    handleArenaBattleStart,
+    handleSparringSlotSelect,
+    handleSelectArea,
+    handleQuestComplete,
+    handleAdminConfigUpdated,
+    startHealCycle,
+    handleDeathConfirm,
+    setDigimonStatsAndSave,
+    setSelectedDigimonAndSave,
+    setCurrentQuestArea,
+    setCurrentQuestRound,
+    setBattleType,
+    setSparringEnemySlot,
+    setArenaChallenger,
+    setArenaEnemyId,
+    setMyArenaEntryId,
+    evolve,
+  } = handlers || {};
+
+  const {
+    newDigimonDataVer1,
+    digimonDataVer1,
+    quests,
+    seasonName,
+    seasonDuration,
+    ver1DigimonList,
+    initializeStats,
+  } = data || {};
+
+  const {
+    width,
+    height,
+    backgroundNumber,
+    timeSpeed,
+    customTime,
+    foodSizeScale,
+    evolutionStage,
+    evolvedDigimonName,
+    setEvolutionStage,
+    setEvolvedDigimonName,
+    setIsEvolving,
+    setDeveloperMode,
+    setWidth,
+    setHeight,
+    setBackgroundNumber,
+    setTimeSpeed,
+    setCustomTime,
+    setFoodSizeScale,
+  } = ui || {};
+
+  const { developerMode, mode } = flags || {};
+
+  // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
+  const getCurrentDigimonData = () => {
+    if (!newDigimonDataVer1 || !digimonStats) return {};
+    const digimonKey = selectedDigimon || 
+      (digimonStats.evolutionStage ? 
+        Object.keys(newDigimonDataVer1).find(key => 
+          newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage
+        ) : 
+        "Digitama"
+      );
+    return newDigimonDataVer1[digimonKey] || {};
+  };
+
+  const currentDigimonData = getCurrentDigimonData();
+  const currentDigimonKey = selectedDigimon || 
+    (digimonStats?.evolutionStage ? 
+      Object.keys(newDigimonDataVer1 || {}).find(key => 
+        newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage
+      ) : 
+      "Digitama"
+    ) || "Digitama";
+
+  return (
+    <>
+      {/* Death Modal */}
+      {modals?.deathModal && (
+        <DeathPopup
+          isOpen={modals.deathModal}
+          onConfirm={handleDeathConfirm || (() => {})}
+          onClose={() => toggleModal?.('deathModal', false) || (() => {})}
+          reason={deathReason}
+        />
+      )}
+
+      {/* Stats Popup */}
+      {modals?.stats && (
+        <StatsPopup
+          stats={digimonStats}
+          digimonData={currentDigimonData}
+          onClose={() => toggleModal?.('stats', false) || (() => {})}
+          devMode={developerMode}
+          onChangeStats={(ns) => setDigimonStatsAndSave?.(ns) || (() => {})}
+        />
+      )}
+
+      {/* Feed Modal */}
+      {modals.feed && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <FeedPopup
+            onClose={() => toggleModal('feed', false)}
+            onSelect={(foodType) => {
+              toggleModal?.('feed', false);
+              handleFeed?.(foodType);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {modals.settings && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <SettingsModal
+            onClose={() => toggleModal('settings', false)}
+            developerMode={developerMode}
+            setDeveloperMode={setDeveloperMode}
+            width={width}
+            height={height}
+            setWidth={setWidth}
+            setHeight={setHeight}
+            backgroundNumber={backgroundNumber}
+            setBackgroundNumber={setBackgroundNumber}
+            timeSpeed={timeSpeed}
+            setTimeSpeed={setTimeSpeed}
+            customTime={customTime}
+            setCustomTime={setCustomTime}
+            foodSizeScale={foodSizeScale}
+            setFoodSizeScale={setFoodSizeScale}
+          />
+        </div>
+      )}
+
+      {/* Dev Digimon Select (Developer Mode Only) */}
+      {developerMode && slotVersion === "Ver.1" && (
+        <div className="mt-1 p-2 border">
+          <label className="mr-1">Dev Digimon Select:</label>
+          <select
+            onChange={(e) => {
+              const nm = e.target.value;
+              if (!digimonDataVer1[nm]) {
+                console.error(`No data for ${nm}`);
+                const fallback = initializeStats("Digitama", digimonStats, digimonDataVer1);
+                setDigimonStatsAndSave(fallback);
+                setSelectedDigimonAndSave("Digitama");
+                return;
+              }
+              const old = { ...digimonStats };
+              const nx = initializeStats(nm, old, digimonDataVer1);
+              setDigimonStatsAndSave(nx);
+              setSelectedDigimonAndSave(nm);
+            }}
+            defaultValue={selectedDigimon}
+          >
+            {ver1DigimonList.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Train Modal */}
+      {modals.train && (
+        <TrainPopup
+          onClose={() => toggleModal('train', false)}
+          digimonStats={digimonStats}
+          setDigimonStatsAndSave={setDigimonStatsAndSave}
+          onTrainResult={handleTrainResult}
+        />
+      )}
+
+      {/* Battle Selection Modal */}
+      {modals.battleSelection && (
+        <BattleSelectionModal
+          onClose={() => toggleModal('battleSelection', false)}
+          onQuestStart={handleQuestStart}
+          onCommunicationStart={handleCommunicationStart}
+        />
+      )}
+
+      {/* Communication Modal */}
+      {modals.communication && (
+        <CommunicationModal
+          onClose={() => toggleModal('communication', false)}
+          onSparringStart={handleSparringStart}
+          onArenaStart={handleArenaStart}
+        />
+      )}
+
+      {/* Arena Screen */}
+      {modals.arenaScreen && (
+        <ArenaScreen
+          onClose={() => toggleModal('arenaScreen', false)}
+          onStartBattle={handleArenaBattleStart}
+          currentSlotId={parseInt(slotId)}
+          mode={mode}
+          currentSeasonId={currentSeasonId}
+          isDevMode={developerMode}
+          onOpenAdmin={() => toggleModal('admin', true)}
+        />
+      )}
+
+      {/* Sparring Modal */}
+      {modals.sparring && (
+        <SparringModal
+          onClose={() => toggleModal('sparring', false)}
+          onSelectSlot={handleSparringSlotSelect}
+          currentSlotId={parseInt(slotId)}
+          mode={mode}
+        />
+      )}
+
+      {/* Quest Selection Modal */}
+      {modals.questSelection && (
+        <QuestSelectionModal
+          quests={quests}
+          clearedQuestIndex={clearedQuestIndex}
+          onSelectArea={handleSelectArea}
+          onClose={() => toggleModal('questSelection', false)}
+        />
+      )}
+
+      {/* Battle Screen */}
+      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
+        <BattleScreen
+          userDigimon={newDigimonDataVer1[selectedDigimon] || {
+            id: selectedDigimon,
+            name: selectedDigimon,
+            stats: digimonDataVer1[selectedDigimon] || {},
+          }}
+          userStats={digimonStats}
+          userSlotName={slotName || `슬롯${slotId}`}
+          areaId={currentQuestArea}
+          roundIndex={currentQuestRound}
+          battleType={battleType}
+          sparringEnemySlot={sparringEnemySlot}
+          arenaChallenger={arenaChallenger}
+          onBattleComplete={handleBattleComplete}
+          onQuestClear={handleQuestComplete}
+          onClose={() => {
+            toggleModal('battleScreen', false);
+            setCurrentQuestArea(null);
+            setCurrentQuestRound(0);
+            
+            // Arena 모드일 때는 Arena 화면으로 복귀
+            if (battleType === 'arena') {
+              toggleModal('arenaScreen', true);
+            }
+            
+            setBattleType(null);
+            setSparringEnemySlot(null);
+            setArenaChallenger(null);
+            setArenaEnemyId(null);
+            setMyArenaEntryId(null);
+          }}
+        />
+      )}
+
+      {/* Admin Modal (Dev 모드에서만 표시) */}
+      {developerMode && modals.admin && (
+        <AdminModal
+          onClose={() => toggleModal('admin', false)}
+          currentSeasonId={currentSeasonId}
+          seasonName={seasonName}
+          seasonDuration={seasonDuration}
+          onConfigUpdated={handleAdminConfigUpdated}
+        />
+      )}
+
+      {/* Digimon Info Modal */}
+      {modals.digimonInfo && (
+        <DigimonInfoModal
+          currentDigimonName={currentDigimonKey}
+          currentDigimonData={currentDigimonData}
+          currentStats={digimonStats}
+          digimonDataMap={newDigimonDataVer1}
+          activityLogs={activityLogs}
+          onClose={() => toggleModal('digimonInfo', false)}
+        />
+      )}
+
+      {/* Heal Modal */}
+      {modals.heal && (
+        <HealModal
+          isInjured={digimonStats.isInjured || false}
+          currentDoses={digimonStats.healedDosesCurrent || 0}
+          requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
+          onHeal={startHealCycle}
+          onClose={() => toggleModal('heal', false)}
+        />
+      )}
+
+      {/* Evolution Animation Complete Message */}
+      {evolutionStage === 'complete' && evolvedDigimonName && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-70 z-50">
+          <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
+            <h2 className="text-3xl font-bold text-black mb-2 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
+            <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
+            <button
+              onClick={() => {
+                setEvolutionStage('idle');
+                setEvolvedDigimonName(null);
+                setIsEvolving(false);
+              }}
+              className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+

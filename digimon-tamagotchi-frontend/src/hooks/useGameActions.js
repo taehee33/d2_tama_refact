@@ -453,8 +453,6 @@ export function useGameActions({
       
       return finalStatsWithLogs;
     });
-    
-    console.log("훈련 결과:", result);
   };
 
   /**
@@ -585,14 +583,6 @@ export function useGameActions({
 
     // Arena 모드: Firestore에 결과 반영
     if (battleType === 'arena' && arenaChallenger && currentUser) {
-      console.log("Arena Result Update:", {
-        battleType,
-        challengerId: arenaEnemyId || arenaChallenger.id,
-        challengerUserId: arenaChallenger.userId,
-        myEntryId: myArenaEntryId,
-        result: battleResult.win ? 'WIN' : 'LOSE',
-        battleResult,
-      });
 
       const enemyEntryId = arenaEnemyId || arenaChallenger.id;
       if (!enemyEntryId) {
@@ -609,7 +599,6 @@ export function useGameActions({
 
       try {
         const challengerRef = doc(db, 'arena_entries', enemyEntryId);
-        console.log("업데이트할 문서 참조:", challengerRef.path);
 
         if (battleResult.win) {
           await updateDoc(challengerRef, {

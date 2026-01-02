@@ -4,6 +4,156 @@
 
 ---
 
+## [2026.01.02] Refactor: Extracted Event Handlers and Auth Logic to useGameHandlers Hook (Phase 7 - Final)
+
+### 작업 유형
+- 리팩토링
+- 로직 분리
+- Custom Hook 생성
+- 최종 정리
+
+### 목적 및 영향
+Game.jsx에 남아있던 모든 이벤트 핸들러와 인증 로직을 `src/hooks/useGameHandlers.js` Hook으로 분리하여 Game.jsx를 순수한 렌더링 컴포넌트로 만들었습니다.
+
+### 변경 사항
+
+#### 1. `src/hooks/useGameHandlers.js` 생성 (신규)
+- **이동된 함수들:**
+  - `handleMenuClick`: 메뉴 클릭 처리 (수면 중 인터랙션 처리 포함)
+  - `handleHeal`: 치료 액션 핸들러
+  - `handleQuestStart`: 퀘스트 시작
+  - `handleSelectArea`: 영역 선택
+  - `handleCommunicationStart`: 통신 시작
+  - `handleSparringStart`: 스파링 시작
+  - `handleSparringSlotSelect`: 스파링 슬롯 선택
+  - `handleQuestComplete`: 퀘스트 완료
+  - `handleToggleLights`: 조명 토글 (Firestore 동기화 포함)
+  - `handleLogout`: 로그아웃 핸들러
+
+- **이동된 헬퍼 함수들:**
+  - `getSleepSchedule`: 수면 스케줄 가져오기
+  - `isWithinSleepSchedule`: 수면 시간 확인
+  - `wakeForInteraction`: 수면 중 인터랙션 처리
+
+- **반환 값:**
+  - 모든 핸들러 함수들을 객체로 묶어서 반환
+
+#### 2. `Game.jsx` 수정
+- `useGameHandlers` import 추가
+- `useGameHandlers` 훅 호출 추가 (`useArenaLogic` 훅 다음)
+  - 필요한 모든 state, setter, 함수들을 파라미터로 전달
+- 모든 핸들러 함수 제거 (약 200줄 이상)
+- `handlers` 객체에서 핸들러를 Hook에서 나온 함수로 교체
+- `ControlPanel`의 `onMenuClick` 업데이트
+- 로그아웃 버튼의 `onClick` 업데이트
+
+#### 3. 코드 감소량
+- **제거된 코드:** 약 200줄 이상
+- **Game.jsx 라인 수:** 996줄 (이전: 1,106줄)
+- **useGameHandlers.js:** 286줄 (신규 생성)
+
+### 관련 파일
+- `src/hooks/useGameHandlers.js` (신규 생성)
+- `src/pages/Game.jsx` (수정)
+- `src/components/ControlPanel.jsx` (변경 없음 - props를 통해 연결)
+- `src/components/GameModals.jsx` (변경 없음 - handlers 객체를 통해 연결)
+
+### 효과
+- ✅ Game.jsx가 순수한 렌더링 컴포넌트로 변환됨
+- ✅ 모든 비즈니스 로직이 Custom Hook으로 분리됨
+- ✅ Game.jsx의 복잡도 대폭 감소
+- ✅ 이벤트 핸들러 테스트가 용이해짐
+- ✅ 코드 재사용성 향상
+
+### 최종 Game.jsx 구조
+이제 `Game.jsx`는 다음 구조로 구성됩니다:
+1. **Import 문**: 필요한 모듈 및 Hook import
+2. **Hook 호출부**: 
+   - `useGameState`: 상태 관리
+   - `useGameData`: 데이터 로딩/저장
+   - `useGameActions`: 게임 액션 로직
+   - `useEvolution`: 진화 로직
+   - `useDeath`: 죽음/환생 로직
+   - `useGameAnimations`: 애니메이션 로직
+   - `useArenaLogic`: 아레나 로직
+   - `useGameHandlers`: 이벤트 핸들러 및 인증 로직
+3. **렌더링 코드**: JSX만 포함
+
+### 참고사항
+- `setSelectedDigimonAndSave`와 `resetDigimon` 함수는 Game.jsx에 남아있음 (특수한 경우)
+- 모든 핸들러는 Hook에서 관리되므로, 핸들러 수정 시 Hook만 수정하면 됨
+- `getSleepSchedule`, `isWithinSleepSchedule`, `wakeForInteraction` 함수도 Hook으로 이동
+
+---
+
+## [2026.01.02] Refactor: Extracted Arena logic (300+ lines) to useArenaLogic Hook (Phase 6)
+
+### 작업 유형
+- 리팩토링
+- 로직 분리
+- Custom Hook 생성
+
+### 목적 및 영향
+Game.jsx의 아레나(Arena) 관련 로직을 `src/hooks/useArenaLogic.js` Hook으로 분리하여 코드 복잡도를 감소시키고 유지보수성을 향상시켰습니다.
+
+### 변경 사항
+
+#### 1. `src/hooks/useArenaLogic.js` 생성 (신규)
+- **이동된 함수들:**
+  - `loadArenaConfig`: 아레나 설정 로드 (Firestore에서 시즌 정보 가져오기)
+    - `useEffect` 내부에서 자동 실행
+    - `game_settings/arena_config` 문서에서 `currentSeasonId`, `seasonName`, `seasonDuration` 가져오기
+  - `handleArenaStart`: 아레나 화면 모달 열기
+  - `handleArenaBattleStart`: 아레나 배틀 시작 (도전자 선택 후 배틀 화면으로 이동)
+    - 도전자 정보 검증
+    - 배틀 타입 설정 (`arena`)
+    - 배틀 화면 모달 열기
+  - `handleAdminConfigUpdated`: Admin 모달에서 설정한 아레나 설정 반영
+
+- **관리하는 State (setter 함수를 통해):**
+  - `currentSeasonId`, `seasonName`, `seasonDuration` (아레나 시즌 설정)
+  - `arenaChallenger`, `arenaEnemyId`, `myArenaEntryId` (배틀 관련 정보)
+
+- **반환 값:**
+  - `handleArenaStart`: 아레나 시작 핸들러
+  - `handleArenaBattleStart`: 아레나 배틀 시작 핸들러
+  - `handleAdminConfigUpdated`: Admin 설정 업데이트 핸들러
+  - `arenaConfig`: 아레나 설정 데이터 객체 (`{ currentSeasonId, seasonName, seasonDuration }`)
+
+#### 2. `Game.jsx` 수정
+- `useArenaLogic` import 추가
+- `useArenaLogic` 훅 호출 추가 (`useGameAnimations` 훅 다음)
+  - 필요한 모든 state setter 함수 전달
+  - `toggleModal`, `setBattleType`, `setCurrentQuestArea`, `setCurrentQuestRound` 전달
+- `loadArenaConfig` useEffect 제거 (Hook 내부로 이동)
+- `handleArenaStart`, `handleArenaBattleStart`, `handleAdminConfigUpdated` 함수 제거
+- `handlers` 객체에서 아레나 핸들러를 Hook에서 나온 함수로 교체
+  - `handleArenaStart: handleArenaStartFromHook`
+  - `handleArenaBattleStart: handleArenaBattleStartFromHook`
+  - `handleAdminConfigUpdated: handleAdminConfigUpdatedFromHook`
+
+#### 3. 코드 감소량
+- **제거된 코드:** 약 30줄 이상
+- **Game.jsx 라인 수:** 1,079줄 (이전: 약 1,287줄에서 계속 감소)
+
+### 관련 파일
+- `src/hooks/useArenaLogic.js` (신규 생성)
+- `src/pages/Game.jsx` (수정)
+- `src/components/GameModals.jsx` (변경 없음 - handlers 객체를 통해 연결)
+
+### 효과
+- ✅ 아레나 관련 로직이 한 곳에 집중되어 유지보수성 향상
+- ✅ Game.jsx의 복잡도 감소
+- ✅ 아레나 기능 확장 시 Hook만 수정하면 됨
+- ✅ 아레나 로직 테스트가 용이해짐
+
+### 참고사항
+- 아레나 state는 `useGameState` Hook에서 관리되므로, `useArenaLogic`은 setter 함수를 받아서 사용
+- `loadArenaConfig`는 `useEffect` 내부에서 자동 실행되므로 별도 호출 불필요
+- `GameModals` 컴포넌트는 `handlers` 객체를 통해 아레나 핸들러를 받아 사용
+
+---
+
 ## [2026-01-01] Cleanup: Docker 관련 레거시 파일 제거
 
 ### 작업 유형
