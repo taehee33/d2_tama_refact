@@ -44,6 +44,18 @@ export default function BattleScreen({
   const enemyDigimonImgRef = useRef(null);
   const battleAreaRef = useRef(null);
 
+  // 모달이 열렸을 때 배경 스크롤 방지
+  useEffect(() => {
+    // 컴포넌트가 마운트될 때 body 스크롤 막기
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    
+    // 컴포넌트가 언마운트될 때 원래대로 복구
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   // 배틀 시작 시 적 데이터 가져오기 및 배틀 실행
   // roundIndex가 변경되면 새로운 배틀 시작
   useEffect(() => {
@@ -338,18 +350,18 @@ export default function BattleScreen({
 
   if (battleState === "loading") {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '20px', overflow: 'hidden' }}>
         <div className="text-white text-xl">배틀 준비 중...</div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
       {/* 라운드 준비 모달 */}
       {showReadyModal && !hasRoundStarted && (
-        <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70">
-          <div className="bg-white p-8 rounded-lg shadow-xl text-center" style={{ minWidth: "400px" }}>
+        <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70" modal-overlay-mobile>
+          <div className="bg-white p-8 rounded-lg shadow-xl text-center modal-mobile" style={{ minWidth: "400px" }}>
             <h2 className="text-4xl font-bold mb-2">
               {battleType === 'sparring' ? 'Sparring' : battleType === 'arena' ? 'Arena' : `Round ${roundIndex + 1}`}
             </h2>
@@ -376,10 +388,12 @@ export default function BattleScreen({
         </div>
       )}
       
-      <div className="battle-screen bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl">
-        {/* 라운드 정보 */}
-        <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold">
+      <div className="battle-screen bg-white rounded-lg shadow-xl w-full max-w-4xl modal-mobile flex flex-col" style={{ maxHeight: 'calc(100vh - 160px)', height: 'auto' }}>
+        {/* 스크롤 가능한 콘텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-4 sm:pt-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+          {/* 라운드 정보 */}
+          <div className="text-center mb-4 pb-3 border-b border-gray-200">
+            <h2 className="text-2xl font-bold">
             {battleType === 'sparring'
               ? `Sparring - ${enemyData?.name || "Unknown"}`
               : battleType === 'arena'
@@ -530,7 +544,7 @@ export default function BattleScreen({
 
         {/* 배틀 로그 */}
         {battleState === "playing" && battleResult?.logs && (
-          <div className="battle-log-container mb-4">
+          <div className="battle-log-container mb-4 mt-4 pt-4 border-t border-gray-200">
             <div className="battle-log text-center text-sm text-gray-600 mb-2">
               <strong>현재 턴:</strong> {battleResult.logs[currentLogIndex]?.message || "배틀 진행 중..."}
             </div>
@@ -577,17 +591,17 @@ export default function BattleScreen({
 
         {/* 승리 모달 (자동 진행 방지) */}
         {battleState === "victory" && !showLogReview && (
-          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60">
-            <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
+            <div className="bg-white rounded-lg shadow-xl text-center modal-mobile w-full max-w-md mx-4 p-6 sm:p-8">
               {isQuestCleared ? (
                 <>
                   <div className="text-5xl font-bold text-green-600 mb-4">Quest Cleared!</div>
                   <div className="text-2xl font-bold text-green-600 mb-6">WIN!</div>
                   <p className="text-gray-700 mb-6">{battleResult.reward || "Area 클리어!"}</p>
-                  <div className="flex gap-4 justify-center">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
                       onClick={() => setShowLogReview(true)}
-                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
                     </button>
@@ -598,7 +612,7 @@ export default function BattleScreen({
                         }
                         handleExit();
                       }}
-                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
+                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px]"
                     >
                       Exit
                     </button>
@@ -608,16 +622,16 @@ export default function BattleScreen({
                 <>
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
                   <p className="text-gray-700 mb-6">Practice Match Completed!</p>
-                  <div className="flex gap-4 justify-center flex-wrap">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
                       onClick={() => setShowLogReview(true)}
-                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
                     </button>
                     <button
                       onClick={handleExit}
-                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors text-base min-h-[44px]"
                     >
                       Return to Menu
                     </button>
@@ -628,16 +642,16 @@ export default function BattleScreen({
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
                   <p className="text-gray-700 mb-4">Rank Updated!</p>
                   <p className="text-sm text-gray-600 mb-6">Arena 전투에서 승리했습니다!</p>
-                  <div className="flex gap-4 justify-center flex-wrap">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
                       onClick={() => setShowLogReview(true)}
-                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
                     </button>
                     <button
                       onClick={handleExit}
-                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
+                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors text-base min-h-[44px]"
                     >
                       Return to Arena
                     </button>
@@ -647,22 +661,22 @@ export default function BattleScreen({
                 <>
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
                   <p className="text-gray-700 mb-6">다음 라운드로 진행하시겠습니까?</p>
-                  <div className="flex gap-4 justify-center flex-wrap">
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center flex-wrap">
                     <button
                       onClick={() => setShowLogReview(true)}
-                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
                     </button>
                     <button
                       onClick={handleNextBattle}
-                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
+                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors text-base min-h-[44px]"
                     >
                       Next Battle
                     </button>
                     <button
                       onClick={handleExit}
-                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+                      className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors text-base min-h-[44px]"
                     >
                       Exit
                     </button>
@@ -675,8 +689,8 @@ export default function BattleScreen({
 
         {/* 로그 리뷰 화면 */}
         {battleState === "victory" && showLogReview && battleResult?.logs && (
-          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60">
-            <div className="bg-white p-8 rounded-lg shadow-xl text-center" style={{ maxWidth: "800px", maxHeight: "80vh", overflowY: "auto" }}>
+          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
+            <div className="bg-white rounded-lg shadow-xl text-center modal-mobile w-full max-w-md mx-4 p-6 sm:p-8" style={{ maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
               <h2 className="text-2xl font-bold mb-4">전투 로그 리뷰</h2>
               <div className="battle-log-review bg-gray-100 p-4 rounded max-h-96 overflow-y-auto mb-4">
                 {battleResult.logs.map((log, idx) => {
@@ -714,36 +728,40 @@ export default function BattleScreen({
 
         {/* 패배 결과 화면 */}
         {battleState === "result" && !showLogReview && (
-          <div className="battle-result text-center">
-            <div className="text-4xl font-bold text-red-600 mb-4">LOSE...</div>
-            {battleType === 'arena' && (
-              <p className="text-gray-700 mb-4">Rank Updated!</p>
-            )}
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => setShowLogReview(true)}
-                className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
-              >
-                Review Log
-              </button>
-              <button
-                onClick={handleDefeat}
-                className={`px-6 py-3 rounded-lg font-bold transition-colors ${
-                  battleType === 'arena'
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-red-500 text-white hover:bg-red-600'
-                }`}
-              >
-                {battleType === 'arena' ? 'Return to Arena' : '돌아가기'}
-              </button>
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
+            <div className="bg-white rounded-lg shadow-xl text-center modal-mobile w-full max-w-md mx-4 p-6 sm:p-8">
+              <div className="battle-result text-center pb-4">
+                <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
+                {battleType === 'arena' && (
+                  <p className="text-gray-700 mb-4">Rank Updated!</p>
+                )}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={() => setShowLogReview(true)}
+                    className="px-4 sm:px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
+                  >
+                    Review Log
+                  </button>
+                  <button
+                    onClick={handleDefeat}
+                    className={`px-4 sm:px-6 py-3 rounded-lg font-bold transition-colors text-base min-h-[44px] ${
+                      battleType === 'arena'
+                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        : 'bg-red-500 text-white hover:bg-red-600'
+                    }`}
+                  >
+                    {battleType === 'arena' ? 'Return to Arena' : '돌아가기'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {/* 패배 로그 리뷰 화면 */}
         {battleState === "result" && showLogReview && battleResult?.logs && (
-          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-60">
-            <div className="bg-white p-8 rounded-lg shadow-xl text-center" style={{ maxWidth: "800px", maxHeight: "80vh", overflowY: "auto" }}>
+          <div className="victory-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
+            <div className="bg-white rounded-lg shadow-xl text-center modal-mobile w-full max-w-md mx-4 p-6 sm:p-8" style={{ maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
               <h2 className="text-2xl font-bold mb-4">전투 로그 리뷰</h2>
               <div className="battle-log-review bg-gray-100 p-4 rounded max-h-96 overflow-y-auto mb-4">
                 {battleResult.logs.map((log, idx) => {
@@ -779,14 +797,18 @@ export default function BattleScreen({
           </div>
         )}
 
-        {/* 닫기 버튼 (결과 화면이 아닐 때만) */}
+        </div>
+        
+        {/* 하단 고정 버튼 영역 */}
         {battleState !== "result" && battleState !== "victory" && (
-          <button
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            중단
-          </button>
+          <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 sm:px-6 py-3">
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-bold text-base"
+            >
+              중단
+            </button>
+          </div>
         )}
       </div>
     </div>

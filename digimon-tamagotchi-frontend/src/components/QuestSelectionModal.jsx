@@ -22,7 +22,7 @@ export default function QuestSelectionModal({ quests, clearedQuestIndex, onSelec
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" modal-overlay-mobile>
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-3xl font-bold">퀘스트 모드</h2>

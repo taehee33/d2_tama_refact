@@ -109,3 +109,224 @@ code {
     opacity: 0.5;
   }
 }
+
+/* ============================================
+   모바일 반응형 디자인
+   ============================================ */
+@media (max-width: 768px) {
+  /* 전체 레이아웃: 세로 방향, 패딩 추가 */
+  body {
+    overflow-x: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 60px); /* 하단 여백 증가 (Safari 주소창 고려) */
+  }
+
+  /* Game 컨테이너: 상단 여백 추가 (고정 메뉴 공간 확보) */
+  .game-main-container {
+    padding-top: 80px; /* 상단 고정 요소 공간 확보 */
+    padding-bottom: env(safe-area-inset-bottom, 120px) !important; /* 하단 여백 대폭 증가 */
+    min-height: auto; /* 100vh 제거하여 하단 여백 확보 */
+    height: auto;
+  }
+
+  /* Game 컨테이너: 세로 배치 */
+  .game-container-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    padding-bottom: env(safe-area-inset-bottom, 150px) !important; /* 하단 여백 대폭 증가 */
+    gap: 15px;
+    width: 100vw;
+    max-width: 100vw;
+    overflow-x: hidden;
+    min-height: auto; /* 높이 제한 제거 */
+  }
+
+  /* GameScreen: 화면 너비에 맞춤, 상단 여백 추가 */
+  .game-screen-mobile {
+    width: 100%;
+    max-width: 100vw;
+    display: flex;
+    justify-content: center;
+    padding: 0 10px;
+  }
+
+  /* 슬롯 정보 영역: 상단 고정 메뉴와 겹치지 않도록 여백 */
+  .text-center.mb-1.pt-20 {
+    padding-top: 80px !important; /* 상단 고정 메뉴 공간 확보 */
+    margin-top: 0;
+  }
+
+  /* ControlPanel: 세로 배치 */
+  .control-panel-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 100vw;
+    gap: 15px;
+    padding: 0 10px;
+    margin-bottom: env(safe-area-inset-bottom, 50px); /* 하단 여백 증가 */
+  }
+
+  /* StatsPanel: 전체 너비, 중앙 정렬 */
+  .stats-panel-mobile {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  /* MenuIconButtons: 그리드 레이아웃 (4열) */
+  .menu-icon-buttons-mobile {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
+    padding: 10px;
+  }
+
+  /* Settings 버튼: 모바일 친화적 위치 */
+  .settings-button-mobile {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 100;
+    padding: 10px;
+    font-size: 14px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-wrap: wrap; /* 모바일에서 여러 줄로 */
+    gap: 5px;
+  }
+
+  /* 좌측 상단 버튼: 모바일 최적화 */
+  .fixed.top-4.left-4 {
+    top: 10px;
+    left: 10px;
+    z-index: 100;
+  }
+
+  /* 모달: 화면 크기에 맞춤 */
+  .modal-mobile {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 90vh;
+    margin: 5vh auto;
+    padding: 15px;
+    overflow-y: auto;
+  }
+
+  /* StatsPopup 모바일 */
+  .stats-popup-mobile {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: 85vh;
+  }
+
+  /* 버튼: 터치 친화적 크기 */
+  .touch-button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+    font-size: 16px;
+  }
+
+  /* 아이콘 버튼: 모바일에서 더 크게 */
+  .icon-button-mobile {
+    width: 60px !important;
+    height: 60px !important;
+    min-width: 60px;
+    min-height: 60px;
+  }
+
+  /* 하단 버튼 영역: 여백 추가 */
+  .flex.items-center.justify-center.space-x-2.mt-1 {
+    margin-bottom: env(safe-area-inset-bottom, 120px) !important; /* 하단 여백 대폭 증가 */
+    padding-bottom: env(safe-area-inset-bottom, 80px) !important; /* 추가 여백 대폭 증가 */
+  }
+
+  /* Evolution 버튼이 있는 마지막 div: 확실한 여백 */
+  div.flex.items-center.justify-center.space-x-2.mt-1:last-of-type {
+    margin-bottom: env(safe-area-inset-bottom, 150px) !important; /* 매우 큰 하단 여백 */
+    padding-bottom: env(safe-area-inset-bottom, 100px) !important; /* 매우 큰 패딩 */
+  }
+
+  /* 마지막 요소 뒤에 가상 요소로 여백 추가 (최종 보장) */
+  div.flex.items-center.justify-center.space-x-2.mt-1:last-of-type::after {
+    content: '';
+    display: block;
+    height: env(safe-area-inset-bottom, 100px);
+    width: 100%;
+  }
+}
+
+/* ============================================
+   PWA Standalone 모드 추가 여백
+   ============================================ */
+@media (max-width: 768px) and (display-mode: standalone) {
+  /* PWA standalone 모드: 추가 하단 여백 */
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 150px) !important; /* PWA에서 매우 큰 여백 */
+    min-height: auto !important; /* 100vh 제거 */
+  }
+
+  .game-main-container {
+    padding-bottom: env(safe-area-inset-bottom, 180px) !important; /* PWA에서 매우 큰 여백 */
+    min-height: auto !important; /* 100vh 제거 */
+  }
+
+  .game-container-mobile {
+    padding-bottom: env(safe-area-inset-bottom, 200px) !important; /* PWA에서 매우 큰 여백 */
+    min-height: auto !important; /* 높이 제한 제거 */
+  }
+
+  .control-panel-mobile {
+    margin-bottom: env(safe-area-inset-bottom, 100px) !important; /* PWA에서 매우 큰 여백 */
+  }
+
+  /* 하단 버튼 영역: PWA에서 추가 여백 */
+  .flex.items-center.justify-center.space-x-2.mt-1 {
+    margin-bottom: env(safe-area-inset-bottom, 180px) !important; /* PWA에서 매우 큰 여백 */
+    padding-bottom: env(safe-area-inset-bottom, 120px) !important; /* PWA에서 매우 큰 패딩 */
+  }
+
+  /* Evolution 버튼이 있는 마지막 div: PWA에서 확실한 여백 */
+  div.flex.items-center.justify-center.space-x-2.mt-1:last-of-type {
+    margin-bottom: env(safe-area-inset-bottom, 200px) !important; /* PWA에서 매우 큰 하단 여백 */
+    padding-bottom: env(safe-area-inset-bottom, 150px) !important; /* PWA에서 매우 큰 패딩 */
+  }
+
+  /* 마지막 요소 뒤에 가상 요소로 여백 추가 (PWA 최종 보장) */
+  div.flex.items-center.justify-center.space-x-2.mt-1:last-of-type::after {
+    content: '';
+    display: block;
+    height: env(safe-area-inset-bottom, 150px) !important;
+    width: 100%;
+  }
+}
+
+/* ============================================
+   웹(데스크톱) 버튼 크기 개선
+   ============================================ */
+@media (min-width: 769px) {
+  /* 아이콘 버튼: 웹에서도 크게 (60x60px) */
+  .icon-button {
+    min-width: 60px;
+    min-height: 60px;
+    padding: 8px;
+  }
+
+  /* MenuIconButtons 컨테이너: 버튼 크기에 맞춰 조정 */
+  .menu-icon-buttons .game-container {
+    min-height: 140px; /* 상단/하단 버튼 공간 확보 (60px 버튼 + 여백) */
+  }
+
+  /* 일반 버튼: 웹에서도 크게 */
+  .pixel-art-button {
+    min-height: 40px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+}

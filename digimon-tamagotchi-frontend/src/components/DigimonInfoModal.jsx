@@ -400,7 +400,7 @@ export default function DigimonInfoModal({
   // 메인 렌더링
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile
       onClick={onClose}
     >
       <div

@@ -38,7 +38,7 @@ export default function StatsPopup({
   devMode=false,
   onChangeStats
 }){
-  const [activeTab, setActiveTab] = useState('OLD'); // 'OLD' | 'NEW'
+  const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
   
   // stats 내부 항목 구조 분해
   const {
@@ -306,7 +306,7 @@ export default function StatsPopup({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
-        className="bg-white p-4 rounded shadow-xl w-96 relative"
+        className="bg-white p-4 rounded shadow-xl w-96 relative modal-mobile stats-popup-mobile"
         style={{
           maxHeight: "80vh",    // 화면 80% 높이까지만
           overflowY: "auto",    // 세로 스크롤

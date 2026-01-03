@@ -28,6 +28,26 @@ const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
 export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin }) {
+  // 배경 스크롤 방지
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+    
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.top = `-${scrollY}px`;
+    
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+  
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [myEntries, setMyEntries] = useState([]);
   const [challengers, setChallengers] = useState([]);
@@ -486,7 +506,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   if (loading && myEntries.length === 0 && challengers.length === 0) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
         <div className="bg-white p-6 rounded-lg">
           <p>로딩 중...</p>
         </div>
@@ -495,22 +515,18 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 overflow-y-auto">
-      <div className="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full m-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Arena Mode</h2>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            닫기
-          </button>
-        </div>
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 flex flex-col" style={{ maxHeight: 'calc(100vh - 160px)', height: 'auto' }}>
+        {/* 스크롤 가능한 콘텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+          <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
+            <h2 className="text-2xl font-bold">Arena Mode</h2>
+          </div>
 
         {/* My Arena Entries */}
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
           <h3 className="text-xl font-bold mb-3">My Arena Entries ({myEntries.length}/{MAX_ENTRIES})</h3>
-          <div className="flex overflow-x-auto space-x-4 pb-2">
+          <div className="flex overflow-x-hidden space-x-4 pb-2" style={{ flexWrap: 'wrap', gap: '8px' }}>
             {myEntries.length === 0 ? (
               <p className="text-gray-700">등록된 디지몬이 없습니다.</p>
             ) : (
@@ -556,10 +572,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         </div>
 
         {/* 탭 메뉴 */}
-        <div className="flex space-x-4 mb-4 border-b">
+        <div className="flex space-x-2 sm:space-x-4 mb-4 border-b overflow-x-hidden">
           <button
             onClick={() => setActiveTab('challengers')}
-            className={`px-4 py-2 font-bold transition-colors ${
+            className={`px-2 sm:px-4 py-2 text-xs sm:text-base font-bold transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === 'challengers'
                 ? 'border-b-2 border-blue-500 text-blue-500'
                 : 'text-gray-600 hover:text-gray-800'
@@ -569,7 +585,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           </button>
           <button
             onClick={() => setActiveTab('battleLog')}
-            className={`px-4 py-2 font-bold transition-colors ${
+            className={`px-2 sm:px-4 py-2 text-xs sm:text-base font-bold transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === 'battleLog'
                 ? 'border-b-2 border-blue-500 text-blue-500'
                 : 'text-gray-600 hover:text-gray-800'
@@ -579,7 +595,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           </button>
           <button
             onClick={() => setActiveTab('leaderboard')}
-            className={`px-4 py-2 font-bold transition-colors ${
+            className={`px-2 sm:px-4 py-2 text-xs sm:text-base font-bold transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === 'leaderboard'
                 ? 'border-b-2 border-blue-500 text-blue-500'
                 : 'text-gray-600 hover:text-gray-800'
@@ -738,18 +754,18 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
         {/* Leaderboard 탭 */}
         {activeTab === 'leaderboard' && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="text-xl font-bold">Leaderboard</h3>
-                <p className="text-xs text-gray-500">
+          <div className="w-full overflow-x-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
+              <div className="min-w-0">
+                <h3 className="text-lg sm:text-xl font-bold break-words">Leaderboard</h3>
+                <p className="text-xs text-gray-500 break-words">
                   {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
                 </p>
               </div>
               {isDevMode && (
                 <button
                   onClick={onOpenAdmin}
-                  className="px-3 py-1 bg-gray-700 text-white rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors"
+                  className="px-2 sm:px-3 py-1 bg-gray-700 text-white rounded-lg text-xs sm:text-sm font-bold hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
                   ⚙️ Arena Admin
                 </button>
@@ -763,20 +779,20 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   setLeaderboardMode('current');
                   setSelectedArchiveId("");
                 }}
-                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                   leaderboardMode === 'current'
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                📅 Current Season
+                📅 Current
               </button>
               <button
                 onClick={() => {
                   setLeaderboardMode('all');
                   setSelectedArchiveId("");
                 }}
-                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                   leaderboardMode === 'all'
                     ? 'bg-yellow-500 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -786,13 +802,13 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
               </button>
               <button
                 onClick={() => setLeaderboardMode('past')}
-                className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                   leaderboardMode === 'past'
                     ? 'bg-purple-500 text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                📚 Past Seasons
+                📚 Past
               </button>
             </div>
 
@@ -827,7 +843,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
             ) : leaderboardEntries.length === 0 ? (
               <p className="text-gray-600">랭킹 데이터가 없습니다.</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 w-full overflow-x-hidden">
                 {leaderboardEntries.map((entry, idx) => {
                   const rank = idx + 1;
                   const record = entry.record || { wins: 0, losses: 0, seasonWins: 0, seasonLosses: 0 };
@@ -846,14 +862,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   return (
                     <div
                       key={entry.id}
-                      className={`p-3 border-2 rounded-lg flex items-center justify-between ${rankClass}`}
+                      className={`p-2 sm:p-3 border-2 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 ${rankClass}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="text-lg font-bold w-8 text-center">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div className="text-base sm:text-lg font-bold w-6 sm:w-8 text-center flex-shrink-0">
                           {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank}
                         </div>
-                        <div>
-                          <p className="font-bold">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm sm:text-base break-words">
                             {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonName}
                           </p>
                           <p className="text-xs text-gray-600">
@@ -875,7 +891,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
         {/* 슬롯 선택 모달 */}
         {showSlotSelection && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60">
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">등록할 슬롯 선택</h3>
               {availableSlots.length === 0 ? (
@@ -922,7 +938,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
         {/* 상세 정보 모달 */}
         {showDetailModal && selectedEntry && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60">
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full m-4">
               <h3 className="text-xl font-bold mb-4">상세 정보</h3>
               <div className="flex justify-center mb-4">
@@ -984,6 +1000,17 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
             </div>
           </div>
         )}
+        </div>
+        
+        {/* 하단 고정 버튼 영역 */}
+        <div className="flex-shrink-0 bg-white border-t-2 border-gray-200 px-4 sm:px-6 py-3">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-bold"
+          >
+            닫기
+          </button>
+        </div>
       </div>
     </div>
   );

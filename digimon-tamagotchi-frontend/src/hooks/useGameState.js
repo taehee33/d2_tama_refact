@@ -39,6 +39,32 @@ const saveSpriteSettings = (newWidth, newHeight) => {
 };
 
 /**
+ * Developer Mode를 localStorage에서 로드
+ */
+const loadDeveloperMode = () => {
+  try {
+    const saved = localStorage.getItem('digimon_developer_mode');
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  } catch (error) {
+    console.error('Developer mode 로드 오류:', error);
+  }
+  return false;
+};
+
+/**
+ * Developer Mode를 localStorage에 저장
+ */
+const saveDeveloperMode = (enabled) => {
+  try {
+    localStorage.setItem('digimon_developer_mode', enabled ? 'true' : 'false');
+  } catch (error) {
+    console.error('Developer mode 저장 오류:', error);
+  }
+};
+
+/**
  * useGameState Hook
  * Game.jsx의 모든 State를 통합 관리하는 Custom Hook
  * 
@@ -120,7 +146,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // ============================================
   // 3. Flags (상태 플래그)
   // ============================================
-  const [developerMode, setDeveloperMode] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(() => loadDeveloperMode());
   const [isEvolving, setIsEvolving] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -143,6 +169,11 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   useEffect(() => {
     saveSpriteSettings(width, height);
   }, [width, height]);
+
+  // developerMode 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveDeveloperMode(developerMode);
+  }, [developerMode]);
   
   // 먹이 관련
   const [feedType, setFeedType] = useState(null);

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
 import { updateDoc, doc } from "firebase/firestore";
@@ -64,6 +64,17 @@ function formatLifespan(sec=0){
 function Game(){
   const { slotId } = useParams();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
+  
+  // 모바일 감지
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   // useGameState 훅 호출
   const {
     gameState,
@@ -832,7 +843,7 @@ async function setSelectedDigimonAndSave(name) {
       </div>
 
       {/* 우측 상단 UI 컨테이너 (Settings + 프로필) */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+      <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 ${isMobile ? "settings-button-mobile" : ""}`}>
         {/* Settings 버튼 */}
         <button
           onClick={() => toggleModal('settings', true)}
@@ -867,14 +878,14 @@ async function setSelectedDigimonAndSave(name) {
         )}
       </div>
 
-      <div className="text-center mb-1">
+      <div className={`text-center mb-1 ${isMobile ? "pt-20" : ""}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {selectedDigimon}
         </h2>
         <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
         <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
       </div>
-      <div className="flex flex-col items-center w-full">
+      <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
       <GameScreen
         width={width}
         height={height}
@@ -912,7 +923,7 @@ async function setSelectedDigimonAndSave(name) {
         evolutionStage={evolutionStage}
         developerMode={developerMode}
       />
-      <div className="flex justify-center w-full">
+      <div className={`flex justify-center w-full ${isMobile ? "control-panel-mobile" : ""}`}>
         <ControlPanel
           width={width}
           height={height}
@@ -920,6 +931,7 @@ async function setSelectedDigimonAndSave(name) {
           onMenuClick={handleMenuClickFromHook}
           stats={digimonStats}
           sleepStatus={sleepStatus}
+          isMobile={isMobile}
         />
       </div>
 

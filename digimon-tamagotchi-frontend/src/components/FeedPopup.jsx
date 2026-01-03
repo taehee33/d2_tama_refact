@@ -3,7 +3,7 @@ import React from "react";
 
 export default function FeedPopup({ onClose, onSelect }){
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
       <div className="bg-white p-6 rounded shadow-md">
         <h2 className="text-xl font-bold mb-4">먹이 주기</h2>
         <div className="flex flex-col space-y-4">

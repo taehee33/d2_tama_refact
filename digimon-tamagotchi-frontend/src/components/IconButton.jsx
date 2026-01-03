@@ -1,6 +1,6 @@
 import React from "react";
 
-const IconButton = ({ icon, onClick, isActive, width, height }) => {
+const IconButton = ({ icon, onClick, isActive, width, height, className = "" }) => {
   const iconPath = icon;  // 아이콘 경로
 
   const buttonStyle = {
@@ -13,7 +13,7 @@ const IconButton = ({ icon, onClick, isActive, width, height }) => {
   };
 
   return (
-    <div className="icon-button" onClick={onClick} style={buttonStyle}>
+    <div className={`icon-button ${className}`} onClick={onClick} style={buttonStyle}>
       <img
         src={iconPath}  // 경로에 맞는 아이콘 이미지 사용
         alt="아이콘"

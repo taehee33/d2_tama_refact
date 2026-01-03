@@ -137,7 +137,7 @@ export default function TrainPopup({
   // (I) "훈련 시작" 준비 화면
   if (phase === "ready") {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
         <div className="bg-white p-4 rounded shadow-xl w-64">
           <h2 className="text-lg font-bold mb-2">훈련 시작</h2>
           <button
@@ -161,7 +161,7 @@ export default function TrainPopup({
   if (phase === "ing") {
     const isTrainingDone = round > 5; // 6이 되면 끝
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" modal-overlay-mobile>
         <div className="bg-white p-4 rounded shadow-xl" style={{ width: "700px", height: "400px" }}>
           <div className="flex w-full h-full">
 

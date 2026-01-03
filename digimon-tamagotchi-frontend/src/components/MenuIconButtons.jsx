@@ -2,7 +2,7 @@ import React from "react";
 import IconButton from "./IconButton";
 import "../styles/MenuIconButtons.css";
 
-const MenuIconButtons = ({ width, height, activeMenu, onMenuClick }) => {
+const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = false }) => {
   const iconPath = (iconName) => {
     const iconMap = {
       status: "/images/190.png",
@@ -17,6 +17,27 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick }) => {
     return iconMap[iconName];
   };
 
+  // 모바일: 그리드 레이아웃
+  if (isMobile) {
+    const allMenus = ["status", "eat", "train", "battle", "bathroom", "electric", "heal", "callSign"];
+    return (
+      <div className="menu-icon-buttons-mobile">
+        {allMenus.map((menu) => (
+          <IconButton
+            key={menu}
+            icon={iconPath(menu)}
+            onClick={() => onMenuClick(menu)}
+            isActive={activeMenu === menu}
+            width={60}
+            height={60}
+            className="icon-button-mobile touch-button"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // 데스크톱: 기존 레이아웃
   return (
     <div className="menu-icon-buttons">
       <div className="game-container" style={{ position: "relative", width: `${width}px`, height: `${height}px` }}>
@@ -28,8 +49,8 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick }) => {
               icon={iconPath(menu)}
               onClick={() => onMenuClick(menu)}
               isActive={activeMenu === menu}
-              width={40}
-              height={40}
+              width={60}
+              height={60}
               style={{
                 position: "absolute",
                 left: `${10 + idx * 20}%`
@@ -46,8 +67,8 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick }) => {
               icon={iconPath(menu)}
               onClick={() => onMenuClick(menu)}
               isActive={activeMenu === menu}
-              width={40}
-              height={40}
+              width={60}
+              height={60}
               style={{
                 position: "absolute",
                 left: `${10 + idx * 20}%`

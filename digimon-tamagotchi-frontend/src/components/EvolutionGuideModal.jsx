@@ -15,7 +15,7 @@ export default function EvolutionGuideModal({
 }) {
   if (!currentDigimonData || !currentDigimonData.evolutions || currentDigimonData.evolutions.length === 0) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" onClick={onClose}>
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile onClick={onClose}>
         <div className="bg-gray-800 border-4 border-yellow-500 rounded-lg p-6 max-w-2xl w-full mx-4 pixel-art-modal" onClick={(e) => e.stopPropagation()}>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-yellow-400 pixel-art-text">진화 가이드</h2>
@@ -128,7 +128,7 @@ export default function EvolutionGuideModal({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile
       onClick={onClose}
     >
       <div

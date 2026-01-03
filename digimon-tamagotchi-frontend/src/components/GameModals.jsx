@@ -1,7 +1,7 @@
 // src/components/GameModals.jsx
 // Game.jsx의 모든 모달 렌더링 로직을 분리한 컴포넌트
 
-import React from "react";
+import React, { useEffect } from "react";
 import StatsPopup from "./StatsPopup";
 import FeedPopup from "./FeedPopup";
 import SettingsModal from "./SettingsModal";

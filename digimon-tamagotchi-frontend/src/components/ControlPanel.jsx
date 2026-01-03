@@ -19,16 +19,27 @@ const ControlPanel = ({
   // 스탯 관련
   stats = {},
   sleepStatus = "AWAKE",
+  
+  // 모바일 여부
+  isMobile = false,
 }) => {
   return (
-    <div className="flex justify-center items-center space-x-4 mt-2">
-      <StatsPanel stats={stats} sleepStatus={sleepStatus} />
-      <MenuIconButtons
-        width={width}
-        height={height}
-        activeMenu={activeMenu}
-        onMenuClick={onMenuClick}
-      />
+    <div className={isMobile 
+      ? "flex flex-col items-center gap-4 mt-2 w-full control-panel-mobile" 
+      : "flex justify-center items-center space-x-4 mt-2"
+    }>
+      <div className={isMobile ? "w-full stats-panel-mobile" : ""}>
+        <StatsPanel stats={stats} sleepStatus={sleepStatus} />
+      </div>
+      <div className={isMobile ? "w-full menu-icon-buttons-mobile" : ""}>
+        <MenuIconButtons
+          width={width}
+          height={height}
+          activeMenu={activeMenu}
+          onMenuClick={onMenuClick}
+          isMobile={isMobile}
+        />
+      </div>
     </div>
   );
 };

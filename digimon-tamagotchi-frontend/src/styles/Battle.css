@@ -401,12 +401,28 @@
 
 /* 승리 모달 */
 .victory-modal {
-  z-index: 60;
+  z-index: 100 !important;
 }
 
 .victory-modal > div {
-  min-width: 400px;
-  max-width: 500px;
+  min-width: 300px;
+  max-width: 90vw;
+}
+
+@media (max-width: 768px) {
+  .victory-modal > div {
+    min-width: 90vw !important;
+    max-width: 90vw !important;
+    padding: 20px !important;
+  }
+
+  .victory-modal button {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 16px;
+    width: 100%;
+    margin: 5px 0;
+  }
 }
 
 /* 도트 감성 스타일 */
@@ -427,26 +443,186 @@
   max-width: 500px;
 }
 
+/* 스크롤바 스타일링 */
+.battle-screen > div:first-child::-webkit-scrollbar,
+.battle-screen > div::-webkit-scrollbar {
+  width: 8px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-track,
+.battle-screen > div::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-thumb,
+.battle-screen > div::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-thumb:hover,
+.battle-screen > div::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 스크롤바 스타일링 - 모든 팝업에 적용 */
+.battle-screen > div:first-child::-webkit-scrollbar,
+.bg-white.rounded-lg.shadow-xl.max-w-4xl.flex > div:first-child::-webkit-scrollbar {
+  width: 8px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-track,
+.bg-white.rounded-lg.shadow-xl.max-w-4xl.flex > div:first-child::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-thumb,
+.bg-white.rounded-lg.shadow-xl.max-w-4xl.flex > div:first-child::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.battle-screen > div:first-child::-webkit-scrollbar-thumb:hover,
+.bg-white.rounded-lg.shadow-xl.max-w-4xl.flex > div:first-child::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* 반응형 디자인 */
 @media (max-width: 768px) {
+  /* 배틀 화면 전체: 모바일 최적화 - 고정 높이, 내부 스크롤, 중앙 정렬 */
+  .battle-screen {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    max-height: calc(100vh - 160px) !important; /* 상단 80px + 하단 80px (사파리 주소창 고려) */
+    height: auto !important;
+    margin: 0 auto !important; /* 중앙 정렬 */
+    overflow: hidden !important; /* 외부 스크롤 방지 */
+    position: relative;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* 배틀 화면 내부 스크롤 영역 */
+  .battle-screen > div:first-child {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0; /* flex 아이템이 축소되도록 */
+  }
+
+  /* 배틀 화면 오버레이: 상단 여백 확보 */
+  .battle-screen + .fixed {
+    padding-top: 80px; /* 상단 고정 메뉴 공간 확보 */
+  }
+
+  /* 배틀 영역: 세로 배치, 컴팩트하게 */
   .battle-area {
     flex-direction: column;
-    gap: 20px;
+    gap: 15px;
+    min-height: auto !important;
+    padding: 15px !important;
   }
 
   .battle-side {
     width: 100%;
+    max-width: 100%;
   }
 
+  /* 디지몬 스프라이트: 모바일에서 작게 */
+  .digimon-sprite img {
+    width: 80px !important;
+    height: 80px !important;
+  }
+
+  /* VS 텍스트: 세로 배치 시 회전 */
   .vs-text {
     transform: rotate(90deg);
+    font-size: 1.5rem;
+    margin: 10px 0;
   }
 
-  .victory-modal > div {
-    min-width: 300px;
-    max-width: 90%;
+  /* 배틀 로그 컨테이너: 높이 제한 및 스크롤 */
+  .battle-log-container {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 10px;
   }
 
+  .battle-log {
+    font-size: 11px;
+    padding: 8px;
+    min-height: auto;
+  }
+
+  .battle-log-history {
+    max-height: 120px !important;
+    font-size: 10px;
+    padding: 8px;
+  }
+
+  .battle-formula,
+  .battle-roll {
+    font-size: 9px;
+    padding: 4px 8px;
+  }
+
+  /* 디지몬 정보: 작은 폰트 */
+  .digimon-info {
+    font-size: 12px;
+  }
+
+  .digimon-info p {
+    margin: 2px 0;
+  }
+
+  /* 히트 마커: 작게 */
+  .hit-markers {
+    gap: 4px;
+    margin-top: 5px;
+  }
+
+  .hit-marker {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+  }
+
+  /* 배지: 작게 */
+  .battle-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    top: -20px;
+  }
+
+  /* 승리/패배 모달: 모바일 최적화 */
+  .victory-modal > div,
+  .round-ready-modal > div {
+    min-width: 90vw !important;
+    max-width: 90vw !important;
+    padding: 15px !important;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .victory-modal h2,
+  .round-ready-modal h2 {
+    font-size: 1.5rem;
+  }
+
+  /* 버튼: 터치 친화적 크기 */
+  .victory-modal button,
+  .round-ready-modal button,
+  .battle-result button {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+    margin: 5px;
+  }
+
+  /* 발사체 애니메이션: 모바일 경로 */
   .projectile.shoot-right {
     animation: shootRightMobile 0.8s ease-out forwards;
   }
@@ -475,5 +651,50 @@
       left: 10%;
       opacity: 0;
     }
+  }
+
+  /* 타격 텍스트: 작게 */
+  .hit-text {
+    font-size: 20px;
+    top: -20px;
+  }
+
+  .miss-text {
+    font-size: 18px;
+    top: -20px;
+  }
+
+  /* 로그 리뷰 화면: 모바일 최적화 */
+  .battle-log-review {
+    max-height: 50vh !important;
+    font-size: 11px;
+  }
+
+  /* 중단 버튼: 하단 고정 영역 */
+  .battle-screen > div:last-child {
+    flex-shrink: 0;
+    background-color: white;
+    border-top: 1px solid #e5e7eb;
+    padding: 12px 16px;
+    z-index: 10;
+  }
+
+  .battle-screen > div:last-child > button {
+    width: 100%;
+    padding: 12px !important;
+    font-size: 16px !important;
+    min-height: 44px; /* 터치 친화적 최소 높이 */
+  }
+
+  /* 배틀 로그 컨테이너: 하단 버튼과 겹치지 않도록 여백 확보 */
+  .battle-log-container {
+    padding-bottom: 60px; /* 하단 버튼 공간 확보 */
+  }
+
+  /* 배틀 화면 오버레이: 상단 고정 메뉴와 겹치지 않도록 */
+  .fixed.inset-0.bg-black {
+    padding-top: 80px; /* 상단 고정 메뉴 공간 확보 */
+    align-items: flex-start; /* 상단 정렬 */
+    padding-bottom: 20px; /* 하단 여백 */
   }
 }

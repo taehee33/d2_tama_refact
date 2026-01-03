@@ -4,6 +4,92 @@
 
 ---
 
+## [2026-01-03] Feature: PWA 최적화 (manifest.json 설정)
+
+### 작업 유형
+- PWA 최적화
+- 모바일 앱 설치 지원
+- 메타 태그 개선
+
+### 목적 및 영향
+웹 앱을 모바일 기기와 데스크톱에 설치 가능한 PWA(Progressive Web App)로 최적화하여, 사용자가 앱처럼 설치하고 사용할 수 있도록 개선했습니다. iOS, Android, Windows 등 다양한 플랫폼에서 최적의 경험을 제공합니다.
+
+### 변경 사항
+
+#### 1. `public/manifest.json` 최적화
+- **앱 이름 및 설명:**
+  - `short_name`: "디지몬 타마고치"
+  - `name`: "디지몬 타마고치 - Digimon Tamagotchi"
+  - `description`: "당신만의 디지몬을 키우고 진화시키는 타마고치 게임"
+  - `lang`: "ko" (한국어)
+  - `categories`: ["games", "entertainment"]
+
+- **아이콘 설정:**
+  - `purpose: "any maskable"` 추가 (Android adaptive icons 지원)
+  - 192x192, 512x512 아이콘 설정
+
+- **디스플레이 모드:**
+  - `display`: "standalone" (앱처럼 보이도록)
+  - `orientation`: "portrait" (세로 모드 고정)
+  - `start_url`: "/"
+  - `scope`: "/"
+
+- **테마 색상:**
+  - `theme_color`: "#1a1a1a" (다크 테마)
+  - `background_color`: "#ffffff" (흰색 배경)
+
+#### 2. `public/index.html` 메타 태그 개선
+- **기본 메타 태그:**
+  - `lang="ko"` 설정 (한국어)
+  - `description`, `keywords`, `author` 추가
+  - `theme-color` 업데이트 (#1a1a1a)
+
+- **Apple iOS PWA 지원:**
+  - `apple-mobile-web-app-capable`: "yes"
+  - `apple-mobile-web-app-status-bar-style`: "black-translucent"
+  - `apple-mobile-web-app-title`: "디지몬 타마고치"
+  - 다양한 크기의 `apple-touch-icon` 설정
+
+- **Microsoft Windows PWA 지원:**
+  - `msapplication-TileColor`: "#1a1a1a"
+  - `msapplication-TileImage`: logo192.png
+  - `msapplication-config`: browserconfig.xml
+
+- **Favicon 설정:**
+  - 다양한 크기의 favicon 링크 추가
+
+#### 3. `public/browserconfig.xml` 생성 (신규)
+- Windows 타일 설정
+- 타일 색상 및 아이콘 설정
+
+### 사용자 경험 개선
+- **모바일 설치 가능:**
+  - iOS Safari: "홈 화면에 추가" 옵션
+  - Android Chrome: "앱 설치" 배너
+  - Windows: Edge에서 "앱으로 설치" 옵션
+
+- **앱처럼 보이는 UI:**
+  - 독립적인 창으로 실행 (standalone 모드)
+  - 브라우저 UI 없이 전체 화면 사용 가능
+  - 세로 모드 고정으로 모바일 최적화
+
+- **플랫폼별 최적화:**
+  - iOS: 상태 바 스타일 및 아이콘 최적화
+  - Android: Adaptive icons 지원
+  - Windows: 타일 색상 및 아이콘 설정
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/public/manifest.json`
+- `digimon-tamagotchi-frontend/public/index.html`
+- `digimon-tamagotchi-frontend/public/browserconfig.xml`
+
+### 참고 사항
+- Service Worker는 추후 추가 예정 (오프라인 지원)
+- 아이콘 파일 (logo192.png, logo512.png)은 기존 파일 사용
+- 테마 색상은 게임의 다크 테마에 맞춰 설정
+
+---
+
 ## [2026.01.02] Refactor: Extracted Event Handlers and Auth Logic to useGameHandlers Hook (Phase 7 - Final)
 
 ### 작업 유형
