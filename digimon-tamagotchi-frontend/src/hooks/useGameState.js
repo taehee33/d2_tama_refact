@@ -141,6 +141,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     poopCleanAnimation: false,
     healAnimation: false,
     callToast: false,
+    
+    // 상태 상세 모달
+    statusDetail: false,
   });
   
   // ============================================

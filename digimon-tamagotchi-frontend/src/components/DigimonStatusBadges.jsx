@@ -1,0 +1,179 @@
+// src/components/DigimonStatusBadges.jsx
+import React, { useState } from "react";
+import { willRefuseMeat } from "../logic/food/meat";
+import { willRefuseProtein } from "../logic/food/protein";
+import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
+
+/**
+ * DigimonStatusBadges 컴포넌트
+ * 디지몬의 현재 상태를 배지 형태로 여러 개 표시하고, 클릭하면 상세 팝업 표시
+ */
+const DigimonStatusBadges = ({
+  digimonStats = {},
+  sleepStatus = "AWAKE",
+  isDead = false,
+  currentAnimation = "idle",
+  feedType = null,
+  onOpenStatusDetail = null,
+}) => {
+  const {
+    fullness = 0,
+    strength = 0,
+    poopCount = 0,
+    injuries = 0,
+    proteinOverdose = 0,
+    callStatus = {},
+  } = digimonStats;
+
+  // 모든 상태 메시지를 수집하는 함수
+  const getAllStatusMessages = () => {
+    const messages = [];
+
+    // 0. 먹는 중 (최우선순위)
+    if (currentAnimation === "eat") {
+      if (feedType === "meat") {
+        messages.push({ text: "와구와구... 🍖", color: "text-orange-500", bgColor: "bg-orange-100", priority: 0, category: "action" });
+      } else if (feedType === "protein") {
+        messages.push({ text: "와구와구... 💪", color: "text-blue-500", bgColor: "bg-blue-100", priority: 0, category: "action" });
+      } else {
+        messages.push({ text: "와구와구... 🍽️", color: "text-orange-500", bgColor: "bg-orange-100", priority: 0, category: "action" });
+      }
+    }
+
+    // 0.5. 먹이 거부 상태
+    if (willRefuseMeat(digimonStats)) {
+      messages.push({ text: "고기 거부 🍖🚫", color: "text-red-500", bgColor: "bg-red-100", priority: 0.5, category: "warning" });
+    }
+    if (willRefuseProtein(digimonStats)) {
+      messages.push({ text: "단백질 거부 ⚠️💪", color: "text-red-600", bgColor: "bg-red-100", priority: 0.5, category: "warning" });
+    }
+
+    // 1. 사망 상태
+    if (isDead) {
+      messages.push({ text: "사망 💀", color: "text-red-600", bgColor: "bg-red-200", priority: 1, category: "critical" });
+    }
+
+    // 2. 부상 상태
+    if (injuries > 0) {
+      if (injuries >= 15) {
+        messages.push({ text: "부상 심각 🏥", color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
+      } else if (injuries >= 10) {
+        messages.push({ text: "부상 많음 🏥", color: "text-orange-600", bgColor: "bg-orange-100", priority: 2, category: "warning" });
+      } else {
+        messages.push({ text: "부상 있음 🏥", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 2, category: "warning" });
+      }
+    }
+
+    // 3. 똥 위험
+    if (poopCount >= 8) {
+      messages.push({ text: "똥 위험 💩", color: "text-red-600", bgColor: "bg-red-100", priority: 3, category: "critical" });
+    } else if (poopCount >= 6) {
+      messages.push({ text: "똥 많음 💩", color: "text-orange-600", bgColor: "bg-orange-100", priority: 3, category: "warning" });
+    }
+
+    // 4. 수면/피곤 상태
+    if (sleepStatus === "SLEEPING") {
+      messages.push({ text: "수면 중 😴", color: "text-blue-500", bgColor: "bg-blue-100", priority: 4, category: "info" });
+    } else if (sleepStatus === "TIRED") {
+      messages.push({ text: "피곤함 😫", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 4, category: "warning" });
+    }
+
+    // 5. 호출 상태
+    if (callStatus.hunger?.isActive) {
+      messages.push({ text: "배고픔 호출 🍖", color: "text-red-500", bgColor: "bg-red-100", priority: 5, category: "critical" });
+    }
+    if (callStatus.strength?.isActive) {
+      messages.push({ text: "힘 호출 💪", color: "text-red-500", bgColor: "bg-red-100", priority: 5, category: "critical" });
+    }
+    if (callStatus.sleep?.isActive) {
+      messages.push({ text: "수면 호출 😴", color: "text-yellow-500", bgColor: "bg-yellow-100", priority: 5, category: "warning" });
+    }
+
+    // 6. 배고픔/힘 낮음
+    if (fullness === 0) {
+      messages.push({ text: "배고픔 0 🍖", color: "text-orange-500", bgColor: "bg-orange-100", priority: 6, category: "warning" });
+    } else if (fullness <= 1) {
+      messages.push({ text: "배고픔 낮음 🍖", color: "text-yellow-500", bgColor: "bg-yellow-100", priority: 6, category: "info" });
+    }
+    if (strength === 0) {
+      messages.push({ text: "힘 0 💪", color: "text-orange-500", bgColor: "bg-orange-100", priority: 6, category: "warning" });
+    } else if (strength <= 1) {
+      messages.push({ text: "힘 낮음 💪", color: "text-yellow-500", bgColor: "bg-yellow-100", priority: 6, category: "info" });
+    }
+
+    // 7. 오버피드/단백질 과다 복용
+    if (fullness > 5) {
+      messages.push({ text: "고기 오버피드 🍖", color: "text-orange-500", bgColor: "bg-orange-100", priority: 7, category: "warning" });
+    }
+    // 단백질 과다 복용 경고 (거부 전 단계)
+    // proteinOverdose는 0-7 범위, 7일 때 거부됨
+    if (proteinOverdose >= 6) {
+      messages.push({ text: "단백질 과다 복용 위험! (거의 한계) ⚠️💪", color: "text-red-600", bgColor: "bg-red-100", priority: 7, category: "warning" });
+    } else if (proteinOverdose >= 4) {
+      messages.push({ text: "단백질 과다 복용 주의! ⚠️💪", color: "text-orange-600", bgColor: "bg-orange-100", priority: 7, category: "warning" });
+    } else if (proteinOverdose >= 2) {
+      messages.push({ text: "단백질 과다 복용 경고 ⚠️💪", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 7, category: "info" });
+    } else if (proteinOverdose >= 1) {
+      messages.push({ text: "단백질 과다 복용 시작 💪", color: "text-yellow-500", bgColor: "bg-yellow-100", priority: 7, category: "info" });
+    }
+
+    // 8. 정상 상태
+    if (fullness >= 5 && strength >= 5) {
+      messages.push({ text: "완벽함 😊", color: "text-green-500", bgColor: "bg-green-100", priority: 8, category: "good" });
+    } else if (fullness >= 5) {
+      messages.push({ text: "배부름 😊", color: "text-green-500", bgColor: "bg-green-100", priority: 8, category: "good" });
+    } else if (strength >= 5) {
+      messages.push({ text: "에너지 충만 ⚡", color: "text-green-500", bgColor: "bg-green-100", priority: 8, category: "good" });
+    }
+
+    // 우선순위 순으로 정렬
+    messages.sort((a, b) => a.priority - b.priority);
+    return messages;
+  };
+
+  const allMessages = getAllStatusMessages();
+  // 상위 2-3개만 표시 (우선순위가 낮은 것은 제외)
+  const displayMessages = allMessages.filter((msg, idx) => {
+    // 최대 3개까지, 단 priority가 8 이상인 것은 1개만 표시
+    if (idx >= 3) return false;
+    if (idx >= 2 && msg.priority >= 8) return false;
+    return true;
+  });
+
+  const handleClick = () => {
+    if (onOpenStatusDetail) {
+      onOpenStatusDetail(allMessages);
+    }
+  };
+
+  if (displayMessages.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <div 
+        className="flex items-center justify-center mt-2 gap-2 flex-wrap cursor-pointer"
+        onClick={handleClick}
+        title="클릭하여 모든 상태 보기"
+      >
+        {displayMessages.map((msg, idx) => (
+          <span
+            key={idx}
+            className={`text-xs font-semibold ${msg.color} px-2 py-1 rounded-lg ${msg.bgColor} border border-gray-300 shadow-sm hover:shadow-md transition-shadow`}
+          >
+            {msg.text}
+          </span>
+        ))}
+        {allMessages.length > displayMessages.length && (
+          <span className="text-xs font-semibold text-gray-500 px-2 py-1 rounded-lg bg-gray-100 border border-gray-300">
+            +{allMessages.length - displayMessages.length}개 더
+          </span>
+        )}
+      </div>
+    </>
+  );
+};
+
+export default DigimonStatusBadges;
+

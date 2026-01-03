@@ -8,6 +8,7 @@ import ControlPanel from "../components/ControlPanel";
 import GameModals from "../components/GameModals";
 import GameScreen from "../components/GameScreen";
 import StatusHearts from "../components/StatusHearts";
+import DigimonStatusBadges from "../components/DigimonStatusBadges";
 
 import { getSleepStatus, checkCalls, resetCallStatus, checkCallTimeouts, addActivityLog } from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
@@ -197,6 +198,9 @@ function Game(){
   } = ui;
 
   const { tiredStartRef, tiredCountedRef } = refs;
+
+  // 상태 상세 모달용 메시지 저장
+  const [statusDetailMessages, setStatusDetailMessages] = useState([]);
 
   // useGameData 훅 호출 (데이터 저장/로딩 로직)
   const {
@@ -910,7 +914,7 @@ async function setSelectedDigimonAndSave(name) {
           })}
         </p>
         {/* 상태 하트 표시 (시계 아래) */}
-        <div className="mt-2 flex justify-center">
+        <div className="mt-2 flex flex-col items-center gap-2">
           <StatusHearts
             fullness={digimonStats.fullness || 0}
             strength={digimonStats.strength || 0}
@@ -919,6 +923,19 @@ async function setSelectedDigimonAndSave(name) {
             showLabels={true}
             size="sm"
             position="inline"
+          />
+          {/* 디지몬 상태 배지 표시 */}
+          <DigimonStatusBadges
+            digimonStats={digimonStats}
+            sleepStatus={sleepStatus}
+            isDead={digimonStats.isDead}
+            currentAnimation={currentAnimation}
+            feedType={feedType}
+            onOpenStatusDetail={(messages) => {
+              // 상태 상세 모달을 열기 위해 임시로 상태 저장
+              setStatusDetailMessages(messages);
+              toggleModal('statusDetail', true);
+            }}
           />
         </div>
       </div>
@@ -1007,7 +1024,7 @@ async function setSelectedDigimonAndSave(name) {
         gameState={gameState}
         handlers={handlers}
         data={data}
-        ui={ui}
+        ui={{ ...ui, statusDetailMessages }}
         flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode }}
       />
       )}

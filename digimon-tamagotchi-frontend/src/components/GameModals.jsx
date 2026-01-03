@@ -16,6 +16,7 @@ import AdminModal from "./AdminModal";
 import DeathPopup from "./DeathPopup";
 import DigimonInfoModal from "./DigimonInfoModal";
 import HealModal from "./HealModal";
+import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
 
 /**
  * GameModals 컴포넌트
@@ -357,6 +358,14 @@ export default function GameModals({
           requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
           onHeal={startHealCycle}
           onClose={() => toggleModal('heal', false)}
+        />
+      )}
+
+      {/* Status Detail Modal */}
+      {modals.statusDetail && (
+        <DigimonStatusDetailModal
+          statusMessages={ui.statusDetailMessages || []}
+          onClose={() => toggleModal('statusDetail', false)}
         />
       )}
 
