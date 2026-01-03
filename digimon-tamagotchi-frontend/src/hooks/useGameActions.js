@@ -208,9 +208,12 @@ export function useGameActions({
         setFeedStep(0);
         // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
         setDigimonStats((prevStats) => {
+          const proteinOverdose = updatedStats.proteinOverdose || 0;
           const newLog = {
             type: 'FEED',
-            text: 'Feed: Refused (Already stuffed)',
+            text: proteinOverdose >= 7 
+              ? 'Feed: Refused (Protein Overdose max reached: 7/7)' 
+              : 'Feed: Refused',
             timestamp: Date.now()
           };
           const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
@@ -228,9 +231,14 @@ export function useGameActions({
       }
     }
     setFeedType(type);
+    // 모바일에서 애니메이션이 확실히 보이도록 애니메이션을 먼저 설정
+    setCurrentAnimation("eat");
     setShowFood(true);
     setFeedStep(0);
-    eatCycle(0, type);
+    // requestAnimationFrame을 사용하여 다음 프레임에서 애니메이션 시작 (모바일 최적화)
+    requestAnimationFrame(() => {
+      eatCycle(0, type);
+    });
   };
 
   /**

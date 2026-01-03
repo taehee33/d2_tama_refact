@@ -1,6 +1,7 @@
 // src/components/GameScreen.jsx
 import React from "react";
 import Canvas from "./Canvas";
+import StatusHearts from "./StatusHearts";
 
 /**
  * GameScreen 컴포넌트
@@ -43,6 +44,7 @@ const GameScreen = ({
   showCallModal = false,
   onCallIconClick = () => {},
   onCallModalClose = () => {},
+  
   
   // 진화 애니메이션
   evolutionStage = null,
@@ -119,6 +121,43 @@ const GameScreen = ({
         >
           🏥😵‍💫🏥
         </div>
+      )}
+
+      {/* 죽음 상태: 해골 디지몬 양쪽에 표시 */}
+      {digimonStats.isDead && (
+        <>
+          {/* 왼쪽 해골 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+            }}
+          >
+            💀
+          </div>
+          {/* 오른쪽 해골 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              right: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "1s",
+            }}
+          >
+            💀
+          </div>
+        </>
       )}
       
       {/* 치료 연출 (주사기) */}

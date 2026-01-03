@@ -7,6 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import ControlPanel from "../components/ControlPanel";
 import GameModals from "../components/GameModals";
 import GameScreen from "../components/GameScreen";
+import StatusHearts from "../components/StatusHearts";
 
 import { getSleepStatus, checkCalls, resetCallStatus, checkCallTimeouts, addActivityLog } from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
@@ -670,17 +671,31 @@ async function setSelectedDigimonAndSave(name) {
   let eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
   let rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
 
-  // 수면/피곤 상태에서는 고정 슬립 프레임
-  if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+  // 오하카다몬: idle 애니메이션 고정 (스프라이트 변경 방지)
+  if(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2"){
+    // 오하카다몬은 고정 스프라이트만 사용 (애니메이션 없음)
+    idleFrames = [ `${digimonStats.sprite}` ];
+    eatFramesArr = [ `${digimonStats.sprite}` ];
+    rejectFramesArr = [ `${digimonStats.sprite}` ];
+  }
+  // 수면/피곤 상태에서는 고정 슬립 프레임 (오하카다몬 제외)
+  else if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
     idleFrames = [`${digimonStats.sprite + 12}`, `${digimonStats.sprite + 13}`];
     eatFramesArr = idleFrames;
     rejectFramesArr = idleFrames;
   }
 
+  // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 2와 15 표시
   if(digimonStats.isDead){
-    idleFrames= [ `${digimonStats.sprite+15}` ];
-    eatFramesArr= [ `${digimonStats.sprite+15}` ];
-    rejectFramesArr= [ `${digimonStats.sprite+15}` ];
+    // 모션 15번 (아픔2) - digimonAnimations[15] = battleLose (frames: [1, 14])
+    // 스프라이트 2와 15를 번갈아 표시
+    idleFrames= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
+    eatFramesArr= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
+    rejectFramesArr= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
+    // 죽음 상태에서는 항상 아픔2 모션 사용
+    if(currentAnimation !== "pain2"){
+      setCurrentAnimation("pain2");
+    }
   }
 
   // 먹이 - Lazy Update 적용 후 Firestore에 저장
@@ -884,6 +899,28 @@ async function setSelectedDigimonAndSave(name) {
         </h2>
         <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
         <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
+        <p className="text-sm font-semibold text-blue-600 mt-1">
+          현재 시간: {customTime.toLocaleString('ko-KR', { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          })}
+        </p>
+        {/* 상태 하트 표시 (시계 아래) */}
+        <div className="mt-2 flex justify-center">
+          <StatusHearts
+            fullness={digimonStats.fullness || 0}
+            strength={digimonStats.strength || 0}
+            maxOverfeed={digimonStats.maxOverfeed || 0}
+            proteinOverdose={digimonStats.proteinOverdose || 0}
+            showLabels={true}
+            size="sm"
+            position="inline"
+          />
+        </div>
       </div>
       <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
       <GameScreen
@@ -946,10 +983,11 @@ async function setSelectedDigimonAndSave(name) {
           <button
             onClick={() => toggleModal('digimonInfo', true)}
             className="px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600"
-            title="Digimon Info"
+            title="디지몬 가이드"
           >
-            ❓
+            📖 가이드
           </button>
+          {/* Death Info 버튼: 죽었을 때만 표시 */}
           {digimonStats.isDead && (
             <button
               onClick={() => toggleModal('deathModal', true)}

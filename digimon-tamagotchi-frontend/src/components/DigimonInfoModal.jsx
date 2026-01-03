@@ -20,10 +20,12 @@ export default function DigimonInfoModal({
   // 헤더 UI
   const renderHeader = () => {
     const titles = {
-      'MENU': 'Digimon Menu',
+      'MENU': '디지몬 가이드',
       'INFO': 'Digimon Info',
       'EVOLUTION': 'Evolution Guide',
       'LOGS': 'Activity Logs',
+      'TIPS': '게임 팁',
+      'GUIDE': '기본 가이드',
     };
 
     return (
@@ -79,6 +81,20 @@ export default function DigimonInfoModal({
         >
           <span className="text-2xl">📝</span>
           <span>Activity Logs</span>
+        </button>
+        <button
+          onClick={() => setCurrentView('TIPS')}
+          className="w-full px-6 py-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
+        >
+          <span className="text-2xl">💡</span>
+          <span>게임 팁</span>
+        </button>
+        <button
+          onClick={() => setCurrentView('GUIDE')}
+          className="w-full px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
+        >
+          <span className="text-2xl">📖</span>
+          <span>기본 가이드</span>
         </button>
       </div>
     );
@@ -397,6 +413,135 @@ export default function DigimonInfoModal({
     );
   };
 
+  // 화면 5: 게임 팁 (TIPS View)
+  const renderTipsView = () => {
+    return (
+      <div className="space-y-4">
+        <div className="bg-gray-700 border-2 border-yellow-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-yellow-300 mb-3 pixel-art-text">🍖 먹이기 팁</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>고기(Meat):</strong> 배고픔 하트 +1, 체중 +1g. 배고픔이 가득 찬 상태에서 10개 더 먹으면 오버피드 발생!</li>
+            <li>• <strong>단백질(Protein):</strong> 힘 하트 +1, 체중 +2g. 4개마다 에너지 +1, 단백질 과다 복용 +1</li>
+            <li>• <strong>단백질 과다 복용:</strong> 배틀 패배 시 부상 확률이 증가합니다 (최대 80%)</li>
+            <li>• <strong>힘이 가득 찬 후:</strong> 단백질을 계속 먹을 수 있지만, 단백질 과다 복용 위험이 있습니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-blue-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-blue-300 mb-3 pixel-art-text">⚔️ 배틀 팁</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>승리 시:</strong> 20% 확률로 부상 발생</li>
+            <li>• <strong>패배 시:</strong> 10% + (단백질 과다 복용 × 10%) 확률로 부상 발생</li>
+            <li>• <strong>부상 방치:</strong> 부상 상태에서 6시간 방치하면 사망합니다</li>
+            <li>• <strong>승률:</strong> Stage V, VI 진화를 위해 높은 승률이 필요합니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-green-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-green-300 mb-3 pixel-art-text">🏋️ 훈련 팁</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>훈련 4회:</strong> 노력치(Effort) 하트 +1</li>
+            <li>• <strong>훈련 성공:</strong> 힘 +1, 체중 -2g</li>
+            <li>• <strong>훈련 실패:</strong> 체중만 -2g</li>
+            <li>• <strong>수면/피곤 상태:</strong> 훈련할 수 없습니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-purple-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-purple-300 mb-3 pixel-art-text">🧬 진화 팁</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>케어 미스:</strong> 호출을 무시하면 케어 미스가 증가합니다</li>
+            <li>• <strong>훈련 횟수:</strong> 많은 진화 경로에서 훈련 횟수가 중요합니다</li>
+            <li>• <strong>배틀 횟수:</strong> 최소 15번의 배틀을 해야 Stage V, VI 진화가 가능합니다</li>
+            <li>• <strong>승률:</strong> 높은 승률이 필요한 진화 경로가 있습니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-red-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-red-300 mb-3 pixel-art-text">⚠️ 주의사항</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>배고픔/힘 0:</strong> 12시간 방치하면 사망합니다</li>
+            <li>• <strong>똥 8개:</strong> 즉시 부상 발생</li>
+            <li>• <strong>부상 15회:</strong> 사망합니다</li>
+            <li>• <strong>수면 방해:</strong> 수면 중 불을 켜두면 케어 미스가 증가합니다</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
+  // 화면 6: 기본 가이드 (GUIDE View)
+  const renderGuideView = () => {
+    return (
+      <div className="space-y-4">
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">🎮 기본 조작</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>상단 메뉴:</strong> 상태, 먹이기, 훈련, 배틀</li>
+            <li>• <strong>하단 메뉴:</strong> 화장실, 전기, 치료, 호출</li>
+            <li>• <strong>Evolution 버튼:</strong> 진화 조건을 만족하면 진화할 수 있습니다</li>
+            <li>• <strong>❓ 버튼:</strong> 디지몬 정보, 진화 가이드, 활동 로그 등을 확인할 수 있습니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">📊 스탯 이해하기</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>Age:</strong> 디지몬이 살아온 일수</li>
+            <li>• <strong>Weight:</strong> 체중 (기가바이트). 먹으면 증가, 훈련/배틀하면 감소</li>
+            <li>• <strong>Hunger (Fullness):</strong> 배고픔 하트 (0-5, 오버피드 시 5 초과 가능)</li>
+            <li>• <strong>Strength:</strong> 힘 하트 (0-5). 가득 차면 파워 보너스</li>
+            <li>• <strong>Effort:</strong> 노력치 하트 (0-5). 훈련 4회당 +1</li>
+            <li>• <strong>Energy (DP):</strong> 스태미나. 배틀에 필요, 수면으로 회복</li>
+            <li>• <strong>Win Rate:</strong> 승률 (%). Stage V, VI 진화에 중요</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">⏰ 시간 시스템</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>HungerTimer:</strong> 배고픔이 감소하는 주기 (분 단위)</li>
+            <li>• <strong>StrengthTimer:</strong> 힘이 감소하는 주기 (분 단위)</li>
+            <li>• <strong>PoopTimer:</strong> 똥이 생성되는 주기 (분 단위)</li>
+            <li>• <strong>Time to Evolve:</strong> 진화까지 남은 시간</li>
+            <li>• <strong>Lifespan:</strong> 디지몬의 수명</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">📣 호출(Call) 시스템</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>Hunger Call:</strong> 배고픔이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
+            <li>• <strong>Strength Call:</strong> 힘이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
+            <li>• <strong>Sleep Call:</strong> 수면 시간에 불이 켜져 있으면 호출 시작. 60분 무시 시 케어 미스 +1</li>
+            <li>• <strong>호출 아이콘(📣):</strong> 호출이 활성화되면 표시됩니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">💤 수면 시스템</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>수면 시간:</strong> 각 디지몬마다 정해진 수면 시간이 있습니다</li>
+            <li>• <strong>불 끄기:</strong> 수면 시간에는 불을 꺼야 합니다</li>
+            <li>• <strong>수면 방해:</strong> 수면 중 불을 켜두면 30분 후 케어 미스 +1</li>
+            <li>• <strong>에너지 회복:</strong> 최소 8시간 수면하면 에너지가 완전히 회복됩니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">🏥 부상 및 치료</h3>
+          <ul className="space-y-2 text-white text-sm">
+            <li>• <strong>부상 발생:</strong> 배틀 승리(20%) 또는 패배(10%+) 시 부상 발생 가능</li>
+            <li>• <strong>똥 8개:</strong> 즉시 부상 발생</li>
+            <li>• <strong>치료:</strong> 치료 아이콘을 눌러 치료제를 투여합니다</li>
+            <li>• <strong>부상 방치:</strong> 부상 상태에서 6시간 방치하면 사망합니다</li>
+            <li>• <strong>부상 15회:</strong> 누적 부상이 15회가 되면 사망합니다</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   // 메인 렌더링
   return (
     <div
@@ -414,6 +559,8 @@ export default function DigimonInfoModal({
           {currentView === 'INFO' && renderInfoView()}
           {currentView === 'EVOLUTION' && renderEvolutionView()}
           {currentView === 'LOGS' && renderLogsView()}
+          {currentView === 'TIPS' && renderTipsView()}
+          {currentView === 'GUIDE' && renderGuideView()}
         </div>
 
         {currentView === 'MENU' && (

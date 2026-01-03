@@ -81,6 +81,9 @@ const Canvas = ({
       frames= eatFrames;
     } else if(currentAnimation==="foodRejectRefuse"){
       frames= foodRejectFrames.length>0 ? foodRejectFrames : ["14"];
+    } else if(currentAnimation==="pain2"){
+      // 죽음 상태: 모션 15번(아픔2) - 스프라이트 2와 15 번갈아 표시
+      frames= idleFrames; // 이미 [sprite+2, sprite+15]로 설정됨
     } else {
       frames= idleFrames;
     }

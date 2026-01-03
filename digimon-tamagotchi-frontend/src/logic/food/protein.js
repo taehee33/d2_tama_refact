@@ -49,7 +49,9 @@ export function feedProtein(stats) {
  * @returns {boolean} 프로틴 거부 여부
  */
 export function willRefuseProtein(stats) {
-  // 힘이 가득 찬 경우 거부
-  return stats.strength >= 5;
+  // strength가 5여도 단백질을 먹을 수 있음 (energy와 proteinOverdose를 위해)
+  // proteinOverdose가 최대치(7)에 도달했을 때만 거부
+  const proteinOverdose = stats.proteinOverdose || 0;
+  return proteinOverdose >= 7;
 }
 

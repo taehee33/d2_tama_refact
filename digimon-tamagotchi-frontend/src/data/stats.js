@@ -357,15 +357,9 @@ export function applyLazyUpdate(stats, lastSavedAt) {
       const elapsed = now.getTime() - startedAt;
       
       if (elapsed > HUNGER_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-        
-        // 추가 실수 계산: (방치시간) / (TimerCycle + 10분) 만큼 추가 실수
-        if (updatedStats.hungerTimer > 0) {
-          const timerCycleMs = updatedStats.hungerTimer * 60 * 1000;
-          const additionalMistakes = Math.floor(elapsed / (timerCycleMs + HUNGER_CALL_TIMEOUT));
-          updatedStats.careMistakes += additionalMistakes;
-        }
+        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
+        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
+        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
         
         // 호출 리셋
         callStatus.hunger.isActive = false;
@@ -398,15 +392,9 @@ export function applyLazyUpdate(stats, lastSavedAt) {
       const elapsed = now.getTime() - startedAt;
       
       if (elapsed > STRENGTH_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-        
-        // 추가 실수 계산: (방치시간) / (TimerCycle + 10분) 만큼 추가 실수
-        if (updatedStats.strengthTimer > 0) {
-          const timerCycleMs = updatedStats.strengthTimer * 60 * 1000;
-          const additionalMistakes = Math.floor(elapsed / (timerCycleMs + STRENGTH_CALL_TIMEOUT));
-          updatedStats.careMistakes += additionalMistakes;
-        }
+        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
+        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
+        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
         
         // 호출 리셋
         callStatus.strength.isActive = false;
