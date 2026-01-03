@@ -188,3 +188,4 @@ export function calculateInjuryChance(won, proteinOverdose) {
 - StatusHearts 컴포넌트에 경고 표시 추가
 - 배틀 화면에 부상 확률 표시 (선택사항)
 
+

@@ -134,9 +134,10 @@ export default function EvolutionGuideModal({
       <div
         className="bg-gray-800 border-4 border-yellow-500 rounded-lg p-6 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto pixel-art-modal"
         onClick={(e) => e.stopPropagation()}
+        style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
       >
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-yellow-400 pixel-art-text">
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-yellow-400 pixel-art-text break-words">
             진화 가이드 - {currentDigimonData.name || currentDigimonName}
           </h2>
           <button
@@ -165,8 +166,8 @@ export default function EvolutionGuideModal({
                     const isNoCondition = condition.includes("진화 조건 없음");
                     
                     return (
-                      <div key={idx} className="flex items-center space-x-2">
-                        <span className={`text-sm ${
+                      <div key={idx} className="flex items-center space-x-2 break-words">
+                        <span className={`text-sm break-words ${
                           isMet ? "text-green-400" : 
                           isMissing ? "text-red-400" : 
                           isNoCondition ? "text-yellow-400" :

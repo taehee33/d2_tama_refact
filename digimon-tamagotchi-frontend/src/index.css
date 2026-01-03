@@ -181,11 +181,35 @@ code {
     margin-bottom: env(safe-area-inset-bottom, 50px); /* 하단 여백 증가 */
   }
 
-  /* StatsPanel: 전체 너비, 중앙 정렬 */
+  /* StatsPanel: 전체 너비, 중앙 정렬, 높이 제한 및 스크롤 */
   .stats-panel-mobile {
     width: 100%;
     max-width: 100%;
     margin: 0 auto;
+  }
+  
+  /* StatsPanel 내부 스크롤 스타일 개선 */
+  .stats-panel-mobile > div {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+  }
+  
+  .stats-panel-mobile > div::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .stats-panel-mobile > div::-webkit-scrollbar-track {
+    background: #f7fafc;
+    border-radius: 3px;
+  }
+  
+  .stats-panel-mobile > div::-webkit-scrollbar-thumb {
+    background: #cbd5e0;
+    border-radius: 3px;
+  }
+  
+  .stats-panel-mobile > div::-webkit-scrollbar-thumb:hover {
+    background: #a0aec0;
   }
 
   /* MenuIconButtons: 그리드 레이아웃 (4열) */
@@ -199,7 +223,32 @@ code {
     padding: 10px;
   }
 
-  /* Settings 버튼: 모바일 친화적 위치 */
+  /* 모바일 상단 네비게이션 바 */
+  @media (max-width: 768px) {
+    /* 통합된 상단 바 스타일 */
+    .mobile-nav-bar {
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    
+    /* 프로필 드롭다운 메뉴 애니메이션 */
+    .profile-dropdown {
+      animation: slideDown 0.2s ease-out;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  }
+
+  /* Settings 버튼: 모바일 친화적 위치 (레거시 - 데스크톱용) */
   .settings-button-mobile {
     position: fixed;
     top: 10px;
@@ -213,7 +262,7 @@ code {
     gap: 5px;
   }
 
-  /* 좌측 상단 버튼: 모바일 최적화 */
+  /* 좌측 상단 버튼: 모바일 최적화 (레거시 - 데스크톱용) */
   .fixed.top-4.left-4 {
     top: 10px;
     left: 10px;
@@ -243,6 +292,30 @@ code {
     min-height: 44px;
     padding: 12px;
     font-size: 16px;
+  }
+
+  /* 가이드 버튼: 모바일에서 텍스트 가로 표시 강제 */
+  @media (max-width: 768px) {
+    .guide-button-mobile {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: center !important;
+      white-space: nowrap !important;
+    }
+    
+    /* 진화 버튼: 모바일에서 텍스트 가로 표시 강제 */
+    .evolution-button-mobile {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: center !important;
+      white-space: nowrap !important;
+    }
   }
 
   /* 아이콘 버튼: 모바일에서 더 크게 */

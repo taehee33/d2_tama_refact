@@ -4,6 +4,505 @@
 
 ---
 
+## [2026-01-03] Fix: Evolution 버튼명 변경 및 가이드/진화 버튼 모바일 텍스트 방향 수정
+
+### 작업 유형
+- UI/UX 개선
+- 모바일 반응형 개선
+- 버튼 텍스트 개선
+
+### 목적 및 영향
+Evolution 버튼의 텍스트를 "진화!"로 변경하고, 모바일에서 가이드 버튼과 진화 버튼의 텍스트가 세로로 표시되던 문제를 가로 표시로 수정했습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- **Evolution 버튼 텍스트 변경:**
+  - "Evolution" → "진화!"로 변경
+  - 한국어 사용자에게 더 직관적인 버튼명 제공
+
+- **가이드 버튼 모바일 텍스트 방향 수정:**
+  - `flex items-center justify-center gap-1` 클래스 추가하여 아이콘과 텍스트를 가로로 배치
+  - `writingMode: 'horizontal-tb'`, `textOrientation: 'mixed'` 인라인 스타일 추가
+  - 모바일일 때 `guide-button-mobile` 클래스 추가
+  - 아이콘과 텍스트를 `<span>` 태그로 분리하여 가로 배치
+
+- **진화 버튼 모바일 텍스트 방향 수정:**
+  - `flex items-center justify-center` 클래스 추가하여 텍스트를 가로로 배치
+  - `writingMode: 'horizontal-tb'`, `textOrientation: 'mixed'` 인라인 스타일 추가
+  - 모바일일 때 `evolution-button-mobile` 클래스 추가
+  - 텍스트를 `<span className="whitespace-nowrap">` 태그로 감싸서 줄바꿈 방지
+
+```javascript
+// Evolution 버튼
+<button
+  onClick={handleEvolutionButton}
+  disabled={!isEvoEnabled || isEvolving}
+  className="..."
+>
+  진화!
+</button>
+
+// 가이드 버튼
+<button
+  onClick={() => toggleModal('digimonInfo', true)}
+  className={`... ${isMobile ? 'guide-button-mobile' : ''}`}
+  style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
+>
+  <span>📖</span>
+  <span className="whitespace-nowrap">가이드</span>
+</button>
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/index.css`
+- **가이드 버튼 모바일 스타일 추가:**
+  - 모바일 환경에서 텍스트가 가로로 표시되도록 강제하는 CSS 추가
+  - `writing-mode: horizontal-tb !important`로 세로 텍스트 방지
+  - `flex-direction: row !important`로 가로 배치 강제
+  - `white-space: nowrap !important`로 텍스트 줄바꿈 방지
+
+```css
+/* 가이드 버튼: 모바일에서 텍스트 가로 표시 강제 */
+@media (max-width: 768px) {
+  .guide-button-mobile {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+  
+  /* 진화 버튼: 모바일에서 텍스트 가로 표시 강제 */
+  .evolution-button-mobile {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+}
+```
+
+### 사용자 경험 개선
+- Evolution 버튼이 한국어로 표시되어 더 직관적임
+- 모바일에서 가이드 버튼과 진화 버튼의 텍스트가 가로로 정상 표시됨
+- 아이콘과 텍스트가 가로로 정렬되어 가독성 향상
+- 버튼 레이아웃이 일관되고 깔끔해짐
+- 모든 버튼의 텍스트가 가로 방향으로 통일되어 사용자 경험 일관성 향상
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- `writing-mode`와 `text-orientation` CSS 속성을 사용하여 텍스트 방향 강제
+- `!important` 플래그를 사용하여 다른 스타일의 우선순위를 덮어씀
+- Flexbox 레이아웃을 사용하여 아이콘과 텍스트를 가로로 정렬
+- `whitespace-nowrap`으로 텍스트가 줄바꿈되지 않도록 보장
+
+---
+
+## [2026-01-03] Fix: 모바일 환경에서 상단 네비게이션 바 UI 개선
+
+### 작업 유형
+- UI/UX 개선
+- 모바일 반응형 개선
+- 네비게이션 바 리팩토링
+
+### 목적 및 영향
+모바일 환경에서 상단의 "Select 화면", "Settings", "프로필", "로그아웃" 버튼들이 중구난방처럼 보이던 문제를 해결했습니다. 통합된 상단 네비게이션 바를 만들어 깔끔하고 일관된 레이아웃을 제공합니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- **모바일 전용 통합 네비게이션 바 추가:**
+  - 모바일(`isMobile`)일 때만 새로운 통합 네비게이션 바 표시
+  - 데스크톱에서는 기존 레이아웃 유지
+  - 상단에 고정된 바(`fixed top-0 left-0 right-0`)로 일관된 위치 제공
+
+- **레이아웃 구조:**
+  - 왼쪽: "← Select" 버튼 (작은 화면에서는 화살표만 표시)
+  - 오른쪽: Settings 버튼 + 프로필 드롭다운 메뉴
+  - 프로필 정보는 드롭다운 메뉴로 숨김 처리하여 공간 절약
+
+- **프로필 드롭다운 메뉴:**
+  - 프로필 아이콘/이니셜 버튼 클릭 시 드롭다운 메뉴 표시
+  - 드롭다운에 사용자 이름, 이메일, 로그아웃 버튼 포함
+  - 외부 클릭 시 자동으로 닫힘
+  - 프로필 사진이 없을 경우 이니셜 표시
+
+- **상태 관리:**
+  - `showProfileMenu` state 추가하여 드롭다운 메뉴 열림/닫힘 상태 관리
+
+```javascript
+// 모바일 전용 통합 네비게이션 바
+{isMobile ? (
+  <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
+    <div className="flex items-center justify-between px-3 py-2">
+      {/* 왼쪽: Select 화면 버튼 */}
+      <button onClick={() => navigate("/select")}>
+        <span>←</span>
+        <span className="hidden sm:inline">Select</span>
+      </button>
+      
+      {/* 오른쪽: Settings + 프로필 */}
+      <div className="flex items-center gap-2">
+        <button onClick={() => toggleModal('settings', true)}>⚙️</button>
+        {/* 프로필 드롭다운 메뉴 */}
+      </div>
+    </div>
+  </div>
+) : (
+  // 데스크톱: 기존 레이아웃
+)}
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/index.css`
+- **모바일 네비게이션 바 스타일 추가:**
+  - `mobile-nav-bar` 클래스에 `backdrop-filter: blur(10px)` 추가하여 반투명 효과
+  - `profile-dropdown` 클래스에 슬라이드 다운 애니메이션 추가
+  - 드롭다운 메뉴가 부드럽게 나타나도록 개선
+
+```css
+/* 모바일 상단 네비게이션 바 */
+@media (max-width: 768px) {
+  .mobile-nav-bar {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
+  .profile-dropdown {
+    animation: slideDown 0.2s ease-out;
+  }
+  
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+```
+
+### 사용자 경험 개선
+- 모바일에서 상단 네비게이션 바가 깔끔하고 일관된 레이아웃으로 표시됨
+- 프로필 정보가 드롭다운 메뉴로 숨겨져 공간 절약
+- 버튼들이 정렬되어 중구난방처럼 보이지 않음
+- 드롭다운 메뉴 애니메이션으로 부드러운 사용자 경험 제공
+- 데스크톱에서는 기존 레이아웃 유지하여 호환성 보장
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- 모바일과 데스크톱 레이아웃을 분리하여 각각 최적화
+- 프로필 드롭다운 메뉴는 외부 클릭 시 자동으로 닫히도록 구현
+- 작은 화면에서는 "Select" 텍스트를 숨기고 화살표만 표시하여 공간 절약
+- 프로필 사진이 없을 경우 이니셜을 표시하여 일관된 UI 제공
+
+---
+
+## [2026-01-03] Fix: 모바일 환경에서 가이드 텍스트 가로 표시 개선
+
+### 작업 유형
+- UI/UX 개선
+- 모바일 반응형 개선
+- 텍스트 줄바꿈 개선
+
+### 목적 및 영향
+모바일 환경에서 가이드 모달의 텍스트가 세로로 표시되는 문제를 해결했습니다. `break-words`와 `word-break` CSS 속성을 추가하여 긴 텍스트가 가로로 줄바꿈되도록 개선했습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- **모달 컨테이너 스타일 추가:**
+  - `wordBreak: 'break-word'`, `overflowWrap: 'break-word'` 인라인 스타일 추가
+  - 긴 텍스트가 컨테이너 너비를 초과하지 않도록 개선
+
+- **헤더 반응형 개선:**
+  - 제목 텍스트 크기를 모바일(`text-xl`)과 데스크톱(`sm:text-2xl`)로 분리
+  - `break-words` 클래스 추가
+  - `flex-wrap` 추가하여 모바일에서 버튼과 제목이 여러 줄로 표시 가능
+
+- **모든 리스트 항목에 `break-words` 추가:**
+  - 모든 `<ul>` 태그에 `break-words` 클래스 추가
+  - 모든 `<li>` 태그에 `break-words` 클래스 추가
+  - 긴 텍스트가 가로로 줄바꿈되도록 개선
+
+```javascript
+// 모달 컨테이너
+<div
+  className="..."
+  style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}
+>
+
+// 헤더
+<h2 className="text-xl sm:text-2xl font-bold text-yellow-400 pixel-art-text break-words">
+  {titles[currentView]}
+</h2>
+
+// 리스트
+<ul className="space-y-2 text-white text-sm break-words">
+  <li className="break-words">• <strong>...</strong> ...</li>
+</ul>
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx`
+- **모달 컨테이너 스타일 추가:**
+  - `wordBreak: 'break-word'`, `overflowWrap: 'break-word'` 인라인 스타일 추가
+
+- **헤더 반응형 개선:**
+  - 제목 텍스트 크기를 모바일(`text-xl`)과 데스크톱(`sm:text-2xl`)로 분리
+  - `break-words` 클래스 추가
+  - `flex-wrap` 추가
+
+- **조건 텍스트에 `break-words` 추가:**
+  - 조건 표시 영역에 `break-words` 클래스 추가
+  - 긴 조건 텍스트가 가로로 줄바꿈되도록 개선
+
+### 사용자 경험 개선
+- 모바일에서 텍스트가 가로로 정상적으로 표시됨
+- 긴 텍스트가 화면 너비를 초과하지 않고 줄바꿈됨
+- 가독성 향상
+- 데스크톱에서는 기존과 동일한 레이아웃 유지
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/EvolutionGuideModal.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- `break-words`는 Tailwind CSS 클래스로, `word-break: break-word`와 `overflow-wrap: break-word`를 적용
+- 모바일에서 텍스트 크기를 줄여(`text-xl`) 화면 공간을 효율적으로 사용
+- 모든 리스트 항목에 일관되게 `break-words` 적용하여 통일된 사용자 경험 제공
+
+---
+
+## [2026-01-03] Fix: 모바일 환경에서 StatsPanel 모든 섹션 아코디언으로 변경
+
+### 작업 유형
+- UI/UX 개선
+- 모바일 반응형 개선
+- 사용성 향상
+
+### 목적 및 영향
+모바일 환경에서 StatsPanel의 모든 섹션을 아코디언으로 변경하여 사용자가 필요한 정보만 선택적으로 볼 수 있도록 개선했습니다. 기본적으로는 핵심 정보(기본 스탯, 상태 하트)만 펼쳐져 있고, 상세 정보(Dev Info, 내부/고급 카운터)는 접혀있어 화면 공간을 효율적으로 사용할 수 있습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- **모든 섹션 아코디언화:**
+  - **1. 기본 스탯**: 아코디언 추가 (기본적으로 펼침)
+  - **2. 상태 하트**: 아코디언 추가 (기본적으로 펼침)
+  - **3. Dev Info**: 기존 아코디언 유지 (기본적으로 접힘)
+  - **4. 내부/고급 카운터**: 기존 아코디언 유지 (기본적으로 접힘)
+
+- **재사용 가능한 컴포넌트 추가:**
+  - `AccordionButton`: 아코디언 버튼 컴포넌트 (모바일 전용)
+  - `SectionHeader`: 섹션 헤더 컴포넌트 (데스크톱 전용)
+
+- **상태 관리:**
+  - `showBasicStats`: 기본 스탯 섹션 (기본값: `true`)
+  - `showHearts`: 상태 하트 섹션 (기본값: `true`)
+  - `showDevInfo`: Dev Info 섹션 (기본값: `false`)
+  - `showAdvanced`: 내부/고급 카운터 섹션 (기본값: `false`)
+
+```javascript
+// 아코디언 버튼 컴포넌트
+const AccordionButton = ({ isOpen, onClick, title, defaultOpen = false }) => {
+  if (!isMobile) return null;
+  return (
+    <button onClick={onClick} className="...">
+      <span>{title}</span>
+      <span>{isOpen ? '▼' : '▶'}</span>
+    </button>
+  );
+};
+
+// 사용 예시
+<AccordionButton
+  isOpen={showBasicStats}
+  onClick={() => setShowBasicStats(!showBasicStats)}
+  title="1. 기본 스탯"
+  defaultOpen={true}
+/>
+```
+
+### 사용자 경험 개선
+- 모바일에서 핵심 정보만 기본적으로 표시되어 화면 공간 절약
+- 필요할 때만 상세 정보를 펼쳐서 볼 수 있음
+- 모든 섹션이 일관된 아코디언 인터페이스로 통일
+- 데스크톱에서는 기존과 동일하게 모든 섹션이 항상 표시됨
+- 섹션 번호를 추가하여 구조를 명확히 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- 모바일에서만 아코디언 기능이 활성화됨 (데스크톱은 기존과 동일)
+- 기본 스탯과 상태 하트는 기본적으로 펼쳐져 있어 핵심 정보를 바로 확인 가능
+- Dev Info와 내부/고급 카운터는 기본적으로 접혀있어 화면 공간 절약
+- 각 섹션의 접기/펼치기 상태는 독립적으로 관리됨
+
+---
+
+## [2026-01-03] Fix: 모바일 환경에서 StatsPanel 높이 제한 및 접기 기능 추가
+
+### 작업 유형
+- UI/UX 개선
+- 모바일 반응형 개선
+- 사용성 향상
+
+### 목적 및 영향
+모바일 환경에서 StatsPanel이 너무 길어서 아래 버튼들이 보이지 않는 문제를 해결했습니다. 높이 제한과 스크롤 기능을 추가하고, 모바일에서는 일부 섹션을 접을 수 있도록 개선하여 화면 공간을 효율적으로 사용할 수 있게 했습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- **Props 추가:**
+  - `isMobile = false` - 모바일 환경 여부를 받는 prop 추가
+
+- **상태 관리 추가:**
+  - `useState`를 사용하여 `showDevInfo`, `showAdvanced` 상태 추가
+  - 모바일에서 "Dev Info"와 "내부/고급 카운터" 섹션을 접을 수 있게 함
+
+- **모바일 최적화:**
+  - 모바일에서 `max-h-[40vh]` (화면 높이의 40%)로 높이 제한
+  - `overflow-y-auto`로 스크롤 가능하게 설정
+  - `w-full`로 전체 너비 사용
+
+- **아코디언 기능:**
+  - 모바일에서 "Dev Info" 섹션을 클릭하여 접기/펼치기 가능
+  - 모바일에서 "내부/고급 카운터" 섹션을 클릭하여 접기/펼치기 가능
+  - 접힘 상태 표시: `▶`, 펼침 상태 표시: `▼`
+
+```javascript
+// 모바일에서 높이 제한 및 스크롤
+<div className={`border p-2 bg-white shadow-md text-sm ${isMobile ? 'w-full max-h-[40vh] overflow-y-auto' : 'w-48'}`}>
+  {/* 아코디언 버튼 (모바일 전용) */}
+  {isMobile ? (
+    <button onClick={() => setShowDevInfo(!showDevInfo)}>
+      <span>Dev Info:</span>
+      <span>{showDevInfo ? '▼' : '▶'}</span>
+    </button>
+  ) : (
+    <p className="text-xs text-gray-600">Dev Info:</p>
+  )}
+</div>
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/components/ControlPanel.jsx`
+- **Props 전달:**
+  - `StatsPanel`에 `isMobile={isMobile}` prop 전달
+
+#### 3. `digimon-tamagotchi-frontend/src/index.css`
+- **스크롤바 스타일 개선:**
+  - 모바일에서 StatsPanel의 스크롤바를 얇고 세련되게 스타일링
+  - `scrollbar-width: thin` (Firefox)
+  - `::-webkit-scrollbar` (Chrome/Safari)
+  - 호버 시 색상 변경으로 사용자 피드백 제공
+
+```css
+/* StatsPanel 내부 스크롤 스타일 개선 */
+.stats-panel-mobile > div {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 #f7fafc;
+}
+
+.stats-panel-mobile > div::-webkit-scrollbar {
+  width: 6px;
+}
+```
+
+### 사용자 경험 개선
+- 모바일에서 StatsPanel이 화면을 너무 많이 차지하지 않음
+- 아래 버튼들이 항상 보이도록 높이 제한
+- 필요할 때만 상세 정보를 펼쳐서 볼 수 있음
+- 스크롤이 부드럽고 시각적으로 깔끔함
+- 데스크톱에서는 기존과 동일한 레이아웃 유지
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/ControlPanel.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- 모바일에서만 아코디언 기능이 활성화됨 (데스크톱은 기존과 동일)
+- 높이 제한은 `40vh` (화면 높이의 40%)로 설정되어 대부분의 모바일 기기에서 적절함
+- 스크롤바는 얇게 디자인되어 콘텐츠를 가리지 않음
+- 접기/펼치기 상태는 각 섹션별로 독립적으로 관리됨
+
+---
+
+## [2026-01-03] Feature: 상태 표시에 "진화 가능!" 배지 추가
+
+### 작업 유형
+- UI/UX 개선
+- 상태 표시 기능 추가
+
+### 목적 및 영향
+디지몬이 진화 가능한 상태일 때 사용자에게 명확하게 알려주기 위해 상태 배지에 "진화 가능! ✨" 메시지를 추가했습니다. 이를 통해 사용자가 진화 버튼을 클릭하기 전에 진화 가능 여부를 쉽게 확인할 수 있습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- **Props 추가:**
+  - `canEvolve: false` - 진화 가능 여부를 받는 prop 추가
+
+- **상태 메시지 추가:**
+  - 우선순위 1.5로 "진화 가능! ✨" 메시지 추가
+  - 사망 상태(priority: 1) 다음, 다른 상태보다 높은 우선순위
+  - 보라색 텍스트(`text-purple-600`)와 연한 보라색 배경(`bg-purple-100`) 사용
+  - `category: "good"`로 분류
+
+```javascript
+// 1.5. 진화 가능 상태 (사망 다음 우선순위, 높은 가시성)
+if (canEvolve && !isDead) {
+  messages.push({ 
+    text: "진화 가능! ✨", 
+    color: "text-purple-600", 
+    bgColor: "bg-purple-100", 
+    priority: 1.5, 
+    category: "good" 
+  });
+}
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- **DigimonStatusBadges 컴포넌트에 props 전달:**
+  - `canEvolve={isEvoEnabled}` prop 추가
+  - `isEvoEnabled`는 기존에 `checkEvolution` 함수로 계산된 진화 가능 여부 상태
+
+### 사용자 경험 개선
+- 진화 가능 여부를 상태 배지에서 즉시 확인 가능
+- 진화 버튼을 클릭하기 전에 진화 가능 여부를 알 수 있어 사용자 편의성 향상
+- 보라색 배지로 긍정적인 상태임을 명확히 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- 진화 가능 여부는 `checkEvolution` 함수로 계산되며, 시간 조건과 다른 진화 조건을 모두 만족해야 표시됨
+- 개발자 모드에서는 항상 진화 가능 상태로 표시됨
+- 사망 상태일 때는 진화 가능 배지가 표시되지 않음
+
+---
+
 ## [2026-01-03] Feature: PWA 최적화 (manifest.json 설정)
 
 ### 작업 유형

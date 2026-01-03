@@ -18,6 +18,7 @@
  * @property {number} stats.basePower - 기본 파워
  * @property {number} stats.maxEnergy - 최대 에너지 (DP)
  * @property {number} stats.minWeight - 최소 체중
+ * @property {number} stats.healDoses - 치료 필요 횟수 (기본값 1)
  * @property {string} stats.type - 속성 ("Vaccine", "Data", "Virus", "Free" 또는 null)
  * @property {string} stats.sleepTime - 수면 시간 (HH:MM 형식)
  * @property {number} stats.attackSprite - 공격 스프라이트 번호 (공격 시 사용, null이면 기본 sprite 사용)
@@ -77,7 +78,7 @@ export const digimonDataVer1 = {
     stats: {
       hungerCycle: 0,
       strengthCycle: 0,
-      poopCycle: 3, // Stage I: 3분마다 똥
+      poopCycle: 999, // Stage I: 3분마다 똥
       maxOverfeed: 0,
       basePower: 0,
       maxEnergy: 0,
@@ -113,6 +114,7 @@ export const digimonDataVer1 = {
       basePower: 0, // Power: 0
       maxEnergy: 0, // Energy: 0
       minWeight: 5, // Min Weight: 5
+      healDoses: 0, // Heal Doses: 1 (치료 필요 횟수)
       type: "Free", // Free
       sleepTime: null,
       attackSprite: 1, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: null
@@ -145,6 +147,7 @@ export const digimonDataVer1 = {
       basePower: 0, // Power: 0
       maxEnergy: 0, // Energy: 0
       minWeight: 10, // Min Weight: 10
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Free", // Free
       sleepTime: "20:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
@@ -185,6 +188,7 @@ export const digimonDataVer1 = {
       basePower: 30, // Power: 30
       maxEnergy: 20, // Energy: 20
       minWeight: 20, // Min Weight: 20
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "20:00",
       attackSprite: 4, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
@@ -267,6 +271,7 @@ export const digimonDataVer1 = {
       basePower: 25, // Power: 25
       maxEnergy: 20, // Energy: 20
       minWeight: 20, // Min Weight: 20
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "21:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
@@ -345,6 +350,7 @@ export const digimonDataVer1 = {
       basePower: 50, // Power: 50
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "21:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
@@ -381,6 +387,7 @@ export const digimonDataVer1 = {
       basePower: 50, // Power: 50
       maxEnergy: 30, // Energy: 30
       minWeight: 40, // Min Weight: 40
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -417,6 +424,7 @@ export const digimonDataVer1 = {
       basePower: 50, // Power: 50
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -453,6 +461,7 @@ export const digimonDataVer1 = {
       basePower: 40, // Power: 40
       maxEnergy: 30, // Energy: 30
       minWeight: 10, // Min Weight: 10
+      healDoses: 3, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "00:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
@@ -489,6 +498,7 @@ export const digimonDataVer1 = {
       basePower: 45, // Power: 45
       maxEnergy: 30, // Energy: 30
       minWeight: 20, // Min Weight: 20
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "22:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 22:00
@@ -525,6 +535,7 @@ export const digimonDataVer1 = {
       basePower: 45, // Power: 45
       maxEnergy: 30, // Energy: 30
       minWeight: 30, // Min Weight: 30
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "00:00",
       attackSprite: 17, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
@@ -561,6 +572,7 @@ export const digimonDataVer1 = {
       basePower: 45, // Power: 45
       maxEnergy: 30, // Energy: 30
       minWeight: 20, // Min Weight: 20
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -597,6 +609,7 @@ export const digimonDataVer1 = {
       basePower: 100, // Power: 100
       maxEnergy: 40, // Energy: 40
       minWeight: 40, // Min Weight: 40
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "20:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
@@ -637,6 +650,7 @@ export const digimonDataVer1 = {
       basePower: 100, // Power: 100
       maxEnergy: 40, // Energy: 40
       minWeight: 40, // Min Weight: 40
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "21:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
@@ -677,6 +691,7 @@ export const digimonDataVer1 = {
       basePower: 85, // Power: 85
       maxEnergy: 40, // Energy: 40
       minWeight: 5, // Min Weight: 5
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -717,6 +732,7 @@ export const digimonDataVer1 = {
       basePower: 170, // Power: 170
       maxEnergy: 50, // Energy: 50
       minWeight: 50, // Min Weight: 50
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -751,6 +767,7 @@ export const digimonDataVer1 = {
       basePower: 170, // Power: 170
       maxEnergy: 50, // Energy: 50
       minWeight: 40, // Min Weight: 40
+      healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -795,6 +812,7 @@ export const digimonDataVer1 = {
       basePower: 200, // Power: 200
       maxEnergy: 50, // Energy: 50
       minWeight: 40, // Min Weight: 40
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
@@ -817,6 +835,7 @@ export const digimonDataVer1 = {
       basePower: 0, // Placeholder
       maxEnergy: 0, // Placeholder
       minWeight: 0, // Placeholder
+      healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: null, // Placeholder
       sleepTime: null,
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Placeholder

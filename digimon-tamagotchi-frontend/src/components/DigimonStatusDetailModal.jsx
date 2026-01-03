@@ -92,3 +92,4 @@ const DigimonStatusDetailModal = ({
 
 export default DigimonStatusDetailModal;
 
+

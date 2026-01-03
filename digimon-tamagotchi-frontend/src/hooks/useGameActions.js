@@ -766,17 +766,26 @@ export function useGameActions({
     
     if (battleResult.win) {
       // 승리 시 배틀 기록 업데이트
+      // 현재 디지몬 값
       const newBattles = (battleStats.battles || 0) + 1;
       const newBattlesWon = (battleStats.battlesWon || 0) + 1;
-      // 승률 재계산 (0으로 나누기 방지)
       const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
+      
+      // 총 토탈 값
+      const newTotalBattles = (battleStats.totalBattles || 0) + 1;
+      const newTotalBattlesWon = (battleStats.totalBattlesWon || 0) + 1;
+      const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
       
       const finalStats = {
         ...battleStats,
+        // 현재 디지몬 값
         battles: newBattles,
         battlesWon: newBattlesWon,
-        battlesForEvolution: (battleStats.battlesForEvolution || 0) + 1,
         winRate: newWinRate,
+        // 총 토탈 값
+        totalBattles: newTotalBattles,
+        totalBattlesWon: newTotalBattlesWon,
+        totalWinRate: newTotalWinRate,
       };
       
       // 부상 확률 체크 (승리 시 20%)
@@ -835,17 +844,28 @@ export function useGameActions({
       }
     } else {
       // 패배 시 배틀 기록 업데이트
+      // 현재 디지몬 값
       const newBattles = (battleStats.battles || 0) + 1;
       const newBattlesLost = (battleStats.battlesLost || 0) + 1;
       const newBattlesWon = battleStats.battlesWon || 0;
-      // 승률 재계산 (0으로 나누기 방지)
       const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
+      
+      // 총 토탈 값
+      const newTotalBattles = (battleStats.totalBattles || 0) + 1;
+      const newTotalBattlesLost = (battleStats.totalBattlesLost || 0) + 1;
+      const newTotalBattlesWon = battleStats.totalBattlesWon || 0;
+      const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
       
       const finalStats = {
         ...battleStats,
+        // 현재 디지몬 값
         battles: newBattles,
         battlesLost: newBattlesLost,
         winRate: newWinRate,
+        // 총 토탈 값
+        totalBattles: newTotalBattles,
+        totalBattlesLost: newTotalBattlesLost,
+        totalWinRate: newTotalWinRate,
       };
       
       // 부상 확률 체크 (패배 시 10% + 프로틴 과다 * 10%, 최대 80%)

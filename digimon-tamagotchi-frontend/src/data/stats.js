@@ -10,22 +10,17 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   
   let merged= { ...defaultStats, ...custom };
 
-  // 기존 이어받기 (나이, 체중, 수명)
+  // 기존 이어받기 (나이, 수명)
+  // weight는 진화 시 minWeight로 리셋되므로, resetStats에서 이미 설정된 값을 사용
   merged.age = oldStats.age || merged.age;
-  merged.weight = oldStats.weight || merged.weight;
+  merged.weight = oldStats.weight !== undefined ? oldStats.weight : merged.weight;
   merged.lifespanSeconds= oldStats.lifespanSeconds || merged.lifespanSeconds;
   // birthTime 이어받기 (없으면 현재 시간으로 설정)
   // 진화 시에는 birthTime을 유지 (나이 계속 증가)
   merged.birthTime = oldStats.birthTime || Date.now();
 
-  // ★ 추가: strength, effort 이어받기
-  merged.strength = (oldStats.strength!==undefined)
-    ? oldStats.strength
-    : merged.strength;
-
-  merged.effort   = (oldStats.effort!==undefined)
-    ? oldStats.effort
-    : merged.effort;
+  // ★ strength, effort는 진화 시 리셋 (resetStats에서 0으로 설정됨)
+  // merged.strength, merged.effort는 defaultStats에서 가져온 기본값 사용 (보통 0)
 
   // ★ trainings는 새 디지몬 생성(진화) 시 무조건 0
   merged.trainings = 0;
@@ -48,12 +43,23 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     sleep: { isActive: false, startedAt: null }
   };
   
-  // 매뉴얼 기반 필드 초기화 (진화 시 유지되는 필드)
+  // 매뉴얼 기반 필드 초기화
+  
+  // Energy는 진화 시 리셋되므로, resetStats에서 이미 0으로 설정된 값을 사용
   merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
-  merged.battles = oldStats.battles !== undefined ? oldStats.battles : (merged.battles || 0);
-  merged.battlesWon = oldStats.battlesWon !== undefined ? oldStats.battlesWon : (merged.battlesWon || 0);
-  merged.battlesLost = oldStats.battlesLost !== undefined ? oldStats.battlesLost : (merged.battlesLost || 0);
-  merged.winRate = oldStats.winRate !== undefined ? oldStats.winRate : (merged.winRate || 0);
+  
+  // 총 토탈 배틀 값 (진화 시 유지)
+  merged.totalBattles = oldStats.totalBattles !== undefined ? oldStats.totalBattles : (merged.totalBattles || 0);
+  merged.totalBattlesWon = oldStats.totalBattlesWon !== undefined ? oldStats.totalBattlesWon : (merged.totalBattlesWon || 0);
+  merged.totalBattlesLost = oldStats.totalBattlesLost !== undefined ? oldStats.totalBattlesLost : (merged.totalBattlesLost || 0);
+  merged.totalWinRate = oldStats.totalWinRate !== undefined ? oldStats.totalWinRate : (merged.totalWinRate || 0);
+  
+  // 현재 디지몬 배틀 값 (진화 시 리셋)
+  // resetStats에서 이미 0으로 설정되거나, 없으면 기본값 0 사용
+  merged.battles = oldStats.battles !== undefined ? oldStats.battles : 0;
+  merged.battlesWon = oldStats.battlesWon !== undefined ? oldStats.battlesWon : 0;
+  merged.battlesLost = oldStats.battlesLost !== undefined ? oldStats.battlesLost : 0;
+  merged.winRate = oldStats.winRate !== undefined ? oldStats.winRate : 0;
 
   // 타이머 계산
   merged.hungerCountdown   = merged.hungerTimer   * 60;

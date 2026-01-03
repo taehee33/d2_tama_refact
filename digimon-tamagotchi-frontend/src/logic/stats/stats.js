@@ -19,14 +19,14 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
 
   let merged = { ...defaultStats, ...custom };
 
-  // 기존 이어받기 (나이, 체중, 수명)
+  // 기존 이어받기 (나이, 수명)
+  // weight는 진화 시 minWeight로 리셋되므로, resetStats에서 이미 설정된 값을 사용
   merged.age = oldStats.age || merged.age;
-  merged.weight = oldStats.weight || merged.weight;
+  merged.weight = oldStats.weight !== undefined ? oldStats.weight : merged.weight;
   merged.lifespanSeconds = oldStats.lifespanSeconds || merged.lifespanSeconds;
 
-  // strength, effort 이어받기
-  merged.strength = oldStats.strength !== undefined ? oldStats.strength : merged.strength;
-  merged.effort = oldStats.effort !== undefined ? oldStats.effort : merged.effort;
+  // strength, effort는 진화 시 리셋 (resetStats에서 0으로 설정됨)
+  // merged.strength, merged.effort는 defaultStats에서 가져온 기본값 사용 (보통 0)
 
   // trainings는 새 디지몬 생성(진화) 시 무조건 0
   merged.trainings = 0;

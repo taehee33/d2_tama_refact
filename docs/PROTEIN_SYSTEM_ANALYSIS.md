@@ -237,3 +237,4 @@ export function willRefuseProtein(stats) {
 - 데스크톱에서 ⚠️ 아이콘에 마우스를 올리면 표시됨
 - 모바일에서는 작동하지 않을 수 있으므로, 툴팁을 항상 표시하거나 다른 방식으로 개선 필요
 
+

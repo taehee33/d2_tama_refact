@@ -47,18 +47,21 @@ export function checkEvolutionConditions(stats, digimonData, evolutionCriteria) 
     return false;
   }
   
-  // 배틀 조건
-  if (evolutionCriteria.battles !== undefined && stats.battlesForEvolution < evolutionCriteria.battles) {
-    return false;
-  }
-  
-  // 승률 조건
-  if (evolutionCriteria.winRatio !== undefined) {
-    const totalBattles = stats.battlesWon + stats.battlesLost;
-    if (totalBattles === 0) {
+  // 배틀 조건 (현재 디지몬 값만 사용)
+  if (evolutionCriteria.battles !== undefined) {
+    const currentBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
+    if (currentBattles < evolutionCriteria.battles) {
       return false;
     }
-    const winRatio = (stats.battlesWon / totalBattles) * 100;
+  }
+  
+  // 승률 조건 (현재 디지몬 값만 사용)
+  if (evolutionCriteria.winRatio !== undefined) {
+    const currentBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
+    if (currentBattles === 0) {
+      return false;
+    }
+    const winRatio = ((stats.battlesWon || 0) / currentBattles) * 100;
     if (winRatio < evolutionCriteria.winRatio) {
       return false;
     }

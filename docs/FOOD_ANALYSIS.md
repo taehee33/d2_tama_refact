@@ -382,3 +382,4 @@ Firestore/localStorage 저장
 - `docs/REFACTORING_LOG.md`: 리팩토링 이력
 - `docs/DIGITAL_MONSTER_COLOR_MANUAL.md`: 매뉴얼 번역본
 
+

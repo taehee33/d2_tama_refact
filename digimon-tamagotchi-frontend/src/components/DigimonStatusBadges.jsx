@@ -15,6 +15,7 @@ const DigimonStatusBadges = ({
   currentAnimation = "idle",
   feedType = null,
   onOpenStatusDetail = null,
+  canEvolve = false, // 진화 가능 여부
 }) => {
   const {
     fullness = 0,
@@ -51,6 +52,11 @@ const DigimonStatusBadges = ({
     // 1. 사망 상태
     if (isDead) {
       messages.push({ text: "사망 💀", color: "text-red-600", bgColor: "bg-red-200", priority: 1, category: "critical" });
+    }
+
+    // 1.5. 진화 가능 상태 (사망 다음 우선순위, 높은 가시성)
+    if (canEvolve && !isDead) {
+      messages.push({ text: "진화 가능! ✨", color: "text-purple-600", bgColor: "bg-purple-100", priority: 1.5, category: "good" });
     }
 
     // 2. 부상 상태

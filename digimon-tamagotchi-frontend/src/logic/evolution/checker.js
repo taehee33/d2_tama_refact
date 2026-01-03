@@ -216,27 +216,27 @@ function checkConditions(conditions, stats, missingConditions) {
     }
   }
 
-  // battles 체크
+  // battles 체크 (현재 디지몬 값만 사용)
   if (conditions.battles !== undefined) {
-    const totalBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
-    if (conditions.battles.min !== undefined && totalBattles < conditions.battles.min) {
-      missingConditions.push(`배틀 (현재: ${totalBattles}, 필요: >= ${conditions.battles.min})`);
+    const currentBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
+    if (conditions.battles.min !== undefined && currentBattles < conditions.battles.min) {
+      missingConditions.push(`배틀 (현재: ${currentBattles}, 필요: >= ${conditions.battles.min})`);
       allMet = false;
     }
-    if (conditions.battles.max !== undefined && totalBattles > conditions.battles.max) {
-      missingConditions.push(`배틀 (현재: ${totalBattles}, 필요: <= ${conditions.battles.max})`);
+    if (conditions.battles.max !== undefined && currentBattles > conditions.battles.max) {
+      missingConditions.push(`배틀 (현재: ${currentBattles}, 필요: <= ${conditions.battles.max})`);
       allMet = false;
     }
   }
 
-  // winRatio 체크
+  // winRatio 체크 (현재 디지몬 값만 사용)
   if (conditions.winRatio !== undefined) {
-    const totalBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
-    if (totalBattles === 0) {
+    const currentBattles = (stats.battlesWon || 0) + (stats.battlesLost || 0);
+    if (currentBattles === 0) {
       missingConditions.push(`승률 (배틀을 하지 않았습니다)`);
       allMet = false;
     } else {
-      const winRatio = ((stats.battlesWon || 0) / totalBattles) * 100;
+      const winRatio = ((stats.battlesWon || 0) / currentBattles) * 100;
       if (conditions.winRatio.min !== undefined && winRatio < conditions.winRatio.min) {
         missingConditions.push(`승률 (현재: ${winRatio.toFixed(1)}%, 필요: >= ${conditions.winRatio.min}%)`);
         allMet = false;

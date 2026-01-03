@@ -39,10 +39,18 @@ export const defaultStats = {
     // 매뉴얼 기반 추가 필드
     proteinCount: 0, // 먹인 단백질 누적 개수
     proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7, 4개당 +1)
-    battles: 0, // 총 배틀 횟수 (진화 조건용)
-    battlesWon: 0, // 총 승리 횟수 (진화 조건용)
-    battlesLost: 0, // 총 패배 횟수 (진화 조건용)
-    battlesForEvolution: 0, // 진화를 위한 배틀 횟수 (진화 시 리셋)
+    
+    // 배틀 관련: 총 토탈 (진화 시 유지)
+    totalBattles: 0, // 전체 생애 동안의 총 배틀 횟수
+    totalBattlesWon: 0, // 전체 생애 동안의 총 승리 횟수
+    totalBattlesLost: 0, // 전체 생애 동안의 총 패배 횟수
+    totalWinRate: 0, // 전체 생애 동안의 총 승률 (%)
+    
+    // 배틀 관련: 현재 디지몬 (진화 시 리셋)
+    battles: 0, // 현재 디지몬일 때의 배틀 횟수 (진화 조건용)
+    battlesWon: 0, // 현재 디지몬일 때의 승리 횟수 (진화 조건용)
+    battlesLost: 0, // 현재 디지몬일 때의 패배 횟수 (진화 조건용)
+    winRate: 0, // 현재 디지몬일 때의 승률 (%) (진화 조건용)
     isInjured: false, // 부상 상태 (똥 8개, 배틀 부상 시 true)
     injuredAt: null, // 부상 당한 시각 (6시간 사망 체크용)
     injuries: 0, // 이 단계에서 누적된 부상 횟수 (15회 사망 체크용)

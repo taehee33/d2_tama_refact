@@ -29,7 +29,7 @@ const ControlPanel = ({
       : "flex justify-center items-center space-x-4 mt-2"
     }>
       <div className={isMobile ? "w-full stats-panel-mobile" : ""}>
-        <StatsPanel stats={stats} sleepStatus={sleepStatus} />
+        <StatsPanel stats={stats} sleepStatus={sleepStatus} isMobile={isMobile} />
       </div>
       <div className={isMobile ? "w-full menu-icon-buttons-mobile" : ""}>
         <MenuIconButtons

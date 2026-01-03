@@ -98,6 +98,9 @@ function Game(){
   const location = useLocation();
   // location.state에서 mode를 가져오거나, 기본값으로 현재 인증 상태 기반 결정
   const mode = location.state?.mode || ((isFirebaseAvailable && currentUser) ? 'firebase' : 'local');
+  
+  // 프로필 드롭다운 메뉴 상태
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
   const {
@@ -851,53 +854,141 @@ async function setSelectedDigimonAndSave(name) {
 
   return (
     <>
-      {/* 왼쪽 상단 UI 컨테이너 (Select 화면 버튼) */}
-      <div className="fixed top-4 left-4 z-50">
-        <button 
-          onClick={()=> navigate("/select")} 
-          className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-        >
-          ← Select 화면
-        </button>
-      </div>
-
-      {/* 우측 상단 UI 컨테이너 (Settings + 프로필) */}
-      <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 ${isMobile ? "settings-button-mobile" : ""}`}>
-        {/* Settings 버튼 */}
-        <button
-          onClick={() => toggleModal('settings', true)}
-          className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-          title="설정"
-        >
-          ⚙️
-        </button>
-        {/* 프로필 UI (SelectScreen과 동일한 스타일) */}
-        {isFirebaseAvailable && currentUser && (
-          <>
-            <div className="flex items-center space-x-2">
-              {currentUser.photoURL && (
-                <img
-                  src={currentUser.photoURL}
-                  alt="프로필"
-                  className="w-8 h-8 rounded-full"
-                />
-              )}
-              <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
-            </div>
-            <button
-              onClick={handleLogoutFromHook}
-              className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
+      {/* 모바일: 통합된 상단 네비게이션 바 */}
+      {isMobile ? (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
+          <div className="flex items-center justify-between px-3 py-2">
+            {/* 왼쪽: Select 화면 버튼 */}
+            <button 
+              onClick={() => navigate("/select")} 
+              className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm pixel-art-button flex items-center gap-1"
             >
-              로그아웃
+              <span>←</span>
+              <span className="hidden sm:inline">Select</span>
             </button>
-          </>
-        )}
-        {!isFirebaseAvailable && (
-          <span className="text-sm text-gray-500">localStorage 모드</span>
-        )}
-      </div>
 
-      <div className={`text-center mb-1 ${isMobile ? "pt-20" : ""}`}>
+            {/* 오른쪽: Settings + 프로필 */}
+            <div className="flex items-center gap-2">
+              {/* Settings 버튼 */}
+              <button
+                onClick={() => toggleModal('settings', true)}
+                className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+                title="설정"
+              >
+                ⚙️
+              </button>
+              
+              {/* 프로필 UI */}
+              {isFirebaseAvailable && currentUser ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
+                  >
+                    {currentUser.photoURL ? (
+                      <img
+                        src={currentUser.photoURL}
+                        alt="프로필"
+                        className="w-6 h-6 rounded-full"
+                      />
+                    ) : (
+                      <span className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs">
+                        {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate">
+                      {currentUser.displayName || currentUser.email?.split('@')[0]}
+                    </span>
+                    <span className="text-xs">▼</span>
+                  </button>
+                  
+                  {/* 드롭다운 메뉴 */}
+                  {showProfileMenu && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setShowProfileMenu(false)}
+                      />
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] profile-dropdown">
+                        <div className="px-3 py-2 border-b border-gray-200">
+                          <p className="text-xs font-semibold text-gray-700 truncate">
+                            {currentUser.displayName || currentUser.email}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {currentUser.email}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            handleLogoutFromHook();
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 pixel-art-button"
+                        >
+                          로그아웃
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs text-gray-500 px-2">localStorage</span>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* 데스크톱: 기존 레이아웃 */}
+          {/* 왼쪽 상단 UI 컨테이너 (Select 화면 버튼) */}
+          <div className="fixed top-4 left-4 z-50">
+            <button 
+              onClick={()=> navigate("/select")} 
+              className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+            >
+              ← Select 화면
+            </button>
+          </div>
+
+          {/* 우측 상단 UI 컨테이너 (Settings + 프로필) */}
+          <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+            {/* Settings 버튼 */}
+            <button
+              onClick={() => toggleModal('settings', true)}
+              className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+              title="설정"
+            >
+              ⚙️
+            </button>
+            {/* 프로필 UI (SelectScreen과 동일한 스타일) */}
+            {isFirebaseAvailable && currentUser && (
+              <>
+                <div className="flex items-center space-x-2">
+                  {currentUser.photoURL && (
+                    <img
+                      src={currentUser.photoURL}
+                      alt="프로필"
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
+                </div>
+                <button
+                  onClick={handleLogoutFromHook}
+                  className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
+                >
+                  로그아웃
+                </button>
+              </>
+            )}
+            {!isFirebaseAvailable && (
+              <span className="text-sm text-gray-500">localStorage 모드</span>
+            )}
+          </div>
+        </>
+      )}
+
+      <div className={`text-center mb-1 ${isMobile ? "pt-16" : ""}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {selectedDigimon}
         </h2>
@@ -931,6 +1022,7 @@ async function setSelectedDigimonAndSave(name) {
             isDead={digimonStats.isDead}
             currentAnimation={currentAnimation}
             feedType={feedType}
+            canEvolve={isEvoEnabled}
             onOpenStatusDetail={(messages) => {
               // 상태 상세 모달을 열기 위해 임시로 상태 저장
               setStatusDetailMessages(messages);
@@ -993,16 +1085,19 @@ async function setSelectedDigimonAndSave(name) {
       <button
         onClick={handleEvolutionButton}
             disabled={!isEvoEnabled || isEvolving}
-            className={`px-4 py-2 text-white rounded pixel-art-button ${isEvoEnabled && !isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"}`}
+            className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${isEvoEnabled && !isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+            style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
       >
-        Evolution
+        <span className="whitespace-nowrap">진화!</span>
       </button>
           <button
             onClick={() => toggleModal('digimonInfo', true)}
-            className="px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600"
+            className={`px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600 flex items-center justify-center gap-1 ${isMobile ? 'guide-button-mobile' : ''}`}
             title="디지몬 가이드"
+            style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
           >
-            📖 가이드
+            <span>📖</span>
+            <span className="whitespace-nowrap">가이드</span>
           </button>
           {/* Death Info 버튼: 죽었을 때만 표시 */}
           {digimonStats.isDead && (

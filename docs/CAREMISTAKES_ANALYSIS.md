@@ -105,3 +105,4 @@ if (updatedStats.hungerTimer > 0) {
 - 즉, Call이 타임아웃되면 리셋되고, 다시 0이 되면 새로운 Call이 발생할 수 있음
 - 하지만 한 번의 타임아웃당 +1만 증가해야 함
 
+

@@ -113,9 +113,30 @@ export default function StatsPopup({
   // 종족 고정 파라미터 추출
   const speciesData = digimonData?.stats || {};
   const sleepSchedule = speciesData.sleepSchedule || {};
-  const sleepTime = sleepSchedule.start !== undefined 
-    ? `${sleepSchedule.start}:00 - ${sleepSchedule.end}:00`
-    : (speciesData.sleepTime || 'N/A');
+  
+  // Sleep Time 포맷팅 (HH:MM 형식을 12시간 형식으로 변환)
+  const formatSleepTime = () => {
+    // sleepSchedule 형식: { start: 20, end: 8 }
+    if (sleepSchedule.start !== undefined) {
+      const startHour = sleepSchedule.start;
+      const endHour = sleepSchedule.end;
+      const startPeriod = startHour >= 12 ? 'PM' : 'AM';
+      const endPeriod = endHour >= 12 ? 'PM' : 'AM';
+      const startHour12 = startHour > 12 ? startHour - 12 : (startHour === 0 ? 12 : startHour);
+      const endHour12 = endHour > 12 ? endHour - 12 : (endHour === 0 ? 12 : endHour);
+      return `${startHour12}:00 ${startPeriod} - ${endHour12}:00 ${endPeriod}`;
+    }
+    // "HH:MM" 형식 (예: "20:00")
+    const sleepTimeStr = speciesData.sleepTime;
+    if (!sleepTimeStr || sleepTimeStr === 'N/A' || sleepTimeStr === null) return 'N/A';
+    const [hour, minute] = sleepTimeStr.split(':').map(Number);
+    if (isNaN(hour)) return sleepTimeStr;
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+    return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
+  };
+  
+  const sleepTime = formatSleepTime();
   
   // hungerCycle을 hungerTimer로 변환 (분 단위)
   const speciesHungerTimer = speciesData.hungerCycle || hungerTimer || 0;
@@ -124,6 +145,12 @@ export default function StatsPopup({
   
   // Stomach Capacity 계산 (5 + maxOverfeed)
   const stomachCapacity = 5 + (speciesData.maxOverfeed || maxOverfeed || 0);
+  
+  // Power (basePower)
+  const speciesPower = speciesData.basePower || power || 0;
+  
+  // Heal Doses (기본값 1)
+  const speciesHealDoses = speciesData.healDoses || 1;
 
   // Old 탭 렌더링
   const renderOldTab = () => (
@@ -237,11 +264,13 @@ export default function StatsPopup({
       <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">1. 종(Species) 고정 파라미터</h3>
         <ul className="space-y-1">
+          <li>Power: {speciesPower}</li>
+          <li>Min Weight: {speciesData.minWeight || minWeight || 0}</li>
           <li>Sleep Time: {sleepTime}</li>
-          <li>Max DP (Energy): {speciesData.maxEnergy || maxEnergy || maxStamina || 0}</li>
-          <li>Min Weight: {speciesData.minWeight || minWeight || 0}g</li>
-          <li>Stomach Capacity: {stomachCapacity}</li>
-          <li>Lifespan: {speciesData.lifespan ? `${speciesData.lifespan}h` : 'N/A'}</li>
+          <li>Heal Doses: {speciesHealDoses}</li>
+          <li>Energy (DP): {speciesData.maxEnergy || maxEnergy || maxStamina || 0}</li>
+          <li>Hunger Loss: {speciesHungerTimer} Minutes</li>
+          <li>Strength Loss: {speciesStrengthTimer} Minutes</li>
         </ul>
       </div>
       

@@ -73,3 +73,4 @@ text: proteinOverdose >= 7
 - `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
 - `docs/PROTEIN_SYSTEM_ANALYSIS.md` (분석 문서)
 
+

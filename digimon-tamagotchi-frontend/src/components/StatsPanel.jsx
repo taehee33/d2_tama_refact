@@ -1,5 +1,5 @@
 // src/components/StatsPanel.jsx
-import React from "react";
+import React, { useState } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import StatusHearts from "./StatusHearts";
 
@@ -43,59 +43,122 @@ function formatCountdown(sec=0){
 // timestamp 포맷팅은 utils/dateUtils에서 import
 const formatTimestamp = formatTimestampUtil;
 
-const StatsPanel = ({ stats, sleepStatus = "AWAKE" }) => {
+const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
+  // 모바일에서 각 섹션별 접기/펼치기 상태
+  const [showBasicStats, setShowBasicStats] = useState(true); // 기본적으로 펼침
+  const [showHearts, setShowHearts] = useState(true); // 기본적으로 펼침
+  const [showDevInfo, setShowDevInfo] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // 아코디언 버튼 컴포넌트 (재사용)
+  const AccordionButton = ({ isOpen, onClick, title, defaultOpen = false }) => {
+    if (!isMobile) return null;
+    return (
+      <button
+        onClick={onClick}
+        className="text-xs font-semibold w-full text-left hover:text-gray-800 flex items-center justify-between py-1"
+      >
+        <span>{title}</span>
+        <span className="text-gray-500">{isOpen ? '▼' : '▶'}</span>
+      </button>
+    );
+  };
+
+  // 섹션 헤더 (데스크톱용)
+  const SectionHeader = ({ title, isMobile }) => {
+    if (isMobile) return null;
+    return <p className="text-xs font-semibold text-gray-700 mb-1">{title}</p>;
+  };
+
   return (
-    <div className="border p-2 bg-white shadow-md text-sm w-48">
+    <div className={`border p-2 bg-white shadow-md text-sm ${isMobile ? 'w-full max-h-[40vh] overflow-y-auto' : 'w-48'}`}>
       <h2 className="text-center font-bold mb-2 text-base">StatsPanel</h2>
-      <p>Age: {stats.age || 0}</p>
-      <p>Weight: {stats.weight || 0}</p>
-      <p>Strength: {stats.strength || 0}</p>
-      <p>Energy (DP): {stats.energy || 0}</p>
-
-      {/* WinRate = 0% */}
-      <p>WinRate: {stats.winRate || 0}%</p>
-
-      <p>Effort: {stats.effort || 0}</p>
-      <p>CareMistakes: {stats.careMistakes || 0}</p>
-      <p>Sleep: {sleepStatus}</p>
-
-      {/* 하트로 표시된 상태 */}
+      
+      {/* 1. 기본 스탯 (아코디언) */}
       <div className="mt-2 pt-2 border-t border-gray-300">
-        <StatusHearts
-          fullness={stats.fullness || 0}
-          strength={stats.strength || 0}
-          maxOverfeed={stats.maxOverfeed || 0}
-          proteinOverdose={stats.proteinOverdose || 0}
-          showLabels={true}
-          size="sm"
-          position="inline"
+        <AccordionButton
+          isOpen={showBasicStats}
+          onClick={() => setShowBasicStats(!showBasicStats)}
+          title="1. 기본 스탯"
+          defaultOpen={true}
         />
-      </div>
-      
-      {/* 기존 텍스트 표시 (참고용) */}
-      <p className="text-xs text-gray-500 mt-1">Fullness: {fullnessDisplay(stats.fullness, stats.maxOverfeed)}</p>
-      
-      {/* 개발자용 추가 정보 */}
-      <div className="mt-2 pt-2 border-t border-gray-300">
-        <p className="text-xs text-gray-600">Dev Info:</p>
-        <p className="text-xs">Protein Overdose: {stats.proteinOverdose || 0}</p>
-        <p className="text-xs">Overfeeds: {stats.overfeeds || 0}</p>
-        <p className="text-xs">Battles: {stats.battles || 0}</p>
-        <p className="text-xs">Wins: {stats.battlesWon || 0} / Losses: {stats.battlesLost || 0}</p>
+        <SectionHeader title="1. 기본 스탯" isMobile={isMobile} />
+        {(isMobile ? showBasicStats : true) && (
+          <div className="space-y-1">
+            <p>Age: {stats.age || 0}</p>
+            <p>Weight: {stats.weight || 0}</p>
+            <p>Strength: {stats.strength || 0}</p>
+            <p>Energy (DP): {stats.energy || 0}</p>
+            <p>WinRate: {stats.winRate || 0}%</p>
+            <p>Effort: {stats.effort || 0}</p>
+            <p>CareMistakes: {stats.careMistakes || 0}</p>
+            <p>Sleep: {sleepStatus}</p>
+          </div>
+        )}
       </div>
 
-      {/* 5. 내부/고급 카운터 (StatsPopup New 탭과 동일) */}
+      {/* 2. 하트 상태 (아코디언) */}
       <div className="mt-2 pt-2 border-t border-gray-300">
-        <h3 className="text-xs font-bold mb-1 text-gray-700">5. 내부/고급 카운터</h3>
-        <div className="text-xs space-y-0.5">
-          <p>HungerTimer: {stats.hungerTimer || 0} min (남은 시간: {formatCountdown(stats.hungerCountdown || 0)})</p>
-          <p>StrengthTimer: {stats.strengthTimer || 0} min (남은 시간: {formatCountdown(stats.strengthCountdown || 0)})</p>
-          <p>PoopTimer: {stats.poopTimer || 0} min (남은 시간: {formatCountdown(stats.poopCountdown || 0)})</p>
-          <p>PoopCount: {stats.poopCount || 0}/8</p>
-          <p>LastMaxPoopTime: {formatTimestamp(stats.lastMaxPoopTime)}</p>
-          <p>Lifespan: {formatTime(stats.lifespanSeconds || 0)}</p>
-          <p>Time to Evolve: {formatTimeToEvolve(stats.timeToEvolveSeconds || 0)}</p>
-        </div>
+        <AccordionButton
+          isOpen={showHearts}
+          onClick={() => setShowHearts(!showHearts)}
+          title="2. 상태 하트"
+          defaultOpen={true}
+        />
+        <SectionHeader title="2. 상태 하트" isMobile={isMobile} />
+        {(isMobile ? showHearts : true) && (
+          <div>
+            <StatusHearts
+              fullness={stats.fullness || 0}
+              strength={stats.strength || 0}
+              maxOverfeed={stats.maxOverfeed || 0}
+              proteinOverdose={stats.proteinOverdose || 0}
+              showLabels={true}
+              size="sm"
+              position="inline"
+            />
+            <p className="text-xs text-gray-500 mt-1">Fullness: {fullnessDisplay(stats.fullness, stats.maxOverfeed)}</p>
+          </div>
+        )}
+      </div>
+      
+      {/* 3. 개발자용 추가 정보 (아코디언) */}
+      <div className="mt-2 pt-2 border-t border-gray-300">
+        <AccordionButton
+          isOpen={showDevInfo}
+          onClick={() => setShowDevInfo(!showDevInfo)}
+          title="3. Dev Info"
+        />
+        <SectionHeader title="3. Dev Info" isMobile={isMobile} />
+        {(isMobile ? showDevInfo : true) && (
+          <div className="text-xs space-y-0.5 mt-1">
+            <p>Protein Overdose: {stats.proteinOverdose || 0}</p>
+            <p>Overfeeds: {stats.overfeeds || 0}</p>
+            <p>Battles: {stats.battles || 0}</p>
+            <p>Wins: {stats.battlesWon || 0} / Losses: {stats.battlesLost || 0}</p>
+          </div>
+        )}
+      </div>
+
+      {/* 4. 내부/고급 카운터 (아코디언) */}
+      <div className="mt-2 pt-2 border-t border-gray-300">
+        <AccordionButton
+          isOpen={showAdvanced}
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          title="4. 내부/고급 카운터"
+        />
+        <SectionHeader title="4. 내부/고급 카운터" isMobile={isMobile} />
+        {(isMobile ? showAdvanced : true) && (
+          <div className="text-xs space-y-0.5">
+            <p>HungerTimer: {stats.hungerTimer || 0} min (남은 시간: {formatCountdown(stats.hungerCountdown || 0)})</p>
+            <p>StrengthTimer: {stats.strengthTimer || 0} min (남은 시간: {formatCountdown(stats.strengthCountdown || 0)})</p>
+            <p>PoopTimer: {stats.poopTimer || 0} min (남은 시간: {formatCountdown(stats.poopCountdown || 0)})</p>
+            <p>PoopCount: {stats.poopCount || 0}/8</p>
+            <p>LastMaxPoopTime: {formatTimestamp(stats.lastMaxPoopTime)}</p>
+            <p>Lifespan: {formatTime(stats.lifespanSeconds || 0)}</p>
+            <p>Time to Evolve: {formatTimeToEvolve(stats.timeToEvolveSeconds || 0)}</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -232,9 +232,9 @@ export function checkEvolutionAvailability(currentStats, requirements) {
     );
   }
 
-  // 배틀 체크 (min과 max를 한 줄로 통합)
+  // 배틀 체크 (현재 디지몬 값만 사용)
   if (requirements.minBattles !== undefined || requirements.maxBattles !== undefined) {
-    const totalBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
+    const currentBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
     const min = requirements.minBattles;
     const max = requirements.maxBattles;
     let isMet = true;
@@ -242,37 +242,37 @@ export function checkEvolutionAvailability(currentStats, requirements) {
     
     if (min !== undefined && max !== undefined) {
       rangeText = `${min}~${max}`;
-      if (totalBattles < min || totalBattles > max) {
+      if (currentBattles < min || currentBattles > max) {
         isMet = false;
         isAvailable = false;
       }
     } else if (min !== undefined) {
       rangeText = `${min}+`;
-      if (totalBattles < min) {
+      if (currentBattles < min) {
         isMet = false;
         isAvailable = false;
       }
     } else if (max !== undefined) {
       rangeText = `~${max}`;
-      if (totalBattles > max) {
+      if (currentBattles > max) {
         isMet = false;
         isAvailable = false;
       }
     }
     
     missingConditions.push(
-      `배틀: ${totalBattles} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      `배틀: ${currentBattles} (현재 디지몬) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
     );
   }
 
-  // 승률 체크 (min과 max를 한 줄로 통합)
+  // 승률 체크 (현재 디지몬 값만 사용)
   if (requirements.minWinRatio !== undefined || requirements.maxWinRatio !== undefined) {
-    const totalBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
-    if (totalBattles === 0) {
+    const currentBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
+    if (currentBattles === 0) {
       missingConditions.push(`승률: 배틀을 하지 않았습니다 (부족 ❌)`);
       isAvailable = false;
     } else {
-      const winRatio = ((currentStats.battlesWon || 0) / totalBattles) * 100;
+      const winRatio = ((currentStats.battlesWon || 0) / currentBattles) * 100;
       const min = requirements.minWinRatio;
       const max = requirements.maxWinRatio;
       let isMet = true;
@@ -299,7 +299,7 @@ export function checkEvolutionAvailability(currentStats, requirements) {
       }
       
       missingConditions.push(
-        `승률: ${winRatio.toFixed(1)}% (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+        `승률: ${winRatio.toFixed(1)}% (현재 디지몬) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
       );
     }
   }

@@ -315,3 +315,4 @@ setDigimonStats((prevStats) => {
 
 이렇게 하면 **단순함과 기능을 모두** 유지할 수 있습니다.
 
+
