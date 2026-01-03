@@ -60,6 +60,7 @@ export default function StatsPopup({
     isInjured=false,
     hungerCountdown=0,
     strengthCountdown=0,
+    poopCountdown=0,
   } = stats || {};
 
   // devMode에서 select로 변경
@@ -292,7 +293,7 @@ export default function StatsPopup({
         <ul className="space-y-1">
           <li>HungerTimer: {hungerTimer || 0} min (남은 시간: {formatCountdown(hungerCountdown)})</li>
           <li>StrengthTimer: {strengthTimer || 0} min (남은 시간: {formatCountdown(strengthCountdown)})</li>
-          <li>PoopTimer: {poopTimer || 0} min</li>
+          <li>PoopTimer: {poopTimer || 0} min (남은 시간: {formatCountdown(poopCountdown)})</li>
           <li>PoopCount: {poopCount}/8</li>
           <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
           <li>Lifespan: {formatTime(lifespanSeconds)}</li>

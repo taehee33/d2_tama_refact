@@ -417,42 +417,34 @@ export function useGameActions({
     const weightDelta = newWeight - oldWeight;
     const strengthDelta = newStrength - oldStrength;
     
-    // 로그 포맷: 요청된 형식으로 단순화
-    let logText = '';
-    if (result.isSuccess) {
-      // 성공 시: Strength 증가량과 Weight 감소량만 표시
-      logText = `Training: Success (Str +${strengthDelta}, Wt ${weightDelta}g)`;
-    } else {
-      // 실패 시: Weight 감소량만 표시
-      logText = `Training: Fail (Wt ${weightDelta}g)`;
-    }
-    
-    // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-    setDigimonStats((prevStats) => {
-      // 1. 새 로그 객체 생성
-      const newLog = {
-        type: 'TRAIN',
-        text: logText,
-        timestamp: Date.now()
+    // 🔥 제안 코드 패턴 적용: 스탯 계산과 로그를 하나의 함수형 업데이트로 통합
+    setDigimonStats((prev) => {
+      // 1. 로그 내용 미리 생성
+      const newLog = { 
+        text: result.isSuccess 
+          ? "훈련 성공! (힘 +1, 무게 -2g)" 
+          : "훈련 실패...", 
+        type: 'TRAIN', 
+        timestamp: Date.now() 
       };
-      
-      // 2. 이전 로그 배열에 새 로그 추가 (최신 50개 유지)
-      // prevStats.activityLogs가 없으면 빈 배열 [] 사용
-      const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
-      
-      // 3. finalStats에 activityLogs 포함하여 반환
+
+      // 2. 스탯 계산 + 로그 합치기 (동시 리턴)
+      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, 50);
       const finalStatsWithLogs = {
-        ...finalStats,
+        ...finalStats,  // 실제 계산된 스탯 (doVer1Training 결과)
+        // 로그 변경 (여기서 같이 함!)
         activityLogs: updatedLogs
       };
       
-      // 4. Firestore 저장 (비동기)
+      // 3. Firestore 저장 (비동기, 함수형 업데이트 내부에서 호출)
       setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs).catch((error) => {
         console.error("훈련 결과 저장 오류:", error);
       });
       
       return finalStatsWithLogs;
     });
+    
+    // 주의: 여기서 addActivityLog()를 또 부르지 마세요! 위에서 했으니까요.
   };
 
   /**
