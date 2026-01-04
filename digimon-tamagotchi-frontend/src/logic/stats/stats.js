@@ -51,6 +51,17 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
 
   merged.lastMaxPoopTime = oldStats.lastMaxPoopTime || null;
 
+  // 진화 시 Energy를 최대값으로 설정 (안전장치)
+  // useEvolution.js에서 이미 maxEnergy로 설정하지만, 다른 경로를 통한 진화를 대비
+  // oldStats.energy가 명시적으로 설정되어 있으면 그 값을 사용 (useEvolution.js에서 maxEnergy로 설정됨)
+  // oldStats.energy가 없거나 0이면 maxEnergy로 설정
+  if (oldStats && oldStats.energy !== undefined && oldStats.energy > 0) {
+    merged.energy = oldStats.energy;
+  } else {
+    // oldStats.energy가 없거나 0이면 maxEnergy로 설정
+    merged.energy = merged.maxEnergy || merged.maxStamina || merged.energy || 100;
+  }
+
   return merged;
 }
 

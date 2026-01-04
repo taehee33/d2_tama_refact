@@ -162,10 +162,12 @@ export function useEvolution({
     // careMistakes, overfeeds, battlesForEvolution, proteinOverdose, injuries 등은 initializeStats에서 리셋됨
     // 하지만 여기서 명시적으로 리셋하여 확실히 함
     
-    // 새 디지몬 데이터 가져오기 (minWeight 확인용)
+    // 새 디지몬 데이터 가져오기 (minWeight, maxEnergy 확인용)
     const newDigimonData = digimonDataVer1[newName] || {};
     // minWeight는 stats.minWeight 또는 직접 minWeight로 저장될 수 있음
     const minWeight = newDigimonData.stats?.minWeight || newDigimonData.minWeight || 0;
+    // maxEnergy는 stats.maxEnergy 또는 maxStamina로 저장될 수 있음
+    const maxEnergy = newDigimonData.stats?.maxEnergy || newDigimonData.stats?.maxStamina || newDigimonData.maxEnergy || newDigimonData.maxStamina || 100;
     
     const resetStats = {
       ...old,
@@ -177,7 +179,7 @@ export function useEvolution({
       sleepDisturbances: 0,
       strength: 0, // 진화 시 strength 리셋
       effort: 0, // 진화 시 effort 리셋
-      energy: 0, // 진화 시 energy 리셋
+      energy: maxEnergy, // 진화 시 energy를 최대값으로 설정
       weight: minWeight, // 진화 시 weight를 새 디지몬의 minWeight로 리셋
       // 현재 디지몬 배틀 값 리셋 (총 토탈은 유지)
       battles: 0,
