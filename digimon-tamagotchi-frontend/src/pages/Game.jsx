@@ -723,13 +723,13 @@ async function setSelectedDigimonAndSave(name) {
     rejectFramesArr = idleFrames;
   }
 
-  // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 2와 15 표시
+  // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 1과 14 표시
   if(digimonStats.isDead){
     // 모션 15번 (아픔2) - digimonAnimations[15] = battleLose (frames: [1, 14])
-    // 스프라이트 2와 15를 번갈아 표시
-    idleFrames= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
-    eatFramesArr= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
-    rejectFramesArr= [ `${digimonStats.sprite+2}`, `${digimonStats.sprite+15}` ];
+    // 스프라이트 1과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
+    idleFrames= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+    eatFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+    rejectFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
     // 죽음 상태에서는 항상 아픔2 모션 사용
     if(currentAnimation !== "pain2"){
       setCurrentAnimation("pain2");

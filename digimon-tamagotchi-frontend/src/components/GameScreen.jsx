@@ -125,14 +125,14 @@ const GameScreen = ({
         </div>
       )}
 
-      {/* 죽음 상태: 해골 디지몬 양쪽에 표시 */}
+      {/* 죽음 상태: 해골 디지몬 주변에 4개 표시 */}
       {digimonStats.isDead && (
         <>
-          {/* 왼쪽 해골 */}
+          {/* 왼쪽 위 해골 */}
           <div
             style={{
               position: "absolute",
-              top: "50%",
+              top: "30%",
               left: "10%",
               transform: "translateY(-50%)",
               zIndex: 5,
@@ -143,11 +143,27 @@ const GameScreen = ({
           >
             💀
           </div>
-          {/* 오른쪽 해골 */}
+          {/* 왼쪽 아래 해골 */}
           <div
             style={{
               position: "absolute",
-              top: "50%",
+              top: "70%",
+              left: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "0.5s",
+            }}
+          >
+            💀
+          </div>
+          {/* 오른쪽 위 해골 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "30%",
               right: "10%",
               transform: "translateY(-50%)",
               zIndex: 5,
@@ -155,6 +171,22 @@ const GameScreen = ({
               opacity: 0.7,
               animation: "float 2s ease-in-out infinite",
               animationDelay: "1s",
+            }}
+          >
+            💀
+          </div>
+          {/* 오른쪽 아래 해골 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "70%",
+              right: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "1.5s",
             }}
           >
             💀
