@@ -1147,10 +1147,6 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 })}
               </div>
             )}
-
-            <p className="text-xs text-gray-500 mt-4">
-              * 복합 인덱스(seasonId + seasonWins) 필요 시 Firestore 콘솔의 제안 링크로 생성하세요.
-            </p>
           </div>
         )}
 

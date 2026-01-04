@@ -384,6 +384,28 @@ export function useGameActions({
     
     setDigimonStats(updatedStats);
     
+    // Weight 체크: Weight가 0 이하면 훈련 불가
+    if ((updatedStats.weight || 0) <= 0) {
+      setDigimonStats((prevStats) => {
+        const newLog = {
+          type: 'TRAIN',
+          text: 'Training: Skipped (Weight is too low)',
+          timestamp: Date.now()
+        };
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const statsWithLogs = {
+          ...updatedStats,
+          activityLogs: updatedLogs
+        };
+        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+          console.error("체중 부족 로그 저장 오류:", error);
+        });
+        return statsWithLogs;
+      });
+      alert("⚠️ 체중이 너무 낮습니다!\n🍖 Eat food to gain weight!");
+      return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
+    }
+    
     // 에너지 부족 체크
     if ((updatedStats.energy || 0) <= 0) {
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
@@ -405,7 +427,7 @@ export function useGameActions({
       });
       // 에너지 부족 알림 가이드
       alert("⚠️ 에너지가 부족합니다!\n💤 Sleep to restore Energy!");
-      return;
+      return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
     }
     
     // userSelections: 길이5의 "U"/"D" 배열
@@ -459,6 +481,9 @@ export function useGameActions({
     });
     
     // 주의: 여기서 addActivityLog()를 또 부르지 마세요! 위에서 했으니까요.
+    
+    // 훈련 결과 반환 (TrainPopup에서 사용)
+    return result;
   };
 
   /**

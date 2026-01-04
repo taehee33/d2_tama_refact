@@ -84,7 +84,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
 
   if (loading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
           <p className="text-center">슬롯 로딩 중...</p>
         </div>
@@ -93,7 +93,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl max-h-[80vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-4 text-center">Sparring (Self PvP)</h2>
         <p className="text-sm text-gray-600 mb-4 text-center">대전할 슬롯을 선택하세요</p>

@@ -15,7 +15,8 @@ const defensePatterns = [
 export default function TrainPopup({
   onClose,
   digimonStats,          // Game.jsx에서 props로 받음
-  setDigimonStatsAndSave // Game.jsx에서 props로 받음
+  setDigimonStatsAndSave, // Game.jsx에서 props로 받음
+  onTrainResult          // handleTrainResult 핸들러
 }) {
   // phase: "ready" → "ing" (훈련 중)
   const [phase, setPhase] = useState("ready");       
@@ -38,6 +39,20 @@ export default function TrainPopup({
 
   // === (1) 훈련 시작 ===
   function startTrain() {
+    // 훈련 시작 전 Weight와 Energy 체크
+    const currentWeight = digimonStats.weight || 0;
+    const currentEnergy = digimonStats.energy || 0;
+    
+    if (currentWeight <= 0) {
+      alert("⚠️ 체중이 너무 낮습니다!\n🍖 Eat food to gain weight!");
+      return;
+    }
+    
+    if (currentEnergy <= 0) {
+      alert("⚠️ 에너지가 부족합니다!\n💤 Sleep to restore Energy!");
+      return;
+    }
+    
     // 1~6번 패턴 순환
     // -> trainings를 사용 (기존 stats에 누적)
     // -> 0이면 1번 패턴, 1이면 2번 패턴... 5면 6번 패턴, 6이면 다시 1번
@@ -112,15 +127,31 @@ export default function TrainPopup({
 
     // (A) 마지막 라운드라면 => 최종결과 계산
     if (round === 5) {
-      // doVer1Training 호출
-      const trainResult = doVer1Training(digimonStats, updated);
-      // stats 업데이트
-      setDigimonStatsAndSave(trainResult.updatedStats);
-
-      // 최종결과 표시
-      setFinalResult(trainResult);
-      setShowFinal(true);
-      setRound(6);  // 6 => 더이상 진행 X
+      // onTrainResult를 통해 훈련 결과 처리 (Energy/Weight 체크 포함)
+      if (onTrainResult) {
+        onTrainResult(updated).then((trainResult) => {
+          if (trainResult) {
+            // 최종결과 표시
+            setFinalResult(trainResult);
+            setShowFinal(true);
+            setRound(6);  // 6 => 더이상 진행 X
+          } else {
+            // 훈련이 취소됨 (Weight/Energy 부족)
+            // 팝업 닫기
+            onClose();
+          }
+        }).catch((error) => {
+          console.error("훈련 결과 처리 오류:", error);
+          onClose();
+        });
+      } else {
+        // fallback: onTrainResult가 없으면 기존 방식 사용
+        const trainResult = doVer1Training(digimonStats, updated);
+        setDigimonStatsAndSave(trainResult.updatedStats);
+        setFinalResult(trainResult);
+        setShowFinal(true);
+        setRound(6);
+      }
     } else {
       // (B) 다음 라운드로
       setRound(round + 1);
@@ -137,7 +168,7 @@ export default function TrainPopup({
   // (I) "훈련 시작" 준비 화면
   if (phase === "ready") {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
         <div className="bg-white p-4 rounded shadow-xl w-64">
           <h2 className="text-lg font-bold mb-2">훈련 시작</h2>
           <button
@@ -161,7 +192,7 @@ export default function TrainPopup({
   if (phase === "ing") {
     const isTrainingDone = round > 5; // 6이 되면 끝
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" modal-overlay-mobile>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white p-4 rounded shadow-xl" style={{ width: "700px", height: "400px" }}>
           <div className="flex w-full h-full">
 

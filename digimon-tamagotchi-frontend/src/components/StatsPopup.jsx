@@ -140,6 +140,44 @@ export default function StatsPopup({
   // props로 받은 sleepSchedule이 있으면 사용, 없으면 speciesData에서 가져옴
   const currentSleepSchedule = sleepSchedule || speciesData.sleepSchedule || {};
   
+  // Energy 회복까지 남은 시간 계산 함수들
+  const getTimeUntilNextEnergyRecovery = () => {
+    const now = new Date(currentTime);
+    const currentMinute = now.getMinutes();
+    
+    // 다음 정각(00분) 또는 30분까지 남은 시간 계산
+    let nextRecoveryTime = new Date(now);
+    nextRecoveryTime.setSeconds(0);
+    nextRecoveryTime.setMilliseconds(0);
+    
+    if (currentMinute < 30) {
+      // 다음 30분까지
+      nextRecoveryTime.setMinutes(30);
+    } else {
+      // 다음 정각까지
+      nextRecoveryTime.setMinutes(0);
+      nextRecoveryTime.setHours(nextRecoveryTime.getHours() + 1);
+    }
+    
+    const diffMs = nextRecoveryTime.getTime() - now.getTime();
+    const diffMinutes = Math.floor(diffMs / 60000);
+    const diffSeconds = Math.floor((diffMs % 60000) / 1000);
+    
+    if (diffMinutes > 0) {
+      return `${diffMinutes}분 ${diffSeconds}초 후`;
+    } else {
+      return `${diffSeconds}초 후`;
+    }
+  };
+  
+  // 기상 시간까지 남은 시간 (기상 시 maxEnergy 회복)
+  const getTimeUntilWakeForEnergy = () => {
+    if (!currentSleepSchedule || currentSleepSchedule.end === undefined) {
+      return "정보 없음";
+    }
+    return getTimeUntilWake(currentSleepSchedule, new Date(currentTime));
+  };
+  
   // Sleep Time 포맷팅 (HH:MM 형식을 12시간 형식으로 변환)
   const formatSleepTime = () => {
     // sleepSchedule 형식: { start: 20, end: 8 }
@@ -308,7 +346,13 @@ export default function StatsPopup({
           <li>Weight: {weight || 0}g</li>
           <li>Hunger (Fullness): {fullnessDisplay(fullness, maxOverfeed)}</li>
           <li>Strength: {strength || 0}/5</li>
-          <li>Energy (Current): {energy || 0}</li>
+          <li>Energy (Current): {energy || 0}/{maxEnergy || maxStamina || 0}</li>
+          <li className="ml-4 text-xs text-gray-600">
+            • 기상 시간 회복 (max): {getTimeUntilWakeForEnergy()}
+          </li>
+          <li className="ml-4 text-xs text-gray-600">
+            • 30분마다 회복 (+1): {getTimeUntilNextEnergyRecovery()}
+          </li>
           <li>Win Ratio: {winRate || 0}%</li>
           <li className="mt-2 pt-1 border-t">Flags:</li>
           <li>- isSleeping: {stats.isSleeping !== undefined ? (stats.isSleeping ? 'Yes' : 'No') : 'N/A'}</li>

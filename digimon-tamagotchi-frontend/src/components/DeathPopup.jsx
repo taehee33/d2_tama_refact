@@ -14,7 +14,7 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" modal-overlay-mobile>
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
       <div className="bg-white p-8 rounded-lg shadow-xl text-center max-w-md">
         <h2 className="text-3xl font-bold text-red-600 mb-4">
           YOUR DIGIMON HAS DIED

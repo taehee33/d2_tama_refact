@@ -492,7 +492,8 @@ export default function DigimonInfoModal({
             <li className="break-words">• <strong>Hunger (Fullness):</strong> 배고픔 하트 (0-5, 오버피드 시 5 초과 가능)</li>
             <li className="break-words">• <strong>Strength:</strong> 힘 하트 (0-5). 가득 차면 파워 보너스</li>
             <li className="break-words">• <strong>Effort:</strong> 노력치 하트 (0-5). 훈련 4회당 +1</li>
-            <li>• <strong>Energy (DP):</strong> 스태미나. 배틀에 필요, 수면으로 회복</li>
+            <li className="break-words">• <strong>Energy (DP):</strong> 스태미나. 배틀에 필요</li>
+            <li className="break-words">• <strong>Energy 회복:</strong> 기상 시 기본 DP까지 회복, 매 정각/30분마다 +1</li>
             <li>• <strong>Win Rate:</strong> 승률 (%). Stage V, VI 진화에 중요</li>
           </ul>
         </div>
@@ -525,7 +526,16 @@ export default function DigimonInfoModal({
             <li className="break-words">• <strong>불 끄기:</strong> 수면 시간에는 불을 꺼야 합니다</li>
             <li className="break-words">• <strong>수면 방해:</strong> 수면 중 불을 켜두면 30분 후 케어 미스 +1</li>
             <li className="break-words">• <strong>빠른 잠들기:</strong> 수면 시간에 불을 꺼주면, 수면 방해로 깨어있어도 10초 후 자동으로 잠듭니다</li>
-            <li className="break-words">• <strong>에너지 회복:</strong> 최소 8시간 수면하면 에너지가 완전히 회복됩니다</li>
+          </ul>
+        </div>
+
+        <div className="bg-gray-700 border-2 border-indigo-400 rounded p-4 pixel-art-card">
+          <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">⚡ Energy (DP) 회복</h3>
+          <ul className="space-y-2 text-white text-sm break-words">
+            <li className="break-words">• <strong>기상 시 회복:</strong> 수면 시간이 끝나고 기상 시간이 되면 디지몬의 기본 DP 값까지 완전히 회복됩니다</li>
+            <li className="break-words">• <strong>정각/30분 회복:</strong> 매 정각(00분)과 30분마다 Energy가 +1씩 회복됩니다 (최대 DP까지)</li>
+            <li className="break-words">• <strong>프로틴 회복:</strong> 프로틴 4개를 먹이면 Energy +1 회복됩니다</li>
+            <li className="break-words">• <strong>Energy 소모:</strong> 훈련 시 -1, 배틀 시 -1 소모됩니다</li>
           </ul>
         </div>
 
@@ -546,7 +556,7 @@ export default function DigimonInfoModal({
   // 메인 렌더링
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile
+      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
       onClick={onClose}
     >
       <div

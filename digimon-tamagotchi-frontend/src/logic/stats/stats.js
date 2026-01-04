@@ -162,7 +162,7 @@ export function updateAge(stats) {
  * @param {Date|number|string} lastSavedAt - 마지막 저장 시간
  * @returns {Object} 업데이트된 스탯
  */
-export function applyLazyUpdate(stats, lastSavedAt) {
+export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEnergy = null) {
   if (!lastSavedAt) {
     return { ...stats, lastSavedAt: new Date() };
   }
@@ -299,6 +299,113 @@ export function applyLazyUpdate(stats, lastSavedAt) {
     }
   } else if (updatedStats.strength > 0) {
     updatedStats.lastStrengthZeroAt = null;
+  }
+
+  // Energy 회복 처리
+  if (sleepSchedule && maxEnergy) {
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const lastHour = lastSaved.getHours();
+    const lastMinute = lastSaved.getMinutes();
+    
+    const { start = 22, end = 6 } = sleepSchedule;
+    
+    // 기상 시간 체크: 수면 시간이 끝나고 기상 시간이 되면 maxEnergy까지 회복
+    const isWakeTime = (() => {
+      if (start === end) return false;
+      
+      // 마지막 저장 시간이 수면 시간 내에 있었는지 확인
+      const wasInSleepTime = (() => {
+        if (start < end) {
+          return lastHour >= start && lastHour < end;
+        } else {
+          // 자정 넘김 케이스 (예: 22시~08시)
+          return lastHour >= start || lastHour < end;
+        }
+      })();
+      
+      // 현재 시간이 기상 시간(end 시) 이후인지 확인
+      const isNowWakeTime = (() => {
+        if (start < end) {
+          // 예: 22시~06시 -> 06시 이상이고 수면 시간 전이면 기상
+          return currentHour >= end && currentHour < start;
+        } else {
+          // 자정 넘김 케이스 (예: 22시~08시)
+          // 08시 이상이거나, 자정을 넘어서 08시에 도달한 경우
+          return currentHour >= end || (lastHour >= start && currentHour < start);
+        }
+      })();
+      
+      // 마지막 저장 시간이 수면 시간 내에 있었고, 현재는 기상 시간이면 기상으로 판단
+      // 단, 오늘 이미 기상 회복을 했는지 확인
+      if (wasInSleepTime && isNowWakeTime) {
+        const lastRecoveryTime = updatedStats.lastEnergyRecoveryAt 
+          ? (typeof updatedStats.lastEnergyRecoveryAt === "number" 
+              ? updatedStats.lastEnergyRecoveryAt 
+              : new Date(updatedStats.lastEnergyRecoveryAt).getTime())
+          : 0;
+        
+        // 오늘 기상 시간 계산
+        const todayWakeTime = new Date(now);
+        todayWakeTime.setHours(end, 0, 0, 0);
+        // 자정을 넘긴 경우 전날로 설정
+        if (start > end && currentHour < start) {
+          todayWakeTime.setDate(todayWakeTime.getDate() - 1);
+        }
+        
+        // 오늘 기상 시간 이후에 회복한 적이 없으면 기상 회복
+        if (lastRecoveryTime < todayWakeTime.getTime()) {
+          return true;
+        }
+      }
+      
+      return false;
+    })();
+    
+    if (isWakeTime) {
+      // 기상 시간: maxEnergy까지 회복
+      updatedStats.energy = maxEnergy;
+      updatedStats.lastEnergyRecoveryAt = now.getTime();
+    } else {
+      // 정각(00분) 또는 30분마다 +1 회복
+      const lastRecoveryTime = updatedStats.lastEnergyRecoveryAt 
+        ? (typeof updatedStats.lastEnergyRecoveryAt === "number" 
+            ? updatedStats.lastEnergyRecoveryAt 
+            : new Date(updatedStats.lastEnergyRecoveryAt).getTime())
+        : lastSaved.getTime();
+      
+      // 마지막 저장 시간부터 현재 시간까지의 모든 정각/30분 체크
+      let checkTime = new Date(Math.max(lastRecoveryTime, lastSaved.getTime()));
+      checkTime.setSeconds(0);
+      checkTime.setMilliseconds(0);
+      
+      // 다음 정각/30분으로 이동
+      if (checkTime.getMinutes() !== 0 && checkTime.getMinutes() !== 30) {
+        if (checkTime.getMinutes() < 30) {
+          checkTime.setMinutes(30);
+        } else {
+          checkTime.setMinutes(0);
+          checkTime.setHours(checkTime.getHours() + 1);
+        }
+      }
+      
+      // 정각(00분) 또는 30분마다 Energy +1
+      while (checkTime.getTime() <= now.getTime()) {
+        const currentEnergy = updatedStats.energy || 0;
+        if (currentEnergy < maxEnergy) {
+          updatedStats.energy = Math.min(maxEnergy, currentEnergy + 1);
+          updatedStats.lastEnergyRecoveryAt = checkTime.getTime();
+        }
+        
+        // 다음 정각/30분으로 이동
+        if (checkTime.getMinutes() === 0) {
+          checkTime.setMinutes(30);
+        } else {
+          checkTime.setMinutes(0);
+          checkTime.setHours(checkTime.getHours() + 1);
+        }
+      }
+    }
   }
 
   // 나이 업데이트

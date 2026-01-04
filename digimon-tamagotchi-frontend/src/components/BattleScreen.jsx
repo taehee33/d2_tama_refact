@@ -379,17 +379,17 @@ export default function BattleScreen({
 
   if (battleState === "loading") {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '20px', overflow: 'hidden' }}>
+      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style={{ paddingTop: '80px', paddingBottom: '20px', overflow: 'hidden' }}>
         <div className="text-white text-xl">배틀 준비 중...</div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
       {/* 라운드 준비 모달 */}
       {showReadyModal && !hasRoundStarted && (
-        <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70" modal-overlay-mobile>
+        <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70">
           <div className="bg-white p-8 rounded-lg shadow-xl text-center modal-mobile" style={{ minWidth: "400px" }}>
             <h2 className="text-4xl font-bold mb-2">
               {battleType === 'sparring' ? 'Sparring' : battleType === 'arena' ? 'Arena' : `Round ${roundIndex + 1}`}

@@ -5,8 +5,10 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
+import { applyLazyUpdate as applyLazyUpdateFromLogic } from "../logic/stats/stats";
 import { initializeStats } from "../data/stats";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
+import { getSleepSchedule } from "../hooks/useGameHandlers";
 
 /**
  * useGameData Hook
@@ -176,6 +178,42 @@ export function useGameData({
       return digimonStats;
     }
 
+    // 현재 디지몬 정보 가져오기 (sleepSchedule, maxEnergy 계산용)
+    let sleepSchedule = null;
+    let maxEnergy = null;
+    
+    if (digimonDataVer1) {
+      // evolutionStage로 현재 디지몬 찾기
+      const currentDigimonName = digimonStats.evolutionStage 
+        ? Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === digimonStats.evolutionStage) || "Digitama"
+        : "Digitama";
+      
+      const digimonData = digimonDataVer1[currentDigimonName];
+      if (digimonData) {
+        // sleepSchedule 계산
+        if (digimonData.stats?.sleepSchedule) {
+          sleepSchedule = digimonData.stats.sleepSchedule;
+        } else if (digimonData.sleepSchedule) {
+          sleepSchedule = digimonData.sleepSchedule;
+        } else {
+          // Stage별 기본값
+          const stage = digimonData.stage || digimonStats.evolutionStage || "Digitama";
+          if (stage === "Digitama" || stage === "Baby I" || stage === "Baby II") {
+            sleepSchedule = { start: 20, end: 8 };
+          } else if (stage === "Child") {
+            sleepSchedule = { start: 21, end: 7 };
+          } else if (stage === "Adult" || stage === "Perfect") {
+            sleepSchedule = { start: 22, end: 6 };
+          } else {
+            sleepSchedule = { start: 23, end: 7 };
+          }
+        }
+        
+        // maxEnergy 가져오기
+        maxEnergy = digimonData.stats?.maxEnergy || digimonStats.maxEnergy || digimonStats.maxStamina || 100;
+      }
+    }
+
     // localStorage 모드
     if (mode === 'local') {
       try {
@@ -183,7 +221,7 @@ export function useGameData({
         if (savedStatsStr) {
           const savedStats = JSON.parse(savedStatsStr);
           const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
-          const updated = applyLazyUpdate(digimonStats, lastSavedAt);
+          const updated = applyLazyUpdateFromLogic(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
           
           // 사망 상태 변경 감지
           checkDeathStatus(updated);
@@ -208,7 +246,7 @@ export function useGameData({
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
         const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
-        const updated = applyLazyUpdate(digimonStats, lastSavedAt);
+        const updated = applyLazyUpdateFromLogic(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
         
         // 사망 상태 변경 감지
         checkDeathStatus(updated);
@@ -307,7 +345,19 @@ export function useGameData({
             setDigimonStats(ns);
           } else {
             const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
-            const updatedStats = applyLazyUpdate(savedStats, lastSavedAt);
+            
+            // sleepSchedule과 maxEnergy 계산
+            let sleepSchedule = null;
+            let maxEnergy = null;
+            if (digimonDataVer1 && savedName) {
+              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
+              const digimonData = digimonDataVer1[savedName];
+              if (digimonData) {
+                maxEnergy = digimonData.stats?.maxEnergy || savedStats.maxEnergy || savedStats.maxStamina || 100;
+              }
+            }
+            
+            const updatedStats = applyLazyUpdateFromLogic(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             setSelectedDigimon(savedName);
             setDigimonStats(updatedStats);
           }
@@ -362,7 +412,19 @@ export function useGameData({
             setDigimonStats(ns);
           } else {
             const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
-            savedStats = applyLazyUpdate(savedStats, lastSavedAt);
+            
+            // sleepSchedule과 maxEnergy 계산
+            let sleepSchedule = null;
+            let maxEnergy = null;
+            if (digimonDataVer1 && savedName) {
+              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
+              const digimonData = digimonDataVer1[savedName];
+              if (digimonData) {
+                maxEnergy = digimonData.stats?.maxEnergy || savedStats.maxEnergy || savedStats.maxStamina || 100;
+              }
+            }
+            
+            savedStats = applyLazyUpdateFromLogic(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             
             setSelectedDigimon(savedName);
             setDigimonStats(savedStats);
