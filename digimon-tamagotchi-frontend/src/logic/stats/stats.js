@@ -44,10 +44,25 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
   // poop 관련
   merged.poopCount = oldStats.poopCount !== undefined ? oldStats.poopCount : 0;
   merged.poopTimer = merged.poopTimer || 0;
-  merged.poopCountdown =
-    oldStats.poopCountdown !== undefined
-      ? oldStats.poopCountdown
-      : merged.poopTimer * 60;
+  
+  // poopCountdown 초기화: poopTimer가 변경되었거나 poopCountdown이 잘못된 값이면 초기화
+  const oldPoopTimer = oldStats.poopTimer || 0;
+  const newPoopTimer = merged.poopTimer || 0;
+  const maxValidCountdown = newPoopTimer * 60; // 최대 유효한 countdown 값
+  
+  if (oldStats.poopCountdown !== undefined) {
+    // poopTimer가 변경되었거나 poopCountdown이 잘못된 값이면 초기화
+    if (oldPoopTimer !== newPoopTimer || 
+        oldStats.poopCountdown < 0 || 
+        oldStats.poopCountdown > maxValidCountdown ||
+        isNaN(oldStats.poopCountdown)) {
+      merged.poopCountdown = maxValidCountdown;
+    } else {
+      merged.poopCountdown = oldStats.poopCountdown;
+    }
+  } else {
+    merged.poopCountdown = maxValidCountdown;
+  }
 
   merged.lastMaxPoopTime = oldStats.lastMaxPoopTime || null;
 
@@ -248,6 +263,18 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 배변 처리
   if (updatedStats.poopTimer > 0) {
+    const maxValidCountdown = updatedStats.poopTimer * 60;
+    
+    // poopCountdown 초기화 체크 (undefined, null, NaN, 음수, 또는 잘못된 값)
+    if (updatedStats.poopCountdown === undefined || 
+        updatedStats.poopCountdown === null || 
+        isNaN(updatedStats.poopCountdown) || 
+        updatedStats.poopCountdown < 0 ||
+        updatedStats.poopCountdown > maxValidCountdown) {
+      // 초기화: poopTimer * 60 (초 단위)
+      updatedStats.poopCountdown = maxValidCountdown;
+    }
+    
     updatedStats.poopCountdown -= elapsedSeconds;
 
     while (updatedStats.poopCountdown <= 0) {
