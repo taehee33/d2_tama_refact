@@ -735,15 +735,70 @@ export function useGameActions({
         alert(`❌ 배틀 결과 저장 실패:\n${error.message || error.code || "알 수 없는 오류"}`);
       }
 
-      // Arena 모드 Activity Log 추가
+      // Arena 모드: 로컬 스탯 업데이트 (배틀 기록 + Activity Log)
       const updatedStats = await applyLazyUpdateBeforeAction();
       const oldWeight = updatedStats.weight || 0;
       const oldEnergy = updatedStats.energy || 0;
+      
+      // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
       const battleStats = {
         ...updatedStats,
         weight: Math.max(0, (updatedStats.weight || 0) - 4),
         energy: Math.max(0, (updatedStats.energy || 0) - 1),
       };
+      
+      // 배틀 스탯 업데이트 (Quest 모드와 동일한 로직)
+      let finalStats;
+      if (battleResult.win) {
+        // 승리 시 배틀 기록 업데이트
+        // 현재 디지몬 값
+        const newBattles = (battleStats.battles || 0) + 1;
+        const newBattlesWon = (battleStats.battlesWon || 0) + 1;
+        const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
+        
+        // 총 토탈 값
+        const newTotalBattles = (battleStats.totalBattles || 0) + 1;
+        const newTotalBattlesWon = (battleStats.totalBattlesWon || 0) + 1;
+        const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
+        
+        finalStats = {
+          ...battleStats,
+          // 현재 디지몬 값
+          battles: newBattles,
+          battlesWon: newBattlesWon,
+          winRate: newWinRate,
+          // 총 토탈 값
+          totalBattles: newTotalBattles,
+          totalBattlesWon: newTotalBattlesWon,
+          totalWinRate: newTotalWinRate,
+        };
+      } else {
+        // 패배 시 배틀 기록 업데이트
+        // 현재 디지몬 값
+        const newBattles = (battleStats.battles || 0) + 1;
+        const newBattlesLost = (battleStats.battlesLost || 0) + 1;
+        const newBattlesWon = battleStats.battlesWon || 0;
+        const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
+        
+        // 총 토탈 값
+        const newTotalBattles = (battleStats.totalBattles || 0) + 1;
+        const newTotalBattlesLost = (battleStats.totalBattlesLost || 0) + 1;
+        const newTotalBattlesWon = battleStats.totalBattlesWon || 0;
+        const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
+        
+        finalStats = {
+          ...battleStats,
+          // 현재 디지몬 값
+          battles: newBattles,
+          battlesLost: newBattlesLost,
+          winRate: newWinRate,
+          // 총 토탈 값
+          totalBattles: newTotalBattles,
+          totalBattlesLost: newTotalBattlesLost,
+          totalWinRate: newTotalWinRate,
+        };
+      }
+      
       const newWeight = battleStats.weight || 0;
       const newEnergy = battleStats.energy || 0;
       const weightDelta = newWeight - oldWeight;
@@ -766,13 +821,21 @@ export function useGameActions({
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
         const statsWithLogs = {
-          ...battleStats,
+          ...finalStats,
           activityLogs: updatedLogs
         };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
           console.error("아레나 로그 저장 오류:", error);
         });
         return statsWithLogs;
+      });
+      
+      console.log("✅ [Arena] 로컬 배틀 스탯 업데이트 완료:", {
+        battles: finalStats.battles,
+        battlesWon: finalStats.battlesWon,
+        battlesLost: finalStats.battlesLost,
+        winRate: finalStats.winRate,
+        totalBattles: finalStats.totalBattles,
       });
 
       setShowBattleScreen(false);
