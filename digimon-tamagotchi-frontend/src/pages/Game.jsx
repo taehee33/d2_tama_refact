@@ -717,8 +717,9 @@ async function setSelectedDigimonAndSave(name) {
     rejectFramesArr = [ `${digimonStats.sprite}` ];
   }
   // 수면/피곤 상태에서는 고정 슬립 프레임 (오하카다몬 제외)
+  // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
   else if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
-    idleFrames = [`${digimonStats.sprite + 12}`, `${digimonStats.sprite + 13}`];
+    idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
     eatFramesArr = idleFrames;
     rejectFramesArr = idleFrames;
   }
