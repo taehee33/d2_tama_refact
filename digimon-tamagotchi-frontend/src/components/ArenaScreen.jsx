@@ -504,6 +504,19 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     const digimonData = digimonDataVer1[slot.selectedDigimon] || {};
     const stats = slot.digimonStats || {};
     
+    // Power 계산: stats.power가 있으면 사용, 없으면 calculatePower로 계산
+    const calculatedPower = stats.power ?? calculatePower(stats, digimonData) ?? digimonData.stats?.basePower ?? 0;
+    
+    // 디버깅: Power 계산 과정 확인
+    console.log("🔍 [ArenaScreen] createDigimonSnapshot Power 계산:", {
+      digimonName: slot.selectedDigimon,
+      statsPower: stats.power,
+      calculatedPowerValue: calculatePower(stats, digimonData),
+      basePower: digimonData.stats?.basePower,
+      finalPower: calculatedPower,
+      digimonData: digimonData.stats,
+    });
+    
     return {
       digimonId: slot.selectedDigimon,
       digimonName: slot.selectedDigimon,
@@ -511,9 +524,9 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       attackSprite: digimonData.stats?.attackSprite || digimonData.sprite || 0,
       stage: digimonData.stage || "Unknown",
       stats: {
-        power: stats.power || calculatePower(stats, digimonData) || digimonData.stats?.basePower || 0,
-        type: digimonData.stats?.type || null,
-        ...stats, // 모든 스탯 포함
+        ...stats, // 모든 스탯 포함 (먼저 펼치기)
+        power: calculatedPower, // 계산된 power로 덮어쓰기 (중요: ...stats 이후에 배치)
+        type: digimonData.stats?.type || stats.type || null, // type도 덮어쓰기
       },
       image: digimonData.sprite || 0, // 이미지도 포함
       slotId: slot.id,

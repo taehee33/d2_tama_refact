@@ -450,10 +450,10 @@ function SelectScreen() {
           className="border p-2"
         >
           <option value="Ver.1">Ver.1</option>
-          <option value="Ver.2">Ver.2</option>
-          <option value="Ver.3">Ver.3</option>
-          <option value="Ver.4">Ver.4</option>
-          <option value="Ver.5">Ver.5</option>
+          <option value="Ver.2" disabled>Ver.2 (준비 중)</option>
+          <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
+          <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
+          <option value="Ver.5" disabled>Ver.5 (준비 중)</option>
         </select>
       </div>
 

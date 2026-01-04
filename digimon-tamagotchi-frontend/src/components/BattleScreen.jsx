@@ -32,6 +32,8 @@ export default function BattleScreen({
   const [showReadyModal, setShowReadyModal] = useState(false); // 라운드 준비 모달 표시 여부
   const [hasRoundStarted, setHasRoundStarted] = useState(false); // 라운드 시작 여부
   const [showLogReview, setShowLogReview] = useState(false); // 로그 리뷰 화면 표시 여부
+  // Start를 누르기 전까지는 상대방 정보를 숨김
+  const hideEnemyInfo = !hasRoundStarted;
   
   // 발사체 및 이펙트 상태
   const [projectile, setProjectile] = useState(null); // { type: "user" | "enemy", sprite: number }
@@ -130,8 +132,24 @@ export default function BattleScreen({
           stats: arenaChallenger.digimonSnapshot.stats,
         };
 
+        // Power 계산: snapshot에 power가 있으면 사용, 없으면 basePower 사용
+        const snapshotPower = arenaChallenger.digimonSnapshot.stats?.power;
+        const calculatedEnemyPower = snapshotPower !== undefined && snapshotPower !== null && snapshotPower !== 0
+          ? snapshotPower
+          : enemyDigimonData.stats?.basePower || 0;
+
+        // 디버깅: 상대방 Power 값 확인
+        console.log("🔍 [BattleScreen] 상대방 Power 디버깅:", {
+          digimonId: arenaChallenger.digimonSnapshot.digimonId,
+          digimonName: arenaChallenger.digimonSnapshot.digimonName,
+          snapshotStats: arenaChallenger.digimonSnapshot.stats,
+          powerFromSnapshot: snapshotPower,
+          basePowerFromData: enemyDigimonData.stats?.basePower,
+          finalPower: calculatedEnemyPower,
+        });
+
         const enemyStats = {
-          power: arenaChallenger.digimonSnapshot.stats?.power || 0,
+          power: calculatedEnemyPower,
           type: arenaChallenger.digimonSnapshot.stats?.type || null,
         };
 
@@ -155,7 +173,7 @@ export default function BattleScreen({
           logs: battleResult.log,
           enemy: {
             name: enemyDigimonData.name || enemyDigimonData.id, // 실제 디지몬 이름
-            power: enemyStats.power,
+            power: calculatedEnemyPower, // 계산된 Power 사용
             attribute: enemyStats.type,
             isBoss: false,
             tamerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
@@ -355,6 +373,7 @@ export default function BattleScreen({
 
   // 라운드 준비 모달 - Exit 버튼
   const handleRoundExit = () => {
+    // Exit를 누르면 나가기 (상대방 정보는 이미 숨겨져 있음)
     onClose();
   };
 
@@ -376,7 +395,9 @@ export default function BattleScreen({
               {battleType === 'sparring' ? 'Sparring' : battleType === 'arena' ? 'Arena' : `Round ${roundIndex + 1}`}
             </h2>
             <p className="text-xl text-gray-700 mb-6">
-              VS {battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
+              VS {hideEnemyInfo 
+                ? "???" 
+                : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
                 ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyData?.name || "Unknown"}`
                 : enemyData?.name || "Unknown"}
             </p>
@@ -497,7 +518,9 @@ export default function BattleScreen({
           <div className="battle-side enemy-side">
             {/* 적 배지 */}
             <div className="battle-badge badge cpu">
-              {battleType === 'sparring' && enemyData?.slotName 
+              {hideEnemyInfo 
+                ? "???"
+                : battleType === 'sparring' && enemyData?.slotName 
                 ? enemyData.slotName 
                 : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
                 ? enemyData.tamerName || enemyData.trainerName
@@ -510,17 +533,20 @@ export default function BattleScreen({
             >
               <img
                 ref={enemyDigimonImgRef}
-                src={`/images/${(battleType === 'sparring' && enemyData?.sprite !== undefined) 
+                src={`/images/${hideEnemyInfo 
+                  ? 0 // 물음표 스프라이트 (또는 기본 스프라이트)
+                  : (battleType === 'sparring' && enemyData?.sprite !== undefined) 
                   ? enemyData.sprite 
                   : (battleType === 'arena' && enemyData?.sprite !== undefined)
                   ? enemyData.sprite
                   : (enemyDigimonData?.sprite || 0)}.png`}
-                alt={enemyData?.name || "Enemy Digimon"}
+                alt={hideEnemyInfo ? "???" : (enemyData?.name || "Enemy Digimon")}
                 className={projectile?.type === "enemy" ? "animate-attack-cpu" : ""}
                 style={{
                   imageRendering: "pixelated",
                   width: "120px",
                   height: "120px",
+                  opacity: hideEnemyInfo ? 0.3 : 1, // 숨길 때 반투명 처리
                 }}
               />
               {/* HIT! 텍스트 */}
@@ -534,11 +560,13 @@ export default function BattleScreen({
             </div>
             <div className="digimon-info mt-2">
               <p className="font-bold">
-                {battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
+                {hideEnemyInfo 
+                  ? "???" 
+                  : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
                   ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyData?.name || "Unknown"}`
                   : enemyData?.name || "Enemy"}
               </p>
-              <p>Power: {enemyPower}</p>
+              <p>Power: {hideEnemyInfo ? "??" : enemyPower}</p>
             </div>
             {/* 히트 마커 */}
             <div className="hit-markers flex justify-center gap-2 mt-2">
