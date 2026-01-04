@@ -1,7 +1,7 @@
 // src/components/GameModals.jsx
 // Game.jsx의 모든 모달 렌더링 로직을 분리한 컴포넌트
 
-import React, { useEffect } from "react";
+import React from "react";
 import StatsPopup from "./StatsPopup";
 import FeedPopup from "./FeedPopup";
 import SettingsModal from "./SettingsModal";
@@ -87,7 +87,6 @@ export default function GameModals({
     setArenaChallenger,
     setArenaEnemyId,
     setMyArenaEntryId,
-    evolve,
   } = handlers || {};
 
   const {
@@ -119,7 +118,7 @@ export default function GameModals({
     setFoodSizeScale,
   } = ui || {};
 
-  const { developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode } = flags || {};
+  const { developerMode, setDeveloperMode, setIsEvolving, mode } = flags || {};
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
@@ -163,6 +162,11 @@ export default function GameModals({
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}
           onChangeStats={(ns) => setDigimonStatsAndSave?.(ns) || (() => {})}
+          sleepSchedule={ui?.sleepSchedule || null}
+          sleepStatus={ui?.sleepStatus || "AWAKE"}
+          wakeUntil={ui?.wakeUntil || null}
+          sleepLightOnStart={ui?.sleepLightOnStart || null}
+          isLightsOn={gameState?.isLightsOn || false}
         />
       )}
 
@@ -263,7 +267,7 @@ export default function GameModals({
         <ArenaScreen
           onClose={() => toggleModal('arenaScreen', false)}
           onStartBattle={handleArenaBattleStart}
-          currentSlotId={parseInt(slotId)}
+          currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
           mode={mode}
           currentSeasonId={currentSeasonId}
           isDevMode={developerMode}

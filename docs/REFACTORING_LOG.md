@@ -4,6 +4,192 @@
 
 ---
 
+## [2026-01-03] Feature: 수면 시스템 UI 개선 - 수면 방해 알림 및 수면 시간 정보 표시
+
+### 작업 유형
+- 기능 추가
+- UI/UX 개선
+- 사용자 알림 시스템 개선
+
+### 목적 및 영향
+수면 중 디지몬을 깨웠을 때 사용자에게 즉시 알림을 제공하고, 수면 시간 정보를 쉽게 확인할 수 있도록 개선했습니다. 이를 통해 사용자가 수면 시스템을 더 잘 이해하고 관리할 수 있게 되었습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/utils/sleepUtils.js` (신규 생성)
+- **수면 관련 유틸리티 함수 추가:**
+  - `getTimeUntilSleep()`: 수면까지 남은 시간 계산
+  - `getTimeUntilWake()`: 기상까지 남은 시간 계산
+  - `formatSleepSchedule()`: 수면 스케줄 포맷팅
+
+```javascript
+export function getTimeUntilSleep(sleepSchedule, now = new Date()) {
+  // 수면까지 남은 시간을 "X시간 Y분 후" 형식으로 반환
+}
+
+export function formatSleepSchedule(sleepSchedule) {
+  // "오후 10:00 - 오전 6:00" 형식으로 반환
+}
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- **수면 정보 배지 추가:**
+  - `sleepSchedule`, `wakeUntil` props 추가
+  - 수면까지 남은 시간 배지 추가 (AWAKE 상태일 때)
+  - 수면 방해 중 깨어있는 시간 배지 추가 (wakeUntil이 있을 때)
+  - `getTimeUntilSleep` 함수 import 및 사용
+
+```javascript
+// 수면까지 남은 시간 표시
+if (sleepStatus === "AWAKE" && !wakeUntil && sleepSchedule) {
+  const timeUntil = getTimeUntilSleep(sleepSchedule, new Date());
+  messages.push({ 
+    text: `수면까지 ${timeUntil} 😴`, 
+    priority: 4.5 
+  });
+}
+
+// 수면 방해 중 깨어있는 시간 표시
+if (wakeUntil && Date.now() < wakeUntil) {
+  const remainingMinutes = Math.ceil((wakeUntil - Date.now()) / 60000);
+  messages.push({ 
+    text: `수면 방해! (${remainingMinutes}분 깨어있음) 😴`, 
+    priority: 3.5 
+  });
+}
+```
+
+#### 3. `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- **수면 방해 토스트 메시지 추가:**
+  - `showSleepDisturbanceToast`, `sleepDisturbanceToastMessage` props 추가
+  - 호출 토스트와 유사한 스타일의 토스트 메시지 표시
+
+```javascript
+{showSleepDisturbanceToast && (
+  <div style={{
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    zIndex: 6,
+    background: "rgba(255, 165, 0, 0.9)",
+    color: "white",
+    padding: "16px 24px",
+    borderRadius: 8,
+    fontSize: 20,
+    fontWeight: "bold",
+    border: "2px solid #fff",
+    animation: "fadeInOut 3s ease-in-out",
+  }}>
+    {sleepDisturbanceToastMessage}
+  </div>
+)}
+```
+
+#### 4. `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- **수면 정보 섹션 추가:**
+  - `sleepSchedule`, `sleepStatus`, `wakeUntil` props 추가
+  - "4. 수면 정보" 섹션 추가
+  - 수면 시간, 수면 상태, 수면까지/기상까지 남은 시간, 수면 방해 정보 표시
+
+```javascript
+{/* Sec 4. 수면 정보 */}
+<div className="border-b pb-2">
+  <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
+  <ul className="space-y-1">
+    <li>수면 시간: {formatSleepSchedule(sleepSchedule)}</li>
+    <li>수면 상태: {sleepStatus}</li>
+    {sleepStatus === 'AWAKE' && !wakeUntil && (
+      <li>수면까지: {getTimeUntilSleep(sleepSchedule, new Date())}</li>
+    )}
+    {wakeUntil && Date.now() < wakeUntil && (
+      <li>수면 방해 중: {Math.ceil((wakeUntil - Date.now()) / 60000)}분 남음</li>
+    )}
+    <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
+  </ul>
+</div>
+```
+
+#### 5. `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+- **수면 방해 토스트 모달 상태 추가:**
+  - `sleepDisturbanceToast: false` 모달 상태 추가
+
+#### 6. `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- **수면 방해 콜백 추가:**
+  - `onSleepDisturbance` 콜백 파라미터 추가
+  - `wakeForInteraction()` 함수에 콜백 전달
+  - 모든 `wakeForInteraction()` 호출에 콜백 전달
+
+```javascript
+function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance = null) {
+  // ... 기존 로직 ...
+  
+  // 수면 방해 콜백 호출
+  if (onSleepDisturbance) {
+    onSleepDisturbance();
+  }
+}
+```
+
+#### 7. `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- **수면 방해 콜백 추가:**
+  - `onSleepDisturbance` 콜백 파라미터 추가
+  - `wakeForInteraction()` 호출 시 콜백 전달
+
+#### 8. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- **수면 정보 전달 및 토스트 알림 설정:**
+  - `DigimonStatusBadges`에 `sleepSchedule`, `wakeUntil` 전달
+  - `useGameActions`에 `onSleepDisturbance` 콜백 추가
+  - `useGameHandlers`에 `onSleepDisturbance` 콜백 추가
+  - `GameScreen`에 `showSleepDisturbanceToast`, `sleepDisturbanceToastMessage` 전달
+  - `GameModals`의 `ui` 객체에 수면 정보 추가
+  - `StatsPopup`에 수면 정보 전달
+
+```javascript
+// 수면 방해 토스트 알림 콜백
+onSleepDisturbance: () => {
+  toggleModal('sleepDisturbanceToast', true);
+  setTimeout(() => toggleModal('sleepDisturbanceToast', false), 3000);
+}
+
+// GameModals에 수면 정보 전달
+ui={{ 
+  ...ui, 
+  statusDetailMessages,
+  sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1),
+  sleepStatus: sleepStatus,
+  wakeUntil: wakeUntil,
+}}
+```
+
+### 사용자 경험 개선
+- ✅ 수면 중 디지몬을 깨웠을 때 즉시 토스트 알림 표시
+- ✅ 상태 배지에 수면까지 남은 시간 표시
+- ✅ 상태 배지에 수면 방해 중 깨어있는 시간 표시
+- ✅ StatsPopup에 수면 정보 섹션 추가로 상세 정보 확인 가능
+- ✅ 수면 시간, 수면 상태, 수면 방해 횟수 등 한눈에 확인 가능
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/utils/sleepUtils.js` (신규)
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/SLEEP_SYSTEM_ANALYSIS.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+### 참고사항
+- 수면 방해 토스트는 3초 동안 표시됨
+- 수면까지 남은 시간은 AWAKE 상태이고 wakeUntil이 없을 때만 표시
+- 수면 방해 중 깨어있는 시간은 wakeUntil이 현재 시간보다 미래일 때만 표시
+- StatsPopup의 수면 정보 섹션은 "4. 수면 정보"로 배치되어 진화 판정 카운터 앞에 위치
+
+---
+
 ## [2026-01-03] Fix: Evolution 버튼명 변경 및 가이드/진화 버튼 모바일 텍스트 방향 수정
 
 ### 작업 유형

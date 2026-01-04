@@ -39,7 +39,7 @@ export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
  * @param {Function} setWakeUntilCb - wakeUntil 설정 함수
  * @param {Function} setStatsCb - 스탯 업데이트 함수
  */
-function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
+function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb, onSleepDisturbance = null) {
   const until = Date.now() + 10 * 60 * 1000; // 10분
   setWakeUntilCb(until);
   const updated = {
@@ -48,6 +48,11 @@ function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb) {
     sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
   };
   setStatsCb(updated);
+  
+  // 수면 방해 콜백 호출
+  if (onSleepDisturbance) {
+    onSleepDisturbance();
+  }
 }
 
 /**
@@ -96,6 +101,9 @@ export function useGameHandlers({
   
   // UI State
   setIsSleeping,
+  
+  // Callbacks
+  onSleepDisturbance = null, // 수면 방해 콜백
 }) {
   /**
    * 메뉴 클릭 핸들러
@@ -106,7 +114,7 @@ export function useGameHandlers({
     const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping && menu !== "electric") {
-      wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave);
+      wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       setIsSleeping(false);
     }
 
@@ -154,7 +162,7 @@ export function useGameHandlers({
     const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'CARE_MISTAKE', 'Sleep Disturbance: Healed while sleeping');
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
     }
@@ -232,10 +240,22 @@ export function useGameHandlers({
     const next = !isLightsOn;
     setIsLightsOn(next);
     // 호출 해제: 불이 꺼지면 sleep 호출 리셋
-    let updatedStats = digimonStats;
+    let updatedStats = { ...digimonStats };
     if (!next) {
-      updatedStats = resetCallStatus(digimonStats, 'sleep');
-      setDigimonStats(updatedStats);
+      updatedStats = resetCallStatus(updatedStats, 'sleep');
+      // 수면 방해 중(wakeUntil이 있을 때) 불을 꺼주면 빠른 잠들기 시작 시점 기록
+      if (wakeUntil && Date.now() < wakeUntil) {
+        updatedStats.fastSleepStart = Date.now();
+      } else {
+        updatedStats.fastSleepStart = null;
+      }
+      // setDigimonStatsAndSave를 사용하여 즉시 저장
+      setDigimonStatsAndSave(updatedStats);
+    } else {
+      // 불을 켜면 빠른 잠들기 시점 리셋
+      updatedStats.fastSleepStart = null;
+      // setDigimonStatsAndSave를 사용하여 즉시 저장
+      setDigimonStatsAndSave(updatedStats);
     }
     // Activity Log 추가 (함수형 업데이트)
     const logText = next ? 'Lights: ON' : 'Lights: OFF';

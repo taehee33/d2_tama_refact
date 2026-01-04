@@ -1,8 +1,9 @@
 // src/components/DigimonStatusBadges.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { willRefuseMeat } from "../logic/food/meat";
 import { willRefuseProtein } from "../logic/food/protein";
 import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
+import { getTimeUntilSleep } from "../utils/sleepUtils";
 
 /**
  * DigimonStatusBadges 컴포넌트
@@ -16,6 +17,9 @@ const DigimonStatusBadges = ({
   feedType = null,
   onOpenStatusDetail = null,
   canEvolve = false, // 진화 가능 여부
+  sleepSchedule = null, // 수면 스케줄 { start, end }
+  wakeUntil = null, // 깨어있는 시간 (timestamp)
+  sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
 }) => {
   const {
     fullness = 0,
@@ -24,7 +28,19 @@ const DigimonStatusBadges = ({
     injuries = 0,
     proteinOverdose = 0,
     callStatus = {},
+    sleepDisturbances = 0,
   } = digimonStats;
+
+  // 실시간 업데이트를 위한 상태
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // 1초마다 현재 시간 업데이트
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 모든 상태 메시지를 수집하는 함수
   const getAllStatusMessages = () => {
@@ -77,11 +93,66 @@ const DigimonStatusBadges = ({
       messages.push({ text: "똥 많음 💩", color: "text-orange-600", bgColor: "bg-orange-100", priority: 3, category: "warning" });
     }
 
+    // 3.5. 수면 방해 - 깨어있는 시간 표시 (wakeUntil이 있을 때, 초 단위)
+    if (wakeUntil && currentTime < wakeUntil) {
+      const remainingMs = wakeUntil - currentTime;
+      const remainingMinutes = Math.floor(remainingMs / 60000);
+      const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+      if (remainingMs > 0) {
+        messages.push({ 
+          text: `수면 방해! (${remainingMinutes}분 ${remainingSeconds}초 남음) 😴`, 
+          color: "text-orange-500", 
+          bgColor: "bg-orange-100", 
+          priority: 3.5, 
+          category: "warning" 
+        });
+      }
+    }
+
     // 4. 수면/피곤 상태
     if (sleepStatus === "SLEEPING") {
       messages.push({ text: "수면 중 😴", color: "text-blue-500", bgColor: "bg-blue-100", priority: 4, category: "info" });
     } else if (sleepStatus === "TIRED") {
-      messages.push({ text: "피곤함 😫", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 4, category: "warning" });
+      // TIRED 상태일 때 불 켜진 시간 카운트다운 표시
+      if (sleepLightOnStart) {
+        const elapsedMs = currentTime - sleepLightOnStart;
+        const thresholdMs = 30 * 60 * 1000; // 30분
+        const remainingMs = thresholdMs - elapsedMs;
+        
+        if (remainingMs > 0) {
+          const remainingMinutes = Math.floor(remainingMs / 60000);
+          const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+          messages.push({ 
+            text: `피곤함 😫 (불 끄기까지 ${remainingMinutes}분 ${remainingSeconds}초)`, 
+            color: "text-yellow-600", 
+            bgColor: "bg-yellow-100", 
+            priority: 4, 
+            category: "warning" 
+          });
+        } else {
+          messages.push({ 
+            text: `피곤함 😫 (케어 미스 발생!)`, 
+            color: "text-red-600", 
+            bgColor: "bg-red-100", 
+            priority: 4, 
+            category: "critical" 
+          });
+        }
+      } else {
+        messages.push({ text: "피곤함 😫", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 4, category: "warning" });
+      }
+    }
+
+    // 4.5. 수면까지 남은 시간 표시 (AWAKE 상태이고 wakeUntil이 없을 때)
+    if (sleepStatus === "AWAKE" && !wakeUntil && sleepSchedule) {
+      const timeUntil = getTimeUntilSleep(sleepSchedule, new Date());
+      messages.push({ 
+        text: `수면까지 ${timeUntil} 😴`, 
+        color: "text-blue-500", 
+        bgColor: "bg-blue-100", 
+        priority: 4.5, 
+        category: "info" 
+      });
     }
 
     // 5. 호출 상태

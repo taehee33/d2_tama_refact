@@ -328,11 +328,21 @@ export default function BattleScreen({
 
   // 배틀 종료
   const handleExit = () => {
+    // Arena 모드에서는 배틀 완료 핸들러를 먼저 호출
+    if (battleType === 'arena' && battleResult && onBattleComplete) {
+      console.log("🔍 [BattleScreen] Arena 모드 종료 - onBattleComplete 호출");
+      onBattleComplete(battleResult);
+    }
     onClose();
   };
 
   // 패배 처리
   const handleDefeat = () => {
+    // Arena 모드에서는 배틀 완료 핸들러를 먼저 호출
+    if (battleType === 'arena' && battleResult && onBattleComplete) {
+      console.log("🔍 [BattleScreen] Arena 모드 패배 - onBattleComplete 호출");
+      onBattleComplete(battleResult);
+    }
     onClose();
   };
 

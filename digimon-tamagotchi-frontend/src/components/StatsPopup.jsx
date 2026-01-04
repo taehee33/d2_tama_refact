@@ -1,21 +1,26 @@
 // src/components/StatsPopup.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
+import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 
-// 시간 포맷 (일/분/초)
+// 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
   const d = Math.floor(sec / 86400);
   const r = sec % 86400;
-  const m = Math.floor(r / 60);
+  const h = Math.floor(r / 3600);
+  const m = Math.floor((r % 3600) / 60);
   const s = r % 60;
-  return `${d} day ${m} min ${s} sec`;
+  return `${d} day ${h} hour ${m} min ${s} sec`;
 }
 
-// [분:초]
+// 진화까지 남은 시간 포맷 (일/시간/분/초)
 function formatTimeToEvolve(sec=0){
-  const mm = Math.floor(sec / 60);
-  const ss = sec % 60;
-  return `${mm}m ${ss}s`;
+  const d = Math.floor(sec / 86400);
+  const r = sec % 86400;
+  const h = Math.floor(r / 3600);
+  const m = Math.floor((r % 3600) / 60);
+  const s = r % 60;
+  return `${d} day ${h} hour ${m} min ${s} sec`;
 }
 
 // fullness => 예) 7 => "5(+2)"
@@ -36,9 +41,25 @@ export default function StatsPopup({
   digimonData = null, // 종족 고정 파라미터 (digimonData)
   onClose,
   devMode=false,
-  onChangeStats
+  onChangeStats,
+  sleepSchedule = null, // 수면 스케줄 { start, end }
+  sleepStatus = "AWAKE", // 수면 상태
+  wakeUntil = null, // 깨어있는 시간 (timestamp)
+  sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
+  isLightsOn = false, // 조명 상태
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
+  
+  // 실시간 업데이트를 위한 상태
+  const [currentTime, setCurrentTime] = useState(Date.now());
+
+  // 1초마다 현재 시간 업데이트
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   
   // stats 내부 항목 구조 분해
   const {
@@ -112,14 +133,15 @@ export default function StatsPopup({
   
   // 종족 고정 파라미터 추출
   const speciesData = digimonData?.stats || {};
-  const sleepSchedule = speciesData.sleepSchedule || {};
+  // props로 받은 sleepSchedule이 있으면 사용, 없으면 speciesData에서 가져옴
+  const currentSleepSchedule = sleepSchedule || speciesData.sleepSchedule || {};
   
   // Sleep Time 포맷팅 (HH:MM 형식을 12시간 형식으로 변환)
   const formatSleepTime = () => {
     // sleepSchedule 형식: { start: 20, end: 8 }
-    if (sleepSchedule.start !== undefined) {
-      const startHour = sleepSchedule.start;
-      const endHour = sleepSchedule.end;
+    if (currentSleepSchedule.start !== undefined) {
+      const startHour = currentSleepSchedule.start;
+      const endHour = currentSleepSchedule.end;
       const startPeriod = startHour >= 12 ? 'PM' : 'AM';
       const endPeriod = endHour >= 12 ? 'PM' : 'AM';
       const startHour12 = startHour > 12 ? startHour - 12 : (startHour === 0 ? 12 : startHour);
@@ -304,9 +326,115 @@ export default function StatsPopup({
         </ul>
       </div>
       
-      {/* Sec 4. 진화 판정 카운터 */}
+      {/* Sec 4. 수면 정보 */}
       <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">4. 진화 판정 카운터</h3>
+        <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
+        <ul className="space-y-1">
+          <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
+          <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? '피곤함' : sleepStatus}</li>
+          {sleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
+            <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
+          )}
+          {sleepStatus === 'SLEEPING' && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
+            <li>기상까지: {getTimeUntilWake(currentSleepSchedule, new Date())}</li>
+          )}
+          {wakeUntil && currentTime < wakeUntil && (() => {
+            const remainingMs = wakeUntil - currentTime;
+            const remainingMinutes = Math.floor(remainingMs / 60000);
+            const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+            return (
+              <li className="text-orange-600 font-semibold">
+                수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 남음
+                {!isLightsOn && (
+                  <span className="text-green-600 ml-2">(불 꺼짐 → 10초 후 잠듦)</span>
+                )}
+              </li>
+            );
+          })()}
+          {/* 빠른 잠들기 안내 */}
+          {wakeUntil && currentTime < wakeUntil && !isLightsOn && stats.fastSleepStart && (() => {
+            const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
+            const remainingSeconds = Math.max(0, 10 - Math.floor(elapsedSinceFastSleepStart / 1000));
+            if (remainingSeconds > 0 && remainingSeconds <= 10) {
+              return (
+                <li className="text-green-600 text-sm">
+                  💡 빠른 잠들기: {remainingSeconds}초 후 자동으로 잠듭니다
+                </li>
+              );
+            }
+            return null;
+          })()}
+          {/* 불 끄기까지 항목 (항상 표시, 조건에 따라 다른 메시지) */}
+          {(() => {
+            // 수면 시간이고 불이 켜져 있고 sleepLightOnStart가 있을 때만 카운트다운
+            if (sleepStatus === 'TIRED' && isLightsOn && sleepLightOnStart) {
+              const elapsedMs = currentTime - sleepLightOnStart;
+              const thresholdMs = 30 * 60 * 1000; // 30분
+              const remainingMs = thresholdMs - elapsedMs;
+              if (remainingMs > 0) {
+                const remainingMinutes = Math.floor(remainingMs / 60000);
+                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+                return (
+                  <li className="text-yellow-600 font-semibold">
+                    불 끄기까지: {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
+                  </li>
+                );
+              } else {
+                return (
+                  <li className="text-red-600 font-semibold">
+                    케어 미스 발생! (불을 30분 이상 켜둠)
+                  </li>
+                );
+              }
+            }
+            // 수면 시간이고 불이 꺼져 있을 때
+            else if (sleepStatus === 'SLEEPING' && !isLightsOn) {
+              return (
+                <li className="text-green-600 font-semibold">
+                  불 끄기까지: 불 꺼짐 ✓ (잠자는 중)
+                </li>
+              );
+            }
+            // 수면 시간이 아니거나 수면 방해로 깨어있을 때
+            else if (sleepStatus === 'AWAKE') {
+              if (wakeUntil && currentTime < wakeUntil) {
+                return (
+                  <li className="text-orange-500">
+                    불 끄기까지: 수면 방해 중 (깨어있음)
+                  </li>
+                );
+              } else {
+                return (
+                  <li className="text-gray-500">
+                    불 끄기까지: 수면 시간이 아님
+                  </li>
+                );
+              }
+            }
+            // TIRED 상태이지만 sleepLightOnStart가 없을 때 (방금 불을 켠 경우)
+            else if (sleepStatus === 'TIRED' && isLightsOn && !sleepLightOnStart) {
+              return (
+                <li className="text-yellow-500">
+                  불 끄기까지: 불이 켜져 있음 (카운트 시작 대기 중)
+                </li>
+              );
+            }
+            // 기타 상태
+            else {
+              return (
+                <li className="text-gray-500">
+                  불 끄기까지: 현재 상태 - {sleepStatus === 'TIRED' ? '피곤함' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
+                </li>
+              );
+            }
+          })()}
+          <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
+        </ul>
+      </div>
+      
+      {/* Sec 5. 진화 판정 카운터 */}
+      <div className="border-b pb-2">
+        <h3 className="font-bold text-base mb-2">5. 진화 판정 카운터</h3>
         <ul className="space-y-1">
           <li>Care Mistakes: {careMistakes || 0}</li>
           <li>Training Count: {trainings || 0}</li>
@@ -316,7 +444,7 @@ export default function StatsPopup({
         </ul>
       </div>
       
-      {/* Sec 5. 내부/고급 카운터 */}
+      {/* Sec 6. 내부/고급 카운터 */}
       <div className="pb-2">
         <h3 className="font-bold text-base mb-2">5. 내부/고급 카운터</h3>
         <ul className="space-y-1">

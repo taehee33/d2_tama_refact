@@ -292,26 +292,41 @@ function Game(){
           return prevStats;
         }
 
-        // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
-        let updatedStats = updateLifespan(prevStats, 1);
-        // 매뉴얼 기반 배고픔/힘 감소 로직 적용
-        // prevStats에서 evolutionStage를 통해 디지몬 데이터 찾기
+        // 수면 로직 (타이머 감소 전에 수면 상태 확인)
         const currentDigimonName = prevStats.evolutionStage ? 
           Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === prevStats.evolutionStage) || "Digitama" :
           "Digitama";
-        const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
-        // 매뉴얼 기반 배고픔/힘 감소 처리
-        updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1);
-        updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1);
-
-        // 수면 로직
-        updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
         const schedule = getSleepSchedule(currentDigimonName, digimonDataVer1);
         const nowMs = Date.now();
         const nowDate = new Date(nowMs);
         const inSchedule = isWithinSleepSchedule(schedule, nowDate);
         const wakeOverride = wakeUntil && nowMs < wakeUntil;
         const sleepingNow = inSchedule && !wakeOverride;
+        
+        // 수면 상태 계산 (SLEEPING일 때만 타이머 감소하지 않음)
+        const currentSleepStatus = getSleepStatus({
+          sleepSchedule: schedule,
+          isLightsOn,
+          wakeUntil,
+          fastSleepStart: prevStats.fastSleepStart || null,
+          now: nowDate,
+        });
+        const isActuallySleeping = currentSleepStatus === 'SLEEPING'; // 실제로 잠자는 상태일 때만 타이머 정지
+
+        // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
+        // 실제로 잠자는 상태(SLEEPING)일 때만 타이머 감소하지 않음
+        let updatedStats = updateLifespan(prevStats, 1, isActuallySleeping);
+        // 매뉴얼 기반 배고픔/힘 감소 로직 적용
+        const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
+        // 매뉴얼 기반 배고픔/힘 감소 처리 (실제로 잠자는 상태일 때만 감소하지 않음)
+        updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
+        updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
+
+        // 수면 관련 스탯 업데이트
+        updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
+        
+        // fastSleepStart 보존 (타이머에서 업데이트 시 유지)
+        updatedStats.fastSleepStart = prevStats.fastSleepStart || null;
 
         // 일자 변경 시 일일 수면 케어 미스 리셋
         const todayKey = nowDate.toDateString();
@@ -333,8 +348,14 @@ function Game(){
               updatedStats.sleepLightOnStart = nowMs;
             }
           }
+          // 불이 켜져 있으면 빠른 잠들기 시점 리셋
+          updatedStats.fastSleepStart = null;
         } else {
           updatedStats.sleepLightOnStart = null;
+          // wakeUntil이 만료되면 빠른 잠들기 시점도 리셋
+          if (!wakeUntil || nowMs >= wakeUntil) {
+            updatedStats.fastSleepStart = null;
+          }
         }
 
         setIsSleeping(sleepingNow);
@@ -517,6 +538,11 @@ function Game(){
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
+    onSleepDisturbance: () => {
+      // 수면 방해 토스트 표시
+      toggleModal('sleepDisturbanceToast', true);
+      setTimeout(() => toggleModal('sleepDisturbanceToast', false), 3000);
+    },
   });
   // useEvolution 훅 호출 (진화 로직)
   const {
@@ -639,6 +665,11 @@ function Game(){
     toggleModal,
     setDigimonStatsAndSave,
     applyLazyUpdateBeforeAction,
+    onSleepDisturbance: () => {
+      // 수면 방해 토스트 표시
+      toggleModal('sleepDisturbanceToast', true);
+      setTimeout(() => toggleModal('sleepDisturbanceToast', false), 3000);
+    },
     handleCleanPoopFromHook,
     startHealCycle,
     quests,
@@ -751,6 +782,7 @@ async function setSelectedDigimonAndSave(name) {
         sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1),
         isLightsOn,
         wakeUntil,
+        fastSleepStart: digimonStats.fastSleepStart || null,
         now: new Date(),
       });
       setSleepStatus(status);
@@ -1023,6 +1055,9 @@ async function setSelectedDigimonAndSave(name) {
             currentAnimation={currentAnimation}
             feedType={feedType}
             canEvolve={isEvoEnabled}
+            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataVer1)}
+            wakeUntil={wakeUntil}
+            sleepLightOnStart={digimonStats.sleepLightOnStart || null}
             onOpenStatusDetail={(messages) => {
               // 상태 상세 모달을 열기 위해 임시로 상태 저장
               setStatusDetailMessages(messages);
@@ -1066,6 +1101,8 @@ async function setSelectedDigimonAndSave(name) {
           setTimeout(() => toggleModal('callToast', false), 2000);
         }}
         onCallModalClose={() => toggleModal('call', false)}
+        showSleepDisturbanceToast={modals.sleepDisturbanceToast}
+        sleepDisturbanceToastMessage="수면 방해! 😴 (10분 동안 깨어있음)"
         evolutionStage={evolutionStage}
         developerMode={developerMode}
       />
@@ -1119,7 +1156,14 @@ async function setSelectedDigimonAndSave(name) {
         gameState={gameState}
         handlers={handlers}
         data={data}
-        ui={{ ...ui, statusDetailMessages }}
+        ui={{ 
+          ...ui, 
+          statusDetailMessages,
+          sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1),
+          sleepStatus: sleepStatus,
+          wakeUntil: wakeUntil,
+          sleepLightOnStart: digimonStats.sleepLightOnStart || null,
+        }}
         flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode }}
       />
       )}

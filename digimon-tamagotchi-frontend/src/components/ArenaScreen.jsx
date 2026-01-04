@@ -61,6 +61,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [loadingLogs, setLoadingLogs] = useState(false);
+  const [selectedBattleLog, setSelectedBattleLog] = useState(null);
+  const [showBattleLogReview, setShowBattleLogReview] = useState(false);
   const [leaderboardEntries, setLeaderboardEntries] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   // leaderboardMode: 'current' | 'all' | 'past'
@@ -81,6 +83,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       setLoading(false);
     }
   }, [currentUser, isFirebaseAvailable, mode]);
+
+  // 배틀 완료 후 엔트리 목록 새로고침 (승패 기록 반영)
+  useEffect(() => {
+    // activeTab이 변경되거나 모달이 다시 열릴 때 엔트리 목록 새로고침
+    if (isFirebaseAvailable && currentUser && mode !== 'local' && !loading) {
+      loadMyEntries();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab === 'battleLog' && isFirebaseAvailable && currentUser && mode !== 'local') {
@@ -182,26 +192,78 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     }
   };
 
-  // 배틀 로그 로드 (방어 기록)
+  // 배틀 로그 로드 (공격 기록 + 방어 기록)
   const loadBattleLogs = async () => {
     if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
     
     try {
       setLoadingLogs(true);
       const logsRef = collection(db, 'arena_battle_logs');
-      const q = query(
-        logsRef,
-        where('defenderId', '==', currentUser.uid),
-        orderBy('timestamp', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
       
-      const logs = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      let attackLogs = [];
+      let defenseLogs = [];
       
-      setBattleLogs(logs);
+      // 공격 기록 로드
+      try {
+        const attackQuery = query(
+          logsRef,
+          where('attackerId', '==', currentUser.uid),
+          orderBy('timestamp', 'desc')
+        );
+        const attackSnapshot = await getDocs(attackQuery);
+        attackLogs = attackSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isAttack: true }));
+        console.log("✅ 공격 기록 로드 완료:", attackLogs.length, "개");
+      } catch (attackError) {
+        console.error("❌ 공격 기록 로드 오류:", attackError);
+        if (attackError.code === 'failed-precondition') {
+          console.warn("⚠️ attackerId 인덱스가 필요합니다. Firestore 콘솔에서 인덱스를 생성해주세요.");
+        }
+      }
+      
+      // 방어 기록 로드
+      try {
+        const defenseQuery = query(
+          logsRef,
+          where('defenderId', '==', currentUser.uid),
+          orderBy('timestamp', 'desc')
+        );
+        const defenseSnapshot = await getDocs(defenseQuery);
+        defenseLogs = defenseSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isAttack: false }));
+        console.log("✅ 방어 기록 로드 완료:", defenseLogs.length, "개");
+      } catch (defenseError) {
+        console.error("❌ 방어 기록 로드 오류:", defenseError);
+        if (defenseError.code === 'failed-precondition') {
+          console.warn("⚠️ defenderId 인덱스가 필요합니다. Firestore 콘솔에서 인덱스를 생성해주세요.");
+          // 인덱스 오류 메시지에 링크가 있으면 표시
+          if (defenseError.message && defenseError.message.includes('https://')) {
+            const linkMatch = defenseError.message.match(/https:\/\/[^\s]+/);
+            if (linkMatch) {
+              console.log("🔗 인덱스 생성 링크:", linkMatch[0]);
+            }
+          }
+        }
+      }
+      
+      // 두 쿼리 결과를 합치고 중복 제거 (같은 배틀에서 공격자와 방어자가 모두 나일 수 있음)
+      const allLogs = [...attackLogs, ...defenseLogs];
+      
+      // 중복 제거 (같은 문서 ID를 가진 로그는 하나만 유지)
+      const uniqueLogs = allLogs.reduce((acc, log) => {
+        if (!acc.find(l => l.id === log.id)) {
+          acc.push(log);
+        }
+        return acc;
+      }, []);
+      
+      // timestamp 기준으로 정렬 (최신순)
+      uniqueLogs.sort((a, b) => {
+        const aTime = a.timestamp?.toDate?.() || new Date(0);
+        const bTime = b.timestamp?.toDate?.() || new Date(0);
+        return bTime - aTime;
+      });
+      
+      console.log("✅ 배틀 로그 통합 완료:", uniqueLogs.length, "개");
+      setBattleLogs(uniqueLogs);
     } catch (error) {
       console.error("배틀 로그 로드 오류:", error);
     } finally {
@@ -293,39 +355,118 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       setLoading(true);
       const slots = [];
       
+      // myEntries를 최신 상태로 다시 로드 (타이밍 이슈 방지)
+      let currentMyEntries = myEntries;
+      let currentSlotEntry = null; // 현재 슬롯의 등록 정보
+      
       if (isFirebaseAvailable && currentUser && mode !== 'local') {
-        const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
-        const querySnapshot = await getDocs(slotsRef);
-        
-        for (const docSnap of querySnapshot.docs) {
-          const data = docSnap.data();
-          const slotId = parseInt(docSnap.id.replace('slot', ''));
+        try {
+          const entriesRef = collection(db, 'arena_entries');
+          const q = query(entriesRef, where('userId', '==', currentUser.uid));
+          const querySnapshot = await getDocs(q);
+          currentMyEntries = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
           
-          // 이미 등록된 슬롯은 제외
-          const isRegistered = myEntries.some(entry => 
-            entry.digimonSnapshot?.slotId === slotId
-          );
-          
-          if (!isRegistered && data.selectedDigimon && data.selectedDigimon !== "Digitama") {
-            slots.push({
-              id: slotId,
-              slotName: data.slotName || `슬롯${slotId}`,
-              selectedDigimon: data.selectedDigimon,
-              digimonStats: data.digimonStats || {},
-            });
+          // 현재 슬롯이 이미 등록되어 있는지 확인
+          if (currentSlotId) {
+            currentSlotEntry = currentMyEntries.find(entry => 
+              entry.digimonSnapshot?.slotId === currentSlotId
+            );
           }
+          
+          console.log("[Arena] 등록된 엔트리:", currentMyEntries.map(e => ({
+            id: e.id,
+            slotId: e.digimonSnapshot?.slotId,
+            digimonName: e.digimonSnapshot?.digimonName
+          })));
+          
+          // 현재 슬롯이 이미 등록되어 있으면 즉시 알림
+          if (currentSlotEntry) {
+            const currentDigimonName = currentSlotEntry.digimonSnapshot?.digimonName || "현재 디지몬";
+            alert(`현재 슬롯(슬롯${currentSlotId})은 이미 아레나에 등록되어 있습니다.\n\n등록된 디지몬: ${currentDigimonName}\n\n다시 등록하려면 "My Arena Entries"에서 기존 등록을 해제한 후 등록해주세요.`);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error("등록된 엔트리 로드 오류:", error);
+        }
+      }
+      
+      if (isFirebaseAvailable && currentUser && mode !== 'local') {
+        // 현재 슬롯만 로드
+        if (!currentSlotId) {
+          alert("현재 슬롯 정보를 찾을 수 없습니다.");
+          setLoading(false);
+          return;
+        }
+        
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${currentSlotId}`);
+        const slotSnap = await getDoc(slotRef);
+        
+        if (!slotSnap.exists()) {
+          alert(`슬롯${currentSlotId}를 찾을 수 없습니다.`);
+          setLoading(false);
+          return;
+        }
+        
+        const data = slotSnap.data();
+        const slotId = currentSlotId;
+        
+        console.log(`[Arena] 현재 슬롯 ${slotId} 체크:`, {
+          selectedDigimon: data.selectedDigimon,
+          isDigitama: data.selectedDigimon === "Digitama",
+          slotName: data.slotName
+        });
+        
+        // 이미 등록된 슬롯은 제외
+        const isRegistered = currentMyEntries.some(entry => {
+          const entrySlotId = entry.digimonSnapshot?.slotId;
+          const matches = entrySlotId === slotId;
+          if (matches) {
+            console.log(`[Arena] 슬롯 ${slotId}는 이미 등록됨 (엔트리 ID: ${entry.id})`);
+          }
+          return matches;
+        });
+        
+        if (!isRegistered && data.selectedDigimon && data.selectedDigimon !== "Digitama") {
+          console.log(`[Arena] 현재 슬롯 ${slotId} 추가됨`);
+          slots.push({
+            id: slotId,
+            slotName: data.slotName || `슬롯${slotId}`,
+            selectedDigimon: data.selectedDigimon,
+            digimonStats: data.digimonStats || {},
+          });
+        } else {
+          console.log(`[Arena] 현재 슬롯 ${slotId} 제외됨:`, {
+            isRegistered,
+            hasDigimon: !!data.selectedDigimon,
+            isDigitama: data.selectedDigimon === "Digitama"
+          });
         }
       } else {
-        // localStorage 모드
-        for (let i = 1; i <= 10; i++) {
-          const digimonName = localStorage.getItem(`slot${i}_selectedDigimon`);
-          if (digimonName && digimonName !== "Digitama") {
-            const statsJson = localStorage.getItem(`slot${i}_digimonStats`);
-            const digimonStats = statsJson ? JSON.parse(statsJson) : {};
-            
+        // localStorage 모드 - 현재 슬롯만
+        if (!currentSlotId) {
+          alert("현재 슬롯 정보를 찾을 수 없습니다.");
+          setLoading(false);
+          return;
+        }
+        
+        const digimonName = localStorage.getItem(`slot${currentSlotId}_selectedDigimon`);
+        if (digimonName && digimonName !== "Digitama") {
+          const statsJson = localStorage.getItem(`slot${currentSlotId}_digimonStats`);
+          const digimonStats = statsJson ? JSON.parse(statsJson) : {};
+          
+          // 이미 등록된 슬롯은 제외
+          const isRegistered = currentMyEntries.some(entry => 
+            entry.digimonSnapshot?.slotId === currentSlotId
+          );
+          
+          if (!isRegistered) {
             slots.push({
-              id: i,
-              slotName: localStorage.getItem(`slot${i}_slotName`) || `슬롯${i}`,
+              id: currentSlotId,
+              slotName: localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`,
               selectedDigimon: digimonName,
               digimonStats,
             });
@@ -462,6 +603,28 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     );
     const myEntryId = myEntry?.id || null;
     
+    // 디버깅: 내 엔트리 찾기 결과 확인
+    console.log("🔍 [Arena Battle Start] 디버깅 정보:", {
+      currentSlotId,
+      myEntriesCount: myEntries.length,
+      myEntries: myEntries.map(e => ({
+        id: e.id,
+        slotId: e.digimonSnapshot?.slotId,
+        digimonName: e.digimonSnapshot?.digimonName
+      })),
+      foundMyEntry: myEntry ? {
+        id: myEntry.id,
+        slotId: myEntry.digimonSnapshot?.slotId,
+        digimonName: myEntry.digimonSnapshot?.digimonName
+      } : null,
+      myEntryId
+    });
+    
+    if (!myEntryId) {
+      console.warn("⚠️ 현재 슬롯과 매칭되는 아레나 엔트리를 찾을 수 없습니다!");
+      alert("⚠️ 경고: 현재 슬롯이 아레나에 등록되어 있지 않습니다.\n\n승패 기록이 저장되지 않을 수 있습니다. 아레나에 등록 후 배틀을 시작해주세요.");
+    }
+    
     onStartBattle(challenger, myEntryId);
   };
 
@@ -502,7 +665,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   // 필터링된 로그
   const filteredLogs = logFilter === 'all' 
     ? battleLogs 
-    : battleLogs.filter(log => log.defenderEntryId === logFilter);
+    : battleLogs.filter(log => {
+        // 공격 기록인 경우 myEntryId로 필터링, 방어 기록인 경우 defenderEntryId로 필터링
+        if (log.isAttack) {
+          return log.myEntryId === logFilter;
+        } else {
+          return log.defenderEntryId === logFilter;
+        }
+      });
 
   if (loading && myEntries.length === 0 && challengers.length === 0) {
     return (
@@ -530,8 +700,22 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
             {myEntries.length === 0 ? (
               <p className="text-gray-700">등록된 디지몬이 없습니다.</p>
             ) : (
-              myEntries.map((entry) => (
-                <div key={entry.id} className="flex-shrink-0 w-48 p-3 bg-blue-100 rounded-lg border border-blue-300 relative">
+              myEntries.map((entry) => {
+                const isCurrentSlot = entry.digimonSnapshot?.slotId === currentSlotId;
+                return (
+                <div 
+                  key={entry.id} 
+                  className={`flex-shrink-0 w-48 p-3 rounded-lg border relative ${
+                    isCurrentSlot 
+                      ? 'bg-blue-200 border-blue-500 border-2 ring-2 ring-blue-300' 
+                      : 'bg-blue-100 border-blue-300'
+                  }`}
+                >
+                  {isCurrentSlot && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold z-10">
+                      현재 플레이 중
+                    </div>
+                  )}
                   <div onClick={() => handleEntryClick(entry, true)} className="cursor-pointer">
                     <div className="flex justify-center mb-2">
                       <img
@@ -557,7 +741,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                     X
                   </button>
                 </div>
-              ))
+                );
+              })
             )}
             {myEntries.length < MAX_ENTRIES && (
               <button
@@ -653,7 +838,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         {/* Battle Log 탭 */}
         {activeTab === 'battleLog' && (
           <div>
-            <h3 className="text-xl font-bold mb-3">Battle Log (방어 기록)</h3>
+            <h3 className="text-xl font-bold mb-3">Battle Log</h3>
 
             {/* 필터 버튼 */}
             {!loadingLogs && battleLogs.length > 0 && (
@@ -679,7 +864,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
-                      {entry.digimonSnapshot?.digimonName || 'Unknown'}
+                      {entry.digimonSnapshot?.digimonName || 'Unknown'} (슬롯{entry.digimonSnapshot?.slotId || '?'})
                     </button>
                   ))}
                 </div>
@@ -690,12 +875,16 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
               <p className="text-gray-600">로딩 중...</p>
             ) : filteredLogs.length === 0 ? (
               <p className="text-gray-600">
-                {logFilter === 'all' ? '방어 기록이 없습니다.' : '해당 디지몬의 방어 기록이 없습니다.'}
+                {logFilter === 'all' ? '배틀 기록이 없습니다.' : '해당 디지몬의 배틀 기록이 없습니다.'}
               </p>
             ) : (
               <div className="space-y-3">
                 {filteredLogs.map((log) => {
-                  const isDefenseSuccess = log.winnerId === currentUser?.uid;
+                  // 공격 기록인지 방어 기록인지에 따라 승패 판단
+                  const isWin = log.isAttack 
+                    ? log.winnerId === currentUser?.uid  // 공격 기록: 내가 이겼으면 승리
+                    : log.winnerId === currentUser?.uid; // 방어 기록: 내가 이겼으면 승리
+                  
                   let timestamp = null;
                   if (log.timestamp) {
                     if (log.timestamp.toDate) {
@@ -707,40 +896,103 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                     }
                   }
                   const timeAgo = timestamp ? getTimeAgo(log.timestamp) : "알 수 없음";
+                  
+                  // 실제 시간 포맷팅 (예: 2026.01.04 오후 12:49)
+                  const formatDateTime = (timestamp) => {
+                    if (!timestamp) return "";
+                    let date;
+                    if (timestamp.toDate) {
+                      date = timestamp.toDate();
+                    } else if (timestamp.seconds) {
+                      date = new Date(timestamp.seconds * 1000);
+                    } else if (timestamp.toMillis) {
+                      date = new Date(timestamp.toMillis());
+                    } else {
+                      return "";
+                    }
+                    
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const hours = date.getHours();
+                    const minutes = String(date.getMinutes()).padStart(2, '0');
+                    const ampm = hours >= 12 ? '오후' : '오전';
+                    const displayHours = hours % 12 || 12;
+                    
+                    return `${year}.${month}.${day} ${ampm} ${displayHours}:${minutes}`;
+                  };
+                  
+                  const dateTime = formatDateTime(log.timestamp);
 
-                  const myDefendingDigimon = myEntries.find(entry => entry.id === log.defenderEntryId);
-                  const myDefendingDigimonName = myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                  // 공격 기록인 경우: 내 엔트리 정보 찾기
+                  // 방어 기록인 경우: 방어한 디지몬 정보 찾기
+                  let myDigimonName = 'Unknown Digimon';
+                  let mySlotId = null;
+                  
+                  if (log.isAttack) {
+                    // 공격 기록: 내가 공격자
+                    const myAttackingDigimon = myEntries.find(entry => entry.id === log.myEntryId);
+                    myDigimonName = myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                    mySlotId = myAttackingDigimon?.digimonSnapshot?.slotId || null;
+                  } else {
+                    // 방어 기록: 내가 방어자
+                    const myDefendingDigimon = myEntries.find(entry => entry.id === log.defenderEntryId);
+                    myDigimonName = myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                    mySlotId = myDefendingDigimon?.digimonSnapshot?.slotId || null;
+                  }
 
                   return (
                     <div
                       key={log.id}
-                      className={`p-4 rounded-lg border-2 ${
-                        isDefenseSuccess
+                      className={`p-4 rounded-lg border-2 ${log.logs && log.logs.length > 0 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${
+                        isWin
                           ? 'bg-green-50 border-green-300'
                           : 'bg-red-50 border-red-300'
                       }`}
+                      onClick={() => {
+                        if (log.logs && log.logs.length > 0) {
+                          setSelectedBattleLog(log);
+                          setShowBattleLogReview(true);
+                        }
+                      }}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <p className="font-bold text-lg mb-1">
-                            {log.attackerName}의 공격
+                            {log.isAttack ? '내 공격' : `${log.attackerName}의 공격`}
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
-                            {log.attackerName} → {myDefendingDigimonName}
+                            {log.isAttack 
+                              ? `${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${log.defenderDigimonName}` : ''}`
+                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${log.attackerDigimonName}` : ''} → ${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''}`
+                            }
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-gray-500 mb-1">
                             {timeAgo}
                           </p>
+                          {dateTime && (
+                            <p className="text-xs text-gray-400">
+                              {dateTime}
+                            </p>
+                          )}
+                          {log.logs && log.logs.length > 0 && (
+                            <p className="text-xs text-blue-600 mt-2 font-semibold">
+                              📖 배틀 로그 다시보기
+                            </p>
+                          )}
                         </div>
                         <div className="ml-4">
                           <span
                             className={`px-3 py-1 rounded-full text-sm font-bold ${
-                              isDefenseSuccess
+                              isWin
                                 ? 'bg-green-500 text-white'
                                 : 'bg-red-500 text-white'
                             }`}
                           >
-                            {isDefenseSuccess ? 'DEFENSE SUCCESS (WIN)' : 'DEFEATED (LOSS)'}
+                            {log.isAttack 
+                              ? (isWin ? 'ATTACK SUCCESS (WIN)' : 'ATTACK FAILED (LOSS)')
+                              : (isWin ? 'DEFENSE SUCCESS (WIN)' : 'DEFEATED (LOSS)')
+                            }
                           </span>
                         </div>
                       </div>
@@ -895,7 +1147,15 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">등록할 슬롯 선택</h3>
               {availableSlots.length === 0 ? (
-                <p className="text-gray-600">등록 가능한 슬롯이 없습니다.</p>
+                <div className="text-center py-4">
+                  <p className="text-gray-600 mb-2">등록 가능한 슬롯이 없습니다.</p>
+                  {currentSlotId && myEntries.some(entry => entry.digimonSnapshot?.slotId === currentSlotId) && (
+                    <p className="text-sm text-blue-600 mt-2">
+                      💡 현재 슬롯(슬롯{currentSlotId})은 이미 등록되어 있습니다.<br/>
+                      다시 등록하려면 "My Arena Entries"에서 기존 등록을 해제해주세요.
+                    </p>
+                  )}
+                </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   {availableSlots.map((slot) => {
@@ -931,6 +1191,51 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 className="mt-4 w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 배틀 로그 다시보기 모달 */}
+        {showBattleLogReview && selectedBattleLog && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4">배틀 로그 리뷰</h3>
+              {selectedBattleLog.logs && selectedBattleLog.logs.length > 0 ? (
+                <div className="bg-gray-100 p-4 rounded max-h-96 overflow-y-auto mb-4">
+                  {selectedBattleLog.logs.map((logEntry, idx) => {
+                    const logClass = logEntry.attacker === "user" 
+                      ? (logEntry.hit ? "text-green-700 font-bold" : "text-gray-600")
+                      : (logEntry.hit ? "text-red-700 font-bold" : "text-gray-600");
+                    
+                    return (
+                      <div key={idx} className={`text-sm mb-2 p-2 rounded ${logClass}`}>
+                        <div className="font-medium">{idx + 1}. {logEntry.message}</div>
+                        {logEntry.formula && (
+                          <div className="ml-4 text-gray-700 font-mono text-xs mt-1">
+                            {logEntry.formula}
+                          </div>
+                        )}
+                        {logEntry.comparison && (
+                          <div className="ml-4 text-gray-600 font-mono text-xs mt-1 font-bold">
+                            {logEntry.comparison}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-gray-600 mb-4">배틀 로그가 저장되지 않았습니다.</p>
+              )}
+              <button
+                onClick={() => {
+                  setShowBattleLogReview(false);
+                  setSelectedBattleLog(null);
+                }}
+                className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              >
+                닫기
               </button>
             </div>
           </div>

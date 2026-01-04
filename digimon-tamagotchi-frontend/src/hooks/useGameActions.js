@@ -34,7 +34,7 @@ function isWithinSleepSchedule(schedule, nowDate = new Date()) {
 /**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
  */
-function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave) {
+function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance = null) {
   const until = Date.now() + 10 * 60 * 1000; // 10분
   setWakeUntil(until);
   const updated = {
@@ -43,6 +43,11 @@ function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave) 
     sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
   };
   setDigimonStatsAndSave(updated);
+  
+  // 수면 방해 콜백 호출
+  if (onSleepDisturbance) {
+    onSleepDisturbance();
+  }
 }
 
 /**
@@ -117,6 +122,7 @@ export function useGameActions({
   arenaChallenger,
   arenaEnemyId,
   myArenaEntryId,
+  onSleepDisturbance = null, // 수면 방해 콜백
   setArenaChallenger,
   setArenaEnemyId,
   setMyArenaEntryId,
@@ -151,7 +157,7 @@ export function useGameActions({
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {
@@ -355,7 +361,7 @@ export function useGameActions({
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {
@@ -597,24 +603,102 @@ export function useGameActions({
         return;
       }
 
+      // 디버깅: myArenaEntryId 확인
+      console.log("🔍 [Arena Battle Complete] 디버깅 정보:", {
+        myArenaEntryId,
+        enemyEntryId,
+        battleResult: battleResult.win ? "WIN" : "LOSS",
+        currentSlotId: slotId,
+        currentUser: currentUser.uid
+      });
+
+      if (!myArenaEntryId) {
+        console.warn("⚠️ 내 엔트리 ID가 없습니다! 현재 슬롯과 매칭되는 엔트리를 찾을 수 없습니다.");
+        alert("⚠️ 경고: 내 엔트리 ID를 찾을 수 없어 내 승패 기록이 업데이트되지 않을 수 있습니다.\n\n현재 슬롯이 아레나에 등록되어 있는지 확인해주세요.");
+      }
+
       try {
         const challengerRef = doc(db, 'arena_entries', enemyEntryId);
+        
+        // 내 엔트리와 상대방 엔트리 모두 업데이트
+        const updatePromises = [];
 
         if (battleResult.win) {
-          await updateDoc(challengerRef, {
-            'record.losses': increment(1),
-            'record.seasonLosses': increment(1),
-            'record.seasonId': currentSeasonId,
-          });
-          console.error("✅ DB Update Success: 상대방 losses +1 (seasonLosses 포함)");
+          // 내가 승리: 내 엔트리 wins 증가, 상대방 losses 증가
+          if (myArenaEntryId) {
+            const myEntryRef = doc(db, 'arena_entries', myArenaEntryId);
+            updatePromises.push(
+              updateDoc(myEntryRef, {
+                'record.wins': increment(1),
+                'record.seasonWins': increment(1),
+                'record.seasonId': currentSeasonId,
+              }).then(() => {
+                console.log("✅ 내 엔트리 wins 업데이트 완료:", myArenaEntryId);
+              }).catch((error) => {
+                console.error("❌ 내 엔트리 wins 업데이트 실패:", error);
+                throw error;
+              })
+            );
+            console.log("📝 내 엔트리 wins 업데이트 예정:", myArenaEntryId);
+          } else {
+            console.warn("⚠️ myArenaEntryId가 없어 내 엔트리 업데이트를 건너뜁니다.");
+          }
+          
+          updatePromises.push(
+            updateDoc(challengerRef, {
+              'record.losses': increment(1),
+              'record.seasonLosses': increment(1),
+              'record.seasonId': currentSeasonId,
+            }).then(() => {
+              console.log("✅ 상대방 losses 업데이트 완료:", enemyEntryId);
+            }).catch((error) => {
+              console.error("❌ 상대방 losses 업데이트 실패:", error);
+              throw error;
+            })
+          );
+          console.log("📝 상대방 losses 업데이트 예정:", enemyEntryId);
         } else {
-          await updateDoc(challengerRef, {
-            'record.wins': increment(1),
-            'record.seasonWins': increment(1),
-            'record.seasonId': currentSeasonId,
-          });
-          console.error("✅ DB Update Success: 상대방 wins +1 (seasonWins 포함)");
+          // 내가 패배: 내 엔트리 losses 증가, 상대방 wins 증가
+          if (myArenaEntryId) {
+            const myEntryRef = doc(db, 'arena_entries', myArenaEntryId);
+            updatePromises.push(
+              updateDoc(myEntryRef, {
+                'record.losses': increment(1),
+                'record.seasonLosses': increment(1),
+                'record.seasonId': currentSeasonId,
+              }).then(() => {
+                console.log("✅ 내 엔트리 losses 업데이트 완료:", myArenaEntryId);
+              }).catch((error) => {
+                console.error("❌ 내 엔트리 losses 업데이트 실패:", error);
+                throw error;
+              })
+            );
+            console.log("📝 내 엔트리 losses 업데이트 예정:", myArenaEntryId);
+          } else {
+            console.warn("⚠️ myArenaEntryId가 없어 내 엔트리 업데이트를 건너뜁니다.");
+          }
+          
+          updatePromises.push(
+            updateDoc(challengerRef, {
+              'record.wins': increment(1),
+              'record.seasonWins': increment(1),
+              'record.seasonId': currentSeasonId,
+            }).then(() => {
+              console.log("✅ 상대방 wins 업데이트 완료:", enemyEntryId);
+            }).catch((error) => {
+              console.error("❌ 상대방 wins 업데이트 실패:", error);
+              throw error;
+            })
+          );
+          console.log("📝 상대방 wins 업데이트 예정:", enemyEntryId);
         }
+        
+        // 모든 업데이트를 병렬로 실행
+        await Promise.all(updatePromises);
+        console.log("✅ DB Update Success: 내 엔트리와 상대방 엔트리 모두 업데이트 완료");
+        
+        // 업데이트 후 잠시 대기 (Firestore 반영 시간)
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         const userDigimonName = selectedDigimon || "Unknown";
         const enemyDigimonName = arenaChallenger.digimonSnapshot?.digimonName || "Unknown";
@@ -625,20 +709,22 @@ export function useGameActions({
         const battleLogData = {
           attackerId: currentUser.uid,
           attackerName: currentUser.displayName || slotName || `슬롯${slotId}`,
+          attackerDigimonName: userDigimonName, // 공격자의 디지몬 이름
           defenderId: arenaChallenger.userId,
           defenderName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
+          defenderDigimonName: enemyDigimonName, // 방어자의 디지몬 이름
           defenderEntryId: enemyEntryId,
           myEntryId: myArenaEntryId,
           winnerId: battleResult.win ? currentUser.uid : arenaChallenger.userId,
           timestamp: serverTimestamp(),
           logSummary: logSummary,
+          logs: battleResult.logs || [], // 배틀 상세 로그 저장 (다시보기용)
         };
 
         const battleLogsRef = collection(db, 'arena_battle_logs');
         const logDocRef = await addDoc(battleLogsRef, battleLogData);
-        console.error("✅ DB Update Success: 배틀 로그 저장 완료, ID:", logDocRef.id);
-
-        alert("✅ 배틀 결과가 성공적으로 저장되었습니다!");
+        console.log("✅ DB Update Success: 배틀 로그 저장 완료, ID:", logDocRef.id);
+        console.log("✅ 배틀 결과가 성공적으로 저장되었습니다!");
       } catch (error) {
         console.error("❌ DB Update Failed:", error);
         console.error("오류 상세:", {
@@ -731,7 +817,7 @@ export function useGameActions({
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {

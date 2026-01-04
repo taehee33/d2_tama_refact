@@ -524,6 +524,7 @@ export default function DigimonInfoModal({
             <li className="break-words">• <strong>수면 시간:</strong> 각 디지몬마다 정해진 수면 시간이 있습니다</li>
             <li className="break-words">• <strong>불 끄기:</strong> 수면 시간에는 불을 꺼야 합니다</li>
             <li className="break-words">• <strong>수면 방해:</strong> 수면 중 불을 켜두면 30분 후 케어 미스 +1</li>
+            <li className="break-words">• <strong>빠른 잠들기:</strong> 수면 시간에 불을 꺼주면, 수면 방해로 깨어있어도 10초 후 자동으로 잠듭니다</li>
             <li className="break-words">• <strong>에너지 회복:</strong> 최소 8시간 수면하면 에너지가 완전히 회복됩니다</li>
           </ul>
         </div>

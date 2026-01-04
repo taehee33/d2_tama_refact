@@ -10,7 +10,7 @@
  * @param {Date} [params.now] - 현재 시간 (테스트용)
  * @returns {'AWAKE'|'TIRED'|'SLEEPING'}
  */
-export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, now = new Date() }) {
+export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, now = new Date() }) {
   const hour = now.getHours();
   const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
 
@@ -23,11 +23,31 @@ export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, now = new
     return hour >= start || hour < end;
   })();
 
-  // 깨어있기로 설정된 시간이 남아 있으면 무조건 AWAKE
-  if (wakeOverride) return "AWAKE";
+  // 수면 시간이 아니면 무조건 AWAKE
   if (!isSleepTime) return "AWAKE";
 
   // 수면 시간인 경우
+  // 빠른 잠들기 우선 체크 (수면 방해 중보다 우선)
+  // 불이 꺼져 있고 fastSleepStart가 있으면 10초 후 SLEEPING 상태로 전환
+  if (!isLightsOn && fastSleepStart) {
+    const nowTime = now.getTime();
+    const elapsedSinceFastSleepStart = nowTime - fastSleepStart;
+    // 불을 꺼준 시점으로부터 10초가 지났으면 SLEEPING 상태로 전환 (수면 방해 중이어도 우선)
+    if (elapsedSinceFastSleepStart >= 10 * 1000) {
+      return "SLEEPING";
+    }
+    // 아직 10초가 지나지 않았으면 AWAKE 유지 (수면 방해 중)
+    if (wakeOverride) {
+      return "AWAKE";
+    }
+  }
+
+  // 수면 방해로 깨어있을 때(wakeOverride)는 AWAKE
+  if (wakeOverride) {
+    return "AWAKE";
+  }
+
+  // 수면 시간이고 수면 방해가 없을 때
   if (isLightsOn) return "TIRED";
   return "SLEEPING";
 }

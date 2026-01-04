@@ -9,10 +9,13 @@
  * @param {Object} currentStats - 현재 스탯
  * @param {Object} digimonData - 디지몬 데이터 (hungerCycle 정보 포함)
  * @param {number} deltaSec - 경과 시간 (초)
+ * @param {boolean} isSleeping - 수면 중 여부 (수면 중에는 타이머 감소하지 않음)
  * @returns {Object} 업데이트된 스탯
  */
-export function handleHungerTick(currentStats, digimonData, deltaSec = 1) {
+export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSleeping = false) {
   if (currentStats.isDead) return currentStats;
+  // 수면 중에는 타이머 감소하지 않음
+  if (isSleeping) return currentStats;
 
   const s = { ...currentStats };
   

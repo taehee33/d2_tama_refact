@@ -141,6 +141,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     poopCleanAnimation: false,
     healAnimation: false,
     callToast: false,
+    sleepDisturbanceToast: false,
     
     // 상태 상세 모달
     statusDetail: false,
@@ -272,6 +273,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setActivityLogs,
       
       // 슬롯 정보
+      slotId: slotId ? (typeof slotId === 'number' ? slotId : parseInt(slotId) || null) : null, // slotId를 gameState에 포함
       slotName,
       setSlotName,
       slotCreatedAt,

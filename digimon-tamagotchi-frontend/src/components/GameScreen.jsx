@@ -44,6 +44,8 @@ const GameScreen = ({
   showCallModal = false,
   onCallIconClick = () => {},
   onCallModalClose = () => {},
+  showSleepDisturbanceToast = false,
+  sleepDisturbanceToastMessage = "",
   
   
   // 진화 애니메이션
@@ -226,6 +228,29 @@ const GameScreen = ({
           }}
         >
           {callToastMessage}
+        </div>
+      )}
+      
+      {/* 수면 방해 Toast 메시지 */}
+      {showSleepDisturbanceToast && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 6,
+            background: "rgba(255, 165, 0, 0.9)",
+            color: "white",
+            padding: "16px 24px",
+            borderRadius: 8,
+            fontSize: 20,
+            fontWeight: "bold",
+            border: "2px solid #fff",
+            animation: "fadeInOut 3s ease-in-out",
+          }}
+        >
+          {sleepDisturbanceToastMessage}
         </div>
       )}
       

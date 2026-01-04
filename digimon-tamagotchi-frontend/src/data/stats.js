@@ -79,7 +79,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   return merged;
 }
 
-export function updateLifespan(stats, deltaSec=1){
+export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   if(stats.isDead) return stats;
 
   const s= { ...stats };
@@ -99,8 +99,8 @@ export function updateLifespan(stats, deltaSec=1){
     }
   }
 
-  // ★ (3) poop 로직
-  if(s.poopTimer>0){
+  // ★ (3) poop 로직 (수면 중에는 타이머 감소하지 않음)
+  if(s.poopTimer>0 && !isSleeping){
     s.poopCountdown -= deltaSec;
     if(s.poopCountdown <= 0){
       if(s.poopCount < 8){
