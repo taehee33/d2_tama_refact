@@ -290,6 +290,7 @@ const Canvas = ({
         }
       }
 
+
       frame++;
       animationID.current= requestAnimationFrame(animate);
     }

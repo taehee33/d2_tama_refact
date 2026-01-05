@@ -86,6 +86,9 @@ export default function StatsPopup({
     normalReincarnations=0,
     perfectReincarnations=0,
     isInjured=false,
+    injuredAt=null,
+    injuries=0,
+    healedDosesCurrent=0,
     hungerCountdown=0,
     strengthCountdown=0,
     poopCountdown=0,
@@ -94,7 +97,14 @@ export default function StatsPopup({
   // devMode에서 select로 변경
   function handleChange(field, e){
     if(!onChangeStats) return;
-    const val = parseInt(e.target.value, 10);
+    let val;
+    
+    // boolean 필드는 checkbox로 처리
+    if(field === "isInjured") {
+      val = e.target.checked;
+    } else {
+      val = parseInt(e.target.value, 10);
+    }
 
     // 기존 값
     const oldPoopCount = stats.poopCount || 0;
@@ -107,6 +117,16 @@ export default function StatsPopup({
       if(oldPoopCount < 8 && val >= 8 && !newStats.lastMaxPoopTime) {
         newStats.lastMaxPoopTime = Date.now();
       }
+    }
+    
+    // isInjured가 true로 설정될 때 injuredAt이 없으면 현재 시간으로 설정
+    if(field === "isInjured" && val === true && !newStats.injuredAt) {
+      newStats.injuredAt = Date.now();
+    }
+    // isInjured가 false로 설정될 때 injuredAt 초기화
+    if(field === "isInjured" && val === false) {
+      newStats.injuredAt = null;
+      newStats.healedDosesCurrent = 0;
     }
 
     onChangeStats(newStats);
@@ -128,6 +148,14 @@ export default function StatsPopup({
   const possiblePoop= [];
   for(let i=0; i<=8; i++){
     possiblePoop.push(i);
+  }
+  const possibleInjuries= [];
+  for(let i=0; i<=15; i++){
+    possibleInjuries.push(i);
+  }
+  const possibleHealedDoses= [];
+  for(let i=0; i<=5; i++){
+    possibleHealedDoses.push(i);
   }
   
   // 타이머 남은 시간 계산 (초 단위)
@@ -257,6 +285,13 @@ export default function StatsPopup({
           {/* ★ lastMaxPoopTime 표시 */}
           <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
           
+          {/* 부상 관련 필드 */}
+          <li className="mt-2 pt-2 border-t border-gray-300">--- 부상 관련 필드 ---</li>
+          <li>isInjured: {isInjured ? "Yes" : "No"}</li>
+          <li>injuredAt: {formatTimestamp(injuredAt)}</li>
+          <li>injuries: {injuries || 0}</li>
+          <li>healedDosesCurrent: {healedDosesCurrent || 0}</li>
+          
           {/* 매뉴얼 기반 추가 필드 */}
           <li className="mt-2 pt-2 border-t border-gray-300">--- 매뉴얼 기반 필드 ---</li>
           <li>Protein Overdose: {stats.proteinOverdose || 0}</li>
@@ -319,6 +354,46 @@ export default function StatsPopup({
                 {possiblePoop.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
+            
+            {/* 부상 관련 필드 */}
+            <div className="mt-2 pt-2 border-t border-gray-300">
+              <h4 className="font-bold text-xs mb-1">부상 상태 테스트</h4>
+              
+              {/* isInjured */}
+              <label className="block mt-1 flex items-center">
+                <input
+                  type="checkbox"
+                  checked={isInjured || false}
+                  onChange={(e)=> handleChange("isInjured",e)}
+                  className="mr-2"
+                />
+                isInjured (부상 상태)
+              </label>
+              
+              {/* injuries */}
+              <label className="block mt-1">
+                injuries (부상 횟수):
+                <select
+                  value={injuries || 0}
+                  onChange={(e)=> handleChange("injuries",e)}
+                  className="border ml-2"
+                >
+                  {possibleInjuries.map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </label>
+              
+              {/* healedDosesCurrent */}
+              <label className="block mt-1">
+                healedDosesCurrent (치료제 투여 횟수):
+                <select
+                  value={healedDosesCurrent || 0}
+                  onChange={(e)=> handleChange("healedDosesCurrent",e)}
+                  className="border ml-2"
+                >
+                  {possibleHealedDoses.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </label>
+            </div>
           </div>
         )}
     </>

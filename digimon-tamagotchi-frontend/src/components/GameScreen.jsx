@@ -1,5 +1,5 @@
 // src/components/GameScreen.jsx
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Canvas from "./Canvas";
 import StatusHearts from "./StatusHearts";
 
@@ -55,6 +55,25 @@ const GameScreen = ({
   // 개발자 모드
   developerMode = false,
 }) => {
+  // 부상 상태 이모티콘 목록
+  const sickEmojis = ["😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "😵‍💫", "🤯"];
+  
+  // 부상 상태일 때 랜덤으로 4개 선택 (부상 상태가 시작될 때 한 번만 선택)
+  const [selectedSickEmojis, setSelectedSickEmojis] = useState([]);
+  const prevIsInjured = useRef(digimonStats.isInjured);
+  
+  useEffect(() => {
+    // 부상 상태가 시작될 때 랜덤으로 4개 선택
+    if (digimonStats.isInjured && !prevIsInjured.current) {
+      const shuffled = [...sickEmojis].sort(() => Math.random() - 0.5);
+      setSelectedSickEmojis(shuffled.slice(0, 4));
+    } else if (!digimonStats.isInjured && prevIsInjured.current) {
+      // 부상 상태가 끝나면 초기화
+      setSelectedSickEmojis([]);
+    }
+    prevIsInjured.current = digimonStats.isInjured;
+  }, [digimonStats.isInjured]);
+  
   return (
     <div style={{ position: "relative", width, height, border: "2px solid #555" }}>
       {/* 배경 이미지 */}
@@ -105,25 +124,73 @@ const GameScreen = ({
         </div>
       )}
       
-      {/* 부상 상태 아이콘 (병원 십자가) */}
-      {digimonStats.isInjured && !digimonStats.isDead && (
-        <div
-          style={{
-            position: "absolute",
-            top: 8,
-            left: 8,
-            zIndex: 4,
-            background: "rgba(255,0,0,0.6)",
-            color: "white",
-            padding: "4px 8px",
-            borderRadius: 8,
-            fontWeight: "bold",
-            fontSize: 16,
-            animation: "float 2s ease-in-out infinite",
-          }}
-        >
-          🏥😵‍💫🏥
-        </div>
+      {/* 부상 상태: 이모티콘 디지몬 주변에 4개 표시 (왼쪽 2개, 오른쪽 2개) */}
+      {digimonStats.isInjured && !digimonStats.isDead && selectedSickEmojis.length === 4 && (
+        <>
+          {/* 왼쪽 위 이모티콘 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "30%",
+              left: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+            }}
+          >
+            {selectedSickEmojis[0]}
+          </div>
+          {/* 왼쪽 아래 이모티콘 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "70%",
+              left: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "0.5s",
+            }}
+          >
+            {selectedSickEmojis[1]}
+          </div>
+          {/* 오른쪽 위 이모티콘 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "30%",
+              right: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "1s",
+            }}
+          >
+            {selectedSickEmojis[2]}
+          </div>
+          {/* 오른쪽 아래 이모티콘 */}
+          <div
+            style={{
+              position: "absolute",
+              top: "70%",
+              right: "10%",
+              transform: "translateY(-50%)",
+              zIndex: 5,
+              fontSize: 48,
+              opacity: 0.7,
+              animation: "float 2s ease-in-out infinite",
+              animationDelay: "1.5s",
+            }}
+          >
+            {selectedSickEmojis[3]}
+          </div>
+        </>
       )}
 
       {/* 죽음 상태: 해골 디지몬 주변에 4개 표시 */}
@@ -411,6 +478,7 @@ const GameScreen = ({
         cleanStep={cleanStep}
         sleepStatus={sleepStatus}
         isRefused={isRefused}
+        isInjured={digimonStats.isInjured && !digimonStats.isDead}
       />
     </div>
   );

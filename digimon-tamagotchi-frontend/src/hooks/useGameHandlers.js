@@ -88,6 +88,7 @@ export function useGameHandlers({
   applyLazyUpdateBeforeAction,
   handleCleanPoopFromHook,
   startHealCycle,
+  setHealModalStats, // HealModal에 전달할 최신 스탯 설정
   
   // Data
   quests,
@@ -167,6 +168,8 @@ export function useGameHandlers({
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
     }
     setDigimonStats(updatedStats);
+    // HealModal에 전달할 최신 스탯 설정 (비동기 상태 업데이트 문제 해결)
+    setHealModalStats(updatedStats);
     // 부상이 없으면 치료 불가 - 모달로 표시
     if (!updatedStats.isInjured) {
       toggleModal('heal', true);

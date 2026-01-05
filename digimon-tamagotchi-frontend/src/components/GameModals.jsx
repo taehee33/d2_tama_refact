@@ -361,11 +361,17 @@ export default function GameModals({
       {/* Heal Modal */}
       {modals.heal && (
         <HealModal
-          isInjured={digimonStats.isInjured || false}
-          currentDoses={digimonStats.healedDosesCurrent || 0}
+          isInjured={(gameState.healModalStats || digimonStats).isInjured || false}
+          currentDoses={(gameState.healModalStats || digimonStats).healedDosesCurrent || 0}
           requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
           onHeal={startHealCycle}
-          onClose={() => toggleModal('heal', false)}
+          onClose={() => {
+            toggleModal('heal', false);
+            // 모달 닫을 때 healModalStats 초기화
+            if (gameState.setHealModalStats) {
+              gameState.setHealModalStats(null);
+            }
+          }}
         />
       )}
 

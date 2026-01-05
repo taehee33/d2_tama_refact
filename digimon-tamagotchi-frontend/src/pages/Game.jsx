@@ -141,6 +141,8 @@ function Game(){
     setSeasonName,
     seasonDuration,
     setSeasonDuration,
+    healModalStats,
+    setHealModalStats,
   } = gameState;
 
   const {
@@ -360,9 +362,10 @@ function Game(){
         }
 
         setIsSleeping(sleepingNow);
-        if (sleepingNow) {
+        // 수면 상태 변경 시 애니메이션 업데이트 (부상 상태는 아래 애니메이션 우선순위 로직에서 처리)
+        if (sleepingNow && !updatedStats.isInjured && !updatedStats.isDead) {
           setCurrentAnimation("sleep");
-        } else if (currentAnimation === "sleep") {
+        } else if (!sleepingNow && currentAnimation === "sleep" && !updatedStats.isInjured && !updatedStats.isDead) {
           setCurrentAnimation("idle");
         }
         // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
@@ -678,6 +681,7 @@ function Game(){
     },
     handleCleanPoopFromHook,
     startHealCycle,
+    setHealModalStats, // HealModal에 전달할 최신 스탯 설정
     quests,
     digimonDataVer1,
     slotId,
@@ -729,13 +733,7 @@ async function setSelectedDigimonAndSave(name) {
     eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
     rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
 
-    // 수면/피곤 상태에서는 고정 슬립 프레임 (오하카다몬 제외)
-    // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
-    if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
-      idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
-      eatFramesArr = idleFrames;
-      rejectFramesArr = idleFrames;
-    }
+    // 애니메이션 우선순위: 죽음 > 부상 > 수면 > 일반
     // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 1과 14 표시
     // ⚠️ 중요: 오하카다몬은 제외 (오하카다몬은 이미 환생한 상태이므로 isDead가 false여야 함)
     if(digimonStats.isDead){
@@ -748,6 +746,33 @@ async function setSelectedDigimonAndSave(name) {
       if(currentAnimation !== "pain2"){
         setCurrentAnimation("pain2");
       }
+    }
+    // 부상 상태: 모션 10번(sick) 사용, 스프라이트 13과 14 표시
+    else if(digimonStats.isInjured){
+      // 모션 10번 (sick) - digimonAnimations[10] = { name: "sick", frames: [13, 14] }
+      // 스프라이트 13과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
+      idleFrames = [`${digimonStats.sprite + 13}`, `${digimonStats.sprite + 14}`];
+      eatFramesArr = idleFrames;
+      rejectFramesArr = idleFrames;
+      // 부상 상태에서는 항상 sick 모션 사용
+      if(currentAnimation !== "sick"){
+        setCurrentAnimation("sick");
+      }
+    }
+    // 수면/피곤 상태: 모션 8번(sleep) 사용, 스프라이트 11과 12 표시
+    // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
+    else if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+      idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
+      eatFramesArr = idleFrames;
+      rejectFramesArr = idleFrames;
+      // 수면 상태에서는 sleep 모션 사용
+      if(currentAnimation !== "sleep"){
+        setCurrentAnimation("sleep");
+      }
+    }
+    // 일반 상태: idle 모션으로 복귀
+    else if(currentAnimation === "sick" || currentAnimation === "sleep" || currentAnimation === "pain2"){
+      setCurrentAnimation("idle");
     }
   }
 

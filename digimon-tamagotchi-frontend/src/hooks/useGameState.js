@@ -151,7 +151,12 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   });
   
   // ============================================
-  // 3. Flags (상태 플래그)
+  // 3. 임시 상태 (모달용)
+  // ============================================
+  const [healModalStats, setHealModalStats] = useState(null); // HealModal에 전달할 최신 스탯
+  
+  // ============================================
+  // 4. Flags (상태 플래그)
   // ============================================
   const [developerMode, setDeveloperMode] = useState(() => loadDeveloperMode());
   const [isEvolving, setIsEvolving] = useState(false);
@@ -274,6 +279,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setDigimonStats,
       activityLogs,
       setActivityLogs,
+      // 임시 상태 (모달용)
+      healModalStats,
+      setHealModalStats,
       
       // 슬롯 정보
       slotId: slotId ? (typeof slotId === 'number' ? slotId : parseInt(slotId) || null) : null, // slotId를 gameState에 포함

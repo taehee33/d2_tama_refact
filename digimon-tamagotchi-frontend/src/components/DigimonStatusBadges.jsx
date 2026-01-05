@@ -75,15 +75,12 @@ const DigimonStatusBadges = ({
       messages.push({ text: "진화 가능! ✨", color: "text-purple-600", bgColor: "bg-purple-100", priority: 1.5, category: "good" });
     }
 
-    // 2. 부상 상태
-    if (injuries > 0) {
-      if (injuries >= 15) {
-        messages.push({ text: "부상 심각 🏥", color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
-      } else if (injuries >= 10) {
-        messages.push({ text: "부상 많음 🏥", color: "text-orange-600", bgColor: "bg-orange-100", priority: 2, category: "warning" });
-      } else {
-        messages.push({ text: "부상 있음 🏥", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 2, category: "warning" });
-      }
+    // 2. 부상 상태 (긴급)
+    if (digimonStats.isInjured) {
+      messages.push({ text: "치료필요! 🏥", color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
+    } else if (injuries > 0) {
+      // 부상 이력이 있지만 현재 부상 상태가 아닌 경우
+      messages.push({ text: `다쳤던 횟수 : ${injuries} 회 🏥`, color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 2.5, category: "warning" });
     }
 
     // 3. 똥 위험
