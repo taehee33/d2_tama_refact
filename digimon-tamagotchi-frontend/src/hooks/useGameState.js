@@ -145,6 +145,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     
     // 상태 상세 모달
     statusDetail: false,
+    
+    // 과식 확인 모달
+    overfeedConfirm: false,
   });
   
   // ============================================

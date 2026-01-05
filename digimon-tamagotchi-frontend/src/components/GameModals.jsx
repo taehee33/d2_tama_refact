@@ -17,6 +17,7 @@ import DeathPopup from "./DeathPopup";
 import DigimonInfoModal from "./DigimonInfoModal";
 import HealModal from "./HealModal";
 import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
+import OverfeedConfirmModal from "./OverfeedConfirmModal";
 
 /**
  * GameModals 컴포넌트
@@ -365,6 +366,14 @@ export default function GameModals({
           requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
           onHeal={startHealCycle}
           onClose={() => toggleModal('heal', false)}
+        />
+      )}
+
+      {/* Overfeed Confirm Modal */}
+      {modals.overfeedConfirm && (
+        <OverfeedConfirmModal
+          onConfirm={handlers.onOverfeedConfirm}
+          onCancel={handlers.onOverfeedCancel}
         />
       )}
 

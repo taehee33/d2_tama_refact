@@ -131,6 +131,7 @@ export function useGameActions({
   currentQuestArea,
   setCurrentQuestArea,
   setCurrentQuestRound,
+  toggleModal, // 과식 확인 모달용
 }) {
   // 기본값 제공 및 에러 방지
   if (!digimonStats || !setDigimonStats || !setDigimonStatsAndSave || !applyLazyUpdateBeforeAction) {
@@ -184,15 +185,11 @@ export function useGameActions({
     // 매뉴얼 기반 거부 체크
     if(type==="meat"){
       if(willRefuseMeat(updatedStats)){
-        // 거절 상태: 오버피드만 증가하고 애니메이션은 보여줌 (고기는 안 먹음)
+        // 거절 상태: 과식 확인 팝업 표시
+        toggleModal('overfeedConfirm', true);
+        // 팝업에서 선택한 후 처리하기 위해 상태 저장
         setFeedType(type);
-        setCurrentAnimation("foodRejectRefuse"); // 거절 애니메이션으로 변경
-        setShowFood(false); // 거절 애니메이션 중에는 고기 표시하지 않음
-        setFeedStep(0);
-        // requestAnimationFrame을 사용하여 다음 프레임에서 애니메이션 시작
-        requestAnimationFrame(() => {
-          eatCycle(0, type, true); // isRefused = true
-        });
+        setDigimonStats(updatedStats);
         return;
       }
     } else {
@@ -259,8 +256,14 @@ export function useGameActions({
       // 먹이기 로직 실행 (결과 객체도 함께 받음)
       let eatResult;
       let updatedStats;
-      if (type === "meat") {
-        eatResult = feedMeat(currentStats);
+      if (isRefused && type === "meat") {
+        // 거절 상태이고 "아니오"를 선택한 경우: feedMeat 호출하지 않음 (overfeed 증가 없음)
+        updatedStats = currentStats;
+        eatResult = { updatedStats, fullnessIncreased: false, canEatMore: false, isOverfeed: false };
+      } else if (type === "meat") {
+        // 거절 상태에서 "예"를 선택한 경우 forceFeed = true로 전달
+        const wasRefusing = willRefuseMeat(currentStats);
+        eatResult = feedMeat(currentStats, wasRefusing && !isRefused); // wasRefusing이 true이고 isRefused가 false면 forceFeed = true
         updatedStats = eatResult.updatedStats;
       } else {
         eatResult = feedProtein(currentStats);
@@ -306,9 +309,12 @@ export function useGameActions({
       
       let logText = '';
       if (type === "meat") {
-        if (eatResult.isOverfeed || isRefused) {
+        if (eatResult.isOverfeed) {
           // 오버피드 발생 시: 거절 상태에서 고기를 주면 오버피드만 증가
           logText = `Overfeed! (거절 상태, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
+        } else if (isRefused) {
+          // 거절 애니메이션만 (overfeed 증가 없음)
+          logText = `Feed: Refused (고기 거절, Overfeed 증가 없음)`;
         } else {
           logText = `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
         }

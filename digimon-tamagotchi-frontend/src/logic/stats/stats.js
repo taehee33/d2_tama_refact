@@ -197,6 +197,49 @@ export function updateAge(stats) {
 }
 
 /**
+ * Lazy Update용 나이 업데이트
+ * 마지막 저장 시간부터 현재까지의 모든 자정을 체크하여 age 증가
+ * @param {Object} stats - 현재 스탯
+ * @param {Date} lastSaved - 마지막 저장 시간
+ * @param {Date} now - 현재 시간
+ * @returns {Object} 업데이트된 스탯
+ */
+export function updateAgeWithLazyUpdate(stats, lastSaved, now) {
+  let updatedStats = { ...stats };
+  const lastAgeUpdateDate = updatedStats.lastAgeUpdateDate 
+    ? new Date(updatedStats.lastAgeUpdateDate)
+    : null;
+  
+  // 마지막 저장 시간의 다음 자정부터 현재까지의 모든 자정 체크
+  let checkTime = new Date(lastSaved);
+  checkTime.setHours(0);
+  checkTime.setMinutes(0);
+  checkTime.setSeconds(0);
+  checkTime.setMilliseconds(0);
+  
+  // 마지막 저장 시간이 자정 이후라면 다음 날 자정으로 이동
+  if (lastSaved.getHours() > 0 || lastSaved.getMinutes() > 0 || lastSaved.getSeconds() > 0) {
+    checkTime.setDate(checkTime.getDate() + 1);
+  }
+  
+  // 현재 시간까지의 모든 자정 체크
+  while (checkTime.getTime() <= now.getTime()) {
+    const checkDate = new Date(checkTime.getFullYear(), checkTime.getMonth(), checkTime.getDate());
+    
+    // 마지막 증가 날짜가 없거나 체크하는 날짜가 마지막 증가 날짜보다 이후면 age 증가
+    if (!lastAgeUpdateDate || checkDate.getTime() > lastAgeUpdateDate.getTime()) {
+      updatedStats.age = (updatedStats.age || 0) + 1;
+      updatedStats.lastAgeUpdateDate = checkDate.getTime();
+    }
+    
+    // 다음 날 자정으로 이동
+    checkTime.setDate(checkTime.getDate() + 1);
+  }
+  
+  return updatedStats;
+}
+
+/**
  * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
  * 스탯(배고픔, 수명 등)을 한 번에 차감
  * 

@@ -6,9 +6,10 @@
  * 매뉴얼: "Giving this to a Digimon will add one heart to the hunger meter, and add one gigabyte to their weight."
  * 
  * @param {Object} stats - 현재 스탯
+ * @param {boolean} forceFeed - 강제로 먹이기 (과식 확인 팝업에서 "예" 선택 시 true)
  * @returns {Object} 업데이트된 스탯 및 결과
  */
-export function feedMeat(stats) {
+export function feedMeat(stats, forceFeed = false) {
   const s = { ...stats };
   
   // 배고픔 하트 +1 (최대 5 + 오버피드 허용치)
@@ -18,13 +19,19 @@ export function feedMeat(stats) {
   // 고기를 먹기 전 거절 여부 체크
   const wasRefusingBefore = oldFullness >= maxFullness;
   
-  // 오버피드 체크: 거절 상태에서 고기를 주면 오버피드 발생 (고기는 안 먹음)
+  // 오버피드 체크: 거절 상태에서 고기를 주면 오버피드 발생
   let isOverfeed = false;
   if (wasRefusingBefore) {
-    // 이미 거절 상태인데 고기를 주면 오버피드만 발생, 고기는 안 먹음
+    // 이미 거절 상태인데 고기를 주면 오버피드 발생
     s.overfeeds = (s.overfeeds || 0) + 1;
     isOverfeed = true;
-    // fullness와 weight는 증가하지 않음
+    
+    // forceFeed가 true면 (과식 확인 팝업에서 "예" 선택) weight +1 증가
+    if (forceFeed) {
+      s.weight = (s.weight || 0) + 1;
+      // fullness는 이미 max이므로 증가하지 않음
+    }
+    // forceFeed가 false면 (기본 거절 동작) fullness와 weight는 증가하지 않음
   } else {
     // 거절 상태가 아니면 정상적으로 먹음
     if (s.fullness < maxFullness) {

@@ -505,6 +505,7 @@ function Game(){
     handleTrainResult: handleTrainResultFromHook,
     handleBattleComplete: handleBattleCompleteFromHook,
     handleCleanPoop: handleCleanPoopFromHook,
+    eatCycle: eatCycleFromHook,
   } = useGameActions({
     digimonStats,
     setDigimonStats,
@@ -542,6 +543,7 @@ function Game(){
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
+    toggleModal, // 과식 확인 모달용
     onSleepDisturbance: () => {
       // 수면 방해 토스트 표시
       toggleModal('sleepDisturbanceToast', true);
@@ -956,6 +958,41 @@ async function setSelectedDigimonAndSave(name) {
   // 로그아웃 핸들러
 
   // handlers 객체 생성 (GameModals에 전달할 핸들러들)
+  // 과식 확인 핸들러
+  const handleOverfeedConfirm = async () => {
+    toggleModal('overfeedConfirm', false);
+    // "예" 선택: 현재 로직대로 진행 (overfeed +1, 고기 먹기)
+    const updatedStats = await applyLazyUpdateBeforeAction();
+    if (updatedStats.isDead) return;
+    
+    setDigimonStats(updatedStats);
+    setFeedType("meat");
+    setCurrentAnimation("eat");
+    toggleModal('food', true); // setShowFood(true) 대신 toggleModal 사용
+    setFeedStep(0);
+    // requestAnimationFrame을 사용하여 다음 프레임에서 애니메이션 시작
+    requestAnimationFrame(() => {
+      eatCycleFromHook(0, "meat", false); // isRefused = false (정상 먹기)
+    });
+  };
+
+  const handleOverfeedCancel = async () => {
+    toggleModal('overfeedConfirm', false);
+    // "아니오" 선택: overfeed 증가 없이 거절 애니메이션만
+    const updatedStats = await applyLazyUpdateBeforeAction();
+    if (updatedStats.isDead) return;
+    
+    setDigimonStats(updatedStats);
+    setFeedType("meat");
+    setCurrentAnimation("foodRejectRefuse");
+    toggleModal('food', false); // setShowFood(false) 대신 toggleModal 사용
+    setFeedStep(0);
+    // 거절 애니메이션 시작 (overfeed 증가 없음)
+    requestAnimationFrame(() => {
+      eatCycleFromHook(0, "meat", true); // isRefused = true (거절 애니메이션만)
+    });
+  };
+
   const handlers = {
     handleFeed: handleFeedFromHook,
     handleTrainResult: handleTrainResultFromHook,
@@ -982,6 +1019,8 @@ async function setSelectedDigimonAndSave(name) {
     setArenaEnemyId,
     setMyArenaEntryId,
     evolve,
+    onOverfeedConfirm: handleOverfeedConfirm,
+    onOverfeedCancel: handleOverfeedCancel,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
