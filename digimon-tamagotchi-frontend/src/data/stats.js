@@ -176,12 +176,75 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   return s;
 }
 
+/**
+ * 나이 업데이트 (자정 경과 확인)
+ * 마지막으로 age가 증가한 날짜를 추적하여 하루에 한 번만 증가하도록 함
+ * @param {Object} stats - 현재 스탯
+ * @returns {Object} 업데이트된 스탯
+ */
 export function updateAge(stats){
   const now= new Date();
+  const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // 자정(00:00)이고, 오늘 아직 age가 증가하지 않았으면 증가
   if(now.getHours()===0 && now.getMinutes()===0){
-    return { ...stats, age: stats.age+1 };
+    const lastAgeUpdateDate = stats.lastAgeUpdateDate 
+      ? new Date(stats.lastAgeUpdateDate)
+      : null;
+    
+    // 마지막 증가 날짜가 없거나 오늘이 아니면 age 증가
+    if (!lastAgeUpdateDate || lastAgeUpdateDate.getTime() !== currentDate.getTime()) {
+      return { 
+        ...stats, 
+        age: (stats.age || 0) + 1,
+        lastAgeUpdateDate: currentDate.getTime()
+      };
+    }
   }
   return stats;
+}
+
+/**
+ * Lazy Update용 나이 업데이트
+ * 마지막 저장 시간부터 현재까지의 모든 자정을 체크하여 age 증가
+ * @param {Object} stats - 현재 스탯
+ * @param {Date} lastSaved - 마지막 저장 시간
+ * @param {Date} now - 현재 시간
+ * @returns {Object} 업데이트된 스탯
+ */
+export function updateAgeWithLazyUpdate(stats, lastSaved, now) {
+  let updatedStats = { ...stats };
+  const lastAgeUpdateDate = updatedStats.lastAgeUpdateDate 
+    ? new Date(updatedStats.lastAgeUpdateDate)
+    : null;
+  
+  // 마지막 저장 시간의 다음 자정부터 현재까지의 모든 자정 체크
+  let checkTime = new Date(lastSaved);
+  checkTime.setHours(0);
+  checkTime.setMinutes(0);
+  checkTime.setSeconds(0);
+  checkTime.setMilliseconds(0);
+  
+  // 마지막 저장 시간이 자정 이후라면 다음 날 자정으로 이동
+  if (lastSaved.getHours() > 0 || lastSaved.getMinutes() > 0 || lastSaved.getSeconds() > 0) {
+    checkTime.setDate(checkTime.getDate() + 1);
+  }
+  
+  // 현재 시간까지의 모든 자정 체크
+  while (checkTime.getTime() <= now.getTime()) {
+    const checkDate = new Date(checkTime.getFullYear(), checkTime.getMonth(), checkTime.getDate());
+    
+    // 마지막 증가 날짜가 없거나 체크하는 날짜가 마지막 증가 날짜보다 이후면 age 증가
+    if (!lastAgeUpdateDate || checkDate.getTime() > lastAgeUpdateDate.getTime()) {
+      updatedStats.age = (updatedStats.age || 0) + 1;
+      updatedStats.lastAgeUpdateDate = checkDate.getTime();
+    }
+    
+    // 다음 날 자정으로 이동
+    checkTime.setDate(checkTime.getDate() + 1);
+  }
+  
+  return updatedStats;
 }
 
 /**
@@ -230,18 +293,12 @@ export function applyLazyUpdate(stats, lastSavedAt) {
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
   
-  // 나이 계산 (경과 시간 기반)
-  if (updatedStats.birthTime) {
-    const birthTime = typeof updatedStats.birthTime === 'number' 
-      ? updatedStats.birthTime 
-      : new Date(updatedStats.birthTime).getTime();
-    const ageInDays = Math.floor((now.getTime() - birthTime) / (24 * 60 * 60 * 1000));
-    updatedStats.age = Math.max(0, ageInDays);
-  } else {
-    // birthTime이 없으면 현재 시간으로 설정하고 age는 0
+  // birthTime이 없으면 현재 시간으로 설정
+  if (!updatedStats.birthTime) {
     updatedStats.birthTime = now.getTime();
-    updatedStats.age = 0;
   }
+  
+  // 나이는 updateAge 함수에서 자정에만 증가하도록 처리 (여기서는 계산하지 않음)
   
   // updateLifespan을 경과 시간만큼 호출
   // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
@@ -479,8 +536,8 @@ export function applyLazyUpdate(stats, lastSavedAt) {
   // 수면 호출은 실시간으로만 처리 (Lazy Update에서는 처리하지 않음)
   // 이유: 수면 호출은 수면 시간이 시작될 때 한 번만 발생해야 하므로
 
-  // 나이 업데이트 (자정 경과 확인)
-  updatedStats = updateAge(updatedStats);
+  // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크
+  updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSaved, now);
 
   // 마지막 저장 시간 업데이트
   updatedStats.lastSavedAt = now;

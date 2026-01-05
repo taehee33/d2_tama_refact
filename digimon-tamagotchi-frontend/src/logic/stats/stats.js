@@ -169,14 +169,30 @@ export function updateLifespan(stats, deltaSec = 1) {
 
 /**
  * 나이 업데이트 (자정 경과 확인)
+ * 마지막으로 age가 증가한 날짜를 추적하여 하루에 한 번만 증가하도록 함
  * @param {Object} stats - 현재 스탯
  * @returns {Object} 업데이트된 스탯
  */
 export function updateAge(stats) {
   const now = new Date();
+  const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  // 자정(00:00)이고, 오늘 아직 age가 증가하지 않았으면 증가
   if (now.getHours() === 0 && now.getMinutes() === 0) {
-    return { ...stats, age: stats.age + 1 };
+    const lastAgeUpdateDate = stats.lastAgeUpdateDate 
+      ? new Date(stats.lastAgeUpdateDate)
+      : null;
+    
+    // 마지막 증가 날짜가 없거나 오늘이 아니면 age 증가
+    if (!lastAgeUpdateDate || lastAgeUpdateDate.getTime() !== currentDate.getTime()) {
+      return { 
+        ...stats, 
+        age: (stats.age || 0) + 1,
+        lastAgeUpdateDate: currentDate.getTime()
+      };
+    }
   }
+  
   return stats;
 }
 
@@ -446,8 +462,8 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     }
   }
 
-  // 나이 업데이트
-  updatedStats = updateAge(updatedStats);
+  // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크
+  updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSaved, now);
 
   updatedStats.lastSavedAt = now;
 
