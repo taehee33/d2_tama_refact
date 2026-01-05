@@ -1,5 +1,5 @@
 // src/components/HealModal.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 /**
  * 치료(Heal) 모달 컴포넌트 (Pixel 스타일)
@@ -10,17 +10,49 @@ export default function HealModal({
   requiredDoses = 1,
   onHeal,
   onClose,
+  treatmentMessage = null, // 치료 성공 메시지
 }) {
+  // 로컬 상태로 treatmentMessage 관리 (props 변경 감지)
+  const [displayMessage, setDisplayMessage] = useState(treatmentMessage);
+  
+  // treatmentMessage가 변경되면 로컬 상태 업데이트
+  useEffect(() => {
+    if (treatmentMessage) {
+      console.log('[HealModal] treatmentMessage 변경 감지:', treatmentMessage);
+      setDisplayMessage(treatmentMessage);
+    }
+  }, [treatmentMessage]);
+  
   // 상태 메시지 결정
   const getStatusMessage = () => {
+    // 치료 성공 메시지가 있으면 우선 표시
+    if (displayMessage) {
+      console.log('[HealModal] 치료 메시지 표시:', displayMessage);
+      // 메시지 뒤에 ! 추가 (이미 !가 있으면 그대로, 없으면 추가)
+      const messageWithExclamation = displayMessage.endsWith('!') 
+        ? displayMessage 
+        : `${displayMessage} !`;
+      return messageWithExclamation;
+    }
     if (!isInjured) {
-      return "Not injured!";
+      return "부상 없음!";
     }
     if (currentDoses >= requiredDoses) {
-      return "Fully Recovered!";
+      return "완전 회복!";
     }
-    return `Doses: ${currentDoses} / ${requiredDoses}`;
+    return `치료제: ${currentDoses} / ${requiredDoses}`;
   };
+  
+  // 디버깅: props 확인
+  useEffect(() => {
+    console.log('[HealModal] Props:', {
+      treatmentMessage,
+      displayMessage,
+      isInjured,
+      currentDoses,
+      requiredDoses,
+    });
+  }, [treatmentMessage, displayMessage, isInjured, currentDoses, requiredDoses]);
 
   // 상태 아이콘 결정
   const getStatusIcon = () => {
@@ -30,7 +62,7 @@ export default function HealModal({
     if (currentDoses >= requiredDoses) {
       return "💚";
     }
-    return "💀";
+    return "💉";
   };
 
   return (
@@ -39,7 +71,7 @@ export default function HealModal({
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-yellow-400 pixel-art-text">
-            MEDICAL CARE
+            디지몬 치료
           </h2>
           <button
             onClick={onClose}
@@ -59,29 +91,66 @@ export default function HealModal({
           <p className="text-white text-center text-lg font-bold pixel-art-text">
             {getStatusMessage()}
           </p>
-          {isInjured && currentDoses < requiredDoses && (
+          {/* 치료 성공 후 추가 치료 필요 메시지 */}
+          {displayMessage && isInjured && currentDoses < requiredDoses && (
             <p className="text-yellow-300 text-center text-sm mt-2">
-              Needs medicine.
+              추가 치료가 필요합니다. ({currentDoses}/{requiredDoses})
+            </p>
+          )}
+          {/* 최종 치료 완료 메시지 */}
+          {displayMessage && (!isInjured || currentDoses >= requiredDoses) && (
+            <p className="text-green-300 text-center text-sm mt-2">
+              치료 완료! ({requiredDoses}/{requiredDoses})
+            </p>
+          )}
+          {/* 치료 전 안내 메시지 */}
+          {!displayMessage && isInjured && currentDoses < requiredDoses && (
+            <p className="text-yellow-300 text-center text-sm mt-2">
+              치료가 필요합니다.
             </p>
           )}
         </div>
 
         {/* Buttons */}
         <div className="flex gap-3">
-          {isInjured && currentDoses < requiredDoses && (
+          {/* 완전 회복 시 확인 버튼만 표시 */}
+          {!isInjured || currentDoses >= requiredDoses ? (
             <button
-              onClick={onHeal}
+              onClick={onClose}
               className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded pixel-art-button"
             >
-              [ HEAL ]
+              [ 확인 ]
             </button>
+          ) : (
+            <>
+              {/* 추가 치료 필요 시 치료 버튼 표시 */}
+              {!displayMessage && (
+                <button
+                  onClick={onHeal}
+                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded pixel-art-button"
+                >
+                  [ 치료 ]
+                </button>
+              )}
+              {/* 치료 후 추가 치료 필요 시 치료 버튼과 닫기 버튼 모두 표시 */}
+              {displayMessage && (
+                <>
+                  <button
+                    onClick={onHeal}
+                    className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded pixel-art-button"
+                  >
+                    [ 치료 ]
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded pixel-art-button"
+                  >
+                    [ 닫기 ]
+                  </button>
+                </>
+              )}
+            </>
           )}
-          <button
-            onClick={onClose}
-            className="flex-1 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded pixel-art-button"
-          >
-            [ CLOSE ]
-          </button>
         </div>
       </div>
     </div>

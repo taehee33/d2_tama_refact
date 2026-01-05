@@ -51,6 +51,8 @@ export function useGameAnimations({
   wakeUntil,
   selectedDigimon,
   newDigimonDataVer1,
+  setHealTreatmentMessage,
+  setHealModalStats,
 }) {
   /**
    * 먹이기 애니메이션 사이클
@@ -221,43 +223,69 @@ export function useGameAnimations({
 
   /**
    * 치료 애니메이션 사이클
-   * @param {number} step - 현재 단계
+   * 치료 버튼 클릭 시 즉시 치료 로직 실행 (애니메이션 없음)
+   * @param {number} step - 현재 단계 (사용하지 않음, 호환성을 위해 유지)
    * @param {Object} currentStats - 현재 스탯
    */
   const healCycle = async (step, currentStats) => {
-    if (step >= 1) {
-      toggleModal('heal', false);
-      setHealStep(0);
-      
-      // 치료 로직
-      const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
-      const requiredDoses = currentDigimonData.stats?.healDoses || 1; // 기본값 1
-      const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
-      
-      let updatedStats = {
-        ...currentStats,
-        healedDosesCurrent: newHealedDoses,
-      };
-      
-      // 필요 치료 횟수 충족 시 완전 회복
-      if (newHealedDoses >= requiredDoses) {
-        updatedStats.isInjured = false;
-        updatedStats.injuredAt = null;
-        updatedStats.healedDosesCurrent = 0;
-        const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', 'Fully Healed!');
-        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-      } else {
-        const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', `Need more medicine... (${newHealedDoses}/${requiredDoses})`);
-        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-      }
-      
-      // 스탯 업데이트하여 모달이 최신 상태를 반영하도록 함
-      setDigimonStats(updatedStats);
-      return;
+    // 즉시 치료 로직 실행 (애니메이션 단계 없음)
+    setHealStep(0);
+    
+    // 치료 로직
+    const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
+    const requiredDoses = currentDigimonData.stats?.healDoses || 1; // 기본값 1
+    const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
+    
+    // 랜덤 치료 종류 선택
+    const treatmentTypes = [
+      "수술 치료",
+      "약물 치료",
+      "방사선 치료",
+      "물리 치료",
+      "심리 치료",
+      "통합 치료"
+    ];
+    const randomTreatment = treatmentTypes[Math.floor(Math.random() * treatmentTypes.length)];
+    const treatmentMessage = `${randomTreatment} 성공`;
+    
+    let updatedStats = {
+      ...currentStats,
+      healedDosesCurrent: newHealedDoses,
+    };
+    
+    // 필요 치료 횟수 충족 시 완전 회복
+    if (newHealedDoses >= requiredDoses) {
+      updatedStats.isInjured = false;
+      updatedStats.injuredAt = null;
+      updatedStats.healedDosesCurrent = 0;
+      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', treatmentMessage);
+      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+      // 완전 회복 시 모달은 열어두고 확인 버튼만 보이도록 함 (모달에서 처리)
+    } else {
+      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'HEAL', treatmentMessage);
+      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+      // 추가 치료 필요 시 모달은 열어두고 "추가 치료가 필요합니다." 메시지 표시
     }
     
-    setHealStep(step);
-    setTimeout(() => healCycle(step + 1, currentStats), 500);
+    // 스탯 업데이트하여 모달이 최신 상태를 반영하도록 함
+    setDigimonStats(updatedStats);
+    
+    // healModalStats에 treatmentMessage를 포함하여 업데이트
+    // 이렇게 하면 한 번의 상태 업데이트로 모든 정보가 전달됨
+    if (setHealModalStats) {
+      const modalStatsWithMessage = {
+        ...updatedStats,
+        treatmentMessage: treatmentMessage, // 치료 메시지를 스탯에 포함
+      };
+      setHealModalStats(modalStatsWithMessage);
+      console.log('[healCycle] healModalStats 업데이트 (메시지 포함):', modalStatsWithMessage);
+    }
+    
+    // treatmentMessage 상태도 별도로 업데이트 (호환성을 위해)
+    if (setHealTreatmentMessage) {
+      setHealTreatmentMessage(treatmentMessage);
+    }
+    // 모달은 열어두고 (닫지 않음) 최신 스탯으로 업데이트
   };
 
   /**
@@ -277,6 +305,7 @@ export function useGameAnimations({
 
   /**
    * 치료 애니메이션 시작
+   * 치료 버튼 클릭 시 즉시 치료 로직 실행 (애니메이션 없음)
    */
   const startHealCycle = async () => {
     const updatedStats = await applyLazyUpdateBeforeAction();
@@ -284,9 +313,7 @@ export function useGameAnimations({
       toggleModal('heal', false);
       return;
     }
-    // 치료 연출 시작
-    toggleModal('heal', true);
-    setHealStep(0);
+    // 모달은 이미 열려있으므로 치료 로직만 즉시 실행
     healCycle(0, updatedStats);
   };
 

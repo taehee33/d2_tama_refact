@@ -143,6 +143,8 @@ function Game(){
     setSeasonDuration,
     healModalStats,
     setHealModalStats,
+    healTreatmentMessage,
+    setHealTreatmentMessage,
   } = gameState;
 
   const {
@@ -614,6 +616,8 @@ function Game(){
     wakeUntil,
     selectedDigimon,
     newDigimonDataVer1,
+    setHealTreatmentMessage,
+    setHealModalStats,
   });
   
   // useArenaLogic 훅 호출 (아레나 로직)

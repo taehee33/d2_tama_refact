@@ -367,11 +367,15 @@ export default function GameModals({
           onHeal={startHealCycle}
           onClose={() => {
             toggleModal('heal', false);
-            // 모달 닫을 때 healModalStats 초기화
+            // 모달 닫을 때 healModalStats 및 healTreatmentMessage 초기화
             if (gameState.setHealModalStats) {
               gameState.setHealModalStats(null);
             }
+            if (gameState.setHealTreatmentMessage) {
+              gameState.setHealTreatmentMessage(null);
+            }
           }}
+          treatmentMessage={(gameState.healModalStats?.treatmentMessage) || (gameState.healTreatmentMessage) || null}
         />
       )}
 
