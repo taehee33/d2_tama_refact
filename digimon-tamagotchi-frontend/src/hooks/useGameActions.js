@@ -184,27 +184,15 @@ export function useGameActions({
     // 매뉴얼 기반 거부 체크
     if(type==="meat"){
       if(willRefuseMeat(updatedStats)){
-        setCurrentAnimation("foodRejectRefuse");
-        setShowFood(false);
+        // 거절 상태: 오버피드만 증가하고 애니메이션은 보여줌 (고기는 안 먹음)
+        setFeedType(type);
+        setCurrentAnimation("foodRejectRefuse"); // 거절 애니메이션으로 변경
+        setShowFood(false); // 거절 애니메이션 중에는 고기 표시하지 않음
         setFeedStep(0);
-        // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-        setDigimonStats((prevStats) => {
-          const newLog = {
-            type: 'FEED',
-            text: 'Feed: Refused (Already stuffed)',
-            timestamp: Date.now()
-          };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
-          const statsWithLogs = {
-            ...updatedStats,
-            activityLogs: updatedLogs
-          };
-          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
-            console.error("먹이 거부 로그 저장 오류:", error);
-          });
-          return statsWithLogs;
+        // requestAnimationFrame을 사용하여 다음 프레임에서 애니메이션 시작
+        requestAnimationFrame(() => {
+          eatCycle(0, type, true); // isRefused = true
         });
-        setTimeout(()=> setCurrentAnimation("idle"),2000);
         return;
       }
     } else {
@@ -249,12 +237,16 @@ export function useGameActions({
 
   /**
    * 먹이 주기 사이클 (애니메이션)
+   * 첫 번째 프레임에서 스탯을 즉시 증가시킴
+   * @param {number} step - 현재 프레임
+   * @param {string} type - "meat" | "protein"
+   * @param {boolean} isRefused - 거절 상태 여부 (고기 거절 시 true)
    */
-  const eatCycle = async (step, type) => {
+  const eatCycle = async (step, type, isRefused = false) => {
     const frameCount = (type==="protein"?3:4);
-    if(step>=frameCount){
-      setCurrentAnimation("idle");
-      setShowFood(false);
+    
+    // 첫 번째 프레임에서 스탯 즉시 업데이트
+    if (step === 0) {
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
       const oldFullness = currentStats.fullness || 0;
@@ -292,6 +284,18 @@ export function useGameActions({
       const newOverfeeds = updatedStats.overfeeds || 0;
       const newHungerCountdown = updatedStats.hungerCountdown || 0;
       
+      // 디버깅: 오버피드 관련 변수 추적
+      if (type === "meat") {
+        console.log("[eatCycle] 오버피드 변수 추적:", {
+          oldFullness,
+          newFullness,
+          oldOverfeeds,
+          newOverfeeds,
+          isOverfeed: eatResult.isOverfeed,
+          maxFullness: 5 + (currentStats.maxOverfeed || 0),
+        });
+      }
+      
       // 델타 계산
       const weightDelta = newWeight - oldWeight;
       const fullnessDelta = newFullness - oldFullness;
@@ -302,12 +306,9 @@ export function useGameActions({
       
       let logText = '';
       if (type === "meat") {
-        if (eatResult.isOverfeed) {
-          // 오버피드 발생 시: "Overfeed! Hunger drop delayed (Wt +1g)"
-          const hungerCycleMinutes = Math.floor(hungerCountdownDelta / 60);
-          logText = `Overfeed! Hunger drop delayed (Wt +${weightDelta}g, HungerCycle +${hungerCycleMinutes}min)`;
-        } else if (newOverfeeds > oldOverfeeds) {
-          logText = `Overfeed: Stuffed! (Wt +${weightDelta}g, Hun +${fullnessDelta}, Overfeed +${overfeedsDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness}, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
+        if (eatResult.isOverfeed || isRefused) {
+          // 오버피드 발생 시: 거절 상태에서 고기를 주면 오버피드만 증가
+          logText = `Overfeed! (거절 상태, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
         } else {
           logText = `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
         }
@@ -343,11 +344,36 @@ export function useGameActions({
         });
         return statsWithLogs;
       });
+    }
+    
+    // 거절 상태일 때는 4프레임 애니메이션 (각 500ms, 총 2초)
+    if (isRefused) {
+      // 거절 애니메이션: 4프레임 (각 500ms)
+      if (step >= 4) {
+        // 애니메이션 종료
+        setCurrentAnimation("idle");
+        setShowFood(false);
+        setFeedStep(0);
+        return;
+      }
+      // 거절 애니메이션 진행
+      setCurrentAnimation("foodRejectRefuse");
+      setFeedStep(step);
+      setTimeout(() => eatCycle(step + 1, type, isRefused), 500);
       return;
     }
+    
+    // 애니메이션 종료 처리
+    if(step>=frameCount){
+      setCurrentAnimation("idle");
+      setShowFood(false);
+      return;
+    }
+    
+    // 애니메이션 진행
     setCurrentAnimation("eat");
     setFeedStep(step);
-    setTimeout(()=> eatCycle(step+1,type),500);
+    setTimeout(()=> eatCycle(step+1, type, isRefused),500);
   };
 
   /**

@@ -29,6 +29,7 @@ import { quests } from "../data/v1/quests";
 import { checkEvolution } from "../logic/evolution/checker";
 import { handleHungerTick } from "../logic/stats/hunger";
 import { handleStrengthTick } from "../logic/stats/strength";
+import { willRefuseMeat } from "../logic/food/meat";
 
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
 const DEFAULT_SEASON_ID = 1;
@@ -1215,6 +1216,7 @@ async function setSelectedDigimonAndSave(name) {
         sleepDisturbanceToastMessage="수면 방해! 😴 (10분 동안 깨어있음)"
         evolutionStage={evolutionStage}
         developerMode={developerMode}
+        isRefused={currentAnimation === "foodRejectRefuse" && feedType === "meat"}
       />
       <div className={`flex justify-center w-full ${isMobile ? "control-panel-mobile" : ""}`}>
         <ControlPanel

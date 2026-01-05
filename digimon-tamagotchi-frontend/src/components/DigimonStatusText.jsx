@@ -20,6 +20,7 @@ const DigimonStatusText = ({
     poopCount = 0,
     injuries = 0,
     proteinOverdose = 0,
+    overfeeds = 0,
     callStatus = {},
   } = digimonStats;
 
@@ -36,12 +37,17 @@ const DigimonStatusText = ({
       return { text: "와구와구... 🍽️", color: "text-orange-500", priority: 0 };
     }
 
-    // 0.5. 먹이 거부 상태 (오버피드/과다 복용으로 더 이상 못 먹음)
+    // 0.5. 과식 상태 (오버피드 발생)
+    if (willRefuseMeat(digimonStats) && overfeeds > 0) {
+      return { text: "과식!!! 🍖💥", color: "text-red-600", priority: 0.5 };
+    }
+
+    // 0.6. 먹이 거부 상태 (오버피드/과다 복용으로 더 이상 못 먹음)
     if (willRefuseMeat(digimonStats)) {
-      return { text: "고기를 더이상 못 먹어요! 🍖🚫", color: "text-red-500", priority: 0.5 };
+      return { text: "고기를 더이상 못 먹어요! 🍖🚫", color: "text-red-500", priority: 0.6 };
     }
     if (willRefuseProtein(digimonStats)) {
-      return { text: "단백질 과다 복용으로 더이상 못 먹어요! ⚠️💪", color: "text-red-600", priority: 0.5 };
+      return { text: "단백질 과다 복용으로 더이상 못 먹어요! ⚠️💪", color: "text-red-600", priority: 0.6 };
     }
 
     // 1. 사망 상태

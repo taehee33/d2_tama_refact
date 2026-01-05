@@ -27,7 +27,7 @@ export function feedProtein(stats) {
   const proteinCount = (s.proteinCount || 0) + 1;
   s.proteinCount = proteinCount;
   
-  // 4개마다 Energy +1, Protein Overdose +1
+  // 4개마다 Energy +1, Protein Overdose +1 (메뉴얼: "Every four Protein will increase your Energy and Protein Overdose by 1 each.")
   if (proteinCount % 4 === 0) {
     const maxEnergy = s.maxEnergy || s.maxStamina || 100;
     s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);

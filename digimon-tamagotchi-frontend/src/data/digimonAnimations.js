@@ -5,7 +5,7 @@
 const digimonAnimations = {
   1: { name: "idle", frames: [0, 1, 7] },
   2: { name: "eat", frames: [0, 9, 8] },
-  3: { name: "foodRejectRefuse", frames: [10] },
+  3: { name: "foodRejectRefuse", frames: [10, 10] }, // 좌우 번갈아가게
   4: { name: "trainReady", frames: [4] },
   5: { name: "trainFire", frames: [5] },
   6: { name: "trainSuccessPoopWin", frames: [1, 2] },

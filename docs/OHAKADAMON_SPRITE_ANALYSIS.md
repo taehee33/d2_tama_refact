@@ -163,3 +163,4 @@ idleFrames = [`${digimonStats.sprite}`];
 **작성일**: 2026년 1월 5일  
 **버전**: 1.0
 
+

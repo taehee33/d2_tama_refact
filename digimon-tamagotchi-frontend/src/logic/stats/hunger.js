@@ -4,7 +4,6 @@
 /**
  * 시간 경과에 따른 배고픔 감소 처리
  * 매뉴얼: "As time proceeds, these hearts will empty at a set rate"
- * 오버피드 상태면 감소 지연: "Overfeeding will give you one extra Hunger Loss cycle before one of your hearts drop."
  * 
  * @param {Object} currentStats - 현재 스탯
  * @param {Object} digimonData - 디지몬 데이터 (hungerCycle 정보 포함)
@@ -27,20 +26,13 @@ export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSlee
     s.hungerCountdown -= deltaSec;
     
     if (s.hungerCountdown <= 0) {
-      // 오버피드 상태 체크: 오버피드가 있으면 한 사이클 더 지연
-      if (s.overfeeds > 0) {
-        // 오버피드가 있으면 감소하지 않고 카운트다운만 리셋 (한 사이클 지연)
-        s.hungerCountdown = hungerCycle * 60;
-        s.overfeeds = Math.max(0, s.overfeeds - 1); // 오버피드 카운트 감소
-      } else {
-        // 정상적으로 배고픔 감소
-        s.fullness = Math.max(0, s.fullness - 1);
-        s.hungerCountdown = hungerCycle * 60;
-        
-        // 배고픔이 0이 되면 시간 기록
-        if (s.fullness === 0 && !s.lastHungerZeroAt) {
-          s.lastHungerZeroAt = Date.now();
-        }
+      // 정상적으로 배고픔 감소
+      s.fullness = Math.max(0, s.fullness - 1);
+      s.hungerCountdown = hungerCycle * 60;
+      
+      // 배고픔이 0이 되면 시간 기록
+      if (s.fullness === 0 && !s.lastHungerZeroAt) {
+        s.lastHungerZeroAt = Date.now();
       }
     }
   }

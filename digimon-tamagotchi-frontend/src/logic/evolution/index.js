@@ -7,8 +7,8 @@ export { checkEvolution, findEvolutionTarget } from './checker';
 export function checkEvolutionConditions(stats, digimonData, evolutionCriteria) {
   // 매뉴얼 기반 진화 조건 체크
   // - mistakes (min/max)
-  // - trainings (min)
-  // - overfeeds (max)
+  // - trainings (min/max)
+  // - overfeeds (min/max)
   // - battles (min)
   // - winRatio (min %)
   // - minWeight
@@ -42,9 +42,15 @@ export function checkEvolutionConditions(stats, digimonData, evolutionCriteria) 
     return false;
   }
   
-  // 오버피드 조건
-  if (evolutionCriteria.overfeeds !== undefined && stats.overfeeds > evolutionCriteria.overfeeds) {
-    return false;
+  // 오버피드 조건 (min/max 모두 체크)
+  if (evolutionCriteria.overfeeds !== undefined) {
+    const overfeeds = stats.overfeeds || 0;
+    if (evolutionCriteria.overfeeds.min !== undefined && overfeeds < evolutionCriteria.overfeeds.min) {
+      return false;
+    }
+    if (evolutionCriteria.overfeeds.max !== undefined && overfeeds > evolutionCriteria.overfeeds.max) {
+      return false;
+    }
   }
   
   // 배틀 조건 (현재 디지몬 값만 사용)

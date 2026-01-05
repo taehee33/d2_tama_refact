@@ -45,6 +45,8 @@ const Canvas = ({
   cleanStep=0,
   // ★ (3) 수면 상태 (Zzz 애니메이션)
   sleepStatus="AWAKE", // 'AWAKE' | 'TIRED' | 'SLEEPING'
+  // ★ (4) 거절 상태 (오버피드)
+  isRefused=false, // 고기 거절 상태
 }) => {
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
@@ -67,7 +69,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus
+    sleepStatus,isRefused
   ]);
 
   function initImages(){
@@ -145,18 +147,42 @@ const Canvas = ({
 
       // 디지몬
       if(frames.length>0){
-        const idx= Math.floor(frame/speed)% frames.length;
-        const name= frames[idx];
+        // 거절 애니메이션일 때는 feedStep으로 좌우 번갈아가게
+        let idx, name;
+        if(currentAnimation === "foodRejectRefuse"){
+          // feedStep % 2로 좌우 번갈아가게 (0: 좌, 1: 우)
+          idx = feedStep % 2;
+          name = frames[idx] || frames[0];
+        } else {
+          idx = Math.floor(frame/speed) % frames.length;
+          name = frames[idx];
+        }
         const key= `digimon${idx}`;
         const digimonImg= spriteCache.current[key];
         if(digimonImg && digimonImg.naturalWidth>0){
           const digiW= width*0.4;
           const digiH= height*0.4;
           let digiX= (width-digiW)/2;
-          if(currentAnimation==="eat"){
+          if(currentAnimation==="eat" || currentAnimation==="foodRejectRefuse"){
             digiX= width*0.6 - digiW/2;
           }
-          ctx.drawImage(digimonImg, digiX,(height-digiH)/2,digiW,digiH);
+          
+          // 거절 애니메이션일 때 우측 프레임(홀수)은 좌우 반전
+          if(currentAnimation === "foodRejectRefuse" && idx === 1){
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(digimonImg, -digiX - digiW, (height-digiH)/2, digiW, digiH);
+            ctx.restore();
+          } else {
+            ctx.drawImage(digimonImg, digiX,(height-digiH)/2,digiW,digiH);
+          }
+
+          // 거절 상태일 때만 😡 표시 (디지몬 오른쪽)
+          if(currentAnimation === "foodRejectRefuse" && isRefused){
+            ctx.font="32px Arial";
+            ctx.fillStyle="red";
+            ctx.fillText("😡", digiX + digiW + 10, (height-digiH)/2 + digiH/2);
+          }
 
           if(developerMode){
             ctx.fillStyle="red";
@@ -166,20 +192,23 @@ const Canvas = ({
         }
       }
 
-      // 음식
-      if(showFood && feedStep<foodSprites.length){
-        const fKey= `food${feedStep}`;
-        const fImg= spriteCache.current[fKey];
-        if(fImg && fImg.naturalWidth>0){
-          const fw= width*foodSizeScale;
-          const fh= height*foodSizeScale;
-          const fx= width*0.2 - fw/2;
-          const fy= (height-fh)/2;
-          ctx.drawImage(fImg, fx,fy,fw,fh);
+      // 음식 (거절 애니메이션일 때는 표시하지 않음)
+      if(showFood && currentAnimation !== "foodRejectRefuse"){
+        const foodStepToShow = feedStep;
+        if(foodStepToShow < foodSprites.length){
+          const fKey= `food${foodStepToShow}`;
+          const fImg= spriteCache.current[fKey];
+          if(fImg && fImg.naturalWidth>0){
+            const fw= width*foodSizeScale;
+            const fh= height*foodSizeScale;
+            const fx= width*0.2 - fw/2;
+            const fy= (height-fh)/2;
+            ctx.drawImage(fImg, fx,fy,fw,fh);
 
-          if(developerMode){
-            ctx.fillStyle="blue";
-            ctx.fillText(`Food: ${foodSprites[feedStep]}`, fx, fy+fh+12);
+            if(developerMode){
+              ctx.fillStyle="blue";
+              ctx.fillText(`Food: ${foodSprites[foodStepToShow]}`, fx, fy+fh+12);
+            }
           }
         }
       }

@@ -54,15 +54,15 @@ export function useGameAnimations({
 }) {
   /**
    * 먹이기 애니메이션 사이클
+   * 첫 번째 프레임에서 스탯을 즉시 증가시킴
    * @param {number} step - 현재 단계
    * @param {string} type - 먹이 타입 ("meat" | "protein")
    */
   const eatCycle = async (step, type) => {
     const frameCount = type === "protein" ? 3 : 4;
-    if (step >= frameCount) {
-      setCurrentAnimation("idle");
-      toggleModal('food', false);
-      
+    
+    // 첫 번째 프레임에서 스탯 즉시 업데이트
+    if (step === 0) {
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
       const oldFullness = currentStats.fullness || 0;
@@ -149,6 +149,12 @@ export function useGameAnimations({
         activityLogs: updatedLogs,
       };
       setDigimonStatsAndSave(statsWithLogs, updatedLogs);
+    }
+    
+    // 애니메이션 종료 처리
+    if (step >= frameCount) {
+      setCurrentAnimation("idle");
+      toggleModal('food', false);
       return;
     }
     

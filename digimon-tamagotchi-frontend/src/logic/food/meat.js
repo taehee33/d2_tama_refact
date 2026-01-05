@@ -15,28 +15,23 @@ export function feedMeat(stats) {
   const maxFullness = 5 + (s.maxOverfeed || 0);
   const oldFullness = s.fullness || 0;
   
-  if (s.fullness < maxFullness) {
-    s.fullness = (s.fullness || 0) + 1;
-  }
+  // 고기를 먹기 전 거절 여부 체크
+  const wasRefusingBefore = oldFullness >= maxFullness;
   
-  // 체중 +1 Gigabyte
-  s.weight = (s.weight || 0) + 1;
-  
-  // 오버피드 체크: 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드
+  // 오버피드 체크: 거절 상태에서 고기를 주면 오버피드 발생 (고기는 안 먹음)
   let isOverfeed = false;
-  if (oldFullness >= 5) {
-    s.consecutiveMeatFed = (s.consecutiveMeatFed || 0) + 1;
-    if (s.consecutiveMeatFed >= 10) {
-      s.overfeeds = (s.overfeeds || 0) + 1;
-      s.consecutiveMeatFed = 0; // 리셋
-      isOverfeed = true;
-      
-      // 오버피드 효과: hungerCountdown에 한 주기 시간(hungerTimer * 60초)을 더해줘서 배고픔 감소를 1회 지연
-      const hungerCycleSeconds = (s.hungerTimer || 0) * 60;
-      s.hungerCountdown = (s.hungerCountdown || 0) + hungerCycleSeconds;
-    }
+  if (wasRefusingBefore) {
+    // 이미 거절 상태인데 고기를 주면 오버피드만 발생, 고기는 안 먹음
+    s.overfeeds = (s.overfeeds || 0) + 1;
+    isOverfeed = true;
+    // fullness와 weight는 증가하지 않음
   } else {
-    s.consecutiveMeatFed = 0; // 배고픔이 가득 차지 않았으면 리셋
+    // 거절 상태가 아니면 정상적으로 먹음
+    if (s.fullness < maxFullness) {
+      s.fullness = (s.fullness || 0) + 1;
+    }
+    // 체중 +1 Gigabyte
+    s.weight = (s.weight || 0) + 1;
   }
   
   return {
@@ -48,20 +43,15 @@ export function feedMeat(stats) {
 }
 
 /**
- * 오버피드 체크
- * 매뉴얼: "You can overfeed by feeding 10 more meat after having full hearts."
- * "Overfeeding will give you one extra Hunger Loss cycle before one of your hearts drop."
+ * 오버피드 체크 (deprecated - feedMeat에서 직접 처리)
+ * 매뉴얼: "continuing to feed it until it refuses to will result in an Overfeed"
  * 
  * @param {Object} stats - 현재 스탯
- * @param {number} consecutiveMeatFed - 연속으로 먹은 고기 개수
- * @returns {boolean} 오버피드 여부
+ * @returns {boolean} 오버피드 여부 (거절 상태면 오버피드 가능)
  */
-export function checkOverfeed(stats, consecutiveMeatFed) {
-  // 배고픔이 가득 찬 상태(5)에서 10개 더 먹으면 오버피드
-  if (stats.hunger >= 5 && consecutiveMeatFed >= 10) {
-    return true;
-  }
-  return false;
+export function checkOverfeed(stats) {
+  // 거절 상태면 오버피드 가능
+  return willRefuseMeat(stats);
 }
 
 /**

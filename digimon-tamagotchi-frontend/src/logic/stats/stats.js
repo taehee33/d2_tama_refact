@@ -98,9 +98,9 @@ export function updateLifespan(stats, deltaSec = 1) {
   if (s.hungerTimer > 0) {
     s.hungerCountdown -= deltaSec;
     if (s.hungerCountdown <= 0) {
-      s.hunger = Math.max(0, s.hunger - 1);
+      s.fullness = Math.max(0, (s.fullness || 0) - 1);
       s.hungerCountdown = s.hungerTimer * 60;
-      if (s.hunger === 0 && !s.lastHungerZeroAt) {
+      if (s.fullness === 0 && !s.lastHungerZeroAt) {
         s.lastHungerZeroAt = Date.now();
       }
     }
@@ -119,7 +119,7 @@ export function updateLifespan(stats, deltaSec = 1) {
   }
 
   // 배고픔/힘이 0이고 12시간 경과 시 사망
-  if (s.hunger === 0 && s.lastHungerZeroAt) {
+  if (s.fullness === 0 && s.lastHungerZeroAt) {
     const elapsed = (Date.now() - s.lastHungerZeroAt) / 1000;
     if (elapsed >= 43200) {
       // 12시간 = 43200초
@@ -233,10 +233,10 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     updatedStats.hungerCountdown -= elapsedSeconds;
 
     while (updatedStats.hungerCountdown <= 0) {
-      updatedStats.hunger = Math.max(0, updatedStats.hunger - 1);
+      updatedStats.fullness = Math.max(0, (updatedStats.fullness || 0) - 1);
       updatedStats.hungerCountdown += updatedStats.hungerTimer * 60;
 
-      if (updatedStats.hunger === 0 && !updatedStats.lastHungerZeroAt) {
+      if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
         const timeToZero =
           lastSaved.getTime() + (elapsedSeconds - updatedStats.hungerCountdown) * 1000;
         updatedStats.lastHungerZeroAt = timeToZero;
@@ -311,7 +311,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   }
 
   // 배고픔/힘이 0이고 12시간 경과 시 사망
-  if (updatedStats.hunger === 0 && updatedStats.lastHungerZeroAt) {
+  if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
     const hungerZeroTime =
       typeof updatedStats.lastHungerZeroAt === "number"
         ? updatedStats.lastHungerZeroAt
@@ -321,7 +321,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     if (elapsedSinceZero >= 43200) {
       updatedStats.isDead = true;
     }
-  } else if (updatedStats.hunger > 0) {
+  } else if (updatedStats.fullness > 0) {
     updatedStats.lastHungerZeroAt = null;
   }
 

@@ -26,6 +26,7 @@ const GameScreen = ({
   foodSizeScale = 0.31,
   meatSprites = [],
   proteinSprites = [],
+  isRefused = false, // 고기 거절 상태 (오버피드)
   
   // 똥 관련
   poopCount = 0,
@@ -409,6 +410,7 @@ const GameScreen = ({
         showPoopCleanAnimation={showPoopCleanAnimation}
         cleanStep={cleanStep}
         sleepStatus={sleepStatus}
+        isRefused={isRefused}
       />
     </div>
   );
