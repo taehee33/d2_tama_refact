@@ -791,6 +791,9 @@ async function setSelectedDigimonAndSave(name) {
         lastStrengthZeroAt: null,
         injuredAt: null,
         isInjured: false,
+        // 새로운 시작: 똥 초기화
+        poopCount: 0,
+        lastMaxPoopTime: null,
       };
       
       if (isPerfectStage) {
@@ -825,6 +828,9 @@ async function setSelectedDigimonAndSave(name) {
       ns.injuredAt = null;
       ns.isInjured = false;
       ns.injuries = 0;
+      // 새로운 시작: 똥 초기화
+      ns.poopCount = 0;
+      ns.lastMaxPoopTime = null;
       
       console.log("[resetDigimon] 최종 초기화된 스탯:", {
         evolutionStage: ns.evolutionStage,

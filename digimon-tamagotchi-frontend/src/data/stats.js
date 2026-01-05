@@ -28,6 +28,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     // 새로운 시작: 기본 스탯 설정
     merged.fullness = 0;
     merged.strength = 0;
+    // 새로운 시작: 똥 초기화
+    merged.poopCount = 0;
+    merged.lastMaxPoopTime = null;
   } else {
     merged.age = oldStats.age || merged.age;
     merged.birthTime = oldStats.birthTime || Date.now();

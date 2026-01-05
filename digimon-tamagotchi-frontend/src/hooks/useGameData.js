@@ -102,6 +102,9 @@ export function useGameData({
       lastStrengthZeroAt: isNewStart ? null : undefined,
       injuredAt: isNewStart ? null : undefined,
       isInjured: isNewStart ? false : undefined,
+      // 새로운 시작일 때 똥 초기화
+      poopCount: isNewStart ? 0 : undefined,
+      lastMaxPoopTime: isNewStart ? null : undefined,
     };
     
     // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
@@ -155,6 +158,8 @@ export function useGameData({
         injuredAt: null,
         isInjured: false,
         injuries: 0,
+        poopCount: 0,
+        lastMaxPoopTime: null,
       } : {}),
       activityLogs: finalLogs, // activityLogs를 finalStats에 포함
       isLightsOn,
