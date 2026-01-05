@@ -365,16 +365,19 @@ function Game(){
           setCurrentAnimation("idle");
         }
         // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
-        if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt){
+        // ⚠️ 새로운 시작 직후에는 사망 체크를 하지 않음 (lastHungerZeroAt이 null이어야 함)
+        if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt && !updatedStats.isDead){
           const elapsed = (Date.now() - updatedStats.lastHungerZeroAt) / 1000;
           if(elapsed >= 43200){ // 12시간 = 43200초
+            console.log("[타이머] 굶주림 사망 체크:", { elapsed, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
             updatedStats.isDead = true;
             setDeathReason('STARVATION (굶주림)');
           }
         }
-        if(updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt){
+        if(updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt && !updatedStats.isDead){
           const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
           if(elapsed >= 43200){
+            console.log("[타이머] 힘 소진 사망 체크:", { elapsed, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
             updatedStats.isDead = true;
             setDeathReason('EXHAUSTION (힘 소진)');
           }
@@ -458,10 +461,8 @@ function Game(){
             return addActivityLog(currentLogs, 'POOP', logText);
           });
         }
-        // 사망 상태 변경 감지 (한 번만 자동으로 팝업 표시)
+        // 사망 상태 변경 감지 (로그만 추가, 팝업은 자동 표시하지 않음 - Death Info 버튼으로 수동 열기)
         if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
-          toggleModal('deathModal', true);
-          setHasSeenDeathPopup(true);
           // 사망 로그 추가 (이전 로그 보존 - 함수형 업데이트)
           const reason = deathReason || 'Unknown';
           setActivityLogs((prevLogs) => {
@@ -480,6 +481,8 @@ function Game(){
             }
             return updatedLogs;
           });
+          // 팝업은 자동으로 표시하지 않음 (Death Info 버튼으로 수동 열기)
+          setHasSeenDeathPopup(true);
         }
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
         updatedStats.isLightsOn = isLightsOn;
@@ -699,41 +702,49 @@ async function setSelectedDigimonAndSave(name) {
   }
 
 // 애니메이션
-  let idleAnimId=1, eatAnimId=2, rejectAnimId=3;
-  if(selectedDigimon==="Digitama") idleAnimId=90;
-  const idleOff= digimonAnimations[idleAnimId]?.frames||[0];
-  const eatOff= digimonAnimations[eatAnimId]?.frames||[0];
-  const rejectOff= digimonAnimations[rejectAnimId]?.frames||[14];
-
-  let idleFrames= idleOff.map(n=> `${digimonStats.sprite + n}`);
-  let eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
-  let rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
-
-  // 오하카다몬: idle 애니메이션 고정 (스프라이트 변경 방지)
+  // ⚠️ 중요: 오하카다몬은 고정 스프라이트만 사용하므로 기본 애니메이션 계산을 건너뜀
+  let idleFrames, eatFramesArr, rejectFramesArr;
+  
   if(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2"){
     // 오하카다몬은 고정 스프라이트만 사용 (애니메이션 없음)
     idleFrames = [ `${digimonStats.sprite}` ];
     eatFramesArr = [ `${digimonStats.sprite}` ];
     rejectFramesArr = [ `${digimonStats.sprite}` ];
-  }
-  // 수면/피곤 상태에서는 고정 슬립 프레임 (오하카다몬 제외)
-  // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
-  else if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
-    idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
-    eatFramesArr = idleFrames;
-    rejectFramesArr = idleFrames;
-  }
+    // 오하카다몬은 애니메이션 없이 고정 스프라이트만 표시
+    if(currentAnimation !== "idle"){
+      setCurrentAnimation("idle");
+    }
+  } else {
+    // 일반 디지몬: 기본 애니메이션 계산
+    let idleAnimId=1, eatAnimId=2, rejectAnimId=3;
+    if(selectedDigimon==="Digitama") idleAnimId=90;
+    const idleOff= digimonAnimations[idleAnimId]?.frames||[0];
+    const eatOff= digimonAnimations[eatAnimId]?.frames||[0];
+    const rejectOff= digimonAnimations[rejectAnimId]?.frames||[14];
 
-  // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 1과 14 표시
-  if(digimonStats.isDead){
-    // 모션 15번 (아픔2) - digimonAnimations[15] = battleLose (frames: [1, 14])
-    // 스프라이트 1과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
-    idleFrames= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
-    eatFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
-    rejectFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
-    // 죽음 상태에서는 항상 아픔2 모션 사용
-    if(currentAnimation !== "pain2"){
-      setCurrentAnimation("pain2");
+    idleFrames= idleOff.map(n=> `${digimonStats.sprite + n}`);
+    eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
+    rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
+
+    // 수면/피곤 상태에서는 고정 슬립 프레임 (오하카다몬 제외)
+    // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
+    if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+      idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
+      eatFramesArr = idleFrames;
+      rejectFramesArr = idleFrames;
+    }
+    // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 1과 14 표시
+    // ⚠️ 중요: 오하카다몬은 제외 (오하카다몬은 이미 환생한 상태이므로 isDead가 false여야 함)
+    if(digimonStats.isDead){
+      // 모션 15번 (아픔2) - digimonAnimations[15] = battleLose (frames: [1, 14])
+      // 스프라이트 1과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
+      idleFrames= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+      eatFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+      rejectFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+      // 죽음 상태에서는 항상 아픔2 모션 사용
+      if(currentAnimation !== "pain2"){
+        setCurrentAnimation("pain2");
+      }
     }
   }
 
@@ -743,14 +754,105 @@ async function setSelectedDigimonAndSave(name) {
 
   // ★ (C) 훈련
 
-  // 리셋
+  // 리셋 (디지타마로 초기화) - 새로운 시작
   async function resetDigimon(){
-    if(!window.confirm("정말로 초기화?")) return;
-    const ns = initializeStats("Digitama", {}, digimonDataVer1);
-    await setDigimonStatsAndSave(ns);
-    await setSelectedDigimonAndSave("Digitama");
-    toggleModal('deathModal', false);
-    setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
+    try {
+      console.log("[resetDigimon] 새로운 시작 시작");
+      
+      // 오하카다몬일 때는 확인 없이 바로 초기화
+      const isOhakadamon = selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2";
+      if(!isOhakadamon && !window.confirm("정말로 초기화?")) return;
+      
+      // 최신 스탯 가져오기 (Lazy Update 적용)
+      const currentStats = await applyLazyUpdateBeforeAction();
+      console.log("[resetDigimon] 현재 스탯:", {
+        evolutionStage: currentStats.evolutionStage,
+        isDead: currentStats.isDead,
+        age: currentStats.age,
+      });
+      
+      // Perfect 이상 단계인지 확인
+      const isPerfectStage = perfectStages.includes(currentStats.evolutionStage);
+      console.log("[resetDigimon] Perfect 단계 여부:", isPerfectStage);
+      
+      // 환생 횟수 증가 및 새로운 시작을 위한 필드 초기화
+      const updatedStats = {
+        ...currentStats,
+        // 환생 횟수 증가
+        totalReincarnations: (currentStats.totalReincarnations || 0) + 1,
+        // 새로운 시작: 사망 상태 해제
+        isDead: false,
+        // 새로운 시작: 나이 초기화
+        age: 0,
+        // 새로운 시작: 생년월일 초기화
+        birthTime: Date.now(),
+        // 사망 관련 필드 초기화
+        lastHungerZeroAt: null,
+        lastStrengthZeroAt: null,
+        injuredAt: null,
+        isInjured: false,
+      };
+      
+      if (isPerfectStage) {
+        updatedStats.perfectReincarnations = (currentStats.perfectReincarnations || 0) + 1;
+      } else {
+        updatedStats.normalReincarnations = (currentStats.normalReincarnations || 0) + 1;
+      }
+      
+      console.log("[resetDigimon] 업데이트된 스탯:", {
+        totalReincarnations: updatedStats.totalReincarnations,
+        normalReincarnations: updatedStats.normalReincarnations,
+        perfectReincarnations: updatedStats.perfectReincarnations,
+        isDead: updatedStats.isDead,
+        age: updatedStats.age,
+      });
+      
+      // 디지타마로 초기화 (환생 횟수는 유지, isDead와 age는 명시적으로 false/0으로 설정)
+      const ns = initializeStats("Digitama", updatedStats, digimonDataVer1);
+      
+      // 새로운 시작이므로 isDead와 age를 명시적으로 설정
+      ns.isDead = false;
+      ns.age = 0;
+      ns.birthTime = Date.now();
+      // 새로운 시작: lastSavedAt을 현재 시간으로 설정하여 Lazy Update가 즉시 실행되지 않도록
+      ns.lastSavedAt = new Date();
+      // 새로운 시작: 기본 스탯 설정
+      ns.fullness = 0; // 디지타마는 기본적으로 0
+      ns.strength = 0; // 디지타마는 기본적으로 0
+      // 새로운 시작: 사망 관련 필드 완전 초기화 (중복이지만 확실히)
+      ns.lastHungerZeroAt = null;
+      ns.lastStrengthZeroAt = null;
+      ns.injuredAt = null;
+      ns.isInjured = false;
+      ns.injuries = 0;
+      
+      console.log("[resetDigimon] 최종 초기화된 스탯:", {
+        evolutionStage: ns.evolutionStage,
+        isDead: ns.isDead,
+        age: ns.age,
+        totalReincarnations: ns.totalReincarnations,
+        fullness: ns.fullness,
+        strength: ns.strength,
+        lastSavedAt: ns.lastSavedAt,
+        lastHungerZeroAt: ns.lastHungerZeroAt,
+        lastStrengthZeroAt: ns.lastStrengthZeroAt,
+        injuredAt: ns.injuredAt,
+        isInjured: ns.isInjured,
+      });
+      
+      // 로컬 상태를 즉시 업데이트 (UI 반영) - 타이머가 새로운 상태를 참조하도록
+      setDigimonStats(ns);
+      
+      // Firestore에 저장 (saveStats에서 새로운 시작 감지하여 applyLazyUpdate 건너뜀)
+      await setDigimonStatsAndSave(ns);
+      await setSelectedDigimonAndSave("Digitama");
+      toggleModal('deathModal', false);
+      setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
+      
+      console.log("[resetDigimon] 새로운 시작 완료 - 로컬 상태 및 Firestore 저장 완료");
+    } catch (error) {
+      console.error("[resetDigimon] 오류 발생:", error);
+    }
   }
 
   // evo 버튼 상태 (간단하게 현재 스탯으로 확인, 실제 진화는 클릭 시 Lazy Update 적용)
@@ -862,6 +964,7 @@ async function setSelectedDigimonAndSave(name) {
     handleAdminConfigUpdated: handleAdminConfigUpdatedFromHook,
     startHealCycle,
     handleDeathConfirm,
+    resetDigimon,
     setDigimonStatsAndSave,
     setSelectedDigimonAndSave,
     setCurrentQuestArea,
@@ -1144,7 +1247,7 @@ async function setSelectedDigimonAndSave(name) {
               className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900"
               title="사망 정보"
             >
-              💀 Death Info
+              💀 사망 확인
             </button>
           )}
         </div>

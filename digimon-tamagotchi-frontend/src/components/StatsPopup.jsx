@@ -82,6 +82,9 @@ export default function StatsPopup({
     totalBattlesWon=0,
     totalBattlesLost=0,
     totalWinRate=0,
+    totalReincarnations=0,
+    normalReincarnations=0,
+    perfectReincarnations=0,
     isInjured=false,
     hungerCountdown=0,
     strengthCountdown=0,
@@ -498,6 +501,12 @@ export default function StatsPopup({
           </li>
           <li className="ml-2">총 배틀: {totalBattles || 0} (승: {totalBattlesWon || 0}, 패: {totalBattlesLost || 0})</li>
           <li className="ml-2">총 승률: {totalBattles > 0 ? Math.round((totalBattlesWon / totalBattles) * 100) : 0}%</li>
+          <li className="mt-2 pt-1 border-t">
+            <strong>환생 기록:</strong>
+          </li>
+          <li className="ml-2">토탈 환생 횟수: {totalReincarnations || 0}회</li>
+          <li className="ml-2">일반 사망 환생: {normalReincarnations || 0}회</li>
+          <li className="ml-2">Perfect 이상 환생: {perfectReincarnations || 0}회</li>
         </ul>
       </div>
       

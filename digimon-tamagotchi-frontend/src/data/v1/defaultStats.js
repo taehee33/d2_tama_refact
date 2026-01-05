@@ -53,6 +53,11 @@ export const defaultStats = {
   lastStrengthZeroAt: null,  // 힘이 0이 된 시간
   injuredAt: null,            // 부상 당한 시간
   
+  // 환생 관련
+  totalReincarnations: 0,     // 토탈 환생 횟수 (일반 + Perfect 이상)
+  normalReincarnations: 0,    // 일반 사망 환생 횟수 (Perfect 미만)
+  perfectReincarnations: 0,   // Perfect 이상 사망 환생 횟수
+  
   // 기타
   maxOverfeed: 0,             // 최대 오버피드 허용치
   maxStamina: 0,              // 최대 스태미나

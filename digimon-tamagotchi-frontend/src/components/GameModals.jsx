@@ -78,6 +78,7 @@ export default function GameModals({
     handleAdminConfigUpdated,
     startHealCycle,
     handleDeathConfirm,
+    resetDigimon,
     setDigimonStatsAndSave,
     setSelectedDigimonAndSave,
     setCurrentQuestArea,
@@ -151,6 +152,8 @@ export default function GameModals({
           onConfirm={handleDeathConfirm || (() => {})}
           onClose={() => toggleModal?.('deathModal', false) || (() => {})}
           reason={deathReason}
+          selectedDigimon={selectedDigimon}
+          onNewStart={resetDigimon || (() => {})}
         />
       )}
 

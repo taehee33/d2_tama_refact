@@ -10,14 +10,33 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   
   let merged= { ...defaultStats, ...custom };
 
+  // 새로운 시작(디지타마 초기화)인지 확인
+  const isNewStart = digiName === "Digitama" && oldStats.totalReincarnations !== undefined;
+  
   // 기존 이어받기 (나이, 수명)
-  // weight는 진화 시 minWeight로 리셋되므로, resetStats에서 이미 설정된 값을 사용
-  merged.age = oldStats.age || merged.age;
+  // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
+  if (isNewStart) {
+    merged.age = 0;
+    merged.birthTime = oldStats.birthTime || Date.now();
+    merged.isDead = false; // 새로운 시작이면 항상 false
+    // 새로운 시작: 사망 관련 필드 완전 초기화
+    merged.lastHungerZeroAt = null;
+    merged.lastStrengthZeroAt = null;
+    merged.injuredAt = null;
+    merged.isInjured = false;
+    merged.injuries = 0;
+    // 새로운 시작: 기본 스탯 설정
+    merged.fullness = 0;
+    merged.strength = 0;
+  } else {
+    merged.age = oldStats.age || merged.age;
+    merged.birthTime = oldStats.birthTime || Date.now();
+    // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
+    // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
+  }
+  
   merged.weight = oldStats.weight !== undefined ? oldStats.weight : merged.weight;
   merged.lifespanSeconds= oldStats.lifespanSeconds || merged.lifespanSeconds;
-  // birthTime 이어받기 (없으면 현재 시간으로 설정)
-  // 진화 시에는 birthTime을 유지 (나이 계속 증가)
-  merged.birthTime = oldStats.birthTime || Date.now();
 
   // ★ strength, effort는 진화 시 리셋 (resetStats에서 0으로 설정됨)
   // merged.strength, merged.effort는 defaultStats에서 가져온 기본값 사용 (보통 0)
@@ -53,6 +72,11 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.totalBattlesWon = oldStats.totalBattlesWon !== undefined ? oldStats.totalBattlesWon : (merged.totalBattlesWon || 0);
   merged.totalBattlesLost = oldStats.totalBattlesLost !== undefined ? oldStats.totalBattlesLost : (merged.totalBattlesLost || 0);
   merged.totalWinRate = oldStats.totalWinRate !== undefined ? oldStats.totalWinRate : (merged.totalWinRate || 0);
+  
+  // 환생 횟수 (진화 시 유지)
+  merged.totalReincarnations = oldStats.totalReincarnations !== undefined ? oldStats.totalReincarnations : (merged.totalReincarnations || 0);
+  merged.normalReincarnations = oldStats.normalReincarnations !== undefined ? oldStats.normalReincarnations : (merged.normalReincarnations || 0);
+  merged.perfectReincarnations = oldStats.perfectReincarnations !== undefined ? oldStats.perfectReincarnations : (merged.perfectReincarnations || 0);
   
   // 현재 디지몬 배틀 값 (진화 시 리셋)
   // resetStats에서 이미 0으로 설정되거나, 없으면 기본값 0 사용
@@ -309,50 +333,57 @@ export function applyLazyUpdate(stats, lastSavedAt) {
     }
   }
 
-  // 배고픔이 0이고 12시간(43200초) 경과 시 사망
-  if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
-    const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
-      ? updatedStats.lastHungerZeroAt
-      : new Date(updatedStats.lastHungerZeroAt).getTime();
-    const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
-    
-    if (elapsedSinceZero >= 43200) {
+  // 사망 체크는 isDead가 false일 때만 실행
+  if (!updatedStats.isDead) {
+    // 배고픔이 0이고 12시간(43200초) 경과 시 사망
+    if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
+      const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+        ? updatedStats.lastHungerZeroAt
+        : new Date(updatedStats.lastHungerZeroAt).getTime();
+      const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
+      
+      if (elapsedSinceZero >= 43200) {
+        console.log("[applyLazyUpdate] 굶주림 사망 체크:", { elapsedSinceZero, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
+        updatedStats.isDead = true;
+      }
+    } else if (updatedStats.fullness > 0) {
+      // 배고픔이 다시 채워지면 리셋
+      updatedStats.lastHungerZeroAt = null;
+    }
+
+    // 힘이 0이고 12시간(43200초) 경과 시 사망
+    if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
+      const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
+        ? updatedStats.lastStrengthZeroAt
+        : new Date(updatedStats.lastStrengthZeroAt).getTime();
+      const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
+      
+      if (elapsedSinceZero >= 43200) {
+        console.log("[applyLazyUpdate] 힘 소진 사망 체크:", { elapsedSinceZero, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
+        updatedStats.isDead = true;
+      }
+    } else if (updatedStats.strength > 0) {
+      // 힘이 다시 채워지면 리셋
+      updatedStats.lastStrengthZeroAt = null;
+    }
+
+    // 부상 과다 사망 체크: injuries >= 15
+    if ((updatedStats.injuries || 0) >= 15) {
+      console.log("[applyLazyUpdate] 부상 과다 사망 체크:", { injuries: updatedStats.injuries });
       updatedStats.isDead = true;
     }
-  } else if (updatedStats.fullness > 0) {
-    // 배고픔이 다시 채워지면 리셋
-    updatedStats.lastHungerZeroAt = null;
-  }
 
-  // 힘이 0이고 12시간(43200초) 경과 시 사망
-  if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
-    const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
-      ? updatedStats.lastStrengthZeroAt
-      : new Date(updatedStats.lastStrengthZeroAt).getTime();
-    const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
-    
-    if (elapsedSinceZero >= 43200) {
-      updatedStats.isDead = true;
-    }
-  } else if (updatedStats.strength > 0) {
-    // 힘이 다시 채워지면 리셋
-    updatedStats.lastStrengthZeroAt = null;
-  }
-
-  // 부상 과다 사망 체크: injuries >= 15
-  if ((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead) {
-    updatedStats.isDead = true;
-  }
-
-  // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
-  if (updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead) {
-    const injuredTime = typeof updatedStats.injuredAt === 'number'
-      ? updatedStats.injuredAt
-      : new Date(updatedStats.injuredAt).getTime();
-    const elapsedSinceInjury = now.getTime() - injuredTime;
-    
-    if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
-      updatedStats.isDead = true;
+    // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
+    if (updatedStats.isInjured && updatedStats.injuredAt) {
+      const injuredTime = typeof updatedStats.injuredAt === 'number'
+        ? updatedStats.injuredAt
+        : new Date(updatedStats.injuredAt).getTime();
+      const elapsedSinceInjury = now.getTime() - injuredTime;
+      
+      if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
+        console.log("[applyLazyUpdate] 부상 방치 사망 체크:", { elapsedSinceInjury });
+        updatedStats.isDead = true;
+      }
     }
   }
 

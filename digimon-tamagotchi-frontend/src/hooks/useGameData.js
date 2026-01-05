@@ -73,6 +73,18 @@ export function useGameData({
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
    */
   async function saveStats(newStats, updatedLogs = null) {
+    // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
+    const isNewStart = newStats.isDead === false && 
+                       newStats.evolutionStage === "Digitama" && 
+                       newStats.totalReincarnations !== undefined;
+    
+    console.log("[saveStats] 호출:", {
+      isNewStart,
+      isDead: newStats.isDead,
+      evolutionStage: newStats.evolutionStage,
+      totalReincarnations: newStats.totalReincarnations,
+    });
+    
     // newStats에서 중요한 필드들을 먼저 보존 (applyLazyUpdate가 덮어쓸 수 있음)
     const preservedStats = {
       strength: newStats.strength !== undefined ? newStats.strength : undefined,
@@ -84,9 +96,22 @@ export function useGameData({
       consecutiveMeatFed: newStats.consecutiveMeatFed !== undefined ? newStats.consecutiveMeatFed : undefined,
       overfeeds: newStats.overfeeds !== undefined ? newStats.overfeeds : undefined,
       hungerCountdown: newStats.hungerCountdown !== undefined ? newStats.hungerCountdown : undefined,
+      // 새로운 시작일 때 사망 관련 필드 보존
+      isDead: isNewStart ? false : undefined,
+      lastHungerZeroAt: isNewStart ? null : undefined,
+      lastStrengthZeroAt: isNewStart ? null : undefined,
+      injuredAt: isNewStart ? null : undefined,
+      isInjured: isNewStart ? false : undefined,
     };
     
-    const baseStats = await applyLazyUpdateForAction();
+    // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
+    let baseStats;
+    if (isNewStart) {
+      console.log("[saveStats] 새로운 시작 감지 - applyLazyUpdate 건너뜀");
+      baseStats = { ...digimonStats, ...newStats };
+    } else {
+      baseStats = await applyLazyUpdateForAction();
+    }
     const now = new Date();
     
     // Activity Logs 처리: 함수형 업데이트로 확실히 누적
@@ -118,15 +143,33 @@ export function useGameData({
       }
     });
     
+    // 새로운 시작일 때는 newStats의 사망 관련 필드를 확실히 보존
     const finalStats = {
       ...mergedStats,
       ...newStats, // newStats의 모든 필드를 최종적으로 덮어씀
+      // 새로운 시작일 때 사망 관련 필드 강제 보존
+      ...(isNewStart ? {
+        isDead: false,
+        lastHungerZeroAt: null,
+        lastStrengthZeroAt: null,
+        injuredAt: null,
+        isInjured: false,
+        injuries: 0,
+      } : {}),
       activityLogs: finalLogs, // activityLogs를 finalStats에 포함
       isLightsOn,
       wakeUntil,
       dailySleepMistake,
       lastSavedAt: now,
     };
+    
+    console.log("[saveStats] finalStats:", {
+      isNewStart,
+      isDead: finalStats.isDead,
+      lastHungerZeroAt: finalStats.lastHungerZeroAt,
+      lastStrengthZeroAt: finalStats.lastStrengthZeroAt,
+      evolutionStage: finalStats.evolutionStage,
+    });
 
     setDigimonStats(finalStats);
 
