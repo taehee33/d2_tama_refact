@@ -39,6 +39,7 @@ const GameScreen = ({
   
   // 상태 아이콘
   digimonStats = {},
+  selectedDigimon = "", // 선택된 디지몬 이름 (디지타마 수면 상태 체크용)
   showHealAnimation = false,
   showCallToast = false,
   callToastMessage = "",
@@ -479,6 +480,8 @@ const GameScreen = ({
         sleepStatus={sleepStatus}
         isRefused={isRefused}
         isInjured={digimonStats.isInjured && !digimonStats.isDead}
+        isDead={digimonStats.isDead || false}
+        selectedDigimon={selectedDigimon}
       />
     </div>
   );

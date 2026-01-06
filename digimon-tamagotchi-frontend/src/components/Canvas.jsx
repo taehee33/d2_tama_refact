@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
 const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/images/538.png"]; // Zzz 스프라이트
+const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -47,6 +48,10 @@ const Canvas = ({
   sleepStatus="AWAKE", // 'AWAKE' | 'TIRED' | 'SLEEPING'
   // ★ (4) 거절 상태 (오버피드)
   isRefused=false, // 고기 거절 상태
+  // ★ (5) 사망 상태
+  isDead=false, // 사망 여부
+  // ★ (6) 선택된 디지몬 (디지타마 수면 상태 체크용)
+  selectedDigimon="", // 선택된 디지몬 이름
 }) => {
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
@@ -69,7 +74,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus,isRefused
+    sleepStatus,isRefused,isDead,selectedDigimon
   ]);
 
   function initImages(){
@@ -84,8 +89,8 @@ const Canvas = ({
     } else if(currentAnimation==="foodRejectRefuse"){
       frames= foodRejectFrames.length>0 ? foodRejectFrames : ["14"];
     } else if(currentAnimation==="pain2"){
-      // 죽음 상태: 모션 15번(아픔2) - 스프라이트 2와 15 번갈아 표시
-      frames= idleFrames; // 이미 [sprite+2, sprite+15]로 설정됨
+      // 죽음 상태: 모션 15번(아픔2) - 스프라이트 14만 표시
+      frames= idleFrames; // 이미 [sprite+14]로 설정됨
     } else {
       frames= idleFrames;
     }
@@ -104,10 +109,17 @@ const Canvas = ({
     imageSources["poop"]= poopSprite;    // "/images/533.png"
     imageSources["clean"]= cleanSprite;  // "/images/534.png"
     
-    // Zzz 스프라이트 (수면 상태일 때)
-    if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+    // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외)
+    if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && selectedDigimon !== "Digitama"){
       zzzSprites.forEach((src, idx)=>{
         imageSources[`zzz${idx}`]= src;
+      });
+    }
+    
+    // 해골 스프라이트 (죽음 상태일 때)
+    if(isDead){
+      skullSprites.forEach((src, idx)=>{
+        imageSources[`skull${idx}`]= src;
       });
     }
 
@@ -269,8 +281,8 @@ const Canvas = ({
         }
       }
 
-      // ★ (6) Zzz 애니메이션 (수면 상태)
-      if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+      // ★ (6) Zzz 애니메이션 (수면 상태, 사망 상태가 아닐 때만, 디지타마 제외)
+      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && selectedDigimon !== "Digitama"){
         const zzzFrameIdx = Math.floor(frame/speed) % zzzSprites.length;
         const zzzKey = `zzz${zzzFrameIdx}`;
         const zzzImg = spriteCache.current[zzzKey];
@@ -286,6 +298,27 @@ const Canvas = ({
             ctx.fillStyle="yellow";
             ctx.font="12px sans-serif";
             ctx.fillText(`Zzz: ${535 + zzzFrameIdx}.png`, zzzX, zzzY - 2);
+          }
+        }
+      }
+      
+      // ★ (7) 해골 애니메이션 (죽음 상태)
+      if(isDead){
+        const skullFrameIdx = Math.floor(frame/speed) % skullSprites.length;
+        const skullKey = `skull${skullFrameIdx}`;
+        const skullImg = spriteCache.current[skullKey];
+        if(skullImg && skullImg.naturalWidth > 0){
+          // 디지몬 머리 위에 표시 (Zzz와 동일한 위치)
+          const skullW = width * 0.3;
+          const skullH = height * 0.2;
+          const skullX = (width - skullW) / 2;
+          const skullY = (height - height*0.4) / 2 - skullH; // 디지몬 위쪽
+          ctx.drawImage(skullImg, skullX, skullY, skullW, skullH);
+          
+          if(developerMode){
+            ctx.fillStyle="red";
+            ctx.font="12px sans-serif";
+            ctx.fillText(`Skull: ${543 + skullFrameIdx}.png`, skullX, skullY - 2);
           }
         }
       }

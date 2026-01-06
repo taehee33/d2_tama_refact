@@ -738,14 +738,13 @@ async function setSelectedDigimonAndSave(name) {
     rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
 
     // 애니메이션 우선순위: 죽음 > 부상 > 수면 > 일반
-    // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 1과 14 표시
+    // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 14만 표시
     // ⚠️ 중요: 오하카다몬은 제외 (오하카다몬은 이미 환생한 상태이므로 isDead가 false여야 함)
     if(digimonStats.isDead){
-      // 모션 15번 (아픔2) - digimonAnimations[15] = battleLose (frames: [1, 14])
-      // 스프라이트 1과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
-      idleFrames= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
-      eatFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
-      rejectFramesArr= [ `${digimonStats.sprite+1}`, `${digimonStats.sprite+14}` ];
+      // 모션 15번 (아픔2) - 죽음 상태에서는 sprite+14만 표시
+      idleFrames= [ `${digimonStats.sprite+14}` ];
+      eatFramesArr= [ `${digimonStats.sprite+14}` ];
+      rejectFramesArr= [ `${digimonStats.sprite+14}` ];
       // 죽음 상태에서는 항상 아픔2 모션 사용
       if(currentAnimation !== "pain2"){
         setCurrentAnimation("pain2");
@@ -765,7 +764,8 @@ async function setSelectedDigimonAndSave(name) {
     }
     // 수면/피곤 상태: 모션 8번(sleep) 사용, 스프라이트 11과 12 표시
     // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
-    else if(sleepStatus === "SLEEPING" || sleepStatus === "TIRED"){
+    // ⚠️ 디지타마는 수면 상태 없음
+    else if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && selectedDigimon !== "Digitama"){
       idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
       eatFramesArr = idleFrames;
       rejectFramesArr = idleFrames;
@@ -879,6 +879,8 @@ async function setSelectedDigimonAndSave(name) {
       });
       
       // 로컬 상태를 즉시 업데이트 (UI 반영) - 타이머가 새로운 상태를 참조하도록
+      // selectedDigimon을 먼저 업데이트하여 애니메이션 계산이 올바른 스프라이트를 사용하도록 함
+      setSelectedDigimon("Digitama");
       setDigimonStats(ns);
       
       // Firestore에 저장 (saveStats에서 새로운 시작 감지하여 applyLazyUpdate 건너뜀)
@@ -1266,6 +1268,7 @@ async function setSelectedDigimonAndSave(name) {
         sleepStatus={sleepStatus}
         isLightsOn={isLightsOn}
         digimonStats={digimonStats}
+        selectedDigimon={selectedDigimon}
         showHealAnimation={modals.healAnimation}
         showCallToast={modals.callToast}
         callToastMessage={callToastMessage}
