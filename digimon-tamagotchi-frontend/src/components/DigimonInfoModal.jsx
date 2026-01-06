@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { checkEvolutionAvailability } from "../hooks/useGameLogic";
 import { formatTimestamp } from "../utils/dateUtils";
+import { translateStage } from "../utils/stageTranslator";
 
 /**
  * 디지몬 정보 모달 컴포넌트 (메뉴 선택형 구조)
@@ -132,8 +133,8 @@ export default function DigimonInfoModal({
               <p className="text-white font-bold">{currentDigimonData.name || currentDigimonName}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Stage</p>
-              <p className="text-white font-bold">{currentDigimonData.stage || 'Unknown'}</p>
+              <p className="text-gray-400 text-sm">세대</p>
+              <p className="text-white font-bold">{translateStage(currentDigimonData.stage)}</p>
             </div>
             <div>
               <p className="text-gray-400 text-sm">Type</p>

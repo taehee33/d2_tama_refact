@@ -21,6 +21,7 @@ import {
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { calculatePower } from "../logic/battle/hitrate";
+import { translateStage } from "../utils/stageTranslator";
 import "../styles/Battle.css";
 
 const MAX_ENTRIES = 3;
@@ -781,7 +782,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 <p className="font-bold text-center text-sm mb-1">
                   {currentDigimonInfo.slotName} - {currentDigimonInfo.digimonData?.name || currentDigimonInfo.digimonName || "Unknown"}
                 </p>
-                <p className="text-xs text-gray-500 text-center">Stage: {currentDigimonInfo.digimonData?.stage || "Unknown"}</p>
+                <p className="text-xs text-gray-500 text-center">세대: {translateStage(currentDigimonInfo.digimonData?.stage)}</p>
                 {(() => {
                   const currentEntry = myEntries.find(entry => entry.digimonSnapshot?.slotId === currentSlotId);
                   if (currentEntry) {
@@ -883,7 +884,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                     <p className="font-bold text-center text-sm mb-1">
                       {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || "Unknown"}
                     </p>
-                    <p className="text-xs text-gray-500 text-center">Stage: {entry.digimonSnapshot?.stage || "Unknown"}</p>
+                    <p className="text-xs text-gray-500 text-center">세대: {translateStage(entry.digimonSnapshot?.stage)}</p>
                     <p className="text-xs text-gray-500 text-center">
                       {entry.record.wins}승 {entry.record.losses}패 ({calculateWinRate(entry.record)}%)
                     </p>
@@ -969,7 +970,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                       {challenger.tamerName || challenger.trainerName || 'Unknown'}
                     </p>
                     <p className="text-xs text-gray-500 text-center mb-1">
-                      Stage: {challenger.digimonSnapshot?.stage || "Unknown"}
+                      세대: {translateStage(challenger.digimonSnapshot?.stage)}
                     </p>
                     <p className="text-xs text-gray-500 text-center mb-2">
                       {challenger.record.wins}승 {challenger.record.losses}패 ({calculateWinRate(challenger.record)}%)
@@ -1420,7 +1421,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 Tamer: {selectedEntry.tamerName || selectedEntry.trainerName || 'Unknown'}
               </p>
               <p className="text-sm text-gray-600 text-center mb-2">
-                Stage: {selectedEntry.digimonSnapshot?.stage || "Unknown"}
+                세대: {translateStage(selectedEntry.digimonSnapshot?.stage)}
               </p>
               {selectedEntry.isMyEntry && (
                 <>
