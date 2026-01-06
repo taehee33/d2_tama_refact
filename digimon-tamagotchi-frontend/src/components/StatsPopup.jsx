@@ -47,6 +47,7 @@ export default function StatsPopup({
   wakeUntil = null, // 깨어있는 시간 (timestamp)
   sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
   isLightsOn = false, // 조명 상태
+  callStatus = null, // 호출 상태 { hunger: { isActive, startedAt }, strength: { isActive, startedAt }, sleep: { isActive, startedAt } }
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
   
@@ -558,9 +559,128 @@ export default function StatsPopup({
         </ul>
       </div>
       
-      {/* Sec 5. 진화 판정 카운터 */}
+      {/* Sec 5. 케어미스 발생 조건 */}
       <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">5. 진화 판정 카운터</h3>
+        <h3 className="font-bold text-base mb-2">5. 케어미스 발생 조건</h3>
+        <ul className="space-y-2 text-sm">
+          {/* Hunger Call */}
+          <li className="border-l-4 pl-2" style={{ borderColor: fullness === 0 ? '#ef4444' : '#e5e7eb' }}>
+            <div className="font-semibold">🍖 Hunger Call (배고픔 호출)</div>
+            <div className="text-xs text-gray-600 ml-2">
+              조건: Fullness = 0
+            </div>
+            {fullness === 0 ? (
+              callStatus?.hunger?.isActive && callStatus?.hunger?.startedAt ? (() => {
+                const startedAt = typeof callStatus.hunger.startedAt === 'number' 
+                  ? callStatus.hunger.startedAt 
+                  : new Date(callStatus.hunger.startedAt).getTime();
+                const elapsed = currentTime - startedAt;
+                const timeout = 10 * 60 * 1000; // 10분
+                const remaining = timeout - elapsed;
+                if (remaining > 0) {
+                  const minutes = Math.floor(remaining / 60000);
+                  const seconds = Math.floor((remaining % 60000) / 1000);
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ❌ 타임아웃! 케어미스 발생
+                    </div>
+                  );
+                }
+              })() : (
+                <div className="text-yellow-600 ml-2">호출 대기 중...</div>
+              )
+            ) : (
+              <div className="text-green-600 ml-2">✓ 조건 미충족 (Fullness: {fullness})</div>
+            )}
+          </li>
+
+          {/* Strength Call */}
+          <li className="border-l-4 pl-2" style={{ borderColor: strength === 0 ? '#ef4444' : '#e5e7eb' }}>
+            <div className="font-semibold">💪 Strength Call (힘 호출)</div>
+            <div className="text-xs text-gray-600 ml-2">
+              조건: Strength = 0
+            </div>
+            {strength === 0 ? (
+              callStatus?.strength?.isActive && callStatus?.strength?.startedAt ? (() => {
+                const startedAt = typeof callStatus.strength.startedAt === 'number' 
+                  ? callStatus.strength.startedAt 
+                  : new Date(callStatus.strength.startedAt).getTime();
+                const elapsed = currentTime - startedAt;
+                const timeout = 10 * 60 * 1000; // 10분
+                const remaining = timeout - elapsed;
+                if (remaining > 0) {
+                  const minutes = Math.floor(remaining / 60000);
+                  const seconds = Math.floor((remaining % 60000) / 1000);
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ❌ 타임아웃! 케어미스 발생
+                    </div>
+                  );
+                }
+              })() : (
+                <div className="text-yellow-600 ml-2">호출 대기 중...</div>
+              )
+            ) : (
+              <div className="text-green-600 ml-2">✓ 조건 미충족 (Strength: {strength})</div>
+            )}
+          </li>
+
+          {/* Sleep Call */}
+          <li className="border-l-4 pl-2" style={{ borderColor: (sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn)) ? '#ef4444' : '#e5e7eb' }}>
+            <div className="font-semibold">😴 Sleep Call (수면 호출)</div>
+            <div className="text-xs text-gray-600 ml-2">
+              조건: 수면 시간 + 불 켜짐
+            </div>
+            {sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn) ? (
+              callStatus?.sleep?.isActive && callStatus?.sleep?.startedAt ? (() => {
+                const startedAt = typeof callStatus.sleep.startedAt === 'number' 
+                  ? callStatus.sleep.startedAt 
+                  : new Date(callStatus.sleep.startedAt).getTime();
+                const elapsed = currentTime - startedAt;
+                const timeout = 60 * 60 * 1000; // 60분
+                const remaining = timeout - elapsed;
+                if (remaining > 0) {
+                  const minutes = Math.floor(remaining / 60000);
+                  const seconds = Math.floor((remaining % 60000) / 1000);
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (60분 초과 시 케어미스 +1)
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ❌ 타임아웃! 케어미스 발생
+                    </div>
+                  );
+                }
+              })() : (
+                <div className="text-yellow-600 ml-2">호출 대기 중...</div>
+              )
+            ) : (
+              <div className="text-green-600 ml-2">
+                ✓ 조건 미충족 (수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중 (불 꺼짐)' : sleepStatus}, 불: {isLightsOn ? '켜짐' : '꺼짐'})
+              </div>
+            )}
+          </li>
+        </ul>
+      </div>
+
+      {/* Sec 6. 진화 판정 카운터 */}
+      <div className="border-b pb-2">
+        <h3 className="font-bold text-base mb-2">6. 진화 판정 카운터</h3>
         <ul className="space-y-1">
           <li>Care Mistakes: {careMistakes || 0}</li>
           <li>Training Count: {trainings || 0}</li>
@@ -585,9 +705,9 @@ export default function StatsPopup({
         </ul>
       </div>
       
-      {/* Sec 6. 내부/고급 카운터 */}
+      {/* Sec 7. 내부/고급 카운터 */}
       <div className="pb-2">
-        <h3 className="font-bold text-base mb-2">5. 내부/고급 카운터</h3>
+        <h3 className="font-bold text-base mb-2">7. 내부/고급 카운터</h3>
         <ul className="space-y-1">
           <li>HungerTimer: {hungerTimer || 0} min (남은 시간: {formatCountdown(hungerCountdown)})</li>
           <li>StrengthTimer: {strengthTimer || 0} min (남은 시간: {formatCountdown(strengthCountdown)})</li>

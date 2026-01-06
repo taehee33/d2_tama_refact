@@ -216,6 +216,14 @@ const SettingsModal = ({
           </button>
         </div>
 
+        {/* Developer Mode Options */}
+        {localDevMode && (
+          <div className="mb-4 pt-4 border-t border-gray-300">
+            <h3 className="font-semibold mb-2">개발자 옵션</h3>
+            {/* 개발자 옵션은 여기에 추가됩니다 */}
+          </div>
+        )}
+
         {/* Size Settings */}
         <div className="mb-4">
           <h3 className="font-semibold mb-2">Size Settings</h3>
