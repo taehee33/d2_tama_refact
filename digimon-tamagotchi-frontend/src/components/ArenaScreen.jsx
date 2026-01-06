@@ -1084,19 +1084,38 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   // 방어 기록인 경우: 방어한 디지몬 정보 찾기
                   let myDigimonName = 'Unknown Digimon';
                   let mySlotId = null;
+                  let isDeleted = false;
                   
                   if (log.isAttack) {
                     // 공격 기록: 내가 공격자
                     const myAttackingDigimon = myEntries.find(entry => entry.id === log.myEntryId);
-                    const digimonId = myAttackingDigimon?.digimonSnapshot?.digimonId || myAttackingDigimon?.digimonSnapshot?.digimonName;
-                    myDigimonName = digimonDataVer1[digimonId]?.name || myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
-                    mySlotId = myAttackingDigimon?.digimonSnapshot?.slotId || null;
+                    if (myAttackingDigimon) {
+                      // 엔트리 존재: 정상 표시
+                      const digimonId = myAttackingDigimon?.digimonSnapshot?.digimonId || myAttackingDigimon?.digimonSnapshot?.digimonName;
+                      myDigimonName = digimonDataVer1[digimonId]?.name || myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                      mySlotId = myAttackingDigimon?.digimonSnapshot?.slotId || null;
+                    } else {
+                      // 엔트리 삭제됨: 배틀 로그에서 정보 가져오기
+                      isDeleted = true;
+                      const digimonId = log.attackerDigimonName;
+                      myDigimonName = digimonDataVer1[digimonId]?.name || digimonId || 'Unknown Digimon';
+                      // 슬롯 정보는 로그에 없으므로 null 유지
+                    }
                   } else {
                     // 방어 기록: 내가 방어자
                     const myDefendingDigimon = myEntries.find(entry => entry.id === log.defenderEntryId);
-                    const digimonId = myDefendingDigimon?.digimonSnapshot?.digimonId || myDefendingDigimon?.digimonSnapshot?.digimonName;
-                    myDigimonName = digimonDataVer1[digimonId]?.name || myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
-                    mySlotId = myDefendingDigimon?.digimonSnapshot?.slotId || null;
+                    if (myDefendingDigimon) {
+                      // 엔트리 존재: 정상 표시
+                      const digimonId = myDefendingDigimon?.digimonSnapshot?.digimonId || myDefendingDigimon?.digimonSnapshot?.digimonName;
+                      myDigimonName = digimonDataVer1[digimonId]?.name || myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                      mySlotId = myDefendingDigimon?.digimonSnapshot?.slotId || null;
+                    } else {
+                      // 엔트리 삭제됨: 배틀 로그에서 정보 가져오기
+                      isDeleted = true;
+                      const digimonId = log.defenderDigimonName;
+                      myDigimonName = digimonDataVer1[digimonId]?.name || digimonId || 'Unknown Digimon';
+                      // 슬롯 정보는 로그에 없으므로 null 유지
+                    }
                   }
 
                   return (
@@ -1121,8 +1140,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
                             {log.isAttack 
-                              ? `${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${digimonDataVer1[log.defenderDigimonName]?.name || log.defenderDigimonName}` : ''}`
-                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${digimonDataVer1[log.attackerDigimonName]?.name || log.attackerDigimonName}` : ''} → ${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''}`
+                              ? `${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${digimonDataVer1[log.defenderDigimonName]?.name || log.defenderDigimonName}` : ''}`
+                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${digimonDataVer1[log.attackerDigimonName]?.name || log.attackerDigimonName}` : ''} → ${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''}`
                             }
                           </p>
                           <p className="text-xs text-gray-500 mb-1">
