@@ -30,7 +30,7 @@ export const digimonDataVer1 = {
   // 사망 형태
   Ohakadamon1: {
     id: "Ohakadamon1",
-    name: "Ohakadamon",
+    name: "오하카다몬(일반)",
     stage: "Ohakadamon",
     sprite: 159,
     stats: {
@@ -50,7 +50,7 @@ export const digimonDataVer1 = {
   },
   Ohakadamon2: {
     id: "Ohakadamon2",
-    name: "Ohakadamon",
+    name: "오하카다몬(perfect)",
     stage: "Ohakadamon",
     sprite: 160,
     stats: {
@@ -72,7 +72,7 @@ export const digimonDataVer1 = {
   // Digitama (Digi-Egg)
   Digitama: {
     id: "Digitama",
-    name: "Digitama",
+    name: "디지타마",
     stage: "Digitama",
     sprite: 133,
     stats: {
@@ -94,7 +94,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Botamon",
-        targetName: "Botamon",
+        targetName: "깜몬",
         // 시간 조건은 evolutionCriteria에서 처리되므로 conditions 없음
       },
     ],
@@ -103,7 +103,7 @@ export const digimonDataVer1 = {
   // Baby I (In-Training I)
   Botamon: {
     id: "Botamon",
-    name: "Botamon",
+    name: "깜몬",
     stage: "Baby I",
     sprite: 210,
     stats: {
@@ -127,7 +127,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Koromon",
-        targetName: "Koromon",
+        targetName: "코로몬",
         // 시간 조건은 evolutionCriteria에서 처리되므로 conditions 없음
       },
     ],
@@ -136,7 +136,7 @@ export const digimonDataVer1 = {
   // Baby II (In-Training II)
   Koromon: {
     id: "Koromon",
-    name: "Koromon",
+    name: "코로몬",
     stage: "Baby II",
     sprite: 225,
     stats: {
@@ -159,14 +159,14 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Agumon",
-        targetName: "Agumon",
+        targetName: "아구몬",
         conditions: {
           careMistakes: { max: 3 }, // 0-3 Care Mistakes
         },
       },
       {
         targetId: "Betamon",
-        targetName: "Betamon",
+        targetName: "베타몬",
         conditions: {
           careMistakes: { min: 4 }, // 4+ Care Mistakes
         },
@@ -177,7 +177,7 @@ export const digimonDataVer1 = {
   // Child (Rookie) - Agumon
   Agumon: {
     id: "Agumon",
-    name: "Agumon",
+    name: "아구몬",
     stage: "Child",
     sprite: 240,
     stats: {
@@ -202,7 +202,7 @@ export const digimonDataVer1 = {
       // 우선순위: 까다로운 진화를 앞에 배치
       {
         targetId: "Greymon",
-        targetName: "Greymon",
+        targetName: "그레이몬",
         // Case 1: 단일 조건 그룹 (모든 조건 만족 시 진화 - AND Logic)
         conditions: {
           careMistakes: { max: 3 }, // 0-3 Care Mistakes
@@ -211,7 +211,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Devimon",
-        targetName: "Devimon",
+        targetName: "데블몬",
         conditions: {
           careMistakes: { max: 3 }, // 0-3 Care Mistakes
           trainings: { max: 31 },   // 0-31 Training
@@ -219,7 +219,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Tyranomon",
-        targetName: "Tyranomon",
+        targetName: "티라노몬",
         conditions: {
           careMistakes: { min: 4 },           // 4+ Care Mistakes
           trainings: { min: 5, max: 15 },    // 5-15 Training
@@ -229,7 +229,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Meramon",
-        targetName: "Meramon",
+        targetName: "메라몬",
         conditions: {
           careMistakes: { min: 4 },      // 4+ Care Mistakes
           trainings: { min: 16 },        // 16+ Training
@@ -240,7 +240,7 @@ export const digimonDataVer1 = {
       // Case 2: 다중 조건 그룹 (배열 내 조건 중 하나라도 만족 시 진화 - OR Logic)
       {
         targetId: "Numemon",
-        targetName: "Numemon",
+        targetName: "워매몬",
         conditionGroups: [
           // 루트 1: 4+ Care Mistakes, 0-4 Training
           { careMistakes: { min: 4 }, trainings: { max: 4 } },
@@ -260,7 +260,7 @@ export const digimonDataVer1 = {
   // Child (Rookie) - Betamon
   Betamon: {
     id: "Betamon",
-    name: "Betamon",
+    name: "베타몬",
     stage: "Child",
     sprite: 255,
     stats: {
@@ -284,7 +284,7 @@ export const digimonDataVer1 = {
       // 우선순위: 까다로운 진화를 앞에 배치
       {
         targetId: "Devimon",
-        targetName: "Devimon",
+        targetName: "데블몬",
         conditions: {
           careMistakes: { max: 3 }, // 0-3 Care Mistakes
           trainings: { min: 48 },   // 48+ Training
@@ -292,7 +292,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Meramon",
-        targetName: "Meramon",
+        targetName: "메라몬",
         conditions: {
           careMistakes: { max: 3 }, // 0-3 Care Mistakes
           trainings: { max: 47 },    // 0-47 Training
@@ -300,7 +300,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Airdramon",
-        targetName: "Airdramon",
+        targetName: "에어드라몬",
         conditions: {
           careMistakes: { min: 4 },           // 4+ Care Mistakes
           trainings: { min: 8, max: 31 },      // 8-31 Training
@@ -310,7 +310,7 @@ export const digimonDataVer1 = {
       },
       {
         targetId: "Seadramon",
-        targetName: "Seadramon",
+        targetName: "시드라몬",
         conditions: {
           careMistakes: { min: 4 },           // 4+ Care Mistakes
           trainings: { min: 8, max: 31 },     // 8-31 Training
@@ -321,7 +321,7 @@ export const digimonDataVer1 = {
       // Case 2: 다중 조건 그룹 (OR Logic)
       {
         targetId: "Numemon",
-        targetName: "Numemon",
+        targetName: "워매몬",
         conditionGroups: [
           // 루트 1: 4+ Care Mistakes, 0-7 Training
           { careMistakes: { min: 4 }, trainings: { max: 7 } },
@@ -339,7 +339,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Greymon
   Greymon: {
     id: "Greymon",
-    name: "Greymon",
+    name: "그레이몬",
     stage: "Adult",
     sprite: 270,
     stats: {
@@ -364,7 +364,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "MetalGreymonVirus",
-        targetName: "Metal Greymon (Virus)",
+        targetName: "메탈그레이몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -376,7 +376,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Devimon
   Devimon: {
     id: "Devimon",
-    name: "Devimon",
+    name: "데블몬",
     stage: "Adult",
     sprite: 300, // TODO: Check actual sprite
     stats: {
@@ -401,7 +401,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "MetalGreymonVirus",
-        targetName: "Metal Greymon (Virus)",
+        targetName: "메탈그레이몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -413,7 +413,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Airdramon
   Airdramon: {
     id: "Airdramon",
-    name: "Airdramon",
+    name: "에어드라몬",
     stage: "Adult",
     sprite: 330, // TODO: Check actual sprite
     stats: {
@@ -438,7 +438,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "MetalGreymonVirus",
-        targetName: "Metal Greymon (Virus)",
+        targetName: "메탈그레이몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -450,7 +450,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Numemon
   Numemon: {
     id: "Numemon",
-    name: "Numemon",
+    name: "워매몬",
     stage: "Adult",
     sprite: 360, // TODO: Check actual sprite
     stats: {
@@ -475,7 +475,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Monzaemon",
-        targetName: "Monzaemon",
+        targetName: "퍼펫몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -487,7 +487,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Tyranomon
   Tyranomon: {
     id: "Tyranomon",
-    name: "Tyranomon",
+    name: "티라노몬",
     stage: "Adult",
     sprite: 290, // TODO: Check actual sprite
     stats: {
@@ -512,7 +512,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Mamemon",
-        targetName: "Mamemon",
+        targetName: "콩알몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -524,7 +524,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Meramon
   Meramon: {
     id: "Meramon",
-    name: "Meramon",
+    name: "메라몬",
     stage: "Adult",
     sprite: 315, // TODO: Check actual sprite
     stats: {
@@ -549,7 +549,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "Mamemon",
-        targetName: "Mamemon",
+        targetName: "콩알몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -561,7 +561,7 @@ export const digimonDataVer1 = {
   // Adult (Champion) - Seadramon
   Seadramon: {
     id: "Seadramon",
-    name: "Seadramon",
+    name: "시드라몬",
     stage: "Adult",
     sprite: 330, // TODO: Check actual sprite
     stats: {
@@ -586,7 +586,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "MetalGreymonVirus",
-        targetName: "Metal Greymon (Virus)",
+        targetName: "메탈그레이몬",
         conditions: {
           battles: { min: 15 },    // 15+ Battles
           winRatio: { min: 80 },   // 80%+ Win Ratio
@@ -598,7 +598,7 @@ export const digimonDataVer1 = {
   // Perfect (Ultimate) - Metal Greymon (Virus)
   MetalGreymonVirus: {
     id: "MetalGreymonVirus",
-    name: "Metal Greymon (Virus)",
+    name: "메탈그레이몬",
     stage: "Perfect",
     sprite: 375, // TODO: Check actual sprite
     stats: {
@@ -626,7 +626,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "BlitzGreymon",
-        targetName: "Blitz Greymon",
+        targetName: "블리츠그레이몬",
         conditions: {
           careMistakes: { max: 1 },  // 0-1 Care Mistakes
           battles: { min: 15 },       // 15+ Battles
@@ -639,7 +639,7 @@ export const digimonDataVer1 = {
   // Perfect (Ultimate) - Monzaemon
   Monzaemon: {
     id: "Monzaemon",
-    name: "Monzaemon",
+    name: "퍼펫몬",
     stage: "Perfect",
     sprite: 405, // TODO: Check actual sprite
     stats: {
@@ -667,7 +667,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "ShinMonzaemon",
-        targetName: "Shin Monzaemon",
+        targetName: "신퍼펫몬",
         conditions: {
           careMistakes: { max: 1 },  // 0-1 Care Mistakes
           battles: { min: 15 },      // 15+ Battles
@@ -680,7 +680,7 @@ export const digimonDataVer1 = {
   // Perfect (Ultimate) - Mamemon
   Mamemon: {
     id: "Mamemon",
-    name: "Mamemon",
+    name: "콩알몬",
     stage: "Perfect",
     sprite: 390, // TODO: Check actual sprite
     stats: {
@@ -708,7 +708,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "BanchoMamemon",
-        targetName: "Bancho Mamemon",
+        targetName: "반쵸콩알몬",
         conditions: {
           careMistakes: { max: 1 },  // 0-1 Care Mistakes
           battles: { min: 15 },      // 15+ Battles
@@ -721,7 +721,7 @@ export const digimonDataVer1 = {
   // Ultimate - Blitz Greymon
   BlitzGreymon: {
     id: "BlitzGreymon",
-    name: "Blitz Greymon",
+    name: "블리츠그레이몬",
     stage: "Ultimate",
     sprite: 420, // TODO: Check actual sprite
     stats: {
@@ -744,7 +744,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "OmegamonAlterS",
-        targetName: "Omegamon Alter-S",
+        targetName: "오메가몬 Alter-S",
         // 조그레스는 특별한 케이스이므로 conditions 대신 jogress 플래그 사용
         jogress: {
           partner: "CresGarurumon", // Jogress with Cres Garurumon
@@ -756,7 +756,7 @@ export const digimonDataVer1 = {
   // Ultimate - Shin Monzaemon
   ShinMonzaemon: {
     id: "ShinMonzaemon",
-    name: "Shin Monzaemon",
+    name: "신퍼펫몬",
     stage: "Ultimate",
     sprite: 450, // TODO: Check actual sprite
     stats: {
@@ -779,7 +779,7 @@ export const digimonDataVer1 = {
   // Ultimate - Bancho Mamemon
   BanchoMamemon: {
     id: "BanchoMamemon",
-    name: "Bancho Mamemon",
+    name: "반쵸콩알몬",
     stage: "Ultimate",
     sprite: 435, // TODO: Check actual sprite
     stats: {
@@ -801,7 +801,7 @@ export const digimonDataVer1 = {
   // Super Ultimate - Omegamon Alter-S
   OmegamonAlterS: {
     id: "OmegamonAlterS",
-    name: "Omegamon Alter-S",
+    name: "오메가몬 Alter-S",
     stage: "Super Ultimate",
     sprite: 465, // TODO: Check actual sprite
     stats: {
@@ -824,7 +824,7 @@ export const digimonDataVer1 = {
   // Ultimate - Cres Garurumon (Jogress 파트너용 Placeholder)
   CresGarurumon: {
     id: "CresGarurumon",
-    name: "Cres Garurumon",
+    name: "크레스가루몬",
     stage: "Ultimate",
     sprite: 480, // TODO: Check actual sprite
     stats: {

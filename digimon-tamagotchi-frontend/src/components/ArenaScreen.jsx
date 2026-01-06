@@ -385,7 +385,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           // 현재 슬롯이 이미 등록되어 있으면 즉시 알림
           if (currentSlotEntry) {
             const currentDigimonName = currentSlotEntry.digimonSnapshot?.digimonName || "현재 디지몬";
-            alert(`현재 슬롯(슬롯${currentSlotId})은 이미 아레나에 등록되어 있습니다.\n\n등록된 디지몬: ${currentDigimonName}\n\n다시 등록하려면 "My Arena Entries"에서 기존 등록을 해제한 후 등록해주세요.`);
+            alert(`현재 슬롯(슬롯${currentSlotId})은 이미 아레나에 등록되어 있습니다.\n\n등록된 디지몬: ${currentDigimonName}\n\n다시 등록하려면 "내 아레나 등록"에서 기존 등록을 해제한 후 등록해주세요.`);
             setLoading(false);
             return;
           }
@@ -703,12 +703,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         {/* 스크롤 가능한 콘텐츠 영역 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
           <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
-            <h2 className="text-2xl font-bold">Arena Mode</h2>
+            <h2 className="text-2xl font-bold">아레나 [PvP(Ghost)]</h2>
           </div>
 
         {/* My Arena Entries */}
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">
-          <h3 className="text-xl font-bold mb-3">My Arena Entries ({myEntries.length}/{MAX_ENTRIES})</h3>
+          <h3 className="text-xl font-bold mb-3">내 아레나 등록 ({myEntries.length}/{MAX_ENTRIES})</h3>
           <div className="flex overflow-x-hidden space-x-4 pb-2" style={{ flexWrap: 'wrap', gap: '8px' }}>
             {myEntries.length === 0 ? (
               <p className="text-gray-700">등록된 디지몬이 없습니다.</p>
@@ -739,7 +739,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                       />
                     </div>
                     <p className="font-bold text-center text-sm mb-1">
-                      {entry.tamerName || entry.trainerName || 'Unknown'} - {entry.digimonSnapshot?.digimonName || "Unknown"}
+                      {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || "Unknown"}
                     </p>
                     <p className="text-xs text-gray-500 text-center">Stage: {entry.digimonSnapshot?.stage || "Unknown"}</p>
                     <p className="text-xs text-gray-500 text-center">
@@ -779,7 +779,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            Challengers
+            대결상대
           </button>
           <button
             onClick={() => setActiveTab('battleLog')}
@@ -789,7 +789,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            Battle Log
+            배틀 로그
           </button>
           <button
             onClick={() => setActiveTab('leaderboard')}
@@ -799,14 +799,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                 : 'text-gray-600 hover:text-gray-800'
             }`}
           >
-            Leaderboard
+            리더보드
           </button>
         </div>
 
         {/* Challengers 탭 */}
         {activeTab === 'challengers' && (
           <div>
-            <h3 className="text-xl font-bold mb-3">Challengers</h3>
+            <h3 className="text-xl font-bold mb-3">대결상대</h3>
             {challengers.length === 0 ? (
               <p className="text-gray-600">등록된 챌린저가 없습니다.</p>
             ) : (
@@ -851,7 +851,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         {/* Battle Log 탭 */}
         {activeTab === 'battleLog' && (
           <div>
-            <h3 className="text-xl font-bold mb-3">Battle Log</h3>
+            <h3 className="text-xl font-bold mb-3">배틀 로그</h3>
 
             {/* 필터 버튼 */}
             {!loadingLogs && battleLogs.length > 0 && (
@@ -877,7 +877,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
-                      {entry.digimonSnapshot?.digimonName || 'Unknown'} (슬롯{entry.digimonSnapshot?.slotId || '?'})
+                      {digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown'} (슬롯{entry.digimonSnapshot?.slotId || '?'})
                     </button>
                   ))}
                 </div>
@@ -945,12 +945,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   if (log.isAttack) {
                     // 공격 기록: 내가 공격자
                     const myAttackingDigimon = myEntries.find(entry => entry.id === log.myEntryId);
-                    myDigimonName = myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                    const digimonId = myAttackingDigimon?.digimonSnapshot?.digimonId || myAttackingDigimon?.digimonSnapshot?.digimonName;
+                    myDigimonName = digimonDataVer1[digimonId]?.name || myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
                     mySlotId = myAttackingDigimon?.digimonSnapshot?.slotId || null;
                   } else {
                     // 방어 기록: 내가 방어자
                     const myDefendingDigimon = myEntries.find(entry => entry.id === log.defenderEntryId);
-                    myDigimonName = myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                    const digimonId = myDefendingDigimon?.digimonSnapshot?.digimonId || myDefendingDigimon?.digimonSnapshot?.digimonName;
+                    myDigimonName = digimonDataVer1[digimonId]?.name || myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
                     mySlotId = myDefendingDigimon?.digimonSnapshot?.slotId || null;
                   }
 
@@ -976,8 +978,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
                             {log.isAttack 
-                              ? `${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${log.defenderDigimonName}` : ''}`
-                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${log.attackerDigimonName}` : ''} → ${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''}`
+                              ? `${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${digimonDataVer1[log.defenderDigimonName]?.name || log.defenderDigimonName}` : ''}`
+                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${digimonDataVer1[log.attackerDigimonName]?.name || log.attackerDigimonName}` : ''} → ${myDigimonName}${mySlotId ? ` (슬롯${mySlotId})` : ''}`
                             }
                           </p>
                           <p className="text-xs text-gray-500 mb-1">
@@ -1022,7 +1024,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           <div className="w-full overflow-x-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
               <div className="min-w-0">
-                <h3 className="text-lg sm:text-xl font-bold break-words">Leaderboard</h3>
+                <h3 className="text-lg sm:text-xl font-bold break-words">리더보드</h3>
                 <p className="text-xs text-gray-500 break-words">
                   {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
                 </p>
@@ -1116,7 +1118,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   const losses = leaderboardMode === 'season' ? (record.seasonLosses || 0) : (record.losses || 0);
                   const total = wins + losses;
                   const winRate = total === 0 ? 0 : Math.round((wins / total) * 100);
-                  const digimonName = entry.digimonSnapshot?.digimonName || 'Unknown';
+                  const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown';
 
                   const rankClass =
                     rank === 1 ? 'bg-yellow-100 border-yellow-300'
@@ -1161,7 +1163,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                   {currentSlotId && myEntries.some(entry => entry.digimonSnapshot?.slotId === currentSlotId) && (
                     <p className="text-sm text-blue-600 mt-2">
                       💡 현재 슬롯(슬롯{currentSlotId})은 이미 등록되어 있습니다.<br/>
-                      다시 등록하려면 "My Arena Entries"에서 기존 등록을 해제해주세요.
+                      다시 등록하려면 "내 아레나 등록"에서 기존 등록을 해제해주세요.
                     </p>
                   )}
                 </div>
@@ -1188,7 +1190,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
                           />
                         </div>
                         <p className="font-bold text-center text-sm mb-1">{slot.slotName}</p>
-                        <p className="text-xs text-gray-500 text-center mb-1">{slot.selectedDigimon}</p>
+                        <p className="text-xs text-gray-500 text-center mb-1">{digimonData.name || slot.selectedDigimon}</p>
                         <p className="text-xs text-gray-500 text-center">Power: {power}</p>
                       </div>
                     );
@@ -1268,7 +1270,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
               </div>
               <p className="font-bold text-center mb-2">
                 {selectedEntry.isMyEntry
-                  ? selectedEntry.digimonSnapshot?.digimonName || "Unknown"
+                  ? digimonDataVer1[selectedEntry.digimonSnapshot?.digimonId || selectedEntry.digimonSnapshot?.digimonName]?.name || selectedEntry.digimonSnapshot?.digimonName || "Unknown"
                   : "Unknown Digimon" // Blind Pick
                 }
               </p>

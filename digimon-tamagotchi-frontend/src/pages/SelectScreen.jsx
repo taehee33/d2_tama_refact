@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
+import { digimonDataVer1 } from "../data/v1/digimons";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -486,7 +487,7 @@ function SelectScreen() {
 
           <div className="mt-2">
             <p className="font-bold">
-              슬롯 {slot.id} - {slot.selectedDigimon}
+              슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}
             </p>
             <p>생성일: {slot.createdAt}</p>
             <p>

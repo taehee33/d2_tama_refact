@@ -130,7 +130,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
                 >
                   <div className="font-bold mb-1">{slot.slotName}</div>
                   <div className="text-sm font-semibold text-gray-800 mb-1">
-                    "{slot.selectedDigimon}"
+                    "{digimonData?.name || slot.selectedDigimon}"
                   </div>
                   <div className="text-sm text-gray-600">
                     파워: {actualPower}

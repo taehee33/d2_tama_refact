@@ -1203,7 +1203,7 @@ async function setSelectedDigimonAndSave(name) {
 
       <div className={`text-center mb-1 ${isMobile ? "pt-16" : ""}`}>
         <h2 className="text-base font-bold">
-          슬롯 {slotId} - {selectedDigimon}
+          슬롯 {slotId} - {newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon}
         </h2>
         <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
         <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>

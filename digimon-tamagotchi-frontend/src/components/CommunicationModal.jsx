@@ -8,7 +8,7 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-4 text-center">Communication</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">온라인 배틀</h2>
         
         <div className="flex flex-col space-y-4">
           <button
@@ -18,7 +18,7 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             }}
             className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
-            Sparring (Self PvP)
+            스파링 [Self PvP]
           </button>
           
           <button
@@ -28,7 +28,7 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             }}
             className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
-            Arena (Ghost)
+            아레나 [PvP(Ghost)]
           </button>
           
           <button
@@ -36,7 +36,7 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             disabled
             title="Coming Soon"
           >
-            Live Duel
+            실시간 배틀
             <span className="text-xs block mt-1">Coming Soon</span>
           </button>
           

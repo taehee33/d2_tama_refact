@@ -21,9 +21,9 @@ export default function DigimonInfoModal({
   const renderHeader = () => {
     const titles = {
       'MENU': '디지몬 가이드',
-      'INFO': 'Digimon Info',
-      'EVOLUTION': 'Evolution Guide',
-      'LOGS': 'Activity Logs',
+      'INFO': '디지몬 정보',
+      'EVOLUTION': '진화 가이드',
+      'LOGS': '활동 로그',
       'TIPS': '게임 팁',
       'GUIDE': '기본 가이드',
     };
@@ -66,21 +66,21 @@ export default function DigimonInfoModal({
           className="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
         >
           <span className="text-2xl">📊</span>
-          <span>Digimon Info</span>
+          <span>디지몬 정보</span>
         </button>
         <button
           onClick={() => setCurrentView('EVOLUTION')}
           className="w-full px-6 py-4 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
         >
           <span className="text-2xl">🧬</span>
-          <span>Evolution Guide</span>
+          <span>진화 가이드</span>
         </button>
         <button
           onClick={() => setCurrentView('LOGS')}
           className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
         >
           <span className="text-2xl">📝</span>
-          <span>Activity Logs</span>
+          <span>활동 로그</span>
         </button>
         <button
           onClick={() => setCurrentView('TIPS')}

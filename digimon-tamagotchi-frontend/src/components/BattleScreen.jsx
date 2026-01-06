@@ -398,8 +398,8 @@ export default function BattleScreen({
               VS {hideEnemyInfo 
                 ? "???" 
                 : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
-                ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyData?.name || "Unknown"}`
-                : enemyData?.name || "Unknown"}
+                ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+                : enemyDigimonData?.name || enemyData?.name || "Unknown"}
             </p>
             <div className="flex gap-4 justify-center">
               <button
@@ -426,10 +426,10 @@ export default function BattleScreen({
           <div className="text-center mb-4 pb-3 border-b border-gray-200">
             <h2 className="text-2xl font-bold">
             {battleType === 'sparring'
-              ? `Sparring - ${enemyData?.name || "Unknown"}`
+              ? `Sparring - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
               : battleType === 'arena'
-              ? `Arena - ${enemyData.tamerName || enemyData.trainerName}의 ${enemyData?.name || "Unknown"}`
-              : `Round ${roundIndex + 1} - ${enemyData?.name || "Unknown"}`}
+              ? `Arena - ${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+              : `Round ${roundIndex + 1} - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`}
           </h2>
           {enemyData?.isBoss && (
             <span className="text-red-600 font-bold">BOSS</span>
@@ -563,8 +563,8 @@ export default function BattleScreen({
                 {hideEnemyInfo 
                   ? "???" 
                   : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
-                  ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyData?.name || "Unknown"}`
-                  : enemyData?.name || "Enemy"}
+                  ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+                  : enemyDigimonData?.name || enemyData?.name || "Enemy"}
               </p>
               <p>Power: {hideEnemyInfo ? "??" : enemyPower}</p>
             </div>
