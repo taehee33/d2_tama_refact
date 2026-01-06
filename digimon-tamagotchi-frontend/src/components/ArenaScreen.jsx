@@ -27,7 +27,7 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats }) {
   // 배경 스크롤 방지
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -72,6 +72,63 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [archivesList, setArchivesList] = useState([]);
   const [selectedArchiveId, setSelectedArchiveId] = useState("");
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [currentDigimonInfo, setCurrentDigimonInfo] = useState(null);
+
+
+  // 현재 디지몬 정보 로드
+  useEffect(() => {
+    if (currentSlotId) {
+      let digimonName = null;
+      let digimonStatsData = null;
+      let slotName = null;
+      
+      // Firestore 모드일 때는 props로 전달받은 데이터 사용
+      if (mode === 'firebase' && selectedDigimon && digimonStats) {
+        digimonName = selectedDigimon;
+        digimonStatsData = digimonStats;
+        slotName = localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`;
+      } else if (mode === 'local') {
+        // localStorage 모드
+        const digimonNameKey = `slot${currentSlotId}_selectedDigimon`;
+        const statsKey = `slot${currentSlotId}_digimonStats`;
+        const slotNameKey = `slot${currentSlotId}_slotName`;
+        
+        digimonName = localStorage.getItem(digimonNameKey);
+        const statsJson = localStorage.getItem(statsKey);
+        slotName = localStorage.getItem(slotNameKey) || `슬롯${currentSlotId}`;
+        
+        if (statsJson) {
+          try {
+            digimonStatsData = JSON.parse(statsJson);
+          } catch (error) {
+            console.error('[ArenaScreen] statsJson 파싱 오류:', error);
+            digimonStatsData = {};
+          }
+        } else {
+          digimonStatsData = {};
+        }
+      }
+      
+      if (digimonName && digimonName !== "Digitama") {
+        const digimonData = digimonDataVer1[digimonName];
+        
+        if (digimonData) {
+          setCurrentDigimonInfo({
+            digimonName,
+            digimonStats: digimonStatsData || {},
+            slotName,
+            digimonData,
+          });
+        } else {
+          setCurrentDigimonInfo(null);
+        }
+      } else {
+        setCurrentDigimonInfo(null);
+      }
+    } else {
+      setCurrentDigimonInfo(null);
+    }
+  }, [currentSlotId, mode, selectedDigimon, digimonStats]);
 
   useEffect(() => {
     if (isFirebaseAvailable && currentUser && mode !== 'local') {
@@ -705,6 +762,91 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
           <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
             <h2 className="text-2xl font-bold">아레나 [PvP(Ghost)]</h2>
           </div>
+
+        {/* 현재 디지몬 영역 */}
+        {currentDigimonInfo ? (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-300">
+            <h3 className="text-xl font-bold mb-3">현재 디지몬</h3>
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* 왼쪽: 디지몬 정보 */}
+              <div className="flex-shrink-0 w-full sm:w-48 p-3 rounded-lg border bg-white border-gray-300">
+                <div className="flex justify-center mb-2">
+                  <img
+                    src={`/images/${currentDigimonInfo.digimonData?.sprite || 0}.png`}
+                    alt={currentDigimonInfo.digimonName || "Unknown"}
+                    className="w-24 h-24"
+                    style={{ imageRendering: "pixelated" }}
+                  />
+                </div>
+                <p className="font-bold text-center text-sm mb-1">
+                  {currentDigimonInfo.slotName} - {currentDigimonInfo.digimonData?.name || currentDigimonInfo.digimonName || "Unknown"}
+                </p>
+                <p className="text-xs text-gray-500 text-center">Stage: {currentDigimonInfo.digimonData?.stage || "Unknown"}</p>
+                {(() => {
+                  const currentEntry = myEntries.find(entry => entry.digimonSnapshot?.slotId === currentSlotId);
+                  if (currentEntry) {
+                    return (
+                      <p className="text-xs text-gray-500 text-center mt-1">
+                        {currentEntry.record.wins}승 {currentEntry.record.losses}패 ({calculateWinRate(currentEntry.record)}%)
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+              
+              {/* 오른쪽: 배틀 관련 스탯 */}
+              <div className="flex-1 p-3 rounded-lg border bg-white border-gray-300">
+                <h4 className="text-sm font-bold mb-2 text-gray-700">배틀 스탯</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-600">파워:</span>
+                    <span className="font-bold ml-2">{currentDigimonInfo.digimonStats?.power || currentDigimonInfo.digimonData?.stats?.basePower || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">타입:</span>
+                    <span className="font-bold ml-2">{currentDigimonInfo.digimonData?.stats?.type || "Unknown"}</span>
+                  </div>
+                  {currentDigimonInfo.digimonStats?.injuries !== undefined && (
+                    <div>
+                      <span className="text-gray-600">부상 횟수:</span>
+                      <span className="font-bold ml-2">{currentDigimonInfo.digimonStats.injuries || 0}회</span>
+                    </div>
+                  )}
+                  {currentDigimonInfo.digimonStats?.proteinOverdose !== undefined && (
+                    <div>
+                      <span className="text-gray-600">단백질 과다:</span>
+                      <span className="font-bold ml-2">{currentDigimonInfo.digimonStats.proteinOverdose || 0}</span>
+                    </div>
+                  )}
+                  {currentDigimonInfo.digimonStats?.overfeeds !== undefined && (
+                    <div>
+                      <span className="text-gray-600">과식:</span>
+                      <span className="font-bold ml-2">{currentDigimonInfo.digimonStats.overfeeds || 0}회</span>
+                    </div>
+                  )}
+                  {currentDigimonInfo.digimonStats?.weight !== undefined && (
+                    <div>
+                      <span className="text-gray-600">체중:</span>
+                      <span className="font-bold ml-2">{currentDigimonInfo.digimonStats.weight || 0}g</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : currentSlotId ? (
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-300">
+            <h3 className="text-xl font-bold mb-3">현재 디지몬</h3>
+            <p className="text-gray-600 text-sm">
+              현재 슬롯(슬롯{currentSlotId})의 디지몬 정보를 불러올 수 없습니다.
+              <br />
+              <span className="text-xs text-gray-500">
+                (디지타마이거나 데이터가 없을 수 있습니다)
+              </span>
+            </p>
+          </div>
+        ) : null}
 
         {/* My Arena Entries */}
         <div className="mb-6 p-4 bg-blue-50 rounded-lg border-2 border-blue-300">

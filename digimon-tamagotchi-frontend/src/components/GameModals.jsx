@@ -277,6 +277,8 @@ export default function GameModals({
           currentSeasonId={currentSeasonId}
           isDevMode={developerMode}
           onOpenAdmin={() => toggleModal('admin', true)}
+          selectedDigimon={selectedDigimon}
+          digimonStats={digimonStats}
         />
       )}
 
