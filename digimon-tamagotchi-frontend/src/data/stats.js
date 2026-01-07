@@ -482,10 +482,9 @@ export function applyLazyUpdate(stats, lastSavedAt) {
       const elapsed = now.getTime() - startedAt;
       
       if (elapsed > HUNGER_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
-        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
-        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
-        
+        // Lazy Update에서 케어미스 증가 (오프라인 복귀 대응)
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+
         // 호출 리셋
         callStatus.hunger.isActive = false;
         callStatus.hunger.startedAt = null;
@@ -517,10 +516,9 @@ export function applyLazyUpdate(stats, lastSavedAt) {
       const elapsed = now.getTime() - startedAt;
       
       if (elapsed > STRENGTH_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
-        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
-        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
-        
+        // Lazy Update에서 케어미스 증가 (오프라인 복귀 대응)
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+
         // 호출 리셋
         callStatus.strength.isActive = false;
         callStatus.strength.startedAt = null;

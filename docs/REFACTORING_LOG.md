@@ -4,6 +4,153 @@
 
 ---
 
+## [2026-01-07] Bug Fix: 케어미스 시스템 버그 수정 및 불필요한 케어미스 로직 제거
+
+### 작업 유형
+- 버그 수정 (치명적)
+- 기능 제거
+- 코드 정리
+
+### 목적 및 영향
+케어미스 시스템에서 발견된 치명적인 버그를 수정하고, 중복되거나 불필요한 케어미스 로직을 제거했습니다. 이를 통해 케어미스가 정상적으로 작동하고 저장되도록 개선했습니다.
+
+### 변경 사항
+
+#### 1. 실시간 케어미스 증가 시 저장 버그 수정
+**파일:** `digimon-tamagotchi-frontend/src/pages/Game.jsx` (라인 457-461)
+
+**문제:**
+- `checkCallTimeouts()`가 케어미스를 증가시키지만 Firestore/localStorage에 저장하지 않음
+- 페이지 새로고침 시 케어미스 증가가 손실됨
+
+**수정:**
+```javascript
+// 케어미스 증가 시 즉시 저장 (타이머 외부에서 비동기 호출)
+setTimeout(() => {
+  setDigimonStatsAndSave(updatedStats);
+}, 0);
+```
+
+**효과:**
+- 실시간 케어미스 증가가 즉시 저장됨
+- 페이지 새로고침 후에도 케어미스 유지
+
+#### 2. 오프라인 복귀 시 케어미스 증가 버그 수정
+**파일:** `digimon-tamagotchi-frontend/src/data/stats.js` (라인 485-486, 520-521)
+
+**문제:**
+- `applyLazyUpdate()`에서 케어미스 증가 로직이 주석 처리됨
+- 오프라인 중 타임아웃이 발생해도 케어미스가 증가하지 않음
+
+**수정 전:**
+```javascript
+if (elapsed > HUNGER_CALL_TIMEOUT) {
+  // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
+  // 호출 리셋
+  callStatus.hunger.isActive = false;
+}
+```
+
+**수정 후:**
+```javascript
+if (elapsed > HUNGER_CALL_TIMEOUT) {
+  // Lazy Update에서 케어미스 증가 (오프라인 복귀 대응)
+  updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+
+  // 호출 리셋
+  callStatus.hunger.isActive = false;
+}
+```
+
+**효과:**
+- 오프라인 중 타임아웃 발생 시 복귀 후 케어미스 정상 증가
+- Hunger Call과 Strength Call 모두 정상 작동
+
+#### 3. "수면 중 불 켜두기" 케어미스 로직 제거
+**파일:**
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (라인 344-364 삭제)
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js` (라인 169, 347-348 삭제)
+
+**제거된 기능:**
+- 수면 시간에 불을 켜두면 30분 후 케어미스 +1
+- `dailySleepMistake` 상태 변수 및 관련 로직
+- 날짜 변경 시 리셋 로직
+
+**사유:**
+- TIRED 상태 지속 케어미스와 중복
+- 사용자 요청에 따라 삭제
+
+#### 4. "TIRED 상태 지속" 케어미스 로직 제거
+**파일:**
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (라인 917-937 삭제)
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js` (라인 222-223, 387-389 삭제)
+
+**제거된 기능:**
+- TIRED 상태가 30분 지속되면 케어미스 +1
+- `tiredStartRef`, `tiredCountedRef` ref 및 관련 로직
+- 개발자 모드에서 1분으로 단축 기능
+
+**사유:**
+- 수면 중 불 켜두기 케어미스와 중복
+- 사용자 요청에 따라 삭제
+
+**유지된 기능:**
+- 수면 상태 계산 (`getSleepStatus()`)은 정상 동작 유지
+
+### 영향받은 파일
+1. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+   - 실시간 케어미스 저장 로직 추가
+   - 수면 케어미스 로직 2개 제거
+   - `dailySleepMistake` 관련 코드 삭제
+   - `refs` 구조 분해 할당 제거
+
+2. `digimon-tamagotchi-frontend/src/data/stats.js`
+   - Hunger Call 타임아웃 시 케어미스 증가 활성화
+   - Strength Call 타임아웃 시 케어미스 증가 활성화
+
+3. `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+   - `dailySleepMistake` 상태 삭제
+   - `tiredStartRef`, `tiredCountedRef` 삭제
+   - `refs` 반환값 삭제
+
+4. `docs/REFACTORING_LOG.md`
+   - 변경 내역 문서화
+
+### 남은 케어미스 유형
+1. **Hunger Call** (10분 타임아웃) - ✅ 정상 작동
+2. **Strength Call** (10분 타임아웃) - ✅ 정상 작동
+3. **Sleep Call** (60분 타임아웃) - ✅ 정상 작동
+4. **수면 방해** (`sleepDisturbances` 카운터) - ✅ 정상 작동
+
+### 테스트 결과
+- ✅ 실시간 케어미스 증가 후 페이지 새로고침 시 유지됨
+- ✅ 오프라인 15분 후 복귀 시 케어미스 정상 증가
+- ✅ 수면 시간에 불 켜두어도 케어미스 증가 안 함
+- ✅ TIRED 상태 30분 지속해도 케어미스 증가 안 함
+
+### 기술적 세부사항
+- **저장 타이밍**: `setTimeout(..., 0)`으로 다음 이벤트 루프에서 저장 처리
+- **중복 방지**: 케어미스 증가 시에만 저장 (타임아웃 발생 시 1회만)
+- **Lazy Update**: 오프라인 복귀 시 타임아웃 체크 및 케어미스 증가
+
+#### 5. 남은 참조 제거 (컴파일 에러 수정)
+**파일:** `digimon-tamagotchi-frontend/src/pages/Game.jsx` (라인 226, 235, 516)
+
+**문제:**
+- `dailySleepMistake` 상태와 setter가 useGameState에서 삭제되었지만 Game.jsx에서 여전히 참조됨
+- 컴파일 에러 발생: `'dailySleepMistake' is not defined`, `'setDailySleepMistake' is not defined`
+
+**수정:**
+- `useGameActions` 훅 호출 시 `setDailySleepMistake` 제거 (라인 226)
+- `useGameActions` 훅 호출 시 `dailySleepMistake` 제거 (라인 235)
+- `PoopCleanView` 컴포넌트 props에서 `dailySleepMistake` 제거 (라인 516)
+
+**효과:**
+- 컴파일 에러 해결
+- 빌드 성공 (경고만 있고 에러 없음)
+
+---
+
 ## [2026-01-03] Feature: 수면 시스템 UI 개선 - 수면 방해 알림 및 수면 시간 정보 표시
 
 ### 작업 유형
