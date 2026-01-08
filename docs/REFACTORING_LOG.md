@@ -4,6 +4,641 @@
 
 ---
 
+## [2026-01-07] Fix: 케어미스 타임아웃 시간 복원 및 활동로그 개선
+
+### 작업 유형
+- 설정 복원
+- UI/UX 개선
+- 활동로그 개선
+
+### 목적 및 영향
+테스트용으로 설정했던 타임아웃 시간을 원래대로 10분으로 복원하고, 케어미스 발생 시 활동로그에 더 명확한 정보를 표시하도록 개선했습니다.
+
+### 변경 사항
+
+#### 1. 타임아웃 시간 복원 (30초 → 10분)
+
+**`digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`** (528-529줄):
+- `HUNGER_CALL_TIMEOUT`: 30초 → 10분
+- `STRENGTH_CALL_TIMEOUT`: 30초 → 10분
+
+**`digimon-tamagotchi-frontend/src/data/stats.js`** (474-475줄):
+- `HUNGER_CALL_TIMEOUT`: 30초 → 10분
+- `STRENGTH_CALL_TIMEOUT`: 30초 → 10분
+
+**`digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`** (578, 615줄):
+- 타임아웃 표시: 30초 → 10분
+- 메시지: "30초 초과 시" → "10분 초과 시"
+
+#### 2. 활동로그 메시지 개선
+
+**`digimon-tamagotchi-frontend/src/pages/Game.jsx`** (437-456줄):
+- 기존: "Care Mistake: Ignored Hunger Call (1 mistake)"
+- 개선: "배고픔 케어미스 발생: 0 → 1"
+- 원래값과 증가값을 명확히 표시
+
+```javascript
+// 배고픔 케어미스 발생 체크
+if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
+  logText = `배고픔 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+} 
+// 힘 케어미스 발생 체크
+else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
+  logText = `힘 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+} 
+// 수면 케어미스 발생 체크
+else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
+  logText = `수면 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+}
+```
+
+### 해결된 문제
+1. ✅ 타임아웃 시간이 원래대로 10분으로 복원됨
+2. ✅ 활동로그에 케어미스 발생 시 원래값 → 증가값이 명확히 표시됨
+3. ✅ 배고픔/힘/수면 케어미스를 구분하여 표시
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (528-529줄)
+- `digimon-tamagotchi-frontend/src/data/stats.js` (474-475줄)
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx` (578, 615줄)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (437-456줄)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 10분 이상 방치
+2. 활동로그에서 "배고픔 케어미스 발생: 0 → 1" 메시지 확인
+3. StatsPopup에서 타임아웃 시간이 10분으로 표시되는지 확인
+
+---
+
+## [2026-01-07] Fix: 케어미스 실시간 증가 문제 해결 (불변성 문제)
+
+### 작업 유형
+- 버그 수정
+- 리액트 불변성 보장
+
+### 목적 및 영향
+케어미스가 새로고침을 해야만 증가하는 문제를 해결했습니다. 리액트의 불변성 원칙을 위반하여 상태 변경이 감지되지 않았던 문제였습니다.
+
+### 문제 분석
+
+#### 근본 원인: 불변성(Immutability) 위반
+- **문제**: `checkCallTimeouts` 함수에서 `let updatedStats = { ...stats }`로 얕은 복사를 했지만, `callStatus`는 중첩 객체이므로 여전히 원본을 참조하고 있었습니다.
+- **영향**: `callStatus`를 직접 수정하면 리액트가 변화를 감지하지 못하여 화면이 업데이트되지 않았습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+
+**checkCallTimeouts 함수 수정** (511-580줄):
+- 깊은 복사를 통해 `callStatus`도 새로 생성
+- 변경이 없을 때는 기존 객체 반환 (리액트 최적화)
+- 변경 여부 추적을 위한 `hasChanged` 플래그 추가
+- 디버깅을 위한 콘솔 로그 추가
+
+```javascript
+export function checkCallTimeouts(stats, now = new Date()) {
+  if (!stats || !stats.callStatus) {
+    return stats;
+  }
+
+  // 깊은 복사를 통해 새로운 객체 생성 (리액트 불변성 보장)
+  const updatedStats = {
+    ...stats,
+    callStatus: {
+      ...stats.callStatus,
+      hunger: { ...stats.callStatus.hunger },
+      strength: { ...stats.callStatus.strength },
+      sleep: { ...stats.callStatus.sleep }
+    }
+  };
+
+  const callStatus = updatedStats.callStatus;
+  const HUNGER_CALL_TIMEOUT = 30 * 1000; // 30초 (테스트용)
+  const STRENGTH_CALL_TIMEOUT = 30 * 1000; // 30초 (테스트용)
+  const SLEEP_CALL_TIMEOUT = 60 * 60 * 1000; // 60분
+
+  const nowMs = now.getTime();
+  let hasChanged = false; // 변경 여부 추적
+
+  // Hunger 호출 타임아웃 체크
+  const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+  if (hungerStartedAt) {
+    const elapsed = nowMs - hungerStartedAt;
+    
+    if (elapsed > HUNGER_CALL_TIMEOUT) {
+      // 타임아웃 발생
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      updatedStats.lastHungerZeroAt = null;
+      hasChanged = true;
+      console.log("🔥 실시간 Hunger 케어미스 발생! careMistakes:", updatedStats.careMistakes);
+    }
+  }
+
+  // Strength, Sleep 호출도 동일한 로직 적용
+
+  // 변경되었을 때만 새 객체 반환, 아니면 기존 객체 그대로 반환 (리액트 최적화)
+  return hasChanged ? updatedStats : stats;
+}
+```
+
+### 해결된 문제
+1. ✅ 케어미스가 실시간으로 증가함 (새로고침 불필요)
+2. ✅ 리액트 불변성 원칙 준수
+3. ✅ 불필요한 리렌더링 방지 (변경이 없을 때 기존 객체 반환)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (511-580줄)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 30초 이상 방치
+2. 케어미스가 실시간으로 증가하는지 확인 (새로고침 불필요)
+3. 브라우저 콘솔에서 "🔥 실시간 Hunger 케어미스 발생!" 메시지 확인
+
+---
+
+## [2026-01-07] Fix: 케어미스 타임아웃 시스템 근본 원인 수정
+
+### 작업 유형
+- 버그 수정
+- 시스템 통합 수정
+
+### 목적 및 영향
+케어미스 타임아웃 시스템이 동작하지 않았던 근본 원인을 해결했습니다. `useGameData.js`에서 잘못된 함수를 사용하고 있었고, Firestore Timestamp 변환 문제가 있었습니다.
+
+### 문제 분석
+
+#### 근본 원인 1: 잘못된 함수 사용 (가장 심각)
+- **문제**: `useGameData.js`에서 `applyLazyUpdateFromLogic`을 사용하고 있었는데, 우리가 수정한 함수는 `data/stats.js`의 `applyLazyUpdate`였습니다.
+- **영향**: 수정한 코드가 전혀 실행되지 않았습니다.
+
+#### 근본 원인 2: Firestore Timestamp 변환 누락
+- **문제**: Firestore에서 로드된 `startedAt`이 `{seconds, nanoseconds}` 형태일 때 `new Date()`가 이를 인식하지 못해 `NaN` 발생
+- **영향**: 타임아웃 계산이 실패하여 케어미스가 증가하지 않았습니다.
+
+#### 근본 원인 3: 함수 시그니처 불일치
+- **문제**: `applyLazyUpdate`가 `(stats, lastSavedAt)`만 받는데, `applyLazyUpdateFromLogic`은 `(stats, lastSavedAt, sleepSchedule, maxEnergy)`를 받음
+- **영향**: 함수 호출 시 파라미터 불일치
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- **Import 수정** (7-8줄):
+  - `applyLazyUpdateFromLogic` import 제거
+  - `applyLazyUpdate`만 사용하도록 통일
+
+```javascript
+// 수정 전
+import { applyLazyUpdate } from "../data/stats";
+import { applyLazyUpdate as applyLazyUpdateFromLogic } from "../logic/stats/stats";
+
+// 수정 후
+import { applyLazyUpdate } from "../data/stats";
+```
+
+- **함수 호출 수정** (272, 297, 407, 475줄):
+  - 모든 `applyLazyUpdateFromLogic` 호출을 `applyLazyUpdate`로 변경
+
+#### 2. `digimon-tamagotchi-frontend/src/data/stats.js`
+- **ensureTimestamp 유틸 함수 추가** (250-265줄):
+  - Firestore Timestamp, number, Date, string 모두 처리
+  - `applyLazyUpdate` 함수 상단에 추가
+
+```javascript
+function ensureTimestamp(val) {
+  if (!val) return null;
+  if (typeof val === 'number') return val;
+  // Firestore Timestamp 객체 처리
+  if (val && typeof val === 'object' && 'seconds' in val) {
+    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
+  }
+  // Date 객체나 문자열 처리
+  const date = new Date(val);
+  return isNaN(date.getTime()) ? null : date.getTime();
+}
+```
+
+- **applyLazyUpdate 함수 시그니처 수정** (258줄):
+  - `sleepSchedule`, `maxEnergy` 파라미터 추가 (선택적)
+
+- **타임아웃 체크 로직 수정** (485-518, 520-543줄):
+  - `ensureTimestamp`를 사용하여 안전한 시간 변환
+  - Firestore Timestamp 객체도 정상 처리
+
+#### 3. `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- **ensureTimestamp 유틸 함수 추가** (4-18줄):
+  - 파일 상단에 추가하여 모든 함수에서 사용 가능
+
+- **checkCalls 함수 수정** (395-431줄):
+  - `ensureTimestamp`를 사용하여 Firestore Timestamp 처리
+  - `startedAt`이 Firestore 객체인 경우 number로 변환하여 저장
+
+- **checkCallTimeouts 함수 수정** (511-570줄):
+  - `ensureTimestamp`를 사용하여 안전한 시간 변환
+  - `isActive` 체크 제거, `startedAt`만 체크
+
+### 해결된 문제
+1. ✅ 수정한 `applyLazyUpdate` 함수가 실제로 실행됨
+2. ✅ Firestore Timestamp 객체가 정상적으로 변환됨
+3. ✅ 새로고침 후 타임아웃 시간이 유지됨
+4. ✅ 타임아웃 후 케어미스가 정상적으로 증가함
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js` (7-8, 272, 297, 407, 475줄)
+- `digimon-tamagotchi-frontend/src/data/stats.js` (250-265, 258, 485-543줄)
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (4-18, 395-431, 511-570줄)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 30초 이상 방치
+2. 새로고침 후 StatsPopup에서 타임아웃 시간이 유지되는지 확인
+3. 30초가 지나면 케어미스가 증가하는지 확인
+4. 브라우저 콘솔에서 `digimonStats.callStatus.hunger.startedAt` 타입 확인 (number여야 함)
+
+---
+
+## [2026-01-07] Feature: 로컬 모드 표시 및 로그아웃 기능 추가
+
+### 작업 유형
+- 기능 추가
+- UI/UX 개선
+
+### 목적 및 영향
+로컬 저장소 모드로 게임을 시작했을 때, Select 화면과 Game 화면에서 현재 로컬 모드로 로그인되었음을 명확히 표시하고, 로컬 모드를 종료할 수 있는 버튼을 추가했습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- **로컬 모드 표시 추가** (397-424줄):
+  - 로컬 모드일 때 오른쪽 위에 "로컬 모드로 로그인됨" 텍스트 표시
+  - 로컬 모드 로그아웃 버튼 추가 (오렌지색 버튼)
+  - Firebase 모드와 로컬 모드를 명확히 구분
+
+```javascript
+{mode === 'local' ? (
+  <>
+    <span className="text-sm text-gray-600 font-semibold">로컬 모드로 로그인됨</span>
+    <button
+      onClick={handleLocalLogout}
+      className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm"
+    >
+      로컬 모드 로그아웃
+    </button>
+  </>
+) : isFirebaseAvailable && currentUser ? (
+  // Firebase 모드 UI
+) : null}
+```
+
+- **로컬 모드 로그아웃 함수 추가** (374-382줄):
+  - `handleLocalLogout` 함수 추가
+  - 확인 메시지 후 로그인 페이지로 이동
+
+#### 2. `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- **모바일 화면 로컬 모드 표시** (1147-1160줄):
+  - 로컬 모드일 때 "로컬 모드로 로그인됨" 텍스트와 로그아웃 버튼 표시
+  - Firebase 모드와 구분하여 표시
+
+- **데스크톱 화면 로컬 모드 표시** (1177-1194줄):
+  - 오른쪽 위에 로컬 모드 표시 및 로그아웃 버튼 추가
+  - Settings 버튼 옆에 배치
+
+### 해결된 문제
+1. ✅ 로컬 모드로 게임을 시작했을 때 현재 모드를 명확히 표시
+2. ✅ 로컬 모드를 종료하고 로그인 페이지로 이동할 수 있는 기능 제공
+3. ✅ Firebase 모드와 로컬 모드를 시각적으로 구분
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx` (374-424줄)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (1147-1194줄)
+
+### 사용자 경험 개선
+- 로컬 모드 사용자가 현재 모드를 쉽게 확인 가능
+- 로컬 모드를 종료하고 다른 계정으로 전환 가능
+- Firebase 모드와 로컬 모드의 UI 일관성 유지
+
+---
+
+## [2026-01-07] Refactor: 케어미스 타임아웃 시스템 완전 재구현
+
+### 작업 유형
+- 시스템 재설계 및 재구현
+- 버그 수정
+- 아키텍처 개선
+
+### 목적 및 영향
+케어미스 타임아웃 시스템의 근본적인 문제를 해결하기 위해 완전히 재설계하고 재구현했습니다. 새로고침 후에도 타임아웃 시간이 유지되고, 케어미스가 정상적으로 증가하도록 개선했습니다.
+
+### 문제 분석
+
+#### 근본 문제
+1. **호출 상태 복원 로직의 불일치**: `checkCalls`와 `applyLazyUpdate`에서 서로 다른 방식으로 호출을 복원
+2. **타임아웃 체크의 중복/누락**: `isActive` 플래그에 의존하여 새로고침 후 타임아웃이 체크되지 않음
+3. **호출 시작 시점의 불일치**: `checkCalls`는 `now.getTime()` 사용, `applyLazyUpdate`는 `lastHungerZeroAt` 사용
+
+### 설계 원칙
+
+1. **단일 진실 공급원 (Single Source of Truth)**
+   - 호출 시작 시점은 `callStatus.hunger.startedAt`에 저장
+   - `lastHungerZeroAt`는 호출 시작 시점을 기록하는 용도로만 사용
+
+2. **상태 복원 우선순위**
+   - Firestore에서 로드된 `callStatus`가 있으면 우선 사용
+   - `callStatus`가 없거나 불완전하면 `lastHungerZeroAt`를 기반으로 복원
+
+3. **타임아웃 체크의 단일화**
+   - `isActive` 대신 `startedAt`만 체크
+   - `startedAt`이 있으면 항상 타임아웃 체크
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+
+**checkCalls 함수 재구현** (395-431줄):
+- `startedAt`이 없으면 새로 시작하고 `lastHungerZeroAt`도 업데이트
+- `startedAt`이 있으면 `isActive`를 true로 설정 (복원)
+- `fullness > 0`이 되면 `startedAt`과 `lastHungerZeroAt` 모두 null로 설정
+
+```javascript
+// Hunger 호출 트리거
+if (updatedStats.fullness === 0) {
+  // startedAt이 없으면 새로 시작
+  if (!callStatus.hunger.startedAt) {
+    callStatus.hunger.isActive = true;
+    callStatus.hunger.startedAt = now.getTime();
+    // lastHungerZeroAt도 업데이트 (호출 시작 시점 기록)
+    updatedStats.lastHungerZeroAt = now.getTime();
+  } else {
+    // startedAt이 있으면 isActive를 true로 설정 (복원)
+    callStatus.hunger.isActive = true;
+  }
+} else {
+  // fullness가 0이 아니면 호출 리셋
+  callStatus.hunger.isActive = false;
+  callStatus.hunger.startedAt = null;
+  updatedStats.lastHungerZeroAt = null;
+}
+```
+
+**checkCallTimeouts 함수 수정** (469-495줄):
+- `isActive` 대신 `startedAt`만 체크
+- 타임아웃 시 `lastHungerZeroAt`도 null로 설정
+
+```javascript
+// Hunger 호출 타임아웃 체크 (isActive 대신 startedAt만 체크)
+if (callStatus.hunger.startedAt) {
+  const startedAt = typeof callStatus.hunger.startedAt === 'number'
+    ? callStatus.hunger.startedAt
+    : new Date(callStatus.hunger.startedAt).getTime();
+  const elapsed = now.getTime() - startedAt;
+  
+  if (elapsed > HUNGER_CALL_TIMEOUT) {
+    // 타임아웃 발생
+    updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+    callStatus.hunger.isActive = false;
+    callStatus.hunger.startedAt = null;
+    updatedStats.lastHungerZeroAt = null;
+  }
+}
+```
+
+**resetCallStatus 함수 수정** (456-475줄):
+- 호출 리셋 시 `lastHungerZeroAt` / `lastStrengthZeroAt`도 함께 null로 설정
+
+#### 2. `digimon-tamagotchi-frontend/src/data/stats.js`
+
+**applyLazyUpdate 함수 재구현** (465-543줄):
+- `startedAt` 우선 사용, 없으면 `lastHungerZeroAt`로 복원
+- 타임아웃 체크 시 `isActive` 대신 `startedAt`만 체크
+- 호출 리셋 시 `lastHungerZeroAt`도 null로 설정
+
+```javascript
+// Hunger 호출 처리
+if (updatedStats.fullness === 0) {
+  // startedAt이 없으면 lastHungerZeroAt를 기반으로 복원
+  if (!callStatus.hunger.startedAt && updatedStats.lastHungerZeroAt) {
+    const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+      ? updatedStats.lastHungerZeroAt
+      : new Date(updatedStats.lastHungerZeroAt).getTime();
+    callStatus.hunger.isActive = true;
+    callStatus.hunger.startedAt = hungerZeroTime;
+  } else if (callStatus.hunger.startedAt) {
+    // startedAt이 있으면 isActive를 true로 설정 (복원)
+    callStatus.hunger.isActive = true;
+  }
+  
+  // 타임아웃 체크 (isActive 대신 startedAt만 체크)
+  if (callStatus.hunger.startedAt) {
+    const startedAt = typeof callStatus.hunger.startedAt === 'number'
+      ? callStatus.hunger.startedAt
+      : new Date(callStatus.hunger.startedAt).getTime();
+    const elapsed = now.getTime() - startedAt;
+    
+    if (elapsed > HUNGER_CALL_TIMEOUT) {
+      // 타임아웃 발생
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      updatedStats.lastHungerZeroAt = null;
+    }
+  }
+} else {
+  // 배고픔이 0이 아니면 호출 리셋
+  callStatus.hunger.isActive = false;
+  callStatus.hunger.startedAt = null;
+  updatedStats.lastHungerZeroAt = null;
+}
+```
+
+### 해결된 문제
+1. ✅ 새로고침 후에도 타임아웃 시간이 유지됨 (`startedAt` 기반 복원)
+2. ✅ 타임아웃 후 케어미스가 정상적으로 증가함 (`startedAt`만 체크)
+3. ✅ 호출 상태 복원 로직의 일관성 확보
+4. ✅ `lastHungerZeroAt`와 `startedAt`의 동기화
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (395-495, 456-475줄)
+- `digimon-tamagotchi-frontend/src/data/stats.js` (465-543줄)
+- `docs/CAREMISTAKE_TIMEOUT_REDESIGN_ANALYSIS.md` (신규 생성)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 30초 이상 방치하고 새로고침 → 타임아웃 시간이 유지되는지 확인
+2. 새로고침 후에도 StatsPopup에서 타임아웃 시간이 정확히 표시되는지 확인
+3. 30초가 지나면 케어미스가 증가하는지 확인
+4. 호출 응답 시 (먹이기/훈련) 호출이 정상적으로 리셋되는지 확인
+
+---
+
+## [2026-01-07] Fix: 케어미스 타임아웃 시간 유지 문제 및 테스트용 타임아웃 시간 변경
+
+### 작업 유형
+- 버그 수정
+- 케어미스 시스템 개선
+- 테스트 설정 변경
+
+### 목적 및 영향
+케어미스 타임아웃 시간이 새로고침 후에도 유지되도록 수정하고, 테스트를 위해 타임아웃 시간을 30초로 변경했습니다.
+
+### 문제 분석
+
+#### 문제: 새로고침 후 타임아웃 시간이 초기화됨
+- **원인 1**: `checkCalls` 함수가 매번 실행되면서 `!callStatus.hunger.isActive` 조건만 체크하여, `isActive`가 false로 초기화되면 `startedAt`이 현재 시간으로 재설정되었습니다.
+- **원인 2**: `applyLazyUpdate`에서 호출을 복원할 때 `startedAt`이 이미 있으면 재설정하지 않도록 했지만, `checkCalls`가 먼저 실행되면서 재설정되는 문제가 있었습니다.
+- **영향**: 새로고침할 때마다 타임아웃 시간이 초기화되어 케어미스가 발생하지 않았습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- **checkCalls 함수 수정** (395-405줄):
+  - 이미 `startedAt`이 있는 경우 재설정하지 않도록 조건 추가
+  - `!callStatus.hunger.isActive && !callStatus.hunger.startedAt` 조건으로 변경
+
+```javascript
+// Hunger 호출 트리거
+// 이미 startedAt이 있으면 재설정하지 않음 (새로고침 시 타임아웃 시간 유지)
+if (updatedStats.fullness === 0 && !callStatus.hunger.isActive && !callStatus.hunger.startedAt) {
+  callStatus.hunger.isActive = true;
+  callStatus.hunger.startedAt = now.getTime();
+}
+```
+
+- **타임아웃 시간 변경** (463-464줄):
+  - `HUNGER_CALL_TIMEOUT`: 10분 → 30초 (테스트용)
+  - `STRENGTH_CALL_TIMEOUT`: 10분 → 30초 (테스트용)
+
+#### 2. `digimon-tamagotchi-frontend/src/data/stats.js`
+- **applyLazyUpdate 함수 수정** (465-533줄):
+  - `startedAt`이 이미 있으면 재설정하지 않도록 조건 추가
+  - `startedAt`이 있으면 `isActive`도 true로 설정하여 복원
+
+```javascript
+// 배고픔이 0이면 호출 활성화 (아직 활성화되지 않은 경우만)
+// startedAt이 이미 있으면 재설정하지 않음 (새로고침 시 타임아웃 시간 유지)
+if (!callStatus.hunger.isActive && !callStatus.hunger.startedAt && updatedStats.lastHungerZeroAt) {
+  // lastHungerZeroAt 시점에 호출 시작
+  const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+    ? updatedStats.lastHungerZeroAt
+    : new Date(updatedStats.lastHungerZeroAt).getTime();
+  callStatus.hunger.isActive = true;
+  callStatus.hunger.startedAt = hungerZeroTime;
+}
+// 이미 활성화된 호출의 startedAt은 변경하지 않음 (새로고침 시 초기화 방지)
+// startedAt이 있으면 isActive도 true로 설정 (복원)
+if (callStatus.hunger.startedAt && !callStatus.hunger.isActive) {
+  callStatus.hunger.isActive = true;
+}
+```
+
+- **타임아웃 시간 변경** (461-462줄):
+  - `HUNGER_CALL_TIMEOUT`: 10분 → 30초 (테스트용)
+  - `STRENGTH_CALL_TIMEOUT`: 10분 → 30초 (테스트용)
+
+#### 3. `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- **타임아웃 표시 수정** (578, 615줄):
+  - 타임아웃 시간을 30초로 변경
+  - 표시 메시지도 "30초 초과 시 케어미스 +1"로 변경
+
+### 해결된 문제
+1. ✅ 새로고침 후에도 타임아웃 시간이 유지됨
+2. ✅ `checkCalls`와 `applyLazyUpdate` 모두에서 `startedAt` 보존
+3. ✅ 테스트를 위해 타임아웃 시간을 30초로 변경
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (395-405, 463-464줄)
+- `digimon-tamagotchi-frontend/src/data/stats.js` (465-533, 461-462줄)
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx` (578, 615줄)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 30초 이상 방치하고 새로고침하여 타임아웃 시간이 유지되는지 확인
+2. 새로고침 후에도 StatsPopup에서 타임아웃 시간이 정확히 표시되는지 확인
+3. 30초가 지나면 케어미스가 증가하는지 확인
+
+---
+
+## [2026-01-07] Fix: 케어미스 타임아웃 시스템 버그 수정
+
+### 작업 유형
+- 버그 수정
+- 케어미스 시스템 개선
+
+### 목적 및 영향
+케어미스 타임아웃 시스템에서 발생하던 두 가지 문제를 수정했습니다:
+1. 타임아웃이 되어도 케어미스가 정상적으로 증가하지 않는 문제
+2. 새로고침 시 타임아웃 시간이 10분으로 초기화되는 문제
+
+### 문제 분석
+
+#### 문제 1: 타임아웃 후 케어미스 미증가
+- **원인**: `applyLazyUpdate`에서 타임아웃 체크 시 호출을 리셋만 하고 케어미스를 증가시키지 않았습니다. 이후 `checkCallTimeouts`가 실행될 때 이미 호출이 비활성화되어 있어서 케어미스가 증가하지 않았습니다.
+- **영향**: 오프라인 후 복귀 시 타임아웃이 지났어도 케어미스가 증가하지 않았습니다.
+
+#### 문제 2: 새로고침 시 타임아웃 시간 초기화
+- **원인**: `applyLazyUpdate`에서 이미 활성화된 호출의 `startedAt`을 `lastHungerZeroAt`로 재설정하여 타임아웃 시간이 초기화되었습니다.
+- **영향**: 새로고침할 때마다 타임아웃 시간이 10분으로 리셋되어 케어미스가 발생하지 않았습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/data/stats.js`
+- **Hunger Call 처리 로직 수정** (465-498줄):
+  - 이미 활성화된 호출의 `startedAt`을 변경하지 않도록 수정 (새로고침 시 초기화 방지)
+  - 타임아웃 경과 시 케어미스를 증가시키고 호출을 리셋하도록 수정
+  - 주석 추가: "이미 활성화된 호출의 startedAt은 변경하지 않음 (새로고침 시 초기화 방지)"
+
+```javascript
+// Hunger 호출 처리
+if (updatedStats.fullness === 0) {
+  // 배고픔이 0이면 호출 활성화 (아직 활성화되지 않은 경우만)
+  if (!callStatus.hunger.isActive && updatedStats.lastHungerZeroAt) {
+    // lastHungerZeroAt 시점에 호출 시작
+    const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
+      ? updatedStats.lastHungerZeroAt
+      : new Date(updatedStats.lastHungerZeroAt).getTime();
+    callStatus.hunger.isActive = true;
+    callStatus.hunger.startedAt = hungerZeroTime;
+  }
+  // 이미 활성화된 호출의 startedAt은 변경하지 않음 (새로고침 시 초기화 방지)
+  
+  // 호출이 활성화되어 있고 타임아웃 경과 시 careMistakes 증가 및 호출 리셋
+  if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
+    const startedAt = typeof callStatus.hunger.startedAt === 'number'
+      ? callStatus.hunger.startedAt
+      : new Date(callStatus.hunger.startedAt).getTime();
+    const elapsed = now.getTime() - startedAt;
+    
+    if (elapsed > HUNGER_CALL_TIMEOUT) {
+      // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
+      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      
+      // 호출 리셋
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+    }
+  }
+}
+```
+
+- **Strength Call 처리 로직 수정** (500-533줄):
+  - Hunger Call과 동일한 로직으로 수정
+  - 이미 활성화된 호출의 `startedAt` 보존
+  - 타임아웃 시 케어미스 증가 및 호출 리셋
+
+### 해결된 문제
+1. ✅ 오프라인 후 복귀 시 타임아웃이 지났으면 케어미스가 정상적으로 증가
+2. ✅ 새로고침 시에도 타임아웃 시간이 유지되어 정확한 케어미스 계산
+3. ✅ 실시간 처리와 Lazy Update 처리 모두 정상 동작
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/data/stats.js` (465-533줄)
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (455-510줄)
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx` (560-679줄)
+
+### 테스트 권장 사항
+1. 배고픔/힘이 0이 된 후 10분 이상 방치하고 새로고침하여 케어미스 증가 확인
+2. 새로고침 후에도 타임아웃 시간이 유지되는지 확인
+3. 실시간으로 타임아웃이 지나면 케어미스가 증가하는지 확인
+
+---
+
 ## [2026-01-03] Feature: 수면 시스템 UI 개선 - 수면 방해 알림 및 수면 시간 정보 표시
 
 ### 작업 유형

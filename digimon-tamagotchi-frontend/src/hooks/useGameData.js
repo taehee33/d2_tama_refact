@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
-import { applyLazyUpdate as applyLazyUpdateFromLogic } from "../logic/stats/stats";
 import { initializeStats } from "../data/stats";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
@@ -269,7 +268,7 @@ export function useGameData({
         if (savedStatsStr) {
           const savedStats = JSON.parse(savedStatsStr);
           const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
-          const updated = applyLazyUpdateFromLogic(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
+          const updated = applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
           
           // 사망 상태 변경 감지
           checkDeathStatus(updated);
@@ -294,7 +293,7 @@ export function useGameData({
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
         const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
-        const updated = applyLazyUpdateFromLogic(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
+        const updated = applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
         
         // 사망 상태 변경 감지
         checkDeathStatus(updated);
@@ -405,7 +404,7 @@ export function useGameData({
               }
             }
             
-            const updatedStats = applyLazyUpdateFromLogic(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
+            const updatedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             setSelectedDigimon(savedName);
             setDigimonStats(updatedStats);
           }
@@ -472,7 +471,7 @@ export function useGameData({
               }
             }
             
-            savedStats = applyLazyUpdateFromLogic(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
+            savedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             
             setSelectedDigimon(savedName);
             setDigimonStats(savedStats);

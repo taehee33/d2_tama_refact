@@ -438,14 +438,23 @@ function Game(){
         updatedStats = checkCallTimeouts(updatedStats, new Date());
         // 케어 미스 로그 추가 (호출 타임아웃) - 이전 로그 보존
         if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
-          const mistakesAdded = (updatedStats.careMistakes || 0) - oldCareMistakes;
+          const newCareMistakes = updatedStats.careMistakes || 0;
           let logText = '';
+          // 배고픔 케어미스 발생 체크
           if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
-            logText = `Care Mistake: Ignored Hunger Call (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
-          } else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
-            logText = `Care Mistake: Ignored Strength Call (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
-          } else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
-            logText = `Care Mistake: Lights left on (${mistakesAdded} mistake${mistakesAdded > 1 ? 's' : ''})`;
+            logText = `배고픔 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+          } 
+          // 힘 케어미스 발생 체크
+          else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
+            logText = `힘 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+          } 
+          // 수면 케어미스 발생 체크
+          else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
+            logText = `수면 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+          }
+          // 위 조건에 해당하지 않지만 케어미스가 증가한 경우 (안전장치)
+          else {
+            logText = `케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
           }
           if (logText) {
             setActivityLogs((prevLogs) => {
@@ -1144,6 +1153,20 @@ async function setSelectedDigimonAndSave(name) {
                     </>
                   )}
                 </div>
+              ) : mode === 'local' ? (
+                <>
+                  <span className="text-xs text-gray-600 font-semibold px-2">로컬 모드로 로그인됨</span>
+                  <button
+                    onClick={() => {
+                      if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
+                        navigate("/");
+                      }
+                    }}
+                    className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs pixel-art-button"
+                  >
+                    로컬 모드 로그아웃
+                  </button>
+                </>
               ) : (
                 <span className="text-xs text-gray-500 px-2">localStorage</span>
               )}
@@ -1174,7 +1197,21 @@ async function setSelectedDigimonAndSave(name) {
               ⚙️
             </button>
             {/* 프로필 UI (SelectScreen과 동일한 스타일) */}
-            {isFirebaseAvailable && currentUser && (
+            {mode === 'local' ? (
+              <>
+                <span className="text-sm text-gray-600 font-semibold">로컬 모드로 로그인됨</span>
+                <button
+                  onClick={() => {
+                    if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
+                      navigate("/");
+                    }
+                  }}
+                  className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm pixel-art-button"
+                >
+                  로컬 모드 로그아웃
+                </button>
+              </>
+            ) : isFirebaseAvailable && currentUser ? (
               <>
                 <div className="flex items-center space-x-2">
                   {currentUser.photoURL && (
@@ -1193,7 +1230,7 @@ async function setSelectedDigimonAndSave(name) {
                   로그아웃
                 </button>
               </>
-            )}
+            ) : null}
             {!isFirebaseAvailable && (
               <span className="text-sm text-gray-500">localStorage 모드</span>
             )}

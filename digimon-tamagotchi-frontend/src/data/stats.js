@@ -248,30 +248,43 @@ export function updateAgeWithLazyUpdate(stats, lastSaved, now) {
 }
 
 /**
+ * Firestore Timestamp를 안전하게 변환하는 유틸 함수
+ * @param {any} val - 변환할 값 (number, Date, Firestore Timestamp, string 등)
+ * @returns {number|null} - timestamp (milliseconds) 또는 null
+ */
+function ensureTimestamp(val) {
+  if (!val) return null;
+  if (typeof val === 'number') return val;
+  // Firestore Timestamp 객체 처리
+  if (val && typeof val === 'object' && 'seconds' in val) {
+    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
+  }
+  // Date 객체나 문자열 처리
+  const date = new Date(val);
+  return isNaN(date.getTime()) ? null : date.getTime();
+}
+
+/**
  * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
  * 스탯(배고픔, 수명 등)을 한 번에 차감
  * 
  * @param {Object} stats - 현재 디지몬 스탯
- * @param {Date|number|string} lastSavedAt - 마지막 저장 시간 (Date, timestamp, 또는 ISO string)
+ * @param {Date|number|string|Object} lastSavedAt - 마지막 저장 시간 (Date, timestamp, ISO string, 또는 Firestore Timestamp)
+ * @param {Object} sleepSchedule - 수면 스케줄 (선택적)
+ * @param {number} maxEnergy - 최대 에너지 (선택적)
  * @returns {Object} 업데이트된 스탯
  */
-export function applyLazyUpdate(stats, lastSavedAt) {
+export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEnergy = null) {
   if (!lastSavedAt) {
     // 마지막 저장 시간이 없으면 현재 시간으로 설정
     return { ...stats, lastSavedAt: new Date() };
   }
 
-  // 마지막 저장 시간을 Date 객체로 변환
+  // 마지막 저장 시간을 Date 객체로 변환 (Firestore Timestamp 지원)
   let lastSaved;
-  if (lastSavedAt instanceof Date) {
-    lastSaved = lastSavedAt;
-  } else if (typeof lastSavedAt === 'number') {
-    lastSaved = new Date(lastSavedAt);
-  } else if (typeof lastSavedAt === 'string') {
-    lastSaved = new Date(lastSavedAt);
-  } else if (lastSavedAt.toDate) {
-    // Firestore Timestamp인 경우
-    lastSaved = lastSavedAt.toDate();
+  const lastSavedTimestamp = ensureTimestamp(lastSavedAt);
+  if (lastSavedTimestamp) {
+    lastSaved = new Date(lastSavedTimestamp);
   } else {
     // 알 수 없는 형식이면 현재 시간으로 설정
     return { ...stats, lastSavedAt: new Date() };
@@ -464,72 +477,70 @@ export function applyLazyUpdate(stats, lastSavedAt) {
 
   // Hunger 호출 처리
   if (updatedStats.fullness === 0) {
-    // 배고픔이 0이면 호출 활성화 (아직 활성화되지 않은 경우)
-    if (!callStatus.hunger.isActive && updatedStats.lastHungerZeroAt) {
-      // lastHungerZeroAt 시점에 호출 시작
-      const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
-        ? updatedStats.lastHungerZeroAt
-        : new Date(updatedStats.lastHungerZeroAt).getTime();
+    // startedAt이 없으면 lastHungerZeroAt를 기반으로 복원
+    if (!callStatus.hunger.startedAt && updatedStats.lastHungerZeroAt) {
+      const hungerZeroTime = ensureTimestamp(updatedStats.lastHungerZeroAt);
+      if (hungerZeroTime) {
+        callStatus.hunger.isActive = true;
+        callStatus.hunger.startedAt = hungerZeroTime;
+      }
+    } else if (callStatus.hunger.startedAt) {
+      // startedAt이 있으면 isActive를 true로 설정 (복원)
       callStatus.hunger.isActive = true;
-      callStatus.hunger.startedAt = hungerZeroTime;
     }
     
-    // 호출이 활성화되어 있고 타임아웃 경과 시 careMistakes 증가
-    if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
-      const startedAt = typeof callStatus.hunger.startedAt === 'number'
-        ? callStatus.hunger.startedAt
-        : new Date(callStatus.hunger.startedAt).getTime();
-      const elapsed = now.getTime() - startedAt;
+    // 타임아웃 체크 (isActive 대신 startedAt만 체크)
+    const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+    if (hungerStartedAt) {
+      const elapsed = now.getTime() - hungerStartedAt;
       
       if (elapsed > HUNGER_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
-        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
-        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
-        
-        // 호출 리셋
+        // 타임아웃 발생
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
         callStatus.hunger.isActive = false;
         callStatus.hunger.startedAt = null;
+        updatedStats.lastHungerZeroAt = null;
       }
     }
   } else {
     // 배고픔이 0이 아니면 호출 리셋
     callStatus.hunger.isActive = false;
     callStatus.hunger.startedAt = null;
+    updatedStats.lastHungerZeroAt = null;
   }
 
   // Strength 호출 처리
   if (updatedStats.strength === 0) {
-    // 힘이 0이면 호출 활성화 (아직 활성화되지 않은 경우)
-    if (!callStatus.strength.isActive && updatedStats.lastStrengthZeroAt) {
-      // lastStrengthZeroAt 시점에 호출 시작
-      const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
-        ? updatedStats.lastStrengthZeroAt
-        : new Date(updatedStats.lastStrengthZeroAt).getTime();
+    // startedAt이 없으면 lastStrengthZeroAt를 기반으로 복원
+    if (!callStatus.strength.startedAt && updatedStats.lastStrengthZeroAt) {
+      const strengthZeroTime = ensureTimestamp(updatedStats.lastStrengthZeroAt);
+      if (strengthZeroTime) {
+        callStatus.strength.isActive = true;
+        callStatus.strength.startedAt = strengthZeroTime;
+      }
+    } else if (callStatus.strength.startedAt) {
+      // startedAt이 있으면 isActive를 true로 설정 (복원)
       callStatus.strength.isActive = true;
-      callStatus.strength.startedAt = strengthZeroTime;
     }
     
-    // 호출이 활성화되어 있고 타임아웃 경과 시 careMistakes 증가
-    if (callStatus.strength.isActive && callStatus.strength.startedAt) {
-      const startedAt = typeof callStatus.strength.startedAt === 'number'
-        ? callStatus.strength.startedAt
-        : new Date(callStatus.strength.startedAt).getTime();
-      const elapsed = now.getTime() - startedAt;
+    // 타임아웃 체크 (isActive 대신 startedAt만 체크)
+    const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
+    if (strengthStartedAt) {
+      const elapsed = now.getTime() - strengthStartedAt;
       
       if (elapsed > STRENGTH_CALL_TIMEOUT) {
-        // 10분 경과 시 careMistakes +1 (매뉴얼 규칙: 타임아웃 시 +1만 증가)
-        // 주의: checkCallTimeouts에서도 처리하므로 여기서는 호출 리셋만 수행
-        // careMistakes 증가는 checkCallTimeouts에서만 처리하여 중복 방지
-        
-        // 호출 리셋
+        // 타임아웃 발생
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
         callStatus.strength.isActive = false;
         callStatus.strength.startedAt = null;
+        updatedStats.lastStrengthZeroAt = null;
       }
     }
   } else {
     // 힘이 0이 아니면 호출 리셋
     callStatus.strength.isActive = false;
     callStatus.strength.startedAt = null;
+    updatedStats.lastStrengthZeroAt = null;
   }
 
   // Sleep 호출 처리 (수면 주기당 1회만)

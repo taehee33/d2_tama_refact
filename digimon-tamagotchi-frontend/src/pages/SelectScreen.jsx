@@ -371,13 +371,20 @@ function SelectScreen() {
     }
   };
 
-  // 로그아웃
+  // 로그아웃 (Firebase 모드)
   const handleLogout = async () => {
     try {
       await logout();
       navigate("/");
     } catch (err) {
       console.error("로그아웃 오류:", err);
+    }
+  };
+
+  // 로컬 모드 로그아웃 (로컬 모드 종료)
+  const handleLocalLogout = () => {
+    if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
+      navigate("/");
     }
   };
 
@@ -397,7 +404,17 @@ function SelectScreen() {
         <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">Select Tamagotchi</h1>
         <div className="flex items-center space-x-4">
-          {isFirebaseAvailable && currentUser && (
+          {mode === 'local' ? (
+            <>
+              <span className="text-sm text-gray-600 font-semibold">로컬 모드로 로그인됨</span>
+              <button
+                onClick={handleLocalLogout}
+                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm"
+              >
+                로컬 모드 로그아웃
+              </button>
+            </>
+          ) : isFirebaseAvailable && currentUser ? (
             <>
               <div className="flex items-center space-x-2">
                 {currentUser.photoURL && (
@@ -416,10 +433,7 @@ function SelectScreen() {
                 로그아웃
               </button>
             </>
-          )}
-          {!isFirebaseAvailable && (
-            <span className="text-sm text-gray-500">localStorage 모드</span>
-          )}
+          ) : null}
         </div>
       </div>
 
