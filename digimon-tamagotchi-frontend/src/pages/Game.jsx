@@ -82,11 +82,12 @@ function Game(){
   const {
     gameState,
     modals,
-
+    
     toggleModal,
-
+    
     flags,
     ui,
+    refs,
     actions,
   } = useGameState({
     slotId,
@@ -159,6 +160,8 @@ function Game(){
     setIsEvoEnabled,
     hasSeenDeathPopup,
     setHasSeenDeathPopup,
+    dailySleepMistake,
+    setDailySleepMistake,
   } = flags || {};
 
   const {
@@ -202,6 +205,8 @@ function Game(){
     setCallToastMessage,
   } = ui;
 
+  const { tiredStartRef, tiredCountedRef } = refs;
+
   // 상태 상세 모달용 메시지 저장
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);
 
@@ -223,6 +228,7 @@ function Game(){
     setSlotVersion,
     setIsLightsOn,
     setWakeUntil,
+    setDailySleepMistake,
     setIsLoadingSlot,
     setDeathReason,
     toggleModal,
@@ -231,6 +237,7 @@ function Game(){
     navigate,
     isLightsOn,
     wakeUntil,
+    dailySleepMistake,
     activityLogs,
   });
 
@@ -327,11 +334,29 @@ function Game(){
         updatedStats.fastSleepStart = prevStats.fastSleepStart || null;
 
         // 일자 변경 시 일일 수면 케어 미스 리셋
-        // 빠른 잠들기 시점 관리
+        const todayKey = nowDate.toDateString();
+        if (updatedStats.sleepMistakeDate !== todayKey) {
+          updatedStats.sleepMistakeDate = todayKey;
+          updatedStats.dailySleepMistake = false;
+          setDailySleepMistake(false);
+        }
+
         if (sleepingNow && isLightsOn) {
+          if (!updatedStats.sleepLightOnStart) {
+            updatedStats.sleepLightOnStart = nowMs;
+          } else {
+            const elapsed = nowMs - updatedStats.sleepLightOnStart;
+            if (elapsed >= 30 * 60 * 1000 && !dailySleepMistake && !updatedStats.dailySleepMistake) {
+              updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+              updatedStats.dailySleepMistake = true;
+              setDailySleepMistake(true);
+              updatedStats.sleepLightOnStart = nowMs;
+            }
+          }
           // 불이 켜져 있으면 빠른 잠들기 시점 리셋
           updatedStats.fastSleepStart = null;
         } else {
+          updatedStats.sleepLightOnStart = null;
           // wakeUntil이 만료되면 빠른 잠들기 시점도 리셋
           if (!wakeUntil || nowMs >= wakeUntil) {
             updatedStats.fastSleepStart = null;
@@ -428,11 +453,6 @@ function Game(){
               return addActivityLog(currentLogs, 'CARE_MISTAKE', logText);
             });
           }
-
-          // 케어미스 증가 시 즉시 저장 (타이머 외부에서 비동기 호출)
-          setTimeout(() => {
-            setDigimonStatsAndSave(updatedStats);
-          }, 0);
         }
         // 배변 로그 추가 (poopCount 증가 시) - 이전 로그 보존
         const oldPoopCount = prevStats.poopCount || 0;
@@ -473,6 +493,7 @@ function Game(){
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
         updatedStats.isLightsOn = isLightsOn;
         updatedStats.wakeUntil = wakeUntil;
+        updatedStats.dailySleepMistake = dailySleepMistake;
         return updatedStats;
       });
     }, 1000);
@@ -511,6 +532,7 @@ function Game(){
     currentUser,
     slotName,
     isLightsOn,
+    dailySleepMistake,
     battleType,
     setShowBattleScreen: (value) => toggleModal('battleScreen', value),
     setBattleType,
@@ -896,7 +918,7 @@ async function setSelectedDigimonAndSave(name) {
     setIsEvoEnabled(false);
   }, [digimonStats, selectedDigimon, developerMode]);
 
-  // 수면 상태 계산
+  // 수면 상태 계산 및 TIRED 케어미스 처리
   useEffect(() => {
     const timer = setInterval(() => {
       const status = getSleepStatus({
@@ -907,9 +929,31 @@ async function setSelectedDigimonAndSave(name) {
         now: new Date(),
       });
       setSleepStatus(status);
+
+      if (status === "TIRED") {
+        if (!tiredStartRef.current) {
+          tiredStartRef.current = Date.now();
+          tiredCountedRef.current = false;
+        }
+        const threshold = developerMode ? 60 * 1000 : 30 * 60 * 1000; // 테스트 모드는 1분, 기본 30분
+        if (!tiredCountedRef.current && tiredStartRef.current && (Date.now() - tiredStartRef.current) >= threshold) {
+          tiredCountedRef.current = true;
+          // Activity Log 추가
+          const currentLogs = digimonStats.activityLogs || activityLogs || [];
+          const updatedLogs = addActivityLog(currentLogs, 'CAREMISTAKE', 'Care Mistake: Tired for too long');
+          setDigimonStatsAndSave({
+            ...digimonStats,
+            careMistakes: (digimonStats.careMistakes || 0) + 1,
+            activityLogs: updatedLogs,
+          }, updatedLogs);
+        }
+      } else {
+        tiredStartRef.current = null;
+        tiredCountedRef.current = false;
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats]);
+  }, [selectedDigimon, isLightsOn, wakeUntil, developerMode, digimonStats]);
 
   // 퀘스트 시작 핸들러
 

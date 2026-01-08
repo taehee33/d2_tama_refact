@@ -166,7 +166,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
   const [isEvoEnabled, setIsEvoEnabled] = useState(false);
   const [hasSeenDeathPopup, setHasSeenDeathPopup] = useState(false);
-
+  const [dailySleepMistake, setDailySleepMistake] = useState(false);
+  
   // ============================================
   // 4. UI State (UI 관련 상태)
   // ============================================
@@ -215,6 +216,12 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   
   // 호출 관련
   const [callToastMessage, setCallToastMessage] = useState("");
+  
+  // ============================================
+  // 5. Refs
+  // ============================================
+  const tiredStartRef = useRef(null);
+  const tiredCountedRef = useRef(false);
   
   // ============================================
   // Helper Functions (모달 관리)
@@ -338,6 +345,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setIsEvoEnabled,
       hasSeenDeathPopup,
       setHasSeenDeathPopup,
+      dailySleepMistake,
+      setDailySleepMistake,
     },
     
     // UI State
@@ -380,6 +389,12 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setSleepStatus,
       callToastMessage,
       setCallToastMessage,
+    },
+    
+    // Refs
+    refs: {
+      tiredStartRef,
+      tiredCountedRef,
     },
     
     // Actions (편의 함수들)

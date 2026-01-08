@@ -24,5 +24,4 @@ backend/build/
 .env.development
 
 # 4. OS 관련 파일
-.DS_Store
-digimontama_1/
+.DS_Storedigimontama_1/
