@@ -38,6 +38,12 @@ export function adaptNewDataToOldFormat(newData) {
  * @returns {Object} 옛날 형식의 데이터 맵
  */
 export function adaptDataMapToOldFormat(newDataMap) {
+  // null이나 undefined 체크
+  if (!newDataMap || typeof newDataMap !== 'object') {
+    console.error('[Adapter] adaptDataMapToOldFormat: newDataMap이 유효하지 않습니다.', newDataMap);
+    return {};
+  }
+
   const adaptedMap = {};
 
   for (const [key, value] of Object.entries(newDataMap)) {
