@@ -155,6 +155,7 @@ export default function GameModals({
           reason={deathReason}
           selectedDigimon={selectedDigimon}
           onNewStart={resetDigimon || (() => {})}
+          digimonStats={gameState?.digimonStats || {}}
         />
       )}
 
@@ -379,6 +380,7 @@ export default function GameModals({
             }
           }}
           treatmentMessage={(gameState.healModalStats?.treatmentMessage) || (gameState.healTreatmentMessage) || null}
+          digimonStats={digimonStats || {}}
         />
       )}
 

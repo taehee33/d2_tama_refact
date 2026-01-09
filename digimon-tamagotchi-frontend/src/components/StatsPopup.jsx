@@ -36,6 +36,23 @@ function fullnessDisplay(fullness=0, maxOverfeed=0){
 // timestamp 포맷팅은 utils/dateUtils에서 import
 const formatTimestamp = formatTimestampUtil;
 
+/**
+ * Firestore Timestamp를 안전하게 변환하는 유틸 함수
+ * @param {any} val - 변환할 값 (number, Date, Firestore Timestamp, string 등)
+ * @returns {number|null} - timestamp (milliseconds) 또는 null
+ */
+function ensureTimestamp(val) {
+  if (!val) return null;
+  if (typeof val === 'number') return val;
+  // Firestore Timestamp 객체 처리
+  if (val && typeof val === 'object' && 'seconds' in val) {
+    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
+  }
+  // Date 객체나 문자열 처리
+  const date = new Date(val);
+  return isNaN(date.getTime()) ? null : date.getTime();
+}
+
 export default function StatsPopup({
   stats,
   digimonData = null, // 종족 고정 파라미터 (digimonData)
@@ -571,9 +588,11 @@ export default function StatsPopup({
             </div>
             {fullness === 0 ? (
               callStatus?.hunger?.isActive && callStatus?.hunger?.startedAt ? (() => {
-                const startedAt = typeof callStatus.hunger.startedAt === 'number' 
-                  ? callStatus.hunger.startedAt 
-                  : new Date(callStatus.hunger.startedAt).getTime();
+                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
+                const startedAt = ensureTimestamp(callStatus.hunger.startedAt);
+                if (!startedAt || startedAt <= 0) {
+                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
+                }
                 const elapsed = currentTime - startedAt;
                 const timeout = 10 * 60 * 1000; // 10분
                 const remaining = timeout - elapsed;
@@ -608,9 +627,11 @@ export default function StatsPopup({
             </div>
             {strength === 0 ? (
               callStatus?.strength?.isActive && callStatus?.strength?.startedAt ? (() => {
-                const startedAt = typeof callStatus.strength.startedAt === 'number' 
-                  ? callStatus.strength.startedAt 
-                  : new Date(callStatus.strength.startedAt).getTime();
+                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
+                const startedAt = ensureTimestamp(callStatus.strength.startedAt);
+                if (!startedAt || startedAt <= 0) {
+                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
+                }
                 const elapsed = currentTime - startedAt;
                 const timeout = 10 * 60 * 1000; // 10분
                 const remaining = timeout - elapsed;
@@ -645,9 +666,11 @@ export default function StatsPopup({
             </div>
             {sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn) ? (
               callStatus?.sleep?.isActive && callStatus?.sleep?.startedAt ? (() => {
-                const startedAt = typeof callStatus.sleep.startedAt === 'number' 
-                  ? callStatus.sleep.startedAt 
-                  : new Date(callStatus.sleep.startedAt).getTime();
+                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
+                const startedAt = ensureTimestamp(callStatus.sleep.startedAt);
+                if (!startedAt || startedAt <= 0) {
+                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
+                }
                 const elapsed = currentTime - startedAt;
                 const timeout = 60 * 60 * 1000; // 60분
                 const remaining = timeout - elapsed;

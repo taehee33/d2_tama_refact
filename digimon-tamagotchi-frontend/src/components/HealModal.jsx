@@ -11,6 +11,7 @@ export default function HealModal({
   onHeal,
   onClose,
   treatmentMessage = null, // 치료 성공 메시지
+  digimonStats = {}, // 디지몬 스탯 (부상 원인 확인용)
 }) {
   // 로컬 상태로 treatmentMessage 관리 (props 변경 감지)
   const [displayMessage, setDisplayMessage] = useState(treatmentMessage);
@@ -105,9 +106,15 @@ export default function HealModal({
           )}
           {/* 치료 전 안내 메시지 */}
           {!displayMessage && isInjured && currentDoses < requiredDoses && (
-            <p className="text-yellow-300 text-center text-sm mt-2">
-              치료가 필요합니다.
-            </p>
+            <>
+              <p className="text-yellow-300 text-center text-sm mt-2">
+                치료가 필요합니다.
+              </p>
+              {/* 상처 원인 표시 */}
+              <p className="text-yellow-300 text-center text-sm mt-1">
+                상처원인: {digimonStats.poopCount >= 8 ? '똥 8개' : '배틀'}
+              </p>
+            </>
           )}
         </div>
 

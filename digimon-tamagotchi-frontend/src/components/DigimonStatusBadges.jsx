@@ -20,6 +20,7 @@ const DigimonStatusBadges = ({
   sleepSchedule = null, // 수면 스케줄 { start, end }
   wakeUntil = null, // 깨어있는 시간 (timestamp)
   sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
+  deathReason = null, // 사망 원인
 }) => {
   const {
     fullness = 0,
@@ -67,7 +68,21 @@ const DigimonStatusBadges = ({
 
     // 1. 사망 상태
     if (isDead) {
-      messages.push({ text: "사망 💀", color: "text-red-600", bgColor: "bg-red-200", priority: 1, category: "critical" });
+      // 사망 원인에 따른 표시
+      let deathText = "사망 💀";
+      if (deathReason) {
+        // 사망 원인을 간단한 형태로 변환
+        const reasonMap = {
+          'STARVATION (굶주림)': '굶주림',
+          'EXHAUSTION (힘 소진)': '힘 소진',
+          'INJURY OVERLOAD (부상 과다: 15회)': '부상 과다',
+          'INJURY NEGLECT (부상 방치: 6시간)': '부상 방치',
+          'OLD AGE (수명 다함)': '수명 종료',
+        };
+        const reasonTitle = reasonMap[deathReason] || deathReason;
+        deathText = `사망 💀 (${reasonTitle})`;
+      }
+      messages.push({ text: deathText, color: "text-red-600", bgColor: "bg-red-200", priority: 1, category: "critical" });
     }
 
     // 1.5. 진화 가능 상태 (사망 다음 우선순위, 높은 가시성)
@@ -77,7 +92,14 @@ const DigimonStatusBadges = ({
 
     // 2. 부상 상태 (긴급)
     if (digimonStats.isInjured) {
-      messages.push({ text: "치료필요! 🏥", color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
+      // 부상 원인 추론: 똥 8개인지 배틀인지 확인
+      let injuryReason = "";
+      if (poopCount >= 8) {
+        injuryReason = " (똥 8개)";
+      } else {
+        injuryReason = " (배틀)";
+      }
+      messages.push({ text: `치료필요! 🏥${injuryReason}`, color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
     } else if (injuries > 0) {
       // 부상 이력이 있지만 현재 부상 상태가 아닌 경우
       messages.push({ text: `다쳤던 횟수 : ${injuries} 회 🏥`, color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 2.5, category: "warning" });

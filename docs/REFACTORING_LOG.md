@@ -4,6 +4,275 @@
 
 ---
 
+## [2026-01-09] Fix: 사망 원인 표시 개선
+
+### 작업 유형
+- 버그 수정
+- UI/UX 개선
+
+### 목적 및 영향
+사망 원인이 제대로 표시되지 않던 문제를 수정하고, 상태창과 사망 팝업에서 사망 원인을 명확하게 표시하도록 개선했습니다.
+
+### 변경 사항
+
+#### 1. `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx` (12-23, 68-80줄)
+
+**사망 원인 표시 추가**:
+- `deathReason` prop 추가
+- 사망 상태일 때 원인을 함께 표시 (예: "사망 💀 (굶주림)")
+
+```javascript
+const DigimonStatusBadges = ({
+  // ... 기존 props ...
+  deathReason = null, // 사망 원인
+}) => {
+  // ...
+  // 1. 사망 상태
+  if (isDead) {
+    // 사망 원인에 따른 표시
+    let deathText = "사망 💀";
+    if (deathReason) {
+      // 사망 원인을 간단한 형태로 변환
+      const reasonMap = {
+        'STARVATION (굶주림)': '굶주림',
+        'EXHAUSTION (힘 소진)': '힘 소진',
+        'INJURY OVERLOAD (부상 과다: 15회)': '부상 과다',
+        'INJURY NEGLECT (부상 방치: 6시간)': '부상 방치',
+        'OLD AGE (수명 다함)': '수명 종료',
+      };
+      const reasonTitle = reasonMap[deathReason] || deathReason;
+      deathText = `사망 💀 (${reasonTitle})`;
+    }
+    messages.push({ text: deathText, color: "text-red-600", bgColor: "bg-red-200", priority: 1, category: "critical" });
+  }
+}
+```
+
+#### 2. `digimon-tamagotchi-frontend/src/pages/Game.jsx` (1269-1284줄)
+
+**DigimonStatusBadges에 deathReason 전달**:
+- `DigimonStatusBadges` 컴포넌트에 `deathReason` prop 추가
+
+```javascript
+<DigimonStatusBadges
+  // ... 기존 props ...
+  deathReason={deathReason}
+  // ...
+/>
+```
+
+#### 3. `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx` (4-50, 83줄)
+
+**사망 원인 추론 로직 추가**:
+- `reason`이 없을 때 현재 상태를 기반으로 원인을 추론
+- `digimonStats` prop 추가하여 상태 기반 원인 추론 가능
+
+```javascript
+export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selectedDigimon, onNewStart, digimonStats = {} }) {
+  // reason이 없을 때 현재 상태를 기반으로 원인 추론
+  const inferDeathReason = (reason, stats) => {
+    if (reason) return reason;
+    
+    // 현재 상태를 기반으로 원인 추론
+    if (stats.fullness === 0 && stats.lastHungerZeroAt) {
+      const elapsed = (Date.now() - (typeof stats.lastHungerZeroAt === 'number' ? stats.lastHungerZeroAt : new Date(stats.lastHungerZeroAt).getTime())) / 1000;
+      if (elapsed >= 43200) {
+        return 'STARVATION (굶주림)';
+      }
+    }
+    // ... 다른 원인들도 동일하게 추론
+    return 'OLD AGE (수명 다함)';
+  };
+  
+  const finalReason = inferDeathReason(reason, digimonStats);
+  const reasonInfo = getDeathReasonInfo(finalReason);
+}
+```
+
+#### 4. `digimon-tamagotchi-frontend/src/components/GameModals.jsx` (151-159줄)
+
+**DeathPopup에 digimonStats 전달**:
+- `DeathPopup` 컴포넌트에 `digimonStats` prop 추가
+
+```javascript
+<DeathPopup
+  // ... 기존 props ...
+  digimonStats={gameState?.digimonStats || {}}
+/>
+```
+
+### 해결된 문제
+1. ✅ 상태창에서 사망 원인 표시
+2. ✅ 사망 팝업에서 원인 표시 (reason이 없을 때도 추론)
+3. ✅ 사망 원인 정보가 없을 때 처리 개선
+
+### 표시 예시
+- **상태창**: "사망 💀 (굶주림)", "사망 💀 (힘 소진)", "사망 💀 (부상 과다)" 등
+- **사망 팝업**: 원인에 따른 상세 정보 표시 (이미 구현되어 있음)
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx` (수정됨)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (수정됨)
+- `digimon-tamagotchi-frontend/src/components/DeathPopup.jsx` (수정됨)
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx` (수정됨)
+
+---
+
+## [2026-01-09] Feature: 부상 상태에 원인 표시 추가
+
+### 작업 유형
+- UI/UX 개선
+- 정보 표시 개선
+
+### 목적 및 영향
+디지몬 상태에서 "치료필요! 🏥" 메시지 옆에 부상 원인을 함께 표시하도록 개선했습니다. 사용자가 어떤 원인으로 치료가 필요한지 즉시 확인할 수 있습니다.
+
+### 변경 사항
+
+#### `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx` (78-84줄)
+
+**부상 원인 추론 로직 추가**:
+- 부상 상태일 때 원인을 추론하여 표시
+- 똥 8개로 인한 부상: `poopCount >= 8`이면 "(똥 8개)" 표시
+- 배틀로 인한 부상: 그 외의 경우 "(배틀)" 표시
+
+```javascript
+// 2. 부상 상태 (긴급)
+if (digimonStats.isInjured) {
+  // 부상 원인 추론: 똥 8개인지 배틀인지 확인
+  let injuryReason = "";
+  if (poopCount >= 8) {
+    injuryReason = " (똥 8개)";
+  } else {
+    injuryReason = " (배틀)";
+  }
+  messages.push({ text: `치료필요! 🏥${injuryReason}`, color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
+}
+```
+
+### 표시 예시
+- **똥 8개로 인한 부상**: "치료필요! 🏥 (똥 8개)"
+- **배틀로 인한 부상**: "치료필요! 🏥 (배틀)"
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx` (수정됨)
+
+---
+
+## [2026-01-09] Fix: 케어미스 타임아웃 시간 비정상 증가 버그 수정
+
+### 작업 유형
+- 버그 수정
+- UI 안정성 개선
+
+### 목적 및 영향
+케어미스를 반복하다 보면 타임아웃 시간이 `122612:00:23` 같은 말도 안 되는 숫자로 표시되는 버그를 수정했습니다. 이는 `new Date(null)` 계산 오류로 인해 발생한 문제였습니다.
+
+### 버그 원인 분석
+
+#### 1. `new Date(null)` 계산 오류 (가장 유력한 원인)
+- JavaScript에서 `new Date(null).getTime()`을 실행하면 `0`을 반환합니다.
+- 이는 1970년 1월 1일을 기준으로 시간을 계산하게 됩니다.
+- 결과적으로 `Date.now() - 0` = 약 54년(1970년~2024년)치에 해당하는 수만 시간이 경과 시간으로 표시됩니다.
+
+**버그 발생 흐름**:
+1. 10분이 지나서 케어미스가 증가합니다.
+2. 로직에서 `callStatus.hunger.startedAt = null;`로 값을 비웁니다.
+3. 이때 `StatsPopup`에서 이 값을 참조하여 시간을 계산하려고 하면:
+   ```javascript
+   Date.now() - new Date(null).getTime() 
+   // → 현재시간 - 0 = 약 54년치 시간
+   ```
+4. 결과적으로 수만 시간이 경과 시간으로 표시됩니다.
+
+#### 2. `lastHungerZeroAt`과 `startedAt`의 충돌 가능성
+- `applyLazyUpdate`에서 `lastHungerZeroAt`을 복원할 때 잘못된 값이 들어갈 수 있습니다.
+- `ensureTimestamp`를 사용하여 안전하게 변환하도록 확인했습니다.
+
+#### 3. `checkCalls`와 `checkCallTimeouts`의 실행 순서
+- `checkCallTimeouts`에서 `startedAt`을 `null`로 설정한 직후 UI가 렌더링되는 경우 문제가 발생할 수 있습니다.
+- `StatsPopup`에서 `null` 체크를 강화하여 해결했습니다.
+
+### 변경 사항
+
+#### 1. `StatsPopup.jsx` 수정
+
+**`ensureTimestamp` 유틸리티 함수 추가** (37-52줄):
+```javascript
+/**
+ * Firestore Timestamp를 안전하게 변환하는 유틸 함수
+ * @param {any} val - 변환할 값 (number, Date, Firestore Timestamp, string 등)
+ * @returns {number|null} - timestamp (milliseconds) 또는 null
+ */
+function ensureTimestamp(val) {
+  if (!val) return null;
+  if (typeof val === 'number') return val;
+  // Firestore Timestamp 객체 처리
+  if (val && typeof val === 'object' && 'seconds' in val) {
+    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
+  }
+  // Date 객체나 문자열 처리
+  const date = new Date(val);
+  return isNaN(date.getTime()) ? null : date.getTime();
+}
+```
+
+**Hunger Call 타임아웃 표시 수정** (572-600줄):
+- `new Date(null)` 대신 `ensureTimestamp` 사용
+- `startedAt`이 `null`이거나 유효하지 않은 경우(0 이하) 체크 추가
+
+```javascript
+{fullness === 0 ? (
+  callStatus?.hunger?.isActive && callStatus?.hunger?.startedAt ? (() => {
+    // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
+    const startedAt = ensureTimestamp(callStatus.hunger.startedAt);
+    if (!startedAt || startedAt <= 0) {
+      return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
+    }
+    const elapsed = currentTime - startedAt;
+    // ... 나머지 로직
+  })() : (
+    <div className="text-yellow-600 ml-2">호출 대기 중...</div>
+  )
+) : (
+  <div className="text-green-600 ml-2">✓ 조건 미충족 (Fullness: {fullness})</div>
+)}
+```
+
+**Strength Call 타임아웃 표시 수정** (609-637줄):
+- 동일한 로직 적용
+
+**Sleep Call 타임아웃 표시 수정** (667-695줄):
+- 동일한 로직 적용
+
+### 해결된 문제
+1. ✅ 타임아웃 시간이 비정상적으로 증가하는 버그 수정
+2. ✅ `new Date(null)` 계산 오류 방지
+3. ✅ Firestore Timestamp 객체 안전하게 변환
+4. ✅ `startedAt`이 `null`이거나 유효하지 않은 경우 처리
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx` (수정됨)
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js` (점검 완료)
+- `digimon-tamagotchi-frontend/src/data/stats.js` (점검 완료)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx` (점검 완료)
+- `docs/CAREMISTAKE_TIMEOUT_BUG_ANALYSIS.md` (신규 생성)
+
+### 테스트 권장 사항
+1. **케어미스 발생 후 UI 확인**:
+   - 배고픔/힘이 0이 된 후 10분 이상 방치
+   - 케어미스 발생 후 `StatsPopup`에서 타임아웃 시간이 비정상적으로 증가하지 않는지 확인
+
+2. **새로고침 후 타임아웃 시간 확인**:
+   - 케어미스 발생 후 새로고침
+   - `StatsPopup`에서 타임아웃 시간이 올바르게 표시되는지 확인
+
+3. **Firestore Timestamp 변환 확인**:
+   - Firestore 모드에서 게임을 플레이하고 새로고침
+   - `StatsPopup`에서 타임아웃 시간이 올바르게 표시되는지 확인
+
+---
+
 ## [2026-01-07] Fix: 케어미스 타임아웃 시간 복원 및 활동로그 개선
 
 ### 작업 유형

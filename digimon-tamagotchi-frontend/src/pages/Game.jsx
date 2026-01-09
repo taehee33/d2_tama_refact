@@ -1276,6 +1276,7 @@ async function setSelectedDigimonAndSave(name) {
             sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataVer1)}
             wakeUntil={wakeUntil}
             sleepLightOnStart={digimonStats.sleepLightOnStart || null}
+            deathReason={deathReason}
             onOpenStatusDetail={(messages) => {
               // 상태 상세 모달을 열기 위해 임시로 상태 저장
               setStatusDetailMessages(messages);

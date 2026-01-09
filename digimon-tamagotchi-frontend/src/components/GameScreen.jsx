@@ -65,15 +65,19 @@ const GameScreen = ({
   
   useEffect(() => {
     // 부상 상태가 시작될 때 랜덤으로 4개 선택
-    if (digimonStats.isInjured && !prevIsInjured.current) {
-      const shuffled = [...sickEmojis].sort(() => Math.random() - 0.5);
-      setSelectedSickEmojis(shuffled.slice(0, 4));
+    // 똥 8개로 인한 부상일 때도 이모티콘이 표시되도록 조건 수정
+    if (digimonStats.isInjured) {
+      // 이전에 부상 상태가 아니었거나, 이모티콘이 선택되지 않은 경우에만 선택
+      if (!prevIsInjured.current || selectedSickEmojis.length === 0) {
+        const shuffled = [...sickEmojis].sort(() => Math.random() - 0.5);
+        setSelectedSickEmojis(shuffled.slice(0, 4));
+      }
     } else if (!digimonStats.isInjured && prevIsInjured.current) {
       // 부상 상태가 끝나면 초기화
       setSelectedSickEmojis([]);
     }
     prevIsInjured.current = digimonStats.isInjured;
-  }, [digimonStats.isInjured]);
+  }, [digimonStats.isInjured, selectedSickEmojis.length]);
   
   return (
     <div style={{ position: "relative", width, height, border: "2px solid #555" }}>

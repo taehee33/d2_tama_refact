@@ -1,11 +1,14 @@
 // src/components/DeathPopup.jsx
 import React from "react";
 
-export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selectedDigimon, onNewStart }) {
+export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selectedDigimon, onNewStart, digimonStats = {} }) {
   if (!isOpen) return null;
 
   // 오하카다몬 여부 확인
   const isOhakadamon = selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2";
+  
+  // reason을 그대로 사용 (추론하지 않음)
+  const finalReason = reason;
 
   // 좀 더 같이 있기 / 좀 더 슬퍼하기: 팝업만 닫고 현재 죽어있는 디지몬을 계속 보여줌
   const handleStay = () => {
@@ -80,7 +83,7 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
     };
   };
 
-  const reasonInfo = getDeathReasonInfo(reason);
+  const reasonInfo = getDeathReasonInfo(finalReason);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -108,10 +111,10 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
           </div>
         )}
 
-        {!reason && (
+        {!reasonInfo && (
           <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mb-6">
-            <p className="text-sm text-gray-600">
-              사망 원인 정보가 없습니다.
+            <p className="text-sm text-gray-600 font-semibold">
+              사망 원인 확인 불가
             </p>
           </div>
         )}
