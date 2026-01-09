@@ -62,8 +62,7 @@ function SelectScreen() {
         
         // Firestore 모드: /users/{uid}/slots 컬렉션에서 직접 가져오기
         const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
-        const q = query(slotsRef, orderBy('createdAt', 'desc'), limit(MAX_SLOTS));
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = await getDocs(slotsRef);
         
         const userSlots = querySnapshot.docs.map((doc) => {
           const data = doc.data();
@@ -71,11 +70,37 @@ function SelectScreen() {
           const slotId = parseInt(doc.id.replace('slot', ''));
           return {
             id: slotId,
+            displayOrder: data.displayOrder,
             ...data,
           };
         });
         
-        setSlots(userSlots);
+        // displayOrder가 없는 슬롯들을 생성일 기준으로 정렬 (최신이 위로)
+        const slotsWithoutOrder = userSlots.filter(s => s.displayOrder === undefined);
+        const slotsWithOrder = userSlots.filter(s => s.displayOrder !== undefined);
+        
+        // displayOrder가 없는 슬롯들을 생성일 기준 내림차순 정렬 (최신이 위로)
+        slotsWithoutOrder.sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime; // 최신이 위로
+        });
+        
+        // displayOrder가 없는 슬롯들에 순서 부여 (최신이 1부터 시작)
+        // 기존 displayOrder가 있는 슬롯들의 최대값을 찾아서 그 다음부터 시작
+        const maxExistingOrder = slotsWithOrder.length > 0 
+          ? Math.max(...slotsWithOrder.map(s => s.displayOrder))
+          : 0;
+        
+        slotsWithoutOrder.forEach((slot, index) => {
+          slot.displayOrder = maxExistingOrder + index + 1;
+        });
+        
+        // 모든 슬롯을 displayOrder 기준으로 정렬 (1이 가장 위)
+        const allSlots = [...slotsWithOrder, ...slotsWithoutOrder];
+        allSlots.sort((a, b) => a.displayOrder - b.displayOrder);
+        
+        setSlots(allSlots);
       } else {
         // localStorage 모드
         const arr = [];
@@ -86,6 +111,7 @@ function SelectScreen() {
             const createdAt = localStorage.getItem(`slot${i}_createdAt`) || "";
             const dev = localStorage.getItem(`slot${i}_device`) || "";
             const ver = localStorage.getItem(`slot${i}_version`) || "";
+            const displayOrder = localStorage.getItem(`slot${i}_displayOrder`);
             arr.push({
               id: i,
               slotName,
@@ -93,10 +119,37 @@ function SelectScreen() {
               createdAt,
               device: dev,
               version: ver,
+              displayOrder: displayOrder ? parseInt(displayOrder) : undefined,
             });
           }
         }
-        setSlots(arr);
+        
+        // displayOrder가 없는 슬롯들을 생성일 기준으로 정렬 (최신이 위로)
+        const slotsWithoutOrder = arr.filter(s => s.displayOrder === undefined);
+        const slotsWithOrder = arr.filter(s => s.displayOrder !== undefined);
+        
+        // displayOrder가 없는 슬롯들을 생성일 기준 내림차순 정렬 (최신이 위로)
+        slotsWithoutOrder.sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime; // 최신이 위로
+        });
+        
+        // displayOrder가 없는 슬롯들에 순서 부여 (최신이 1부터 시작)
+        // 기존 displayOrder가 있는 슬롯들의 최대값을 찾아서 그 다음부터 시작
+        const maxExistingOrder = slotsWithOrder.length > 0 
+          ? Math.max(...slotsWithOrder.map(s => s.displayOrder))
+          : 0;
+        
+        slotsWithoutOrder.forEach((slot, index) => {
+          slot.displayOrder = maxExistingOrder + index + 1;
+        });
+        
+        // 모든 슬롯을 displayOrder 기준으로 정렬 (1이 가장 위)
+        const allSlots = [...slotsWithOrder, ...slotsWithoutOrder];
+        allSlots.sort((a, b) => a.displayOrder - b.displayOrder);
+        
+        setSlots(allSlots);
       }
     } catch (err) {
       console.error("슬롯 로드 오류:", err);
@@ -140,6 +193,15 @@ function SelectScreen() {
 
       console.log("새 슬롯 ID (localStorage):", slotId);
 
+      // 기존 슬롯들의 displayOrder를 모두 +1 (새 슬롯이 맨 위로 오도록)
+      for (let i = 1; i <= MAX_SLOTS; i++) {
+        const existingOrder = localStorage.getItem(`slot${i}_displayOrder`);
+        if (existingOrder) {
+          const newOrder = parseInt(existingOrder) + 1;
+          localStorage.setItem(`slot${i}_displayOrder`, newOrder.toString());
+        }
+      }
+
       // localStorage에 저장
       localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
       localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
@@ -150,6 +212,7 @@ function SelectScreen() {
       const now = new Date();
       const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
       localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
+      localStorage.setItem(`slot${slotId}_displayOrder`, "1"); // 새 슬롯은 항상 맨 위에
       console.log("localStorage 저장 완료");
 
       console.log("게임 화면으로 이동 (로컬 모드):", slotId);
@@ -191,6 +254,17 @@ function SelectScreen() {
         );
         console.log("사용 중인 슬롯:", Array.from(usedSlots));
         
+        // 기존 슬롯 데이터 가져오기 (displayOrder 계산용)
+        const existingSlots = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const slotId = parseInt(doc.id.replace('slot', ''));
+          return {
+            id: slotId,
+            displayOrder: data.displayOrder !== undefined ? data.displayOrder : slotId,
+            ...data,
+          };
+        });
+        
         // 빈 슬롯 찾기
         for (let i = 1; i <= MAX_SLOTS; i++) {
           if (!usedSlots.has(i)) {
@@ -215,6 +289,22 @@ function SelectScreen() {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         console.log("Firestore에 슬롯 저장 시도:", slotRef.path);
         
+        // 새 슬롯은 항상 displayOrder = 1로 설정하고, 기존 슬롯들의 displayOrder를 모두 +1
+        const updatePromises = existingSlots.map((slot) => {
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slot.id}`);
+          const newOrder = (slot.displayOrder || 0) + 1;
+          return updateDoc(slotRef, {
+            displayOrder: newOrder,
+            updatedAt: new Date(),
+          });
+        });
+        
+        // 기존 슬롯들의 displayOrder 업데이트
+        if (updatePromises.length > 0) {
+          await Promise.all(updatePromises);
+        }
+
+        // 새 슬롯 저장 (displayOrder = 1, 최신이 위로)
         await setDoc(slotRef, {
           selectedDigimon: "Digitama",
           digimonStats: {},
@@ -222,6 +312,7 @@ function SelectScreen() {
           createdAt: createdAtStr,
           device,
           version,
+          displayOrder: 1, // 새 슬롯은 항상 맨 위에
           updatedAt: new Date(),
         });
         
@@ -247,6 +338,15 @@ function SelectScreen() {
 
         // localStorage에 저장
         try {
+          // 기존 슬롯들의 displayOrder를 모두 +1 (새 슬롯이 맨 위로 오도록)
+          for (let i = 1; i <= MAX_SLOTS; i++) {
+            const existingOrder = localStorage.getItem(`slot${i}_displayOrder`);
+            if (existingOrder) {
+              const newOrder = parseInt(existingOrder) + 1;
+              localStorage.setItem(`slot${i}_displayOrder`, newOrder.toString());
+            }
+          }
+
           localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
           localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
           localStorage.setItem(`slot${slotId}_device`, device);
@@ -256,6 +356,7 @@ function SelectScreen() {
           const now = new Date();
           const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
           localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
+          localStorage.setItem(`slot${slotId}_displayOrder`, "1"); // 새 슬롯은 항상 맨 위에
           console.log("localStorage 저장 완료");
           saveSuccess = true;
         } catch (storageErr) {
@@ -325,9 +426,15 @@ function SelectScreen() {
     }
   };
 
-  // 슬롯 이름 변경
+  // 디지몬 별명 변경
   // 각 슬롯별로 input value 관리 -> local state
-  const [slotNameEdits, setSlotNameEdits] = useState({}); 
+  const [slotNameEdits, setSlotNameEdits] = useState({});
+
+  // 순서변경 모달 상태
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderedSlots, setOrderedSlots] = useState([]);
+  const [initialOrderedSlots, setInitialOrderedSlots] = useState([]); // 초기 순서 저장 (변경사항 확인용)
+  const [highlightedSlotId, setHighlightedSlotId] = useState(null); // 이동된 슬롯 하이라이트용 
 
   // 입력 변화 시
   const handleNameChange = (slotId, newName) => {
@@ -353,7 +460,7 @@ function SelectScreen() {
 
     try {
       if (isFirebaseAvailable && currentUser && mode !== 'local') {
-        // Firestore의 /users/{uid}/slots/{slotId}에서 슬롯 이름 업데이트
+        // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 업데이트
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         await updateDoc(slotRef, {
           slotName: newName,
@@ -364,10 +471,10 @@ function SelectScreen() {
         localStorage.setItem(`slot${slotId}_slotName`, newName);
       }
       loadSlots();
-      alert(`슬롯 ${slotId} 이름을 "${newName}" 로 변경했습니다.`);
+      alert(`슬롯 ${slotId}의 디지몬 별명을 "${newName}" 로 변경했습니다.`);
     } catch (err) {
-      console.error("슬롯 이름 변경 오류:", err);
-      alert("슬롯 이름 변경에 실패했습니다.");
+      console.error("디지몬 별명 변경 오류:", err);
+      alert("디지몬 별명 변경에 실패했습니다.");
     }
   };
 
@@ -385,6 +492,116 @@ function SelectScreen() {
   const handleLocalLogout = () => {
     if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
       navigate("/");
+    }
+  };
+
+  // 순서가 변경되었는지 확인
+  const hasOrderChanged = () => {
+    if (orderedSlots.length !== initialOrderedSlots.length) return false;
+    return orderedSlots.some((slot, index) => {
+      const initialSlot = initialOrderedSlots[index];
+      return !initialSlot || slot.id !== initialSlot.id;
+    });
+  };
+
+  // 순서변경 모달 열기
+  const handleOpenOrderModal = () => {
+    // 현재 슬롯 목록을 복사하여 모달 상태에 설정
+    const initialSlots = [...slots];
+    setOrderedSlots(initialSlots);
+    setInitialOrderedSlots(initialSlots.map(s => ({ ...s }))); // 깊은 복사
+    setIsOrderModalOpen(true);
+    setHighlightedSlotId(null);
+  };
+
+  // 순서변경 모달 닫기 (변경사항 확인)
+  const handleCloseOrderModal = () => {
+    if (hasOrderChanged()) {
+      if (window.confirm("순서가 변경되었습니다. 변경사항을 저장하시겠습니까?")) {
+        // 저장 후 닫기
+        handleSaveOrder();
+      } else {
+        // 저장하지 않고 닫기
+        setIsOrderModalOpen(false);
+        setOrderedSlots([]);
+        setInitialOrderedSlots([]);
+        setHighlightedSlotId(null);
+      }
+    } else {
+      // 변경사항이 없으면 바로 닫기
+      setIsOrderModalOpen(false);
+      setOrderedSlots([]);
+      setInitialOrderedSlots([]);
+      setHighlightedSlotId(null);
+    }
+  };
+
+  // 슬롯 순서 위로 이동
+  const handleMoveUp = (index) => {
+    if (index === 0) return; // 첫 번째 항목은 위로 이동 불가
+    const newOrderedSlots = [...orderedSlots];
+    const movedSlot = newOrderedSlots[index];
+    [newOrderedSlots[index - 1], newOrderedSlots[index]] = [newOrderedSlots[index], newOrderedSlots[index - 1]];
+    setOrderedSlots(newOrderedSlots);
+    
+    // 이동된 슬롯 하이라이트
+    setHighlightedSlotId(movedSlot.id);
+    setTimeout(() => {
+      setHighlightedSlotId(null);
+    }, 1000); // 1초 후 하이라이트 제거
+  };
+
+  // 슬롯 순서 아래로 이동
+  const handleMoveDown = (index) => {
+    if (index === orderedSlots.length - 1) return; // 마지막 항목은 아래로 이동 불가
+    const newOrderedSlots = [...orderedSlots];
+    const movedSlot = newOrderedSlots[index];
+    [newOrderedSlots[index], newOrderedSlots[index + 1]] = [newOrderedSlots[index + 1], newOrderedSlots[index]];
+    setOrderedSlots(newOrderedSlots);
+    
+    // 이동된 슬롯 하이라이트
+    setHighlightedSlotId(movedSlot.id);
+    setTimeout(() => {
+      setHighlightedSlotId(null);
+    }, 1000); // 1초 후 하이라이트 제거
+  };
+
+  // 순서 변경 저장
+  const handleSaveOrder = async () => {
+    try {
+      // displayOrder 업데이트
+      const updatedSlots = orderedSlots.map((slot, index) => ({
+        ...slot,
+        displayOrder: index + 1,
+      }));
+
+      if (isFirebaseAvailable && currentUser && mode !== 'local') {
+        // Firestore 모드: 각 슬롯의 displayOrder 업데이트
+        const updatePromises = updatedSlots.map((slot) => {
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slot.id}`);
+          return updateDoc(slotRef, {
+            displayOrder: slot.displayOrder,
+            updatedAt: new Date(),
+          });
+        });
+        await Promise.all(updatePromises);
+      } else {
+        // localStorage 모드: 각 슬롯의 displayOrder 저장
+        updatedSlots.forEach((slot) => {
+          localStorage.setItem(`slot${slot.id}_displayOrder`, slot.displayOrder.toString());
+        });
+      }
+
+      // 슬롯 목록 다시 로드
+      await loadSlots();
+      setIsOrderModalOpen(false);
+      setOrderedSlots([]);
+      setInitialOrderedSlots([]);
+      setHighlightedSlotId(null);
+      alert("순서가 변경되었습니다.");
+    } catch (err) {
+      console.error("순서 변경 저장 오류:", err);
+      alert("순서 변경 저장에 실패했습니다.");
     }
   };
 
@@ -454,7 +671,7 @@ function SelectScreen() {
           <option value="Digital Monster Color 25th">
             Digital Monster Color 25th
           </option>
-          <option value="기타기종">기타기종</option>
+          <option value="기타기종" disabled>기타기종</option>
         </select>
       </div>
       <div className="mb-4">
@@ -479,7 +696,17 @@ function SelectScreen() {
         새 다마고치 시작
       </button>
 
-      <h2 className="font-semibold mb-2">슬롯 목록 (최대 {MAX_SLOTS}개)</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="font-semibold">슬롯 목록 (현재 {slots.length}개 / 최대 {MAX_SLOTS}개)</h2>
+        {slots.length > 0 && (
+          <button
+            onClick={handleOpenOrderModal}
+            className="px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded text-sm"
+          >
+            순서변경
+          </button>
+        )}
+      </div>
       {slots.length === 0 && <p>등록된 다마고치가 없습니다.</p>}
 
       {slots.map((slot) => (
@@ -510,7 +737,7 @@ function SelectScreen() {
           </div>
 
           <div className="mt-2">
-            <label>슬롯 이름: </label>
+            <label>디지몬 별명: </label>
             <input
               type="text"
               defaultValue={slot.slotName}
@@ -526,6 +753,94 @@ function SelectScreen() {
           </div>
         </div>
       ))}
+
+      {/* 순서변경 모달 */}
+      {isOrderModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">슬롯 순서 변경</h3>
+              <button
+                onClick={handleCloseOrderModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-2 mb-4">
+              {orderedSlots.map((slot, index) => (
+                <div
+                  key={slot.id}
+                  className={`border p-3 rounded flex items-center justify-between transition-all duration-300 ${
+                    highlightedSlotId === slot.id
+                      ? 'bg-blue-100 border-blue-400 shadow-lg transform scale-105'
+                      : 'bg-white hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                        {index + 1}.
+                      </span>
+                      <p className="font-bold">
+                        슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}
+                      </p>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {slot.slotName || `슬롯${slot.id}`} | 생성일: {slot.createdAt}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      기종: {slot.device} / 버전: {slot.version}
+                    </p>
+                  </div>
+                  <div className="flex flex-col space-y-1 ml-4">
+                    <button
+                      onClick={() => handleMoveUp(index)}
+                      disabled={index === 0}
+                      className={`px-3 py-1 rounded text-sm font-bold transition-all ${
+                        index === 0
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-110 active:scale-95'
+                      }`}
+                      title="위로 이동"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => handleMoveDown(index)}
+                      disabled={index === orderedSlots.length - 1}
+                      className={`px-3 py-1 rounded text-sm font-bold transition-all ${
+                        index === orderedSlots.length - 1
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-blue-500 hover:bg-blue-600 text-white hover:scale-110 active:scale-95'
+                      }`}
+                      title="아래로 이동"
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={handleCloseOrderModal}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSaveOrder}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
