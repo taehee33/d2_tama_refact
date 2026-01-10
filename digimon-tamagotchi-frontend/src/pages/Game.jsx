@@ -1248,7 +1248,7 @@ async function setSelectedDigimonAndSave(name) {
         </>
       )}
 
-      <div className={`text-center mb-1 ${isMobile ? "pt-16" : ""}`}>
+      <div className={`text-center mb-1 ${isMobile ? "pt-20" : "pt-20"}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon}
         </h2>
@@ -1350,7 +1350,7 @@ async function setSelectedDigimonAndSave(name) {
         />
       </div>
 
-        <div className="flex items-center justify-center space-x-2 mt-1">
+        <div className="flex items-center justify-center space-x-2 mt-1 pb-20">
       <button
         onClick={handleEvolutionButton}
             disabled={!isEvoEnabled || isEvolving}

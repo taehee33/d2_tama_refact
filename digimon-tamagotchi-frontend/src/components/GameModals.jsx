@@ -208,35 +208,15 @@ export default function GameModals({
             setCustomTime={setCustomTime}
             foodSizeScale={foodSizeScale}
             setFoodSizeScale={setFoodSizeScale}
+            newDigimonDataVer1={newDigimonDataVer1}
+            digimonDataVer1={digimonDataVer1}
+            initializeStats={initializeStats}
+            setDigimonStatsAndSave={setDigimonStatsAndSave}
+            setSelectedDigimonAndSave={setSelectedDigimonAndSave}
+            selectedDigimon={selectedDigimon}
+            digimonStats={digimonStats}
+            slotVersion={slotVersion}
           />
-        </div>
-      )}
-
-      {/* Dev Digimon Select (Developer Mode Only) */}
-      {developerMode && slotVersion === "Ver.1" && (
-        <div className="mt-1 p-2 border">
-          <label className="mr-1">Dev Digimon Select:</label>
-          <select
-            onChange={(e) => {
-              const nm = e.target.value;
-              if (!digimonDataVer1[nm]) {
-                console.error(`No data for ${nm}`);
-                const fallback = initializeStats("Digitama", digimonStats, digimonDataVer1);
-                setDigimonStatsAndSave(fallback);
-                setSelectedDigimonAndSave("Digitama");
-                return;
-              }
-              const old = { ...digimonStats };
-              const nx = initializeStats(nm, old, digimonDataVer1);
-              setDigimonStatsAndSave(nx);
-              setSelectedDigimonAndSave(nm);
-            }}
-            defaultValue={selectedDigimon}
-          >
-            {ver1DigimonList.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { translateStage } from "../utils/stageTranslator";
 
 const SettingsModal = ({
   onClose,
@@ -12,7 +13,16 @@ const SettingsModal = ({
   digimonSizeScale, setDigimonSizeScale,
   timeMode, setTimeMode,
   timeSpeed, setTimeSpeed,
-  customTime, setCustomTime
+  customTime, setCustomTime,
+  // Dev Digimon Select 관련 props
+  newDigimonDataVer1,
+  digimonDataVer1,
+  initializeStats,
+  setDigimonStatsAndSave,
+  setSelectedDigimonAndSave,
+  selectedDigimon,
+  digimonStats,
+  slotVersion,
 }) => {
   const navigate = useNavigate();
   const { logout, isFirebaseAvailable, currentUser } = useAuth();
@@ -143,6 +153,48 @@ const SettingsModal = ({
     setLocalDevMode(!localDevMode);
   };
 
+  // 디지몬을 stage별로 그룹화하여 정렬된 옵션 생성
+  const groupedDigimonOptions = React.useMemo(() => {
+    if (!newDigimonDataVer1) return null;
+
+    // Stage 순서 정의
+    const stageOrder = [
+      "Digitama",
+      "Baby I",
+      "Baby II",
+      "Child",
+      "Adult",
+      "Perfect",
+      "Ultimate",
+      "Super Ultimate",
+      "Ohakadamon"
+    ];
+
+    // 디지몬을 stage별로 그룹화
+    const digimonByStage = {};
+    Object.keys(newDigimonDataVer1).forEach(key => {
+      const digimon = newDigimonDataVer1[key];
+      const stage = digimon?.stage || "Unknown";
+      if (!digimonByStage[stage]) {
+        digimonByStage[stage] = [];
+      }
+      digimonByStage[stage].push({
+        key,
+        name: digimon?.name || key,
+        stage
+      });
+    });
+
+    // 각 stage 내에서 이름순 정렬
+    stageOrder.forEach(stage => {
+      if (digimonByStage[stage]) {
+        digimonByStage[stage].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      }
+    });
+
+    return { stageOrder, digimonByStage };
+  }, [newDigimonDataVer1]);
+
   // Save
   const handleSave = () => {
     setWidth(localWidth);
@@ -202,155 +254,203 @@ const SettingsModal = ({
 
   return (
     <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-96" modal-mobile>
-        <h2 className="text-xl mb-4">Settings</h2>
-
-        {/* Dev Mode */}
-        <div className="mb-4">
-          <label className="block font-semibold">Developer Mode</label>
-          <button
-            className={`px-3 py-1 rounded mt-1 ${localDevMode ? "bg-green-500" : "bg-gray-500"} text-white`}
-            onClick={toggleDevMode}
-          >
-            {localDevMode ? "ON" : "OFF"}
-          </button>
+      <div className="bg-white rounded-lg shadow-lg w-96 flex flex-col max-h-[90vh]" modal-mobile>
+        {/* 헤더 */}
+        <div className="p-6 pb-4 border-b border-gray-200">
+          <h2 className="text-xl">Settings</h2>
         </div>
 
-        {/* Developer Mode Options */}
-        {localDevMode && (
-          <div className="mb-4 pt-4 border-t border-gray-300">
-            <h3 className="font-semibold mb-2">개발자 옵션</h3>
-            {/* 개발자 옵션은 여기에 추가됩니다 */}
-          </div>
-        )}
-
-        {/* Size Settings */}
-        <div className="mb-4">
-          <h3 className="font-semibold mb-2">Size Settings</h3>
-          
-          {/* Uniform Scale 체크박스 */}
-          <div className="mb-3">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={uniformScale}
-                onChange={handleUniformScaleToggle}
-                className="mr-2"
-              />
-              <span>Uniform Scale (비율 고정)</span>
-            </label>
-          </div>
-          
-          {/* Width */}
-          <div className="mb-2">
-            <label>Width: {localWidth}px</label>
-            <input
-              type="range"
-              min="100"
-              max="600"
-              value={localWidth}
-              onChange={handleLocalWidthChange}
-              className="w-full"
-            />
-            <input
-              type="number"
-              min="100"
-              max="600"
-              value={localWidth}
-              onChange={handleLocalWidthChange}
-              className="w-full p-1 border rounded mt-1"
-            />
-          </div>
-          
-          {/* Height */}
-          <div className="mb-2">
-            <label>Height: {localHeight}px</label>
-            <input
-              type="range"
-              min="100"
-              max="600"
-              value={localHeight}
-              onChange={handleLocalHeightChange}
-              className="w-full"
-            />
-            <input
-              type="number"
-              min="100"
-              max="600"
-              value={localHeight}
-              onChange={handleLocalHeightChange}
-              className="w-full p-1 border rounded mt-1"
-            />
-          </div>
-          
-          {/* Reset Size 버튼 */}
-          <div className="mt-3">
+        {/* 스크롤 가능한 컨텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto p-6 pt-4">
+          {/* Dev Mode */}
+          <div className="mb-4">
+            <label className="block font-semibold">Developer Mode</label>
             <button
-              onClick={handleResetSize}
-              className="w-full px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
+              className={`px-3 py-1 rounded mt-1 ${localDevMode ? "bg-green-500" : "bg-gray-500"} text-white`}
+              onClick={toggleDevMode}
             >
-              Reset Size
+              {localDevMode ? "ON" : "OFF"}
             </button>
           </div>
-        </div>
 
-        {/* PWA 설치 */}
-        <div className="mb-4 pt-4 border-t border-gray-300">
-          <h3 className="font-semibold mb-2">홈화면에 추가</h3>
-          {isInstalled ? (
-            <div className="p-3 bg-green-100 border border-green-400 rounded text-sm">
-              <p className="text-green-800">✅ 앱이 설치되어 있습니다!</p>
-            </div>
-          ) : isInstallable || isIOS ? (
-            <div className="space-y-2">
-              <button
-                onClick={handleInstall}
-                className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold"
-              >
-                {isIOS ? "📱 iOS 설치 안내" : "📱 홈화면에 추가"}
-              </button>
-              {showIOSInstructions && (
-                <div className="p-3 bg-blue-50 border border-blue-300 rounded text-sm">
-                  <p className="font-semibold mb-2">iOS Safari 설치 방법:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-gray-700">
-                    <li>하단 공유 버튼(□↑) 탭</li>
-                    <li>"홈 화면에 추가" 선택</li>
-                    <li>"추가" 버튼 탭</li>
-                  </ol>
-                  <button
-                    onClick={() => setShowIOSInstructions(false)}
-                    className="mt-2 text-blue-600 hover:text-blue-800 underline text-xs"
+          {/* Developer Mode Options */}
+          {localDevMode && (
+            <div className="mb-4 pt-4 border-t border-gray-300">
+              <h3 className="font-semibold mb-2">개발자 옵션</h3>
+              {/* Dev Digimon Select */}
+              {slotVersion === "Ver.1" && groupedDigimonOptions && initializeStats && setDigimonStatsAndSave && setSelectedDigimonAndSave && (
+                <div className="mb-3">
+                  <label className="block text-sm font-medium mb-1">Dev Digimon Select:</label>
+                  <select
+                    onChange={(e) => {
+                      const nm = e.target.value;
+                      if (!nm || nm.startsWith('--')) return; // 구분자 선택 무시
+                      if (!digimonDataVer1[nm]) {
+                        console.error(`No data for ${nm}`);
+                        const fallback = initializeStats("Digitama", digimonStats, digimonDataVer1);
+                        setDigimonStatsAndSave(fallback);
+                        setSelectedDigimonAndSave("Digitama");
+                        return;
+                      }
+                      const old = { ...digimonStats };
+                      const nx = initializeStats(nm, old, digimonDataVer1);
+                      setDigimonStatsAndSave(nx);
+                      setSelectedDigimonAndSave(nm);
+                    }}
+                    defaultValue={selectedDigimon}
+                    className="w-full p-2 border border-gray-300 rounded"
                   >
-                    닫기
-                  </button>
+                    {groupedDigimonOptions.stageOrder.map(stage => {
+                      const digimons = groupedDigimonOptions.digimonByStage[stage];
+                      if (!digimons || digimons.length === 0) return null;
+                      
+                      return (
+                        <React.Fragment key={stage}>
+                          <option disabled value={`--${stage}--`} style={{ fontWeight: 'bold', backgroundColor: '#f0f0f0' }}>
+                            -- {translateStage(stage)} --
+                          </option>
+                          {digimons.map(digimon => (
+                            <option key={digimon.key} value={digimon.key}>
+                              {digimon.name}
+                            </option>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </select>
                 </div>
               )}
             </div>
-          ) : (
-            <div className="p-3 bg-gray-100 border border-gray-300 rounded text-sm">
-              <p className="text-gray-600">이 브라우저에서는 설치가 지원되지 않습니다.</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Chrome, Edge, Safari 등 최신 브라우저에서 사용 가능합니다.
-              </p>
-            </div>
           )}
+
+          {/* Size Settings */}
+          <div className="mb-4">
+            <h3 className="font-semibold mb-2">Size Settings</h3>
+            
+            {/* Uniform Scale 체크박스 */}
+            <div className="mb-3">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={uniformScale}
+                  onChange={handleUniformScaleToggle}
+                  className="mr-2"
+                />
+                <span>Uniform Scale (비율 고정)</span>
+              </label>
+            </div>
+            
+            {/* Width */}
+            <div className="mb-2">
+              <label>Width: {localWidth}px</label>
+              <input
+                type="range"
+                min="100"
+                max="600"
+                value={localWidth}
+                onChange={handleLocalWidthChange}
+                className="w-full"
+              />
+              <input
+                type="number"
+                min="100"
+                max="600"
+                value={localWidth}
+                onChange={handleLocalWidthChange}
+                className="w-full p-1 border rounded mt-1"
+              />
+            </div>
+            
+            {/* Height */}
+            <div className="mb-2">
+              <label>Height: {localHeight}px</label>
+              <input
+                type="range"
+                min="100"
+                max="600"
+                value={localHeight}
+                onChange={handleLocalHeightChange}
+                className="w-full"
+              />
+              <input
+                type="number"
+                min="100"
+                max="600"
+                value={localHeight}
+                onChange={handleLocalHeightChange}
+                className="w-full p-1 border rounded mt-1"
+              />
+            </div>
+            
+            {/* Reset Size 버튼 */}
+            <div className="mt-3">
+              <button
+                onClick={handleResetSize}
+                className="w-full px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
+              >
+                Reset Size
+              </button>
+            </div>
+          </div>
+
+          {/* PWA 설치 */}
+          <div className="mb-4 pt-4 border-t border-gray-300">
+            <h3 className="font-semibold mb-2">홈화면에 추가</h3>
+            {isInstalled ? (
+              <div className="p-3 bg-green-100 border border-green-400 rounded text-sm">
+                <p className="text-green-800">✅ 앱이 설치되어 있습니다!</p>
+              </div>
+            ) : isInstallable || isIOS ? (
+              <div className="space-y-2">
+                <button
+                  onClick={handleInstall}
+                  className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold"
+                >
+                  {isIOS ? "📱 iOS 설치 안내" : "📱 홈화면에 추가"}
+                </button>
+                {showIOSInstructions && (
+                  <div className="p-3 bg-blue-50 border border-blue-300 rounded text-sm">
+                    <p className="font-semibold mb-2">iOS Safari 설치 방법:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-gray-700">
+                      <li>하단 공유 버튼(□↑) 탭</li>
+                      <li>"홈 화면에 추가" 선택</li>
+                      <li>"추가" 버튼 탭</li>
+                    </ol>
+                    <button
+                      onClick={() => setShowIOSInstructions(false)}
+                      className="mt-2 text-blue-600 hover:text-blue-800 underline text-xs"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-gray-100 border border-gray-300 rounded text-sm">
+                <p className="text-gray-600">이 브라우저에서는 설치가 지원되지 않습니다.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Chrome, Edge, Safari 등 최신 브라우저에서 사용 가능합니다.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 디스코드 링크 */}
+          <div className="mb-4 pt-4 border-t border-gray-300">
+            <p className="text-base font-bold text-gray-800 mb-3">💬 디스코드 (버그리포트, Q&A 등)</p>
+            <a
+              href="https://discord.gg/BWXFtSCnGt"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors text-sm break-all shadow-md hover:shadow-lg"
+            >
+              🔗 https://discord.gg/BWXFtSCnGt
+            </a>
+          </div>
         </div>
 
-        {/* 디스코드 링크 */}
-        <div className="mb-4 pt-4 border-t border-gray-300">
-          <p className="text-base font-bold text-gray-800 mb-3">💬 디스코드 (버그리포트, Q&A 등)</p>
-          <a
-            href="https://discord.gg/BWXFtSCnGt"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg transition-colors text-sm break-all shadow-md hover:shadow-lg"
-          >
-            🔗 https://discord.gg/BWXFtSCnGt
-          </a>
-        </div>
-
-        {/* Save / Cancel */}
-        <div className="flex justify-end space-x-2 mt-4">
+        {/* 푸터 (Save / Cancel 버튼) */}
+        <div className="p-6 pt-4 border-t border-gray-200 flex justify-end space-x-2">
           <button className="px-4 py-2 bg-gray-300 rounded" onClick={onClose}>
             Cancel
           </button>
