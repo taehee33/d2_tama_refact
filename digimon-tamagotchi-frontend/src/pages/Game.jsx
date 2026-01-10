@@ -709,6 +709,7 @@ function Game(){
     digimonDataVer1,
     slotId,
     currentUser,
+    mode,
     logout,
     navigate,
     setIsSleeping,
@@ -1071,6 +1072,7 @@ async function setSelectedDigimonAndSave(name) {
     evolve,
     onOverfeedConfirm: handleOverfeedConfirm,
     onOverfeedCancel: handleOverfeedCancel,
+    handleToggleLights: handleToggleLightsFromHook,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1384,7 +1386,10 @@ async function setSelectedDigimonAndSave(name) {
       <GameModals
         modals={modals}
         toggleModal={toggleModal}
-        gameState={gameState}
+        gameState={{
+          ...gameState,
+          isLightsOn,
+        }}
         handlers={handlers}
         data={data}
         ui={{ 

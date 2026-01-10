@@ -79,7 +79,7 @@ const DigimonStatusText = ({
       return { text: "수면 중... 😴", color: "text-blue-500", priority: 4 };
     }
     if (sleepStatus === "TIRED") {
-      return { text: "피곤해요... 😫", color: "text-yellow-600", priority: 4 };
+      return { text: "SLEEPY(Lights Off plz) 😴", color: "text-yellow-600", priority: 4 };
     }
 
     // 5. 배고픔/힘 0 (호출 상태)

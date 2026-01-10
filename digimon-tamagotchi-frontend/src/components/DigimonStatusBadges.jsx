@@ -142,7 +142,7 @@ const DigimonStatusBadges = ({
           const remainingMinutes = Math.floor(remainingMs / 60000);
           const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
           messages.push({ 
-            text: `피곤함 😫 (불 끄기까지 ${remainingMinutes}분 ${remainingSeconds}초)`, 
+            text: `SLEEPY(Lights Off plz) 😴 (불 끄기까지 ${remainingMinutes}분 ${remainingSeconds}초)`, 
             color: "text-yellow-600", 
             bgColor: "bg-yellow-100", 
             priority: 4, 
@@ -150,7 +150,7 @@ const DigimonStatusBadges = ({
           });
         } else {
           messages.push({ 
-            text: `피곤함 😫 (케어 미스 발생!)`, 
+            text: `SLEEPY(Lights Off plz) 😴 (케어 미스 발생!)`, 
             color: "text-red-600", 
             bgColor: "bg-red-100", 
             priority: 4, 
@@ -158,7 +158,7 @@ const DigimonStatusBadges = ({
           });
         }
       } else {
-        messages.push({ text: "피곤함 😫", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 4, category: "warning" });
+        messages.push({ text: "SLEEPY(Lights Off plz) 😴", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 4, category: "warning" });
       }
     }
 

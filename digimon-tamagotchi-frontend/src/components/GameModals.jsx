@@ -23,6 +23,7 @@ import DietModal from "./DietModal";
 import RestModal from "./RestModal";
 import DetoxModal from "./DetoxModal";
 import PlayOrSnackModal from "./PlayOrSnackModal";
+import LightsModal from "./LightsModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
@@ -68,6 +69,7 @@ export default function GameModals({
     currentSeasonId,
     activityLogs,
     deathReason,
+    isLightsOn,
   } = gameState || {};
 
   const {
@@ -95,6 +97,7 @@ export default function GameModals({
     setArenaChallenger,
     setArenaEnemyId,
     setMyArenaEntryId,
+    handleToggleLights,
   } = handlers || {};
 
   const {
@@ -559,6 +562,24 @@ export default function GameModals({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Lights Modal (조명 제어) */}
+      {modals.lights && (
+        <LightsModal
+          onClose={() => toggleModal('lights', false)}
+          onTurnOn={() => {
+            if (handleToggleLights && !isLightsOn) {
+              handleToggleLights();
+            }
+          }}
+          onTurnOff={() => {
+            if (handleToggleLights && isLightsOn) {
+              handleToggleLights();
+            }
+          }}
+          isLightsOn={isLightsOn || false}
+        />
       )}
     </>
   );

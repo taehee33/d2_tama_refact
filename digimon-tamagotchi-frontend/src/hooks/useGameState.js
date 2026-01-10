@@ -156,6 +156,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     
     // 과식 확인 모달
     overfeedConfirm: false,
+    
+    // 조명 제어 모달
+    lights: false,
   });
   
   // ============================================

@@ -498,7 +498,8 @@ export default function StatsPopup({
         <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
         <ul className="space-y-1">
           <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
-          <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? '피곤함' : sleepStatus}</li>
+          <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus}</li>
+          <li>조명 상태: {isLightsOn ? <span className="text-yellow-600 font-semibold">켜짐 🔆</span> : <span className="text-blue-600 font-semibold">꺼짐 🌙</span>}</li>
           {sleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
             <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
           )}
@@ -590,7 +591,7 @@ export default function StatsPopup({
             else {
               return (
                 <li className="text-gray-500">
-                  불 끄기까지: 현재 상태 - {sleepStatus === 'TIRED' ? '피곤함' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
+                  불 끄기까지: 현재 상태 - {sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
                 </li>
               );
             }
