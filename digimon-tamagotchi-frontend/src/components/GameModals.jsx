@@ -25,6 +25,7 @@ import DetoxModal from "./DetoxModal";
 import PlayOrSnackModal from "./PlayOrSnackModal";
 import LightsModal from "./LightsModal";
 import { addActivityLog } from "../hooks/useGameLogic";
+import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
 /**
  * GameModals 컴포넌트
@@ -71,6 +72,35 @@ export default function GameModals({
     deathReason,
     isLightsOn,
   } = gameState || {};
+  
+  // 수면방해 처리 함수
+  const handleSleepDisturbance = (updatedStats, updatedLogs, actionType) => {
+    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
+    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    
+    if (nowSleeping && setWakeUntil && setDigimonStatsAndSave) {
+      const until = Date.now() + 10 * 60 * 1000; // 10분
+      setWakeUntil(until);
+      
+      // 수면방해 로그 추가
+      const sleepDisturbanceLog = {
+        type: 'CARE_MISTAKE',
+        text: `수면 방해: 교감 (${actionType}) - 10분 동안 깨어있음`,
+        timestamp: Date.now()
+      };
+      const logsWithDisturbance = [sleepDisturbanceLog, ...updatedLogs].slice(0, 50);
+      
+      const statsWithDisturbance = {
+        ...updatedStats,
+        wakeUntil: until,
+        sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1,
+        activityLogs: logsWithDisturbance,
+      };
+      setDigimonStatsAndSave(statsWithDisturbance, logsWithDisturbance);
+      return statsWithDisturbance;
+    }
+    return updatedStats;
+  };
 
   const {
     handleFeed,
@@ -127,6 +157,8 @@ export default function GameModals({
     setTimeSpeed,
     setCustomTime,
     setFoodSizeScale,
+    wakeUntil,
+    setWakeUntil,
   } = ui || {};
 
   const { developerMode, setDeveloperMode, setIsEvolving, mode } = flags || {};
@@ -291,7 +323,7 @@ export default function GameModals({
               const currentStats = digimonStats || {};
               const newFullness = Math.max(0, (currentStats.fullness || 0) - 1);
               
-              const updatedStats = {
+              let updatedStats = {
                 ...currentStats,
                 fullness: newFullness,
               };
@@ -303,6 +335,9 @@ export default function GameModals({
                 'DIET',
                 `다이어트 성공! 포만감: ${currentStats.fullness || 0} → ${newFullness}`
               );
+              
+              // 수면방해 처리 (실제 액션 수행 시점)
+              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '다이어트');
               
               // 스탯 저장
               if (setDigimonStatsAndSave) {
@@ -324,7 +359,7 @@ export default function GameModals({
               const currentStats = digimonStats || {};
               const newStrength = Math.max(0, (currentStats.strength || 0) - 1);
               
-              const updatedStats = {
+              let updatedStats = {
                 ...currentStats,
                 strength: newStrength,
               };
@@ -336,6 +371,9 @@ export default function GameModals({
                 'REST',
                 `누워있기 성공! Strength: ${currentStats.strength || 0} → ${newStrength}`
               );
+              
+              // 수면방해 처리 (실제 액션 수행 시점)
+              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '누워있기');
               
               // 스탯 저장
               if (setDigimonStatsAndSave) {
@@ -357,7 +395,7 @@ export default function GameModals({
               const currentStats = digimonStats || {};
               const newProteinOverdose = Math.max(0, (currentStats.proteinOverdose || 0) - 1);
               
-              const updatedStats = {
+              let updatedStats = {
                 ...currentStats,
                 proteinOverdose: newProteinOverdose,
               };
@@ -369,6 +407,9 @@ export default function GameModals({
                 'DETOX',
                 `디톡스 성공! Protein Overdose: ${currentStats.proteinOverdose || 0} → ${newProteinOverdose}`
               );
+              
+              // 수면방해 처리 (실제 액션 수행 시점)
+              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '디톡스');
               
               // 스탯 저장
               if (setDigimonStatsAndSave) {
@@ -390,7 +431,7 @@ export default function GameModals({
               const currentStats = digimonStats || {};
               const newCareMistakes = Math.max(0, (currentStats.careMistakes || 0) - 1);
               
-              const updatedStats = {
+              let updatedStats = {
                 ...currentStats,
                 careMistakes: newCareMistakes,
               };
@@ -402,6 +443,9 @@ export default function GameModals({
                 'PLAY_OR_SNACK',
                 `놀아주기/간식주기 성공! Care Mistakes: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
               );
+              
+              // 수면방해 처리 (실제 액션 수행 시점)
+              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '놀아주기/간식주기');
               
               // 스탯 저장
               if (setDigimonStatsAndSave) {

@@ -3,6 +3,71 @@ import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 
+/**
+ * 수면 방해 이력 아코디언 컴포넌트
+ */
+function SleepDisturbanceHistory({ activityLogs, formatTimestamp }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // 수면 방해 관련 로그 필터링
+  const sleepDisturbanceLogs = (activityLogs || []).filter(log => {
+    if (log.type === 'CARE_MISTAKE' && log.text) {
+      return log.text.includes('수면 방해');
+    }
+    return false;
+  }).sort((a, b) => {
+    // 최신순 정렬
+    const timestampA = ensureTimestamp(a.timestamp);
+    const timestampB = ensureTimestamp(b.timestamp);
+    return (timestampB || 0) - (timestampA || 0);
+  });
+  
+  return (
+    <div className="mt-2 border-t pt-2">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
+      >
+        <span className="text-sm font-semibold text-gray-700">
+          수면 방해 이력 ({sleepDisturbanceLogs.length}건)
+        </span>
+        <span className="text-gray-500 text-xs">
+          {isOpen ? '▲ 접기' : '▼ 펼치기'}
+        </span>
+      </button>
+      
+      {isOpen && (
+        <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+          {sleepDisturbanceLogs.length === 0 ? (
+            <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
+              수면 방해 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+            </div>
+          ) : (
+            sleepDisturbanceLogs.map((log, index) => {
+              const timestamp = ensureTimestamp(log.timestamp);
+              const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
+              
+              return (
+                <div
+                  key={index}
+                  className="text-xs p-2 bg-red-50 border border-red-200 rounded"
+                >
+                  <div className="font-semibold text-red-700">
+                    {log.text || '수면 방해 발생'}
+                  </div>
+                  <div className="text-red-600 mt-1">
+                    {formattedTime}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
   const d = Math.floor(sec / 86400);
@@ -598,6 +663,14 @@ export default function StatsPopup({
           })()}
           <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
         </ul>
+        
+        {/* 수면 방해 이력 아코디언 */}
+        {sleepDisturbances > 0 && (
+          <SleepDisturbanceHistory 
+            activityLogs={stats?.activityLogs || []} 
+            formatTimestamp={formatTimestamp}
+          />
+        )}
       </div>
       
       {/* Sec 5. 케어미스 발생 조건 */}

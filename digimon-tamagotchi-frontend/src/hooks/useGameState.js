@@ -1,7 +1,7 @@
 // src/hooks/useGameState.js
 // Game.jsx의 모든 State 관리를 통합한 Custom Hook
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { initializeStats } from "../data/stats";
 
 /**
@@ -230,8 +230,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // ============================================
   // 5. Refs
   // ============================================
-  const tiredStartRef = useRef(null);
-  const tiredCountedRef = useRef(false);
+  // tiredStartRef, tiredCountedRef는 더 이상 사용하지 않음 (digimonStats.tiredStartAt으로 대체)
   
   // ============================================
   // Helper Functions (모달 관리)
@@ -404,11 +403,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setCallToastMessage,
     },
     
-    // Refs
-    refs: {
-      tiredStartRef,
-      tiredCountedRef,
-    },
+    // Refs (현재 사용하지 않음, 향후 필요 시 추가)
+    refs: {},
     
     // Actions (편의 함수들)
     actions: {

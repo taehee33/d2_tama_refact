@@ -154,30 +154,7 @@ export function useGameActions({
     const updatedStats = await applyLazyUpdateBeforeAction();
     if(updatedStats.isDead) return;
     
-    // 수면 중 먹이 시도 시 수면 방해 처리
-    const schedule = getSleepSchedule(digimonData, selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
-      // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-      setDigimonStats((prevStats) => {
-        const newLog = {
-          type: 'CARE_MISTAKE',
-          text: 'Disturbed Sleep! (Wake +10m, Mistake +1)',
-          timestamp: Date.now()
-        };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
-        const statsWithLogs = {
-          ...updatedStats,
-          sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1,
-          activityLogs: updatedLogs
-        };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
-          console.error("수면 방해 로그 저장 오류:", error);
-        });
-        return statsWithLogs;
-      });
-    }
+    // 수면방해는 handleMenuClick에서 처리됨 (메뉴 클릭 시점)
     
     // 업데이트된 스탯으로 작업
     setDigimonStats(updatedStats);
@@ -242,10 +219,36 @@ export function useGameActions({
   const eatCycle = async (step, type, isRefused = false) => {
     const frameCount = (type==="protein"?3:4);
     
-    // 첫 번째 프레임에서 스탯 즉시 업데이트
+    // 첫 번째 프레임에서 스탯 즉시 업데이트 (실제 액션 수행 시점)
     if (step === 0) {
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
+      
+      // 수면 중 먹이 시도 시 수면 방해 처리 (실제 액션 수행 시점)
+      const schedule = getSleepSchedule(digimonData, selectedDigimon);
+      const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+      if (nowSleeping) {
+        wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
+        // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
+        setDigimonStats((prevStats) => {
+          const actionType = type === 'meat' ? '고기' : '프로틴';
+          const newLog = {
+            type: 'CARE_MISTAKE',
+            text: `수면 방해: 먹이 주기 (${actionType}) - 10분 동안 깨어있음`,
+            timestamp: Date.now()
+          };
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+          const statsWithLogs = {
+            ...currentStats,
+            sleepDisturbances: (currentStats.sleepDisturbances || 0) + 1,
+            activityLogs: updatedLogs
+          };
+          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+            console.error("수면 방해 로그 저장 오류:", error);
+          });
+          return statsWithLogs;
+        });
+      }
       const oldFullness = currentStats.fullness || 0;
       const oldWeight = currentStats.weight || 0;
       const oldStrength = currentStats.strength || 0;
@@ -389,7 +392,7 @@ export function useGameActions({
     // 액션 전 Lazy Update 적용
     const updatedStats = await applyLazyUpdateBeforeAction();
     
-    // 수면 중 훈련 시도 시 수면 방해 처리
+    // 수면 중 훈련 시도 시 수면 방해 처리 (실제 액션 수행 시점)
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
@@ -398,7 +401,7 @@ export function useGameActions({
       setDigimonStats((prevStats) => {
         const newLog = {
           type: 'CARE_MISTAKE',
-          text: 'Disturbed Sleep! (Wake +10m, Mistake +1)',
+          text: '수면 방해: 훈련 - 10분 동안 깨어있음',
           timestamp: Date.now()
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
@@ -527,6 +530,11 @@ export function useGameActions({
     if(updatedStats.poopCount<=0){
       return;
     }
+    
+    // 수면 중 청소 시도 시 수면 방해 처리 (실제 액션 수행 시점)
+    // cleanCycle 완료 시점(step > 3)에 처리하므로 여기서는 처리하지 않음
+    // cleanCycle 내부에서 처리
+    
     setDigimonStats(updatedStats);
     setShowPoopCleanAnimation(true);
     setCleanStep(0);
@@ -932,16 +940,17 @@ export function useGameActions({
       return;
     }
     
-    // 수면 중 배틀 시도 시 수면 방해 처리
+    // 수면 중 배틀 시도 시 수면 방해 처리 (실제 액션 수행 시점)
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
       wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
+        const battleTypeText = battleType === 'quest' ? '퀘스트' : battleType === 'sparring' ? '스파링' : battleType === 'arena' ? '아레나' : '배틀';
         const newLog = {
           type: 'CARE_MISTAKE',
-          text: 'Disturbed Sleep! (Wake +10m, Mistake +1)',
+          text: `수면 방해: 배틀 (${battleTypeText}) - 10분 동안 깨어있음`,
           timestamp: Date.now()
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);

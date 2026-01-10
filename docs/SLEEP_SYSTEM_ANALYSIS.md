@@ -25,8 +25,13 @@
   - 밥 먹이기 (`handleFeed`)
   - 훈련 (`handleTrainResult`)
   - 배틀 (`handleBattleComplete`)
-  - 치료 (`handleHeal`)
-  - 메뉴 클릭 (`handleMenuClick`, 단 `electric` 제외)
+  - 교감 (`handleMenuClick` - `communication`)
+  - 화장실 (`handleMenuClick` - `bathroom`)
+  - 치료 (`handleMenuClick` - `heal`)
+- **수면방해 제외 메뉴**:
+  - 스탯 (`status`)
+  - 호출 (`callSign`)
+  - 전기 (`electric`)
 - **효과**:
   - `sleepDisturbances`: +1
   - `wakeUntil`: 현재시간 + 10분 (600,000ms)

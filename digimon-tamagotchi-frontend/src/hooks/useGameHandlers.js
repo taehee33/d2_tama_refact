@@ -112,15 +112,10 @@ export function useGameHandlers({
    * @param {string} menu - 메뉴 타입
    */
   const handleMenuClick = (menu) => {
-    // 수면 중 인터랙션 시 10분 깨우고 sleepDisturbances 증가
-    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping && menu !== "electric") {
-      wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
-      setIsSleeping(false);
-    }
+    // 수면방해는 실제 액션 수행 시점에 처리됨 (메뉴 클릭 시점이 아님)
+    // 스탯(status), 호출(callSign), 전기(electric)는 수면방해 제외
 
-    // Lights 모달은 electric 버튼에 매핑
+    // Lights 모달은 electric 버튼에 매핑 (수면방해 제외)
     if (menu === "electric") {
       toggleModal('lights', true);
       setActiveMenu(menu);
@@ -133,9 +128,11 @@ export function useGameHandlers({
         toggleModal('feed', true);
         break;
       case "status":
+        // 스탯은 수면방해 제외
         toggleModal('stats', true);
         break;
       case "bathroom":
+        // 화장실은 실제 청소 시 수면방해 발생 (handleCleanPoop에서 처리)
         handleCleanPoopFromHook();
         break;
       case "train":
@@ -145,12 +142,15 @@ export function useGameHandlers({
         toggleModal('battleSelection', true);
         break;
       case "heal":
+        // 치료는 실제 치료 완료 시 수면방해 발생 (handleHeal에서 처리)
         handleHeal();
         break;
       case "callSign":
+        // 호출은 수면방해 제외
         toggleModal('call', true);
         break;
       case "communication":
+        // 교감은 실제 액션 선택 시 수면방해 발생 (각 모달에서 처리)
         toggleModal('interaction', true);
         break;
       default:
@@ -159,18 +159,11 @@ export function useGameHandlers({
 
   /**
    * 치료(Heal) 액션 핸들러
+   * 수면방해는 handleMenuClick에서 처리됨
    */
   const handleHeal = async () => {
     const updatedStats = await applyLazyUpdateBeforeAction();
     if (updatedStats.isDead) return;
-    // 수면 중 치료 시도 시 수면 방해 처리
-    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
-    if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
-      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], 'CARE_MISTAKE', 'Sleep Disturbance: Healed while sleeping');
-      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-    }
     setDigimonStats(updatedStats);
     // HealModal에 전달할 최신 스탯 설정 (비동기 상태 업데이트 문제 해결)
     setHealModalStats(updatedStats);
