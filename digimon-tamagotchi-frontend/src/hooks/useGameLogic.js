@@ -47,6 +47,9 @@ export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleep
 
   // 불이 켜져 있으면 무조건 깨어있거나 피곤한 상태
   if (isLightsOn) {
+    // 수면 방해 중이면 AWAKE (불이 켜져 있어도 수면 방해 중에는 깨어있음)
+    if (wakeOverride) return "AWAKE";
+    // 수면 시간이면 TIRED
     return isSleepTime ? "TIRED" : "AWAKE";
   }
 
