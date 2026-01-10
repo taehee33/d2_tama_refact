@@ -185,6 +185,8 @@ export default function StatsPopup({
     tiredStartAt=null,
     tiredCounted=false,
     dailySleepMistake=false,
+    fastSleepStart=null,
+    napUntil=null,
   } = stats || {};
 
   // devMode에서 select로 변경
@@ -567,6 +569,19 @@ export default function StatsPopup({
         <ul className="space-y-1">
           <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
           <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus}</li>
+          <li>잠들기: {(() => {
+            // fastSleepStart가 있고 불이 꺼져 있고 15초가 지나지 않았을 때
+            if (fastSleepStart && !isLightsOn) {
+              const elapsed = currentTime - fastSleepStart;
+              const remainingSeconds = Math.max(0, 15 - Math.floor(elapsed / 1000));
+              if (remainingSeconds > 0 && remainingSeconds <= 15) {
+                return <span className="text-blue-500 font-semibold">{remainingSeconds}초 후 잠들어요</span>;
+              }
+            }
+            // 조건이 아닐 때 수면 상태 값 그대로 표시 (TIRED는 SLEEPY(Lights Off plz)로 통일)
+            const statusText = sleepStatus === 'AWAKE' ? 'AWAKE' : sleepStatus === 'SLEEPING' ? 'SLEEPING' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus;
+            return <span className="text-gray-500">{statusText}</span>;
+          })()}</li>
           <li>조명 상태: {isLightsOn ? <span className="text-yellow-600 font-semibold">켜짐 🔆</span> : <span className="text-blue-600 font-semibold">꺼짐 🌙</span>}</li>
           {sleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
             <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
@@ -595,7 +610,7 @@ export default function StatsPopup({
             
             return (
               <li className="text-orange-600 font-semibold">
-                수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 남음
+                수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 후 다시 잠들 예정
                 {careMistakeRemaining && (
                   <span className="text-yellow-600 ml-2">(케어미스까지 {careMistakeRemaining.minutes}분 {careMistakeRemaining.seconds}초 남음)</span>
                 )}
