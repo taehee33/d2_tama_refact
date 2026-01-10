@@ -182,6 +182,9 @@ export default function StatsPopup({
     hungerCountdown=0,
     strengthCountdown=0,
     poopCountdown=0,
+    tiredStartAt=null,
+    tiredCounted=false,
+    dailySleepMistake=false,
   } = stats || {};
 
   // devMode에서 select로 변경
@@ -575,9 +578,27 @@ export default function StatsPopup({
             const remainingMs = wakeUntil - currentTime;
             const remainingMinutes = Math.floor(remainingMs / 60000);
             const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+            
+            // TIRED 상태일 때 케어미스까지 남은 시간 계산
+            let careMistakeRemaining = null;
+            if (sleepStatus === 'TIRED' && stats.tiredStartAt && !stats.tiredCounted && !stats.dailySleepMistake) {
+              const tiredElapsed = currentTime - stats.tiredStartAt;
+              const thresholdMs = 30 * 60 * 1000; // 30분
+              const careMistakeRemainingMs = thresholdMs - tiredElapsed;
+              if (careMistakeRemainingMs > 0) {
+                careMistakeRemaining = {
+                  minutes: Math.floor(careMistakeRemainingMs / 60000),
+                  seconds: Math.floor((careMistakeRemainingMs % 60000) / 1000)
+                };
+              }
+            }
+            
             return (
               <li className="text-orange-600 font-semibold">
                 수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 남음
+                {careMistakeRemaining && (
+                  <span className="text-yellow-600 ml-2">(케어미스까지 {careMistakeRemaining.minutes}분 {careMistakeRemaining.seconds}초 남음)</span>
+                )}
                 {!isLightsOn && (
                   <span className="text-green-600 ml-2">(불 꺼짐 → 10초 후 잠듦)</span>
                 )}
@@ -597,7 +618,7 @@ export default function StatsPopup({
             }
             return null;
           })()}
-          {/* 불 끄기까지 항목 (항상 표시, 조건에 따라 다른 메시지) */}
+          {/* 수면상태확인 항목 (항상 표시, 조건에 따라 다른 메시지) */}
           {(() => {
             // 수면 시간이고 불이 켜져 있고 sleepLightOnStart가 있을 때만 카운트다운
             if (sleepStatus === 'TIRED' && isLightsOn && sleepLightOnStart) {
@@ -609,13 +630,13 @@ export default function StatsPopup({
                 const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
                 return (
                   <li className="text-yellow-600 font-semibold">
-                    불 끄기까지: {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
+                    수면상태확인: 디지몬(조는중zZ), 조명(켜짐!) → {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
                   </li>
                 );
               } else {
                 return (
                   <li className="text-red-600 font-semibold">
-                    케어 미스 발생! (불을 30분 이상 켜둠)
+                    수면상태확인: 케어 미스 발생! (불을 30분 이상 켜둠)
                   </li>
                 );
               }
@@ -624,22 +645,55 @@ export default function StatsPopup({
             else if (sleepStatus === 'SLEEPING' && !isLightsOn) {
               return (
                 <li className="text-green-600 font-semibold">
-                  불 끄기까지: 불 꺼짐 ✓ (잠자는 중)
+                  수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 잠자는 중 ✓
                 </li>
               );
             }
             // 수면 시간이 아니거나 수면 방해로 깨어있을 때
             else if (sleepStatus === 'AWAKE') {
               if (wakeUntil && currentTime < wakeUntil) {
+                // 15초 빠른 잠들기 대기 중인지 확인 (fastSleepStart가 있고 15초 안 지났을 때)
+                const isWaitingFastSleep = !isLightsOn && stats.fastSleepStart;
+                if (isWaitingFastSleep) {
+                  const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
+                  const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
+                  if (remainingSeconds > 0 && remainingSeconds <= 15) {
+                    return (
+                      <li className="text-blue-500">
+                        수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 잠들기 준비 중 ({remainingSeconds}초 남음)
+                      </li>
+                    );
+                  }
+                }
+                const remainingMs = wakeUntil - currentTime;
+                const remainingMinutes = Math.floor(remainingMs / 60000);
+                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
                 return (
                   <li className="text-orange-500">
-                    불 끄기까지: 수면 방해 중 (깨어있음)
+                    수면상태확인: {isLightsOn ? (
+                      `디지몬(조는중zZ), 조명(켜짐!) → 수면 방해 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
+                    ) : (
+                      `디지몬(조는중zZ), 조명(꺼짐!) → 수면 방해 회복 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
+                    )}
                   </li>
                 );
               } else {
+                // 수면 시간이 아니고 wakeUntil도 없을 때
+                const isWaitingFastSleep = !isLightsOn && stats.fastSleepStart;
+                if (isWaitingFastSleep) {
+                  const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
+                  const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
+                  if (remainingSeconds > 0 && remainingSeconds <= 15) {
+                    return (
+                      <li className="text-blue-500">
+                        수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 낮잠 준비 중 ({remainingSeconds}초 남음)
+                      </li>
+                    );
+                  }
+                }
                 return (
                   <li className="text-gray-500">
-                    불 끄기까지: 수면 시간이 아님
+                    수면상태확인: 수면 시간이 아님
                   </li>
                 );
               }
@@ -648,7 +702,7 @@ export default function StatsPopup({
             else if (sleepStatus === 'TIRED' && isLightsOn && !sleepLightOnStart) {
               return (
                 <li className="text-yellow-500">
-                  불 끄기까지: 불이 켜져 있음 (카운트 시작 대기 중)
+                  수면상태확인: 디지몬(조는중zZ), 조명(켜짐!) → 카운트 시작 대기 중
                 </li>
               );
             }
@@ -656,7 +710,7 @@ export default function StatsPopup({
             else {
               return (
                 <li className="text-gray-500">
-                  불 끄기까지: 현재 상태 - {sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
+                  수면상태확인: 현재 상태 - {sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
                 </li>
               );
             }

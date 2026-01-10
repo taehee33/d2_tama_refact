@@ -33,19 +33,32 @@ function isWithinSleepSchedule(schedule, nowDate = new Date()) {
 
 /**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
+ * @param {Object} digimonStats - 디지몬 스탯
+ * @param {Function} setWakeUntil - wakeUntil 설정 함수
+ * @param {Function} setDigimonStatsAndSave - 스탯 저장 함수
+ * @param {boolean} isSleepTime - 정규 수면 시간 여부
+ * @param {Function} onSleepDisturbance - 수면 방해 콜백
  */
-function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance = null) {
+function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime = true, onSleepDisturbance = null) {
   const until = Date.now() + 10 * 60 * 1000; // 10분
   setWakeUntil(until);
+  
+  const nowMs = Date.now();
+  const napUntil = digimonStats.napUntil || null;
+  const isNapTime = napUntil ? napUntil > nowMs : false;
+  
   const updated = {
     ...digimonStats,
     wakeUntil: until,
-    sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
+    // 정규 수면 시간에 깨울 때만 수면 방해(sleepDisturbances) 증가 (낮잠 중에는 증가하지 않음)
+    sleepDisturbances: (isSleepTime && !isNapTime) 
+      ? (digimonStats.sleepDisturbances || 0) + 1 
+      : (digimonStats.sleepDisturbances || 0)
   };
   setDigimonStatsAndSave(updated);
   
-  // 수면 방해 콜백 호출
-  if (onSleepDisturbance) {
+  // 수면 방해 콜백 호출 (낮잠 중이 아닐 때만)
+  if (onSleepDisturbance && isSleepTime && !isNapTime) {
     onSleepDisturbance();
   }
 }
@@ -226,9 +239,10 @@ export function useGameActions({
       
       // 수면 중 먹이 시도 시 수면 방해 처리 (실제 액션 수행 시점)
       const schedule = getSleepSchedule(digimonData, selectedDigimon);
-      const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+      const isSleepTime = isWithinSleepSchedule(schedule, new Date());
+      const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
       if (nowSleeping) {
-        wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
+        wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
         // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
         setDigimonStats((prevStats) => {
           const actionType = type === 'meat' ? '고기' : '프로틴';
@@ -394,9 +408,10 @@ export function useGameActions({
     
     // 수면 중 훈련 시도 시 수면 방해 처리 (실제 액션 수행 시점)
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    const isSleepTime = isWithinSleepSchedule(schedule, new Date());
+    const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {
@@ -942,9 +957,10 @@ export function useGameActions({
     
     // 수면 중 배틀 시도 시 수면 방해 처리 (실제 액션 수행 시점)
     const schedule = getSleepSchedule(digimonData, selectedDigimon);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    const isSleepTime = isWithinSleepSchedule(schedule, new Date());
+    const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, onSleepDisturbance);
+      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const battleTypeText = battleType === 'quest' ? '퀘스트' : battleType === 'sparring' ? '스파링' : battleType === 'arena' ? '아레나' : '배틀';

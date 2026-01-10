@@ -24,14 +24,17 @@ function ensureTimestamp(val) {
  * @param {{start:number,end:number}} params.sleepSchedule - 수면 스케줄 (시 단위)
  * @param {boolean} params.isLightsOn - 조명 상태
  * @param {number|Date|string|null} params.wakeUntil - 강제 기상 유지 만료 시간
+ * @param {number|null} params.fastSleepStart - 빠른 잠들기 시작 시간 (timestamp)
+ * @param {number|null} params.napUntil - 낮잠 종료 시간 (timestamp)
  * @param {Date} [params.now] - 현재 시간 (테스트용)
  * @returns {'AWAKE'|'TIRED'|'SLEEPING'}
  */
-export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, now = new Date() }) {
+export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, napUntil = null, now = new Date() }) {
   const hour = now.getHours();
   const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
+  const nowMs = now.getTime();
 
-  const wakeOverride = wakeUntil ? new Date(wakeUntil).getTime() > now.getTime() : false;
+  const wakeOverride = wakeUntil ? new Date(wakeUntil).getTime() > nowMs : false;
 
   const isSleepTime = (() => {
     if (start === end) return false;
@@ -40,33 +43,44 @@ export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleep
     return hour >= start || hour < end;
   })();
 
-  // 수면 시간이 아니면 무조건 AWAKE
-  if (!isSleepTime) return "AWAKE";
+  const isNapTime = napUntil ? napUntil > nowMs : false; // 낮잠 시간 체크
 
-  // 수면 시간인 경우
-  // 빠른 잠들기 우선 체크 (수면 방해 중보다 우선)
-  // 불이 꺼져 있고 fastSleepStart가 있으면 10초 후 SLEEPING 상태로 전환
-  if (!isLightsOn && fastSleepStart) {
-    const nowTime = now.getTime();
-    const elapsedSinceFastSleepStart = nowTime - fastSleepStart;
-    // 불을 꺼준 시점으로부터 10초가 지났으면 SLEEPING 상태로 전환 (수면 방해 중이어도 우선)
-    if (elapsedSinceFastSleepStart >= 10 * 1000) {
+  // 불이 켜져 있으면 무조건 깨어있거나 피곤한 상태
+  if (isLightsOn) {
+    return isSleepTime ? "TIRED" : "AWAKE";
+  }
+
+  // 불이 꺼져 있는 경우
+  if (!isLightsOn) {
+    // A. 수면 시간 혹은 낮잠 시간인 경우
+    if (isSleepTime || isNapTime) {
+      if (wakeOverride) return "AWAKE"; // 방해 중이면 깨어있음
+      
+      // 빠른 잠들기 체크 (15초)
+      if (fastSleepStart) {
+        const elapsed = nowMs - fastSleepStart;
+        if (elapsed >= 15 * 1000) {
+          return "SLEEPING";
+        }
+        return "AWAKE"; // 15초 전까지는 깨어있음
+      }
+      
       return "SLEEPING";
     }
-    // 아직 10초가 지나지 않았으면 AWAKE 유지 (수면 방해 중)
-    if (wakeOverride) {
-      return "AWAKE";
+
+    // B. 수면 시간이 아니지만 불을 끈 경우 (낮잠 진입 시도)
+    if (fastSleepStart) {
+      const elapsed = nowMs - fastSleepStart;
+      if (elapsed >= 15 * 1000) {
+        // 15초 경과 → 낮잠 시작 (napUntil이 설정되어 있어야 함)
+        // napUntil이 있으면 SLEEPING, 없으면 AWAKE
+        return napUntil && napUntil > nowMs ? "SLEEPING" : "AWAKE";
+      }
+      return "AWAKE"; // 15초 전까지는 깨어있음
     }
   }
 
-  // 수면 방해로 깨어있을 때(wakeOverride)는 AWAKE
-  if (wakeOverride) {
-    return "AWAKE";
-  }
-
-  // 수면 시간이고 수면 방해가 없을 때
-  if (isLightsOn) return "TIRED";
-  return "SLEEPING";
+  return "AWAKE";
 }
 
 /**

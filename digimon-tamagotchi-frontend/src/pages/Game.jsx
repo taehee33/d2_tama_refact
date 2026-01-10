@@ -308,22 +308,24 @@ function Game(){
         const wakeOverride = wakeUntil && nowMs < wakeUntil;
         const sleepingNow = inSchedule && !wakeOverride;
         
-        // 수면 상태 계산 (SLEEPING일 때만 타이머 감소하지 않음)
+        // 수면 상태 계산 (SLEEPING 또는 TIRED일 때 타이머 감소하지 않음)
         const currentSleepStatus = getSleepStatus({
           sleepSchedule: schedule,
           isLightsOn,
           wakeUntil,
           fastSleepStart: prevStats.fastSleepStart || null,
+          napUntil: prevStats.napUntil || null,
           now: nowDate,
         });
-        const isActuallySleeping = currentSleepStatus === 'SLEEPING'; // 실제로 잠자는 상태일 때만 타이머 정지
+        // SLEEPING 또는 TIRED 상태일 때 타이머 정지 (배고픔, 힘 감소 중단)
+        const isActuallySleeping = currentSleepStatus === 'SLEEPING' || currentSleepStatus === 'TIRED';
 
         // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
-        // 실제로 잠자는 상태(SLEEPING)일 때만 타이머 감소하지 않음
-        let updatedStats = updateLifespan(prevStats, 1, isActuallySleeping);
+        // 실제로 잠자는 상태(SLEEPING)일 때만 타이머 감소하지 않음 (lifespan은 TIRED에서도 감소)
+        let updatedStats = updateLifespan(prevStats, 1, currentSleepStatus === 'SLEEPING');
         // 매뉴얼 기반 배고픔/힘 감소 로직 적용
         const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
-        // 매뉴얼 기반 배고픔/힘 감소 처리 (실제로 잠자는 상태일 때만 감소하지 않음)
+        // 매뉴얼 기반 배고픔/힘 감소 처리 (SLEEPING 또는 TIRED 상태일 때 감소하지 않음)
         updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
         updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
 
@@ -332,6 +334,14 @@ function Game(){
         
         // fastSleepStart 보존 (타이머에서 업데이트 시 유지)
         updatedStats.fastSleepStart = prevStats.fastSleepStart || null;
+        
+        // napUntil 보존 (타이머에서 업데이트 시 유지)
+        updatedStats.napUntil = prevStats.napUntil || null;
+        
+        // 낮잠 시간이 지나면 napUntil 리셋
+        if (updatedStats.napUntil && nowMs >= updatedStats.napUntil) {
+          updatedStats.napUntil = null;
+        }
         
         // tiredStartAt 보존 (타이머에서 업데이트 시 유지)
         updatedStats.tiredStartAt = prevStats.tiredStartAt || null;
@@ -345,7 +355,7 @@ function Game(){
           setDailySleepMistake(false);
         }
 
-        // TIRED 상태 케어미스 처리 (sleepLightOnStart 패턴과 동일)
+        // TIRED 상태 케어미스 처리 (하루 1회 제한)
         // currentSleepStatus는 위에서 이미 계산됨
         if (currentSleepStatus === "TIRED") {
           if (!updatedStats.tiredStartAt) {
@@ -354,9 +364,15 @@ function Game(){
           } else {
             const elapsed = nowMs - updatedStats.tiredStartAt;
             const threshold = developerMode ? 60 * 1000 : 30 * 60 * 1000; // 테스트 모드는 1분, 기본 30분
-            if (!updatedStats.tiredCounted && elapsed >= threshold) {
+            // dailySleepMistake 체크 추가: 하루 1회만 증가
+            if (!updatedStats.tiredCounted && 
+                elapsed >= threshold && 
+                !dailySleepMistake && 
+                !updatedStats.dailySleepMistake) {
               updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
               updatedStats.tiredCounted = true;
+              updatedStats.dailySleepMistake = true;
+              setDailySleepMistake(true);
               // Activity Log 추가
               const currentLogs = updatedStats.activityLogs || [];
               updatedStats.activityLogs = addActivityLog(
@@ -372,17 +388,11 @@ function Game(){
           updatedStats.tiredCounted = false;
         }
 
+        // sleepLightOnStart는 UI 표시용으로만 사용 (케어미스 로직은 TIRED 상태 케어미스로 통합)
         if (sleepingNow && isLightsOn) {
+          // UI 표시를 위해 sleepLightOnStart 업데이트 (케어미스 로직은 제거)
           if (!updatedStats.sleepLightOnStart) {
             updatedStats.sleepLightOnStart = nowMs;
-          } else {
-            const elapsed = nowMs - updatedStats.sleepLightOnStart;
-            if (elapsed >= 30 * 60 * 1000 && !dailySleepMistake && !updatedStats.dailySleepMistake) {
-              updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-              updatedStats.dailySleepMistake = true;
-              setDailySleepMistake(true);
-              updatedStats.sleepLightOnStart = nowMs;
-            }
           }
           // 불이 켜져 있으면 빠른 잠들기 시점 리셋
           updatedStats.fastSleepStart = null;
@@ -983,12 +993,13 @@ async function setSelectedDigimonAndSave(name) {
         isLightsOn,
         wakeUntil,
         fastSleepStart: digimonStats.fastSleepStart || null,
+        napUntil: digimonStats.napUntil || null,
         now: new Date(),
       });
       setSleepStatus(status);
     }, 1000);
     return () => clearInterval(timer);
-  }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats.fastSleepStart]);
+  }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats.fastSleepStart, digimonStats.napUntil]);
 
   // 퀘스트 시작 핸들러
 

@@ -38,19 +38,29 @@ export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
  * @param {Object} digimonStats - 디지몬 스탯
  * @param {Function} setWakeUntilCb - wakeUntil 설정 함수
  * @param {Function} setStatsCb - 스탯 업데이트 함수
+ * @param {boolean} isSleepTime - 정규 수면 시간 여부
+ * @param {Function} onSleepDisturbance - 수면 방해 콜백
  */
-function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb, onSleepDisturbance = null) {
+function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb, isSleepTime = true, onSleepDisturbance = null) {
   const until = Date.now() + 10 * 60 * 1000; // 10분
   setWakeUntilCb(until);
+  
+  const nowMs = Date.now();
+  const napUntil = digimonStats.napUntil || null;
+  const isNapTime = napUntil ? napUntil > nowMs : false;
+  
   const updated = {
     ...digimonStats,
     wakeUntil: until,
-    sleepDisturbances: (digimonStats.sleepDisturbances || 0) + 1,
+    // 정규 수면 시간에 깨울 때만 수면 방해(sleepDisturbances) 증가 (낮잠 중에는 증가하지 않음)
+    sleepDisturbances: (isSleepTime && !isNapTime) 
+      ? (digimonStats.sleepDisturbances || 0) + 1 
+      : (digimonStats.sleepDisturbances || 0)
   };
   setStatsCb(updated);
   
-  // 수면 방해 콜백 호출
-  if (onSleepDisturbance) {
+  // 수면 방해 콜백 호출 (낮잠 중이 아닐 때만)
+  if (onSleepDisturbance && isSleepTime && !isNapTime) {
     onSleepDisturbance();
   }
 }
@@ -243,15 +253,24 @@ export function useGameHandlers({
     let updatedStats = { ...digimonStats };
     if (!next) {
       updatedStats = resetCallStatus(updatedStats, 'sleep');
-      // 수면 방해 중(wakeUntil이 있을 때) 불을 꺼주면 빠른 잠들기 시작 시점 기록
-      if (wakeUntil && Date.now() < wakeUntil) {
-        updatedStats.fastSleepStart = Date.now();
+      // 불을 껐을 때 빠른 잠들기 시작 시점 기록 (수면 방해 중이든 아니든)
+      updatedStats.fastSleepStart = Date.now();
+      
+      // 수면 시간이 아니면 낮잠 예약
+      const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
+      const isSleepTime = isWithinSleepSchedule(schedule, new Date());
+      
+      if (!isSleepTime) {
+        // 낮잠 예약: 15초 대기 후 3시간
+        // 실제 낮잠 시작은 15초 후이므로, 그 시점부터 3시간
+        updatedStats.napUntil = Date.now() + (15 * 1000) + (3 * 60 * 60 * 1000);
       } else {
-        updatedStats.fastSleepStart = null;
+        updatedStats.napUntil = null; // 정규 수면 시간에는 낮잠 없음
       }
     } else {
-      // 불을 켜면 빠른 잠들기 시점 리셋
+      // 불을 켜면 빠른 잠들기 시점 및 낮잠 리셋
       updatedStats.fastSleepStart = null;
+      updatedStats.napUntil = null; // 불 켜면 낮잠 종료
     }
     
     // Activity Log 추가
