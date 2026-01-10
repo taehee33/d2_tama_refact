@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from "react";
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
 const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/images/538.png"]; // Zzz 스프라이트
+const injurySprites= ["/images/541.png", "/images/542.png"]; // 부상 스프라이트
 const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
@@ -50,7 +51,9 @@ const Canvas = ({
   isRefused=false, // 고기 거절 상태
   // ★ (5) 사망 상태
   isDead=false, // 사망 여부
-  // ★ (6) 선택된 디지몬 (디지타마 수면 상태 체크용)
+  // ★ (6) 부상 상태
+  isInjured=false, // 부상 여부
+  // ★ (7) 선택된 디지몬 (디지타마 수면 상태 체크용)
   selectedDigimon="", // 선택된 디지몬 이름
 }) => {
   const canvasRef= useRef(null);
@@ -74,7 +77,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus,isRefused,isDead,selectedDigimon
+    sleepStatus,isRefused,isDead,isInjured,selectedDigimon
   ]);
 
   function initImages(){
@@ -113,6 +116,13 @@ const Canvas = ({
     if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && selectedDigimon !== "Digitama"){
       zzzSprites.forEach((src, idx)=>{
         imageSources[`zzz${idx}`]= src;
+      });
+    }
+    
+    // 부상 스프라이트 (부상 상태일 때, 사망 상태가 아닐 때만)
+    if(isInjured && !isDead){
+      injurySprites.forEach((src, idx)=>{
+        imageSources[`injury${idx}`]= src;
       });
     }
     
@@ -298,6 +308,27 @@ const Canvas = ({
             ctx.fillStyle="yellow";
             ctx.font="12px sans-serif";
             ctx.fillText(`Zzz: ${535 + zzzFrameIdx}.png`, zzzX, zzzY - 2);
+          }
+        }
+      }
+      
+      // ★ (6-1) 부상 스프라이트 애니메이션 (부상 상태, 사망 상태가 아닐 때만)
+      if(isInjured && !isDead){
+        const injuryFrameIdx = Math.floor(frame/speed) % injurySprites.length;
+        const injuryKey = `injury${injuryFrameIdx}`;
+        const injuryImg = spriteCache.current[injuryKey];
+        if(injuryImg && injuryImg.naturalWidth > 0){
+          // 디지몬 머리 위에 표시 (졸음 스프라이트와 동일한 위치)
+          const injuryW = width * 0.3;
+          const injuryH = height * 0.2;
+          const injuryX = (width - injuryW) / 2;
+          const injuryY = (height - height*0.4) / 2 - injuryH; // 디지몬 위쪽
+          ctx.drawImage(injuryImg, injuryX, injuryY, injuryW, injuryH);
+          
+          if(developerMode){
+            ctx.fillStyle="orange";
+            ctx.font="12px sans-serif";
+            ctx.fillText(`Injury: ${541 + injuryFrameIdx}.png`, injuryX, injuryY - 2);
           }
         }
       }
