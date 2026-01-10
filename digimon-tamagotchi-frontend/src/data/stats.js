@@ -25,6 +25,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.injuredAt = null;
     merged.isInjured = false;
     merged.injuries = 0;
+    merged.deathReason = null; // 새로운 시작이면 deathReason 리셋
     // 새로운 시작: 기본 스탯 설정
     merged.fullness = 0;
     merged.strength = 0;
@@ -418,6 +419,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       if (elapsedSinceZero >= 43200) {
         console.log("[applyLazyUpdate] 굶주림 사망 체크:", { elapsedSinceZero, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
         updatedStats.isDead = true;
+        updatedStats.deathReason = 'STARVATION (굶주림)'; // 사망 원인 저장
       }
     } else if (updatedStats.fullness > 0) {
       // 배고픔이 다시 채워지면 리셋
@@ -434,6 +436,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       if (elapsedSinceZero >= 43200) {
         console.log("[applyLazyUpdate] 힘 소진 사망 체크:", { elapsedSinceZero, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
         updatedStats.isDead = true;
+        updatedStats.deathReason = 'EXHAUSTION (힘 소진)'; // 사망 원인 저장
       }
     } else if (updatedStats.strength > 0) {
       // 힘이 다시 채워지면 리셋
@@ -444,6 +447,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     if ((updatedStats.injuries || 0) >= 15) {
       console.log("[applyLazyUpdate] 부상 과다 사망 체크:", { injuries: updatedStats.injuries });
       updatedStats.isDead = true;
+      updatedStats.deathReason = 'INJURY OVERLOAD (부상 과다: 15회)'; // 사망 원인 저장
     }
 
     // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
@@ -456,6 +460,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
         console.log("[applyLazyUpdate] 부상 방치 사망 체크:", { elapsedSinceInjury });
         updatedStats.isDead = true;
+        updatedStats.deathReason = 'INJURY NEGLECT (부상 방치: 6시간)'; // 사망 원인 저장
       }
     }
   }

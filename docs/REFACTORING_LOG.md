@@ -6439,3 +6439,48 @@ users/{userId}/slots/{slotId}
 ---
 
 ---
+## 2026-01-XX: Energy 100 버그 수정 (maxEnergy가 0일 때 처리)
+
+### 문제
+- 디지타마, 오하카다몬, 깜몬, 코로몬일 때 energy가 100으로 표시됨
+- 실제 maxEnergy는 0이어야 하는데, `||` 연산자가 0을 falsy로 평가하여 fallback 값(100)을 사용
+
+### 원인
+- `||` 연산자는 0을 falsy로 평가하여 다음 값으로 넘어감
+- `maxEnergy = 0`일 때 `maxEnergy || 100`이 100을 반환
+- 결과적으로 `energy = 100`으로 잘못 설정됨
+
+### 수정 내용
+1. **`logic/stats/stats.js`** (77줄)
+   - `merged.energy = merged.maxEnergy || merged.maxStamina || merged.energy || 100;`
+   - → `const calculatedMaxEnergy = merged.maxEnergy ?? merged.maxStamina ?? 0; merged.energy = calculatedMaxEnergy;`
+   - `??` (nullish coalescing) 사용하여 0도 유효한 값으로 처리
+
+2. **`useGameData.js`** (260, 409, 481줄)
+   - `maxEnergy = digimonData.stats?.maxEnergy || ... || 100;`
+   - → `maxEnergy = digimonData.stats?.maxEnergy ?? ... ?? 0;`
+   - 3곳 모두 수정
+
+3. **`useEvolution.js`** (170줄)
+   - `const maxEnergy = newDigimonData.stats?.maxEnergy || ... || 100;`
+   - → `const maxEnergy = newDigimonData.stats?.maxEnergy ?? ... ?? 0;`
+   - 진화 시 energy 설정 시 올바른 maxEnergy 사용
+
+4. **`logic/food/protein.js`** (32줄)
+   - `const maxEnergy = s.maxEnergy || s.maxStamina || 100;`
+   - → `const maxEnergy = s.maxEnergy ?? s.maxStamina ?? 0;`
+   - 단백질 먹이기 시 올바른 maxEnergy 사용
+
+### 개선 효과
+- ✅ `maxEnergy = 0`일 때 `energy = 0`으로 올바르게 설정
+- ✅ Energy (Current): 0/0 형식으로 올바르게 표시
+- ✅ 단백질 먹이기 시 올바른 maxEnergy 사용
+
+### 관련 파일
+- `digimon-tamagotchi-frontend/src/logic/stats/stats.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/logic/food/protein.js`
+- `docs/ENERGY_100_BUG_ANALYSIS.md`
+
+---

@@ -7,8 +7,8 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
   // 오하카다몬 여부 확인
   const isOhakadamon = selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2";
   
-  // reason을 그대로 사용 (추론하지 않음)
-  const finalReason = reason;
+  // digimonStats.deathReason을 우선 사용, 없으면 reason prop 사용
+  const finalReason = digimonStats.deathReason || reason;
 
   // 좀 더 같이 있기 / 좀 더 슬퍼하기: 팝업만 닫고 현재 죽어있는 디지몬을 계속 보여줌
   const handleStay = () => {

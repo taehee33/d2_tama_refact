@@ -74,7 +74,9 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
     merged.energy = oldStats.energy;
   } else {
     // oldStats.energy가 없거나 0이면 maxEnergy로 설정
-    merged.energy = merged.maxEnergy || merged.maxStamina || merged.energy || 100;
+    // maxEnergy가 0일 수도 있으므로 ?? (nullish coalescing) 사용
+    const calculatedMaxEnergy = merged.maxEnergy ?? merged.maxStamina ?? 0;
+    merged.energy = calculatedMaxEnergy;
   }
 
   return merged;

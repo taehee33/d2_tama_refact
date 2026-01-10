@@ -377,7 +377,9 @@ function Game(){
           if(elapsed >= 43200){ // 12시간 = 43200초
             console.log("[타이머] 굶주림 사망 체크:", { elapsed, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
             updatedStats.isDead = true;
-            setDeathReason('STARVATION (굶주림)');
+            const reason = 'STARVATION (굶주림)';
+            updatedStats.deathReason = reason; // digimonStats에 저장
+            setDeathReason(reason);
           }
         }
         if(updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt && !updatedStats.isDead){
@@ -385,13 +387,17 @@ function Game(){
           if(elapsed >= 43200){
             console.log("[타이머] 힘 소진 사망 체크:", { elapsed, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
             updatedStats.isDead = true;
-            setDeathReason('EXHAUSTION (힘 소진)');
+            const reason = 'EXHAUSTION (힘 소진)';
+            updatedStats.deathReason = reason; // digimonStats에 저장
+            setDeathReason(reason);
           }
         }
         // 부상 과다 사망 체크: injuries >= 15
         if((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead){
           updatedStats.isDead = true;
-          setDeathReason('INJURY OVERLOAD (부상 과다: 15회)');
+          const reason = 'INJURY OVERLOAD (부상 과다: 15회)';
+          updatedStats.deathReason = reason; // digimonStats에 저장
+          setDeathReason(reason);
         }
         // 부상 방치 사망 체크: isInjured 상태이고 6시간 경과
         if(updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead){
@@ -401,7 +407,9 @@ function Game(){
           const elapsedSinceInjury = Date.now() - injuredTime;
           if(elapsedSinceInjury >= 21600000){ // 6시간 = 21600000ms
             updatedStats.isDead = true;
-            setDeathReason('INJURY NEGLECT (부상 방치: 6시간)');
+            const reason = 'INJURY NEGLECT (부상 방치: 6시간)';
+            updatedStats.deathReason = reason; // digimonStats에 저장
+            setDeathReason(reason);
           }
         }
         // 수명 종료 체크 (lifespanSeconds가 최대치에 도달했는지 확인)
@@ -409,7 +417,9 @@ function Game(){
         const maxLifespan = currentDigimonData?.maxLifespan || 999999;
         if(updatedStats.lifespanSeconds >= maxLifespan && !updatedStats.isDead){
           updatedStats.isDead = true;
-          setDeathReason('OLD AGE (수명 다함)');
+          const reason = 'OLD AGE (수명 다함)';
+          updatedStats.deathReason = reason; // digimonStats에 저장
+          setDeathReason(reason);
         }
         // 호출(Call) 시스템 체크 및 타임아웃 처리
         const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1);

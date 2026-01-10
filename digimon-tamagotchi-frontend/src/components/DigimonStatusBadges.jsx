@@ -170,7 +170,7 @@ const DigimonStatusBadges = ({
         text: `수면까지 ${timeUntil} 😴`, 
         color: "text-blue-500", 
         bgColor: "bg-blue-100", 
-        priority: 7, 
+        priority: 8, 
         category: "info" 
       });
     }

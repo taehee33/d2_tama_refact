@@ -256,8 +256,8 @@ export function useGameData({
           }
         }
         
-        // maxEnergy 가져오기
-        maxEnergy = digimonData.stats?.maxEnergy || digimonStats.maxEnergy || digimonStats.maxStamina || 100;
+        // maxEnergy 가져오기 (0도 유효한 값이므로 ?? 사용)
+        maxEnergy = digimonData.stats?.maxEnergy ?? digimonStats.maxEnergy ?? digimonStats.maxStamina ?? 0;
       }
     }
 
@@ -314,28 +314,34 @@ export function useGameData({
    */
   function checkDeathStatus(updated) {
     if (!digimonStats.isDead && updated.isDead) {
+      let reason = null;
       if (updated.fullness === 0 && updated.lastHungerZeroAt) {
         const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
         if (elapsed >= 43200) {
-          setDeathReason('STARVATION (굶주림)');
+          reason = 'STARVATION (굶주림)';
         }
       } else if (updated.strength === 0 && updated.lastStrengthZeroAt) {
         const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
         if (elapsed >= 43200) {
-          setDeathReason('EXHAUSTION (힘 소진)');
+          reason = 'EXHAUSTION (힘 소진)';
         }
       } else if ((updated.injuries || 0) >= 15) {
-        setDeathReason('INJURY OVERLOAD (부상 과다: 15회)');
+        reason = 'INJURY OVERLOAD (부상 과다: 15회)';
       } else if (updated.isInjured && updated.injuredAt) {
         const injuredTime = typeof updated.injuredAt === 'number'
           ? updated.injuredAt
           : new Date(updated.injuredAt).getTime();
         const elapsedSinceInjury = Date.now() - injuredTime;
         if (elapsedSinceInjury >= 21600000) {
-          setDeathReason('INJURY NEGLECT (부상 방치: 6시간)');
+          reason = 'INJURY NEGLECT (부상 방치: 6시간)';
         }
       } else {
-        setDeathReason('OLD AGE (수명 다함)');
+        reason = 'OLD AGE (수명 다함)';
+      }
+      
+      if (reason) {
+        updated.deathReason = reason; // digimonStats에 저장
+        setDeathReason(reason);
       }
       // 사망 팝업 표시 (hasSeenDeathPopup은 useGameState에서 관리)
       toggleModal('deathModal', true);
@@ -400,13 +406,18 @@ export function useGameData({
               sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
               const digimonData = digimonDataVer1[savedName];
               if (digimonData) {
-                maxEnergy = digimonData.stats?.maxEnergy || savedStats.maxEnergy || savedStats.maxStamina || 100;
+                maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
               }
             }
             
             const updatedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             setSelectedDigimon(savedName);
             setDigimonStats(updatedStats);
+            
+            // deathReason 복원
+            if (updatedStats.deathReason) {
+              setDeathReason(updatedStats.deathReason);
+            }
           }
         } catch (error) {
           console.error("로컬 슬롯 로드 오류:", error);
@@ -467,7 +478,7 @@ export function useGameData({
               sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
               const digimonData = digimonDataVer1[savedName];
               if (digimonData) {
-                maxEnergy = digimonData.stats?.maxEnergy || savedStats.maxEnergy || savedStats.maxStamina || 100;
+                maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
               }
             }
             
@@ -475,6 +486,11 @@ export function useGameData({
             
             setSelectedDigimon(savedName);
             setDigimonStats(savedStats);
+            
+            // deathReason 복원
+            if (savedStats.deathReason) {
+              setDeathReason(savedStats.deathReason);
+            }
             
             await updateDoc(slotRef, {
               digimonStats: savedStats,

@@ -166,8 +166,8 @@ export function useEvolution({
     const newDigimonData = digimonDataVer1[newName] || {};
     // minWeight는 stats.minWeight 또는 직접 minWeight로 저장될 수 있음
     const minWeight = newDigimonData.stats?.minWeight || newDigimonData.minWeight || 0;
-    // maxEnergy는 stats.maxEnergy 또는 maxStamina로 저장될 수 있음
-    const maxEnergy = newDigimonData.stats?.maxEnergy || newDigimonData.stats?.maxStamina || newDigimonData.maxEnergy || newDigimonData.maxStamina || 100;
+    // maxEnergy는 stats.maxEnergy 또는 maxStamina로 저장될 수 있음 (0도 유효한 값이므로 ?? 사용)
+    const maxEnergy = newDigimonData.stats?.maxEnergy ?? newDigimonData.stats?.maxStamina ?? newDigimonData.maxEnergy ?? newDigimonData.maxStamina ?? 0;
     
     const resetStats = {
       ...old,

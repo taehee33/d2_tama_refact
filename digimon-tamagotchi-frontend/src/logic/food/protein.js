@@ -29,7 +29,8 @@ export function feedProtein(stats) {
   
   // proteinCount ≤ 5: 4가 되면 energy만 +1 증가, proteinOverdose는 증가하지 않음
   // proteinCount > 5: 9, 13, 17, 21, 25, 29, 33이 되면 energy +1, proteinOverdose +1 증가
-  const maxEnergy = s.maxEnergy || s.maxStamina || 100;
+  // maxEnergy가 0일 수도 있으므로 ?? (nullish coalescing) 사용
+  const maxEnergy = s.maxEnergy ?? s.maxStamina ?? 0;
   
   if (proteinCount <= 5) {
     // proteinCount가 4일 때만 energy +1
