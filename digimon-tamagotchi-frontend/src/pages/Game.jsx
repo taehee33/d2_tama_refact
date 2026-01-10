@@ -321,8 +321,9 @@ function Game(){
         const isActuallySleeping = currentSleepStatus === 'SLEEPING' || currentSleepStatus === 'TIRED';
 
         // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
-        // 실제로 잠자는 상태(SLEEPING)일 때만 타이머 감소하지 않음 (lifespan은 TIRED에서도 감소)
-        let updatedStats = updateLifespan(prevStats, 1, currentSleepStatus === 'SLEEPING');
+        // SLEEPING 상태일 때만 lifespan 증가, TIRED 상태일 때도 poopCountdown은 멈춤
+        // isActuallySleeping은 SLEEPING 또는 TIRED 상태를 의미 (배고픔/힘 타이머 정지용)
+        let updatedStats = updateLifespan(prevStats, 1, isActuallySleeping);
         // 매뉴얼 기반 배고픔/힘 감소 로직 적용
         const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
         // 매뉴얼 기반 배고픔/힘 감소 처리 (SLEEPING 또는 TIRED 상태일 때 감소하지 않음)

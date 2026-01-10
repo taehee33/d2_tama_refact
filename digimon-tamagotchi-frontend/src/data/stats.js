@@ -320,9 +320,19 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   updatedStats.lifespanSeconds += elapsedSeconds;
   updatedStats.timeToEvolveSeconds = Math.max(0, updatedStats.timeToEvolveSeconds - elapsedSeconds);
 
-  // 배고픔 감소 처리
+  // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.hungerTimer > 0) {
-    updatedStats.hungerCountdown -= elapsedSeconds;
+    // 수면 시간을 제외한 실제 활동 시간만큼만 hungerCountdown 감소
+    let activeSeconds = elapsedSeconds;
+    if (sleepSchedule) {
+      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+      activeSeconds = elapsedSeconds - sleepSeconds;
+    }
+    
+    // 활동 시간만큼만 hungerCountdown 감소
+    if (activeSeconds > 0) {
+      updatedStats.hungerCountdown -= activeSeconds;
+    }
     
     // countdown이 0 이하가 되면 fullness 감소
     while (updatedStats.hungerCountdown <= 0) {
@@ -332,15 +342,25 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       // fullness가 0이 되면 lastHungerZeroAt 기록
       if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
         // 마지막 저장 시간부터 fullness가 0이 된 시점 계산
-        const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.hungerCountdown) * 1000;
+        const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.hungerCountdown) * 1000;
         updatedStats.lastHungerZeroAt = timeToZero;
       }
     }
   }
 
-  // 힘 감소 처리
+  // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.strengthTimer > 0) {
-    updatedStats.strengthCountdown -= elapsedSeconds;
+    // 수면 시간을 제외한 실제 활동 시간만큼만 strengthCountdown 감소
+    let activeSeconds = elapsedSeconds;
+    if (sleepSchedule) {
+      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+      activeSeconds = elapsedSeconds - sleepSeconds;
+    }
+    
+    // 활동 시간만큼만 strengthCountdown 감소
+    if (activeSeconds > 0) {
+      updatedStats.strengthCountdown -= activeSeconds;
+    }
     
     // countdown이 0 이하가 되면 strength 감소
     while (updatedStats.strengthCountdown <= 0) {
@@ -350,13 +370,13 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       
       // strength가 0이 되면 lastStrengthZeroAt 기록
       if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
-        const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
+        const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.strengthCountdown) * 1000;
         updatedStats.lastStrengthZeroAt = timeToZero;
       }
     }
   }
 
-  // 배변 처리
+  // 배변 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.poopTimer > 0) {
     const maxValidCountdown = updatedStats.poopTimer * 60;
     
@@ -370,7 +390,17 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       updatedStats.poopCountdown = maxValidCountdown;
     }
     
-    updatedStats.poopCountdown -= elapsedSeconds;
+    // 수면 시간을 제외한 실제 활동 시간만큼만 poopCountdown 감소
+    let activeSeconds = elapsedSeconds;
+    if (sleepSchedule) {
+      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+      activeSeconds = elapsedSeconds - sleepSeconds;
+    }
+    
+    // 활동 시간만큼만 poopCountdown 감소
+    if (activeSeconds > 0) {
+      updatedStats.poopCountdown -= activeSeconds;
+    }
     
     while (updatedStats.poopCountdown <= 0) {
       if (updatedStats.poopCount < 8) {

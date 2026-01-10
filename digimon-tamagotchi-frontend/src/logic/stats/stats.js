@@ -87,57 +87,21 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
  * 매뉴얼의 Status 섹션 규칙 반영
  * @param {Object} stats - 현재 스탯
  * @param {number} deltaSec - 경과 시간 (초)
+ * @param {boolean} isSleeping - 수면 중 여부 (수면 중에는 poopCountdown 감소하지 않음)
  * @returns {Object} 업데이트된 스탯
  */
-export function updateLifespan(stats, deltaSec = 1) {
+export function updateLifespan(stats, deltaSec = 1, isSleeping = false) {
   if (stats.isDead) return stats;
 
   const s = { ...stats };
   s.lifespanSeconds += deltaSec;
   s.timeToEvolveSeconds = Math.max(0, s.timeToEvolveSeconds - deltaSec);
 
-  // 배고픔 감소 (hungerCycle에 따라)
-  if (s.hungerTimer > 0) {
-    s.hungerCountdown -= deltaSec;
-    if (s.hungerCountdown <= 0) {
-      s.fullness = Math.max(0, (s.fullness || 0) - 1);
-      s.hungerCountdown = s.hungerTimer * 60;
-      if (s.fullness === 0 && !s.lastHungerZeroAt) {
-        s.lastHungerZeroAt = Date.now();
-      }
-    }
-  }
+  // 배고픔/힘 감소 로직은 handleHungerTick, handleStrengthTick으로 이동
+  // 이 함수는 lifespanSeconds, timeToEvolveSeconds, poop만 처리
 
-  // 힘 감소 (strengthCycle에 따라)
-  if (s.strengthTimer > 0) {
-    s.strengthCountdown -= deltaSec;
-    if (s.strengthCountdown <= 0) {
-      // strength -1 (최소 0)
-      s.strength = Math.max(0, (s.strength || 0) - 1);
-      s.strengthCountdown = s.strengthTimer * 60;
-      if (s.strength === 0 && !s.lastStrengthZeroAt) {
-        s.lastStrengthZeroAt = Date.now();
-      }
-    }
-  }
-
-  // 배고픔/힘이 0이고 12시간 경과 시 사망
-  if (s.fullness === 0 && s.lastHungerZeroAt) {
-    const elapsed = (Date.now() - s.lastHungerZeroAt) / 1000;
-    if (elapsed >= 43200) {
-      // 12시간 = 43200초
-      s.isDead = true;
-    }
-  }
-  if (s.strength === 0 && s.lastStrengthZeroAt) {
-    const elapsed = (Date.now() - s.lastStrengthZeroAt) / 1000;
-    if (elapsed >= 43200) {
-      s.isDead = true;
-    }
-  }
-
-  // 똥 생성 (poopCycle에 따라)
-  if (s.poopTimer > 0) {
+  // 똥 생성 (poopCycle에 따라) - 수면 중에는 타이머 감소하지 않음
+  if (s.poopTimer > 0 && !isSleeping) {
     s.poopCountdown -= deltaSec;
     if (s.poopCountdown <= 0) {
       if (s.poopCount < 8) {
