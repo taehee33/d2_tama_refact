@@ -690,6 +690,35 @@ export default function StatsPopup({
                 if (!startedAt || startedAt <= 0) {
                   return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
                 }
+                
+                // 수면 중일 때는 타임아웃이 멈춤 (Timestamp Pushing 방식)
+                // 수면 중에는 startedAt이 현재 시간으로 계속 업데이트되므로,
+                // 경과 시간을 0으로 간주하여 마지막으로 깨어있던 시점의 남은 시간을 표시합니다.
+                if (sleepStatus === 'SLEEPING') {
+                  // ⚠️ 중요: 수면 중에는 startedAt이 checkCallTimeouts에서 현재 시간으로 업데이트되지만,
+                  // StatsPopup이 렌더링될 때는 아직 업데이트되지 않았을 수 있습니다.
+                  // 따라서 수면 중일 때는 startedAt을 현재 시간으로 간주하여 경과 시간을 0으로 계산합니다.
+                  const elapsed = 0; // 수면 중에는 경과 시간이 0 (타임아웃이 멈춤)
+                  const timeout = 10 * 60 * 1000; // 10분
+                  const remaining = timeout - elapsed;
+                  if (remaining > 0) {
+                    const minutes = Math.floor(remaining / 60000);
+                    const seconds = Math.floor((remaining % 60000) / 1000);
+                    return (
+                      <div className="text-blue-600 font-semibold ml-2">
+                        😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="text-red-600 font-semibold ml-2">
+                        ❌ 타임아웃! 케어미스 발생
+                      </div>
+                    );
+                  }
+                }
+                
+                // 수면 중이 아닐 때는 정상적으로 카운트다운
                 const elapsed = currentTime - startedAt;
                 const timeout = 10 * 60 * 1000; // 10분
                 const remaining = timeout - elapsed;
@@ -729,6 +758,35 @@ export default function StatsPopup({
                 if (!startedAt || startedAt <= 0) {
                   return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
                 }
+                
+                // 수면 중일 때는 타임아웃이 멈춤 (Timestamp Pushing 방식)
+                // 수면 중에는 startedAt이 현재 시간으로 계속 업데이트되므로,
+                // 경과 시간을 0으로 간주하여 마지막으로 깨어있던 시점의 남은 시간을 표시합니다.
+                if (sleepStatus === 'SLEEPING') {
+                  // ⚠️ 중요: 수면 중에는 startedAt이 checkCallTimeouts에서 현재 시간으로 업데이트되지만,
+                  // StatsPopup이 렌더링될 때는 아직 업데이트되지 않았을 수 있습니다.
+                  // 따라서 수면 중일 때는 startedAt을 현재 시간으로 간주하여 경과 시간을 0으로 계산합니다.
+                  const elapsed = 0; // 수면 중에는 경과 시간이 0 (타임아웃이 멈춤)
+                  const timeout = 10 * 60 * 1000; // 10분
+                  const remaining = timeout - elapsed;
+                  if (remaining > 0) {
+                    const minutes = Math.floor(remaining / 60000);
+                    const seconds = Math.floor((remaining % 60000) / 1000);
+                    return (
+                      <div className="text-blue-600 font-semibold ml-2">
+                        😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="text-red-600 font-semibold ml-2">
+                        ❌ 타임아웃! 케어미스 발생
+                      </div>
+                    );
+                  }
+                }
+                
+                // 수면 중이 아닐 때는 정상적으로 카운트다운
                 const elapsed = currentTime - startedAt;
                 const timeout = 10 * 60 * 1000; // 10분
                 const remaining = timeout - elapsed;

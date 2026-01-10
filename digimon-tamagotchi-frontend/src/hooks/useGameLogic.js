@@ -395,14 +395,14 @@ export default getSleepStatus;
  * @param {Date} now - 현재 시간
  * @returns {Object} 업데이트된 스탯
  */
-export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
+export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), isActuallySleeping = false) {
   let updatedStats = { ...stats };
   
   // callStatus 초기화
   if (!updatedStats.callStatus) {
     updatedStats.callStatus = {
-      hunger: { isActive: false, startedAt: null },
-      strength: { isActive: false, startedAt: null },
+      hunger: { isActive: false, startedAt: null, sleepStartAt: null },
+      strength: { isActive: false, startedAt: null, sleepStartAt: null },
       sleep: { isActive: false, startedAt: null }
     };
   }
@@ -416,6 +416,7 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
     if (!existingStartedAt) {
       callStatus.hunger.isActive = true;
       callStatus.hunger.startedAt = now.getTime();
+      callStatus.hunger.sleepStartAt = isActuallySleeping ? now.getTime() : null;
       // lastHungerZeroAt도 업데이트 (호출 시작 시점 기록)
       updatedStats.lastHungerZeroAt = now.getTime();
     } else {
@@ -423,11 +424,22 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
       // Firestore Timestamp인 경우 number로 변환하여 저장
       callStatus.hunger.isActive = true;
       callStatus.hunger.startedAt = existingStartedAt;
+      
+      // 수면 상태 변경 추적
+      const existingSleepStartAt = ensureTimestamp(callStatus.hunger.sleepStartAt);
+      if (isActuallySleeping && !existingSleepStartAt) {
+        // 수면 시작: 수면 시작 시점 기록
+        callStatus.hunger.sleepStartAt = now.getTime();
+      } else if (!isActuallySleeping && existingSleepStartAt) {
+        // 수면 종료: 수면 시작 시점 제거
+        callStatus.hunger.sleepStartAt = null;
+      }
     }
   } else {
     // fullness가 0이 아니면 호출 리셋
     callStatus.hunger.isActive = false;
     callStatus.hunger.startedAt = null;
+    callStatus.hunger.sleepStartAt = null;
     updatedStats.lastHungerZeroAt = null;
   }
 
@@ -438,6 +450,7 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
     if (!existingStartedAt) {
       callStatus.strength.isActive = true;
       callStatus.strength.startedAt = now.getTime();
+      callStatus.strength.sleepStartAt = isActuallySleeping ? now.getTime() : null;
       // lastStrengthZeroAt도 업데이트 (호출 시작 시점 기록)
       updatedStats.lastStrengthZeroAt = now.getTime();
     } else {
@@ -445,11 +458,22 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date()) {
       // Firestore Timestamp인 경우 number로 변환하여 저장
       callStatus.strength.isActive = true;
       callStatus.strength.startedAt = existingStartedAt;
+      
+      // 수면 상태 변경 추적
+      const existingSleepStartAt = ensureTimestamp(callStatus.strength.sleepStartAt);
+      if (isActuallySleeping && !existingSleepStartAt) {
+        // 수면 시작: 수면 시작 시점 기록
+        callStatus.strength.sleepStartAt = now.getTime();
+      } else if (!isActuallySleeping && existingSleepStartAt) {
+        // 수면 종료: 수면 시작 시점 제거
+        callStatus.strength.sleepStartAt = null;
+      }
     }
   } else {
     // strength가 0이 아니면 호출 리셋
     callStatus.strength.isActive = false;
     callStatus.strength.startedAt = null;
+    callStatus.strength.sleepStartAt = null;
     updatedStats.lastStrengthZeroAt = null;
   }
 
@@ -508,7 +532,7 @@ export function resetCallStatus(stats, callType) {
  * @param {Date} now - 현재 시간
  * @returns {Object} 업데이트된 스탯
  */
-export function checkCallTimeouts(stats, now = new Date()) {
+export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = false) {
   if (!stats || !stats.callStatus) {
     return stats;
   }
@@ -532,7 +556,26 @@ export function checkCallTimeouts(stats, now = new Date()) {
   const nowMs = now.getTime();
   let hasChanged = false; // 변경 여부 추적
 
-  // Hunger 호출 타임아웃 체크 (isActive 대신 startedAt만 체크)
+  // ⭐ 핵심: Timestamp Pushing - 잠자는 중이라면 타임아웃 시간을 현재로 동기화해서 "일시정지" 시킴
+  if (isActuallySleeping) {
+    // 수면 중에는 startedAt을 현재 시간으로 계속 업데이트하여 타임아웃이 멈추도록 함
+    if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
+      callStatus.hunger.startedAt = nowMs;
+      hasChanged = true;
+    }
+    if (callStatus.strength.isActive && callStatus.strength.startedAt) {
+      callStatus.strength.startedAt = nowMs;
+      hasChanged = true;
+    }
+    // Sleep 호출은 수면 중에도 타임아웃이 진행되어야 하므로 제외
+    // ⚠️ 중요: 수면 중에도 startedAt 업데이트가 필요하므로 항상 updatedStats 반환
+    // hasChanged가 false여도 updatedStats를 반환하여 상태 동기화 보장
+    return updatedStats;
+  }
+
+  // --- 기존 타임아웃 체크 로직 (깨어있을 때만 작동) ---
+  
+  // Hunger 호출 타임아웃 체크
   const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
   if (hungerStartedAt) {
     const elapsed = nowMs - hungerStartedAt;
@@ -548,7 +591,7 @@ export function checkCallTimeouts(stats, now = new Date()) {
     }
   }
 
-  // Strength 호출 타임아웃 체크 (isActive 대신 startedAt만 체크)
+  // Strength 호출 타임아웃 체크
   const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
   if (strengthStartedAt) {
     const elapsed = nowMs - strengthStartedAt;

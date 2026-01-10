@@ -455,7 +455,7 @@ function Game(){
         // 호출(Call) 시스템 체크 및 타임아웃 처리
         const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
         const oldCallStatus = { ...prevStats.callStatus };
-        updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date());
+        updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date(), isActuallySleeping);
         // 호출 시작 로그 추가 (이전 로그 보존 - 함수형 업데이트)
         if (!oldCallStatus?.hunger?.isActive && updatedStats.callStatus?.hunger?.isActive) {
           setActivityLogs((prevLogs) => {
@@ -476,7 +476,7 @@ function Game(){
           });
         }
         const oldCareMistakes = prevStats.careMistakes || 0;
-        updatedStats = checkCallTimeouts(updatedStats, new Date());
+        updatedStats = checkCallTimeouts(updatedStats, new Date(), isActuallySleeping);
         // 케어 미스 로그 추가 (호출 타임아웃) - 이전 로그 보존
         if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
           const newCareMistakes = updatedStats.careMistakes || 0;

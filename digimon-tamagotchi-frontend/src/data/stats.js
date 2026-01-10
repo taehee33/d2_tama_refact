@@ -1,5 +1,6 @@
 // src/data/stats.js
-import { defaultStats } from "./defaultStatsFile"; 
+import { defaultStats } from "./defaultStatsFile";
+import { calculateSleepSecondsInRange } from "../utils/sleepUtils"; 
 
 export function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
@@ -495,9 +496,27 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       callStatus.hunger.isActive = true;
     }
     
-    // 타임아웃 체크 (isActive 대신 startedAt만 체크)
+    // 타임아웃 체크 (오프라인 수면 시간 고려)
     const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
-    if (hungerStartedAt) {
+    if (hungerStartedAt && sleepSchedule) {
+      // 호출 시작 시점부터 지금까지의 수면 시간 계산
+      const sleepDuringCall = calculateSleepSecondsInRange(hungerStartedAt, now.getTime(), sleepSchedule);
+      const totalElapsedMs = now.getTime() - hungerStartedAt;
+      const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+      
+      if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
+        // 타임아웃 발생
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        callStatus.hunger.isActive = false;
+        callStatus.hunger.startedAt = null;
+        updatedStats.lastHungerZeroAt = null;
+      } else {
+        // 아직 타임아웃 전이라면, 수면 시간만큼 startedAt을 뒤로 밀어서 보존
+        // (다음 실시간 체크에서 정확한 계산을 위해)
+        callStatus.hunger.startedAt = hungerStartedAt + (sleepDuringCall * 1000);
+      }
+    } else if (hungerStartedAt) {
+      // sleepSchedule이 없으면 기존 로직 사용
       const elapsed = now.getTime() - hungerStartedAt;
       
       if (elapsed > HUNGER_CALL_TIMEOUT) {
@@ -529,9 +548,27 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       callStatus.strength.isActive = true;
     }
     
-    // 타임아웃 체크 (isActive 대신 startedAt만 체크)
+    // 타임아웃 체크 (오프라인 수면 시간 고려)
     const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
-    if (strengthStartedAt) {
+    if (strengthStartedAt && sleepSchedule) {
+      // 호출 시작 시점부터 지금까지의 수면 시간 계산
+      const sleepDuringCall = calculateSleepSecondsInRange(strengthStartedAt, now.getTime(), sleepSchedule);
+      const totalElapsedMs = now.getTime() - strengthStartedAt;
+      const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+      
+      if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
+        // 타임아웃 발생
+        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        callStatus.strength.isActive = false;
+        callStatus.strength.startedAt = null;
+        updatedStats.lastStrengthZeroAt = null;
+      } else {
+        // 아직 타임아웃 전이라면, 수면 시간만큼 startedAt을 뒤로 밀어서 보존
+        // (다음 실시간 체크에서 정확한 계산을 위해)
+        callStatus.strength.startedAt = strengthStartedAt + (sleepDuringCall * 1000);
+      }
+    } else if (strengthStartedAt) {
+      // sleepSchedule이 없으면 기존 로직 사용
       const elapsed = now.getTime() - strengthStartedAt;
       
       if (elapsed > STRENGTH_CALL_TIMEOUT) {
