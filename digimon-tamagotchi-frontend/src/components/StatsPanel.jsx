@@ -17,6 +17,20 @@ function fullnessDisplay(fullness=0, maxOverfeed=0){
   return `${base}${over>0 ? "(+" + over + ")" : ""}`;
 }
 
+/**
+ * strengthDisplay:
+ *  - strength => 예) proteinCount가 8이면 "5(+3)" (5개 이상 먹었을 때)
+ */
+function strengthDisplay(strength=0, proteinCount=0){
+  const base = Math.min(5, strength);
+  let over = 0;
+  // proteinCount가 5 이상일 때, 5개를 초과해서 먹은 개수 표시
+  if(proteinCount > 5){
+    over = proteinCount - 5;
+  }
+  return `${base}${over>0 ? "(+" + over + ")" : ""}`;
+}
+
 // 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
   const d = Math.floor(sec / 86400);
@@ -120,7 +134,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           <div className="space-y-1">
             <p>Age: {stats.age || 0}</p>
             <p>Weight: {stats.weight || 0}</p>
-            <p>Strength: {stats.strength || 0}</p>
+            <p>Strength: {strengthDisplay(stats.strength || 0, stats.proteinCount || 0)}</p>
             <p>Energy (DP): {stats.energy || 0}</p>
             <p>WinRate: {stats.winRate || 0}%</p>
             <p>Effort: {stats.effort || 0}</p>
