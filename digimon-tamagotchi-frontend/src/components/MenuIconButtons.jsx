@@ -9,6 +9,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       eat: "/images/192.png",
       train: "/images/194.png",
       battle: "/images/196.png",
+      communication: "/images/502.png",
       bathroom: "/images/198.png",
       electric: "/images/200.png",
       heal: "/images/202.png",
@@ -23,6 +24,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       eat: "식사",
       train: "훈련",
       battle: "배틀",
+      communication: "교감",
       bathroom: "화장실",
       electric: "전기",
       heal: "치료",
@@ -33,7 +35,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
 
   // 모바일: 그리드 레이아웃
   if (isMobile) {
-    const allMenus = ["status", "eat", "train", "battle", "bathroom", "electric", "heal", "callSign"];
+    const allMenus = ["status", "eat", "train", "battle", "communication", "bathroom", "electric", "heal", "callSign"];
     return (
       <div className="menu-icon-buttons-mobile">
         {allMenus.map((menu) => (
@@ -52,10 +54,10 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
     );
   }
 
-  // 데스크톱: 4x2 그리드 레이아웃
+  // 데스크톱: 5x2 그리드 레이아웃
   const allMenus = [
-    ["status", "eat", "train", "battle"],
-    ["bathroom", "electric", "heal", "callSign"]
+    ["status", "eat", "train", "battle", "communication"],
+    ["bathroom", "electric", "heal", "callSign", null] // 마지막 셀은 빈 셀
   ];
 
   return (
@@ -63,16 +65,20 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       <div className="game-container menu-grid-container" style={{ width: `${width}px` }}>
         {allMenus.map((row, rowIdx) => (
           <div key={rowIdx} className="menu-grid-row">
-            {row.map((menu) => (
-              <div key={menu} className="menu-grid-cell">
-                <IconButton
-                  icon={iconPath(menu)}
-                  onClick={() => onMenuClick(menu)}
-                  isActive={activeMenu === menu}
-                  width={60}
-                  height={60}
-                  label={menuLabel(menu)}
-                />
+            {row.map((menu, colIdx) => (
+              <div key={menu || `empty-${rowIdx}-${colIdx}`} className="menu-grid-cell">
+                {menu ? (
+                  <IconButton
+                    icon={iconPath(menu)}
+                    onClick={() => onMenuClick(menu)}
+                    isActive={activeMenu === menu}
+                    width={60}
+                    height={60}
+                    label={menuLabel(menu)}
+                  />
+                ) : (
+                  <div style={{ width: '60px', height: '60px' }}></div>
+                )}
               </div>
             ))}
           </div>
