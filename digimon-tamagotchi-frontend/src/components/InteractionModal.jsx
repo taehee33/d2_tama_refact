@@ -8,6 +8,7 @@ export default function InteractionModal({
   onClose, 
   onDiet,
   onDetox,
+  onRest,
   onPlayOrSnack
 }) {
   return (
@@ -27,6 +28,19 @@ export default function InteractionModal({
             className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
             다이어트
+          </button>
+          
+          <button
+            onClick={() => {
+              if (onRest) {
+                onRest();
+              } else {
+                onClose();
+              }
+            }}
+            className="px-6 py-3 bg-yellow-500 text-white rounded-lg font-bold hover:bg-yellow-600 transition-colors"
+          >
+            누워있기
           </button>
           
           <button

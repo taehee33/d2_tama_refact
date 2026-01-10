@@ -20,6 +20,7 @@ import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
 import OverfeedConfirmModal from "./OverfeedConfirmModal";
 import InteractionModal from "./InteractionModal";
 import DietModal from "./DietModal";
+import RestModal from "./RestModal";
 import DetoxModal from "./DetoxModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 
@@ -260,6 +261,10 @@ export default function GameModals({
             toggleModal('interaction', false);
             toggleModal('diet', true);
           }}
+          onRest={() => {
+            toggleModal('interaction', false);
+            toggleModal('rest', true);
+          }}
           onDetox={() => {
             toggleModal('interaction', false);
             toggleModal('detox', true);
@@ -293,6 +298,39 @@ export default function GameModals({
                 currentLogs,
                 'DIET',
                 `다이어트 성공! 포만감: ${currentStats.fullness || 0} → ${newFullness}`
+              );
+              
+              // 스탯 저장
+              if (setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Rest Modal (누워있기) */}
+      {modals.rest && (
+        <RestModal
+          onClose={() => toggleModal('rest', false)}
+          currentProteinCount={digimonStats?.proteinCount || 0}
+          onComplete={async (result) => {
+            if (result === "success") {
+              // 성공 시 Protein Count -1 (최소 0)
+              const currentStats = digimonStats || {};
+              const newProteinCount = Math.max(0, (currentStats.proteinCount || 0) - 1);
+              
+              const updatedStats = {
+                ...currentStats,
+                proteinCount: newProteinCount,
+              };
+              
+              // Activity Log 추가
+              const currentLogs = currentStats.activityLogs || activityLogs || [];
+              const updatedLogs = addActivityLog(
+                currentLogs,
+                'REST',
+                `누워있기 성공! Protein Count: ${currentStats.proteinCount || 0} → ${newProteinCount}`
               );
               
               // 스탯 저장
