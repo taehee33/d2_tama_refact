@@ -22,6 +22,7 @@ import InteractionModal from "./InteractionModal";
 import DietModal from "./DietModal";
 import RestModal from "./RestModal";
 import DetoxModal from "./DetoxModal";
+import PlayOrSnackModal from "./PlayOrSnackModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
@@ -270,8 +271,8 @@ export default function GameModals({
             toggleModal('detox', true);
           }}
           onPlayOrSnack={() => {
-            // TODO: 놀아주기/간식주기 기능 구현
-            console.log("놀아주기/간식주기 클릭");
+            toggleModal('interaction', false);
+            toggleModal('playOrSnack', true);
           }}
         />
       )}
@@ -364,6 +365,39 @@ export default function GameModals({
                 currentLogs,
                 'DETOX',
                 `디톡스 성공! Protein Overdose: ${currentStats.proteinOverdose || 0} → ${newProteinOverdose}`
+              );
+              
+              // 스탯 저장
+              if (setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Play Or Snack Modal (놀아주기/간식주기) */}
+      {modals.playOrSnack && (
+        <PlayOrSnackModal
+          onClose={() => toggleModal('playOrSnack', false)}
+          currentCareMistakes={digimonStats?.careMistakes || 0}
+          onComplete={async (result) => {
+            if (result === "success") {
+              // 성공 시 Care Mistakes -1 (최소 0)
+              const currentStats = digimonStats || {};
+              const newCareMistakes = Math.max(0, (currentStats.careMistakes || 0) - 1);
+              
+              const updatedStats = {
+                ...currentStats,
+                careMistakes: newCareMistakes,
+              };
+              
+              // Activity Log 추가
+              const currentLogs = currentStats.activityLogs || activityLogs || [];
+              const updatedLogs = addActivityLog(
+                currentLogs,
+                'PLAY_OR_SNACK',
+                `놀아주기/간식주기 성공! Care Mistakes: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
               );
               
               // 스탯 저장
