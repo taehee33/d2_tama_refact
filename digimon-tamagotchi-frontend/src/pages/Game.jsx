@@ -1271,7 +1271,6 @@ async function setSelectedDigimonAndSave(name) {
             strength={digimonStats.strength || 0}
             maxOverfeed={digimonStats.maxOverfeed || 0}
             proteinOverdose={digimonStats.proteinOverdose || 0}
-            proteinCount={digimonStats.proteinCount || 0}
             showLabels={true}
             size="sm"
             position="inline"

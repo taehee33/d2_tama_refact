@@ -11,12 +11,12 @@ const restActivities = [
   "바닥에 드러누우기"
 ];
 
-export default function RestModal({ onClose, onComplete, currentProteinCount = 0 }) {
+export default function RestModal({ onClose, onComplete, currentStrength = 0 }) {
   const [selectedActivity, setSelectedActivity] = useState("");
   const [progress, setProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [result, setResult] = useState(null); // "success" or "failure"
-  const [newProteinCount, setNewProteinCount] = useState(null); // 성공 시 새로운 Protein Count
+  const [newStrength, setNewStrength] = useState(null); // 성공 시 새로운 Strength
 
   // 컴포넌트 마운트 시 랜덤 활동 선택
   useEffect(() => {
@@ -52,9 +52,9 @@ export default function RestModal({ onClose, onComplete, currentProteinCount = 0
       const isSuccess = Math.random() < 0.6;
       if (isSuccess) {
         setResult("success");
-        // 성공 시 Protein Count -1 (최소 0)
-        const calculatedNewProteinCount = Math.max(0, currentProteinCount - 1);
-        setNewProteinCount(calculatedNewProteinCount);
+        // 성공 시 Strength -1 (최소 0)
+        const calculatedNewStrength = Math.max(0, currentStrength - 1);
+        setNewStrength(calculatedNewStrength);
       } else {
         setResult("failure");
       }
@@ -66,7 +66,7 @@ export default function RestModal({ onClose, onComplete, currentProteinCount = 0
       clearTimeout(timer3);
       clearTimeout(timer4);
     };
-  }, [selectedActivity, currentProteinCount]);
+  }, [selectedActivity, currentStrength]);
 
   // 완료 후 결과 표시
   const handleClose = () => {
@@ -108,9 +108,9 @@ export default function RestModal({ onClose, onComplete, currentProteinCount = 0
                 <p className="text-lg text-gray-700 mb-2">
                   {selectedActivity} 완료!
                 </p>
-                {newProteinCount !== null && (
+                {newStrength !== null && (
                   <p className="text-base text-gray-600 mb-4">
-                    누워있기 성공! Protein Count: {currentProteinCount} → {newProteinCount}
+                    누워있기 성공! Strength: {currentStrength} → {newStrength}
                   </p>
                 )}
               </>

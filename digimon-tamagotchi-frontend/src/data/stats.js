@@ -51,7 +51,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // 매뉴얼 기반 필드 초기화 (진화 시 리셋되는 필드)
   merged.overfeeds = 0;
   merged.consecutiveMeatFed = 0; // 오버피드 연속 카운트도 리셋
-  merged.proteinCount = 0; // 단백질 누적 개수 리셋
+  // proteinCount 제거됨 - strength로 통합
   merged.proteinOverdose = 0; // 단백질 과다 리셋
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
@@ -343,21 +343,15 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     
     // countdown이 0 이하가 되면 strength 감소
     while (updatedStats.strengthCountdown <= 0) {
-      const currentProteinCount = updatedStats.proteinCount || 0;
-      // proteinCount가 6 이상이면 proteinCount만 -1, strength는 감소하지 않음
-      if (currentProteinCount >= 6) {
-        updatedStats.proteinCount = Math.max(0, currentProteinCount - 1);
-      } else {
-        // proteinCount < 6일 때는 strength와 proteinCount 모두 -1
-        updatedStats.strength = Math.max(0, updatedStats.strength - 1);
-        updatedStats.proteinCount = Math.max(0, currentProteinCount - 1);
-        // strength가 0이 되면 lastStrengthZeroAt 기록
-        if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
-          const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
-          updatedStats.lastStrengthZeroAt = timeToZero;
-        }
-      }
+      // strength -1 (최소 0)
+      updatedStats.strength = Math.max(0, updatedStats.strength - 1);
       updatedStats.strengthCountdown += updatedStats.strengthTimer * 60;
+      
+      // strength가 0이 되면 lastStrengthZeroAt 기록
+      if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
+        const timeToZero = lastSaved.getTime() + (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
+        updatedStats.lastStrengthZeroAt = timeToZero;
+      }
     }
   }
 

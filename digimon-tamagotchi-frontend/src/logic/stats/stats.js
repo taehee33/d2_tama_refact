@@ -112,19 +112,12 @@ export function updateLifespan(stats, deltaSec = 1) {
   if (s.strengthTimer > 0) {
     s.strengthCountdown -= deltaSec;
     if (s.strengthCountdown <= 0) {
-      const currentProteinCount = s.proteinCount || 0;
-      // proteinCount가 6 이상이면 proteinCount만 -1, strength는 감소하지 않음
-      if (currentProteinCount >= 6) {
-        s.proteinCount = Math.max(0, currentProteinCount - 1);
-      } else {
-        // proteinCount < 6일 때는 strength와 proteinCount 모두 -1
-        s.strength = Math.max(0, s.strength - 1);
-        s.proteinCount = Math.max(0, currentProteinCount - 1);
-        if (s.strength === 0 && !s.lastStrengthZeroAt) {
-          s.lastStrengthZeroAt = Date.now();
-        }
-      }
+      // strength -1 (최소 0)
+      s.strength = Math.max(0, (s.strength || 0) - 1);
       s.strengthCountdown = s.strengthTimer * 60;
+      if (s.strength === 0 && !s.lastStrengthZeroAt) {
+        s.lastStrengthZeroAt = Date.now();
+      }
     }
   }
 
@@ -318,22 +311,16 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     updatedStats.strengthCountdown -= elapsedSeconds;
 
     while (updatedStats.strengthCountdown <= 0) {
-      const currentProteinCount = updatedStats.proteinCount || 0;
-      // proteinCount가 6 이상이면 proteinCount만 -1, strength는 감소하지 않음
-      if (currentProteinCount >= 6) {
-        updatedStats.proteinCount = Math.max(0, currentProteinCount - 1);
-      } else {
-        // proteinCount < 6일 때는 strength와 proteinCount 모두 -1
-        updatedStats.strength = Math.max(0, updatedStats.strength - 1);
-        updatedStats.proteinCount = Math.max(0, currentProteinCount - 1);
-        if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
-          const timeToZero =
-            lastSaved.getTime() +
-            (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
-          updatedStats.lastStrengthZeroAt = timeToZero;
-        }
-      }
+      // strength -1 (최소 0)
+      updatedStats.strength = Math.max(0, updatedStats.strength - 1);
       updatedStats.strengthCountdown += updatedStats.strengthTimer * 60;
+
+      if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
+        const timeToZero =
+          lastSaved.getTime() +
+          (elapsedSeconds - updatedStats.strengthCountdown) * 1000;
+        updatedStats.lastStrengthZeroAt = timeToZero;
+      }
     }
   }
 

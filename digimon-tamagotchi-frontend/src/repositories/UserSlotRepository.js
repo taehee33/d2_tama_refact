@@ -10,6 +10,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   collection,
   getDocs,
   query,
@@ -104,9 +105,13 @@ class UserSlotRepository {
       throw new Error('userId is required');
     }
 
+    // proteinCount 필드 제거 (strength로 통합됨)
+    const { proteinCount, ...statsWithoutProteinCount } = digimonStats;
+    
     const slotRef = doc(db, 'users', userId, 'slots', `slot${slotId}`);
     await updateDoc(slotRef, {
-      digimonStats,
+      digimonStats: statsWithoutProteinCount,
+      'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
       updatedAt: new Date(),
     });
   }

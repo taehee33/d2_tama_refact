@@ -37,7 +37,7 @@ export const defaultStats = {
     altAttackSprite: 65535,
     
     // 매뉴얼 기반 추가 필드
-    proteinCount: 0, // 먹인 단백질 누적 개수
+    // proteinCount 제거됨 - strength로 통합
     proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7, 4개당 +1)
     
     // 배틀 관련: 총 토탈 (진화 시 유지)

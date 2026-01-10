@@ -26,20 +26,14 @@ export function handleStrengthTick(currentStats, digimonData, deltaSec = 1, isSl
     s.strengthCountdown -= deltaSec;
     
     if (s.strengthCountdown <= 0) {
-      const currentProteinCount = s.proteinCount || 0;
-      // proteinCount가 6 이상이면 proteinCount만 -1, strength는 감소하지 않음
-      if (currentProteinCount >= 6) {
-        s.proteinCount = Math.max(0, currentProteinCount - 1);
-      } else {
-        // proteinCount < 6일 때는 strength와 proteinCount 모두 -1
-        s.strength = Math.max(0, (s.strength || 0) - 1);
-        s.proteinCount = Math.max(0, currentProteinCount - 1);
-        // 힘이 0이 되면 시간 기록
-        if (s.strength === 0 && !s.lastStrengthZeroAt) {
-          s.lastStrengthZeroAt = Date.now();
-        }
-      }
+      // strength -1 (최소 0)
+      s.strength = Math.max(0, (s.strength || 0) - 1);
       s.strengthCountdown = strengthCycle * 60;
+      
+      // 힘이 0이 되면 시간 기록
+      if (s.strength === 0 && !s.lastStrengthZeroAt) {
+        s.lastStrengthZeroAt = Date.now();
+      }
     }
   }
   

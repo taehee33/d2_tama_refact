@@ -73,7 +73,7 @@ export function useGameAnimations({
       const oldEnergy = currentStats.energy || 0;
       const oldOverfeeds = currentStats.overfeeds || 0;
       const oldHungerCountdown = currentStats.hungerCountdown || 0;
-      const oldProteinCount = currentStats.proteinCount || 0;
+      // proteinCount 제거됨 - strength로 통합
       const oldProteinOverdose = currentStats.proteinOverdose || 0;
       
       // 먹이기 로직 실행
@@ -103,7 +103,7 @@ export function useGameAnimations({
       const newEnergy = updatedStats.energy || 0;
       const newOverfeeds = updatedStats.overfeeds || 0;
       const newHungerCountdown = updatedStats.hungerCountdown || 0;
-      const newProteinCount = updatedStats.proteinCount || 0;
+      // proteinCount 제거됨 - strength로 통합
       const newProteinOverdose = updatedStats.proteinOverdose || 0;
       
       // 델타 계산

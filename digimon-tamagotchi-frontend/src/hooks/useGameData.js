@@ -2,7 +2,7 @@
 // Game.jsx의 데이터 저장/로딩 로직을 분리한 Custom Hook
 
 import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteField } from "firebase/firestore";
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
 import { initializeStats } from "../data/stats";
@@ -90,7 +90,7 @@ export function useGameData({
       weight: newStats.weight !== undefined ? newStats.weight : undefined,
       fullness: newStats.fullness !== undefined ? newStats.fullness : undefined,
       energy: newStats.energy !== undefined ? newStats.energy : undefined,
-      proteinCount: newStats.proteinCount !== undefined ? newStats.proteinCount : undefined,
+      // proteinCount 제거됨 - strength로 통합
       proteinOverdose: newStats.proteinOverdose !== undefined ? newStats.proteinOverdose : undefined,
       consecutiveMeatFed: newStats.consecutiveMeatFed !== undefined ? newStats.consecutiveMeatFed : undefined,
       overfeeds: newStats.overfeeds !== undefined ? newStats.overfeeds : undefined,
@@ -175,17 +175,23 @@ export function useGameData({
       evolutionStage: finalStats.evolutionStage,
     });
 
-    setDigimonStats(finalStats);
+    // proteinCount 필드 제거 (strength로 통합됨)
+    const { proteinCount, ...statsWithoutProteinCount } = finalStats;
+    if (proteinCount !== undefined) {
+      console.log("[saveStats] proteinCount 필드 제거됨:", proteinCount);
+    }
+
+    setDigimonStats(statsWithoutProteinCount);
 
     // Firestore 모드일 때만 저장
     if (slotId && currentUser && mode === 'firebase') {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         const updateData = {
-          digimonStats: finalStats,
+          digimonStats: statsWithoutProteinCount,
           isLightsOn,
           wakeUntil,
-          lastSavedAt: finalStats.lastSavedAt,
+          lastSavedAt: statsWithoutProteinCount.lastSavedAt,
           updatedAt: now,
         };
         
@@ -194,7 +200,11 @@ export function useGameData({
           updateData.activityLogs = updatedLogs;
         }
         
-        await updateDoc(slotRef, updateData);
+        // 기존 데이터에서도 proteinCount 제거 (마이그레이션)
+        await updateDoc(slotRef, {
+          ...updateData,
+          'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거
+        });
       } catch (error) {
         console.error("스탯 저장 오류:", error);
         setError(error);
@@ -202,7 +212,7 @@ export function useGameData({
     } else if (slotId && mode === 'local') {
       // localStorage 모드
       try {
-        localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(finalStats));
+        localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(statsWithoutProteinCount));
         localStorage.setItem(`slot${slotId}_isLightsOn`, isLightsOn ? 'true' : 'false');
         if (wakeUntil) localStorage.setItem(`slot${slotId}_wakeUntil`, wakeUntil.toString());
         localStorage.setItem(`slot${slotId}_dailySleepMistake`, dailySleepMistake ? 'true' : 'false');
@@ -370,7 +380,14 @@ export function useGameData({
         try {
           const savedName = localStorage.getItem(`slot${slotId}_selectedDigimon`) || "Digitama";
           const savedStatsStr = localStorage.getItem(`slot${slotId}_digimonStats`);
-          const savedStats = savedStatsStr ? JSON.parse(savedStatsStr) : {};
+          let savedStats = savedStatsStr ? JSON.parse(savedStatsStr) : {};
+          
+          // proteinCount 필드 제거 (마이그레이션)
+          if (savedStats.proteinCount !== undefined) {
+            delete savedStats.proteinCount;
+            // 제거된 상태로 다시 저장
+            localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(savedStats));
+          }
           
           setSlotName(localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`);
           setSlotCreatedAt(localStorage.getItem(`slot${slotId}_createdAt`) || "");
@@ -462,6 +479,16 @@ export function useGameData({
           const savedName = slotData.selectedDigimon || "Digitama";
           let savedStats = slotData.digimonStats || {};
           
+          // proteinCount 필드 제거 (마이그레이션)
+          if (savedStats.proteinCount !== undefined) {
+            delete savedStats.proteinCount;
+            // Firestore에서도 제거
+            const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+            await updateDoc(slotRef, {
+              'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거
+            });
+          }
+          
           if (Object.keys(savedStats).length === 0) {
             const ns = initializeStats("Digitama", {}, digimonDataVer1);
             // 새 디지몬 생성 시 birthTime 설정
@@ -484,6 +511,11 @@ export function useGameData({
             
             savedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
             
+            // proteinCount 필드 제거 (마이그레이션)
+            if (savedStats.proteinCount !== undefined) {
+              delete savedStats.proteinCount;
+            }
+            
             setSelectedDigimon(savedName);
             setDigimonStats(savedStats);
             
@@ -494,6 +526,7 @@ export function useGameData({
             
             await updateDoc(slotRef, {
               digimonStats: savedStats,
+              'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
               lastSavedAt: savedStats.lastSavedAt,
               updatedAt: new Date(),
             });

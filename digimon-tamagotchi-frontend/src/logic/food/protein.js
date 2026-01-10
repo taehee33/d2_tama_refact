@@ -12,49 +12,43 @@
 export function feedProtein(stats) {
   const s = { ...stats };
   
-  // 힘 하트 +1 (최대 5)
+  // 힘 하트 +1 (제한 없음)
   const oldStrength = s.strength || 0;
-  const currentStrength = s.strength || 0;
-  // Strength가 5 미만일 때만 증가 (최대 5)
-  if (currentStrength < 5) {
-    s.strength = currentStrength + 1;
-  }
+  s.strength = (s.strength || 0) + 1;
   
   // 체중 +2 Gigabyte
   s.weight = (s.weight || 0) + 2;
   
-  // 프로틴 카운트 증가
-  const proteinCount = (s.proteinCount || 0) + 1;
-  s.proteinCount = proteinCount;
-  
-  // proteinCount ≤ 5: 4가 되면 energy만 +1 증가, proteinOverdose는 증가하지 않음
-  // proteinCount > 5: 9, 13, 17, 21, 25, 29, 33이 되면 energy +1, proteinOverdose +1 증가
+  // strength 값으로 Energy/Overdose 계산
+  // strength ≤ 5: 4가 되면 energy만 +1 증가, proteinOverdose는 증가하지 않음
+  // strength > 5: 9, 13, 17, 21, 25, 29, 33이 되면 energy +1, proteinOverdose +1 증가
   // maxEnergy가 0일 수도 있으므로 ?? (nullish coalescing) 사용
   const maxEnergy = s.maxEnergy ?? s.maxStamina ?? 0;
+  const currentStrength = s.strength;
   
-  if (proteinCount <= 5) {
-    // proteinCount가 4일 때만 energy +1
-    if (proteinCount === 4) {
+  if (currentStrength <= 5) {
+    // strength가 4일 때만 energy +1
+    if (currentStrength === 4) {
       s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
     }
   } else {
-    // proteinCount > 5: 9, 13, 17, 21, 25, 29, 33일 때 energy +1, proteinOverdose +1
+    // strength > 5: 9, 13, 17, 21, 25, 29, 33일 때 energy +1, proteinOverdose +1
     const overdoseTriggerPoints = [9, 13, 17, 21, 25, 29, 33];
-    if (overdoseTriggerPoints.includes(proteinCount)) {
+    if (overdoseTriggerPoints.includes(currentStrength)) {
       s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
       s.proteinOverdose = Math.min(7, (s.proteinOverdose || 0) + 1); // 최대 7
     }
   }
   
   // energy 증가 여부 확인
-  const energyRestored = (proteinCount <= 5 && proteinCount === 4) || 
-                         (proteinCount > 5 && [9, 13, 17, 21, 25, 29, 33].includes(proteinCount));
+  const energyRestored = (currentStrength <= 5 && currentStrength === 4) || 
+                         (currentStrength > 5 && [9, 13, 17, 21, 25, 29, 33].includes(currentStrength));
   
   return {
     updatedStats: s,
     strengthIncreased: s.strength > oldStrength,
     energyRestored: energyRestored,
-    proteinOverdoseIncreased: proteinCount > 5 && [9, 13, 17, 21, 25, 29, 33].includes(proteinCount),
+    proteinOverdoseIncreased: currentStrength > 5 && [9, 13, 17, 21, 25, 29, 33].includes(currentStrength),
   };
 }
 

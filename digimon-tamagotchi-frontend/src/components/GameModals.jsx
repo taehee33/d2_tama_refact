@@ -314,16 +314,16 @@ export default function GameModals({
       {modals.rest && (
         <RestModal
           onClose={() => toggleModal('rest', false)}
-          currentProteinCount={digimonStats?.proteinCount || 0}
+          currentStrength={digimonStats?.strength || 0}
           onComplete={async (result) => {
             if (result === "success") {
-              // 성공 시 Protein Count -1 (최소 0)
+              // 성공 시 Strength -1 (최소 0)
               const currentStats = digimonStats || {};
-              const newProteinCount = Math.max(0, (currentStats.proteinCount || 0) - 1);
+              const newStrength = Math.max(0, (currentStats.strength || 0) - 1);
               
               const updatedStats = {
                 ...currentStats,
-                proteinCount: newProteinCount,
+                strength: newStrength,
               };
               
               // Activity Log 추가
@@ -331,7 +331,7 @@ export default function GameModals({
               const updatedLogs = addActivityLog(
                 currentLogs,
                 'REST',
-                `누워있기 성공! Protein Count: ${currentStats.proteinCount || 0} → ${newProteinCount}`
+                `누워있기 성공! Strength: ${currentStats.strength || 0} → ${newStrength}`
               );
               
               // 스탯 저장

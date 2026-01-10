@@ -10,7 +10,6 @@ const StatusHearts = ({
   strength = 0,
   maxOverfeed = 0,
   proteinOverdose = 0, // 단백질 과다 복용 수치 (0-7)
-  proteinCount = 0, // 단백질 누적 개수
   showLabels = true,
   size = "md", // "sm" | "md" | "lg"
   position = "top-left", // "top-left" | "top-right" | "bottom-left" | "bottom-right" | "inline"
@@ -26,8 +25,8 @@ const StatusHearts = ({
   const baseFullness = Math.min(5, fullness);
   const overfeed = fullness > 5 ? fullness - 5 : 0;
   
-  // Strength 초과분 계산 (proteinCount가 5 이상일 때)
-  const strengthOver = proteinCount > 5 ? proteinCount - 5 : 0;
+  // Strength 초과분 계산 (strength가 5 이상일 때)
+  const strengthOver = strength > 5 ? strength - 5 : 0;
   
   // 하트 렌더링 함수
   const renderHearts = (value, max = 5, color = "red", label = "") => {
@@ -102,22 +101,22 @@ const StatusHearts = ({
     );
   };
 
-  // Strength 초과분 하트 렌더링 (proteinCount가 5 이상일 때)
+  // Strength 초과분 하트 렌더링 (strength가 5 이상일 때)
   // proteinOverdose가 있을 때는 💊 표시
-  // proteinCount가 9, 13, 17, 21, 25, 29, 33일 때는 ⚠️ 표시
+  // strength가 9, 13, 17, 21, 25, 29, 33일 때는 ⚠️ 표시
   const renderStrengthOver = () => {
     if (strengthOver <= 0) return null;
     
-    // proteinCount가 9, 13, 17, 21, 25, 29, 33 중 하나인지 확인
+    // strength가 9, 13, 17, 21, 25, 29, 33 중 하나인지 확인
     const overdoseTriggerPoints = [9, 13, 17, 21, 25, 29, 33];
-    const isOverdoseTrigger = overdoseTriggerPoints.includes(proteinCount);
+    const isOverdoseTrigger = overdoseTriggerPoints.includes(strength);
     
     // 각 하트의 위치에 따라 아이콘 결정
-    // proteinCount가 9면 첫 번째 하트에 ⚠️, 13이면 두 번째 하트에 ⚠️ 등
+    // strength가 9면 첫 번째 하트에 ⚠️, 13이면 두 번째 하트에 ⚠️ 등
     const getIconForIndex = (index) => {
-      // 현재 하트의 proteinCount 위치 계산 (5 + index + 1)
-      const currentProteinCount = 5 + index + 1;
-      if (overdoseTriggerPoints.includes(currentProteinCount)) {
+      // 현재 하트의 strength 위치 계산 (5 + index + 1)
+      const currentStrength = 5 + index + 1;
+      if (overdoseTriggerPoints.includes(currentStrength)) {
         return '⚠️';
       }
       // proteinOverdose가 있으면 💊 표시

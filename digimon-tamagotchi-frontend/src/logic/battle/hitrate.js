@@ -84,7 +84,9 @@ export function calculatePower(stats, digimonData) {
   let power = digimonData.stats.basePower || 0;
   
   // Strength Hearts 보너스 (가득 찬 경우)
-  if (stats.strength >= 5) {
+  // strength >= 6이면 5로 계산
+  const effectiveStrength = Math.min(5, stats.strength || 0);
+  if (effectiveStrength >= 5) {
     const stage = digimonData.stage;
     if (stage === "Child") power += 5;
     else if (stage === "Adult") power += 8;
