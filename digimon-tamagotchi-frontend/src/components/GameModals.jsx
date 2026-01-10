@@ -20,6 +20,7 @@ import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
 import OverfeedConfirmModal from "./OverfeedConfirmModal";
 import InteractionModal from "./InteractionModal";
 import DietModal from "./DietModal";
+import DetoxModal from "./DetoxModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
@@ -260,8 +261,8 @@ export default function GameModals({
             toggleModal('diet', true);
           }}
           onDetox={() => {
-            // TODO: 디톡스 기능 구현
-            console.log("디톡스 클릭");
+            toggleModal('interaction', false);
+            toggleModal('detox', true);
           }}
           onPlayOrSnack={() => {
             // TODO: 놀아주기/간식주기 기능 구현
@@ -292,6 +293,39 @@ export default function GameModals({
                 currentLogs,
                 'DIET',
                 `다이어트 성공! 포만감: ${currentStats.fullness || 0} → ${newFullness}`
+              );
+              
+              // 스탯 저장
+              if (setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Detox Modal (디톡스) */}
+      {modals.detox && (
+        <DetoxModal
+          onClose={() => toggleModal('detox', false)}
+          currentProteinOverdose={digimonStats?.proteinOverdose || 0}
+          onComplete={async (result) => {
+            if (result === "success") {
+              // 성공 시 Protein Overdose -1 (최소 0)
+              const currentStats = digimonStats || {};
+              const newProteinOverdose = Math.max(0, (currentStats.proteinOverdose || 0) - 1);
+              
+              const updatedStats = {
+                ...currentStats,
+                proteinOverdose: newProteinOverdose,
+              };
+              
+              // Activity Log 추가
+              const currentLogs = currentStats.activityLogs || activityLogs || [];
+              const updatedLogs = addActivityLog(
+                currentLogs,
+                'DETOX',
+                `디톡스 성공! Protein Overdose: ${currentStats.proteinOverdose || 0} → ${newProteinOverdose}`
               );
               
               // 스탯 저장

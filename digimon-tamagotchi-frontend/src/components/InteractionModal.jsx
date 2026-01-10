@@ -31,8 +31,11 @@ export default function InteractionModal({
           
           <button
             onClick={() => {
-              if (onDetox) onDetox();
-              onClose();
+              if (onDetox) {
+                onDetox();
+              } else {
+                onClose();
+              }
             }}
             className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >

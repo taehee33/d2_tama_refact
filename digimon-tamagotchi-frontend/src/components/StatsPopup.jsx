@@ -484,6 +484,17 @@ export default function StatsPopup({
           <li>Weight: {weight || 0}g</li>
           <li>Hunger (Fullness): {fullnessDisplay(fullness, maxOverfeed)}/5</li>
           <li>Strength: {strengthDisplay(strength || 0, stats.proteinCount || 0)}/5</li>
+          <li className="ml-4 text-xs text-gray-600">
+            • Protein Count: {stats.proteinCount || 0}
+          </li>
+          <li className="ml-4 text-xs text-gray-600">
+            • Protein Overdose: {stats.proteinOverdose || 0}/7
+            {stats.proteinOverdose > 0 && (
+              <span className="text-red-600 ml-1">
+                (배틀 패배 시 부상 확률: {10 + (stats.proteinOverdose || 0) * 10}%)
+              </span>
+            )}
+          </li>
           <li>Energy (Current): {energy || 0}/{maxEnergy || maxStamina || 0}</li>
           <li className="ml-4 text-xs text-gray-600">
             • 기상 시간 회복 (max): {getTimeUntilWakeForEnergy()}
