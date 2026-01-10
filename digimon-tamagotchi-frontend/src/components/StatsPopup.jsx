@@ -570,14 +570,37 @@ export default function StatsPopup({
           <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
           <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus}</li>
           <li>잠들기: {(() => {
-            // fastSleepStart가 있고 불이 꺼져 있고 15초가 지나지 않았을 때
+            // 디버깅: 값 확인 (개발 모드에서만)
+            if (devMode) {
+              console.log('[StatsPopup 잠들기] fastSleepStart:', fastSleepStart);
+              console.log('[StatsPopup 잠들기] isLightsOn:', isLightsOn);
+              console.log('[StatsPopup 잠들기] currentTime:', currentTime);
+            }
+            
+            // fastSleepStart가 있고 불이 꺼져 있을 때 (wakeUntil과 관계없이 표시)
             if (fastSleepStart && !isLightsOn) {
               const elapsed = currentTime - fastSleepStart;
               const remainingSeconds = Math.max(0, 15 - Math.floor(elapsed / 1000));
+              
+              if (devMode) {
+                console.log('[StatsPopup 잠들기] elapsed:', elapsed);
+                console.log('[StatsPopup 잠들기] remainingSeconds:', remainingSeconds);
+              }
+              
               if (remainingSeconds > 0 && remainingSeconds <= 15) {
                 return <span className="text-blue-500 font-semibold">{remainingSeconds}초 후 잠들어요</span>;
+              } else if (remainingSeconds <= 0) {
+                // 15초가 지났으면 즉시 잠들 수 있음
+                return <span className="text-green-500 font-semibold">즉시 잠들 수 있음</span>;
+              }
+            } else {
+              // 조건 불만족 시 이유 출력 (개발 모드에서만)
+              if (devMode) {
+                if (!fastSleepStart) console.log('[StatsPopup 잠들기] fastSleepStart가 없음');
+                if (isLightsOn) console.log('[StatsPopup 잠들기] 불이 켜져 있음');
               }
             }
+            
             // 조건이 아닐 때 수면 상태 값 그대로 표시 (TIRED는 SLEEPY(Lights Off plz)로 통일)
             const statusText = sleepStatus === 'AWAKE' ? 'AWAKE' : sleepStatus === 'SLEEPING' ? 'SLEEPING' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus;
             return <span className="text-gray-500">{statusText}</span>;
@@ -614,20 +637,24 @@ export default function StatsPopup({
                 {careMistakeRemaining && (
                   <span className="text-yellow-600 ml-2">(케어미스까지 {careMistakeRemaining.minutes}분 {careMistakeRemaining.seconds}초 남음)</span>
                 )}
-                {!isLightsOn && (
-                  <span className="text-green-600 ml-2">(불 꺼짐 → 10초 후 잠듦)</span>
-                )}
               </li>
             );
           })()}
           {/* 빠른 잠들기 안내 */}
-          {wakeUntil && currentTime < wakeUntil && !isLightsOn && stats.fastSleepStart && (() => {
-            const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
-            const remainingSeconds = Math.max(0, 10 - Math.floor(elapsedSinceFastSleepStart / 1000));
-            if (remainingSeconds > 0 && remainingSeconds <= 10) {
+          {!isLightsOn && fastSleepStart && (() => {
+            const elapsedSinceFastSleepStart = currentTime - fastSleepStart;
+            const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
+            if (remainingSeconds > 0 && remainingSeconds <= 15) {
               return (
                 <li className="text-green-600 text-sm">
                   💡 빠른 잠들기: {remainingSeconds}초 후 자동으로 잠듭니다
+                </li>
+              );
+            } else if (remainingSeconds <= 0) {
+              // 15초가 지났으면 즉시 잠들 수 있음
+              return (
+                <li className="text-green-600 text-sm">
+                  💡 빠른 잠들기: 즉시 잠들 수 있습니다 (wakeUntil 만료 시 자동 잠듦)
                 </li>
               );
             }

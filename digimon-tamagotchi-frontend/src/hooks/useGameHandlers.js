@@ -256,6 +256,9 @@ export function useGameHandlers({
       // 불을 껐을 때 빠른 잠들기 시작 시점 기록 (수면 방해 중이든 아니든)
       updatedStats.fastSleepStart = Date.now();
       
+      // 디버깅: 콘솔에 출력
+      console.log('[handleToggleLights] fastSleepStart 설정:', updatedStats.fastSleepStart);
+      
       // 수면 시간이 아니면 낮잠 예약
       const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
       const isSleepTime = isWithinSleepSchedule(schedule, new Date());
@@ -281,6 +284,9 @@ export function useGameHandlers({
     
     // 스탯 저장
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    
+    // 디버깅: 저장 후 확인
+    console.log('[handleToggleLights] 저장 후 fastSleepStart:', updatedStats.fastSleepStart);
     
     // isLightsOn 상태를 명시적으로 저장 (localStorage 및 Firestore)
     // setIsLightsOn은 비동기이므로, saveStats가 이전 값을 사용할 수 있음

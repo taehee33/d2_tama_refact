@@ -57,16 +57,19 @@ export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleep
   if (!isLightsOn) {
     // A. 수면 시간 혹은 낮잠 시간인 경우
     if (isSleepTime || isNapTime) {
-      if (wakeOverride) return "AWAKE"; // 방해 중이면 깨어있음
-      
-      // 빠른 잠들기 체크 (15초)
+      // fastSleepStart가 완료되었으면 wakeUntil보다 우선순위가 높음 (즉시 잠듦)
       if (fastSleepStart) {
         const elapsed = nowMs - fastSleepStart;
         if (elapsed >= 15 * 1000) {
-          return "SLEEPING";
+          return "SLEEPING"; // 15초 경과 시 wakeUntil과 관계없이 잠듦
         }
+        // 15초 전까지는 wakeUntil이 있으면 깨어있음
+        if (wakeOverride) return "AWAKE";
         return "AWAKE"; // 15초 전까지는 깨어있음
       }
+      
+      // fastSleepStart가 없으면 기존 로직대로
+      if (wakeOverride) return "AWAKE"; // 방해 중이면 깨어있음
       
       return "SLEEPING";
     }

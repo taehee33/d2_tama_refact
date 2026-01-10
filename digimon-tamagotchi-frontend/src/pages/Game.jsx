@@ -398,9 +398,17 @@ function Game(){
           updatedStats.fastSleepStart = null;
         } else {
           updatedStats.sleepLightOnStart = null;
-          // wakeUntil이 만료되면 빠른 잠들기 시점도 리셋
-          if (!wakeUntil || nowMs >= wakeUntil) {
-            updatedStats.fastSleepStart = null;
+          // wakeUntil이 활성화되어 있으면 fastSleepStart를 절대 리셋하지 않음
+          // (fastSleepStart가 완료되어 SLEEPING 상태가 되어도 wakeUntil이 있으면 유지)
+          if (wakeUntil && nowMs < wakeUntil) {
+            // wakeUntil이 활성화되어 있으면 fastSleepStart 유지 (리셋하지 않음)
+            // 이렇게 하면 fastSleepStart가 완료되어 SLEEPING 상태가 되어도
+            // wakeUntil이 활성화되어 있는 동안 SLEEPING 상태를 유지할 수 있음
+          } else {
+            // wakeUntil이 만료되었을 때만 fastSleepStart 리셋 고려
+            // 하지만 SLEEPING 상태가 유지되도록 하려면 리셋하지 않는 것이 좋음
+            // fastSleepStart는 불을 켜거나 명시적으로 리셋할 때만 리셋
+            // (현재는 리셋하지 않음)
           }
         }
 
