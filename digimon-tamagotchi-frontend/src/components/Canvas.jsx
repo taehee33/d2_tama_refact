@@ -185,14 +185,16 @@ const Canvas = ({
           const digiW= width*0.4;
           const digiH= height*0.4;
           let digiX= (width-digiW)/2;
-          if(currentAnimation==="eat" || currentAnimation==="foodRejectRefuse"){
+          // eat 애니메이션일 때만 오른쪽에 위치, foodRejectRefuse는 가운데
+          if(currentAnimation==="eat"){
             digiX= width*0.6 - digiW/2;
           }
           
-          // 거절 애니메이션일 때 우측 프레임(홀수)은 좌우 반전
+          // 거절 애니메이션일 때 우측 프레임(홀수)은 좌우 반전 (가운데 기준)
           if(currentAnimation === "foodRejectRefuse" && idx === 1){
             ctx.save();
             ctx.scale(-1, 1);
+            // 가운데 위치 기준으로 좌우 반전
             ctx.drawImage(digimonImg, -digiX - digiW, (height-digiH)/2, digiW, digiH);
             ctx.restore();
           } else {
