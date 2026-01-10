@@ -175,10 +175,10 @@ const StatusHearts = ({
           }}
           title={`Protein Overdose: ${proteinOverdose}/7 (Injury Risk: +${injuryChance - 10}%)`}
         >
-          🤢💉
+          [*🤢💉
         </span>
         <span className="text-xs font-bold text-red-600">
-          (x{proteinOverdose})
+          (x{proteinOverdose})]
         </span>
       </div>
     );
