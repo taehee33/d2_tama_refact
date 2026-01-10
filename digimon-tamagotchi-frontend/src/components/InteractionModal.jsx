@@ -79,6 +79,9 @@ export default function InteractionModal({
             괜히 괴롭히기
           </button>
           
+          {/* 구분선 */}
+          <div className="border-t border-gray-300 my-2"></div>
+          
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
