@@ -5,22 +5,47 @@
     height: 100%;
 }
 
-/* 상단 아이콘들을 위한 스타일 */
-.top-row {
+/* game-container에 옅은 그리드 배경 추가 및 4x2 그리드 레이아웃 */
+.menu-icon-buttons .game-container.menu-grid-container {
     display: flex;
-    justify-content: space-between;
-    position: absolute;
-    top: 0;
+    flex-direction: column;
+    border: 1px solid rgba(200, 200, 200, 0.3);
+    border-radius: 4px;
+    background-image: 
+        linear-gradient(to right, rgba(200, 200, 200, 0.15) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(200, 200, 200, 0.15) 1px, transparent 1px);
+    background-size: 25% 50%; /* 4열 2행 그리드 */
+    background-position: 0 0;
+    padding: 8px;
+    gap: 0;
+}
+
+/* 그리드 행 */
+.menu-grid-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
     width: 100%;
 }
 
-/* 하단 아이콘들을 위한 스타일 */
-.bottom-row {
+/* 그리드 셀 */
+.menu-grid-cell {
     display: flex;
-    justify-content: space-between;
-    position: absolute;
-    bottom: 0;
-    width: 100%;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-right: 1px solid rgba(200, 200, 200, 0.15);
+    border-bottom: 1px solid rgba(200, 200, 200, 0.15);
+}
+
+/* 마지막 열의 셀: 오른쪽 테두리 제거 */
+.menu-grid-cell:nth-child(4n) {
+    border-right: none;
+}
+
+/* 마지막 행의 셀: 아래 테두리 제거 */
+.menu-grid-row:last-child .menu-grid-cell {
+    border-bottom: none;
 }
 
 /* 아이콘 버튼 스타일 */

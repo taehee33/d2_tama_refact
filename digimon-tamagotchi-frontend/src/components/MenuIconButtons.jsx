@@ -17,6 +17,20 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
     return iconMap[iconName];
   };
 
+  const menuLabel = (menuName) => {
+    const labelMap = {
+      status: "스탯",
+      eat: "식사",
+      train: "훈련",
+      battle: "배틀",
+      bathroom: "화장실",
+      electric: "전기",
+      heal: "치료",
+      callSign: "호출",
+    };
+    return labelMap[menuName] || "";
+  };
+
   // 모바일: 그리드 레이아웃
   if (isMobile) {
     const allMenus = ["status", "eat", "train", "battle", "bathroom", "electric", "heal", "callSign"];
@@ -31,51 +45,38 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
             width={60}
             height={60}
             className="icon-button-mobile touch-button"
+            label={menuLabel(menu)}
           />
         ))}
       </div>
     );
   }
 
-  // 데스크톱: 기존 레이아웃
+  // 데스크톱: 4x2 그리드 레이아웃
+  const allMenus = [
+    ["status", "eat", "train", "battle"],
+    ["bathroom", "electric", "heal", "callSign"]
+  ];
+
   return (
     <div className="menu-icon-buttons">
-      <div className="game-container" style={{ position: "relative", width: `${width}px`, height: `${height}px` }}>
-        {/* 상단 메뉴 */}
-        <div className="top-row" style={{ position: "absolute", top: "0", width: "100%" }}>
-          {["status", "eat", "train", "battle"].map((menu, idx) => (
-            <IconButton
-              key={menu}
-              icon={iconPath(menu)}
-              onClick={() => onMenuClick(menu)}
-              isActive={activeMenu === menu}
-              width={60}
-              height={60}
-              style={{
-                position: "absolute",
-                left: `${10 + idx * 20}%`
-              }}
-            />
-          ))}
-        </div>
-
-        {/* 하단 메뉴 */}
-        <div className="bottom-row" style={{ position: "absolute", bottom: "0", width: "100%" }}>
-          {["bathroom", "electric", "heal", "callSign"].map((menu, idx) => (
-            <IconButton
-              key={menu}
-              icon={iconPath(menu)}
-              onClick={() => onMenuClick(menu)}
-              isActive={activeMenu === menu}
-              width={60}
-              height={60}
-              style={{
-                position: "absolute",
-                left: `${10 + idx * 20}%`
-              }}
-            />
-          ))}
-        </div>
+      <div className="game-container menu-grid-container" style={{ width: `${width}px` }}>
+        {allMenus.map((row, rowIdx) => (
+          <div key={rowIdx} className="menu-grid-row">
+            {row.map((menu) => (
+              <div key={menu} className="menu-grid-cell">
+                <IconButton
+                  icon={iconPath(menu)}
+                  onClick={() => onMenuClick(menu)}
+                  isActive={activeMenu === menu}
+                  width={60}
+                  height={60}
+                  label={menuLabel(menu)}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
