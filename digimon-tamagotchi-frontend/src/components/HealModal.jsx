@@ -112,7 +112,16 @@ export default function HealModal({
               </p>
               {/* 상처 원인 표시 */}
               <p className="text-yellow-300 text-center text-sm mt-1">
-                상처원인: {digimonStats.poopCount >= 8 ? '똥 8개' : '배틀'}
+                상처원인: {(() => {
+                  // injuryReason이 있으면 표시
+                  if (digimonStats.injuryReason === 'poop') {
+                    return '똥 8개';
+                  } else if (digimonStats.injuryReason === 'battle') {
+                    return '배틀';
+                  }
+                  // injuryReason이 없으면 확인 불가
+                  return '확인 불가';
+                })()}
               </p>
             </>
           )}

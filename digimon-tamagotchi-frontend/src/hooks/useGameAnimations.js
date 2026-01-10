@@ -294,6 +294,7 @@ export function useGameAnimations({
       updatedStats.isInjured = false;
       updatedStats.injuredAt = null;
       updatedStats.healedDosesCurrent = 0;
+      updatedStats.injuryReason = null; // 부상 원인 리셋
       const logType = nowSleeping ? 'CARE_MISTAKE' : 'HEAL';
       const logText = nowSleeping ? '수면 방해: 치료 - 10분 동안 깨어있음' : treatmentMessage;
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);

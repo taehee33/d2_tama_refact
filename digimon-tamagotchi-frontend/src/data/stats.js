@@ -394,6 +394,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
               updatedStats.injuredAt = timeToMax;
               updatedStats.injuries = (updatedStats.injuries || 0) + 1;
               updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+              updatedStats.injuryReason = 'poop'; // 부상 원인 저장
             }
           } else {
             // 이미 8개였고, 계속 8개 이상이면 부상 상태 유지
@@ -402,6 +403,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
               updatedStats.injuredAt = now.getTime();
               updatedStats.injuries = (updatedStats.injuries || 0) + 1;
               updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
+              updatedStats.injuryReason = 'poop'; // 부상 원인 저장
             }
           }
           updatedStats.poopCountdown += updatedStats.poopTimer * 60;

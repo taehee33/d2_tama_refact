@@ -1028,6 +1028,7 @@ export function useGameActions({
         finalStats.injuredAt = Date.now();
         finalStats.injuries = (battleStats.injuries || 0) + 1;
         finalStats.healedDosesCurrent = 0;
+        finalStats.injuryReason = 'battle'; // 부상 원인 저장
       }
       
       const newWeight = battleStats.weight || 0;
@@ -1108,6 +1109,7 @@ export function useGameActions({
         finalStats.injuredAt = Date.now();
         finalStats.injuries = (battleStats.injuries || 0) + 1;
         finalStats.healedDosesCurrent = 0;
+        finalStats.injuryReason = 'battle'; // 부상 원인 저장
       }
       
       const newWeight = battleStats.weight || 0;

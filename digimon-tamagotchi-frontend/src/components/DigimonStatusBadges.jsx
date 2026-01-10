@@ -92,12 +92,14 @@ const DigimonStatusBadges = ({
 
     // 2. 부상 상태 (긴급)
     if (digimonStats.isInjured) {
-      // 부상 원인 추론: 똥 8개인지 배틀인지 확인
+      // 부상 원인 표시: injuryReason이 있으면 표시, 없으면 확인 불가
       let injuryReason = "";
-      if (poopCount >= 8) {
+      if (digimonStats.injuryReason === 'poop') {
         injuryReason = " (똥 8개)";
-      } else {
+      } else if (digimonStats.injuryReason === 'battle') {
         injuryReason = " (배틀)";
+      } else {
+        injuryReason = " (확인 불가)";
       }
       messages.push({ text: `치료필요! 🏥${injuryReason}`, color: "text-red-600", bgColor: "bg-red-100", priority: 2, category: "critical" });
     } else if (injuries > 0) {
