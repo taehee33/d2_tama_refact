@@ -33,6 +33,17 @@ function fullnessDisplay(fullness=0, maxOverfeed=0){
   return `${base}${over>0 ? "(+" + over + ")" : ""}`;
 }
 
+// strength => 예) proteinCount가 8이면 "5(+3)" (5개 이상 먹었을 때)
+function strengthDisplay(strength=0, proteinCount=0){
+  const base = Math.min(5, strength);
+  let over = 0;
+  // proteinCount가 5 이상일 때, 5개를 초과해서 먹은 개수 표시
+  if(proteinCount > 5){
+    over = proteinCount - 5;
+  }
+  return `${base}${over>0 ? "(+" + over + ")" : ""}`;
+}
+
 // timestamp 포맷팅은 utils/dateUtils에서 import
 const formatTimestamp = formatTimestampUtil;
 
@@ -166,6 +177,14 @@ export default function StatsPopup({
   const possiblePoop= [];
   for(let i=0; i<=8; i++){
     possiblePoop.push(i);
+  }
+  const possibleStrength = [];
+  for(let i=0; i<=5; i++){
+    possibleStrength.push(i);
+  }
+  const possibleProteinCount = [];
+  for(let i=0; i<=33; i++){
+    possibleProteinCount.push(i);
   }
   const possibleInjuries= [];
   for(let i=0; i<=15; i++){
@@ -337,6 +356,29 @@ export default function StatsPopup({
               </select>
             </label>
 
+            {/* proteinCount */}
+            <label className="block mt-1">
+              <div className="flex items-center">
+                <span>Protein Count:</span>
+                <select
+                  value={stats.proteinCount || 0}
+                  onChange={(e)=> {
+                    const newProteinCount = parseInt(e.target.value, 10);
+                    // Protein Count에 따라 Strength 자동 계산
+                    const newStrength = Math.min(5, newProteinCount);
+                    const newStats = { ...stats, proteinCount: newProteinCount, strength: newStrength };
+                    onChangeStats(newStats);
+                  }}
+                  className="border ml-2"
+                >
+                  {possibleProteinCount.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <span className="text-xs text-gray-600 ml-2">
+                  (Strength: {strengthDisplay(Math.min(5, stats.proteinCount || 0), stats.proteinCount || 0)})
+                </span>
+              </div>
+            </label>
+
             {/* weight */}
             <label className="block mt-1">
               Weight:
@@ -440,8 +482,8 @@ export default function StatsPopup({
         <ul className="space-y-1">
           <li>Age: {age || 0} days</li>
           <li>Weight: {weight || 0}g</li>
-          <li>Hunger (Fullness): {fullnessDisplay(fullness, maxOverfeed)}</li>
-          <li>Strength: {strength || 0}/5</li>
+          <li>Hunger (Fullness): {fullnessDisplay(fullness, maxOverfeed)}/5</li>
+          <li>Strength: {strengthDisplay(strength || 0, stats.proteinCount || 0)}/5</li>
           <li>Energy (Current): {energy || 0}/{maxEnergy || maxStamina || 0}</li>
           <li className="ml-4 text-xs text-gray-600">
             • 기상 시간 회복 (max): {getTimeUntilWakeForEnergy()}

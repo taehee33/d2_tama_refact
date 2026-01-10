@@ -163,13 +163,14 @@ const DigimonStatusBadges = ({
     }
 
     // 4.5. 수면까지 남은 시간 표시 (AWAKE 상태이고 wakeUntil이 없을 때)
+    // 우선순위를 낮춰서 다른 중요한 상태 메시지 뒤에 표시
     if (sleepStatus === "AWAKE" && !wakeUntil && sleepSchedule) {
       const timeUntil = getTimeUntilSleep(sleepSchedule, new Date());
       messages.push({ 
         text: `수면까지 ${timeUntil} 😴`, 
         color: "text-blue-500", 
         bgColor: "bg-blue-100", 
-        priority: 4.5, 
+        priority: 7, 
         category: "info" 
       });
     }
@@ -201,16 +202,35 @@ const DigimonStatusBadges = ({
     if (fullness > 5) {
       messages.push({ text: "고기 오버피드 🍖", color: "text-orange-500", bgColor: "bg-orange-100", priority: 7, category: "warning" });
     }
-    // 단백질 과다 복용 경고 (거부 전 단계)
+    // 단백질 과다 복용 (약물중독)
     // proteinOverdose는 0-7 범위, 7일 때 거부됨
-    if (proteinOverdose >= 6) {
-      messages.push({ text: "단백질 과다 복용 위험! (거의 한계) ⚠️💪", color: "text-red-600", bgColor: "bg-red-100", priority: 7, category: "warning" });
-    } else if (proteinOverdose >= 4) {
-      messages.push({ text: "단백질 과다 복용 주의! ⚠️💪", color: "text-orange-600", bgColor: "bg-orange-100", priority: 7, category: "warning" });
-    } else if (proteinOverdose >= 2) {
-      messages.push({ text: "단백질 과다 복용 경고 ⚠️💪", color: "text-yellow-600", bgColor: "bg-yellow-100", priority: 7, category: "info" });
-    } else if (proteinOverdose >= 1) {
-      messages.push({ text: "단백질 과다 복용 시작 💪", color: "text-yellow-500", bgColor: "bg-yellow-100", priority: 7, category: "info" });
+    if (proteinOverdose > 0) {
+      // 수치에 따른 색상 결정
+      let color = "text-yellow-600";
+      let bgColor = "bg-yellow-100";
+      let category = "info";
+      
+      if (proteinOverdose >= 6) {
+        color = "text-red-600";
+        bgColor = "bg-red-100";
+        category = "warning";
+      } else if (proteinOverdose >= 4) {
+        color = "text-orange-600";
+        bgColor = "bg-orange-100";
+        category = "warning";
+      } else if (proteinOverdose >= 2) {
+        color = "text-yellow-600";
+        bgColor = "bg-yellow-100";
+        category = "warning";
+      }
+      
+      messages.push({ 
+        text: `약물중독🤢💉 (x${proteinOverdose})`, 
+        color: color, 
+        bgColor: bgColor, 
+        priority: 7, 
+        category: category 
+      });
     }
 
     // 8. 정상 상태

@@ -10,6 +10,7 @@ const StatusHearts = ({
   strength = 0,
   maxOverfeed = 0,
   proteinOverdose = 0, // 단백질 과다 복용 수치 (0-7)
+  proteinCount = 0, // 단백질 누적 개수
   showLabels = true,
   size = "md", // "sm" | "md" | "lg"
   position = "top-left", // "top-left" | "top-right" | "bottom-left" | "bottom-right" | "inline"
@@ -24,6 +25,9 @@ const StatusHearts = ({
   // 기본 하트 수 (0-5)
   const baseFullness = Math.min(5, fullness);
   const overfeed = fullness > 5 ? fullness - 5 : 0;
+  
+  // Strength 초과분 계산 (proteinCount가 5 이상일 때)
+  const strengthOver = proteinCount > 5 ? proteinCount - 5 : 0;
   
   // 하트 렌더링 함수
   const renderHearts = (value, max = 5, color = "red", label = "") => {
@@ -98,6 +102,53 @@ const StatusHearts = ({
     );
   };
 
+  // Strength 초과분 하트 렌더링 (proteinCount가 5 이상일 때)
+  // proteinOverdose가 있을 때는 💊 표시
+  // proteinCount가 9, 13, 17, 21, 25, 29, 33일 때는 ⚠️ 표시
+  const renderStrengthOver = () => {
+    if (strengthOver <= 0) return null;
+    
+    // proteinCount가 9, 13, 17, 21, 25, 29, 33 중 하나인지 확인
+    const overdoseTriggerPoints = [9, 13, 17, 21, 25, 29, 33];
+    const isOverdoseTrigger = overdoseTriggerPoints.includes(proteinCount);
+    
+    // 각 하트의 위치에 따라 아이콘 결정
+    // proteinCount가 9면 첫 번째 하트에 ⚠️, 13이면 두 번째 하트에 ⚠️ 등
+    const getIconForIndex = (index) => {
+      // 현재 하트의 proteinCount 위치 계산 (5 + index + 1)
+      const currentProteinCount = 5 + index + 1;
+      if (overdoseTriggerPoints.includes(currentProteinCount)) {
+        return '⚠️';
+      }
+      // proteinOverdose가 있으면 💊 표시
+      if (proteinOverdose > 0) {
+        return '💊';
+      }
+      return '💊'; // 기본값
+    };
+    
+    return (
+      <div className="flex items-center gap-1 ml-2">
+        <span className="text-xs text-gray-500 font-bold">+</span>
+        {Array.from({ length: strengthOver }).map((_, i) => {
+          const icon = getIconForIndex(i);
+          return (
+            <span 
+              key={i} 
+              className={`${heartSize} text-orange-500`}
+              style={{ 
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))',
+                display: 'inline-block',
+              }}
+            >
+              {icon}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   // 단백질 과다 복용 경고 렌더링
   const renderProteinOverdose = () => {
     if (proteinOverdose <= 0) return null;
@@ -124,13 +175,11 @@ const StatusHearts = ({
           }}
           title={`Protein Overdose: ${proteinOverdose}/7 (Injury Risk: +${injuryChance - 10}%)`}
         >
-          ⚠️
+          🤢💉
         </span>
-        {proteinOverdose >= 5 && (
-          <span className="text-xs font-bold text-red-600">
-            {proteinOverdose}/7
-          </span>
-        )}
+        <span className="text-xs font-bold text-red-600">
+          (x{proteinOverdose})
+        </span>
       </div>
     );
   };
@@ -148,6 +197,7 @@ const StatusHearts = ({
         {/* Strength (단백질) */}
         <div className="flex items-center">
           {renderHearts(strength, 5, "blue", showLabels ? "💪 Strength" : "")}
+          {renderStrengthOver()}
           {renderProteinOverdose()}
         </div>
       </div>
@@ -185,6 +235,7 @@ const StatusHearts = ({
         {/* Strength (단백질) */}
         <div className="flex items-center">
           {renderHearts(strength, 5, "blue", showLabels ? "💪" : "")}
+          {renderStrengthOver()}
           {renderProteinOverdose()}
         </div>
       </div>

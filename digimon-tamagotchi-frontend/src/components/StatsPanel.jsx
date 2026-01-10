@@ -117,11 +117,12 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
               strength={stats.strength || 0}
               maxOverfeed={stats.maxOverfeed || 0}
               proteinOverdose={stats.proteinOverdose || 0}
+              proteinCount={stats.proteinCount || 0}
               showLabels={true}
               size="sm"
               position="inline"
             />
-            <p className="text-xs text-gray-500 mt-1">Fullness: {fullnessDisplay(stats.fullness, stats.maxOverfeed)}</p>
+            
           </div>
         )}
       </div>

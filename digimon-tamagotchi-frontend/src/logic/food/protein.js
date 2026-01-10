@@ -23,22 +23,37 @@ export function feedProtein(stats) {
   // 체중 +2 Gigabyte
   s.weight = (s.weight || 0) + 2;
   
-  // 프로틴 카운트 증가 (4개당 Energy +1, Protein Overdose +1)
+  // 프로틴 카운트 증가
   const proteinCount = (s.proteinCount || 0) + 1;
   s.proteinCount = proteinCount;
   
-  // 4개마다 Energy +1, Protein Overdose +1 (메뉴얼: "Every four Protein will increase your Energy and Protein Overdose by 1 each.")
-  if (proteinCount % 4 === 0) {
-    const maxEnergy = s.maxEnergy || s.maxStamina || 100;
-    s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
-    s.proteinOverdose = Math.min(7, (s.proteinOverdose || 0) + 1); // 최대 7
+  // proteinCount ≤ 5: 4가 되면 energy만 +1 증가, proteinOverdose는 증가하지 않음
+  // proteinCount > 5: 9, 13, 17, 21, 25, 29, 33이 되면 energy +1, proteinOverdose +1 증가
+  const maxEnergy = s.maxEnergy || s.maxStamina || 100;
+  
+  if (proteinCount <= 5) {
+    // proteinCount가 4일 때만 energy +1
+    if (proteinCount === 4) {
+      s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
+    }
+  } else {
+    // proteinCount > 5: 9, 13, 17, 21, 25, 29, 33일 때 energy +1, proteinOverdose +1
+    const overdoseTriggerPoints = [9, 13, 17, 21, 25, 29, 33];
+    if (overdoseTriggerPoints.includes(proteinCount)) {
+      s.energy = Math.min(maxEnergy, (s.energy || 0) + 1);
+      s.proteinOverdose = Math.min(7, (s.proteinOverdose || 0) + 1); // 최대 7
+    }
   }
+  
+  // energy 증가 여부 확인
+  const energyRestored = (proteinCount <= 5 && proteinCount === 4) || 
+                         (proteinCount > 5 && [9, 13, 17, 21, 25, 29, 33].includes(proteinCount));
   
   return {
     updatedStats: s,
     strengthIncreased: s.strength > oldStrength,
-    energyRestored: proteinCount % 4 === 0,
-    proteinOverdoseIncreased: proteinCount % 4 === 0,
+    energyRestored: energyRestored,
+    proteinOverdoseIncreased: proteinCount > 5 && [9, 13, 17, 21, 25, 29, 33].includes(proteinCount),
   };
 }
 
