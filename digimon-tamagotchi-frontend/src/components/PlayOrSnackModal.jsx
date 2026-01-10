@@ -6,6 +6,7 @@ import "../styles/Battle.css";
 
 const activities = [
   "공놀이하기!",
+  "밧줄놀이하기!",
   "간식 주기!",
   "장난감 놀아주기!",
   "산책하기!"
@@ -43,6 +44,10 @@ export default function PlayOrSnackModal({ onClose, onComplete, currentCareMista
     // timer3: 3초 후 100%로 완료
     const timer3 = setTimeout(() => {
       setProgress(100);
+    }, 3000);
+    
+    // timer4: 3.7초 후 결과 표시 (100% 후 0.7초 대기)
+    const timer4 = setTimeout(() => {
       setIsComplete(true);
       // 60% 확률로 성공/실패 결정
       const isSuccess = Math.random() < 0.6;
@@ -54,12 +59,13 @@ export default function PlayOrSnackModal({ onClose, onComplete, currentCareMista
       } else {
         setResult("failure");
       }
-    }, 3000);
+    }, 3700);
 
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
+      clearTimeout(timer4);
     };
   }, [selectedActivity, currentCareMistakes]);
 
