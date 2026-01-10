@@ -551,15 +551,14 @@ export function useGameActions({
           ...prevStats,
           poopCount: 0,
           lastMaxPoopTime: null,
-          isInjured: false, // 똥 청소 시 부상 상태 해제
+          // 똥 청소 시 부상 상태는 해제하지 않음 (치료제로만 회복 가능)
+          // isInjured는 그대로 유지
           lastSavedAt: now
         };
         
         // Activity Log 추가
         let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
-        if (wasInjured) {
-          logText += ' - Injury healed!';
-        }
+        // 똥 청소 시 부상 상태는 자동으로 회복되지 않음
         
         const newLog = {
           type: 'CLEAN',
