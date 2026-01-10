@@ -9,7 +9,8 @@ export default function InteractionModal({
   onDiet,
   onDetox,
   onRest,
-  onPlayOrSnack
+  onPlayOrSnack,
+  onTease
 }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -64,6 +65,18 @@ export default function InteractionModal({
             className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
             놀아주기/간식주기
+          </button>
+          
+          <button
+            onClick={() => {
+              if (onTease) {
+                onTease();
+              }
+              onClose();
+            }}
+            className="px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
+          >
+            괜히 괴롭히기
           </button>
           
           <button

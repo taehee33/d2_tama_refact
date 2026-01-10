@@ -143,6 +143,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     rest: false,
     detox: false,
     playOrSnack: false,
+    tease: false,
     
     // 애니메이션 표시 (모달은 아니지만 show로 시작)
     food: false,

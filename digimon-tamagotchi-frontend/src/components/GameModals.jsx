@@ -23,6 +23,7 @@ import DietModal from "./DietModal";
 import RestModal from "./RestModal";
 import DetoxModal from "./DetoxModal";
 import PlayOrSnackModal from "./PlayOrSnackModal";
+import TeaseModal from "./TeaseModal";
 import LightsModal from "./LightsModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
@@ -74,6 +75,7 @@ export default function GameModals({
   } = gameState || {};
   
   // 수면방해 처리 함수
+  // 반환값: { updatedStats, updatedLogs, sleepDisturbed: boolean }
   const handleSleepDisturbance = (updatedStats, updatedLogs, actionType) => {
     const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
@@ -97,9 +99,17 @@ export default function GameModals({
         activityLogs: logsWithDisturbance,
       };
       setDigimonStatsAndSave(statsWithDisturbance, logsWithDisturbance);
-      return statsWithDisturbance;
+      return {
+        updatedStats: statsWithDisturbance,
+        updatedLogs: logsWithDisturbance,
+        sleepDisturbed: true,
+      };
     }
-    return updatedStats;
+    return {
+      updatedStats,
+      updatedLogs,
+      sleepDisturbed: false,
+    };
   };
 
   const {
@@ -309,6 +319,10 @@ export default function GameModals({
             toggleModal('interaction', false);
             toggleModal('playOrSnack', true);
           }}
+          onTease={() => {
+            toggleModal('interaction', false);
+            toggleModal('tease', true);
+          }}
         />
       )}
 
@@ -337,11 +351,11 @@ export default function GameModals({
               );
               
               // 수면방해 처리 (실제 액션 수행 시점)
-              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '다이어트');
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '다이어트');
               
-              // 스탯 저장
-              if (setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
+              if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
               }
             }
           }}
@@ -373,11 +387,11 @@ export default function GameModals({
               );
               
               // 수면방해 처리 (실제 액션 수행 시점)
-              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '누워있기');
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '누워있기');
               
-              // 스탯 저장
-              if (setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
+              if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
               }
             }
           }}
@@ -409,11 +423,11 @@ export default function GameModals({
               );
               
               // 수면방해 처리 (실제 액션 수행 시점)
-              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '디톡스');
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '디톡스');
               
-              // 스탯 저장
-              if (setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
+              if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
               }
             }
           }}
@@ -445,11 +459,47 @@ export default function GameModals({
               );
               
               // 수면방해 처리 (실제 액션 수행 시점)
-              updatedStats = handleSleepDisturbance(updatedStats, updatedLogs, '놀아주기/간식주기');
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '놀아주기/간식주기');
               
-              // 스탯 저장
-              if (setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
+              if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Tease Modal (괜히 괴롭히기) */}
+      {modals.tease && (
+        <TeaseModal
+          onClose={() => toggleModal('tease', false)}
+          currentCareMistakes={digimonStats?.careMistakes || 0}
+          onComplete={async (result) => {
+            if (result === "success") {
+              // 성공 시 케어미스 +1
+              const currentStats = digimonStats || {};
+              const newCareMistakes = (currentStats.careMistakes || 0) + 1;
+              
+              let updatedStats = {
+                ...currentStats,
+                careMistakes: newCareMistakes,
+              };
+              
+              // Activity Log 추가
+              const currentLogs = currentStats.activityLogs || activityLogs || [];
+              const updatedLogs = addActivityLog(
+                currentLogs,
+                'CAREMISTAKE',
+                `괜히 괴롭히기 성공! 케어미스: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
+              );
+              
+              // 수면방해 처리 (실제 액션 수행 시점)
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '괜히 괴롭히기');
+              
+              // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
+              if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
               }
             }
           }}
