@@ -1,5 +1,5 @@
 // src/components/StatsPanel.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import StatusHearts from "./StatusHearts";
 
@@ -48,15 +48,51 @@ function formatCountdown(sec=0){
 const formatTimestamp = formatTimestampUtil;
 
 const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
-  // 모바일에서 각 섹션별 접기/펼치기 상태
-  const [showBasicStats, setShowBasicStats] = useState(true); // 기본적으로 펼침
-  const [showHearts, setShowHearts] = useState(true); // 기본적으로 펼침
-  const [showDevInfo, setShowDevInfo] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  // localStorage에서 접기/펼치기 상태 로드
+  const loadAccordionState = (key, defaultValue) => {
+    try {
+      const saved = localStorage.getItem(`statsPanel_${key}`);
+      return saved !== null ? JSON.parse(saved) : defaultValue;
+    } catch (error) {
+      console.error(`Failed to load accordion state for ${key}:`, error);
+      return defaultValue;
+    }
+  };
 
-  // 아코디언 버튼 컴포넌트 (재사용)
+  // localStorage에 접기/펼치기 상태 저장
+  const saveAccordionState = (key, value) => {
+    try {
+      localStorage.setItem(`statsPanel_${key}`, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Failed to save accordion state for ${key}:`, error);
+    }
+  };
+
+  // 각 섹션별 접기/펼치기 상태 (localStorage에서 초기값 로드)
+  const [showBasicStats, setShowBasicStats] = useState(() => loadAccordionState('showBasicStats', true));
+  const [showHearts, setShowHearts] = useState(() => loadAccordionState('showHearts', false));
+  const [showDevInfo, setShowDevInfo] = useState(() => loadAccordionState('showDevInfo', false));
+  const [showAdvanced, setShowAdvanced] = useState(() => loadAccordionState('showAdvanced', false));
+
+  // 상태 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveAccordionState('showBasicStats', showBasicStats);
+  }, [showBasicStats]);
+
+  useEffect(() => {
+    saveAccordionState('showHearts', showHearts);
+  }, [showHearts]);
+
+  useEffect(() => {
+    saveAccordionState('showDevInfo', showDevInfo);
+  }, [showDevInfo]);
+
+  useEffect(() => {
+    saveAccordionState('showAdvanced', showAdvanced);
+  }, [showAdvanced]);
+
+  // 아코디언 버튼 컴포넌트 (재사용) - 웹과 모바일 모두에서 사용
   const AccordionButton = ({ isOpen, onClick, title, defaultOpen = false }) => {
-    if (!isMobile) return null;
     return (
       <button
         onClick={onClick}
@@ -66,12 +102,6 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
         <span className="text-gray-500">{isOpen ? '▼' : '▶'}</span>
       </button>
     );
-  };
-
-  // 섹션 헤더 (데스크톱용)
-  const SectionHeader = ({ title, isMobile }) => {
-    if (isMobile) return null;
-    return <p className="text-xs font-semibold text-gray-700 mb-1">{title}</p>;
   };
 
   return (
@@ -86,8 +116,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           title="1. 기본 스탯"
           defaultOpen={true}
         />
-        <SectionHeader title="1. 기본 스탯" isMobile={isMobile} />
-        {(isMobile ? showBasicStats : true) && (
+        {showBasicStats && (
           <div className="space-y-1">
             <p>Age: {stats.age || 0}</p>
             <p>Weight: {stats.weight || 0}</p>
@@ -109,8 +138,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           title="2. 상태 하트"
           defaultOpen={true}
         />
-        <SectionHeader title="2. 상태 하트" isMobile={isMobile} />
-        {(isMobile ? showHearts : true) && (
+        {showHearts && (
           <div>
             <StatusHearts
               fullness={stats.fullness || 0}
@@ -134,8 +162,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           onClick={() => setShowDevInfo(!showDevInfo)}
           title="3. Dev Info"
         />
-        <SectionHeader title="3. Dev Info" isMobile={isMobile} />
-        {(isMobile ? showDevInfo : true) && (
+        {showDevInfo && (
           <div className="text-xs space-y-0.5 mt-1">
             <p>Protein Overdose: {stats.proteinOverdose || 0}</p>
             <p>Overfeeds: {stats.overfeeds || 0}</p>
@@ -152,8 +179,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           onClick={() => setShowAdvanced(!showAdvanced)}
           title="4. 내부/고급 카운터"
         />
-        <SectionHeader title="4. 내부/고급 카운터" isMobile={isMobile} />
-        {(isMobile ? showAdvanced : true) && (
+        {showAdvanced && (
           <div className="text-xs space-y-0.5">
             <p>HungerTimer: {stats.hungerTimer || 0} min (남은 시간: {formatCountdown(stats.hungerCountdown || 0)})</p>
             <p>StrengthTimer: {stats.strengthTimer || 0} min (남은 시간: {formatCountdown(stats.strengthCountdown || 0)})</p>
