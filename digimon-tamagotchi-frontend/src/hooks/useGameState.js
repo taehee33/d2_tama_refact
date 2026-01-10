@@ -137,6 +137,10 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     heal: false,
     call: false,
     
+    // 교감
+    interaction: false,
+    diet: false,
+    
     // 애니메이션 표시 (모달은 아니지만 show로 시작)
     food: false,
     poopCleanAnimation: false,
@@ -260,6 +264,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       arenaScreen: false,
       heal: false,
       call: false,
+      interaction: false,
+      diet: false,
       food: false,
       poopCleanAnimation: false,
       healAnimation: false,

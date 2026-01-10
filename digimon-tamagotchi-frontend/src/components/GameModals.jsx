@@ -18,6 +18,9 @@ import DigimonInfoModal from "./DigimonInfoModal";
 import HealModal from "./HealModal";
 import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
 import OverfeedConfirmModal from "./OverfeedConfirmModal";
+import InteractionModal from "./InteractionModal";
+import DietModal from "./DietModal";
+import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
  * GameModals 컴포넌트
@@ -245,6 +248,58 @@ export default function GameModals({
           onClose={() => toggleModal('communication', false)}
           onSparringStart={handleSparringStart}
           onArenaStart={handleArenaStart}
+        />
+      )}
+
+      {/* Interaction Modal (교감) */}
+      {modals.interaction && (
+        <InteractionModal
+          onClose={() => toggleModal('interaction', false)}
+          onDiet={() => {
+            toggleModal('interaction', false);
+            toggleModal('diet', true);
+          }}
+          onDetox={() => {
+            // TODO: 디톡스 기능 구현
+            console.log("디톡스 클릭");
+          }}
+          onPlayOrSnack={() => {
+            // TODO: 놀아주기/간식주기 기능 구현
+            console.log("놀아주기/간식주기 클릭");
+          }}
+        />
+      )}
+
+      {/* Diet Modal (다이어트) */}
+      {modals.diet && (
+        <DietModal
+          onClose={() => toggleModal('diet', false)}
+          currentFullness={digimonStats?.fullness || 0}
+          onComplete={async (result) => {
+            if (result === "success") {
+              // 성공 시 포만감 -1 (최소 0)
+              const currentStats = digimonStats || {};
+              const newFullness = Math.max(0, (currentStats.fullness || 0) - 1);
+              
+              const updatedStats = {
+                ...currentStats,
+                fullness: newFullness,
+              };
+              
+              // Activity Log 추가
+              const currentLogs = currentStats.activityLogs || activityLogs || [];
+              const updatedLogs = addActivityLog(
+                currentLogs,
+                'DIET',
+                `다이어트 성공! 포만감: ${currentStats.fullness || 0} → ${newFullness}`
+              );
+              
+              // 스탯 저장
+              if (setDigimonStatsAndSave) {
+                await setDigimonStatsAndSave(updatedStats, updatedLogs);
+              }
+            }
+          }}
         />
       )}
 

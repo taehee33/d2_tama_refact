@@ -149,6 +149,9 @@ export function useGameHandlers({
       case "callSign":
         toggleModal('call', true);
         break;
+      case "communication":
+        toggleModal('interaction', true);
+        break;
       default:
     }
   };
