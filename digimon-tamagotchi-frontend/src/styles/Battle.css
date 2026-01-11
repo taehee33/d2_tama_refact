@@ -125,19 +125,29 @@
   }
 }
 
-/* 타격 텍스트 (💀💀!HIT!💀💀) */
+/* 타격 텍스트 (💀!HIT!💀) */
 .hit-text {
   position: absolute;
   top: -30px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 28px;
-  font-weight: bold;
+  font-size: 32px;
+  font-weight: 900;
   color: #ff0000;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 2px solid #ff0000;
+  text-shadow: 
+    0 0 10px rgba(255, 0, 0, 1),
+    0 0 20px rgba(255, 0, 0, 0.8),
+    2px 2px 4px rgba(0, 0, 0, 1),
+    -2px -2px 4px rgba(0, 0, 0, 1);
   z-index: 30;
   animation: hitTextBounce 1s ease-out forwards;
   pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
 }
 
 @keyframes hitTextBounce {
@@ -233,13 +243,23 @@
   top: -30px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 24px;
-  font-weight: bold;
-  color: #ff6b6b;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffaa00;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 2px solid #ffaa00;
+  text-shadow: 
+    0 0 10px rgba(255, 170, 0, 1),
+    0 0 20px rgba(255, 170, 0, 0.8),
+    2px 2px 4px rgba(0, 0, 0, 1),
+    -2px -2px 4px rgba(0, 0, 0, 1);
   z-index: 30;
   animation: missTextFloat 1s ease-out forwards;
   pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 0 15px rgba(255, 170, 0, 0.6);
 }
 
 @keyframes missTextFloat {
@@ -518,30 +538,36 @@
     padding-top: 80px; /* 상단 고정 메뉴 공간 확보 */
   }
 
-  /* 배틀 영역: 세로 배치, 컴팩트하게 */
+  /* 배틀 영역: 가로 배치 유지 (웹과 동일) */
   .battle-area {
-    flex-direction: column;
-    gap: 15px;
+    flex-direction: row !important;
+    gap: 20px;
     min-height: auto !important;
     padding: 15px !important;
+    justify-content: space-between;
+    align-items: center;
   }
 
   .battle-side {
-    width: 100%;
-    max-width: 100%;
+    width: auto;
+    min-width: 0;
+    flex: 1;
+    max-width: 40%;
   }
 
   /* 디지몬 스프라이트: 모바일에서 작게 */
   .digimon-sprite img {
-    width: 80px !important;
-    height: 80px !important;
+    width: 60px !important;
+    height: 60px !important;
+    max-width: 100%;
   }
 
-  /* VS 텍스트: 세로 배치 시 회전 */
+  /* VS 텍스트: 가로 배치 유지, 여백 확보 */
   .vs-text {
-    transform: rotate(90deg);
-    font-size: 1.5rem;
-    margin: 10px 0;
+    transform: none;
+    font-size: 1.2rem;
+    margin: 0 10px;
+    flex-shrink: 0;
   }
 
   /* 배틀 로그 컨테이너: 높이 제한 및 스크롤 */
@@ -571,11 +597,12 @@
 
   /* 디지몬 정보: 작은 폰트 */
   .digimon-info {
-    font-size: 12px;
+    font-size: 10px;
   }
 
   .digimon-info p {
     margin: 2px 0;
+    line-height: 1.2;
   }
 
   /* 히트 마커: 작게 */
@@ -622,7 +649,7 @@
     margin: 5px;
   }
 
-  /* 발사체 애니메이션: 모바일 경로 */
+  /* 발사체 애니메이션: 모바일 경로 (더 넓은 범위로 조정) */
   .projectile.shoot-right {
     animation: shootRightMobile 0.8s ease-out forwards;
   }
@@ -631,37 +658,51 @@
     animation: shootLeftMobile 0.8s ease-out forwards;
   }
 
+  /* 발사체 크기: 모바일에서 작게 */
+  .projectile {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
   @keyframes shootRightMobile {
     0% {
-      left: 10%;
+      left: 5%;
       opacity: 1;
     }
     100% {
-      left: 90%;
+      left: 95%;
       opacity: 0;
     }
   }
 
   @keyframes shootLeftMobile {
     0% {
-      left: 90%;
+      left: 95%;
       opacity: 1;
     }
     100% {
-      left: 10%;
+      left: 5%;
       opacity: 0;
     }
   }
 
-  /* 타격 텍스트: 작게 */
+  /* 타격 텍스트: 모바일에서도 잘 보이게 */
   .hit-text {
-    font-size: 20px;
+    font-size: 24px;
+    font-weight: 900;
     top: -20px;
+    padding: 3px 10px;
+    border-width: 2px;
+    box-shadow: 0 0 12px rgba(255, 0, 0, 0.6);
   }
 
   .miss-text {
-    font-size: 18px;
+    font-size: 22px;
+    font-weight: 900;
     top: -20px;
+    padding: 3px 10px;
+    border-width: 2px;
+    box-shadow: 0 0 12px rgba(255, 170, 0, 0.6);
   }
 
   /* 로그 리뷰 화면: 모바일 최적화 */

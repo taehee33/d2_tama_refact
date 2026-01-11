@@ -466,7 +466,7 @@ export default function BattleScreen({
               />
               {/* HIT! 텍스트 */}
               {hitText?.target === "user" && (
-                <div className="hit-text">💀💀!HIT!💀💀</div>
+                <div className="hit-text">💀!HIT!💀</div>
               )}
               {/* MISS 텍스트 */}
               {missText?.target === "user" && (
@@ -551,7 +551,7 @@ export default function BattleScreen({
               />
               {/* HIT! 텍스트 */}
               {hitText?.target === "enemy" && (
-                <div className="hit-text">💀💀!HIT!💀💀</div>
+                <div className="hit-text">💀!HIT!💀</div>
               )}
               {/* MISS 텍스트 */}
               {missText?.target === "enemy" && (
