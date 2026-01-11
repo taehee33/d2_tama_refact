@@ -27,6 +27,7 @@ import TeaseModal from "./TeaseModal";
 import LightsModal from "./LightsModal";
 import ExtraMenuModal from "./ExtraMenuModal";
 import CollectionModal from "./CollectionModal";
+import BackgroundSettingsModal from "./BackgroundSettingsModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -156,6 +157,8 @@ export default function GameModals({
     width,
     height,
     backgroundNumber,
+    backgroundSettings,
+    setBackgroundSettings,
     timeSpeed,
     customTime,
     foodSizeScale,
@@ -688,10 +691,32 @@ export default function GameModals({
         />
       )}
 
-      {/* Collection Modal (컬렉션) */}
+      {/* Collection Modal (컬렉션 메인 메뉴) */}
       {modals.collection && (
         <CollectionModal
           onClose={() => toggleModal('collection', false)}
+          onBack={() => {
+            toggleModal('collection', false);
+            toggleModal('extra', true);
+          }}
+          onOpenBackgroundSettings={() => {
+            toggleModal('collection', false);
+            toggleModal('backgroundSettings', true);
+          }}
+        />
+      )}
+
+      {/* Background Settings Modal (배경화면 설정) */}
+      {modals.backgroundSettings && (
+        <BackgroundSettingsModal
+          onClose={() => toggleModal('backgroundSettings', false)}
+          onBack={() => {
+            toggleModal('backgroundSettings', false);
+            toggleModal('collection', true);
+          }}
+          backgroundSettings={ui?.backgroundSettings}
+          setBackgroundSettings={ui?.setBackgroundSettings}
+          currentTime={ui?.customTime || new Date()}
         />
       )}
     </>

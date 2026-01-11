@@ -171,6 +171,8 @@ function Game(){
     setCurrentAnimation,
     backgroundNumber,
     setBackgroundNumber,
+    backgroundSettings,
+    setBackgroundSettings,
     width,
     setWidth,
     height,

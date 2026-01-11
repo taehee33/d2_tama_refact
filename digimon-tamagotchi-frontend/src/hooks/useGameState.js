@@ -1,8 +1,10 @@
 // src/hooks/useGameState.js
 // Game.jsx의 모든 State 관리를 통합한 Custom Hook
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { initializeStats } from "../data/stats";
+import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { getBackgroundSprite } from "../utils/backgroundUtils";
 
 /**
  * Sprite 설정을 localStorage에서 로드
@@ -164,6 +166,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     // 추가 기능 모달
     extra: false,
     collection: false,
+    backgroundSettings: false,
   });
   
   // ============================================
@@ -188,7 +191,28 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // ============================================
   const [activeMenu, setActiveMenu] = useState(null);
   const [currentAnimation, setCurrentAnimation] = useState("idle");
-  const [backgroundNumber, setBackgroundNumber] = useState(162);
+  
+  // 배경화면 설정 (localStorage에서 로드)
+  const [backgroundSettings, setBackgroundSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('backgroundSettings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      console.error('Background settings 로드 오류:', error);
+    }
+    return DEFAULT_BACKGROUND_SETTINGS;
+  });
+  
+  // backgroundSettings 변경 시 localStorage에 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem('backgroundSettings', JSON.stringify(backgroundSettings));
+    } catch (error) {
+      console.error('Background settings 저장 오류:', error);
+    }
+  }, [backgroundSettings]);
   
   // Canvas 크기
   const [width, setWidth] = useState(() => loadSpriteSettings().width);
@@ -213,9 +237,37 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [cleanStep, setCleanStep] = useState(0);
   const [healStep, setHealStep] = useState(0);
   
-  // 시간 관련
+  // 시간 관련 (backgroundNumber 계산 전에 선언 필요)
   const [customTime, setCustomTime] = useState(new Date());
   const [timeSpeed, setTimeSpeed] = useState(1);
+  
+  // 실제 배경화면 번호 계산 (호환성 유지) - customTime 이후에 선언
+  const backgroundNumber = useMemo(() => {
+    return getBackgroundSprite(backgroundSettings, customTime || new Date());
+  }, [backgroundSettings, customTime]);
+  
+  // setBackgroundNumber 호환성 함수 (숫자를 받아서 배경화면 설정으로 변환)
+  const setBackgroundNumber = (number) => {
+    // 숫자로 배경화면을 찾아서 설정
+    // 162-164: default, 165-167: forest, 168-170: city, 171-173: desert, 174-176: ocean, 177-179: space
+    const bgId = number >= 162 && number <= 164 ? 'default' :
+                 number >= 165 && number <= 167 ? 'forest' :
+                 number >= 168 && number <= 170 ? 'city' :
+                 number >= 171 && number <= 173 ? 'desert' :
+                 number >= 174 && number <= 176 ? 'ocean' :
+                 number >= 177 && number <= 179 ? 'space' : 'default';
+    
+    // 스프라이트 인덱스 계산 (0, 1, 2)
+    const baseSprite = number >= 162 && number <= 164 ? 162 :
+                      number >= 165 && number <= 167 ? 165 :
+                      number >= 168 && number <= 170 ? 168 :
+                      number >= 171 && number <= 173 ? 171 :
+                      number >= 174 && number <= 176 ? 174 :
+                      number >= 177 && number <= 179 ? 177 : 162;
+    
+    const spriteIndex = number - baseSprite;
+    setBackgroundSettings({ selectedId: bgId, mode: spriteIndex.toString() });
+  };
   
   // 진화 관련
   const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
@@ -373,7 +425,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       currentAnimation,
       setCurrentAnimation,
       backgroundNumber,
-      setBackgroundNumber,
+      setBackgroundNumber, // 호환성 유지 (실제로는 backgroundSettings 사용)
+      backgroundSettings,
+      setBackgroundSettings,
       width,
       setWidth,
       height,

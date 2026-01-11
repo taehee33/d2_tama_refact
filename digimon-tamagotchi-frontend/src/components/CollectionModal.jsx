@@ -1,11 +1,13 @@
 // src/components/CollectionModal.jsx
-// 컬렉션 모달
+// 컬렉션 모달 (메인 메뉴)
 
 import React from "react";
 import "../styles/Battle.css";
 
 export default function CollectionModal({ 
   onClose,
+  onBack,
+  onOpenBackgroundSettings,
 }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -16,7 +18,10 @@ export default function CollectionModal({
           {/* 배경화면 버튼 */}
           <button
             onClick={() => {
-              alert("준비중입니다.");
+              if (onOpenBackgroundSettings) {
+                onOpenBackgroundSettings();
+              }
+              onClose();
             }}
             className="w-full px-6 py-4 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
@@ -39,7 +44,13 @@ export default function CollectionModal({
           
           {/* 뒤로가기 버튼 */}
           <button
-            onClick={onClose}
+            onClick={() => {
+              if (onBack) {
+                onBack();
+              } else {
+                onClose();
+              }
+            }}
             className="w-full px-6 py-4 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
           >
             뒤로가기
