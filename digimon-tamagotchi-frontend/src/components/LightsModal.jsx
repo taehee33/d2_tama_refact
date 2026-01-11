@@ -6,8 +6,13 @@ import "../styles/Battle.css";
 
 export default function LightsModal({ onClose, onTurnOn, onTurnOff, isLightsOn }) {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl min-w-[300px]">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
+      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{ 
+        width: '90%', 
+        maxWidth: '400px',
+        minWidth: '300px',
+        margin: 'auto'
+      }}>
         <h2 className="text-2xl font-bold mb-4 text-center">조명 제어</h2>
         
         <div className="space-y-3">

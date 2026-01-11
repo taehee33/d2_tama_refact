@@ -168,8 +168,12 @@ export default function TrainPopup({
   // (I) "훈련 시작" 준비 화면
   if (phase === "ready") {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-        <div className="bg-white p-4 rounded shadow-xl w-64">
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
+        <div className="bg-white p-4 rounded shadow-xl" style={{ 
+          width: '90%', 
+          maxWidth: '400px',
+          margin: 'auto'
+        }}>
           <h2 className="text-lg font-bold mb-2">훈련 시작</h2>
           <button
             onClick={startTrain}
@@ -192,8 +196,14 @@ export default function TrainPopup({
   if (phase === "ing") {
     const isTrainingDone = round > 5; // 6이 되면 끝
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-4 rounded shadow-xl" style={{ width: "700px", height: "400px" }}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style={{ padding: '20px' }}>
+        <div className="bg-white p-4 rounded shadow-xl" style={{ 
+          width: "90%", 
+          maxWidth: "700px", 
+          height: "auto",
+          maxHeight: "90vh",
+          margin: 'auto'
+        }}>
           <div className="flex w-full h-full">
 
             {/* 왼쪽: 라운드 정보/공격버튼/타이머 */}
