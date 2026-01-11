@@ -1129,13 +1129,12 @@ async function setSelectedDigimonAndSave(name) {
       {isMobile ? (
         <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
           <div className="flex items-center justify-between px-3 py-2">
-            {/* 왼쪽: Select 화면 버튼 */}
+            {/* 왼쪽: Select 버튼 */}
             <button 
               onClick={() => navigate("/select")} 
               className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm pixel-art-button flex items-center gap-1"
             >
-              <span>←</span>
-              <span className="hidden sm:inline">Select</span>
+              <span>← select</span>
             </button>
 
             {/* 오른쪽: Settings + 프로필 */}
@@ -1225,13 +1224,13 @@ async function setSelectedDigimonAndSave(name) {
       ) : (
         <>
           {/* 데스크톱: 기존 레이아웃 */}
-          {/* 왼쪽 상단 UI 컨테이너 (Select 화면 버튼) */}
+          {/* 왼쪽 상단 UI 컨테이너 (Select 버튼) */}
           <div className="fixed top-4 left-4 z-50">
             <button 
               onClick={()=> navigate("/select")} 
               className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
             >
-              ← Select 화면
+              ← select
             </button>
           </div>
 

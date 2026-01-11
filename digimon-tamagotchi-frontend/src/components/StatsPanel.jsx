@@ -78,6 +78,9 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
     }
   };
 
+  // StatsPanel 전체 접기/펼치기 상태 (localStorage에서 초기값 로드)
+  const [isPanelOpen, setIsPanelOpen] = useState(() => loadAccordionState('isPanelOpen', true));
+  
   // 각 섹션별 접기/펼치기 상태 (localStorage에서 초기값 로드)
   const [showBasicStats, setShowBasicStats] = useState(() => loadAccordionState('showBasicStats', true));
   const [showHearts, setShowHearts] = useState(() => loadAccordionState('showHearts', false));
@@ -85,6 +88,10 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
   const [showAdvanced, setShowAdvanced] = useState(() => loadAccordionState('showAdvanced', false));
 
   // 상태 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveAccordionState('isPanelOpen', isPanelOpen);
+  }, [isPanelOpen]);
+
   useEffect(() => {
     saveAccordionState('showBasicStats', showBasicStats);
   }, [showBasicStats]);
@@ -116,10 +123,20 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
 
   return (
     <div className={`border p-2 bg-white shadow-md text-sm ${isMobile ? 'w-full max-h-[40vh] overflow-y-auto' : 'w-48'}`}>
-      <h2 className="text-center font-bold mb-2 text-base">StatsPanel</h2>
+      {/* StatsPanel 전체 아코디언 헤더 */}
+      <button
+        onClick={() => setIsPanelOpen(!isPanelOpen)}
+        className="w-full text-center font-bold mb-2 text-base flex items-center justify-between hover:bg-gray-50 rounded px-2 py-1 transition-colors"
+      >
+        <span>StatsPanel</span>
+        <span className="text-gray-500 text-sm">{isPanelOpen ? '▼' : '▶'}</span>
+      </button>
       
-      {/* 1. 기본 스탯 (아코디언) */}
-      <div className="mt-2 pt-2 border-t border-gray-300">
+      {/* StatsPanel 내용 (접기/펼치기) */}
+      {isPanelOpen && (
+        <div>
+          {/* 1. 기본 스탯 (아코디언) */}
+          <div className="mt-2 pt-2 border-t border-gray-300">
         <AccordionButton
           isOpen={showBasicStats}
           onClick={() => setShowBasicStats(!showBasicStats)}
@@ -200,6 +217,8 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
           </div>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 };
