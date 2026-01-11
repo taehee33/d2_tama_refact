@@ -26,6 +26,7 @@ import PlayOrSnackModal from "./PlayOrSnackModal";
 import TeaseModal from "./TeaseModal";
 import LightsModal from "./LightsModal";
 import ExtraMenuModal from "./ExtraMenuModal";
+import CollectionModal from "./CollectionModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -683,6 +684,14 @@ export default function GameModals({
           onClose={() => toggleModal('extra', false)}
           onOpenSettings={() => toggleModal('settings', true)}
           onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
+          onOpenCollection={() => toggleModal('collection', true)}
+        />
+      )}
+
+      {/* Collection Modal (컬렉션) */}
+      {modals.collection && (
+        <CollectionModal
+          onClose={() => toggleModal('collection', false)}
         />
       )}
     </>

@@ -163,6 +163,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     
     // 추가 기능 모달
     extra: false,
+    collection: false,
   });
   
   // ============================================
