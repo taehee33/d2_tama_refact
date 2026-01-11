@@ -1213,6 +1213,9 @@ export default function StatsPopup({
             const hungerZeroTime = ensureTimestamp(lastHungerZeroAt);
             if (!hungerZeroTime) return null;
             
+            // 배고픔 0 발생 시간 표시
+            const hungerZeroOccurredTime = formatTimestamp(hungerZeroTime);
+            
             const elapsed = Math.floor((currentTime - hungerZeroTime) / 1000);
             const threshold = 43200; // 12시간 = 43200초
             const remaining = threshold - elapsed;
@@ -1220,19 +1223,24 @@ export default function StatsPopup({
             return (
               <li className="border-l-4 pl-2 border-red-500 bg-red-50 p-2 rounded">
                 <div className="font-semibold text-red-600 mb-1">🍖 배고픔 0 지속:</div>
-                {remaining > 0 ? (
-                  <div className="text-red-600 font-mono text-xs">
-                    {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
-                    <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
+                <div className="space-y-1 text-xs">
+                  <div className="text-gray-600">
+                    배고픔 0 발생 시간: <span className="font-mono">{hungerZeroOccurredTime}</span>
                   </div>
-                ) : (
-                  <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
-                )}
-                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
-                  <div 
-                    className="bg-red-500 h-full transition-all duration-1000"
-                    style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
-                  />
+                  {remaining > 0 ? (
+                    <div className="text-red-600 font-mono">
+                      {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                      <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
+                    </div>
+                  ) : (
+                    <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                  )}
+                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
+                    <div 
+                      className="bg-red-500 h-full transition-all duration-1000"
+                      style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
+                    />
+                  </div>
                 </div>
               </li>
             );
@@ -1243,6 +1251,9 @@ export default function StatsPopup({
             const strengthZeroTime = ensureTimestamp(lastStrengthZeroAt);
             if (!strengthZeroTime) return null;
             
+            // 힘 0 발생 시간 표시
+            const strengthZeroOccurredTime = formatTimestamp(strengthZeroTime);
+            
             const elapsed = Math.floor((currentTime - strengthZeroTime) / 1000);
             const threshold = 43200; // 12시간 = 43200초
             const remaining = threshold - elapsed;
@@ -1250,19 +1261,24 @@ export default function StatsPopup({
             return (
               <li className="border-l-4 pl-2 border-orange-500 bg-orange-50 p-2 rounded">
                 <div className="font-semibold text-orange-600 mb-1">💪 힘 0 지속:</div>
-                {remaining > 0 ? (
-                  <div className="text-orange-600 font-mono text-xs">
-                    {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
-                    <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
+                <div className="space-y-1 text-xs">
+                  <div className="text-gray-600">
+                    힘 0 발생 시간: <span className="font-mono">{strengthZeroOccurredTime}</span>
                   </div>
-                ) : (
-                  <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
-                )}
-                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
-                  <div 
-                    className="bg-orange-500 h-full transition-all duration-1000"
-                    style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
-                  />
+                  {remaining > 0 ? (
+                    <div className="text-orange-600 font-mono">
+                      {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                      <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
+                    </div>
+                  ) : (
+                    <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
+                  )}
+                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
+                    <div 
+                      className="bg-orange-500 h-full transition-all duration-1000"
+                      style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
+                    />
+                  </div>
                 </div>
               </li>
             );
