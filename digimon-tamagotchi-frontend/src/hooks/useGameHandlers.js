@@ -6,14 +6,26 @@ import { db } from "../firebase";
 import { getSleepStatus, resetCallStatus, addActivityLog } from "./useGameLogic";
 
 /**
- * 수면 스케줄 가져오기
+ * 수면 스케줄 가져오기 (야행성 모드 반영)
  * @param {string} name - 디지몬 이름
  * @param {Object} digimonDataVer1 - 디지몬 데이터
+ * @param {Object|null} digimonStats - 디지몬 스탯 (야행성 모드 확인용, 선택적)
  * @returns {Object} 수면 스케줄 객체 { start, end }
  */
-export const getSleepSchedule = (name, digimonDataVer1) => {
+export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => {
   const data = digimonDataVer1[name] || {};
-  return data.sleepSchedule || { start: 22, end: 6 };
+  const baseSchedule = data.sleepSchedule || { start: 22, end: 6 };
+  
+  // 야행성 모드 확인
+  const isNocturnal = digimonStats?.isNocturnal || false;
+  
+  if (!isNocturnal) return baseSchedule;
+  
+  // 야행성 모드: 시작 시간과 종료 시간을 3시간 뒤로 미룸 (24시간제 계산)
+  return {
+    start: (baseSchedule.start + 3) % 24,
+    end: (baseSchedule.end + 3) % 24
+  };
 };
 
 /**
@@ -264,7 +276,7 @@ export function useGameHandlers({
       console.log('[handleToggleLights] fastSleepStart 설정:', updatedStats.fastSleepStart);
       
       // 수면 시간이 아니면 낮잠 예약
-      const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
+      const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats);
       const isSleepTime = isWithinSleepSchedule(schedule, new Date());
       
       if (!isSleepTime) {

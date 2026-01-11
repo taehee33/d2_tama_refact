@@ -121,6 +121,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
 
   merged.lastMaxPoopTime = oldStats.lastMaxPoopTime || null;
 
+  // 야행성 모드 (진화 시 유지)
+  merged.isNocturnal = oldStats.isNocturnal !== undefined ? oldStats.isNocturnal : false;
+
   return merged;
 }
 

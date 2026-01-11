@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
+import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -187,6 +188,7 @@ export default function StatsPopup({
     dailySleepMistake=false,
     fastSleepStart=null,
     napUntil=null,
+    isNocturnal=false,
   } = stats || {};
 
   // devMode에서 select로 변경
@@ -567,7 +569,12 @@ export default function StatsPopup({
       <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
         <ul className="space-y-1">
-          <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
+          <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? (
+            <span>
+              {formatSleepSchedule(currentSleepSchedule)}
+              {isNocturnal && <span className="text-blue-500 ml-1">🦉 야행성 🌙</span>}
+            </span>
+          ) : '정보 없음'}</li>
           <li>수면 상태: {(() => {
             // 낮잠 중인지 확인
             const isNapTime = napUntil && currentTime < napUntil;
@@ -820,6 +827,45 @@ export default function StatsPopup({
           })()}
           <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
         </ul>
+        
+        {/* 야행성 모드 토글 버튼 */}
+        <div className="mt-3 pt-3 border-t">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">🦉 야행성 모드 🌙</span>
+              {isNocturnal && <span className="text-xs text-blue-500 font-semibold">(활성화됨)</span>}
+            </div>
+            <button
+              onClick={() => {
+                if (!onChangeStats) return;
+                const newMode = !isNocturnal;
+                const updatedStats = { ...stats, isNocturnal: newMode };
+                
+                // Activity Log 추가
+                const currentLogs = stats?.activityLogs || [];
+                const logText = newMode 
+                  ? '야행성 모드 ON: 수면/기상 시간이 3시간씩 미뤄집니다 🌙'
+                  : '야행성 모드 OFF: 일반 수면 시간으로 복귀합니다 ☀️';
+                const updatedLogs = addActivityLog(currentLogs, 'ACTION', logText);
+                
+                // 스탯과 로그를 함께 업데이트
+                onChangeStats({ ...updatedStats, activityLogs: updatedLogs });
+              }}
+              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
+                isNocturnal 
+                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {isNocturnal ? 'ON 🌙' : 'OFF ☀️'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            {isNocturnal 
+              ? '수면 시간과 기상 시간이 각각 3시간씩 미뤄집니다. (예: 22시 → 새벽 1시, 6시 → 9시)'
+              : '야행성 모드를 활성화하면 수면 시간과 기상 시간이 각각 3시간씩 미뤄집니다.'}
+          </p>
+        </div>
         
         {/* 수면 방해 이력 아코디언 */}
         {sleepDisturbances > 0 && (

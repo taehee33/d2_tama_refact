@@ -301,7 +301,7 @@ function Game(){
         const currentDigimonName = prevStats.evolutionStage ? 
           Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === prevStats.evolutionStage) || "Digitama" :
           "Digitama";
-        const schedule = getSleepSchedule(currentDigimonName, digimonDataVer1);
+        const schedule = getSleepSchedule(currentDigimonName, digimonDataVer1, prevStats);
         const nowMs = Date.now();
         const nowDate = new Date(nowMs);
         const inSchedule = isWithinSleepSchedule(schedule, nowDate);
@@ -472,7 +472,7 @@ function Game(){
           setDeathReason(reason);
         }
         // 호출(Call) 시스템 체크 및 타임아웃 처리
-        const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
+        const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1, prevStats);
         const oldCallStatus = { ...prevStats.callStatus };
         updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date(), isActuallySleeping);
         // 호출 시작 로그 추가 (이전 로그 보존 - 함수형 업데이트)
@@ -998,7 +998,7 @@ async function setSelectedDigimonAndSave(name) {
   useEffect(() => {
     const timer = setInterval(() => {
       const status = getSleepStatus({
-        sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1),
+        sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
         isLightsOn,
         wakeUntil,
         fastSleepStart: digimonStats.fastSleepStart || null,
@@ -1320,7 +1320,7 @@ async function setSelectedDigimonAndSave(name) {
             currentAnimation={currentAnimation}
             feedType={feedType}
             canEvolve={isEvoEnabled}
-            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataVer1)}
+            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats)}
             wakeUntil={wakeUntil}
             sleepLightOnStart={digimonStats.sleepLightOnStart || null}
             deathReason={deathReason}
@@ -1430,7 +1430,7 @@ async function setSelectedDigimonAndSave(name) {
         ui={{ 
           ...ui, 
           statusDetailMessages,
-          sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1),
+          sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
           sleepStatus: sleepStatus,
           wakeUntil: wakeUntil,
           sleepLightOnStart: digimonStats.sleepLightOnStart || null,

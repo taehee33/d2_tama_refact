@@ -182,7 +182,7 @@ export function useGameAnimations({
       const wasInjured = digimonStats.isInjured || false;
       
       // 수면 중 청소 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-      const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1);
+      const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, digimonStats);
       const nowSleeping = isWithinSleepSchedule(schedule, now) && !(wakeUntil && Date.now() < wakeUntil);
       
       let updatedStats = {
@@ -252,7 +252,7 @@ export function useGameAnimations({
     setHealStep(0);
     
     // 수면 중 치료 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1);
+    const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, currentStats);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     
     // 치료 로직

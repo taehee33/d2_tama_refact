@@ -78,7 +78,7 @@ export default function GameModals({
   // 수면방해 처리 함수
   // 반환값: { updatedStats, updatedLogs, sleepDisturbed: boolean }
   const handleSleepDisturbance = (updatedStats, updatedLogs, actionType) => {
-    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1);
+    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, updatedStats);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     
     if (nowSleeping && setWakeUntil && setDigimonStatsAndSave) {

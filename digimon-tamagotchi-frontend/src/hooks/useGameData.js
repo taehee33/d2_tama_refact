@@ -420,7 +420,7 @@ export function useGameData({
             let sleepSchedule = null;
             let maxEnergy = null;
             if (digimonDataVer1 && savedName) {
-              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
+              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1, savedStats);
               const digimonData = digimonDataVer1[savedName];
               if (digimonData) {
                 maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
@@ -502,7 +502,7 @@ export function useGameData({
             let sleepSchedule = null;
             let maxEnergy = null;
             if (digimonDataVer1 && savedName) {
-              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1);
+              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1, savedStats);
               const digimonData = digimonDataVer1[savedName];
               if (digimonData) {
                 maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;

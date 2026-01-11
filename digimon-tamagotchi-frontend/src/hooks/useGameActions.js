@@ -10,11 +10,22 @@ import { doc, updateDoc, collection, addDoc, serverTimestamp, increment } from "
 import { db } from "../firebase";
 
 /**
- * 수면 스케줄 가져오기
+ * 수면 스케줄 가져오기 (야행성 모드 반영)
  */
-function getSleepSchedule(digimonData, name) {
+function getSleepSchedule(digimonData, name, digimonStats = null) {
   const data = digimonData[name] || {};
-  return data.sleepSchedule || { start: 22, end: 6 };
+  const baseSchedule = data.sleepSchedule || { start: 22, end: 6 };
+  
+  // 야행성 모드 확인
+  const isNocturnal = digimonStats?.isNocturnal || false;
+  
+  if (!isNocturnal) return baseSchedule;
+  
+  // 야행성 모드: 시작 시간과 종료 시간을 3시간 뒤로 미룸 (24시간제 계산)
+  return {
+    start: (baseSchedule.start + 3) % 24,
+    end: (baseSchedule.end + 3) % 24
+  };
 }
 
 /**
@@ -238,7 +249,7 @@ export function useGameActions({
       const currentStats = await applyLazyUpdateBeforeAction();
       
       // 수면 중 먹이 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-      const schedule = getSleepSchedule(digimonData, selectedDigimon);
+      const schedule = getSleepSchedule(digimonData, selectedDigimon, currentStats);
       const isSleepTime = isWithinSleepSchedule(schedule, new Date());
       const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
       if (nowSleeping) {
@@ -407,7 +418,7 @@ export function useGameActions({
     const updatedStats = await applyLazyUpdateBeforeAction();
     
     // 수면 중 훈련 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const schedule = getSleepSchedule(digimonData, selectedDigimon);
+    const schedule = getSleepSchedule(digimonData, selectedDigimon, updatedStats);
     const isSleepTime = isWithinSleepSchedule(schedule, new Date());
     const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {
@@ -956,7 +967,7 @@ export function useGameActions({
     }
     
     // 수면 중 배틀 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const schedule = getSleepSchedule(digimonData, selectedDigimon);
+    const schedule = getSleepSchedule(digimonData, selectedDigimon, updatedStats);
     const isSleepTime = isWithinSleepSchedule(schedule, new Date());
     const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
     if (nowSleeping) {

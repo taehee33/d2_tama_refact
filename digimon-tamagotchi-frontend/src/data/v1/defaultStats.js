@@ -68,5 +68,8 @@ export const defaultStats = {
   
   // 마지막 저장 시간 (Lazy Update용)
   lastSavedAt: null,
+  
+  // 야행성 모드
+  isNocturnal: false, // 야행성 모드 (수면/기상 시간을 3시간씩 미룸)
 };
 

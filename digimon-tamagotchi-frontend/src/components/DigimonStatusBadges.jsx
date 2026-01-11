@@ -31,6 +31,7 @@ const DigimonStatusBadges = ({
     callStatus = {},
     sleepDisturbances = 0,
     napUntil = null,
+    isNocturnal = false,
   } = digimonStats;
 
   // 실시간 업데이트를 위한 상태
@@ -47,6 +48,17 @@ const DigimonStatusBadges = ({
   // 모든 상태 메시지를 수집하는 함수
   const getAllStatusMessages = () => {
     const messages = [];
+
+    // -1. 야행성 모드 (최우선순위)
+    if (isNocturnal) {
+      messages.push({ 
+        text: "🦉 야행성 🌙", 
+        color: "text-blue-600", 
+        bgColor: "bg-blue-100", 
+        priority: -1, 
+        category: "info" 
+      });
+    }
 
     // 0. 먹는 중 (최우선순위)
     if (currentAnimation === "eat") {
