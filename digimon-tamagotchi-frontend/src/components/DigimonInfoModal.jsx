@@ -434,7 +434,7 @@ export default function DigimonInfoModal({
             <li className="break-words">• <strong>승리 시:</strong> 20% 확률로 부상 발생</li>
             <li className="break-words">• <strong>패배 시:</strong> 10% + (단백질 과다 복용 × 10%) 확률로 부상 발생</li>
             <li className="break-words">• <strong>부상 방치:</strong> 부상 상태에서 6시간 방치하면 사망합니다</li>
-            <li className="break-words">• <strong>승률:</strong> Stage V, VI 진화를 위해 높은 승률이 필요합니다</li>
+            <li className="break-words">• <strong>승률:</strong> 완전체, 궁극체 진화를 위해 높은 승률이 필요합니다</li>
           </ul>
         </div>
 
@@ -453,7 +453,7 @@ export default function DigimonInfoModal({
           <ul className="space-y-2 text-white text-sm break-words">
             <li className="break-words">• <strong>케어 미스:</strong> 호출을 무시하면 케어 미스가 증가합니다</li>
             <li className="break-words">• <strong>훈련 횟수:</strong> 많은 진화 경로에서 훈련 횟수가 중요합니다</li>
-            <li className="break-words">• <strong>배틀 횟수:</strong> 최소 15번의 배틀을 해야 Stage V, VI 진화가 가능합니다</li>
+            <li className="break-words">• <strong>배틀 횟수:</strong> 최소 15번의 배틀을 해야 완전체, 궁극체 진화가 가능합니다</li>
             <li className="break-words">• <strong>승률:</strong> 높은 승률이 필요한 진화 경로가 있습니다</li>
           </ul>
         </div>

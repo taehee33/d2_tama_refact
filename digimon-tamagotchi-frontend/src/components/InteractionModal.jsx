@@ -28,7 +28,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
-            다이어트
+            🍖다이어트
           </button>
           
           <button
@@ -41,7 +41,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-yellow-500 text-white rounded-lg font-bold hover:bg-yellow-600 transition-colors"
           >
-            누워있기
+            💪누워있기
           </button>
           
           <button
@@ -54,7 +54,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
-            디톡스
+            🤢💉디톡스
           </button>
           
           <button
@@ -64,7 +64,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
-            놀아주기/간식주기
+            ❤️놀아주기/간식주기
           </button>
           
           <button
@@ -76,7 +76,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
           >
-            괜히 괴롭히기
+            💔괜히 괴롭히기
           </button>
           
           {/* 구분선 */}
