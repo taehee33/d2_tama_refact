@@ -69,6 +69,106 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp }) {
   );
 }
 
+/**
+ * 부상 이력 아코디언 컴포넌트
+ */
+function InjuryHistory({ activityLogs, formatTimestamp }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // 부상 관련 로그 필터링
+  const injuryLogs = (activityLogs || []).filter(log => {
+    if (!log.text) return false;
+    
+    // POOP 타입이면서 'Injury'가 포함된 로그
+    if (log.type === 'POOP' && log.text.includes('Injury')) {
+      return true;
+    }
+    
+    // BATTLE 타입이면서 부상 정보가 포함된 로그
+    if (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) {
+      return true;
+    }
+    
+    // INJURY 타입이 있는 경우
+    if (log.type === 'INJURY') {
+      return true;
+    }
+    
+    return false;
+  }).sort((a, b) => {
+    // 최신순 정렬
+    const timestampA = ensureTimestamp(a.timestamp);
+    const timestampB = ensureTimestamp(b.timestamp);
+    return (timestampB || 0) - (timestampA || 0);
+  });
+  
+  return (
+    <div className="mt-2 border-t pt-2">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
+      >
+        <span className="text-sm font-semibold text-gray-700">
+          부상 이력 ({injuryLogs.length}건)
+        </span>
+        <span className="text-gray-500 text-xs">
+          {isOpen ? '▲ 접기' : '▼ 펼치기'}
+        </span>
+      </button>
+      
+      {isOpen && (
+        <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+          {injuryLogs.length === 0 ? (
+            <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
+              부상 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+            </div>
+          ) : (
+            injuryLogs.map((log, index) => {
+              const timestamp = ensureTimestamp(log.timestamp);
+              const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
+              
+              // 부상 원인 추출
+              let injuryType = '부상 발생';
+              let bgColor = 'bg-red-50';
+              let borderColor = 'border-red-200';
+              let textColor = 'text-red-700';
+              
+              if (log.text.includes('poop') || log.text.includes('똥')) {
+                injuryType = '💩 똥 8개로 인한 부상';
+                bgColor = 'bg-brown-50';
+                borderColor = 'border-brown-200';
+                textColor = 'text-brown-700';
+              } else if (log.text.includes('battle') || log.text.includes('배틀') || log.text.includes('Battle')) {
+                injuryType = '⚔️ 배틀로 인한 부상';
+                bgColor = 'bg-purple-50';
+                borderColor = 'border-purple-200';
+                textColor = 'text-purple-700';
+              }
+              
+              return (
+                <div
+                  key={index}
+                  className={`text-xs p-2 ${bgColor} border ${borderColor} rounded`}
+                >
+                  <div className={`font-semibold ${textColor}`}>
+                    {injuryType}
+                  </div>
+                  <div className={`${textColor} mt-1 text-[10px]`}>
+                    {log.text}
+                  </div>
+                  <div className={`${textColor.replace('700', '600')} mt-1 text-[10px]`}>
+                    {formattedTime}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
   const d = Math.floor(sec / 86400);
@@ -163,6 +263,8 @@ export default function StatsPopup({
     energy,
     poopCount=0,
     lastMaxPoopTime,
+    lastHungerZeroAt=null,
+    lastStrengthZeroAt=null,
     trainings=0,
     overfeeds=0,
     sleepDisturbances=0,
@@ -828,6 +930,14 @@ export default function StatsPopup({
           <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
         </ul>
         
+        {/* 수면 방해 이력 아코디언 */}
+        {sleepDisturbances > 0 && (
+          <SleepDisturbanceHistory 
+            activityLogs={stats?.activityLogs || []} 
+            formatTimestamp={formatTimestamp}
+          />
+        )}
+        
         {/* 야행성 모드 토글 버튼 */}
         <div className="mt-3 pt-3 border-t">
           <div className="flex items-center justify-between mb-2">
@@ -866,14 +976,6 @@ export default function StatsPopup({
               : '야행성 모드를 활성화하면 수면 시간과 기상 시간이 각각 3시간씩 미뤄집니다.'}
           </p>
         </div>
-        
-        {/* 수면 방해 이력 아코디언 */}
-        {sleepDisturbances > 0 && (
-          <SleepDisturbanceHistory 
-            activityLogs={stats?.activityLogs || []} 
-            formatTimestamp={formatTimestamp}
-          />
-        )}
       </div>
       
       {/* Sec 5. 케어미스 발생 조건 */}
@@ -1087,7 +1189,7 @@ export default function StatsPopup({
       </div>
       
       {/* Sec 7. 내부/고급 카운터 */}
-      <div className="pb-2">
+      <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">7. 내부/고급 카운터</h3>
         <ul className="space-y-1">
           <li>HungerTimer: {hungerTimer || 0} min (남은 시간: {formatCountdown(hungerCountdown)})</li>
@@ -1097,6 +1199,168 @@ export default function StatsPopup({
           <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
           <li>Lifespan: {formatTime(lifespanSeconds)}</li>
           <li>Time to Evolve: {formatTimeToEvolve(timeToEvolveSeconds)}</li>
+        </ul>
+      </div>
+      
+      {/* Sec 8. 사망/질병 카운터 */}
+      <div className="pb-2">
+        <h3 className="font-bold text-base mb-2 text-red-700 flex items-center">
+          <span className="mr-2">⚠️</span> 8. 사망/질병 카운터
+        </h3>
+        <ul className="space-y-3 text-sm">
+          {/* 배고픔 0 사망 카운터 */}
+          {fullness === 0 && lastHungerZeroAt && (() => {
+            const hungerZeroTime = ensureTimestamp(lastHungerZeroAt);
+            if (!hungerZeroTime) return null;
+            
+            const elapsed = Math.floor((currentTime - hungerZeroTime) / 1000);
+            const threshold = 43200; // 12시간 = 43200초
+            const remaining = threshold - elapsed;
+            
+            return (
+              <li className="border-l-4 pl-2 border-red-500 bg-red-50 p-2 rounded">
+                <div className="font-semibold text-red-600 mb-1">🍖 배고픔 0 지속:</div>
+                {remaining > 0 ? (
+                  <div className="text-red-600 font-mono text-xs">
+                    {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                    <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
+                  </div>
+                ) : (
+                  <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                )}
+                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
+                  <div 
+                    className="bg-red-500 h-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 힘 0 사망 카운터 */}
+          {strength === 0 && lastStrengthZeroAt && (() => {
+            const strengthZeroTime = ensureTimestamp(lastStrengthZeroAt);
+            if (!strengthZeroTime) return null;
+            
+            const elapsed = Math.floor((currentTime - strengthZeroTime) / 1000);
+            const threshold = 43200; // 12시간 = 43200초
+            const remaining = threshold - elapsed;
+            
+            return (
+              <li className="border-l-4 pl-2 border-orange-500 bg-orange-50 p-2 rounded">
+                <div className="font-semibold text-orange-600 mb-1">💪 힘 0 지속:</div>
+                {remaining > 0 ? (
+                  <div className="text-orange-600 font-mono text-xs">
+                    {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                    <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
+                  </div>
+                ) : (
+                  <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
+                )}
+                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
+                  <div 
+                    className="bg-orange-500 h-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 똥 가득참 부상 발생 시간 카운터 */}
+          {poopCount >= 8 && lastMaxPoopTime && (() => {
+            const pooFullTime = ensureTimestamp(lastMaxPoopTime);
+            if (!pooFullTime) return null;
+            
+            // 즉시 부상 발생 시간 표시
+            const immediateInjuryTime = formatTimestamp(pooFullTime);
+            
+            // 추가 부상까지 남은 시간 (8시간마다)
+            const elapsed = Math.floor((currentTime - pooFullTime) / 1000);
+            const threshold = 28800; // 8시간 = 28800초
+            const nextInjuryIn = threshold - (elapsed % threshold);
+            const hours = Math.floor(nextInjuryIn / 3600);
+            const minutes = Math.floor((nextInjuryIn % 3600) / 60);
+            const seconds = nextInjuryIn % 60;
+            
+            return (
+              <li className="border-l-4 pl-2 border-brown-500 bg-brown-50 p-2 rounded">
+                <div className="font-semibold text-brown-600 mb-1">💩 똥 가득참 (8개):</div>
+                <div className="space-y-1 text-xs">
+                  <div className="text-gray-600">
+                    즉시 부상 발생 시간: <span className="font-mono">{immediateInjuryTime}</span>
+                  </div>
+                  <div className="text-brown-600 font-mono">
+                    다음 추가 부상까지: {hours}시간 {minutes}분 {seconds}초
+                  </div>
+                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-brown-500 h-full transition-all duration-1000"
+                      style={{ width: `${Math.min(100, ((elapsed % threshold) / threshold) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="text-[10px] text-brown-500">
+                    (8시간마다 추가 부상 발생)
+                  </div>
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 사망까지 부상횟수 카운터 */}
+          <li className="border-l-4 pl-2 border-red-300 bg-gray-50 p-2 rounded">
+            <div className="font-semibold text-gray-700 mb-2">사망까지 부상횟수:</div>
+            <div className="flex justify-between items-center mb-2">
+              <span className={`font-bold text-lg ${injuries >= 12 ? 'text-red-600' : injuries >= 10 ? 'text-orange-600' : 'text-gray-700'}`}>
+                {injuries || 0} / 15 회
+              </span>
+              {injuries >= 12 && (
+                <span className="text-xs text-red-500 animate-pulse font-bold">⚠️ 경고!</span>
+              )}
+            </div>
+            {/* 부상 횟수 게이지 */}
+            <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-2">
+              {[...Array(15)].map((_, i) => (
+                <div 
+                  key={i}
+                  className={`flex-1 border-r border-white last:border-0 ${
+                    i < (injuries || 0) 
+                      ? injuries >= 12 
+                        ? 'bg-red-600' 
+                        : injuries >= 10 
+                        ? 'bg-orange-500' 
+                        : 'bg-red-400'
+                      : 'bg-gray-300'
+                  }`}
+                  title={`부상 ${i + 1}회`}
+                />
+              ))}
+            </div>
+            {injuries >= 12 && (
+              <p className="text-[10px] text-red-500 mt-1 font-semibold">
+                ※ 경고: 부상 횟수가 한도에 도달했습니다. 사망 위험이 매우 높습니다!
+              </p>
+            )}
+            {injuries >= 10 && injuries < 12 && (
+              <p className="text-[10px] text-orange-500 mt-1">
+                ※ 주의: 부상 횟수가 증가하고 있습니다.
+              </p>
+            )}
+            
+            {/* 부상 이력 아코디언 */}
+            {(injuries > 0 || (stats?.activityLogs || []).some(log => {
+              if (!log.text) return false;
+              return (log.type === 'POOP' && log.text.includes('Injury')) ||
+                     (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) ||
+                     (log.type === 'INJURY');
+            })) && (
+              <InjuryHistory 
+                activityLogs={stats?.activityLogs || []} 
+                formatTimestamp={formatTimestamp}
+              />
+            )}
+          </li>
         </ul>
       </div>
     </div>
