@@ -163,6 +163,10 @@ export function useGameHandlers({
         // 교감은 실제 액션 선택 시 수면방해 발생 (각 모달에서 처리)
         toggleModal('interaction', true);
         break;
+      case "extra":
+        // 추가 기능은 수면방해 제외
+        toggleModal('extra', true);
+        break;
       default:
     }
   };

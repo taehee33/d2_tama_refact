@@ -160,6 +160,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     
     // 조명 제어 모달
     lights: false,
+    
+    // 추가 기능 모달
+    extra: false,
   });
   
   // ============================================

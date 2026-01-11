@@ -14,6 +14,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       electric: "/images/200.png",
       heal: "/images/202.png",
       callSign: "/images/204.png",
+      extra: "/images/556.png",
     };
     return iconMap[iconName];
   };
@@ -29,13 +30,14 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       electric: "전기",
       heal: "치료",
       callSign: "호출",
+      extra: "추가기능",
     };
     return labelMap[menuName] || "";
   };
 
   // 모바일: 그리드 레이아웃
   if (isMobile) {
-    const allMenus = ["status", "eat", "train", "battle", "communication", "bathroom", "electric", "heal", "callSign"];
+    const allMenus = ["status", "eat", "train", "battle", "communication", "bathroom", "electric", "heal", "callSign", "extra"];
     return (
       <div className="menu-icon-buttons-mobile">
         {allMenus.map((menu) => (
@@ -57,7 +59,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
   // 데스크톱: 5x2 그리드 레이아웃
   const allMenus = [
     ["status", "eat", "train", "battle", "communication"],
-    ["bathroom", "electric", "heal", "callSign", null] // 마지막 셀은 빈 셀
+    ["bathroom", "electric", "heal", "callSign", "extra"] // 10번째 그리드에 추가 기능 메뉴
   ];
 
   return (

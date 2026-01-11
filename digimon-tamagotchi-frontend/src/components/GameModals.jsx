@@ -25,6 +25,7 @@ import DetoxModal from "./DetoxModal";
 import PlayOrSnackModal from "./PlayOrSnackModal";
 import TeaseModal from "./TeaseModal";
 import LightsModal from "./LightsModal";
+import ExtraMenuModal from "./ExtraMenuModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -673,6 +674,15 @@ export default function GameModals({
             }
           }}
           isLightsOn={isLightsOn || false}
+        />
+      )}
+
+      {/* Extra Menu Modal (추가 기능) */}
+      {modals.extra && (
+        <ExtraMenuModal
+          onClose={() => toggleModal('extra', false)}
+          onOpenSettings={() => toggleModal('settings', true)}
+          onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
         />
       )}
     </>

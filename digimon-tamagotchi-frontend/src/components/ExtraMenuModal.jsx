@@ -1,0 +1,86 @@
+// src/components/ExtraMenuModal.jsx
+// 추가 기능 메뉴 모달
+
+import React from "react";
+import "../styles/Battle.css";
+
+export default function ExtraMenuModal({ 
+  onClose,
+  onOpenSettings,
+  onOpenDigimonInfo,
+}) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
+        <h2 className="text-2xl font-bold mb-4 text-center">추가 기능</h2>
+        
+        <div className="flex flex-col space-y-4">
+          <button
+            onClick={() => {
+              if (onOpenDigimonInfo) {
+                onOpenDigimonInfo();
+              }
+              onClose();
+            }}
+            className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
+          >
+            디지몬 가이드
+          </button>
+          
+          <button
+            onClick={() => {
+              alert("준비중입니다.");
+            }}
+            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
+            disabled
+          >
+            도감(준비중)
+          </button>
+          
+          <button
+            onClick={() => {
+              alert("준비중입니다.");
+            }}
+            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
+            disabled
+          >
+            냉장고(준비중)
+          </button>
+          
+          <button
+            onClick={() => {
+              alert("준비중입니다.");
+            }}
+            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
+            disabled
+          >
+            컬렉션
+          </button>
+          
+          <hr className="border-gray-300 my-2" />
+          
+          <button
+            onClick={() => {
+              if (onOpenSettings) {
+                onOpenSettings();
+              }
+              onClose();
+            }}
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+          >
+            설정
+          </button>
+          
+          <hr className="border-gray-300 my-2" />
+          
+          <button
+            onClick={onClose}
+            className="px-6 py-3 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
