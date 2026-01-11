@@ -568,7 +568,38 @@ export default function StatsPopup({
         <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
         <ul className="space-y-1">
           <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? formatSleepSchedule(currentSleepSchedule) : '정보 없음'}</li>
-          <li>수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus}</li>
+          <li>수면 상태: {(() => {
+            // 낮잠 중인지 확인
+            const isNapTime = napUntil && currentTime < napUntil;
+            
+            if (sleepStatus === 'AWAKE') {
+              return '깨어있음';
+            } else if (sleepStatus === 'SLEEPING') {
+              if (isNapTime) {
+                // 낮잠 중: 남은 시간 계산
+                const remainingMs = napUntil - currentTime;
+                const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
+                const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / 60000);
+                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+                
+                let timeText = '';
+                if (remainingHours > 0) {
+                  timeText = `${remainingHours}시간 ${remainingMinutes}분`;
+                } else if (remainingMinutes > 0) {
+                  timeText = `${remainingMinutes}분 ${remainingSeconds}초`;
+                } else {
+                  timeText = `${remainingSeconds}초`;
+                }
+                
+                return <span>수면 중 😴 <span className="text-blue-600">(낮잠: {timeText} 남음)</span></span>;
+              } else {
+                return '수면 중 😴';
+              }
+            } else if (sleepStatus === 'TIRED') {
+              return 'SLEEPY(Lights Off plz)';
+            }
+            return sleepStatus;
+          })()}</li>
           <li>잠들기: {(() => {
             // 디버깅: 값 확인 (개발 모드에서만)
             if (devMode) {
@@ -609,9 +640,39 @@ export default function StatsPopup({
           {sleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
             <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
           )}
-          {sleepStatus === 'SLEEPING' && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
-            <li>기상까지: {getTimeUntilWake(currentSleepSchedule, new Date())}</li>
-          )}
+          {sleepStatus === 'SLEEPING' && (() => {
+            // 낮잠 중인지 확인
+            const isNapTime = napUntil && currentTime < napUntil;
+            
+            if (isNapTime) {
+              // 낮잠 중: napUntil까지 남은 시간 계산
+              const remainingMs = napUntil - currentTime;
+              const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
+              const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / 60000);
+              const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+              
+              let timeText = '';
+              if (remainingHours > 0) {
+                timeText = `${remainingHours}시간 ${remainingMinutes}분`;
+              } else if (remainingMinutes > 0) {
+                timeText = `${remainingMinutes}분 ${remainingSeconds}초`;
+              } else {
+                timeText = `${remainingSeconds}초`;
+              }
+              
+              return (
+                <li className="text-blue-600 font-semibold">
+                  낮잠 중: {timeText} 후 기상
+                </li>
+              );
+            } else if (currentSleepSchedule && currentSleepSchedule.start !== undefined) {
+              // 정규 수면 중: 정규 수면 시간의 기상 시간 계산
+              return (
+                <li>기상까지: {getTimeUntilWake(currentSleepSchedule, new Date())}</li>
+              );
+            }
+            return null;
+          })()}
           {wakeUntil && currentTime < wakeUntil && (() => {
             const remainingMs = wakeUntil - currentTime;
             const remainingMinutes = Math.floor(remainingMs / 60000);

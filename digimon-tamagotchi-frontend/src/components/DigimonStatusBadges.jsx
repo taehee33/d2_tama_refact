@@ -30,6 +30,7 @@ const DigimonStatusBadges = ({
     proteinOverdose = 0,
     callStatus = {},
     sleepDisturbances = 0,
+    napUntil = null,
   } = digimonStats;
 
   // 실시간 업데이트를 위한 상태
@@ -132,7 +133,35 @@ const DigimonStatusBadges = ({
 
     // 4. 수면/피곤 상태
     if (sleepStatus === "SLEEPING") {
-      messages.push({ text: "수면 중 😴", color: "text-blue-500", bgColor: "bg-blue-100", priority: 4, category: "info" });
+      // 낮잠 중인지 확인
+      const isNapTime = napUntil && currentTime < napUntil;
+      
+      if (isNapTime) {
+        // 낮잠 중: 남은 시간 계산
+        const remainingMs = napUntil - currentTime;
+        const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
+        const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / 60000);
+        const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+        
+        let timeText = '';
+        if (remainingHours > 0) {
+          timeText = `${remainingHours}시간 ${remainingMinutes}분`;
+        } else if (remainingMinutes > 0) {
+          timeText = `${remainingMinutes}분 ${remainingSeconds}초`;
+        } else {
+          timeText = `${remainingSeconds}초`;
+        }
+        
+        messages.push({ 
+          text: `수면 중 😴 (낮잠: ${timeText} 남음)`, 
+          color: "text-blue-500", 
+          bgColor: "bg-blue-100", 
+          priority: 4, 
+          category: "info" 
+        });
+      } else {
+        messages.push({ text: "수면 중 😴", color: "text-blue-500", bgColor: "bg-blue-100", priority: 4, category: "info" });
+      }
     } else if (sleepStatus === "TIRED") {
       // TIRED 상태일 때 불 켜진 시간 카운트다운 표시
       if (sleepLightOnStart) {
