@@ -206,6 +206,22 @@ export default function BackgroundSettingsModal({
           >
             뒤로가기
           </button>
+          
+          {/* 닫기 버튼 */}
+          <button
+            onClick={() => {
+              if (hasChanges) {
+                const confirmClose = window.confirm("변경사항이 있습니다. 저장하지 않고 닫으시겠습니까?");
+                if (!confirmClose) {
+                  return; // 취소하면 모달 유지
+                }
+              }
+              onClose();
+            }}
+            className="w-full px-6 py-3 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>

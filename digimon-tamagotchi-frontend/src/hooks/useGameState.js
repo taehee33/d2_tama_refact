@@ -192,10 +192,12 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [activeMenu, setActiveMenu] = useState(null);
   const [currentAnimation, setCurrentAnimation] = useState("idle");
   
-  // 배경화면 설정 (localStorage에서 로드)
+  // 배경화면 설정 (슬롯별로 localStorage에서 로드)
   const [backgroundSettings, setBackgroundSettings] = useState(() => {
+    if (!slotId) return DEFAULT_BACKGROUND_SETTINGS;
+    
     try {
-      const saved = localStorage.getItem('backgroundSettings');
+      const saved = localStorage.getItem(`slot${slotId}_backgroundSettings`);
       if (saved) {
         return JSON.parse(saved);
       }
@@ -205,14 +207,35 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     return DEFAULT_BACKGROUND_SETTINGS;
   });
   
-  // backgroundSettings 변경 시 localStorage에 저장
+  // 슬롯 변경 시 해당 슬롯의 배경화면 설정 로드
   useEffect(() => {
+    if (!slotId) return;
+    
     try {
-      localStorage.setItem('backgroundSettings', JSON.stringify(backgroundSettings));
+      const saved = localStorage.getItem(`slot${slotId}_backgroundSettings`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setBackgroundSettings(parsed);
+      } else {
+        // 슬롯별 설정이 없으면 기본값 사용
+        setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
+      }
+    } catch (error) {
+      console.error('Background settings 로드 오류:', error);
+      setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
+    }
+  }, [slotId]);
+  
+  // backgroundSettings 변경 시 슬롯별로 localStorage에 저장
+  useEffect(() => {
+    if (!slotId) return;
+    
+    try {
+      localStorage.setItem(`slot${slotId}_backgroundSettings`, JSON.stringify(backgroundSettings));
     } catch (error) {
       console.error('Background settings 저장 오류:', error);
     }
-  }, [backgroundSettings]);
+  }, [backgroundSettings, slotId]);
   
   // Canvas 크기
   const [width, setWidth] = useState(() => loadSpriteSettings().width);
