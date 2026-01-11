@@ -462,7 +462,7 @@ export default function DigimonInfoModal({
           <h3 className="text-xl font-bold text-red-300 mb-3 pixel-art-text">⚠️ 주의사항</h3>
           <ul className="space-y-2 text-white text-sm break-words">
             <li className="break-words">• <strong>배고픔/힘 0:</strong> 12시간 방치하면 사망합니다</li>
-            <li className="break-words">• <strong>똥 8개:</strong> 즉시 부상 발생</li>
+            <li className="break-words">• <strong>똥 8개:</strong> 즉시 부상 발생 + 8시간이후 추가 부상 발생</li>
             <li className="break-words">• <strong>부상 15회:</strong> 사망합니다</li>
             <li className="break-words">• <strong>수면 방해:</strong> 수면 중 불을 켜두면 케어 미스가 증가합니다</li>
           </ul>
