@@ -3,8 +3,12 @@ import React from "react";
 
 export default function FeedPopup({ onClose, onSelect }){
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white p-6 rounded shadow-md">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
+      <div className="bg-white p-6 rounded shadow-md" style={{ 
+        width: '90%', 
+        maxWidth: '400px',
+        margin: 'auto'
+      }}>
         <h2 className="text-xl font-bold mb-4">먹이 주기</h2>
         <div className="flex flex-col space-y-4">
           <button

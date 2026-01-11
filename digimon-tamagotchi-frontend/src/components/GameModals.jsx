@@ -234,15 +234,13 @@ export default function GameModals({
 
       {/* Feed Modal */}
       {modals.feed && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <FeedPopup
-            onClose={() => toggleModal('feed', false)}
-            onSelect={(foodType) => {
-              toggleModal?.('feed', false);
-              handleFeed?.(foodType);
-            }}
-          />
-        </div>
+        <FeedPopup
+          onClose={() => toggleModal('feed', false)}
+          onSelect={(foodType) => {
+            toggleModal?.('feed', false);
+            handleFeed?.(foodType);
+          }}
+        />
       )}
 
       {/* Settings Modal */}
