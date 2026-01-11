@@ -112,7 +112,7 @@ export const digimonDataVer1 = {
       poopCycle: 3, // Stage I: 3분마다 똥
       maxOverfeed: 3,
       basePower: 0, // Power: 0
-      maxEnergy: 0, // Energy: 0
+      maxEnergy: 5, // Energy: 0
       minWeight: 5, // Min Weight: 5
       healDoses: 0, // Heal Doses: 1 (치료 필요 횟수)
       type: "Free", // Free
@@ -145,12 +145,12 @@ export const digimonDataVer1 = {
       poopCycle: 60, // Stage II: 60분마다 똥
       maxOverfeed: 2,
       basePower: 0, // Power: 0
-      maxEnergy: 0, // Energy: 0
+      maxEnergy: 10, // Energy: 0
       minWeight: 10, // Min Weight: 10
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Free", // Free
       sleepTime: "20:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
+      attackSprite: 7, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
     },
     evolutionCriteria: {
       // 12시간 후 진화
@@ -274,7 +274,7 @@ export const digimonDataVer1 = {
       healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "21:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
+      attackSprite: 5, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
       // 24시간 후 진화
@@ -353,7 +353,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "21:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
+      attackSprite: 4, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -390,7 +390,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 51, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -427,7 +427,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 6, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -464,7 +464,7 @@ export const digimonDataVer1 = {
       healDoses: 3, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "00:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
+      attackSprite: 16, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 00:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -501,7 +501,7 @@ export const digimonDataVer1 = {
       healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "22:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 22:00
+      attackSprite: 4, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 22:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -575,7 +575,7 @@ export const digimonDataVer1 = {
       healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 15, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 36시간 후 진화
@@ -612,7 +612,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "20:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
+      attackSprite: 11, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 20:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -653,7 +653,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "21:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
+      attackSprite: 23, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 21:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -694,7 +694,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Data", // Data
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 8, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 48시간 후 진화
@@ -735,7 +735,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 49, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: {
       // 조그레스 진화
@@ -770,7 +770,7 @@ export const digimonDataVer1 = {
       healDoses: 2, // Heal Doses: 1 (치료 필요 횟수)
       type: "Vaccine", // Vaccine
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 52, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
@@ -792,7 +792,7 @@ export const digimonDataVer1 = {
       minWeight: 5, // Min Weight: 5
       type: "Data", // Data
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 116, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
@@ -815,7 +815,7 @@ export const digimonDataVer1 = {
       healDoses: 1, // Heal Doses: 1 (치료 필요 횟수)
       type: "Virus", // Virus
       sleepTime: "23:00",
-      attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
+      attackSprite: 31, // 공격 스프라이트 (null이면 기본 sprite 사용) // Sleep: 23:00
     },
     evolutionCriteria: null, // 최종 단계
     evolutions: [], // 최종 단계
