@@ -544,11 +544,11 @@ export default function StatsPopup({
           </li>
           <li>Win Ratio: {winRate || 0}%</li>
           <li className="mt-2 pt-1 border-t">Flags:</li>
-          <li>- isSleeping: {stats.isSleeping !== undefined ? (stats.isSleeping ? 'Yes' : 'No') : 'N/A'}</li>
+          <li>- isSleeping: {sleepStatus === 'SLEEPING' ? 'Yes' : 'No'}</li>
           <li>- isInjured: {isInjured ? 'Yes' : 'No'}</li>
           <li>- isDead: {isDead ? 'Yes' : 'No'}</li>
           <li>- PoopCount: {poopCount}/8</li>
-          <li>- Sick: {stats.sick !== undefined ? (stats.sick ? 'Yes' : 'No') : 'N/A'}</li>
+          <li>- Sick: {isInjured ? 'Yes' : 'No'}</li>
         </ul>
       </div>
       
