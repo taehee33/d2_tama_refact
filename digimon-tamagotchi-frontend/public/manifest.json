@@ -10,19 +10,19 @@
       "purpose": "any"
     },
     {
-      "src": "logo192.png",
+      "src": "logo192_agumon.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "logo512.png",
+      "src": "logo512_agumon.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
     },
     {
-      "src": "images/240.png",
+      "src": "icon48.png",
       "type": "image/png",
       "sizes": "48x48",
       "purpose": "any"
