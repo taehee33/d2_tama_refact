@@ -9,19 +9,19 @@ export const BACKGROUND_TYPES = [
     sprites: [162, 163, 164] // Day, Dusk, Night
   },
   { 
-    id: 'forest', 
+    id: 'desert', 
     name: '사막', 
     baseSprite: 165,
     sprites: [165, 166, 167]
   },
   { 
-    id: 'city', 
+    id: 'forest', 
     name: '숲', 
     baseSprite: 168,
     sprites: [168, 169, 170]
   },
   { 
-    id: 'desert', 
+    id: 'mountain', 
     name: '산맥', 
     baseSprite: 171,
     sprites: [171, 172, 173]
@@ -33,7 +33,7 @@ export const BACKGROUND_TYPES = [
     sprites: [174, 175, 176]
   },
   { 
-    id: 'space', 
+    id: 'fileisland', 
     name: '파일섬', 
     baseSprite: 177,
     sprites: [177, 178, 179]

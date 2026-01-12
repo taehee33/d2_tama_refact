@@ -242,13 +242,13 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // setBackgroundNumber 호환성 함수 (숫자를 받아서 배경화면 설정으로 변환)
   const setBackgroundNumber = (number) => {
     // 숫자로 배경화면을 찾아서 설정
-    // 162-164: default, 165-167: forest, 168-170: city, 171-173: desert, 174-176: ocean, 177-179: space
+    // 162-164: default, 165-167: desert, 168-170: forest, 171-173: mountain, 174-176: ocean, 177-179: fileisland
     const bgId = number >= 162 && number <= 164 ? 'default' :
-                 number >= 165 && number <= 167 ? 'forest' :
-                 number >= 168 && number <= 170 ? 'city' :
-                 number >= 171 && number <= 173 ? 'desert' :
+                 number >= 165 && number <= 167 ? 'desert' :
+                 number >= 168 && number <= 170 ? 'forest' :
+                 number >= 171 && number <= 173 ? 'mountain' :
                  number >= 174 && number <= 176 ? 'ocean' :
-                 number >= 177 && number <= 179 ? 'space' : 'default';
+                 number >= 177 && number <= 179 ? 'fileisland' : 'default';
     
     // 스프라이트 인덱스 계산 (0, 1, 2)
     const baseSprite = number >= 162 && number <= 164 ? 162 :
