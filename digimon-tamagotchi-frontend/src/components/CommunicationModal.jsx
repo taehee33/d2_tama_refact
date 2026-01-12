@@ -6,8 +6,12 @@ import "../styles/Battle.css";
 
 export default function CommunicationModal({ onClose, onSparringStart, onArenaStart }) {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
+      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{ 
+        width: '90%', 
+        maxWidth: '400px',
+        margin: 'auto'
+      }}>
         <h2 className="text-2xl font-bold mb-4 text-center">온라인 배틀</h2>
         
         <div className="flex flex-col space-y-4">

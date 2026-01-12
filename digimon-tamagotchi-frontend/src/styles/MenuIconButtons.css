@@ -9,13 +9,9 @@
 .menu-icon-buttons .game-container.menu-grid-container {
     display: flex;
     flex-direction: column;
-    border: 1px solid rgba(200, 200, 200, 0.3);
+    border: none;
     border-radius: 4px;
-    background-image: 
-        linear-gradient(to right, rgba(200, 200, 200, 0.15) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(200, 200, 200, 0.15) 1px, transparent 1px);
-    background-size: 20% 50%; /* 5열 2행 그리드 */
-    background-position: 0 0;
+    background-image: none;
     padding: 8px;
     gap: 0;
 }
@@ -34,19 +30,11 @@
     align-items: center;
     justify-content: center;
     padding: 8px;
-    border-right: 1px solid rgba(200, 200, 200, 0.15);
-    border-bottom: 1px solid rgba(200, 200, 200, 0.15);
-}
-
-/* 마지막 열의 셀: 오른쪽 테두리 제거 */
-.menu-grid-cell:nth-child(5n) {
     border-right: none;
-}
-
-/* 마지막 행의 셀: 아래 테두리 제거 */
-.menu-grid-row:last-child .menu-grid-cell {
     border-bottom: none;
 }
+
+/* 그리드 라인 제거됨 (웹에서 표 모양 숨김) */
 
 /* 아이콘 버튼 스타일 */
 .icon-button {
