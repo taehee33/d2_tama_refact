@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
 import { updateDoc, doc } from "firebase/firestore";
@@ -216,6 +216,7 @@ function Game(){
   const {
     saveStats: setDigimonStatsAndSave,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
+    saveBackgroundSettings,
   } = useGameData({
     slotId,
     currentUser,
@@ -241,10 +242,54 @@ function Game(){
     wakeUntil,
     dailySleepMistake,
     activityLogs,
+    backgroundSettings,
+    setBackgroundSettings,
   });
 
   const meatSprites= ["/images/526.png","/images/527.png","/images/528.png","/images/529.png"];
   const proteinSprites= ["/images/530.png","/images/531.png","/images/532.png"];
+
+  // 배경화면 설정이 로드되었는지 추적하는 ref
+  // useGameData에서 로드 완료 후 true로 설정됨
+  const backgroundSettingsLoadedRef = useRef(false);
+  
+  // useGameData에서 로드 완료 후 플래그 설정
+  // isLoadingSlot이 false가 되면 로드 완료로 간주
+  useEffect(() => {
+    if (!isLoadingSlot && slotId) {
+      // 로드 완료 후 약간의 지연을 두고 플래그 설정 (useGameData의 setBackgroundSettings 호출 후)
+      const timer = setTimeout(() => {
+        backgroundSettingsLoadedRef.current = true;
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoadingSlot, slotId]);
+  
+  // backgroundSettings 변경 시 Firebase/localStorage에 저장
+  // Firebase 모드: Firebase에 저장
+  // 로컬 모드: localStorage에 저장
+  // 주의: 초기 로드 중이거나 로드가 완료되기 전에는 저장하지 않음
+  useEffect(() => {
+    if (!slotId || !backgroundSettings) return;
+    
+    // 초기 로드 중이면 저장하지 않음 (로드 완료 후 저장)
+    if (isLoadingSlot) return;
+    
+    // 로드가 완료되지 않았으면 저장하지 않음
+    if (!backgroundSettingsLoadedRef.current) {
+      return;
+    }
+    
+    // saveBackgroundSettings 함수가 있으면 호출 (mode에 따라 Firebase/localStorage 저장)
+    if (saveBackgroundSettings) {
+      saveBackgroundSettings(backgroundSettings);
+    }
+  }, [backgroundSettings, slotId, saveBackgroundSettings, isLoadingSlot]);
+  
+  // 슬롯 변경 시 로드 플래그 리셋
+  useEffect(() => {
+    backgroundSettingsLoadedRef.current = false;
+  }, [slotId]);
 
   // width/height 변경 시 localStorage에 저장
   useEffect(() => {

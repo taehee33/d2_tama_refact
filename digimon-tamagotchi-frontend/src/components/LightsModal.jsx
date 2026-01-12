@@ -21,10 +21,11 @@ export default function LightsModal({ onClose, onTurnOn, onTurnOff, isLightsOn }
               onTurnOn();
               onClose();
             }}
+            disabled={isLightsOn}
             className={`w-full py-4 px-6 rounded-lg font-bold text-lg transition-colors ${
               isLightsOn 
-                ? 'bg-yellow-500 text-white hover:bg-yellow-600' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' 
+                : 'bg-yellow-500 text-white hover:bg-yellow-600'
             }`}
           >
             조명켜기 🔆
@@ -35,10 +36,11 @@ export default function LightsModal({ onClose, onTurnOn, onTurnOff, isLightsOn }
               onTurnOff();
               onClose();
             }}
+            disabled={!isLightsOn}
             className={`w-full py-4 px-6 rounded-lg font-bold text-lg transition-colors ${
               !isLightsOn 
-                ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60' 
+                : 'bg-blue-500 text-white hover:bg-blue-600'
             }`}
           >
             조명끄기 🌙

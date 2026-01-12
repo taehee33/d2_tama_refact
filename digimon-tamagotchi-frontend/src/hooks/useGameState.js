@@ -192,50 +192,20 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [activeMenu, setActiveMenu] = useState(null);
   const [currentAnimation, setCurrentAnimation] = useState("idle");
   
-  // 배경화면 설정 (슬롯별로 localStorage에서 로드)
-  const [backgroundSettings, setBackgroundSettings] = useState(() => {
-    if (!slotId) return DEFAULT_BACKGROUND_SETTINGS;
-    
-    try {
-      const saved = localStorage.getItem(`slot${slotId}_backgroundSettings`);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      console.error('Background settings 로드 오류:', error);
-    }
-    return DEFAULT_BACKGROUND_SETTINGS;
-  });
+  // 배경화면 설정 (기본값으로 초기화, 실제 로드는 useGameData에서 처리)
+  // Firebase 모드: useGameData에서 Firebase에서 로드
+  // 로컬 모드: useGameData에서 localStorage에서 로드
+  const [backgroundSettings, setBackgroundSettings] = useState(DEFAULT_BACKGROUND_SETTINGS);
   
-  // 슬롯 변경 시 해당 슬롯의 배경화면 설정 로드
-  useEffect(() => {
-    if (!slotId) return;
-    
-    try {
-      const saved = localStorage.getItem(`slot${slotId}_backgroundSettings`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setBackgroundSettings(parsed);
-      } else {
-        // 슬롯별 설정이 없으면 기본값 사용
-        setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-      }
-    } catch (error) {
-      console.error('Background settings 로드 오류:', error);
-      setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-    }
-  }, [slotId]);
+  // 슬롯 변경 시 기본값으로 리셋하지 않음 (useGameData에서 로드할 때까지 기다림)
+  // useGameData의 useEffect가 먼저 실행되어 Firebase/localStorage에서 로드한 후
+  // setBackgroundSettings를 호출하므로 여기서 리셋하면 안 됨
   
-  // backgroundSettings 변경 시 슬롯별로 localStorage에 저장
-  useEffect(() => {
-    if (!slotId) return;
-    
-    try {
-      localStorage.setItem(`slot${slotId}_backgroundSettings`, JSON.stringify(backgroundSettings));
-    } catch (error) {
-      console.error('Background settings 저장 오류:', error);
-    }
-  }, [backgroundSettings, slotId]);
+  // backgroundSettings 변경 시 localStorage에 저장하지 않음
+  // 저장은 Game.jsx에서 mode에 따라 처리:
+  // - Firebase 모드: Game.jsx의 saveBackgroundSettings가 Firebase에 저장
+  // - 로컬 모드: Game.jsx의 saveBackgroundSettings가 localStorage에 저장
+  // useGameState에서는 상태만 관리하고, 저장은 Game.jsx에서 통일 관리
   
   // Canvas 크기
   const [width, setWidth] = useState(() => loadSpriteSettings().width);
