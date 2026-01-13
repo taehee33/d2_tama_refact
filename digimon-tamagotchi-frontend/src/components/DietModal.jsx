@@ -49,7 +49,7 @@ export default function DietModal({ onClose, onComplete, currentFullness = 0 }) 
     const timer4 = setTimeout(() => {
       setIsComplete(true);
       // 60% 확률로 성공/실패 결정
-      const isSuccess = Math.random() < 0.6;
+      const isSuccess = Math.random() < 0.65;
       if (isSuccess) {
         setResult("success");
         // 성공 시 포만감 -1 (최소 0)

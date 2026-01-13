@@ -78,8 +78,8 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
     }
   };
 
-  // StatsPanel 전체 접기/펼치기 상태 (localStorage에서 초기값 로드)
-  const [isPanelOpen, setIsPanelOpen] = useState(() => loadAccordionState('isPanelOpen', true));
+  // StatsPanel 전체 접기/펼치기 상태 (localStorage에서 초기값 로드, 기본값: false - 접힌 상태)
+  const [isPanelOpen, setIsPanelOpen] = useState(() => loadAccordionState('isPanelOpen', false));
   
   // 각 섹션별 접기/펼치기 상태 (localStorage에서 초기값 로드)
   const [showBasicStats, setShowBasicStats] = useState(() => loadAccordionState('showBasicStats', true));
@@ -129,7 +129,10 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
         className="w-full text-center font-bold mb-2 text-base flex items-center justify-between hover:bg-gray-50 rounded px-2 py-1 transition-colors"
       >
         <span>StatsPanel</span>
-        <span className="text-gray-500 text-sm">{isPanelOpen ? '▼' : '▶'}</span>
+        <span className="text-gray-500 text-sm flex items-center gap-1">
+          <span>{isPanelOpen ? '▼' : '▶'}</span>
+          <span className="text-xs">{isPanelOpen ? '접기' : '펼치기'}</span>
+        </span>
       </button>
       
       {/* StatsPanel 내용 (접기/펼치기) */}

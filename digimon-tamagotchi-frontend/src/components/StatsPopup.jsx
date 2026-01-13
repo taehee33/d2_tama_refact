@@ -70,6 +70,76 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp }) {
 }
 
 /**
+ * 케어미스 발생 이력 아코디언 컴포넌트
+ */
+function CareMistakeHistory({ activityLogs, formatTimestamp }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // 케어미스 관련 로그 필터링 (수면 방해 제외)
+  const careMistakeLogs = (activityLogs || []).filter(log => {
+    // CARE_MISTAKE 또는 CAREMISTAKE 타입
+    if (log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE') {
+      // 수면 방해가 아닌 케어미스만 필터링
+      if (log.text && log.text.includes('수면 방해')) {
+        return false; // 수면 방해는 제외
+      }
+      return true;
+    }
+    return false;
+  }).sort((a, b) => {
+    // 최신순 정렬
+    const timestampA = ensureTimestamp(a.timestamp);
+    const timestampB = ensureTimestamp(b.timestamp);
+    return (timestampB || 0) - (timestampA || 0);
+  });
+  
+  return (
+    <div className="mt-2 border-t pt-2">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
+      >
+        <span className="text-sm font-semibold text-gray-700">
+          케어미스 발생 이력 ({careMistakeLogs.length}건)
+        </span>
+        <span className="text-gray-500 text-xs">
+          {isOpen ? '▲ 접기' : '▼ 펼치기'}
+        </span>
+      </button>
+      
+      {isOpen && (
+        <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+          {careMistakeLogs.length === 0 ? (
+            <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
+              케어미스 발생 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+            </div>
+          ) : (
+            careMistakeLogs.map((log, index) => {
+              const timestamp = ensureTimestamp(log.timestamp);
+              const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
+              
+              return (
+                <div
+                  key={index}
+                  className="text-xs p-2 bg-orange-50 border border-orange-200 rounded"
+                >
+                  <div className="font-semibold text-orange-700">
+                    {log.text || '케어미스 발생'}
+                  </div>
+                  <div className="text-orange-600 mt-1">
+                    {formattedTime}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * 부상 이력 아코디언 컴포넌트
  */
 function InjuryHistory({ activityLogs, formatTimestamp }) {
@@ -1159,6 +1229,12 @@ export default function StatsPopup({
             )}
           </li>
         </ul>
+        
+        {/* 케어미스 발생 이력 */}
+        <CareMistakeHistory 
+          activityLogs={stats?.activityLogs || []} 
+          formatTimestamp={formatTimestamp} 
+        />
       </div>
 
       {/* Sec 6. 진화 판정 카운터 */}
