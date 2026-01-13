@@ -105,7 +105,7 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
             </p>
             <div className="mt-3 pt-3 border-t border-gray-300">
               <p className="text-xs text-gray-500">
-                원인 코드: {reason}
+                원인 코드: {finalReason || '없음'}
               </p>
             </div>
           </div>

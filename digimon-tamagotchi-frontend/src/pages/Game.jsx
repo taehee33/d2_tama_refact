@@ -1454,10 +1454,11 @@ async function setSelectedDigimonAndSave(name) {
           {digimonStats.isDead && (
             <button
               onClick={() => toggleModal('deathModal', true)}
-              className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900"
+              className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
               title="사망 정보"
+              style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
             >
-              💀 사망 확인
+              <span className="whitespace-nowrap">💀 사망 확인</span>
             </button>
           )}
         </div>

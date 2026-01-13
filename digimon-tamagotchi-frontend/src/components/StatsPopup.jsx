@@ -326,6 +326,7 @@ export default function StatsPopup({
   const {
     fullness, maxOverfeed, timeToEvolveSeconds, lifespanSeconds,
     age, sprite, evolutionStage, weight, isDead,
+    deathReason=null,
     hungerTimer, strengthTimer, poopTimer,
     maxEnergy, maxStamina, minWeight, healing, attribute, power,
     attackSprite, altAttackSprite, careMistakes,
@@ -1285,14 +1286,19 @@ export default function StatsPopup({
         </h3>
         <ul className="space-y-3 text-sm">
           {/* 배고픔 0 사망 카운터 */}
-          {fullness === 0 && lastHungerZeroAt && (() => {
+          {((fullness === 0 && lastHungerZeroAt) || (isDead && deathReason === 'STARVATION (굶주림)' && lastHungerZeroAt)) && (() => {
             const hungerZeroTime = ensureTimestamp(lastHungerZeroAt);
             if (!hungerZeroTime) return null;
             
             // 배고픔 0 발생 시간 표시
             const hungerZeroOccurredTime = formatTimestamp(hungerZeroTime);
             
-            const elapsed = Math.floor((currentTime - hungerZeroTime) / 1000);
+            // 사망했고 굶주림으로 사망한 경우, 사망 시점에 카운터 멈춤
+            const isDeadFromStarvation = isDead && deathReason === 'STARVATION (굶주림)';
+            const deathTime = isDeadFromStarvation ? hungerZeroTime + (43200 * 1000) : null; // 12시간 = 43200초를 밀리초로 변환
+            const timeToUse = isDeadFromStarvation ? deathTime : currentTime;
+            
+            const elapsed = Math.floor((timeToUse - hungerZeroTime) / 1000);
             const threshold = 43200; // 12시간 = 43200초
             const remaining = threshold - elapsed;
             
@@ -1303,7 +1309,9 @@ export default function StatsPopup({
                   <div className="text-gray-600">
                     배고픔 0 발생 시간: <span className="font-mono">{hungerZeroOccurredTime}</span>
                   </div>
-                  {remaining > 0 ? (
+                  {isDeadFromStarvation ? (
+                    <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
+                  ) : remaining > 0 ? (
                     <div className="text-red-600 font-mono">
                       {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
                       <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
@@ -1323,14 +1331,19 @@ export default function StatsPopup({
           })()}
 
           {/* 힘 0 사망 카운터 */}
-          {strength === 0 && lastStrengthZeroAt && (() => {
+          {((strength === 0 && lastStrengthZeroAt) || (isDead && deathReason === 'EXHAUSTION (힘 소진)' && lastStrengthZeroAt)) && (() => {
             const strengthZeroTime = ensureTimestamp(lastStrengthZeroAt);
             if (!strengthZeroTime) return null;
             
             // 힘 0 발생 시간 표시
             const strengthZeroOccurredTime = formatTimestamp(strengthZeroTime);
             
-            const elapsed = Math.floor((currentTime - strengthZeroTime) / 1000);
+            // 사망했고 힘 소진으로 사망한 경우, 사망 시점에 카운터 멈춤
+            const isDeadFromExhaustion = isDead && deathReason === 'EXHAUSTION (힘 소진)';
+            const deathTime = isDeadFromExhaustion ? strengthZeroTime + (43200 * 1000) : null; // 12시간 = 43200초를 밀리초로 변환
+            const timeToUse = isDeadFromExhaustion ? deathTime : currentTime;
+            
+            const elapsed = Math.floor((timeToUse - strengthZeroTime) / 1000);
             const threshold = 43200; // 12시간 = 43200초
             const remaining = threshold - elapsed;
             
@@ -1341,7 +1354,9 @@ export default function StatsPopup({
                   <div className="text-gray-600">
                     힘 0 발생 시간: <span className="font-mono">{strengthZeroOccurredTime}</span>
                   </div>
-                  {remaining > 0 ? (
+                  {isDeadFromExhaustion ? (
+                    <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
+                  ) : remaining > 0 ? (
                     <div className="text-orange-600 font-mono">
                       {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
                       <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
