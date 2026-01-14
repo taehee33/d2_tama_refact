@@ -130,8 +130,8 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
       >
         <span>StatsPanel</span>
         <span className="text-gray-500 text-sm flex items-center gap-1">
-          <span>{isPanelOpen ? '▼' : '▶'}</span>
           <span className="text-xs">{isPanelOpen ? '접기' : '펼치기'}</span>
+          <span>{isPanelOpen ? '▼' : '▶'}</span>
         </span>
       </button>
       
