@@ -330,13 +330,31 @@ function Game(){
 
   // (3) 클라이언트 타이머: 1초마다 UI 실시간 업데이트 (Time to Evolve, Lifespan, Waste 등)
   // 주의: Firestore 쓰기는 하지 않음. 메모리 상태만 업데이트하여 UI에 반영
+  // 브라우저 탭 throttling 문제 해결: 실제 경과 시간을 계산하여 전달
+  const lastUpdateTimeRef = useRef(Date.now());
+  
   useEffect(()=>{
     // 사망한 경우 타이머 중지
     if(digimonStats.isDead) {
       return;
     }
 
+    // 타이머 시작 시 마지막 업데이트 시간 초기화
+    lastUpdateTimeRef.current = Date.now();
+
     const timer = setInterval(() => {
+      const now = Date.now();
+      const actualElapsedSeconds = Math.floor((now - lastUpdateTimeRef.current) / 1000);
+      lastUpdateTimeRef.current = now; // 다음 업데이트를 위해 시간 갱신
+      
+      // 실제 경과 시간이 0이면 스킵 (너무 빠른 업데이트 방지)
+      if (actualElapsedSeconds <= 0) {
+        return;
+      }
+      
+      // 실제 경과 시간이 너무 크면 (예: 1분 이상) 최대 60초로 제한 (안전장치)
+      const safeElapsedSeconds = Math.min(actualElapsedSeconds, 60);
+      
       // 함수형 업데이트를 사용하여 최신 상태를 참조
       setDigimonStats((prevStats) => {
         // 사망한 경우 업데이트 중지
@@ -367,15 +385,16 @@ function Game(){
         // SLEEPING 또는 TIRED 상태일 때 타이머 정지 (배고픔, 힘 감소 중단)
         const isActuallySleeping = currentSleepStatus === 'SLEEPING' || currentSleepStatus === 'TIRED';
 
-        // updateLifespan을 호출하여 1초 경과 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
+        // updateLifespan을 호출하여 실제 경과 시간만큼 처리 (lifespanSeconds, timeToEvolveSeconds, poop 등)
         // SLEEPING 상태일 때만 lifespan 증가, TIRED 상태일 때도 poopCountdown은 멈춤
         // isActuallySleeping은 SLEEPING 또는 TIRED 상태를 의미 (배고픔/힘 타이머 정지용)
-        let updatedStats = updateLifespan(prevStats, 1, isActuallySleeping);
+        let updatedStats = updateLifespan(prevStats, safeElapsedSeconds, isActuallySleeping);
         // 매뉴얼 기반 배고픔/힘 감소 로직 적용
         const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
         // 매뉴얼 기반 배고픔/힘 감소 처리 (SLEEPING 또는 TIRED 상태일 때 감소하지 않음)
-        updatedStats = handleHungerTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
-        updatedStats = handleStrengthTick(updatedStats, currentDigimonData, 1, isActuallySleeping);
+        // 실제 경과 시간만큼 처리하여 브라우저 탭 throttling 문제 해결
+        updatedStats = handleHungerTick(updatedStats, currentDigimonData, safeElapsedSeconds, isActuallySleeping);
+        updatedStats = handleStrengthTick(updatedStats, currentDigimonData, safeElapsedSeconds, isActuallySleeping);
 
         // 수면 관련 스탯 업데이트
         updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
