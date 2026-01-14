@@ -1285,131 +1285,457 @@ export default function StatsPopup({
           <span className="mr-2">⚠️</span> 8. 사망/질병 카운터
         </h3>
         <ul className="space-y-3 text-sm">
-          {/* 배고픔 0 사망 카운터 */}
-          {((fullness === 0 && lastHungerZeroAt) || (isDead && deathReason === 'STARVATION (굶주림)' && lastHungerZeroAt)) && (() => {
+          {/* 배고픔 0 사망 카운터 - 항상 표시 */}
+          {(() => {
             const hungerZeroTime = ensureTimestamp(lastHungerZeroAt);
-            if (!hungerZeroTime) return null;
-            
-            // 배고픔 0 발생 시간 표시
-            const hungerZeroOccurredTime = formatTimestamp(hungerZeroTime);
-            
-            // 사망했고 굶주림으로 사망한 경우, 사망 시점에 카운터 멈춤
+            const isActive = fullness === 0 && hungerZeroTime;
             const isDeadFromStarvation = isDead && deathReason === 'STARVATION (굶주림)';
-            const deathTime = isDeadFromStarvation ? hungerZeroTime + (43200 * 1000) : null; // 12시간 = 43200초를 밀리초로 변환
-            const timeToUse = isDeadFromStarvation ? deathTime : currentTime;
-            
-            const elapsed = Math.floor((timeToUse - hungerZeroTime) / 1000);
-            const threshold = 43200; // 12시간 = 43200초
-            const remaining = threshold - elapsed;
             
             return (
-              <li className="border-l-4 pl-2 border-red-500 bg-red-50 p-2 rounded">
-                <div className="font-semibold text-red-600 mb-1">🍖 배고픔 0 지속:</div>
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromStarvation ? 'border-red-500 bg-red-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive || isDeadFromStarvation ? 'text-red-600' : 'text-gray-500'}`}>
+                  🍖 배고픔 0 지속:
+                </div>
                 <div className="space-y-1 text-xs">
-                  <div className="text-gray-600">
-                    배고픔 0 발생 시간: <span className="font-mono">{hungerZeroOccurredTime}</span>
-                  </div>
-                  {isDeadFromStarvation ? (
-                    <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
-                  ) : remaining > 0 ? (
-                    <div className="text-red-600 font-mono">
-                      {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
-                      <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
-                    </div>
+                  {hungerZeroTime ? (
+                    <>
+                      <div className="text-gray-600">
+                        배고픔 0 발생 시간: <span className="font-mono">{formatTimestamp(hungerZeroTime)}</span>
+                      </div>
+                      {isDeadFromStarvation ? (
+                        <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
+                      ) : isActive ? (() => {
+                        const deathTime = hungerZeroTime + (43200 * 1000);
+                        const elapsed = Math.floor((currentTime - hungerZeroTime) / 1000);
+                        const threshold = 43200;
+                        const remaining = threshold - elapsed;
+                        return remaining > 0 ? (
+                          <div className="text-red-600 font-mono">
+                            {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                            <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
+                          </div>
+                        ) : (
+                          <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                        );
+                      })() : (
+                        <div className="text-gray-500">✓ 조건 미충족 (현재 배고픔: {fullness})</div>
+                      )}
+                      {(isActive || isDeadFromStarvation) && (
+                        <>
+                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
+                            {[...Array(12)].map((_, i) => {
+                              const hourElapsed = Math.floor((isDeadFromStarvation ? 43200 : Math.floor((currentTime - hungerZeroTime) / 1000)) / 3600);
+                              const isFilled = i < hourElapsed;
+                              return (
+                                <div 
+                                  key={i}
+                                  className={`flex-1 border-r border-white last:border-0 ${
+                                    isFilled
+                                      ? hourElapsed >= 12
+                                        ? 'bg-red-700'
+                                        : hourElapsed >= 10
+                                        ? 'bg-red-600'
+                                        : hourElapsed >= 8
+                                        ? 'bg-red-500'
+                                        : 'bg-red-400'
+                                      : 'bg-gray-300'
+                                  }`}
+                                  title={`${i + 1}시간 경과`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
+                        </>
+                      )}
+                    </>
                   ) : (
-                    <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                    <>
+                      <div className="text-gray-500 mb-2">조건 미충족 (배고픔 0 발생 이력 없음)</div>
+                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(12)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
+                            title={`${i + 1}시간`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
+                    </>
                   )}
-                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
-                    <div 
-                      className="bg-red-500 h-full transition-all duration-1000"
-                      style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
-                    />
-                  </div>
                 </div>
               </li>
             );
           })()}
 
-          {/* 힘 0 사망 카운터 */}
-          {((strength === 0 && lastStrengthZeroAt) || (isDead && deathReason === 'EXHAUSTION (힘 소진)' && lastStrengthZeroAt)) && (() => {
+          {/* 힘 0 사망 카운터 - 항상 표시 */}
+          {(() => {
             const strengthZeroTime = ensureTimestamp(lastStrengthZeroAt);
-            if (!strengthZeroTime) return null;
-            
-            // 힘 0 발생 시간 표시
-            const strengthZeroOccurredTime = formatTimestamp(strengthZeroTime);
-            
-            // 사망했고 힘 소진으로 사망한 경우, 사망 시점에 카운터 멈춤
+            const isActive = strength === 0 && strengthZeroTime;
             const isDeadFromExhaustion = isDead && deathReason === 'EXHAUSTION (힘 소진)';
-            const deathTime = isDeadFromExhaustion ? strengthZeroTime + (43200 * 1000) : null; // 12시간 = 43200초를 밀리초로 변환
-            const timeToUse = isDeadFromExhaustion ? deathTime : currentTime;
-            
-            const elapsed = Math.floor((timeToUse - strengthZeroTime) / 1000);
-            const threshold = 43200; // 12시간 = 43200초
-            const remaining = threshold - elapsed;
             
             return (
-              <li className="border-l-4 pl-2 border-orange-500 bg-orange-50 p-2 rounded">
-                <div className="font-semibold text-orange-600 mb-1">💪 힘 0 지속:</div>
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromExhaustion ? 'border-orange-500 bg-orange-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive || isDeadFromExhaustion ? 'text-orange-600' : 'text-gray-500'}`}>
+                  💪 힘 0 지속:
+                </div>
                 <div className="space-y-1 text-xs">
-                  <div className="text-gray-600">
-                    힘 0 발생 시간: <span className="font-mono">{strengthZeroOccurredTime}</span>
-                  </div>
-                  {isDeadFromExhaustion ? (
-                    <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
-                  ) : remaining > 0 ? (
-                    <div className="text-orange-600 font-mono">
-                      {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
-                      <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
-                    </div>
+                  {strengthZeroTime ? (
+                    <>
+                      <div className="text-gray-600">
+                        힘 0 발생 시간: <span className="font-mono">{formatTimestamp(strengthZeroTime)}</span>
+                      </div>
+                      {isDeadFromExhaustion ? (
+                        <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
+                      ) : isActive ? (() => {
+                        const deathTime = strengthZeroTime + (43200 * 1000);
+                        const elapsed = Math.floor((currentTime - strengthZeroTime) / 1000);
+                        const threshold = 43200;
+                        const remaining = threshold - elapsed;
+                        return remaining > 0 ? (
+                          <div className="text-orange-600 font-mono">
+                            {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                            <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
+                          </div>
+                        ) : (
+                          <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
+                        );
+                      })() : (
+                        <div className="text-gray-500">✓ 조건 미충족 (현재 힘: {strength})</div>
+                      )}
+                      {(isActive || isDeadFromExhaustion) && (
+                        <>
+                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
+                            {[...Array(12)].map((_, i) => {
+                              const hourElapsed = Math.floor((isDeadFromExhaustion ? 43200 : Math.floor((currentTime - strengthZeroTime) / 1000)) / 3600);
+                              const isFilled = i < hourElapsed;
+                              return (
+                                <div 
+                                  key={i}
+                                  className={`flex-1 border-r border-white last:border-0 ${
+                                    isFilled
+                                      ? hourElapsed >= 12
+                                        ? 'bg-orange-700'
+                                        : hourElapsed >= 10
+                                        ? 'bg-orange-600'
+                                        : hourElapsed >= 8
+                                        ? 'bg-orange-500'
+                                        : 'bg-orange-400'
+                                      : 'bg-gray-300'
+                                  }`}
+                                  title={`${i + 1}시간 경과`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
+                        </>
+                      )}
+                    </>
                   ) : (
-                    <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
+                    <>
+                      <div className="text-gray-500 mb-2">조건 미충족 (힘 0 발생 이력 없음)</div>
+                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(12)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
+                            title={`${i + 1}시간`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
+                    </>
                   )}
-                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden mt-1">
-                    <div 
-                      className="bg-orange-500 h-full transition-all duration-1000"
-                      style={{ width: `${Math.min(100, (elapsed / threshold) * 100)}%` }}
-                    />
-                  </div>
                 </div>
               </li>
             );
           })()}
 
-          {/* 똥 가득참 부상 발생 시간 카운터 */}
-          {poopCount >= 8 && lastMaxPoopTime && (() => {
+          {/* 똥 가득참 부상 발생 시간 카운터 - 항상 표시 */}
+          {(() => {
             const pooFullTime = ensureTimestamp(lastMaxPoopTime);
-            if (!pooFullTime) return null;
-            
-            // 즉시 부상 발생 시간 표시
-            const immediateInjuryTime = formatTimestamp(pooFullTime);
-            
-            // 추가 부상까지 남은 시간 (8시간마다)
-            const elapsed = Math.floor((currentTime - pooFullTime) / 1000);
-            const threshold = 28800; // 8시간 = 28800초
-            const nextInjuryIn = threshold - (elapsed % threshold);
-            const hours = Math.floor(nextInjuryIn / 3600);
-            const minutes = Math.floor((nextInjuryIn % 3600) / 60);
-            const seconds = nextInjuryIn % 60;
+            const isActive = poopCount >= 8 && pooFullTime;
             
             return (
-              <li className="border-l-4 pl-2 border-brown-500 bg-brown-50 p-2 rounded">
-                <div className="font-semibold text-brown-600 mb-1">💩 똥 가득참 (8개):</div>
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive ? 'border-brown-500 bg-brown-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive ? 'text-brown-600' : 'text-gray-500'}`}>
+                  💩 똥 가득참 (8개):
+                </div>
                 <div className="space-y-1 text-xs">
-                  <div className="text-gray-600">
-                    즉시 부상 발생 시간: <span className="font-mono">{immediateInjuryTime}</span>
+                  {isActive ? (
+                    <>
+                      <div className="text-gray-600">
+                        즉시 부상 발생 시간: <span className="font-mono">{formatTimestamp(pooFullTime)}</span>
+                      </div>
+                      {(() => {
+                        const elapsed = Math.floor((currentTime - pooFullTime) / 1000);
+                        const threshold = 28800; // 8시간 = 28800초
+                        const nextInjuryIn = threshold - (elapsed % threshold);
+                        const hours = Math.floor(nextInjuryIn / 3600);
+                        const minutes = Math.floor((nextInjuryIn % 3600) / 60);
+                        const seconds = nextInjuryIn % 60;
+                        return (
+                          <>
+                            <div className="text-brown-600 font-mono">
+                              다음 추가 부상까지: {hours}시간 {minutes}분 {seconds}초
+                            </div>
+                            <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
+                              {[...Array(8)].map((_, i) => {
+                                const hourElapsed = Math.floor((elapsed % threshold) / 3600);
+                                const isFilled = i < hourElapsed;
+                                return (
+                                  <div 
+                                    key={i}
+                                    className={`flex-1 border-r border-white last:border-0 ${
+                                      isFilled
+                                        ? hourElapsed >= 8
+                                          ? 'bg-brown-700'
+                                          : hourElapsed >= 6
+                                          ? 'bg-brown-600'
+                                          : hourElapsed >= 4
+                                          ? 'bg-brown-500'
+                                          : 'bg-brown-400'
+                                        : 'bg-gray-300'
+                                    }`}
+                                    title={`${i + 1}시간 경과`}
+                                  />
+                                );
+                              })}
+                            </div>
+                            <div className="text-[10px] text-brown-500">
+                              8시간 게이지 (각 박스 = 1시간, 8시간마다 추가 부상 발생)
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-gray-500 mb-2">
+                        조건 미충족 (현재 똥: {poopCount || 0}/8)
+                      </div>
+                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(8)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
+                            title={`${i + 1}시간`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">8시간 게이지 (각 박스 = 1시간)</div>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 부상 과다 사망 카운터 - 항상 표시 */}
+          {(() => {
+            const isActive = (injuries || 0) >= 15;
+            const isDeadFromInjuryOverload = isDead && deathReason === 'INJURY OVERLOAD (부상 과다: 15회)';
+            
+            return (
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromInjuryOverload ? 'border-red-600 bg-red-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive || isDeadFromInjuryOverload ? 'text-red-700' : 'text-gray-500'}`}>
+                  🩹 부상 과다 (15회):
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className={`font-bold text-lg ${isActive || isDeadFromInjuryOverload ? 'text-red-700' : 'text-gray-500'}`}>
+                      {injuries || 0} / 15 회
+                    </span>
+                    {(isActive || isDeadFromInjuryOverload) && (
+                      <span className="text-xs text-red-500 animate-pulse font-bold">⚠️ 경고!</span>
+                    )}
                   </div>
-                  <div className="text-brown-600 font-mono">
-                    다음 추가 부상까지: {hours}시간 {minutes}분 {seconds}초
+                  {/* 부상 과다 게이지 */}
+                  <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                    {[...Array(15)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className={`flex-1 border-r border-white last:border-0 ${
+                          i < (injuries || 0) 
+                            ? injuries >= 15
+                              ? 'bg-red-700' 
+                              : injuries >= 12 
+                              ? 'bg-red-600' 
+                              : injuries >= 10 
+                              ? 'bg-orange-500' 
+                              : 'bg-red-400'
+                            : 'bg-gray-300'
+                        }`}
+                        title={`부상 ${i + 1}회`}
+                      />
+                    ))}
                   </div>
-                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                    <div 
-                      className="bg-brown-500 h-full transition-all duration-1000"
-                      style={{ width: `${Math.min(100, ((elapsed % threshold) / threshold) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="text-[10px] text-brown-500">
-                    (8시간마다 추가 부상 발생)
-                  </div>
+                  {isDeadFromInjuryOverload ? (
+                    <div className="text-red-800 font-bold">💀 사망 (부상 15회 도달)</div>
+                  ) : isActive ? (
+                    <div className="text-red-700 font-bold">⚠️ 사망 위험! (부상 15회 도달)</div>
+                  ) : (
+                    <div className="text-gray-500">
+                      조건 미충족 (현재 부상: {injuries || 0}/15)
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 부상 방치 사망 카운터 - 항상 표시 */}
+          {(() => {
+            const injuredTime = ensureTimestamp(injuredAt);
+            const isActive = isInjured && injuredTime;
+            const isDeadFromInjuryNeglect = isDead && deathReason === 'INJURY NEGLECT (부상 방치: 6시간)';
+            
+            return (
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromInjuryNeglect ? 'border-red-600 bg-red-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive || isDeadFromInjuryNeglect ? 'text-red-700' : 'text-gray-500'}`}>
+                  🏥 부상 방치 (6시간):
+                </div>
+                <div className="space-y-1 text-xs">
+                  {injuredTime ? (
+                    <>
+                      <div className="text-gray-600">
+                        부상 발생 시간: <span className="font-mono">{formatTimestamp(injuredTime)}</span>
+                      </div>
+                      {isDeadFromInjuryNeglect ? (
+                        <div className="text-red-800 font-bold">💀 사망 (6시간 방치)</div>
+                      ) : isActive ? (() => {
+                        const elapsed = Math.floor((currentTime - injuredTime) / 1000);
+                        const threshold = 21600; // 6시간 = 21600초
+                        const remaining = threshold - elapsed;
+                        return remaining > 0 ? (
+                          <div className="text-red-600 font-mono">
+                            {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                            <div className="text-[10px] text-red-500 mt-1">(6시간 초과 시 사망)</div>
+                          </div>
+                        ) : (
+                          <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                        );
+                      })() : (
+                        <div className="text-gray-500">✓ 조건 미충족 (현재 부상 상태 아님)</div>
+                      )}
+                      {(isActive || isDeadFromInjuryNeglect) && (
+                        <>
+                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
+                            {[...Array(6)].map((_, i) => {
+                              const hourElapsed = Math.floor((isDeadFromInjuryNeglect ? 21600 : Math.floor((currentTime - injuredTime) / 1000)) / 3600);
+                              const isFilled = i < hourElapsed;
+                              return (
+                                <div 
+                                  key={i}
+                                  className={`flex-1 border-r border-white last:border-0 ${
+                                    isFilled
+                                      ? hourElapsed >= 6
+                                        ? 'bg-red-700'
+                                        : hourElapsed >= 5
+                                        ? 'bg-red-600'
+                                        : hourElapsed >= 4
+                                        ? 'bg-red-500'
+                                        : 'bg-red-400'
+                                      : 'bg-gray-300'
+                                  }`}
+                                  title={`${i + 1}시간 경과`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-gray-500 mb-2">조건 미충족 (부상 발생 이력 없음)</div>
+                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(6)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
+                            title={`${i + 1}시간`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 수명 다함 사망 카운터 - 항상 표시 */}
+          {(() => {
+            const isDeadFromOldAge = isDead && deathReason === 'OLD AGE (수명 다함)';
+            // 수명은 가변적이므로, 현재 수명을 기준으로 게이지 표시 (최대 20일 기준)
+            const maxLifespanForDisplay = 20 * 24 * 3600; // 20일을 초로 변환
+            const currentLifespan = lifespanSeconds || 0;
+            const lifespanDays = Math.floor(currentLifespan / 86400);
+            const maxDaysForDisplay = 20;
+            
+            return (
+              <li className={`border-l-4 pl-2 p-2 rounded ${isDeadFromOldAge ? 'border-gray-600 bg-gray-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isDeadFromOldAge ? 'text-gray-700' : 'text-gray-500'}`}>
+                  ⏰ 수명 다함:
+                </div>
+                <div className="space-y-1 text-xs">
+                  {isDeadFromOldAge ? (
+                    <>
+                      <div className="text-gray-800 font-bold mb-2">💀 사망 (자연 수명 종료)</div>
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(maxDaysForDisplay)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-400"
+                            title={`${i + 1}일 경과`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">수명 게이지 (최대 표시: 20일)</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-gray-500 mb-2">
+                        조건 미충족 (현재 수명: {formatTime(currentLifespan)})
+                      </div>
+                      {currentLifespan > 0 && (
+                        <>
+                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                            {[...Array(maxDaysForDisplay)].map((_, i) => {
+                              const isFilled = i < Math.min(lifespanDays, maxDaysForDisplay);
+                              return (
+                                <div 
+                                  key={i}
+                                  className={`flex-1 border-r border-white last:border-0 ${
+                                    isFilled
+                                      ? lifespanDays >= maxDaysForDisplay
+                                        ? 'bg-gray-600'
+                                        : lifespanDays >= 15
+                                        ? 'bg-gray-500'
+                                        : lifespanDays >= 10
+                                        ? 'bg-gray-400'
+                                        : 'bg-gray-300'
+                                      : 'bg-gray-200'
+                                  }`}
+                                  title={`${i + 1}일 경과`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-gray-500">수명 게이지 (현재: {lifespanDays}일, 최대 표시: 20일)</div>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </li>
             );
