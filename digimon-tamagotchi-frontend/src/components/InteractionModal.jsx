@@ -54,7 +54,7 @@ export default function InteractionModal({
             }}
             className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
-            🤢💉디톡스
+            💉디톡스
           </button>
           
           <button

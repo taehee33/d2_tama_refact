@@ -28,6 +28,7 @@ import LightsModal from "./LightsModal";
 import ExtraMenuModal from "./ExtraMenuModal";
 import CollectionModal from "./CollectionModal";
 import BackgroundSettingsModal from "./BackgroundSettingsModal";
+import ActivityLogModal from "./ActivityLogModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -686,6 +687,15 @@ export default function GameModals({
           onOpenSettings={() => toggleModal('settings', true)}
           onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
           onOpenCollection={() => toggleModal('collection', true)}
+          onOpenActivityLog={() => toggleModal('activityLog', true)}
+        />
+      )}
+
+      {/* Activity Log Modal (활동 로그) */}
+      {modals.activityLog && (
+        <ActivityLogModal
+          activityLogs={activityLogs || []}
+          onClose={() => toggleModal('activityLog', false)}
         />
       )}
 

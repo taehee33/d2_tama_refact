@@ -24,7 +24,6 @@ export default function DigimonInfoModal({
       'MENU': '디지몬 가이드',
       'INFO': '디지몬 정보',
       'EVOLUTION': '진화 가이드',
-      'LOGS': '활동 로그',
       'TIPS': '게임 팁',
       'GUIDE': '기본 가이드',
     };
@@ -75,13 +74,6 @@ export default function DigimonInfoModal({
         >
           <span className="text-2xl">🧬</span>
           <span>진화 가이드</span>
-        </button>
-        <button
-          onClick={() => setCurrentView('LOGS')}
-          className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg pixel-art-button text-left flex items-center gap-3"
-        >
-          <span className="text-2xl">📝</span>
-          <span>활동 로그</span>
         </button>
         <button
           onClick={() => setCurrentView('TIPS')}
@@ -374,47 +366,7 @@ export default function DigimonInfoModal({
     );
   };
 
-  // 화면 4: 활동 로그 (LOGS View)
-  const renderLogsView = () => {
-    if (!activityLogs || activityLogs.length === 0) {
-      return (
-        <div className="text-center py-8">
-          <p className="text-white">No activities yet.</p>
-        </div>
-      );
-    }
-
-    // 최신순으로 정렬
-    const sortedLogs = [...activityLogs].sort((a, b) => {
-      const timeA = a.timestamp || 0;
-      const timeB = b.timestamp || 0;
-      return timeB - timeA;
-    });
-
-    // formatTimestamp는 utils/dateUtils에서 import
-
-    return (
-      <div className="space-y-2 max-h-96 overflow-y-auto">
-        {sortedLogs.map((log, index) => (
-          <div
-            key={index}
-            className="bg-gray-700 border-2 border-gray-600 rounded p-3 pixel-art-card"
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <p className="text-white text-sm">{log.text || log.type || 'Unknown'}</p>
-              </div>
-              <div className="text-gray-400 text-xs ml-4">
-                {formatTimestamp(log.timestamp)}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // 화면 5: 게임 팁 (TIPS View)
+  // 화면 4: 게임 팁 (TIPS View)
   const renderTipsView = () => {
     return (
       <div className="space-y-4">
@@ -571,7 +523,6 @@ export default function DigimonInfoModal({
           {currentView === 'MENU' && renderMenuView()}
           {currentView === 'INFO' && renderInfoView()}
           {currentView === 'EVOLUTION' && renderEvolutionView()}
-          {currentView === 'LOGS' && renderLogsView()}
           {currentView === 'TIPS' && renderTipsView()}
           {currentView === 'GUIDE' && renderGuideView()}
         </div>

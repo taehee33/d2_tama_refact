@@ -9,6 +9,7 @@ export default function ExtraMenuModal({
   onOpenSettings,
   onOpenDigimonInfo,
   onOpenCollection,
+  onOpenActivityLog,
 }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -26,6 +27,18 @@ export default function ExtraMenuModal({
             className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
             디지몬 가이드
+          </button>
+          
+          <button
+            onClick={() => {
+              if (onOpenActivityLog) {
+                onOpenActivityLog();
+              }
+              onClose();
+            }}
+            className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
+          >
+            활동 로그
           </button>
           
           <button
@@ -55,7 +68,7 @@ export default function ExtraMenuModal({
               }
               onClose();
             }}
-            className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
+            className="px-6 py-3 bg-amber-200 text-gray-800 rounded-lg font-bold hover:bg-amber-300 transition-colors"
           >
             컬렉션
           </button>
