@@ -10,13 +10,13 @@
       "purpose": "any"
     },
     {
-      "src": "logo192_agumon.png",
+      "src": "logo192_dong.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "logo512_agumon.png",
+      "src": "logo512_dong.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"
