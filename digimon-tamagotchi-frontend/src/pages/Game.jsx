@@ -1474,8 +1474,8 @@ async function setSelectedDigimonAndSave(name) {
             <span>📖</span>
             <span className="whitespace-nowrap">가이드</span>
           </button>
-          {/* Death Info 버튼: 죽었을 때만 표시 */}
-          {digimonStats.isDead && (
+          {/* Death Info 버튼: 죽었을 때 또는 오하카다몬일 때 표시 */}
+          {(digimonStats.isDead || selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2") && (
             <button
               onClick={() => toggleModal('deathModal', true)}
               className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
