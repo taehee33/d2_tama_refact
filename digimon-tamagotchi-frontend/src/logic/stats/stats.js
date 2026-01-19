@@ -481,3 +481,108 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   return updatedStats;
 }
 
+/**
+ * 에너지 회복 처리 (실시간 타이머용)
+ * @param {Object} stats - 현재 스탯
+ * @param {Object} sleepSchedule - 수면 스케줄 { start, end }
+ * @param {number} maxEnergy - 최대 에너지
+ * @param {Date} now - 현재 시간 (기본값: new Date())
+ * @returns {Object} 업데이트된 스탯
+ */
+export function handleEnergyRecovery(stats, sleepSchedule = null, maxEnergy = null, now = new Date()) {
+  if (!maxEnergy || stats.isDead) {
+    return stats;
+  }
+
+  const updatedStats = { ...stats };
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  
+  if (sleepSchedule && maxEnergy) {
+    const { start = 22, end = 6 } = sleepSchedule;
+    
+    // 기상 시간 체크: 수면 시간이 끝나고 기상 시간이 되면 maxEnergy까지 회복
+    const isWakeTime = (() => {
+      if (start === end) return false;
+      
+      // 현재 시간이 기상 시간(end 시)인지 확인
+      const isNowWakeTime = (() => {
+        if (start < end) {
+          // 예: 22시~06시 -> 06시 이상이고 수면 시간 전이면 기상
+          return currentHour >= end && currentHour < start;
+        } else {
+          // 자정 넘김 케이스 (예: 22시~08시)
+          return currentHour >= end || currentHour < start;
+        }
+      })();
+      
+      if (isNowWakeTime) {
+        const lastRecoveryTime = updatedStats.lastEnergyRecoveryAt 
+          ? (typeof updatedStats.lastEnergyRecoveryAt === "number" 
+              ? updatedStats.lastEnergyRecoveryAt 
+              : new Date(updatedStats.lastEnergyRecoveryAt).getTime())
+          : 0;
+        
+        // 오늘 기상 시간 계산
+        const todayWakeTime = new Date(now);
+        todayWakeTime.setHours(end, 0, 0, 0);
+        // 자정을 넘긴 경우 전날로 설정
+        if (start > end && currentHour < start) {
+          todayWakeTime.setDate(todayWakeTime.getDate() - 1);
+        }
+        
+        // 오늘 기상 시간 이후에 회복한 적이 없으면 기상 회복
+        if (lastRecoveryTime < todayWakeTime.getTime()) {
+          return true;
+        }
+      }
+      
+      return false;
+    })();
+    
+    if (isWakeTime) {
+      // 기상 시간: maxEnergy까지 회복
+      updatedStats.energy = maxEnergy;
+      updatedStats.lastEnergyRecoveryAt = now.getTime();
+    } else {
+      // 정각(00분) 또는 30분마다 +1 회복
+      const lastRecoveryTime = updatedStats.lastEnergyRecoveryAt 
+        ? (typeof updatedStats.lastEnergyRecoveryAt === "number" 
+            ? updatedStats.lastEnergyRecoveryAt 
+            : new Date(updatedStats.lastEnergyRecoveryAt).getTime())
+        : 0;
+      
+      // 마지막 회복 시간부터 현재 시간까지의 모든 정각/30분 체크
+      // 실시간 타이머에서는 최근 1시간 내의 회복만 체크 (성능 최적화)
+      let checkTime = new Date(Math.max(lastRecoveryTime, now.getTime() - 60 * 60 * 1000));
+      checkTime.setSeconds(0);
+      checkTime.setMilliseconds(0);
+      
+      // 다음 정각/30분으로 이동
+      if (checkTime.getMinutes() !== 0 && checkTime.getMinutes() !== 30) {
+        if (checkTime.getMinutes() < 30) {
+          checkTime.setMinutes(30);
+        } else {
+          checkTime.setMinutes(0);
+          checkTime.setHours(checkTime.getHours() + 1);
+        }
+      }
+      
+      // 정각(00분) 또는 30분마다 Energy +1
+      // 실시간 타이머에서는 한 번에 하나씩만 회복 (중복 방지)
+      if (checkTime.getTime() <= now.getTime()) {
+        const currentEnergy = updatedStats.energy || 0;
+        if (currentEnergy < maxEnergy) {
+          // 마지막 회복 시간이 현재 체크 시간보다 이전이면 회복
+          if (lastRecoveryTime < checkTime.getTime()) {
+            updatedStats.energy = Math.min(maxEnergy, currentEnergy + 1);
+            updatedStats.lastEnergyRecoveryAt = checkTime.getTime();
+          }
+        }
+      }
+    }
+  }
+  
+  return updatedStats;
+}
+

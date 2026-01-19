@@ -24,6 +24,7 @@ import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats";
+import { handleEnergyRecovery } from "../logic/stats/stats";
 import { quests } from "../data/v1/quests";
 
 import { checkEvolution } from "../logic/evolution/checker";
@@ -395,6 +396,10 @@ function Game(){
         // 실제 경과 시간만큼 처리하여 브라우저 탭 throttling 문제 해결
         updatedStats = handleHungerTick(updatedStats, currentDigimonData, safeElapsedSeconds, isActuallySleeping);
         updatedStats = handleStrengthTick(updatedStats, currentDigimonData, safeElapsedSeconds, isActuallySleeping);
+        
+        // 에너지 회복 처리 (기상 시간 회복 및 30분마다 회복)
+        const maxEnergy = currentDigimonData?.stats?.maxEnergy || updatedStats.maxEnergy || updatedStats.maxStamina || 0;
+        updatedStats = handleEnergyRecovery(updatedStats, schedule, maxEnergy, nowDate);
 
         // 수면 관련 스탯 업데이트
         updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
