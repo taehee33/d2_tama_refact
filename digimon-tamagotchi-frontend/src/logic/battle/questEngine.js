@@ -99,6 +99,8 @@ export function playQuestRound(userDigimon, userStats, areaId, roundIndex) {
     rounds: battleResult.rounds,
     userHits: battleResult.userHits,
     enemyHits: battleResult.enemyHits,
+    userPower: battleResult.userPower,
+    userPowerDetails: battleResult.userPowerDetails,
   };
 }
 

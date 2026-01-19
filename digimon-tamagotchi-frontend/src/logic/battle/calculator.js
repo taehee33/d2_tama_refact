@@ -2,6 +2,7 @@
 // Digital Monster Color 매뉴얼 기반 배틀 계산기 및 시뮬레이터
 
 import { getAttributeBonus } from './types';
+import { calculatePower } from './hitrate';
 
 /**
  * 히트레이트 계산
@@ -53,9 +54,24 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats,
   let enemyHits = 0; // 적이 유저에게 명중한 횟수
   let rounds = 0;
 
-  // 유저와 적의 파워 계산
-  const userPower = userStats.power || userDigimon.stats?.basePower || 0;
+  // 유저와 적의 파워 계산 (calculatePower 사용)
+  const userPowerResult = calculatePower(userStats, userDigimon, true);
+  const userPower = userPowerResult.power || userStats.power || userDigimon.stats?.basePower || 0;
+  const userPowerDetails = userPowerResult.details || {
+    basePower: userDigimon.stats?.basePower || 0,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
+  
+  // 적의 파워는 stats.power가 있으면 사용, 없으면 basePower 사용
   const enemyPower = enemyStats.power || enemyDigimon.stats?.basePower || 0;
+  const enemyPowerDetails = {
+    basePower: enemyDigimon.stats?.basePower || 0,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
 
   // 속성 보너스 계산
   const userAttr = userDigimon.stats?.type || userStats.type || null;
@@ -162,6 +178,10 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats,
     enemyHitRate: enemyHitRate.toFixed(2),
     userAttrBonus,
     enemyAttrBonus,
+    userPower,
+    enemyPower,
+    userPowerDetails,
+    enemyPowerDetails,
   };
 }
 

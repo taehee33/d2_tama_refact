@@ -74,33 +74,62 @@ export function getAttributeAdvantage(playerType, opponentType) {
 
 /**
  * 파워 계산 (Base Power + 보너스)
- * 매뉴얼: Base Power + Strength Hearts 보너스 + Traited Egg 보너스
+ * 매뉴얼: Base Power + Strength Hearts 보너스 + Traited Egg 보너스 + Effort 보너스
  * 
  * @param {Object} stats - 디지몬 스탯
  * @param {Object} digimonData - 디지몬 데이터
- * @returns {number} 최종 파워
+ * @param {boolean} returnDetails - 상세 정보 반환 여부
+ * @returns {number|Object} 최종 파워 또는 { power, details }
  */
-export function calculatePower(stats, digimonData) {
-  let power = digimonData.stats.basePower || 0;
+export function calculatePower(stats, digimonData, returnDetails = false) {
+  const basePower = digimonData.stats.basePower || 0;
+  let power = basePower;
+  
+  const details = {
+    basePower,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
   
   // Strength Hearts 보너스 (가득 찬 경우)
   // strength >= 6이면 5로 계산
   const effectiveStrength = Math.min(5, stats.strength || 0);
   if (effectiveStrength >= 5) {
     const stage = digimonData.stage;
-    if (stage === "Child") power += 5;
-    else if (stage === "Adult") power += 8;
-    else if (stage === "Perfect") power += 15;
-    else if (stage === "Ultimate" || stage === "Super Ultimate") power += 25;
+    let strengthBonus = 0;
+    if (stage === "Child") strengthBonus = 5;
+    else if (stage === "Adult") strengthBonus = 8;
+    else if (stage === "Perfect") strengthBonus = 15;
+    else if (stage === "Ultimate" || stage === "Super Ultimate") strengthBonus = 25;
+    
+    power += strengthBonus;
+    details.strengthBonus = strengthBonus;
   }
   
-  // Traited Egg 보너스 (TODO: traitedEgg 플래그 확인)
+  // Traited Egg 보너스
   if (stats.traitedEgg) {
     const stage = digimonData.stage;
-    if (stage === "Child") power += 5;
-    else if (stage === "Adult") power += 8;
-    else if (stage === "Perfect") power += 15;
-    else if (stage === "Ultimate" || stage === "Super Ultimate") power += 25;
+    let traitedEggBonus = 0;
+    if (stage === "Child") traitedEggBonus = 5;
+    else if (stage === "Adult") traitedEggBonus = 8;
+    else if (stage === "Perfect") traitedEggBonus = 15;
+    else if (stage === "Ultimate" || stage === "Super Ultimate") traitedEggBonus = 25;
+    
+    power += traitedEggBonus;
+    details.traitedEggBonus = traitedEggBonus;
+  }
+  
+  // Effort 보너스 (effort 값 * 5)
+  const effectiveEffort = Math.min(5, stats.effort || 0);
+  if (effectiveEffort > 0) {
+    const effortBonus = effectiveEffort * 5;
+    power += effortBonus;
+    details.effortBonus = effortBonus;
+  }
+  
+  if (returnDetails) {
+    return { power, details };
   }
   
   return power;

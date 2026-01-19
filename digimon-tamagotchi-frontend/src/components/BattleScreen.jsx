@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { playQuestRound } from "../logic/battle/questEngine";
 import { simulateBattle } from "../logic/battle/calculator";
+import { getAttributeBonus } from "../logic/battle/types";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { getQuestArea } from "../data/v1/quests";
 import "../styles/Battle.css";
@@ -32,6 +33,8 @@ export default function BattleScreen({
   const [showReadyModal, setShowReadyModal] = useState(false); // 라운드 준비 모달 표시 여부
   const [hasRoundStarted, setHasRoundStarted] = useState(false); // 라운드 시작 여부
   const [showLogReview, setShowLogReview] = useState(false); // 로그 리뷰 화면 표시 여부
+  const [showUserPowerDetails, setShowUserPowerDetails] = useState(false); // 유저 파워 상세 정보 표시 여부
+  const [showBattleGuide, setShowBattleGuide] = useState(false); // 배틀 가이드 표시 여부
   // Start를 누르기 전까지는 상대방 정보를 숨김
   const hideEnemyInfo = !hasRoundStarted;
   
@@ -123,6 +126,8 @@ export default function BattleScreen({
           rounds: battleResult.rounds,
           userHits: battleResult.userHits,
           enemyHits: battleResult.enemyHits,
+          userPower: battleResult.userPower,
+          userPowerDetails: battleResult.userPowerDetails,
         };
       } else if (battleType === 'arena' && arenaChallenger) {
         // Arena 모드: arenaChallenger 데이터 사용
@@ -187,6 +192,8 @@ export default function BattleScreen({
           rounds: battleResult.rounds,
           userHits: battleResult.userHits,
           enemyHits: battleResult.enemyHits,
+          userPower: battleResult.userPower,
+          userPowerDetails: battleResult.userPowerDetails,
         };
       } else {
         // Quest 모드: 기존 로직
@@ -224,8 +231,39 @@ export default function BattleScreen({
   const enemyDigimonData = getEnemyDigimonData();
   const userDigimonData = newDigimonDataVer1[userDigimon.id || userDigimon.name] || userDigimon;
 
-  // 유저 파워 계산
-  const userPower = userStats.power || userDigimonData?.stats?.basePower || 0;
+  // 속성 정보 가져오기
+  const userAttribute = userDigimonData?.stats?.type || userStats.type || null;
+  // 적 속성: enemyData.attribute (quest), enemyDigimonData.stats.type, 또는 battleResult에서 가져오기
+  const enemyAttribute = enemyData?.attribute || enemyDigimonData?.stats?.type || null;
+  
+  // 속성 한글 변환
+  const getAttributeName = (attr) => {
+    if (!attr) return "없음";
+    const attrMap = {
+      "Vaccine": "백신",
+      "Virus": "바이러스",
+      "Data": "데이터",
+      "Free": "프리"
+    };
+    return attrMap[attr] || attr;
+  };
+  
+  // 상성 계산 (유저가 적에게 공격할 때)
+  const userAttrBonus = getAttributeBonus(userAttribute, enemyAttribute);
+  const getAttributeAdvantageText = (bonus) => {
+    if (bonus > 0) return " (유리)";
+    if (bonus < 0) return " (불리)";
+    return "";
+  };
+
+  // 유저 파워 계산 (battleResult에서 상세 정보 가져오기)
+  const userPower = battleResult?.userPower || userStats.power || userDigimonData?.stats?.basePower || 0;
+  const userPowerDetails = battleResult?.userPowerDetails || {
+    basePower: userDigimonData?.stats?.basePower || 0,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
   const enemyPower = enemyData?.power || 0;
 
   // 퀘스트 클리어 여부 확인
@@ -479,7 +517,68 @@ export default function BattleScreen({
                   ? `${userSlotName}의 ${userDigimonData?.name || "User"}`
                   : userDigimonData?.name || "User"}
               </p>
-              <p>Power: {userPower}</p>
+              <p className="text-sm text-gray-600">
+                속성: {getAttributeName(userAttribute)}
+                {!hideEnemyInfo && enemyAttribute && (
+                  <span className={userAttrBonus > 0 ? 'text-green-600 font-semibold' : userAttrBonus < 0 ? 'text-red-600 font-semibold' : ''}>
+                    {getAttributeAdvantageText(userAttrBonus)}
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                <p>
+                  Power: {userPower}
+                  {(() => {
+                    // 보너스 개수 계산
+                    let bonusCount = 0;
+                    if (userPowerDetails.strengthBonus > 0) bonusCount++;
+                    if (userPowerDetails.traitedEggBonus > 0) bonusCount++;
+                    if (userPowerDetails.effortBonus > 0) bonusCount++;
+                    // 보너스가 있으면 ↑ 아이콘 표시
+                    return bonusCount > 0 ? (
+                      <span className="text-green-600 ml-1">
+                        {Array(bonusCount).fill('↑').join('')}
+                      </span>
+                    ) : null;
+                  })()}
+                </p>
+                <button
+                  onClick={() => setShowUserPowerDetails(!showUserPowerDetails)}
+                  className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                  title="파워 계산 상세 보기"
+                >
+                  <span>상세</span>
+                  <span>{showUserPowerDetails ? '▼' : '▶'}</span>
+                </button>
+              </div>
+              {showUserPowerDetails && (
+                <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                  <div className="font-semibold mb-1">파워 계산:</div>
+                  <div className="space-y-1">
+                    <div>Base Power: {userPowerDetails.basePower}</div>
+                    <div className={userPowerDetails.strengthBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Strength 보너스: {userPowerDetails.strengthBonus > 0 ? `(+${userPowerDetails.strengthBonus}) ✅` : '0'}
+                    </div>
+                    <div className={userPowerDetails.traitedEggBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Traited Egg 보너스: {userPowerDetails.traitedEggBonus > 0 ? `(+${userPowerDetails.traitedEggBonus}) ✅` : '0'}
+                    </div>
+                    <div className={userPowerDetails.effortBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Effort 보너스: {userPowerDetails.effortBonus > 0 ? `(+${userPowerDetails.effortBonus}) ✅` : '0'}
+                    </div>
+                    <div className="border-t pt-1 mt-1">
+                      <div>
+                        = {userPowerDetails.basePower} 
+                        {userPowerDetails.strengthBonus > 0 && ` + (${userPowerDetails.strengthBonus})`}
+                        {userPowerDetails.traitedEggBonus > 0 && ` + (${userPowerDetails.traitedEggBonus})`}
+                        {userPowerDetails.effortBonus > 0 && ` + (${userPowerDetails.effortBonus})`}
+                      </div>
+                      <div className="font-bold mt-1">
+                        = {userPower}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {/* 히트 마커 */}
             <div className="hit-markers flex justify-center gap-2 mt-2">
@@ -566,6 +665,14 @@ export default function BattleScreen({
                   ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
                   : enemyDigimonData?.name || enemyData?.name || "Enemy"}
               </p>
+              {!hideEnemyInfo && enemyAttribute && (
+                <p className="text-sm text-gray-600">
+                  속성: {getAttributeName(enemyAttribute)}
+                </p>
+              )}
+              {hideEnemyInfo && (
+                <p className="text-sm text-gray-600">속성: ???</p>
+              )}
               <p>Power: {hideEnemyInfo ? "??" : enemyPower}</p>
             </div>
             {/* 히트 마커 */}
@@ -586,6 +693,76 @@ export default function BattleScreen({
             <div className="battle-log text-center text-sm text-gray-600 mb-2">
               <strong>현재 턴:</strong> {battleResult.logs[currentLogIndex]?.message || "배틀 진행 중..."}
             </div>
+            
+            {/* 배틀 가이드 (아코디언) */}
+            <div className="mb-3">
+              <button
+                onClick={() => setShowBattleGuide(!showBattleGuide)}
+                className="w-full text-left flex items-center justify-between py-2 px-3 bg-blue-50 hover:bg-blue-100 rounded transition-colors text-xs font-bold"
+              >
+                <span>❓ 배틀가이드 상세 확인</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-600">{showBattleGuide ? '접기' : '펼치기'}</span>
+                  <span className="text-gray-500">{showBattleGuide ? '▼' : '▶'}</span>
+                </div>
+              </button>
+              {showBattleGuide && (
+                <div className="mt-2 p-3 bg-blue-50 rounded text-xs">
+                  {/* 배틀 로직 공식 */}
+                  <div className="mb-3">
+                    <div className="font-bold mb-1">배틀 로직:</div>
+                    <div className="font-mono bg-white p-2 rounded border">
+                      (내파워 × 100) ÷ (내파워 + 상대파워) + 속성보너스
+                    </div>
+                    <div className="mt-1 text-gray-600">
+                      • 속성보너스: 유리 +5%, 불리 -5%, 무관 0%
+                    </div>
+                  </div>
+                  
+                  {/* 속성 상성 가이드 */}
+                  <div>
+                    <div className="font-bold mb-2">속성 상성 가이드:</div>
+                    <div className="space-y-2">
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-semibold text-green-600 mb-1">백신 (Vaccine)</div>
+                        <div className="text-xs">
+                          <span className="text-green-600">✓ 유리:</span> 바이러스 (+5%)
+                          <br />
+                          <span className="text-red-600">✗ 불리:</span> 데이터 (-5%)
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-semibold text-red-600 mb-1">바이러스 (Virus)</div>
+                        <div className="text-xs">
+                          <span className="text-green-600">✓ 유리:</span> 데이터 (+5%)
+                          <br />
+                          <span className="text-red-600">✗ 불리:</span> 백신 (-5%)
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-semibold text-blue-600 mb-1">데이터 (Data)</div>
+                        <div className="text-xs">
+                          <span className="text-green-600">✓ 유리:</span> 백신 (+5%)
+                          <br />
+                          <span className="text-red-600">✗ 불리:</span> 바이러스 (-5%)
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-semibold text-gray-600 mb-1">프리 (Free)</div>
+                        <div className="text-xs text-gray-500">상성 없음 (0%)</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600 italic">
+                      💡 백신 → 바이러스 → 데이터 → 백신 (삼각 상성)
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             {/* 상세 계산 공식 */}
             {battleResult.logs[currentLogIndex]?.formula && (
               <div className="battle-formula text-xs text-gray-500 mb-2 font-mono">

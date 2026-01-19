@@ -420,7 +420,9 @@ export default function StatsPopup({
     possiblePoop.push(i);
   }
   const possibleStrength = [];
-  for(let i=0; i<=5; i++){
+  // strength는 5를 넘을 수 있으며, proteinOverdose 트리거 포인트는 9, 13, 17, 21, 25, 29, 33
+  // proteinOverdose 최대값 7을 달성하려면 strength가 최소 33까지 필요
+  for(let i=0; i<=33; i++){
     possibleStrength.push(i);
   }
   // proteinCount 제거됨 - strength로 통합
@@ -431,6 +433,16 @@ export default function StatsPopup({
   const possibleHealedDoses= [];
   for(let i=0; i<=5; i++){
     possibleHealedDoses.push(i);
+  }
+  const possibleEffort = [];
+  for(let i=0; i<=5; i++){
+    possibleEffort.push(i);
+  }
+  const possibleEnergy = [];
+  // energy는 0부터 maxEnergy까지 (최대 100으로 제한)
+  const maxEnergyValue = maxEnergy || maxStamina || 100;
+  for(let i=0; i<=maxEnergyValue; i++){
+    possibleEnergy.push(i);
   }
   
   // 타이머 남은 시간 계산 (초 단위)
@@ -596,6 +608,42 @@ export default function StatsPopup({
 
             {/* proteinCount */}
             {/* proteinCount 제거됨 - strength로 통합 */}
+
+            {/* strength */}
+            <label className="block mt-1">
+              Strength:
+              <select
+                value={strength || 0}
+                onChange={(e)=> handleChange("strength",e)}
+                className="border ml-2"
+              >
+                {possibleStrength.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            {/* effort */}
+            <label className="block mt-1">
+              Effort:
+              <select
+                value={effort || 0}
+                onChange={(e)=> handleChange("effort",e)}
+                className="border ml-2"
+              >
+                {possibleEffort.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </label>
+
+            {/* energy */}
+            <label className="block mt-1">
+              Energy:
+              <select
+                value={energy || 0}
+                onChange={(e)=> handleChange("energy",e)}
+                className="border ml-2"
+              >
+                {possibleEnergy.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </label>
 
             {/* weight */}
             <label className="block mt-1">
