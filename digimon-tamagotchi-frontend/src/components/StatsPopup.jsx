@@ -1692,9 +1692,8 @@ export default function StatsPopup({
             );
           })()}
 
-          {/* 수명 다함 사망 카운터 - 항상 표시 */}
+          {/* 수명 표시 (사망 기능 제거됨) */}
           {(() => {
-            const isDeadFromOldAge = isDead && deathReason === 'OLD AGE (수명 다함)';
             // 수명은 가변적이므로, 현재 수명을 기준으로 게이지 표시 (최대 20일 기준)
             const maxLifespanForDisplay = 20 * 24 * 3600; // 20일을 초로 변환
             const currentLifespan = lifespanSeconds || 0;
@@ -1702,57 +1701,39 @@ export default function StatsPopup({
             const maxDaysForDisplay = 20;
             
             return (
-              <li className={`border-l-4 pl-2 p-2 rounded ${isDeadFromOldAge ? 'border-gray-600 bg-gray-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
-                <div className={`font-semibold mb-1 ${isDeadFromOldAge ? 'text-gray-700' : 'text-gray-500'}`}>
-                  ⏰ 수명 다함:
+              <li className="border-l-4 pl-2 p-2 rounded border-gray-300 bg-gray-50">
+                <div className="font-semibold mb-1 text-gray-500">
+                  ⏰ 수명 :
                 </div>
                 <div className="space-y-1 text-xs">
-                  {isDeadFromOldAge ? (
+                  <div className="text-gray-500 mb-2">
+                    현재 수명: {formatTime(currentLifespan)}
+                  </div>
+                  {currentLifespan > 0 && (
                     <>
-                      <div className="text-gray-800 font-bold mb-2">💀 사망 (자연 수명 종료)</div>
                       <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
-                        {[...Array(maxDaysForDisplay)].map((_, i) => (
-                          <div 
-                            key={i}
-                            className="flex-1 border-r border-white last:border-0 bg-gray-400"
-                            title={`${i + 1}일 경과`}
-                          />
-                        ))}
+                        {[...Array(maxDaysForDisplay)].map((_, i) => {
+                          const isFilled = i < Math.min(lifespanDays, maxDaysForDisplay);
+                          return (
+                            <div 
+                              key={i}
+                              className={`flex-1 border-r border-white last:border-0 ${
+                                isFilled
+                                  ? lifespanDays >= maxDaysForDisplay
+                                    ? 'bg-gray-600'
+                                    : lifespanDays >= 15
+                                    ? 'bg-gray-500'
+                                    : lifespanDays >= 10
+                                    ? 'bg-gray-400'
+                                    : 'bg-gray-300'
+                                  : 'bg-gray-200'
+                              }`}
+                              title={`${i + 1}일 경과`}
+                            />
+                          );
+                        })}
                       </div>
-                      <div className="text-[10px] text-gray-500">수명 게이지 (최대 표시: 20일)</div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-gray-500 mb-2">
-                        조건 미충족 (현재 수명: {formatTime(currentLifespan)})
-                      </div>
-                      {currentLifespan > 0 && (
-                        <>
-                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
-                            {[...Array(maxDaysForDisplay)].map((_, i) => {
-                              const isFilled = i < Math.min(lifespanDays, maxDaysForDisplay);
-                              return (
-                                <div 
-                                  key={i}
-                                  className={`flex-1 border-r border-white last:border-0 ${
-                                    isFilled
-                                      ? lifespanDays >= maxDaysForDisplay
-                                        ? 'bg-gray-600'
-                                        : lifespanDays >= 15
-                                        ? 'bg-gray-500'
-                                        : lifespanDays >= 10
-                                        ? 'bg-gray-400'
-                                        : 'bg-gray-300'
-                                      : 'bg-gray-200'
-                                  }`}
-                                  title={`${i + 1}일 경과`}
-                                />
-                              );
-                            })}
-                          </div>
-                          <div className="text-[10px] text-gray-500">수명 게이지 (현재: {lifespanDays}일, 최대 표시: 20일)</div>
-                        </>
-                      )}
+                      <div className="text-[10px] text-gray-500">수명 게이지 (현재: {lifespanDays}일, 최대 표시: 20일)</div>
                     </>
                   )}
                 </div>

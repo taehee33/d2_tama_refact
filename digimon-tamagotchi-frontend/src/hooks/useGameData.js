@@ -358,9 +358,8 @@ export function useGameData({
         if (elapsedSinceInjury >= 21600000) {
           reason = 'INJURY NEGLECT (부상 방치: 6시간)';
         }
-      } else {
-        reason = 'OLD AGE (수명 다함)';
       }
+      // 수명으로 인한 사망 제거됨
       
       if (reason) {
         updated.deathReason = reason; // digimonStats에 저장

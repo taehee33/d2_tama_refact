@@ -533,15 +533,7 @@ function Game(){
             setDeathReason(reason);
           }
         }
-        // 수명 종료 체크 (lifespanSeconds가 최대치에 도달했는지 확인)
-        // updateLifespan에서 처리되지만, 여기서도 확인
-        const maxLifespan = currentDigimonData?.maxLifespan || 999999;
-        if(updatedStats.lifespanSeconds >= maxLifespan && !updatedStats.isDead){
-          updatedStats.isDead = true;
-          const reason = 'OLD AGE (수명 다함)';
-          updatedStats.deathReason = reason; // digimonStats에 저장
-          setDeathReason(reason);
-        }
+        // 수명 종료 체크 제거됨 - 수명으로 인한 사망 없음
         // 호출(Call) 시스템 체크 및 타임아웃 처리
         const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1, prevStats);
         const oldCallStatus = { ...prevStats.callStatus };

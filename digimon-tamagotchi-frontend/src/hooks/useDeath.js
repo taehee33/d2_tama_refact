@@ -87,9 +87,11 @@ export function useDeath({
       }
     }
     
-    // 수명 다함 (기본 사망 조건)
+    // 수명으로 인한 사망 제거됨
+    // 이미 isDead가 true인 경우 다른 사망 원인을 찾지 못했을 때 fallback
     if (stats.isDead) {
-      return { isDead: true, reason: 'OLD AGE (수명 다함)' };
+      // 다른 사망 원인을 찾지 못한 경우, reason은 null로 반환
+      return { isDead: true, reason: null };
     }
     
     return { isDead: false, reason: null };
