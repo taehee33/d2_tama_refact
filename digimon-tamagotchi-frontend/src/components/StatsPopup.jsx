@@ -1548,10 +1548,10 @@ export default function StatsPopup({
                 </div>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between items-center mb-2">
-                    <span className={`font-bold text-lg ${isActive || isDeadFromInjuryOverload ? 'text-red-700' : 'text-gray-500'}`}>
+                    <span className={`font-bold text-lg ${isActive || isDeadFromInjuryOverload ? 'text-red-700' : injuries >= 12 ? 'text-red-600' : injuries >= 10 ? 'text-orange-600' : 'text-gray-500'}`}>
                       {injuries || 0} / 15 회
                     </span>
-                    {(isActive || isDeadFromInjuryOverload) && (
+                    {(isActive || isDeadFromInjuryOverload || injuries >= 12) && (
                       <span className="text-xs text-red-500 animate-pulse font-bold">⚠️ 경고!</span>
                     )}
                   </div>
@@ -1579,9 +1579,28 @@ export default function StatsPopup({
                     <div className="text-red-800 font-bold">💀 사망 (부상 15회 도달)</div>
                   ) : isActive ? (
                     <div className="text-red-700 font-bold">⚠️ 사망 위험! (부상 15회 도달)</div>
+                  ) : injuries >= 12 ? (
+                    <div className="text-red-600 font-semibold">⚠️ 경고: 부상 횟수가 한도에 도달했습니다. 사망 위험이 매우 높습니다!</div>
+                  ) : injuries >= 10 ? (
+                    <div className="text-orange-500">※ 주의: 부상 횟수가 증가하고 있습니다.</div>
                   ) : (
                     <div className="text-gray-500">
                       조건 미충족 (현재 부상: {injuries || 0}/15)
+                    </div>
+                  )}
+                  
+                  {/* 부상 이력 아코디언 */}
+                  {(injuries > 0 || (stats?.activityLogs || []).some(log => {
+                    if (!log.text) return false;
+                    return (log.type === 'POOP' && log.text.includes('Injury')) ||
+                           (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) ||
+                           (log.type === 'INJURY');
+                  })) && (
+                    <div className="mt-2">
+                      <InjuryHistory 
+                        activityLogs={stats?.activityLogs || []} 
+                        formatTimestamp={formatTimestamp}
+                      />
                     </div>
                   )}
                 </div>
@@ -1741,59 +1760,6 @@ export default function StatsPopup({
             );
           })()}
 
-          {/* 사망까지 부상횟수 카운터 */}
-          <li className="border-l-4 pl-2 border-red-300 bg-gray-50 p-2 rounded">
-            <div className="font-semibold text-gray-700 mb-2">사망까지 부상횟수:</div>
-            <div className="flex justify-between items-center mb-2">
-              <span className={`font-bold text-lg ${injuries >= 12 ? 'text-red-600' : injuries >= 10 ? 'text-orange-600' : 'text-gray-700'}`}>
-                {injuries || 0} / 15 회
-              </span>
-              {injuries >= 12 && (
-                <span className="text-xs text-red-500 animate-pulse font-bold">⚠️ 경고!</span>
-              )}
-            </div>
-            {/* 부상 횟수 게이지 */}
-            <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-2">
-              {[...Array(15)].map((_, i) => (
-                <div 
-                  key={i}
-                  className={`flex-1 border-r border-white last:border-0 ${
-                    i < (injuries || 0) 
-                      ? injuries >= 12 
-                        ? 'bg-red-600' 
-                        : injuries >= 10 
-                        ? 'bg-orange-500' 
-                        : 'bg-red-400'
-                      : 'bg-gray-300'
-                  }`}
-                  title={`부상 ${i + 1}회`}
-                />
-              ))}
-            </div>
-            {injuries >= 12 && (
-              <p className="text-[10px] text-red-500 mt-1 font-semibold">
-                ※ 경고: 부상 횟수가 한도에 도달했습니다. 사망 위험이 매우 높습니다!
-              </p>
-            )}
-            {injuries >= 10 && injuries < 12 && (
-              <p className="text-[10px] text-orange-500 mt-1">
-                ※ 주의: 부상 횟수가 증가하고 있습니다.
-              </p>
-            )}
-            
-            {/* 부상 이력 아코디언 */}
-            {(injuries > 0 || (stats?.activityLogs || []).some(log => {
-              if (!log.text) return false;
-              return (log.type === 'POOP' && log.text.includes('Injury')) ||
-                     (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) ||
-                     (log.type === 'INJURY');
-            })) && (
-              <InjuryHistory 
-                activityLogs={stats?.activityLogs || []} 
-                formatTimestamp={formatTimestamp}
-              />
-            )}
-          </li>
         </ul>
       </div>
     </div>
