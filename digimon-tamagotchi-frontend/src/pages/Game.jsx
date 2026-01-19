@@ -1479,10 +1479,12 @@ async function setSelectedDigimonAndSave(name) {
             <button
               onClick={() => toggleModal('deathModal', true)}
               className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
-              title="사망 정보"
+              title={selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2" ? "새로운 시작" : "사망 정보"}
               style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
             >
-              <span className="whitespace-nowrap">💀 사망 확인</span>
+              <span className="whitespace-nowrap">
+                {(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2") ? "🥚 새로운 시작" : "💀 사망 확인"}
+              </span>
             </button>
           )}
         </div>

@@ -130,7 +130,7 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
             onClick={handleConfirm}
             className="px-6 py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-800 transition-colors"
           >
-            {isOhakadamon ? "새로운 시작 🥚" : "사망 확인 (안녕..)"}
+            {isOhakadamon ? "🥚 새로운 시작" : "사망 확인 (안녕..)"}
           </button>
         </div>
       </div>
