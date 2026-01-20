@@ -23,9 +23,9 @@ const SettingsModal = ({
   selectedDigimon,
   digimonStats,
   slotVersion,
-}) => {
-  const navigate = useNavigate();
-  const { logout, isFirebaseAvailable, currentUser } = useAuth();
+  }) => {
+  // const navigate = useNavigate(); // 사용되지 않음
+  // const { logout, isFirebaseAvailable, currentUser } = useAuth(); // 사용되지 않음
   
   // PWA 설치 관련
   const [deferredPrompt, setDeferredPrompt] = useState(null);

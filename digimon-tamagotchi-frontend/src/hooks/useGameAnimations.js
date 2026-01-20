@@ -104,8 +104,6 @@ export function useGameAnimations({
       const newEnergy = updatedStats.energy || 0;
       const newOverfeeds = updatedStats.overfeeds || 0;
       const newHungerCountdown = updatedStats.hungerCountdown || 0;
-      // proteinCount 제거됨 - strength로 통합
-      const newProteinOverdose = updatedStats.proteinOverdose || 0;
       
       // 델타 계산
       const weightDelta = newWeight - oldWeight;

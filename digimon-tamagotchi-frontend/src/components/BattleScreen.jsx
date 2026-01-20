@@ -268,7 +268,6 @@ export default function BattleScreen({
   const enemyPower = enemyData?.power || 0;
 
   // 퀘스트 클리어 여부 확인
-  const questArea = getQuestArea(areaId);
   const isQuestCleared = battleResult?.isAreaClear || false;
 
   // 로그 재생 애니메이션 (1.5~2초 간격)

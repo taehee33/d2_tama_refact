@@ -79,6 +79,7 @@ const Canvas = ({
     poopCount,showPoopCleanAnimation,cleanStep,
     sleepStatus,isRefused,isDead,isInjured,selectedDigimon
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // initImages는 함수이므로 의존성에서 제외
   ]);
 
   function initImages(){

@@ -173,7 +173,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 3. 임시 상태 (모달용)
   // ============================================
   const [healModalStats, setHealModalStats] = useState(null); // HealModal에 전달할 최신 스탯
-  const [healTreatmentMessage, setHealTreatmentMessage] = useState(null); // 치료 성공 메시지
+  const [, setHealTreatmentMessage] = useState(null); // 치료 성공 메시지 (setter만 사용)
   
   // ============================================
   // 4. Flags (상태 플래그)

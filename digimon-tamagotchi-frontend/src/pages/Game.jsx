@@ -157,7 +157,6 @@ function Game(){
     foodSizeScale,
     cleanStep,
     setCleanStep,
-    healStep,
     setHealStep,
     customTime,
     setCustomTime,
@@ -296,6 +295,7 @@ function Game(){
     return ()=>{
       clearInterval(clock);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   // (3) 클라이언트 타이머: 1초마다 UI 실시간 업데이트 (Time to Evolve, Lifespan, Waste 등)

@@ -46,36 +46,36 @@ export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
 };
 
 /**
- * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
+ * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트 (현재 사용되지 않음)
  * @param {Object} digimonStats - 디지몬 스탯
  * @param {Function} setWakeUntilCb - wakeUntil 설정 함수
  * @param {Function} setStatsCb - 스탯 업데이트 함수
  * @param {boolean} isSleepTime - 정규 수면 시간 여부
  * @param {Function} onSleepDisturbance - 수면 방해 콜백
  */
-function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb, isSleepTime = true, onSleepDisturbance = null) {
-  const until = Date.now() + 10 * 60 * 1000; // 10분
-  setWakeUntilCb(until);
-  
-  const nowMs = Date.now();
-  const napUntil = digimonStats.napUntil || null;
-  const isNapTime = napUntil ? napUntil > nowMs : false;
-  
-  const updated = {
-    ...digimonStats,
-    wakeUntil: until,
-    // 정규 수면 시간에 깨울 때만 수면 방해(sleepDisturbances) 증가 (낮잠 중에는 증가하지 않음)
-    sleepDisturbances: (isSleepTime && !isNapTime) 
-      ? (digimonStats.sleepDisturbances || 0) + 1 
-      : (digimonStats.sleepDisturbances || 0)
-  };
-  setStatsCb(updated);
-  
-  // 수면 방해 콜백 호출 (낮잠 중이 아닐 때만)
-  if (onSleepDisturbance && isSleepTime && !isNapTime) {
-    onSleepDisturbance();
-  }
-}
+// function wakeForInteraction(digimonStats, setWakeUntilCb, setStatsCb, isSleepTime = true, onSleepDisturbance = null) {
+//   const until = Date.now() + 10 * 60 * 1000; // 10분
+//   setWakeUntilCb(until);
+//   
+//   const nowMs = Date.now();
+//   const napUntil = digimonStats.napUntil || null;
+//   const isNapTime = napUntil ? napUntil > nowMs : false;
+//   
+//   const updated = {
+//     ...digimonStats,
+//     wakeUntil: until,
+//     // 정규 수면 시간에 깨울 때만 수면 방해(sleepDisturbances) 증가 (낮잠 중에는 증가하지 않음)
+//     sleepDisturbances: (isSleepTime && !isNapTime) 
+//       ? (digimonStats.sleepDisturbances || 0) + 1 
+//       : (digimonStats.sleepDisturbances || 0)
+//   };
+//   setStatsCb(updated);
+//   
+//   // 수면 방해 콜백 호출 (낮잠 중이 아닐 때만)
+//   if (onSleepDisturbance && isSleepTime && !isNapTime) {
+//     onSleepDisturbance();
+//   }
+// }
 
 /**
  * useGameHandlers Hook

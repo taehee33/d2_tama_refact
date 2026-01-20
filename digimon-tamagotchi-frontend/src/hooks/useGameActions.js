@@ -279,7 +279,6 @@ export function useGameActions({
       const oldStrength = currentStats.strength || 0;
       const oldEnergy = currentStats.energy || 0;
       const oldOverfeeds = currentStats.overfeeds || 0;
-      const oldHungerCountdown = currentStats.hungerCountdown || 0;
       
       // 먹이기 로직 실행 (결과 객체도 함께 받음)
       let eatResult;
@@ -313,7 +312,6 @@ export function useGameActions({
       const newStrength = updatedStats.strength || 0;
       const newEnergy = updatedStats.energy || 0;
       const newOverfeeds = updatedStats.overfeeds || 0;
-      const newHungerCountdown = updatedStats.hungerCountdown || 0;
       
       // 디버깅: 오버피드 관련 변수 추적
       if (type === "meat") {
@@ -505,10 +503,6 @@ export function useGameActions({
     // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
     const newWeight = finalStats.weight || 0;
     const newStrength = finalStats.strength || 0;
-    
-    // 델타 계산
-    const weightDelta = newWeight - oldWeight;
-    const strengthDelta = newStrength - oldStrength;
     
     // 🔥 제안 코드 패턴 적용: 스탯 계산과 로그를 하나의 함수형 업데이트로 통합
     setDigimonStats((prev) => {
