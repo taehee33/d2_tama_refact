@@ -1,5 +1,6 @@
 // src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import { AuthProvider } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import SelectScreen from "./pages/SelectScreen";
@@ -20,6 +21,7 @@ function App() {
           <Route path="/game/:slotId" element={<Game />} />
         </Routes>
       </Router>
+      <Analytics />
     </AuthProvider>
   );
 }
