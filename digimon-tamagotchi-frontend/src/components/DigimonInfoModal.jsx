@@ -1,7 +1,6 @@
 // src/components/DigimonInfoModal.jsx
 import React, { useState } from "react";
 import { checkEvolutionAvailability } from "../hooks/useGameLogic";
-import { formatTimestamp } from "../utils/dateUtils";
 import { translateStage } from "../utils/stageTranslator";
 
 /**

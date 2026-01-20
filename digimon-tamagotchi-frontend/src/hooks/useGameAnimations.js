@@ -76,8 +76,6 @@ export function useGameAnimations({
       const oldEnergy = currentStats.energy || 0;
       const oldOverfeeds = currentStats.overfeeds || 0;
       const oldHungerCountdown = currentStats.hungerCountdown || 0;
-      // proteinCount 제거됨 - strength로 통합
-      const oldProteinOverdose = currentStats.proteinOverdose || 0;
       
       // 먹이기 로직 실행
       let eatResult;
@@ -179,7 +177,6 @@ export function useGameAnimations({
       
       const now = new Date();
       const oldPoopCount = digimonStats.poopCount || 0;
-      const wasInjured = digimonStats.isInjured || false;
       
       // 수면 중 청소 시도 시 수면 방해 처리 (실제 액션 수행 시점)
       const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, digimonStats);

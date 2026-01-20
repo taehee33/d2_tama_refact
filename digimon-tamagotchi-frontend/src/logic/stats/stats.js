@@ -369,9 +369,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   // Energy 회복 처리
   if (sleepSchedule && maxEnergy) {
     const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
     const lastHour = lastSaved.getHours();
-    const lastMinute = lastSaved.getMinutes();
     
     const { start = 22, end = 6 } = sleepSchedule;
     
@@ -496,7 +494,6 @@ export function handleEnergyRecovery(stats, sleepSchedule = null, maxEnergy = nu
 
   const updatedStats = { ...stats };
   const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
   
   if (sleepSchedule && maxEnergy) {
     const { start = 22, end = 6 } = sleepSchedule;

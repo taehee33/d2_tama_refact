@@ -332,8 +332,6 @@ export function useGameActions({
       const fullnessDelta = newFullness - oldFullness;
       const strengthDelta = newStrength - oldStrength;
       const energyDelta = newEnergy - oldEnergy;
-      const overfeedsDelta = newOverfeeds - oldOverfeeds;
-      const hungerCountdownDelta = newHungerCountdown - oldHungerCountdown;
       
       let logText = '';
       if (type === "meat") {
@@ -495,7 +493,6 @@ export function useGameActions({
     // doVer1Training -> stats 업데이트
     const oldWeight = updatedStats.weight || 0;
     const oldStrength = updatedStats.strength || 0;
-    const oldEnergy = updatedStats.energy || 0;
     
     const result = doVer1Training(updatedStats, userSelections);
     let finalStats = result.updatedStats;
@@ -508,7 +505,6 @@ export function useGameActions({
     // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
     const newWeight = finalStats.weight || 0;
     const newStrength = finalStats.strength || 0;
-    const newEnergy = finalStats.energy || 0;
     
     // 델타 계산
     const weightDelta = newWeight - oldWeight;
@@ -579,7 +575,6 @@ export function useGameActions({
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const oldPoopCount = prevStats.poopCount || 0;
-        const wasInjured = prevStats.isInjured || false;
         
         const updatedStats = {
           ...prevStats,

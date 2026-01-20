@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { translateStage } from "../utils/stageTranslator";
@@ -37,7 +37,6 @@ const SettingsModal = ({
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
   const [localHeight, setLocalHeight] = useState(height);
-  const [localUniform, setLocalUniform] = useState(Math.min(width, height));
   const [localDevMode, setLocalDevMode] = useState(developerMode);
   const [uniformScale, setUniformScale] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(height / width); // 초기 비율 저장
@@ -46,7 +45,6 @@ const SettingsModal = ({
   useEffect(() => {
     setLocalWidth(width);
     setLocalHeight(height);
-    setLocalUniform(Math.min(width, height));
     setLocalDevMode(developerMode);
     setAspectRatio(height / width); // 비율 업데이트
   }, [width, height, developerMode]);
@@ -124,24 +122,12 @@ const SettingsModal = ({
     }
   };
 
-  // Uniform scale 변경 (기존 슬라이더)
-  const handleUniformChange = (e) => {
-    const val = parseInt(e.target.value) || 100;
-    setLocalUniform(val);
-    // Uniform → Width, Height 함께 변경
-    setLocalWidth(val);
-    setLocalHeight(val);
-    // 비율도 업데이트 (1:1)
-    setAspectRatio(1);
-  };
-  
   // Reset Size 버튼
   const handleResetSize = () => {
     const defaultWidth = 300;
     const defaultHeight = 200;
     setLocalWidth(defaultWidth);
     setLocalHeight(defaultHeight);
-    setLocalUniform(Math.min(defaultWidth, defaultHeight));
     setAspectRatio(defaultHeight / defaultWidth);
     // 즉시 적용
     setWidth(defaultWidth);
@@ -204,18 +190,6 @@ const SettingsModal = ({
     onClose();
   };
 
-  // 로그아웃 처리
-  const handleLogout = async () => {
-    try {
-      if (isFirebaseAvailable && currentUser) {
-        await logout();
-        navigate("/");
-      }
-    } catch (error) {
-      console.error("로그아웃 오류:", error);
-      alert("로그아웃에 실패했습니다.");
-    }
-  };
 
   // PWA 설치 처리
   const handleInstall = async () => {

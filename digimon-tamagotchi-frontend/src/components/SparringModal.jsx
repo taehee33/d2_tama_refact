@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { collection, getDocs, query, orderBy, limit, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { calculatePower } from "../logic/battle/hitrate";
@@ -18,6 +18,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
 
   useEffect(() => {
     loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, isFirebaseAvailable, mode]);
 
   const loadSlots = async () => {

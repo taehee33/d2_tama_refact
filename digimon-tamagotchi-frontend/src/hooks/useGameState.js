@@ -346,6 +346,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       // 임시 상태 (모달용)
       healModalStats,
       setHealModalStats,
+      setHealTreatmentMessage,
       
       // 슬롯 정보
       slotId: slotId ? (typeof slotId === 'number' ? slotId : parseInt(slotId) || null) : null, // slotId를 gameState에 포함

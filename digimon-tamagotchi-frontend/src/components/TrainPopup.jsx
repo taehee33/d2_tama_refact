@@ -122,6 +122,7 @@ export default function TrainPopup({
       setTimeLeft(timeLeft - 1);
     }, 1000);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeLeft, phase, round, hasChosen]);
 
   // (3) 공격 선택

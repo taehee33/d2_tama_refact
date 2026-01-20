@@ -2,7 +2,7 @@
 // Arena Admin Panel (Dev 전용)
 
 import React, { useEffect, useState } from "react";
-import { collection, doc, getDoc, getDocs, updateDoc, setDoc, deleteDoc, query, orderBy, limit, where } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc, setDoc, deleteDoc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onConfigUpdated }) => {
@@ -14,7 +14,6 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setLocalSeasonId(Number(currentSeasonId) || 1);

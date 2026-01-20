@@ -12,9 +12,7 @@ import {
   addDoc, 
   deleteDoc, 
   doc, 
-  updateDoc,
   serverTimestamp,
-  increment,
   limit,
   getDoc,
 } from "firebase/firestore";
@@ -54,7 +52,6 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [challengers, setChallengers] = useState([]);
   const [battleLogs, setBattleLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [registering, setRegistering] = useState(false);
   const [showSlotSelection, setShowSlotSelection] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [activeTab, setActiveTab] = useState('challengers'); // 'challengers' | 'battleLog' | 'leaderboard'
@@ -140,6 +137,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, isFirebaseAvailable, mode]);
 
   // 배틀 완료 후 엔트리 목록 새로고침 (승패 기록 반영)
@@ -148,6 +146,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     if (isFirebaseAvailable && currentUser && mode !== 'local' && !loading) {
       loadMyEntries();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   useEffect(() => {
@@ -164,6 +163,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         loadLeaderboard(leaderboardMode);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentUser, isFirebaseAvailable, mode, leaderboardMode, selectedArchiveId]);
 
   // 시즌 설정 로드

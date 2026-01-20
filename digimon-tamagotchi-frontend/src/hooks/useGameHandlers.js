@@ -3,7 +3,7 @@
 
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
-import { getSleepStatus, resetCallStatus, addActivityLog } from "./useGameLogic";
+import { resetCallStatus, addActivityLog } from "./useGameLogic";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)

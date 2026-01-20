@@ -1,7 +1,6 @@
 // src/components/GameScreen.jsx
 import React, { useState, useEffect, useRef } from "react";
 import Canvas from "./Canvas";
-import StatusHearts from "./StatusHearts";
 
 /**
  * GameScreen 컴포넌트
@@ -77,6 +76,7 @@ const GameScreen = ({
       setSelectedSickEmojis([]);
     }
     prevIsInjured.current = digimonStats.isInjured;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digimonStats.isInjured, selectedSickEmojis.length]);
   
   return (

@@ -3,19 +3,6 @@ import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import StatusHearts from "./StatusHearts";
 
-/**
- * fullnessDisplay:
- *  - fullness≥5 ⇒ 5까지만 표시 + (나머지 오버피드)
- *  - 예) fullness=7 => "5(+2)"
- */
-function fullnessDisplay(fullness=0, maxOverfeed=0){
-  const base = Math.min(5, fullness);
-  let over = 0;
-  if(fullness > 5){
-    over = fullness - 5;
-  }
-  return `${base}${over>0 ? "(+" + over + ")" : ""}`;
-}
 
 /**
  * strengthDisplay:

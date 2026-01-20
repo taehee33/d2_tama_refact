@@ -10,7 +10,6 @@ export const defaultStats = {
     energy: 0, // 매뉴얼의 DP 개념 (Energy/DP)
     effort: 0,
     fullness: 0,
-    winRate: 0,
     careMistakes: 0,
   
     lifespanSeconds: 0,

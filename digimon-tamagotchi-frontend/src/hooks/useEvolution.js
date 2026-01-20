@@ -1,7 +1,6 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
-import { useState } from "react";
 import { checkEvolution } from "../logic/evolution/checker";
 import { initializeStats } from "../data/stats";
 import { addActivityLog } from "./useGameLogic";
@@ -99,9 +98,6 @@ export function useEvolution({
     if (evolutionResult.success) {
       // 진화 성공 - 애니메이션 시작
       const targetId = evolutionResult.targetId;
-      // targetName 찾기 (Fallback 처리) - 새 데이터 사용
-      const targetData = newDigimonDataVer1[targetId];
-      const targetName = targetData?.name || targetData?.id || targetId;
       
       // 진화 애니메이션 시작
       if (typeof setIsEvolving === 'function') {

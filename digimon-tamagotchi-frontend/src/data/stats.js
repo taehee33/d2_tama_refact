@@ -515,7 +515,6 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  const SLEEP_CALL_TIMEOUT = 60 * 60 * 1000; // 60분
 
   // Hunger 호출 처리
   if (updatedStats.fullness === 0) {

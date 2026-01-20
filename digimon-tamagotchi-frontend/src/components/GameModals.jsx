@@ -150,7 +150,6 @@ export default function GameModals({
     quests,
     seasonName,
     seasonDuration,
-    ver1DigimonList,
     initializeStats,
   } = data || {};
 
@@ -158,8 +157,6 @@ export default function GameModals({
     width,
     height,
     backgroundNumber,
-    backgroundSettings,
-    setBackgroundSettings,
     timeSpeed,
     customTime,
     foodSizeScale,

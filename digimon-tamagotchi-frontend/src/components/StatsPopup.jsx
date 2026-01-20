@@ -345,7 +345,6 @@ export default function StatsPopup({
     totalBattles=0,
     totalBattlesWon=0,
     totalBattlesLost=0,
-    totalWinRate=0,
     totalReincarnations=0,
     normalReincarnations=0,
     perfectReincarnations=0,
@@ -356,9 +355,6 @@ export default function StatsPopup({
     hungerCountdown=0,
     strengthCountdown=0,
     poopCountdown=0,
-    tiredStartAt=null,
-    tiredCounted=false,
-    dailySleepMistake=false,
     fastSleepStart=null,
     napUntil=null,
     isNocturnal=false,
@@ -523,10 +519,6 @@ export default function StatsPopup({
   // hungerCycle을 hungerTimer로 변환 (분 단위)
   const speciesHungerTimer = speciesData.hungerCycle || hungerTimer || 0;
   const speciesStrengthTimer = speciesData.strengthCycle || strengthTimer || 0;
-  const speciesPoopTimer = speciesData.poopCycle || poopTimer || 0;
-  
-  // Stomach Capacity 계산 (5 + maxOverfeed)
-  const stomachCapacity = 5 + (speciesData.maxOverfeed || maxOverfeed || 0);
   
   // Power (basePower)
   const speciesPower = speciesData.basePower || power || 0;
@@ -1353,7 +1345,6 @@ export default function StatsPopup({
                       {isDeadFromStarvation ? (
                         <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
-                        const deathTime = hungerZeroTime + (43200 * 1000);
                         const elapsed = Math.floor((currentTime - hungerZeroTime) / 1000);
                         const threshold = 43200;
                         const remaining = threshold - elapsed;
@@ -1438,7 +1429,6 @@ export default function StatsPopup({
                       {isDeadFromExhaustion ? (
                         <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
-                        const deathTime = strengthZeroTime + (43200 * 1000);
                         const elapsed = Math.floor((currentTime - strengthZeroTime) / 1000);
                         const threshold = 43200;
                         const remaining = threshold - elapsed;
@@ -1743,7 +1733,6 @@ export default function StatsPopup({
           {/* 수명 표시 (사망 기능 제거됨) */}
           {(() => {
             // 수명은 가변적이므로, 현재 수명을 기준으로 게이지 표시 (최대 20일 기준)
-            const maxLifespanForDisplay = 20 * 24 * 3600; // 20일을 초로 변환
             const currentLifespan = lifespanSeconds || 0;
             const lifespanDays = Math.floor(currentLifespan / 86400);
             const maxDaysForDisplay = 20;

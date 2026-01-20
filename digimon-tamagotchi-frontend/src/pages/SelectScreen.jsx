@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 
@@ -170,58 +170,59 @@ function SelectScreen() {
   // 마운트 시
   useEffect(() => {
     loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseAvailable, currentUser, mode]);
 
-  // 로컬 저장소 모드로 새 다마고치 시작
-  const handleNewTamaLocal = async () => {
-    try {
-      let slotId;
-      
-      // localStorage 모드: 빈 슬롯 찾기
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
-        if (!existing) {
-          slotId = i;
-          break;
-        }
-      }
-      
-      if (!slotId) {
-        alert("슬롯이 모두 찼습니다!");
-        return;
-      }
+  // 로컬 저장소 모드로 새 다마고치 시작 (현재 사용되지 않음)
+  // const handleNewTamaLocal = async () => {
+  //   try {
+  //     let slotId;
+  //     
+  //     // localStorage 모드: 빈 슬롯 찾기
+  //     for (let i = 1; i <= MAX_SLOTS; i++) {
+  //       const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
+  //       if (!existing) {
+  //         slotId = i;
+  //         break;
+  //       }
+  //     }
+  //     
+  //     if (!slotId) {
+  //       alert("슬롯이 모두 찼습니다!");
+  //       return;
+  //     }
 
-      console.log("새 슬롯 ID (localStorage):", slotId);
+  //     console.log("새 슬롯 ID (localStorage):", slotId);
 
-      // 기존 슬롯들의 displayOrder를 모두 +1 (새 슬롯이 맨 위로 오도록)
-      for (let i = 1; i <= MAX_SLOTS; i++) {
-        const existingOrder = localStorage.getItem(`slot${i}_displayOrder`);
-        if (existingOrder) {
-          const newOrder = parseInt(existingOrder) + 1;
-          localStorage.setItem(`slot${i}_displayOrder`, newOrder.toString());
-        }
-      }
+  //     // 기존 슬롯들의 displayOrder를 모두 +1 (새 슬롯이 맨 위로 오도록)
+  //     for (let i = 1; i <= MAX_SLOTS; i++) {
+  //       const existingOrder = localStorage.getItem(`slot${i}_displayOrder`);
+  //       if (existingOrder) {
+  //         const newOrder = parseInt(existingOrder) + 1;
+  //         localStorage.setItem(`slot${i}_displayOrder`, newOrder.toString());
+  //       }
+  //     }
 
-      // localStorage에 저장
-      localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
-      localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
-      localStorage.setItem(`slot${slotId}_device`, device);
-      localStorage.setItem(`slot${slotId}_version`, version);
-      const slotName = `슬롯${slotId}`;
-      localStorage.setItem(`slot${slotId}_slotName`, slotName);
-      const now = new Date();
-      const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-      localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
-      localStorage.setItem(`slot${slotId}_displayOrder`, "1"); // 새 슬롯은 항상 맨 위에
-      console.log("localStorage 저장 완료");
+  //     // localStorage에 저장
+  //     localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
+  //     localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
+  //     localStorage.setItem(`slot${slotId}_device`, device);
+  //     localStorage.setItem(`slot${slotId}_version`, version);
+  //     const slotName = `슬롯${slotId}`;
+  //     localStorage.setItem(`slot${slotId}_slotName`, slotName);
+  //     const now = new Date();
+  //     const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+  //     localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
+  //     localStorage.setItem(`slot${slotId}_displayOrder`, "1"); // 새 슬롯은 항상 맨 위에
+  //     console.log("localStorage 저장 완료");
 
-      console.log("게임 화면으로 이동 (로컬 모드):", slotId);
-      navigate(`/game/${slotId}`, { state: { mode: 'local' } });
-    } catch (err) {
-      console.error("새 다마고치 생성 오류:", err);
-      alert(`다마고치 생성에 실패했습니다.\n에러: ${err.message || '알 수 없는 오류'}`);
-    }
-  };
+  //     console.log("게임 화면으로 이동 (로컬 모드):", slotId);
+  //     navigate(`/game/${slotId}`, { state: { mode: 'local' } });
+  //   } catch (err) {
+  //     console.error("새 다마고치 생성 오류:", err);
+  //     alert(`다마고치 생성에 실패했습니다.\n에러: ${err.message || '알 수 없는 오류'}`);
+  //   }
+  // };
 
   // 새 다마고치 시작
   const handleNewTama = async () => {

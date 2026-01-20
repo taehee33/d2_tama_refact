@@ -21,6 +21,7 @@ export default function BackgroundSettingsModal({
   useEffect(() => {
     setInitialSettings(backgroundSettings);
     setTempSettings(backgroundSettings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 변경사항 확인

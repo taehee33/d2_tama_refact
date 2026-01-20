@@ -214,6 +214,7 @@ export default function BattleScreen({
       setHasRoundStarted(false); // 새로운 라운드 시작 시 리셋
       setBattleState("ready");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState, userDigimon, userStats, areaId, roundIndex, battleType, sparringEnemySlot, arenaChallenger]);
 
   // 적 디지몬 데이터 가져오기
@@ -269,7 +270,6 @@ export default function BattleScreen({
   // 퀘스트 클리어 여부 확인
   const questArea = getQuestArea(areaId);
   const isQuestCleared = battleResult?.isAreaClear || false;
-  const isLastRound = questArea && roundIndex === questArea.enemies.length - 1;
 
   // 로그 재생 애니메이션 (1.5~2초 간격)
   useEffect(() => {
@@ -366,6 +366,7 @@ export default function BattleScreen({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState, currentLogIndex, battleResult, userDigimonData, enemyDigimonData, hasRoundStarted]);
 
   // 다음 라운드 진행

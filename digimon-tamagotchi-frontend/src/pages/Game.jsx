@@ -10,7 +10,7 @@ import GameScreen from "../components/GameScreen";
 import StatusHearts from "../components/StatusHearts";
 import DigimonStatusBadges from "../components/DigimonStatusBadges";
 
-import { getSleepStatus, checkCalls, resetCallStatus, checkCallTimeouts, addActivityLog } from "../hooks/useGameLogic";
+import { getSleepStatus, checkCalls, checkCallTimeouts, addActivityLog } from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
 import { useGameActions } from "../hooks/useGameActions";
@@ -23,14 +23,13 @@ import { useGameState } from "../hooks/useGameState";
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
-import { initializeStats, applyLazyUpdate, updateLifespan } from "../data/stats";
+import { initializeStats, updateLifespan } from "../data/stats";
 import { handleEnergyRecovery } from "../logic/stats/stats";
 import { quests } from "../data/v1/quests";
 
 import { checkEvolution } from "../logic/evolution/checker";
 import { handleHungerTick } from "../logic/stats/hunger";
 import { handleStrengthTick } from "../logic/stats/strength";
-import { willRefuseMeat } from "../logic/food/meat";
 
 const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
 const DEFAULT_SEASON_ID = 1;
@@ -47,23 +46,6 @@ const ver1DigimonList = [
 ];
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
-
-function formatTimeToEvolve(sec=0){
-  const d = Math.floor(sec/86400);
-  const r = sec %86400;
-  const h = Math.floor(r/3600);
-  const m = Math.floor((r % 3600)/60);
-  const s = r % 60;
-  return `${d} day, ${h} hour, ${m} min, ${s} sec`;
-}
-function formatLifespan(sec=0){
-  const d = Math.floor(sec/86400);
-  const r = sec %86400;
-  const h = Math.floor(r/3600);
-  const m = Math.floor((r % 3600)/60);
-  const s = r % 60;
-  return `${d} day, ${h} hour, ${m} min, ${s} sec`;
-}
 
 function Game(){
   const { slotId } = useParams();
@@ -88,8 +70,6 @@ function Game(){
     
     flags,
     ui,
-    refs,
-    actions,
   } = useGameState({
     slotId,
     digimonDataVer1,
@@ -122,13 +102,11 @@ function Game(){
     setSlotVersion,
     currentQuestArea,
     setCurrentQuestArea,
-    currentQuestRound,
     setCurrentQuestRound,
     clearedQuestIndex,
     setClearedQuestIndex,
     battleType,
     setBattleType,
-    sparringEnemySlot,
     setSparringEnemySlot,
     arenaChallenger,
     setArenaChallenger,
@@ -142,9 +120,7 @@ function Game(){
     setSeasonName,
     seasonDuration,
     setSeasonDuration,
-    healModalStats,
     setHealModalStats,
-    healTreatmentMessage,
     setHealTreatmentMessage,
   } = gameState;
 
@@ -153,7 +129,6 @@ function Game(){
     setDeveloperMode,
     isEvolving,
     setIsEvolving,
-    isSleeping,
     setIsSleeping,
     isLoadingSlot,
     setIsLoadingSlot,
@@ -171,30 +146,23 @@ function Game(){
     currentAnimation,
     setCurrentAnimation,
     backgroundNumber,
-    setBackgroundNumber,
     backgroundSettings,
     setBackgroundSettings,
     width,
-    setWidth,
     height,
-    setHeight,
     feedType,
     setFeedType,
     feedStep,
     setFeedStep,
     foodSizeScale,
-    setFoodSizeScale,
     cleanStep,
     setCleanStep,
     healStep,
     setHealStep,
     customTime,
     setCustomTime,
-    timeSpeed,
-    setTimeSpeed,
     evolutionStage,
     setEvolutionStage,
-    evolvedDigimonName,
     setEvolvedDigimonName,
     deathReason,
     setDeathReason,
@@ -314,6 +282,7 @@ function Game(){
     if (savedClearedQuestIndex !== null) {
       setClearedQuestIndex(parseInt(savedClearedQuestIndex, 10));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotId]);
 
   // clearedQuestIndex 로컬 스토리지에 저장
@@ -634,6 +603,7 @@ function Game(){
     return () => {
       clearInterval(timer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digimonStats.isDead]); // isDead가 변경될 때만 재설정
 
   // useGameActions 훅 호출
@@ -691,7 +661,6 @@ function Game(){
   const {
     evolve,
     handleEvolutionButton,
-    checkEvolutionReady,
   } = useEvolution({
     digimonStats,
     setDigimonStats,
@@ -713,7 +682,6 @@ function Game(){
   // useDeath 훅 호출 (죽음/환생 로직)
   const {
     confirmDeath: handleDeathConfirm,
-    checkDeathCondition,
   } = useDeath({
     digimonStats,
     setDigimonStatsAndSave,
@@ -726,8 +694,6 @@ function Game(){
   });
 
   const {
-    startEatCycle,
-    startCleanCycle,
     startHealCycle,
   } = useGameAnimations({
     digimonStats,
@@ -786,7 +752,6 @@ function Game(){
   // useGameHandlers 훅 호출 (이벤트 핸들러 및 인증 로직)
   const {
     handleMenuClick: handleMenuClickFromHook,
-    handleHeal: handleHealFromHook,
     handleQuestStart: handleQuestStartFromHook,
     handleSelectArea: handleSelectAreaFromHook,
     handleCommunicationStart: handleCommunicationStartFromHook,
@@ -1071,6 +1036,7 @@ async function setSelectedDigimonAndSave(name) {
       setSleepStatus(status);
     }, 1000);
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats.fastSleepStart, digimonStats.napUntil]);
 
   // 퀘스트 시작 핸들러

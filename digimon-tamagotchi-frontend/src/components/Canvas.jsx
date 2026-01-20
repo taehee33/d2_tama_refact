@@ -78,6 +78,7 @@ const Canvas = ({
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
     sleepStatus,isRefused,isDead,isInjured,selectedDigimon
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   function initImages(){

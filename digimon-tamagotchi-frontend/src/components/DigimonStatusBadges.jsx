@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from "react";
 import { willRefuseMeat } from "../logic/food/meat";
 import { willRefuseProtein } from "../logic/food/protein";
-import DigimonStatusDetailModal from "./DigimonStatusDetailModal";
 import { getTimeUntilSleep } from "../utils/sleepUtils";
 
 /**
@@ -29,7 +28,6 @@ const DigimonStatusBadges = ({
     injuries = 0,
     proteinOverdose = 0,
     callStatus = {},
-    sleepDisturbances = 0,
     napUntil = null,
     isNocturnal = false,
   } = digimonStats;

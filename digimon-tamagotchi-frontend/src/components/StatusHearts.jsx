@@ -109,7 +109,6 @@ const StatusHearts = ({
     
     // strength가 9, 13, 17, 21, 25, 29, 33 중 하나인지 확인
     const overdoseTriggerPoints = [9, 13, 17, 21, 25, 29, 33];
-    const isOverdoseTrigger = overdoseTriggerPoints.includes(strength);
     
     // 각 하트의 위치에 따라 아이콘 결정
     // strength가 9면 첫 번째 하트에 ⚠️, 13이면 두 번째 하트에 ⚠️ 등
