@@ -52,6 +52,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [challengers, setChallengers] = useState([]);
   const [battleLogs, setBattleLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [registering, setRegistering] = useState(false);
   const [showSlotSelection, setShowSlotSelection] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [activeTab, setActiveTab] = useState('challengers'); // 'challengers' | 'battleLog' | 'leaderboard'

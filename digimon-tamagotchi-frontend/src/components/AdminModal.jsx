@@ -14,6 +14,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
   const [loadingArchives, setLoadingArchives] = useState(false);
   const [saving, setSaving] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     setLocalSeasonId(Number(currentSeasonId) || 1);
