@@ -1020,6 +1020,7 @@ async function setSelectedDigimonAndSave(name) {
       }
     }
     setIsEvoEnabled(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digimonStats, selectedDigimon, developerMode]);
 
   // 수면 상태 계산 (TIRED 케어미스는 타이머 useEffect에서 처리)

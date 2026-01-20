@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+// import { useNavigate } from "react-router-dom"; // 사용되지 않음
+// import { useAuth } from "../contexts/AuthContext"; // 사용되지 않음
 import { translateStage } from "../utils/stageTranslator";
 
 const SettingsModal = ({

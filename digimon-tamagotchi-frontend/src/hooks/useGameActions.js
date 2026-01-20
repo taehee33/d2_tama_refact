@@ -489,9 +489,6 @@ export function useGameActions({
     
     // userSelections: 길이5의 "U"/"D" 배열
     // doVer1Training -> stats 업데이트
-    const oldWeight = updatedStats.weight || 0;
-    const oldStrength = updatedStats.strength || 0;
-    
     const result = doVer1Training(updatedStats, userSelections);
     let finalStats = result.updatedStats;
     
@@ -499,10 +496,6 @@ export function useGameActions({
     if (finalStats.strength > 0) {
       finalStats = resetCallStatus(finalStats, 'strength');
     }
-    
-    // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
-    const newWeight = finalStats.weight || 0;
-    const newStrength = finalStats.strength || 0;
     
     // 🔥 제안 코드 패턴 적용: 스탯 계산과 로그를 하나의 함수형 업데이트로 통합
     setDigimonStats((prev) => {
