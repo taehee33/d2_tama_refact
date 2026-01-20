@@ -72,6 +72,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
   const [selectedArchiveId, setSelectedArchiveId] = useState("");
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [currentDigimonInfo, setCurrentDigimonInfo] = useState(null);
+  const [showPowerDetails, setShowPowerDetails] = useState(false);
+  const [showBattleGuide, setShowBattleGuide] = useState(false);
 
 
   // 현재 디지몬 정보 로드
@@ -801,9 +803,69 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
               <div className="flex-1 p-3 rounded-lg border bg-white border-gray-300">
                 <h4 className="text-sm font-bold mb-2 text-gray-700">배틀 스탯</h4>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">파워:</span>
-                    <span className="font-bold ml-2">{currentDigimonInfo.digimonStats?.power || currentDigimonInfo.digimonData?.stats?.basePower || 0}</span>
+                  <div className="col-span-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">파워:</span>
+                      <span className="font-bold">{(() => {
+                        const powerResult = calculatePower(
+                          currentDigimonInfo.digimonStats || {},
+                          currentDigimonInfo.digimonData || {},
+                          true
+                        );
+                        return powerResult.power || currentDigimonInfo.digimonStats?.power || currentDigimonInfo.digimonData?.stats?.basePower || 0;
+                      })()}</span>
+                      <button
+                        onClick={() => setShowPowerDetails(!showPowerDetails)}
+                        className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                        title="파워 계산 상세 보기"
+                      >
+                        <span>상세</span>
+                        <span>{showPowerDetails ? '▼' : '▶'}</span>
+                      </button>
+                    </div>
+                    {showPowerDetails && (() => {
+                      const powerResult = calculatePower(
+                        currentDigimonInfo.digimonStats || {},
+                        currentDigimonInfo.digimonData || {},
+                        true
+                      );
+                      const powerDetails = powerResult.details || {
+                        basePower: currentDigimonInfo.digimonData?.stats?.basePower || 0,
+                        strengthBonus: 0,
+                        traitedEggBonus: 0,
+                        effortBonus: 0,
+                      };
+                      const finalPower = powerResult.power || currentDigimonInfo.digimonStats?.power || currentDigimonInfo.digimonData?.stats?.basePower || 0;
+                      
+                      return (
+                        <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                          <div className="font-semibold mb-1">파워 계산:</div>
+                          <div className="space-y-1">
+                            <div>Base Power: {powerDetails.basePower}</div>
+                            <div className={powerDetails.strengthBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                              Strength 보너스: {powerDetails.strengthBonus > 0 ? `(+${powerDetails.strengthBonus}) ✅` : '0'}
+                            </div>
+                            <div className={powerDetails.traitedEggBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                              Traited Egg 보너스: {powerDetails.traitedEggBonus > 0 ? `(+${powerDetails.traitedEggBonus}) ✅` : '0'}
+                            </div>
+                            <div className={powerDetails.effortBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                              Effort 보너스: {powerDetails.effortBonus > 0 ? `(+${powerDetails.effortBonus}) ✅` : '0'}
+                            </div>
+                            <div className="border-t pt-1 mt-1">
+                              <div>
+                                = {powerDetails.basePower} 
+                                {powerDetails.strengthBonus > 0 && ` + (${powerDetails.strengthBonus})`}
+                                {powerDetails.traitedEggBonus > 0 && ` + (${powerDetails.traitedEggBonus})`}
+                                {powerDetails.effortBonus > 0 && ` + (${powerDetails.effortBonus})`}
+                              </div>
+                              <div className="font-bold mt-1">
+                                = {finalPower}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div>
                     <span className="text-gray-600">타입:</span>
@@ -911,6 +973,67 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
               </button>
             )}
           </div>
+        </div>
+
+        {/* Battle Guide */}
+        <div className="mb-6 p-4 bg-green-50 rounded-lg border-2 border-green-300">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-xl font-bold">배틀 가이드</h3>
+            <button
+              onClick={() => setShowBattleGuide(!showBattleGuide)}
+              className="text-sm bg-green-200 hover:bg-green-300 px-3 py-1 rounded transition-colors flex items-center gap-1"
+              title="배틀 가이드 보기"
+            >
+              <span>{showBattleGuide ? '접기' : '펼치기'}</span>
+              <span>{showBattleGuide ? '▼' : '▶'}</span>
+            </button>
+          </div>
+          {showBattleGuide && (
+            <div className="p-3 bg-white rounded-lg border border-green-200 text-sm">
+              <div className="space-y-2 text-gray-700">
+                <div>
+                  <strong>배틀 규칙:</strong>
+                  <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                    <li>턴제 전투: 라운드마다 서로 한 번씩 공격</li>
+                    <li>승리 조건: 먼저 3번 명중(Hit)한 쪽이 승리</li>
+                    <li>최대 라운드: 100라운드 (무승부 가능)</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>파워 계산:</strong>
+                  <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                    <li>Base Power: 디지몬의 기본 파워</li>
+                    <li>Strength 보너스: Strength가 5 이상일 때 단계별 보너스 (Child: +5, Adult: +8, Perfect: +15, Ultimate: +25)</li>
+                    <li>Traited Egg 보너스: 특수 알에서 태어난 경우 단계별 보너스</li>
+                    <li>Effort 보너스: Effort 값 × 5 (최대 5 × 5 = +25)</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>히트레이트 계산:</strong>
+                  <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                    <li>기본 공식: (공격자 파워 × 100) ÷ (공격자 파워 + 방어자 파워)</li>
+                    <li>속성 보너스: Vaccine > Virus, Virus > Data, Data > Vaccine (+5%)</li>
+                    <li>역속성: -5%, Free 속성: 0%</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>부상 확률:</strong>
+                  <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                    <li>승리 시: 20%</li>
+                    <li>패배 시: 10% + (단백질 과다 × 10%), 최대 80%</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>배틀 효과:</strong>
+                  <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                    <li>Weight: -4g (승패 무관)</li>
+                    <li>Energy: -1 (승패 무관)</li>
+                    <li>배틀 기록: battles, battlesWon/Lost, winRate 업데이트</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 탭 메뉴 */}
