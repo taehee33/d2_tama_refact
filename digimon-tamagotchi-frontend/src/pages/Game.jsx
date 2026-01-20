@@ -19,6 +19,7 @@ import { useArenaLogic } from "../hooks/useArenaLogic";
 import { useGameHandlers, getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
+import { useFridge } from "../hooks/useFridge";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -731,6 +732,18 @@ function Game(){
     },
   });
   
+  // useFridge 훅 호출 (냉장고 기능)
+  const {
+    putInFridge,
+    takeOutFromFridge,
+  } = useFridge({
+    digimonStats,
+    setDigimonStatsAndSave,
+    applyLazyUpdateBeforeAction,
+    setActivityLogs,
+    activityLogs,
+  });
+
   // useArenaLogic 훅 호출 (아레나 로직)
   const {
     handleArenaStart: handleArenaStartFromHook,
@@ -1047,6 +1060,42 @@ async function setSelectedDigimonAndSave(name) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats.fastSleepStart, digimonStats.napUntil]);
 
+  // 냉장고 꺼내기 애니메이션 완료 처리 (3.5초 후 takeOutAt을 null로 설정)
+  useEffect(() => {
+    if (!digimonStats.takeOutAt) return;
+    
+    const takeOutTime = typeof digimonStats.takeOutAt === 'number' 
+      ? digimonStats.takeOutAt 
+      : new Date(digimonStats.takeOutAt).getTime();
+    const elapsedMs = Date.now() - takeOutTime;
+    
+    // 3.5초(3500ms) 이상 경과하면 takeOutAt을 null로 설정
+    if (elapsedMs >= 3500) {
+      setDigimonStats((prevStats) => {
+        if (!prevStats.takeOutAt) return prevStats;
+        return {
+          ...prevStats,
+          takeOutAt: null,
+        };
+      });
+    } else {
+      // 아직 애니메이션 중이면 남은 시간만큼 대기 후 다시 체크
+      const remainingMs = 3500 - elapsedMs;
+      const timer = setTimeout(() => {
+        setDigimonStats((prevStats) => {
+          if (!prevStats.takeOutAt) return prevStats;
+          return {
+            ...prevStats,
+            takeOutAt: null,
+          };
+        });
+      }, remainingMs);
+      
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [digimonStats.takeOutAt]);
+
   // 퀘스트 시작 핸들러
 
   // Communication 시작 핸들러
@@ -1145,6 +1194,8 @@ async function setSelectedDigimonAndSave(name) {
     onOverfeedConfirm: handleOverfeedConfirm,
     onOverfeedCancel: handleOverfeedCancel,
     handleToggleLights: handleToggleLightsFromHook,
+    putInFridge,
+    takeOutFromFridge,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1325,6 +1376,9 @@ async function setSelectedDigimonAndSave(name) {
       <div className={`text-center mb-1 ${isMobile ? "pt-20" : "pt-20"}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon}
+          {digimonStats.isFrozen && (
+            <span className="ml-2 text-blue-600">🧊 냉장고</span>
+          )}
         </h2>
         <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
         <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
@@ -1395,6 +1449,9 @@ async function setSelectedDigimonAndSave(name) {
         showCallToast={modals.callToast}
         callToastMessage={callToastMessage}
         showCallModal={modals.call}
+        isFrozen={digimonStats.isFrozen || false}
+        frozenAt={digimonStats.frozenAt || null}
+        takeOutAt={digimonStats.takeOutAt || null}
         onCallIconClick={() => {
           const messages = [];
           if (digimonStats.callStatus?.hunger?.isActive) messages.push("Hungry!");
@@ -1420,6 +1477,7 @@ async function setSelectedDigimonAndSave(name) {
           stats={digimonStats}
           sleepStatus={sleepStatus}
           isMobile={isMobile}
+          isFrozen={digimonStats.isFrozen || false}
         />
       </div>
 

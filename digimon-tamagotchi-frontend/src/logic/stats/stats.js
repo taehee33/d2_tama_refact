@@ -235,6 +235,33 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   }
 
   const now = new Date();
+  
+  // 냉장고 상태 체크
+  if (stats.isFrozen && stats.frozenAt) {
+    // 냉장고에 넣은 시간 이후의 경과 시간을 계산에서 제외
+    const frozenTime = typeof stats.frozenAt === 'number' 
+      ? stats.frozenAt 
+      : new Date(stats.frozenAt).getTime();
+    
+    // frozenAt 이후의 시간은 계산하지 않음
+    // lastSavedAt을 frozenAt으로 조정하여 경과 시간을 0으로 만듦
+    const adjustedLastSaved = Math.max(
+      lastSaved.getTime(),
+      frozenTime
+    );
+    
+    // 조정된 시간으로 경과 시간 재계산
+    const adjustedElapsedSeconds = Math.floor((now.getTime() - adjustedLastSaved) / 1000);
+    
+    if (adjustedElapsedSeconds <= 0) {
+      // 냉장고 상태에서는 모든 수치 고정 (경과 시간 0으로 처리)
+      return { ...stats, lastSavedAt: now };
+    }
+    
+    // 냉장고 상태에서는 경과 시간을 0으로 처리 (모든 수치 고정)
+    return { ...stats, lastSavedAt: now };
+  }
+  
   const elapsedSeconds = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
 
   if (elapsedSeconds <= 0) {

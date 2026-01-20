@@ -54,6 +54,11 @@ const GameScreen = ({
   
   // 개발자 모드
   developerMode = false,
+  
+  // 냉장고 상태
+  isFrozen = false,
+  frozenAt = null,
+  takeOutAt = null,
 }) => {
   // 부상 상태 이모티콘 목록
   const sickEmojis = ["😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "😵‍💫", "🤯"];
@@ -490,6 +495,9 @@ const GameScreen = ({
         isInjured={digimonStats.isInjured && !digimonStats.isDead}
         isDead={digimonStats.isDead || false}
         selectedDigimon={selectedDigimon}
+        isFrozen={isFrozen}
+        frozenAt={digimonStats.frozenAt || null}
+        takeOutAt={digimonStats.takeOutAt || null}
       />
     </div>
   );

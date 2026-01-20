@@ -1627,20 +1627,13 @@ export default function StatsPopup({
                     </div>
                   )}
                   
-                  {/* 부상 이력 아코디언 */}
-                  {(injuries > 0 || (stats?.activityLogs || []).some(log => {
-                    if (!log.text) return false;
-                    return (log.type === 'POOP' && log.text.includes('Injury')) ||
-                           (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) ||
-                           (log.type === 'INJURY');
-                  })) && (
-                    <div className="mt-2">
-                      <InjuryHistory 
-                        activityLogs={stats?.activityLogs || []} 
-                        formatTimestamp={formatTimestamp}
-                      />
-                    </div>
-                  )}
+                  {/* 부상 이력 아코디언 - 항상 표시 */}
+                  <div className="mt-2">
+                    <InjuryHistory 
+                      activityLogs={stats?.activityLogs || []} 
+                      formatTimestamp={formatTimestamp}
+                    />
+                  </div>
                 </div>
               </li>
             );

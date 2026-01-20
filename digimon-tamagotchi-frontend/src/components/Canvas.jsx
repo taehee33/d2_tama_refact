@@ -6,6 +6,7 @@ const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
 const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/images/538.png"]; // Zzz 스프라이트
 const injurySprites= ["/images/541.png", "/images/542.png"]; // 부상 스프라이트
 const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
+const fridgeSprites= ["/images/552.png", "/images/553.png", "/images/554.png", "/images/555.png"]; // 냉장고 스프라이트 (냉장고, 냉장고 안, 덮개1, 덮개2)
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -55,6 +56,10 @@ const Canvas = ({
   isInjured=false, // 부상 여부
   // ★ (7) 선택된 디지몬 (디지타마 수면 상태 체크용)
   selectedDigimon="", // 선택된 디지몬 이름
+  // ★ (8) 냉장고 상태
+  isFrozen=false, // 냉장고 보관 여부
+  frozenAt=null, // 냉장고에 넣은 시간 (timestamp)
+  takeOutAt=null, // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
 }) => {
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
@@ -77,7 +82,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus,isRefused,isDead,isInjured,selectedDigimon
+    sleepStatus,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // initImages는 컴포넌트 내부 함수이므로 의존성에서 제외
   ]);
@@ -132,6 +137,13 @@ const Canvas = ({
     if(isDead){
       skullSprites.forEach((src, idx)=>{
         imageSources[`skull${idx}`]= src;
+      });
+    }
+    
+    // 냉장고 스프라이트 (냉장고 상태일 때 또는 꺼내기 애니메이션 중일 때)
+    if(isFrozen || takeOutAt){
+      fridgeSprites.forEach((src, idx)=>{
+        imageSources[`fridge${idx}`]= src;
       });
     }
 
@@ -354,6 +366,238 @@ const Canvas = ({
             ctx.fillStyle="red";
             ctx.font="12px sans-serif";
             ctx.fillText(`Skull: ${543 + skullFrameIdx}.png`, skullX, skullY - 2);
+          }
+        }
+      }
+      
+      // ★ (8) 냉장고 애니메이션
+      // 꺼내기 애니메이션 (4단계)
+      if(!isFrozen && !isDead && takeOutAt){
+        const takeOutTime = typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime();
+        const elapsedMs = Date.now() - takeOutTime;
+        const elapsedSeconds = elapsedMs / 1000;
+        
+        // 꺼내기 애니메이션 단계 결정
+        // 1단계: 0~0.8초 (553 진동 효과)
+        // 2단계: 0.8~2.0초 (555 → 554 얼음 감소, 553 사라짐)
+        // 3단계: 2.0~2.5초 (552 제거)
+        // 4단계: 2.5~3.5초 (디지몬만 표시, 기상 완료)
+        let currentStage = 0; // 기본값: 완료 (애니메이션 종료)
+        if (elapsedSeconds < 0.8) {
+          currentStage = 1; // 1단계: 해제 신호
+        } else if (elapsedSeconds < 2.0) {
+          currentStage = 2; // 2단계: 해동 시작
+        } else if (elapsedSeconds < 2.5) {
+          currentStage = 3; // 3단계: 얼음 깨짐
+        } else if (elapsedSeconds < 3.5) {
+          currentStage = 4; // 4단계: 기상 완료
+        }
+        
+        // 1단계: 해제 신호 (553 진동 효과)
+        if (currentStage === 1) {
+          const fridgeImg1 = spriteCache.current['fridge1'];
+          if(fridgeImg1 && fridgeImg1.naturalWidth > 0){
+            const fridgeW = width * 0.5;
+            const fridgeH = height * 0.5;
+            // 진동 효과: 좌우로 미세하게 흔들림 (sin 함수 사용)
+            const shakeAmount = 3; // 흔들림 정도 (픽셀)
+            const shakeSpeed = 20; // 진동 속도
+            const shakeOffset = Math.sin(elapsedSeconds * shakeSpeed) * shakeAmount;
+            const fridgeX = (width - fridgeW) / 2 + shakeOffset;
+            const fridgeY = (height - fridgeH) / 2;
+            ctx.drawImage(fridgeImg1, fridgeX, fridgeY, fridgeW, fridgeH);
+            
+            if(developerMode){
+              ctx.fillStyle="cyan";
+              ctx.font="12px sans-serif";
+              ctx.fillText(`TakeOut Stage 1: 553.png (Shake) (${elapsedSeconds.toFixed(2)}s)`, fridgeX, fridgeY - 2);
+            }
+          }
+        }
+        
+        // 2단계: 해동 시작 (555 → 554 얼음 감소, 553 사라짐)
+        if (currentStage === 2) {
+          // 554와 555를 교차 표시 (얼음 감소 효과)
+          // elapsedSeconds가 0.8~2.0초 사이이므로, 0.2초 단위로 나누어 교차
+          const stage2Elapsed = elapsedSeconds - 0.8; // 2단계 시작 후 경과 시간
+          const cycleIndex = Math.floor(stage2Elapsed / 0.2); // 0.2초마다 인덱스 증가
+          const show555 = cycleIndex % 2 === 0; // 짝수 인덱스: 555, 홀수 인덱스: 554
+          
+          const coverW = width * 0.4;
+          const coverH = height * 0.4;
+          const coverX = (width - coverW) / 2;
+          const coverY = (height - height*0.4) / 2 - coverH * 0.3;
+          
+          if (show555) {
+            const fridgeImg3 = spriteCache.current['fridge3'];
+            if(fridgeImg3 && fridgeImg3.naturalWidth > 0){
+              ctx.drawImage(fridgeImg3, coverX, coverY, coverW, coverH);
+              
+              if(developerMode){
+                ctx.fillStyle="cyan";
+                ctx.font="12px sans-serif";
+                ctx.fillText(`TakeOut Stage 2: 555.png (${elapsedSeconds.toFixed(2)}s)`, coverX, coverY - 2);
+              }
+            }
+          } else {
+            const fridgeImg2 = spriteCache.current['fridge2'];
+            if(fridgeImg2 && fridgeImg2.naturalWidth > 0){
+              ctx.drawImage(fridgeImg2, coverX, coverY, coverW, coverH);
+              
+              if(developerMode){
+                ctx.fillStyle="cyan";
+                ctx.font="12px sans-serif";
+                ctx.fillText(`TakeOut Stage 2: 554.png (${elapsedSeconds.toFixed(2)}s)`, coverX, coverY - 2);
+              }
+            }
+          }
+        }
+        
+        // 3단계: 얼음 깨짐 (552 제거)
+        if (currentStage === 3) {
+          // 552만 표시 (제거 준비)
+          const fridgeImg0 = spriteCache.current['fridge0'];
+          if(fridgeImg0 && fridgeImg0.naturalWidth > 0){
+            const fridgeW = width * 0.3;
+            const fridgeH = height * 0.3;
+            const fridgeX = width * 0.2 - fridgeW / 2; // 왼쪽 (밥 위치)
+            const fridgeY = height * 0.6 - fridgeH / 2;
+            
+            // 펑 효과: 점점 작아지면서 사라지는 효과
+            const stage3Elapsed = elapsedSeconds - 2.0; // 3단계 시작 후 경과 시간
+            const fadeProgress = stage3Elapsed / 0.5; // 0~1 사이 값
+            const scale = 1 - fadeProgress; // 1에서 0으로 감소
+            
+            if (scale > 0) {
+              const scaledW = fridgeW * scale;
+              const scaledH = fridgeH * scale;
+              const scaledX = fridgeX + (fridgeW - scaledW) / 2;
+              const scaledY = fridgeY + (fridgeH - scaledH) / 2;
+              
+              ctx.globalAlpha = scale; // 투명도도 함께 감소
+              ctx.drawImage(fridgeImg0, scaledX, scaledY, scaledW, scaledH);
+              ctx.globalAlpha = 1.0; // 원래대로 복원
+              
+              if(developerMode){
+                ctx.fillStyle="cyan";
+                ctx.font="12px sans-serif";
+                ctx.fillText(`TakeOut Stage 3: 552.png (Fade) (${elapsedSeconds.toFixed(2)}s)`, scaledX, scaledY - 2);
+              }
+            }
+          }
+        }
+        
+        // 4단계: 기상 완료 (디지몬만 표시, 냉장고 스프라이트 모두 사라짐)
+        // 이 단계에서는 냉장고 스프라이트를 표시하지 않음 (디지몬만 표시)
+        if (currentStage === 4) {
+          // 냉장고 스프라이트는 표시하지 않음
+          if(developerMode){
+            ctx.fillStyle="cyan";
+            ctx.font="12px sans-serif";
+            ctx.fillText(`TakeOut Stage 4: Awake (${elapsedSeconds.toFixed(2)}s)`, 10, 20);
+          }
+        }
+      }
+      
+      // 넣기 애니메이션 (냉장고 상태일 때) - 3단계 애니메이션
+      if(isFrozen && !isDead && frozenAt){
+        // frozenAt 기준으로 경과 시간 계산 (밀리초)
+        const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
+        const elapsedMs = Date.now() - frozenTime;
+        const elapsedSeconds = elapsedMs / 1000;
+        
+        // 단계 결정
+        // 1단계: 0~1.0초 (552만)
+        // 2단계: 1.0~2.5초 (552 + 554/555 교차)
+        // 3단계: 2.5초 이후 (553만)
+        let currentStage = 2; // 기본값: 3단계
+        if (elapsedSeconds < 1.0) {
+          currentStage = 0; // 1단계
+        } else if (elapsedSeconds < 2.5) {
+          currentStage = 1; // 2단계
+        }
+        
+        // 1단계: 밥 위치에 냉장고 (552)만 표시
+        if (currentStage === 0) {
+          const fridgeImg0 = spriteCache.current['fridge0'];
+          if(fridgeImg0 && fridgeImg0.naturalWidth > 0){
+            const fridgeW = width * 0.3;
+            const fridgeH = height * 0.3;
+            const fridgeX = width * 0.2 - fridgeW / 2; // 왼쪽 (밥 위치)
+            const fridgeY = height * 0.6 - fridgeH / 2;
+            ctx.drawImage(fridgeImg0, fridgeX, fridgeY, fridgeW, fridgeH);
+            
+            if(developerMode){
+              ctx.fillStyle="cyan";
+              ctx.font="12px sans-serif";
+              ctx.fillText(`Stage 1: 552.png (${elapsedSeconds.toFixed(2)}s)`, fridgeX, fridgeY - 2);
+            }
+          }
+        }
+        
+        // 2단계: 밥 위치 냉장고(552) + 디지몬 위에 덮개(554/555 교차)
+        if (currentStage === 1) {
+          // 552 표시
+          const fridgeImg0 = spriteCache.current['fridge0'];
+          if(fridgeImg0 && fridgeImg0.naturalWidth > 0){
+            const fridgeW = width * 0.3;
+            const fridgeH = height * 0.3;
+            const fridgeX = width * 0.2 - fridgeW / 2;
+            const fridgeY = height * 0.6 - fridgeH / 2;
+            ctx.drawImage(fridgeImg0, fridgeX, fridgeY, fridgeW, fridgeH);
+          }
+          
+          // 554와 555를 0.5초 간격으로 교차 표시
+          // elapsedSeconds가 1.0~2.5초 사이이므로, 0.5초 단위로 나누어 교차
+          const stage2Elapsed = elapsedSeconds - 1.0; // 2단계 시작 후 경과 시간
+          const cycleIndex = Math.floor(stage2Elapsed / 0.5); // 0.5초마다 인덱스 증가
+          const show554 = cycleIndex % 2 === 0; // 짝수 인덱스: 554, 홀수 인덱스: 555
+          
+          const coverW = width * 0.4;
+          const coverH = height * 0.4;
+          const coverX = (width - coverW) / 2;
+          const coverY = (height - height*0.4) / 2 - coverH * 0.3;
+          
+          if (show554) {
+            const fridgeImg2 = spriteCache.current['fridge2'];
+            if(fridgeImg2 && fridgeImg2.naturalWidth > 0){
+              ctx.drawImage(fridgeImg2, coverX, coverY, coverW, coverH);
+              
+              if(developerMode){
+                ctx.fillStyle="cyan";
+                ctx.font="12px sans-serif";
+                ctx.fillText(`Stage 2: 554.png (${elapsedSeconds.toFixed(2)}s)`, coverX, coverY - 2);
+              }
+            }
+          } else {
+            const fridgeImg3 = spriteCache.current['fridge3'];
+            if(fridgeImg3 && fridgeImg3.naturalWidth > 0){
+              ctx.drawImage(fridgeImg3, coverX, coverY, coverW, coverH);
+              
+              if(developerMode){
+                ctx.fillStyle="cyan";
+                ctx.font="12px sans-serif";
+                ctx.fillText(`Stage 2: 555.png (${elapsedSeconds.toFixed(2)}s)`, coverX, coverY - 2);
+              }
+            }
+          }
+        }
+        
+        // 3단계: 화면 가운데 냉장고 안 (553)만 표시
+        if (currentStage === 2) {
+          const fridgeImg1 = spriteCache.current['fridge1'];
+          if(fridgeImg1 && fridgeImg1.naturalWidth > 0){
+            const fridgeW = width * 0.5;
+            const fridgeH = height * 0.5;
+            const fridgeX = (width - fridgeW) / 2;
+            const fridgeY = (height - fridgeH) / 2;
+            ctx.drawImage(fridgeImg1, fridgeX, fridgeY, fridgeW, fridgeH);
+            
+            if(developerMode){
+              ctx.fillStyle="cyan";
+              ctx.font="12px sans-serif";
+              ctx.fillText(`Stage 3: 553.png (${elapsedSeconds.toFixed(2)}s)`, fridgeX, fridgeY - 2);
+            }
           }
         }
       }

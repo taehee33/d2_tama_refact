@@ -120,6 +120,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     feed: false,
     settings: false,
     admin: false,
+    fridge: false,
     digimonInfo: false,
     
     // 사망 관련
@@ -229,6 +230,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 청소/치료 애니메이션
   const [cleanStep, setCleanStep] = useState(0);
   const [healStep, setHealStep] = useState(0);
+  
+  // 냉장고 애니메이션 단계
+  const [fridgeStep, setFridgeStep] = useState(0); // 0: 1단계, 1: 2단계, 2: 3단계
   
   // 시간 관련 (backgroundNumber 계산 전에 선언 필요)
   const [customTime, setCustomTime] = useState(new Date());
@@ -436,6 +440,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setCleanStep,
       healStep,
       setHealStep,
+      fridgeStep,
+      setFridgeStep,
       customTime,
       setCustomTime,
       timeSpeed,

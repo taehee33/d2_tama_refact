@@ -143,6 +143,9 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
             <p>Effort: {stats.effort || 0}</p>
             <p>CareMistakes: {stats.careMistakes || 0}</p>
             <p>Sleep: {sleepStatus}</p>
+            {stats.isFrozen && (
+              <p className="text-blue-600 font-semibold">🧊 냉장고</p>
+            )}
           </div>
         )}
       </div>

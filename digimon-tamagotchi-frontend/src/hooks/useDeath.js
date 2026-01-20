@@ -74,6 +74,11 @@ export function useDeath({
    * @returns {Object} 사망 여부 및 사유
    */
   function checkDeathCondition(stats) {
+    // 냉장고 상태에서는 사망하지 않음
+    if (stats.isFrozen) {
+      return { isDead: false, reason: null };
+    }
+    
     // 배고픔/힘이 0이고 12시간 경과 시 사망
     if (stats.fullness === 0 && stats.lastHungerZeroAt) {
       const elapsed = (Date.now() - stats.lastHungerZeroAt) / 1000;

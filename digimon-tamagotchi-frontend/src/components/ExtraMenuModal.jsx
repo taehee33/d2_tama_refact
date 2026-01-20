@@ -11,6 +11,7 @@ export default function ExtraMenuModal({
   onOpenCollection,
   onOpenActivityLog,
   onOpenEncyclopedia,
+  onOpenFridge,
 }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -56,12 +57,14 @@ export default function ExtraMenuModal({
           
           <button
             onClick={() => {
-              alert("준비중입니다.");
+              if (onOpenFridge) {
+                onOpenFridge();
+              }
+              onClose();
             }}
-            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-            disabled
+            className="px-6 py-3 bg-cyan-500 text-white rounded-lg font-bold hover:bg-cyan-600 transition-colors"
           >
-            냉장고(준비중)
+            냉장고
           </button>
           
           <button

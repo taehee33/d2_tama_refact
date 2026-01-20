@@ -60,4 +60,9 @@ export const defaultStats = {
       strength: { isActive: false, startedAt: null }, // 제한시간 10분
       sleep: { isActive: false, startedAt: null }     // 제한시간 60분
     },
+    
+    // 냉장고(냉동수면) 관련
+    isFrozen: false,    // 냉장고 보관 여부
+    frozenAt: null,     // 냉장고에 넣은 시간 (timestamp)
+    takeOutAt: null,    // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
   };

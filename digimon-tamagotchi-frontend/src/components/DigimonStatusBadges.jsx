@@ -30,6 +30,7 @@ const DigimonStatusBadges = ({
     callStatus = {},
     napUntil = null,
     isNocturnal = false,
+    isFrozen = false,
   } = digimonStats;
 
   // 실시간 업데이트를 위한 상태
@@ -54,6 +55,17 @@ const DigimonStatusBadges = ({
         color: "text-blue-600", 
         bgColor: "bg-blue-100", 
         priority: -1, 
+        category: "info" 
+      });
+    }
+
+    // -0.5. 냉장고 상태 (높은 우선순위)
+    if (isFrozen && !isDead) {
+      messages.push({ 
+        text: "🧊 냉장고", 
+        color: "text-blue-600", 
+        bgColor: "bg-blue-100", 
+        priority: -0.5, 
         category: "info" 
       });
     }

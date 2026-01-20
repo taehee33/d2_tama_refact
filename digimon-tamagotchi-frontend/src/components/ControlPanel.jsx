@@ -22,6 +22,9 @@ const ControlPanel = ({
   
   // 모바일 여부
   isMobile = false,
+  
+  // 냉장고 상태
+  isFrozen = false,
 }) => {
   return (
     <div className={isMobile 
@@ -38,6 +41,7 @@ const ControlPanel = ({
           activeMenu={activeMenu}
           onMenuClick={onMenuClick}
           isMobile={isMobile}
+          isFrozen={isFrozen}
         />
       </div>
     </div>

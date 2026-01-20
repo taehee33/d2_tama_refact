@@ -418,6 +418,26 @@ export default getSleepStatus;
 export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), isActuallySleeping = false) {
   let updatedStats = { ...stats };
   
+  // 냉장고 상태에서는 호출을 무시
+  if (updatedStats.isFrozen) {
+    // callStatus 초기화 (호출 비활성화)
+    if (!updatedStats.callStatus) {
+      updatedStats.callStatus = {
+        hunger: { isActive: false, startedAt: null, sleepStartAt: null },
+        strength: { isActive: false, startedAt: null, sleepStartAt: null },
+        sleep: { isActive: false, startedAt: null }
+      };
+    } else {
+      // 기존 호출 모두 비활성화
+      updatedStats.callStatus = {
+        hunger: { isActive: false, startedAt: null, sleepStartAt: null },
+        strength: { isActive: false, startedAt: null, sleepStartAt: null },
+        sleep: { isActive: false, startedAt: null }
+      };
+    }
+    return updatedStats;
+  }
+  
   // callStatus 초기화
   if (!updatedStats.callStatus) {
     updatedStats.callStatus = {
@@ -554,6 +574,11 @@ export function resetCallStatus(stats, callType) {
  */
 export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = false) {
   if (!stats || !stats.callStatus) {
+    return stats;
+  }
+
+  // 냉장고 상태에서는 호출 타임아웃을 무시 (케어 실수 발생하지 않음)
+  if (stats.isFrozen) {
     return stats;
   }
 

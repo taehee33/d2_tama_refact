@@ -2,7 +2,7 @@ import React from "react";
 import IconButton from "./IconButton";
 import "../styles/MenuIconButtons.css";
 
-const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = false }) => {
+const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = false, isFrozen = false }) => {
   const iconPath = (iconName) => {
     const iconMap = {
       status: "/images/190.png",
@@ -35,6 +35,9 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
     return labelMap[menuName] || "";
   };
 
+  // 냉장고 상태일 때 비활성화할 메뉴
+  const disabledMenus = isFrozen ? ['eat', 'train'] : [];
+
   // 모바일: 그리드 레이아웃
   if (isMobile) {
     const allMenus = ["status", "eat", "train", "battle", "communication", "bathroom", "electric", "heal", "callSign", "extra"];
@@ -46,6 +49,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
             icon={iconPath(menu)}
             onClick={() => onMenuClick(menu)}
             isActive={activeMenu === menu}
+            disabled={disabledMenus.includes(menu)}
             width={60}
             height={60}
             className="icon-button-mobile touch-button"
@@ -74,6 +78,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
                     icon={iconPath(menu)}
                     onClick={() => onMenuClick(menu)}
                     isActive={activeMenu === menu}
+                    disabled={disabledMenus.includes(menu)}
                     width={60}
                     height={60}
                     label={menuLabel(menu)}

@@ -72,6 +72,8 @@ function SelectScreen() {
             id: slotId,
             displayOrder: data.displayOrder,
             ...data,
+            // 냉장고 상태 정보 추가
+            isFrozen: data.digimonStats?.isFrozen || false,
           };
         });
         
@@ -112,6 +114,17 @@ function SelectScreen() {
             const dev = localStorage.getItem(`slot${i}_device`) || "";
             const ver = localStorage.getItem(`slot${i}_version`) || "";
             const displayOrder = localStorage.getItem(`slot${i}_displayOrder`);
+            // digimonStats에서 냉장고 상태 확인
+            const digimonStatsStr = localStorage.getItem(`slot${i}_digimonStats`);
+            let isFrozen = false;
+            if (digimonStatsStr) {
+              try {
+                const digimonStats = JSON.parse(digimonStatsStr);
+                isFrozen = digimonStats.isFrozen || false;
+              } catch (e) {
+                console.error("digimonStats 파싱 오류:", e);
+              }
+            }
             arr.push({
               id: i,
               slotName,
@@ -120,6 +133,7 @@ function SelectScreen() {
               device: dev,
               version: ver,
               displayOrder: displayOrder ? parseInt(displayOrder) : undefined,
+              isFrozen,
             });
           }
         }
@@ -728,8 +742,13 @@ function SelectScreen() {
           </div>
 
           <div className="mt-2">
-            <p className="font-bold">
-              슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}
+            <p className="font-bold flex items-center gap-2">
+              <span>슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}</span>
+              {slot.isFrozen && (
+                <span className="text-cyan-600 font-semibold text-sm" title="냉장고에 보관 중">
+                  🧊 냉장고
+                </span>
+              )}
             </p>
             <p>생성일: {slot.createdAt}</p>
             <p>
@@ -784,8 +803,13 @@ function SelectScreen() {
                       <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded">
                         {index + 1}.
                       </span>
-                      <p className="font-bold">
-                        슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}
+                      <p className="font-bold flex items-center gap-2">
+                        <span>슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}</span>
+                        {slot.isFrozen && (
+                          <span className="text-cyan-600 font-semibold text-sm" title="냉장고에 보관 중">
+                            🧊 냉장고
+                          </span>
+                        )}
                       </p>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">

@@ -30,6 +30,7 @@ import CollectionModal from "./CollectionModal";
 import BackgroundSettingsModal from "./BackgroundSettingsModal";
 import ActivityLogModal from "./ActivityLogModal";
 import EncyclopediaModal from "./EncyclopediaModal";
+import FridgeModal from "./FridgeModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -687,6 +688,17 @@ export default function GameModals({
           onOpenCollection={() => toggleModal('collection', true)}
           onOpenActivityLog={() => toggleModal('activityLog', true)}
           onOpenEncyclopedia={() => toggleModal('encyclopedia', true)}
+          onOpenFridge={() => toggleModal('fridge', true)}
+        />
+      )}
+
+      {/* Fridge Modal (냉장고) */}
+      {modals.fridge && (
+        <FridgeModal
+          isFrozen={digimonStats?.isFrozen || false}
+          onPutIn={handlers?.putInFridge || (() => {})}
+          onTakeOut={handlers?.takeOutFromFridge || (() => {})}
+          onClose={() => toggleModal('fridge', false)}
         />
       )}
 

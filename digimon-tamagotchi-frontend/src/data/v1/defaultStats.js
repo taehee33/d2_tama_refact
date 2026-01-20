@@ -71,5 +71,10 @@ export const defaultStats = {
   
   // 야행성 모드
   isNocturnal: false, // 야행성 모드 (수면/기상 시간을 3시간씩 미룸)
+  
+  // 냉장고(냉동수면) 관련
+  isFrozen: false,    // 냉장고 보관 여부
+  frozenAt: null,     // 냉장고에 넣은 시간 (timestamp)
+  takeOutAt: null,    // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
 };
 
