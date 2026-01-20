@@ -694,7 +694,6 @@ export default function GameModals({
       {modals.encyclopedia && (
         <EncyclopediaModal
           onClose={() => toggleModal('encyclopedia', false)}
-          slotId={slotId}
           mode={mode}
         />
       )}

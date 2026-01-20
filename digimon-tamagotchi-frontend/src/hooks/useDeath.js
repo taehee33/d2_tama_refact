@@ -51,13 +51,12 @@ export function useDeath({
     const old = { ...currentStats };
     const nx = initializeStats(ohaka, old, digimonDataVer1);
     
-    // ✅ 도감 업데이트: 사망 전 디지몬 기록
+    // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합)
     if (selectedDigimon && selectedDigimon !== "Digitama") {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 사망 전 스탯
         'death',
-        slotId,
         currentUser,
         mode
       );

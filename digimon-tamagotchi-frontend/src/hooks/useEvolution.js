@@ -199,25 +199,23 @@ export function useEvolution({
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);
     
-    // ✅ 도감 업데이트: 진화 전 디지몬 기록
+    // ✅ 도감 업데이트: 진화 전 디지몬 기록 (계정별 통합)
     if (selectedDigimon && selectedDigimon !== "Digitama") {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 진화 전 스탯
         'evolution',
-        slotId,
         currentUser,
         mode
       );
     }
     
-    // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리
+    // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리 (계정별 통합)
     if (newName && newName !== "Digitama") {
       await updateEncyclopedia(
         newName,
         nxWithLogs, // 진화 후 스탯
         'discovery',
-        slotId,
         currentUser,
         mode
       );

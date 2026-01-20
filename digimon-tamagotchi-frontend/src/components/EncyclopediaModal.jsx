@@ -11,7 +11,6 @@ import "../styles/Battle.css";
 
 export default function EncyclopediaModal({ 
   onClose,
-  slotId,
   mode,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
@@ -20,16 +19,11 @@ export default function EncyclopediaModal({
   const [selectedDigimon, setSelectedDigimon] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 도감 데이터 로드
+  // 도감 데이터 로드 (계정별 통합)
   useEffect(() => {
     const loadData = async () => {
-      if (!slotId) {
-        setLoading(false);
-        return;
-      }
-      
       try {
-        const data = await loadEncyclopedia(slotId, currentUser, mode);
+        const data = await loadEncyclopedia(currentUser, mode);
         setEncyclopedia(data);
       } catch (error) {
         console.error("도감 로드 오류:", error);
@@ -39,7 +33,7 @@ export default function EncyclopediaModal({
     };
     
     loadData();
-  }, [slotId, currentUser, mode]);
+  }, [currentUser, mode]);
 
   // Ver.1 디지몬 목록 가져오기 (Ohakadamon 제외)
   const digimonList = Object.keys(digimonDataVer1)
