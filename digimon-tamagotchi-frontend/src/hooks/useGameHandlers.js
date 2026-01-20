@@ -117,7 +117,6 @@ export function useGameHandlers({
   digimonDataVer1,
   slotId,
   currentUser,
-  mode, // 'firebase' | 'local'
   
   // Auth & Navigation
   logout,
@@ -304,28 +303,18 @@ export function useGameHandlers({
     // 디버깅: 저장 후 확인
     console.log('[handleToggleLights] 저장 후 fastSleepStart:', updatedStats.fastSleepStart);
     
-    // isLightsOn 상태를 명시적으로 저장 (localStorage 및 Firestore)
+    // isLightsOn 상태를 명시적으로 저장 (Firestore)
     // setIsLightsOn은 비동기이므로, saveStats가 이전 값을 사용할 수 있음
     // 따라서 별도로 isLightsOn을 저장해야 함
-    if (slotId) {
-      if (currentUser && mode === 'firebase') {
-        // Firestore 모드
-        try {
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await updateDoc(slotRef, {
-            isLightsOn: next,
-            updatedAt: new Date(),
-          });
-        } catch (error) {
-          console.error("조명 상태 저장 오류 (Firestore):", error);
-        }
-      } else if (mode === 'local') {
-        // localStorage 모드
-        try {
-          localStorage.setItem(`slot${slotId}_isLightsOn`, next ? 'true' : 'false');
-        } catch (error) {
-          console.error("조명 상태 저장 오류 (localStorage):", error);
-        }
+    if (slotId && currentUser) {
+      try {
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          isLightsOn: next,
+          updatedAt: new Date(),
+        });
+      } catch (error) {
+        console.error("조명 상태 저장 오류 (Firestore):", error);
       }
     }
   };

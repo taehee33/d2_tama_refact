@@ -17,7 +17,7 @@ import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
  * @param {Object} params - 초기화 파라미터
  * @param {string} params.slotId - 슬롯 ID
  * @param {Object} params.currentUser - 현재 사용자 (Firebase Auth)
- * @param {string} params.mode - 모드 ('firebase' | 'local')
+ * @param {Object|null} params.currentUser - 현재 사용자 (Firebase Auth, 필수)
  * @param {Object} params.digimonStats - 현재 디지몬 스탯
  * @param {Function} params.setDigimonStats - 스탯 업데이트 함수
  * @param {Function} params.setSelectedDigimon - 선택된 디지몬 설정 함수
@@ -40,7 +40,6 @@ import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 export function useGameData({
   slotId,
   currentUser,
-  mode,
   digimonStats,
   setDigimonStats,
   setSelectedDigimon,
@@ -187,8 +186,8 @@ export function useGameData({
 
     setDigimonStats(statsWithoutProteinCount);
 
-    // Firestore 모드일 때만 저장
-    if (slotId && currentUser && mode === 'firebase') {
+    // Firebase 로그인 필수
+    if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         const updateData = {
@@ -216,23 +215,10 @@ export function useGameData({
         console.error("스탯 저장 오류:", error);
         setError(error);
       }
-    } else if (slotId && mode === 'local') {
-      // localStorage 모드
-      try {
-        localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(statsWithoutProteinCount));
-        localStorage.setItem(`slot${slotId}_isLightsOn`, isLightsOn ? 'true' : 'false');
-        if (wakeUntil) localStorage.setItem(`slot${slotId}_wakeUntil`, wakeUntil.toString());
-        localStorage.setItem(`slot${slotId}_dailySleepMistake`, dailySleepMistake ? 'true' : 'false');
-        // 배경화면 설정 저장
-        if (backgroundSettings !== undefined) {
-          localStorage.setItem(`slot${slotId}_backgroundSettings`, JSON.stringify(backgroundSettings));
-        }
-        // Activity Logs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요
-        // (중복 저장 방지)
-      } catch (error) {
-        console.error("localStorage 저장 오류:", error);
-        setError(error);
-      }
+    } else if (slotId) {
+      // Firebase 로그인 필수: 로그인하지 않은 경우 에러
+      console.error("Firebase 로그인이 필요합니다.");
+      setError(new Error("Firebase 로그인이 필요합니다."));
     }
   }
 
@@ -281,28 +267,8 @@ export function useGameData({
       }
     }
 
-    // localStorage 모드
-    if (mode === 'local') {
-      try {
-        const savedStatsStr = localStorage.getItem(`slot${slotId}_digimonStats`);
-        if (savedStatsStr) {
-          const savedStats = JSON.parse(savedStatsStr);
-          const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
-          const updated = applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
-          
-          // 사망 상태 변경 감지
-          checkDeathStatus(updated);
-          
-          return updated;
-        }
-      } catch (error) {
-        console.error("localStorage Lazy Update 적용 오류:", error);
-      }
-      return digimonStats;
-    }
-
-    // Firestore 모드
-    if (!currentUser) {
+    // Firebase 로그인 필수
+    if (!currentUser || !isFirebaseAvailable) {
       return digimonStats;
     }
 
@@ -373,117 +339,14 @@ export function useGameData({
   useEffect(() => {
     if (!slotId) return;
 
-    // 로컬 모드일 때는 리디렉션하지 않음
-    if (mode === 'firebase' && (!isFirebaseAvailable || !currentUser)) {
+    // Firebase 로그인 필수
+    if (!isFirebaseAvailable || !currentUser) {
       setIsLoadingSlot(false);
       navigate("/");
       return;
     }
-    
-    // 로컬 모드일 때는 Firebase 체크를 건너뛰고 localStorage에서 로드
-    if (mode === 'local') {
-      const loadSlotLocal = async () => {
-        setIsLoadingSlot(true);
-        setIsLoading(true);
-        setError(null);
-        try {
-          const savedName = localStorage.getItem(`slot${slotId}_selectedDigimon`) || "Digitama";
-          const savedStatsStr = localStorage.getItem(`slot${slotId}_digimonStats`);
-          let savedStats = savedStatsStr ? JSON.parse(savedStatsStr) : {};
-          
-          // proteinCount 필드 제거 (마이그레이션)
-          if (savedStats.proteinCount !== undefined) {
-            delete savedStats.proteinCount;
-            // 제거된 상태로 다시 저장
-            localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(savedStats));
-          }
-          
-          setSlotName(localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`);
-          setSlotCreatedAt(localStorage.getItem(`slot${slotId}_createdAt`) || "");
-          setSlotDevice(localStorage.getItem(`slot${slotId}_device`) || "");
-          setSlotVersion(localStorage.getItem(`slot${slotId}_version`) || "Ver.1");
-          
-          const isLightsOnSaved = localStorage.getItem(`slot${slotId}_isLightsOn`);
-          if (isLightsOnSaved !== null) setIsLightsOn(isLightsOnSaved === 'true');
-          
-          const wakeUntilSaved = localStorage.getItem(`slot${slotId}_wakeUntil`);
-          if (wakeUntilSaved) setWakeUntil(parseInt(wakeUntilSaved));
-          
-          const dailySleepMistakeSaved = localStorage.getItem(`slot${slotId}_dailySleepMistake`);
-          if (dailySleepMistakeSaved !== null) setDailySleepMistake(dailySleepMistakeSaved === 'true');
-          
-          // 배경화면 설정 로드
-          if (setBackgroundSettings) {
-            const backgroundSettingsStr = localStorage.getItem(`slot${slotId}_backgroundSettings`);
-            if (backgroundSettingsStr) {
-              try {
-                const parsed = JSON.parse(backgroundSettingsStr);
-                setBackgroundSettings(parsed);
-              } catch (error) {
-                console.error('Background settings 로드 오류:', error);
-                // 파싱 실패 시 기본값 사용
-                setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-              }
-            } else {
-              // localStorage에 저장된 값이 없으면 기본값 사용
-              setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-            }
-          }
-          
-          // Activity Logs 로드: digimonStats 안의 activityLogs를 우선 사용, 없으면 별도 저장된 activityLogs 사용
-          const logsStr = localStorage.getItem(`slot${slotId}_activityLogs`);
-          const logs = savedStats.activityLogs || (logsStr ? JSON.parse(logsStr) : []);
-          setActivityLogs(initializeActivityLogs(logs));
-          
-          if (Object.keys(savedStats).length === 0) {
-            const ns = initializeStats("Digitama", {}, digimonDataVer1);
-            ns.birthTime = Date.now();
-            setSelectedDigimon("Digitama");
-            setDigimonStats(ns);
-            // 새 디지몬이면 배경화면 설정도 기본값으로 설정
-            if (setBackgroundSettings) {
-              setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-            }
-          } else {
-            const lastSavedAt = savedStats.lastSavedAt ? new Date(savedStats.lastSavedAt) : new Date();
-            
-            // sleepSchedule과 maxEnergy 계산
-            let sleepSchedule = null;
-            let maxEnergy = null;
-            if (digimonDataVer1 && savedName) {
-              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1, savedStats);
-              const digimonData = digimonDataVer1[savedName];
-              if (digimonData) {
-                maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
-              }
-            }
-            
-            const updatedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
-            setSelectedDigimon(savedName);
-            setDigimonStats(updatedStats);
-            
-            // deathReason 복원
-            if (updatedStats.deathReason) {
-              setDeathReason(updatedStats.deathReason);
-            }
-          }
-        } catch (error) {
-          console.error("로컬 슬롯 로드 오류:", error);
-          setError(error);
-          const ns = initializeStats("Digitama", {}, digimonDataVer1);
-          setSelectedDigimon("Digitama");
-          setDigimonStats(ns);
-        } finally {
-          setIsLoadingSlot(false);
-          setIsLoading(false);
-        }
-      };
-      
-      loadSlotLocal();
-      return;
-    }
 
-    // Firestore 모드
+    // Firestore에서 슬롯 로드
     const loadSlot = async () => {
       setIsLoadingSlot(true);
       setIsLoading(true);
@@ -598,7 +461,7 @@ export function useGameData({
 
     loadSlot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotId, currentUser, mode, isFirebaseAvailable, navigate]);
+  }, [slotId, currentUser, isFirebaseAvailable, navigate]);
 
   /**
    * 배경화면 설정 저장 함수
@@ -607,8 +470,8 @@ export function useGameData({
   async function saveBackgroundSettings(newBackgroundSettings) {
     if (!slotId) return;
 
-    // Firestore 모드일 때만 저장
-    if (slotId && currentUser && mode === 'firebase') {
+    // Firebase 로그인 필수
+    if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         await updateDoc(slotRef, {
@@ -620,15 +483,9 @@ export function useGameData({
         console.error("배경화면 설정 저장 오류:", error);
         setError(error);
       }
-    } else if (slotId && mode === 'local') {
-      // localStorage 모드
-      try {
-        localStorage.setItem(`slot${slotId}_backgroundSettings`, JSON.stringify(newBackgroundSettings));
-        console.log('[saveBackgroundSettings] localStorage 저장 완료');
-      } catch (error) {
-        console.error("localStorage 저장 오류:", error);
-        setError(error);
-      }
+    } else {
+      console.error("Firebase 로그인이 필요합니다.");
+      setError(new Error("Firebase 로그인이 필요합니다."));
     }
   }
 

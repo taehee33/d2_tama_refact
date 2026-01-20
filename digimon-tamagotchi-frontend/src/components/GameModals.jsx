@@ -176,7 +176,7 @@ export default function GameModals({
     setWakeUntil,
   } = ui || {};
 
-  const { developerMode, setDeveloperMode, setIsEvolving, mode } = flags || {};
+  const { developerMode, setDeveloperMode, setIsEvolving } = flags || {};
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
@@ -515,7 +515,6 @@ export default function GameModals({
           onClose={() => toggleModal('arenaScreen', false)}
           onStartBattle={handleArenaBattleStart}
           currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
-          mode={mode}
           currentSeasonId={currentSeasonId}
           isDevMode={developerMode}
           onOpenAdmin={() => toggleModal('admin', true)}
@@ -530,7 +529,6 @@ export default function GameModals({
           onClose={() => toggleModal('sparring', false)}
           onSelectSlot={handleSparringSlotSelect}
           currentSlotId={parseInt(slotId)}
-          mode={mode}
         />
       )}
 
@@ -706,7 +704,6 @@ export default function GameModals({
       {modals.encyclopedia && (
         <EncyclopediaModal
           onClose={() => toggleModal('encyclopedia', false)}
-          mode={mode}
         />
       )}
 

@@ -13,8 +13,6 @@ function SelectScreen() {
   const location = useLocation();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
   
-  // location.state에서 mode 가져오기
-  const mode = location.state?.mode || (isFirebaseAvailable && currentUser ? 'firebase' : 'local');
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,30 +20,28 @@ function SelectScreen() {
   // 새 다마고치 만들 때 선택할 기종/버전
   const [device, setDevice] = useState("Digital Monster Color 25th");
   const [version, setVersion] = useState("Ver.1");
+  
+  // 디지몬 별명 변경
+  // 각 슬롯별로 input value 관리 -> local state
+  const [slotNameEdits, setSlotNameEdits] = useState({});
 
-  // Firebase 모드에서 전역 인증 상태 구독하여 로그인 체크
-  // AuthContext의 onAuthStateChanged 리스너가 currentUser를 업데이트하면 자동으로 반영됨
+  // 순서변경 모달 상태
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [orderedSlots, setOrderedSlots] = useState([]);
+  const [initialOrderedSlots, setInitialOrderedSlots] = useState([]); // 초기 순서 저장 (변경사항 확인용)
+  const [highlightedSlotId, setHighlightedSlotId] = useState(null); // 이동된 슬롯 하이라이트용 
+  
+  // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
-    // 로컬 모드로 온 경우는 체크하지 않음
-    if (mode === 'local') {
-      return;
-    }
-    
-    // Firebase 모드로 명시적으로 온 경우에만 로그인 체크
-    // (location.state에서 mode: 'firebase'로 전달된 경우)
-    // 로그인하지 않았으면 localStorage 모드로 자동 전환 (리디렉션 없음)
-    if (mode === 'firebase' && isFirebaseAvailable && !currentUser) {
-      // Firebase 모드로 명시적으로 요청했지만 로그인하지 않았으면
-      // 로그인 페이지로 리디렉션
+    if (!isFirebaseAvailable || !currentUser) {
       navigate("/");
     }
-  }, [currentUser, navigate, isFirebaseAvailable, mode]);
+  }, [isFirebaseAvailable, currentUser, navigate]);
 
   // 슬롯 목록 재로드 (Firestore의 /users/{uid}/slots 컬렉션에서 직접 가져오기)
   const loadSlots = async () => {
-    // Firebase 모드인데 로그인하지 않았으면 슬롯 로드 건너뛰기
-    // 하지만 로컬 모드일 때는 Firebase가 설정되어 있어도 localStorage에서 로드해야 함
-    if (mode === 'firebase' && isFirebaseAvailable && !currentUser) {
+    // Firebase 로그인 필수
+    if (!isFirebaseAvailable || !currentUser) {
       setLoading(false);
       return;
     }
@@ -54,13 +50,14 @@ function SelectScreen() {
       setLoading(true);
       setError(null);
       
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
+      // Firebase 로그인 필수
+      if (isFirebaseAvailable && currentUser) {
         // db가 null인지 확인
         if (!db) {
           throw new Error("Firestore가 초기화되지 않았습니다.");
         }
         
-        // Firestore 모드: /users/{uid}/slots 컬렉션에서 직접 가져오기
+        // Firestore: /users/{uid}/slots 컬렉션에서 직접 가져오기
         const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
         const querySnapshot = await getDocs(slotsRef);
         
@@ -185,7 +182,7 @@ function SelectScreen() {
   useEffect(() => {
     loadSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseAvailable, currentUser, mode]);
+  }, [isFirebaseAvailable, currentUser]);
 
   // 로컬 저장소 모드로 새 다마고치 시작 (현재 사용되지 않음)
   // const handleNewTamaLocal = async () => {
@@ -231,7 +228,7 @@ function SelectScreen() {
   //     console.log("localStorage 저장 완료");
 
   //     console.log("게임 화면으로 이동 (로컬 모드):", slotId);
-  //     navigate(`/game/${slotId}`, { state: { mode: 'local' } });
+  //     navigate(`/game/${slotId}`);
   //   } catch (err) {
   //     console.error("새 다마고치 생성 오류:", err);
   //     alert(`다마고치 생성에 실패했습니다.\n에러: ${err.message || '알 수 없는 오류'}`);
@@ -334,57 +331,13 @@ function SelectScreen() {
         console.log("Firestore 슬롯 저장 완료");
         saveSuccess = true;
       } else {
-        console.log("localStorage 모드로 슬롯 생성 시도");
-        // localStorage 모드
-        for (let i = 1; i <= MAX_SLOTS; i++) {
-          const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
-          if (!existing) {
-            slotId = i;
-            break;
-          }
-        }
-        
-        if (!slotId) {
-          alert("슬롯이 모두 찼습니다!");
-          return;
-        }
-
-        console.log("새 슬롯 ID (localStorage):", slotId);
-
-        // localStorage에 저장
-        try {
-          // 기존 슬롯들의 displayOrder를 모두 +1 (새 슬롯이 맨 위로 오도록)
-          for (let i = 1; i <= MAX_SLOTS; i++) {
-            const existingOrder = localStorage.getItem(`slot${i}_displayOrder`);
-            if (existingOrder) {
-              const newOrder = parseInt(existingOrder) + 1;
-              localStorage.setItem(`slot${i}_displayOrder`, newOrder.toString());
-            }
-          }
-
-          localStorage.setItem(`slot${slotId}_selectedDigimon`, "Digitama");
-          localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify({}));
-          localStorage.setItem(`slot${slotId}_device`, device);
-          localStorage.setItem(`slot${slotId}_version`, version);
-          const slotName = `슬롯${slotId}`;
-          localStorage.setItem(`slot${slotId}_slotName`, slotName);
-          const now = new Date();
-          const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-          localStorage.setItem(`slot${slotId}_createdAt`, createdAtStr);
-          localStorage.setItem(`slot${slotId}_displayOrder`, "1"); // 새 슬롯은 항상 맨 위에
-          console.log("localStorage 저장 완료");
-          saveSuccess = true;
-        } catch (storageErr) {
-          throw new Error(`localStorage 저장 실패: ${storageErr.message}`);
-        }
+        throw new Error("Firebase 로그인이 필요합니다.");
       }
 
       // 데이터 저장이 성공한 경우에만 게임 화면으로 이동
       if (saveSuccess && slotId) {
         console.log("게임 화면으로 이동:", slotId);
-        // Firebase 모드인지 localStorage 모드인지 결정
-        const gameMode = (isFirebaseAvailable && currentUser) ? 'firebase' : 'local';
-        navigate(`/game/${slotId}`, { state: { mode: gameMode } });
+        navigate(`/game/${slotId}`);
       } else {
         throw new Error("슬롯 저장에 실패했습니다.");
       }
@@ -405,34 +358,21 @@ function SelectScreen() {
 
   // 이어하기
   const handleContinue = (slotId) => {
-    // 현재 모드에 따라 state 전달
-    const mode = (isFirebaseAvailable && currentUser) ? 'firebase' : 'local';
-    navigate(`/game/${slotId}`, { state: { mode } });
+    navigate(`/game/${slotId}`);
   };
 
   // 슬롯 삭제
   const handleDeleteSlot = async (slotId) => {
-    // Firebase 모드로 명시적으로 요청한 경우에만 로그인 체크
-    // 로컬 모드에서는 Firebase가 설정되어 있어도 삭제 가능
-    if (mode === 'firebase' && isFirebaseAvailable && !currentUser) {
+    // Firebase 로그인 필수
+    if (!isFirebaseAvailable || !currentUser) {
       return;
     }
 
     if (window.confirm(`슬롯 ${slotId}을 정말 삭제하시겠습니까?`)) {
       try {
-        if (isFirebaseAvailable && currentUser && mode !== 'local') {
-          // Firestore의 /users/{uid}/slots/{slotId}에서 삭제
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await deleteDoc(slotRef);
-        } else {
-          // localStorage 모드
-          localStorage.removeItem(`slot${slotId}_selectedDigimon`);
-          localStorage.removeItem(`slot${slotId}_digimonStats`);
-          localStorage.removeItem(`slot${slotId}_device`);
-          localStorage.removeItem(`slot${slotId}_version`);
-          localStorage.removeItem(`slot${slotId}_slotName`);
-          localStorage.removeItem(`slot${slotId}_createdAt`);
-        }
+        // Firestore의 /users/{uid}/slots/{slotId}에서 삭제
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await deleteDoc(slotRef);
         loadSlots();
       } catch (err) {
         console.error("슬롯 삭제 오류:", err);
@@ -440,16 +380,6 @@ function SelectScreen() {
       }
     }
   };
-
-  // 디지몬 별명 변경
-  // 각 슬롯별로 input value 관리 -> local state
-  const [slotNameEdits, setSlotNameEdits] = useState({});
-
-  // 순서변경 모달 상태
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [orderedSlots, setOrderedSlots] = useState([]);
-  const [initialOrderedSlots, setInitialOrderedSlots] = useState([]); // 초기 순서 저장 (변경사항 확인용)
-  const [highlightedSlotId, setHighlightedSlotId] = useState(null); // 이동된 슬롯 하이라이트용 
 
   // 입력 변화 시
   const handleNameChange = (slotId, newName) => {
@@ -461,9 +391,8 @@ function SelectScreen() {
 
   // "수정" 버튼
   const handleSaveName = async (slotId) => {
-    // Firebase 모드로 명시적으로 요청한 경우에만 로그인 체크
-    // 로컬 모드에서는 Firebase가 설정되어 있어도 이름 변경 가능
-    if (mode === 'firebase' && isFirebaseAvailable && !currentUser) {
+    // Firebase 로그인 필수
+    if (!isFirebaseAvailable || !currentUser) {
       return;
     }
 
@@ -474,17 +403,12 @@ function SelectScreen() {
     }
 
     try {
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
-        // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 업데이트
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await updateDoc(slotRef, {
-          slotName: newName,
-          updatedAt: new Date(),
-        });
-      } else {
-        // localStorage 모드
-        localStorage.setItem(`slot${slotId}_slotName`, newName);
-      }
+      // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 업데이트
+      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+      await updateDoc(slotRef, {
+        slotName: newName,
+        updatedAt: new Date(),
+      });
       loadSlots();
       alert(`슬롯 ${slotId}의 디지몬 별명을 "${newName}" 로 변경했습니다.`);
     } catch (err) {
@@ -504,11 +428,6 @@ function SelectScreen() {
   };
 
   // 로컬 모드 로그아웃 (로컬 모드 종료)
-  const handleLocalLogout = () => {
-    if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
-      navigate("/");
-    }
-  };
 
   // 순서가 변경되었는지 확인
   const hasOrderChanged = () => {
@@ -590,8 +509,8 @@ function SelectScreen() {
         displayOrder: index + 1,
       }));
 
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
-        // Firestore 모드: 각 슬롯의 displayOrder 업데이트
+      if (isFirebaseAvailable && currentUser) {
+        // Firestore: 각 슬롯의 displayOrder 업데이트
         const updatePromises = updatedSlots.map((slot) => {
           const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slot.id}`);
           return updateDoc(slotRef, {
@@ -631,22 +550,17 @@ function SelectScreen() {
     );
   }
 
+  // Firebase 로그인 필수: 조건부 렌더링
+  if (!isFirebaseAvailable || !currentUser) {
+    return null;
+  }
+
   return (
     <div className="p-4">
         <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">Select Tamagotchi</h1>
         <div className="flex items-center space-x-4">
-          {mode === 'local' ? (
-            <>
-              <span className="text-sm text-gray-600 font-semibold">로컬 모드로 로그인됨</span>
-              <button
-                onClick={handleLocalLogout}
-                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm"
-              >
-                로컬 모드 로그아웃
-              </button>
-            </>
-          ) : isFirebaseAvailable && currentUser ? (
+          {isFirebaseAvailable && currentUser ? (
             <>
               <div className="flex items-center space-x-2">
                 {currentUser.photoURL && (

@@ -32,13 +32,12 @@ if (isFirebaseConfigured()) {
     auth = getAuth(app);
   } catch (error) {
     console.error('Firebase 초기화 실패:', error);
-    console.warn('Firebase가 설정되지 않았습니다. localStorage 모드를 사용하세요.');
+    console.warn('Firebase가 설정되지 않았습니다.');
   }
-} else {
-  console.warn('Firebase 환경변수가 설정되지 않았습니다.');
-  console.warn('Firebase를 사용하려면 .env 파일에 Firebase 설정을 추가하세요.');
-  console.warn('또는 REACT_APP_STORAGE_TYPE=localStorage로 설정하여 localStorage 모드를 사용하세요.');
-}
+  } else {
+    console.warn('Firebase 환경변수가 설정되지 않았습니다.');
+    console.warn('Firebase를 사용하려면 .env 파일에 Firebase 설정을 추가하세요.');
+  }
 
 export { db, auth };
 export default app;

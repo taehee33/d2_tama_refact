@@ -2,159 +2,16 @@
 /**
  * Repository 패턴을 사용한 데이터 저장소 추상화
  * 
- * 현재는 localStorage를 사용하지만, 나중에 Firestore로 쉽게 교체 가능
+ * localStorage 모드 제거: 이제 Firebase만 사용합니다.
  * 
- * 사용법:
- *   import { slotRepository } from './repositories/SlotRepository';
- *   
- *   // 슬롯 데이터 가져오기
- *   const slot = await slotRepository.getSlot(slotId);
- *   
- *   // 슬롯 데이터 저장하기
- *   await slotRepository.saveSlot(slotId, slotData);
+ * 참고: 실제 코드에서는 이 Repository를 직접 사용하지 않고
+ * useGameData.js에서 직접 Firebase를 사용합니다.
+ * 
+ * 이 파일은 향후 필요 시 사용할 수 있도록 보존되어 있습니다.
  */
 
 // ============================================
-// LocalStorage 구현 (현재 사용)
-// ============================================
-class LocalStorageSlotRepository {
-  /**
-   * 슬롯 데이터 가져오기
-   * @param {number} slotId - 슬롯 ID (1-10)
-   * @returns {Promise<Object|null>} 슬롯 데이터 또는 null
-   */
-  async getSlot(slotId) {
-    const selectedDigimon = localStorage.getItem(`slot${slotId}_selectedDigimon`);
-    
-    if (!selectedDigimon) {
-      return null;
-    }
-
-    const digimonStatsStr = localStorage.getItem(`slot${slotId}_digimonStats`);
-    const digimonStats = digimonStatsStr ? JSON.parse(digimonStatsStr) : {};
-
-    return {
-      id: slotId,
-      selectedDigimon: selectedDigimon || 'Digitama',
-      digimonStats,
-      slotName: localStorage.getItem(`slot${slotId}_slotName`) || `슬롯${slotId}`,
-      createdAt: localStorage.getItem(`slot${slotId}_createdAt`) || '',
-      device: localStorage.getItem(`slot${slotId}_device`) || '',
-      version: localStorage.getItem(`slot${slotId}_version`) || 'Ver.1',
-    };
-  }
-
-  /**
-   * 모든 슬롯 목록 가져오기
-   * @param {number} maxSlots - 최대 슬롯 수 (기본값: 10)
-   * @returns {Promise<Array>} 슬롯 배열
-   */
-  async getAllSlots(maxSlots = 10) {
-    const slots = [];
-    
-    for (let i = 1; i <= maxSlots; i++) {
-      const slot = await this.getSlot(i);
-      if (slot && slot.selectedDigimon) {
-        slots.push(slot);
-      }
-    }
-    
-    return slots;
-  }
-
-  /**
-   * 슬롯 데이터 저장하기
-   * @param {number} slotId - 슬롯 ID
-   * @param {Object} slotData - 저장할 슬롯 데이터
-   * @returns {Promise<void>}
-   */
-  async saveSlot(slotId, slotData) {
-    const {
-      selectedDigimon,
-      digimonStats,
-      slotName,
-      createdAt,
-      device,
-      version,
-    } = slotData;
-
-    if (selectedDigimon !== undefined) {
-      localStorage.setItem(`slot${slotId}_selectedDigimon`, selectedDigimon);
-    }
-    
-    if (digimonStats !== undefined) {
-      localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(digimonStats));
-    }
-    
-    if (slotName !== undefined) {
-      localStorage.setItem(`slot${slotId}_slotName`, slotName);
-    }
-    
-    if (createdAt !== undefined) {
-      localStorage.setItem(`slot${slotId}_createdAt`, createdAt);
-    }
-    
-    if (device !== undefined) {
-      localStorage.setItem(`slot${slotId}_device`, device);
-    }
-    
-    if (version !== undefined) {
-      localStorage.setItem(`slot${slotId}_version`, version);
-    }
-  }
-
-  /**
-   * 디지몬 스탯만 저장하기 (자주 호출되는 경우를 위한 편의 메서드)
-   * @param {number} slotId - 슬롯 ID
-   * @param {Object} digimonStats - 디지몬 스탯 객체
-   * @returns {Promise<void>}
-   */
-  async saveDigimonStats(slotId, digimonStats) {
-    localStorage.setItem(`slot${slotId}_digimonStats`, JSON.stringify(digimonStats));
-  }
-
-  /**
-   * 선택된 디지몬 이름만 저장하기
-   * @param {number} slotId - 슬롯 ID
-   * @param {string} digimonName - 디지몬 이름
-   * @returns {Promise<void>}
-   */
-  async saveSelectedDigimon(slotId, digimonName) {
-    localStorage.setItem(`slot${slotId}_selectedDigimon`, digimonName);
-  }
-
-  /**
-   * 슬롯 삭제하기
-   * @param {number} slotId - 슬롯 ID
-   * @returns {Promise<void>}
-   */
-  async deleteSlot(slotId) {
-    localStorage.removeItem(`slot${slotId}_selectedDigimon`);
-    localStorage.removeItem(`slot${slotId}_digimonStats`);
-    localStorage.removeItem(`slot${slotId}_slotName`);
-    localStorage.removeItem(`slot${slotId}_createdAt`);
-    localStorage.removeItem(`slot${slotId}_device`);
-    localStorage.removeItem(`slot${slotId}_version`);
-  }
-
-  /**
-   * 빈 슬롯 찾기
-   * @param {number} maxSlots - 최대 슬롯 수 (기본값: 10)
-   * @returns {Promise<number|null>} 빈 슬롯 ID 또는 null
-   */
-  async findEmptySlot(maxSlots = 10) {
-    for (let i = 1; i <= maxSlots; i++) {
-      const existing = localStorage.getItem(`slot${i}_selectedDigimon`);
-      if (!existing) {
-        return i;
-      }
-    }
-    return null;
-  }
-}
-
-// ============================================
-// Firestore 구현 (향후 사용)
+// Firestore 구현
 // ============================================
 import {
   doc,
@@ -231,17 +88,17 @@ class FirestoreSlotRepository {
 
   async findEmptySlot(maxSlots = 10) {
     const slotsRef = collection(this.db, 'slots');
-    const querySnapshot = await getDocs(slotsRef);
-    const usedSlots = new Set(
+    const querySnapshot = await getDocs(query(slotsRef, limit(maxSlots)));
+    
+    const usedIds = new Set(
       querySnapshot.docs.map(doc => parseInt(doc.id.replace('slot', '')))
     );
     
     for (let i = 1; i <= maxSlots; i++) {
-      if (!usedSlots.has(i)) {
+      if (!usedIds.has(i)) {
         return i;
       }
     }
-    
     return null;
   }
 }
@@ -250,27 +107,23 @@ class FirestoreSlotRepository {
 // Repository 인스턴스 생성 및 export
 // ============================================
 
-// 환경변수로 저장소 타입 선택 (기본값: 'localStorage')
-const STORAGE_TYPE = process.env.REACT_APP_STORAGE_TYPE || 'localStorage';
-
 /**
  * Repository 인스턴스 생성
+ * localStorage 모드 제거: Firebase만 사용
  */
 let slotRepository;
 
-if (STORAGE_TYPE === 'firestore') {
-  // Firestore 사용 시
+if (firestoreDb) {
   try {
     slotRepository = new FirestoreSlotRepository(firestoreDb);
   } catch (error) {
-    console.error('Firestore 초기화 실패, localStorage로 fallback:', error);
-    slotRepository = new LocalStorageSlotRepository();
+    console.error('Firestore 초기화 실패:', error);
+    slotRepository = null;
   }
 } else {
-  // LocalStorage 사용 (기본값)
-  slotRepository = new LocalStorageSlotRepository();
+  console.warn('Firestore가 초기화되지 않았습니다.');
+  slotRepository = null;
 }
 
 export { slotRepository };
 export default slotRepository;
-

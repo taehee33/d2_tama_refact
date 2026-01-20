@@ -79,11 +79,16 @@ function Game(){
 
   const navigate= useNavigate();
   const location = useLocation();
-  // location.state에서 mode를 가져오거나, 기본값으로 현재 인증 상태 기반 결정
-  const mode = location.state?.mode || ((isFirebaseAvailable && currentUser) ? 'firebase' : 'local');
   
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // localStorage 모드 제거: Firebase 로그인 필수
+  useEffect(() => {
+    if (!isFirebaseAvailable || !currentUser) {
+      navigate("/");
+    }
+  }, [isFirebaseAvailable, currentUser, navigate]);
 
   // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
   const {
@@ -189,7 +194,6 @@ function Game(){
   } = useGameData({
     slotId,
     currentUser,
-    mode,
     digimonStats,
     setDigimonStats,
     setSelectedDigimon,
@@ -249,7 +253,7 @@ function Game(){
       return;
     }
     
-    // saveBackgroundSettings 함수가 있으면 호출 (mode에 따라 Firebase/localStorage 저장)
+    // saveBackgroundSettings 함수가 있으면 호출 (Firebase 저장)
     if (saveBackgroundSettings) {
       saveBackgroundSettings(backgroundSettings);
     }
@@ -675,7 +679,6 @@ function Game(){
     developerMode,
     slotId,
     currentUser,
-    mode,
     setIsEvolving,
     setEvolutionStage,
     setEvolvedDigimonName,
@@ -698,7 +701,6 @@ function Game(){
     selectedDigimon,
     slotId,
     currentUser,
-    mode,
   });
 
   const {
@@ -813,7 +815,6 @@ function Game(){
     digimonDataVer1,
     slotId,
     currentUser,
-    mode,
     logout,
     navigate,
     setIsSleeping,
@@ -1210,6 +1211,11 @@ async function setSelectedDigimonAndSave(name) {
     currentUser,
   };
 
+  // Firebase 로그인 필수: 조건부 렌더링
+  if (!isFirebaseAvailable || !currentUser) {
+    return null;
+  }
+
   return (
     <>
       {/* 모바일: 통합된 상단 네비게이션 바 */}
@@ -1288,23 +1294,7 @@ async function setSelectedDigimonAndSave(name) {
                     </>
                   )}
                 </div>
-              ) : mode === 'local' ? (
-                <>
-                  <span className="text-xs text-gray-600 font-semibold px-2">로컬 모드로 로그인됨</span>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
-                        navigate("/");
-                      }
-                    }}
-                    className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs pixel-art-button"
-                  >
-                    로컬 모드 로그아웃
-                  </button>
-                </>
-              ) : (
-                <span className="text-xs text-gray-500 px-2">localStorage</span>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -1332,21 +1322,7 @@ async function setSelectedDigimonAndSave(name) {
               ⚙️
             </button>
             {/* 프로필 UI (SelectScreen과 동일한 스타일) */}
-            {mode === 'local' ? (
-              <>
-                <span className="text-sm text-gray-600 font-semibold">로컬 모드로 로그인됨</span>
-                <button
-                  onClick={() => {
-                    if (window.confirm("로컬 모드를 종료하고 로그인 페이지로 이동하시겠습니까?")) {
-                      navigate("/");
-                    }
-                  }}
-                  className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm pixel-art-button"
-                >
-                  로컬 모드 로그아웃
-                </button>
-              </>
-            ) : isFirebaseAvailable && currentUser ? (
+            {isFirebaseAvailable && currentUser ? (
               <>
                 <div className="flex items-center space-x-2">
                   {currentUser.photoURL && (
@@ -1533,7 +1509,7 @@ async function setSelectedDigimonAndSave(name) {
           wakeUntil: wakeUntil,
           sleepLightOnStart: digimonStats.sleepLightOnStart || null,
         }}
-        flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving, mode }}
+        flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving }}
       />
       )}
     </>

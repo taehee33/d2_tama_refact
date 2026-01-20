@@ -26,7 +26,7 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mode, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats }) {
   // 배경 스크롤 방지
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -83,31 +83,11 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       let digimonStatsData = null;
       let slotName = null;
       
-      // Firestore 모드일 때는 props로 전달받은 데이터 사용
-      if (mode === 'firebase' && selectedDigimon && digimonStats) {
+      // Firebase 로그인 필수: props로 전달받은 데이터 사용
+      if (selectedDigimon && digimonStats) {
         digimonName = selectedDigimon;
         digimonStatsData = digimonStats;
         slotName = localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`;
-      } else if (mode === 'local') {
-        // localStorage 모드
-        const digimonNameKey = `slot${currentSlotId}_selectedDigimon`;
-        const statsKey = `slot${currentSlotId}_digimonStats`;
-        const slotNameKey = `slot${currentSlotId}_slotName`;
-        
-        digimonName = localStorage.getItem(digimonNameKey);
-        const statsJson = localStorage.getItem(statsKey);
-        slotName = localStorage.getItem(slotNameKey) || `슬롯${currentSlotId}`;
-        
-        if (statsJson) {
-          try {
-            digimonStatsData = JSON.parse(statsJson);
-          } catch (error) {
-            console.error('[ArenaScreen] statsJson 파싱 오류:', error);
-            digimonStatsData = {};
-          }
-        } else {
-          digimonStatsData = {};
-        }
       }
       
       if (digimonName && digimonName !== "Digitama") {
@@ -129,10 +109,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
     } else {
       setCurrentDigimonInfo(null);
     }
-  }, [currentSlotId, mode, selectedDigimon, digimonStats]);
+  }, [currentSlotId, selectedDigimon, digimonStats]);
 
   useEffect(() => {
-    if (isFirebaseAvailable && currentUser && mode !== 'local') {
+    if (isFirebaseAvailable && currentUser) {
       loadMyEntries();
       loadChallengers();
       loadArenaConfig();
@@ -141,22 +121,22 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, isFirebaseAvailable, mode]);
+  }, [currentUser, isFirebaseAvailable]);
 
   // 배틀 완료 후 엔트리 목록 새로고침 (승패 기록 반영)
   useEffect(() => {
     // activeTab이 변경되거나 모달이 다시 열릴 때 엔트리 목록 새로고침
-    if (isFirebaseAvailable && currentUser && mode !== 'local' && !loading) {
+    if (isFirebaseAvailable && currentUser && !loading) {
       loadMyEntries();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'battleLog' && isFirebaseAvailable && currentUser && mode !== 'local') {
+    if (activeTab === 'battleLog' && isFirebaseAvailable && currentUser) {
       loadBattleLogs();
     }
-    if (activeTab === 'leaderboard' && isFirebaseAvailable && currentUser && mode !== 'local') {
+    if (activeTab === 'leaderboard' && isFirebaseAvailable && currentUser) {
       if (leaderboardMode === 'past') {
         // 과거 시즌: 아카이브 선택 시 로드, 아니라면 목록만 유지
         if (selectedArchiveId) {
@@ -167,11 +147,11 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, currentUser, isFirebaseAvailable, mode, leaderboardMode, selectedArchiveId]);
+  }, [activeTab, currentUser, isFirebaseAvailable, leaderboardMode, selectedArchiveId]);
 
   // 시즌 설정 로드
   const loadArenaConfig = async () => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    if (!isFirebaseAvailable || !currentUser) return;
     try {
       const configRef = doc(db, 'game_settings', 'arena_config');
       const snap = await getDoc(configRef);
@@ -187,7 +167,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 내 등록된 디지몬 목록 로드
   const loadMyEntries = async () => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    if (!isFirebaseAvailable || !currentUser) return;
     
     try {
       const entriesRef = collection(db, 'arena_entries');
@@ -216,7 +196,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 챌린저 목록 로드
   const loadChallengers = async () => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    if (!isFirebaseAvailable || !currentUser) return;
     
     try {
       const entriesRef = collection(db, 'arena_entries');
@@ -255,7 +235,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 배틀 로그 로드 (공격 기록 + 방어 기록)
   const loadBattleLogs = async () => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    if (!isFirebaseAvailable || !currentUser) return;
     
     try {
       setLoadingLogs(true);
@@ -334,7 +314,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 리더보드 로드
   const loadLeaderboard = async (modeType = 'all') => {
-    if (!isFirebaseAvailable || mode === 'local') return;
+    if (!isFirebaseAvailable) return;
 
     try {
       setLeaderboardLoading(true);
@@ -374,7 +354,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 아카이브 목록 로드
   const loadArchivesList = async () => {
-    if (!isFirebaseAvailable || mode === 'local') return;
+    if (!isFirebaseAvailable) return;
     try {
       setArchiveLoading(true);
       const colRef = collection(db, 'season_archives');
@@ -420,7 +400,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
       let currentMyEntries = myEntries;
       let currentSlotEntry = null; // 현재 슬롯의 등록 정보
       
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
+      if (isFirebaseAvailable && currentUser) {
         try {
           const entriesRef = collection(db, 'arena_entries');
           const q = query(entriesRef, where('userId', '==', currentUser.uid));
@@ -455,7 +435,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
         }
       }
       
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
+      if (isFirebaseAvailable && currentUser) {
         // 현재 슬롯만 로드
         if (!currentSlotId) {
           alert("현재 슬롯 정보를 찾을 수 없습니다.");
@@ -547,7 +527,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 등록 제한 체크
   const checkRegistrationLimit = async () => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return 0;
+    if (!isFirebaseAvailable || !currentUser) return 0;
     
     try {
       const entriesRef = collection(db, 'arena_entries');
@@ -597,7 +577,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 등록 처리
   const handleRegister = async (slot) => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') {
+    if (!isFirebaseAvailable || !currentUser) {
       alert("Arena 모드는 Firebase 로그인이 필요합니다.");
       return;
     }
@@ -642,7 +622,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, mod
 
   // 등록 해제
   const handleDeleteEntry = async (entryId) => {
-    if (!isFirebaseAvailable || !currentUser || mode === 'local') return;
+    if (!isFirebaseAvailable || !currentUser) return;
     
     if (!window.confirm("정말 등록을 해제하시겠습니까?")) return;
     

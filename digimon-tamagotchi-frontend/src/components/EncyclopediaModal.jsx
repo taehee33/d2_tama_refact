@@ -11,7 +11,6 @@ import "../styles/Battle.css";
 
 export default function EncyclopediaModal({ 
   onClose,
-  mode,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [encyclopedia, setEncyclopedia] = useState({ "Ver.1": {} });
@@ -23,7 +22,7 @@ export default function EncyclopediaModal({
   useEffect(() => {
     const loadData = async () => {
       try {
-        const data = await loadEncyclopedia(currentUser, mode);
+        const data = await loadEncyclopedia(currentUser);
         setEncyclopedia(data);
       } catch (error) {
         console.error("도감 로드 오류:", error);
@@ -33,7 +32,7 @@ export default function EncyclopediaModal({
     };
     
     loadData();
-  }, [currentUser, mode]);
+  }, [currentUser]);
 
   // Ver.1 디지몬 목록 가져오기 (Ohakadamon 제외)
   const digimonList = Object.keys(digimonDataVer1)

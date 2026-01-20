@@ -11,7 +11,7 @@ import "../styles/Battle.css";
 
 const MAX_SLOTS = 10;
 
-export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mode }) {
+export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,14 +19,14 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
   useEffect(() => {
     loadSlots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, isFirebaseAvailable, mode]);
+  }, [currentUser, isFirebaseAvailable]);
 
   const loadSlots = async () => {
     try {
       setLoading(true);
       
-      if (isFirebaseAvailable && currentUser && mode !== 'local') {
-        // Firestore 모드
+      // Firebase 로그인 필수
+      if (isFirebaseAvailable && currentUser) {
         const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
         const q = query(slotsRef, orderBy('createdAt', 'desc'), limit(MAX_SLOTS));
         const querySnapshot = await getDocs(q);
@@ -53,28 +53,8 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId, mo
         
         setSlots(userSlots);
       } else {
-        // localStorage 모드
-        const arr = [];
-        for (let i = 1; i <= MAX_SLOTS; i++) {
-          // 현재 슬롯은 제외
-          if (i === currentSlotId) continue;
-          
-          const digimonName = localStorage.getItem(`slot${i}_selectedDigimon`);
-          if (digimonName) {
-            const slotName = localStorage.getItem(`slot${i}_slotName`) || `슬롯${i}`;
-            const statsJson = localStorage.getItem(`slot${i}_digimonStats`);
-            const digimonStats = statsJson ? JSON.parse(statsJson) : {};
-            
-            arr.push({
-              id: i,
-              slotName,
-              selectedDigimon: digimonName,
-              digimonStats,
-              createdAt: localStorage.getItem(`slot${i}_createdAt`) || "",
-            });
-          }
-        }
-        setSlots(arr);
+        console.warn("Firebase 로그인이 필요합니다.");
+        setSlots([]);
       }
     } catch (err) {
       console.error("슬롯 로드 오류:", err);

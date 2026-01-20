@@ -7,33 +7,26 @@ import { db } from "../firebase";
 /**
  * 도감 데이터 로드 (계정별 통합)
  * @param {Object|null} currentUser - 현재 사용자 (Firebase Auth)
- * @param {string} mode - 모드 ('firebase' | 'local')
  * @returns {Promise<Object>} 도감 데이터
  */
-export async function loadEncyclopedia(currentUser, mode) {
-  if (mode === 'firebase' && currentUser && db) {
-    try {
-      // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
-      const userRef = doc(db, 'users', currentUser.uid);
-      const userSnap = await getDoc(userRef);
-      
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        return data.encyclopedia || { "Ver.1": {} };
-      }
-    } catch (error) {
-      console.error("도감 로드 오류 (Firebase):", error);
+export async function loadEncyclopedia(currentUser) {
+  // Firebase 로그인 필수
+  if (!currentUser || !db) {
+    console.warn("Firebase 로그인이 필요합니다.");
+    return { "Ver.1": {} };
+  }
+
+  try {
+    // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
+    const userRef = doc(db, 'users', currentUser.uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      return data.encyclopedia || { "Ver.1": {} };
     }
-  } else if (mode === 'local') {
-    try {
-      // localStorage: 전역 도감 저장 (모든 슬롯 공유)
-      const saved = localStorage.getItem('encyclopedia');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch (error) {
-      console.error("도감 로드 오류 (localStorage):", error);
-    }
+  } catch (error) {
+    console.error("도감 로드 오류 (Firebase):", error);
   }
 
   return { "Ver.1": {} };
@@ -43,37 +36,33 @@ export async function loadEncyclopedia(currentUser, mode) {
  * 도감 데이터 저장 (계정별 통합)
  * @param {Object} encyclopedia - 도감 데이터
  * @param {Object|null} currentUser - 현재 사용자 (Firebase Auth)
- * @param {string} mode - 모드 ('firebase' | 'local')
  */
-export async function saveEncyclopedia(encyclopedia, currentUser, mode) {
-  if (mode === 'firebase' && currentUser && db) {
-    try {
-      // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
-      const userRef = doc(db, 'users', currentUser.uid);
-      // 문서 존재 여부 확인
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        await updateDoc(userRef, {
-          encyclopedia: encyclopedia,
-          updatedAt: new Date(),
-        });
-      } else {
-        // 문서가 없으면 생성
-        await setDoc(userRef, {
-          encyclopedia: encyclopedia,
-          updatedAt: new Date(),
-        });
-      }
-    } catch (error) {
-      console.error("도감 저장 오류 (Firebase):", error);
+export async function saveEncyclopedia(encyclopedia, currentUser) {
+  // Firebase 로그인 필수
+  if (!currentUser || !db) {
+    console.warn("Firebase 로그인이 필요합니다.");
+    return;
+  }
+
+  try {
+    // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
+    const userRef = doc(db, 'users', currentUser.uid);
+    // 문서 존재 여부 확인
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      await updateDoc(userRef, {
+        encyclopedia: encyclopedia,
+        updatedAt: new Date(),
+      });
+    } else {
+      // 문서가 없으면 생성
+      await setDoc(userRef, {
+        encyclopedia: encyclopedia,
+        updatedAt: new Date(),
+      });
     }
-  } else if (mode === 'local') {
-    try {
-      // localStorage: 전역 도감 저장 (모든 슬롯 공유)
-      localStorage.setItem('encyclopedia', JSON.stringify(encyclopedia));
-    } catch (error) {
-      console.error("도감 저장 오류 (localStorage):", error);
-    }
+  } catch (error) {
+    console.error("도감 저장 오류 (Firebase):", error);
   }
 }
 
@@ -83,14 +72,12 @@ export async function saveEncyclopedia(encyclopedia, currentUser, mode) {
  * @param {Object} finalStats - 최종 스탯
  * @param {string} eventType - 이벤트 타입 ('evolution' | 'death' | 'discovery')
  * @param {Object|null} currentUser - 현재 사용자
- * @param {string} mode - 모드 ('firebase' | 'local')
  */
 export async function updateEncyclopedia(
   digimonName,
   finalStats,
   eventType, // 'evolution' | 'death' | 'discovery'
-  currentUser,
-  mode
+  currentUser
 ) {
   if (!digimonName) return;
   
@@ -98,7 +85,7 @@ export async function updateEncyclopedia(
   const version = "Ver.1";
   
   // 도감 데이터 로드 (계정별)
-  const encyclopedia = await loadEncyclopedia(currentUser, mode);
+  const encyclopedia = await loadEncyclopedia(currentUser);
   
   // 해당 디지몬 데이터 가져오기 또는 초기화
   if (!encyclopedia[version]) {
@@ -172,5 +159,5 @@ export async function updateEncyclopedia(
   
   // 저장 (계정별)
   encyclopedia[version][digimonName] = digimonData;
-  await saveEncyclopedia(encyclopedia, currentUser, mode);
+  await saveEncyclopedia(encyclopedia, currentUser);
 }

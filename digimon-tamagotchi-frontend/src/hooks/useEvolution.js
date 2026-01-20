@@ -205,8 +205,7 @@ export function useEvolution({
         selectedDigimon,
         old, // 진화 전 스탯
         'evolution',
-        currentUser,
-        mode
+        currentUser
       );
     }
     
@@ -216,8 +215,7 @@ export function useEvolution({
         newName,
         nxWithLogs, // 진화 후 스탯
         'discovery',
-        currentUser,
-        mode
+        currentUser
       );
     }
   }

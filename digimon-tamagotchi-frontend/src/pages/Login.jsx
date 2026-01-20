@@ -18,12 +18,10 @@ function Login() {
     }
   }, [currentUser, navigate]);
 
-  // Firebase가 없으면 localStorage 모드로 바로 이동
+  // Firebase가 없으면 에러 표시
   useEffect(() => {
     if (!isFirebaseAvailable) {
-      console.warn('Firebase가 설정되지 않았습니다. localStorage 모드로 진행합니다.');
-      // localStorage 모드에서는 바로 select로 이동 가능
-      // 또는 임시 로그인 버튼 표시
+      console.error('Firebase가 설정되지 않았습니다. Firebase 설정이 필요합니다.');
     }
   }, [isFirebaseAvailable]);
 
@@ -63,10 +61,6 @@ function Login() {
     }
   };
 
-  // Firebase가 없을 때 localStorage 모드로 진행
-  const handleLocalStorageMode = () => {
-    navigate("/select");
-  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -74,18 +68,10 @@ function Login() {
         <h1 className="text-2xl font-bold mb-4 text-center">디지몬 다마고치</h1>
         
         {!isFirebaseAvailable ? (
-          <>
-            <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-              <p className="font-semibold">Firebase가 설정되지 않았습니다.</p>
-              <p className="text-sm mt-1">localStorage 모드로 진행합니다.</p>
-            </div>
-            <button
-              onClick={handleLocalStorageMode}
-              className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
-            >
-              localStorage 모드로 시작
-            </button>
-          </>
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <p className="font-semibold">Firebase가 설정되지 않았습니다.</p>
+            <p className="text-sm mt-1">Firebase 설정이 필요합니다. .env 파일에 Firebase 설정을 추가해주세요.</p>
+          </div>
         ) : (
           <>
             <p className="text-gray-600 mb-6 text-center">
@@ -101,7 +87,7 @@ function Login() {
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 mb-3"
+              className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
           {loading ? (
             <>
@@ -123,12 +109,6 @@ function Login() {
             </>
           )}
         </button>
-            <button
-              onClick={handleLocalStorageMode}
-              className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold"
-            >
-              로컬 저장소 모드 시작
-            </button>
           </>
         )}
       </div>

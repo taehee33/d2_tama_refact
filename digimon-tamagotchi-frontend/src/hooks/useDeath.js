@@ -31,7 +31,6 @@ export function useDeath({
   selectedDigimon,
   slotId,
   currentUser,
-  mode,
 }) {
   /**
    * 사망 확정 함수 (환생 처리)
@@ -57,8 +56,7 @@ export function useDeath({
         selectedDigimon,
         old, // 사망 전 스탯
         'death',
-        currentUser,
-        mode
+        currentUser
       );
     }
     
