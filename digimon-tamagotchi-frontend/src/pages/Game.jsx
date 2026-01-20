@@ -581,7 +581,7 @@ function Game(){
               const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
               updateDoc(slotRef, {
                 digimonStats: { ...updatedStats, activityLogs: updatedLogs },
-                activityLogs: updatedLogs,
+                // activityLogs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요 (중복 저장 방지)
                 updatedAt: new Date(),
               }).catch((error) => {
                 console.error("사망 로그 저장 오류:", error);

@@ -204,10 +204,8 @@ export function useGameData({
           updateData.backgroundSettings = backgroundSettings;
         }
         
-        // Activity Logs 저장
-        if (updatedLogs !== null) {
-          updateData.activityLogs = updatedLogs;
-        }
+        // Activity Logs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요
+        // (중복 저장 방지)
         
         // 기존 데이터에서도 proteinCount 제거 (마이그레이션)
         await updateDoc(slotRef, {
@@ -229,9 +227,8 @@ export function useGameData({
         if (backgroundSettings !== undefined) {
           localStorage.setItem(`slot${slotId}_backgroundSettings`, JSON.stringify(backgroundSettings));
         }
-        if (updatedLogs !== null) {
-          localStorage.setItem(`slot${slotId}_activityLogs`, JSON.stringify(updatedLogs));
-        }
+        // Activity Logs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요
+        // (중복 저장 방지)
       } catch (error) {
         console.error("localStorage 저장 오류:", error);
         setError(error);
@@ -433,9 +430,9 @@ export function useGameData({
             }
           }
           
-          // Activity Logs 로드
+          // Activity Logs 로드: digimonStats 안의 activityLogs를 우선 사용, 없으면 별도 저장된 activityLogs 사용
           const logsStr = localStorage.getItem(`slot${slotId}_activityLogs`);
-          const logs = logsStr ? JSON.parse(logsStr) : [];
+          const logs = savedStats.activityLogs || (logsStr ? JSON.parse(logsStr) : []);
           setActivityLogs(initializeActivityLogs(logs));
           
           if (Object.keys(savedStats).length === 0) {
@@ -516,12 +513,14 @@ export function useGameData({
             }
           }
           
-          // Activity Logs 로드
-          const logs = initializeActivityLogs(slotData.activityLogs);
-          setActivityLogs((prevLogs) => logs || prevLogs || []);
-
           const savedName = slotData.selectedDigimon || "Digitama";
           let savedStats = slotData.digimonStats || {};
+          
+          // Activity Logs 로드: digimonStats 안의 activityLogs를 우선 사용, 없으면 최상위 activityLogs 사용
+          const logs = initializeActivityLogs(
+            savedStats.activityLogs || slotData.activityLogs
+          );
+          setActivityLogs((prevLogs) => logs || prevLogs || []);
           
           // proteinCount 필드 제거 (마이그레이션)
           if (savedStats.proteinCount !== undefined) {

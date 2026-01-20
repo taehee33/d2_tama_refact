@@ -219,7 +219,7 @@ export function useGameAnimations({
             digimonStats: { ...updatedStats, activityLogs: updatedLogs },
             isLightsOn,
             wakeUntil: nowSleeping ? updatedStats.wakeUntil : wakeUntil,
-            activityLogs: updatedLogs,
+            // activityLogs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요 (중복 저장 방지)
             lastSavedAt: now,
             updatedAt: now,
           }).catch((error) => {
