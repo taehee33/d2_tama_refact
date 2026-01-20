@@ -2,6 +2,7 @@
 // Game.jsx의 죽음(Death) 로직을 분리한 Custom Hook
 
 import { initializeStats } from "../data/stats";
+import { updateEncyclopedia } from "./useEncyclopedia";
 
 /**
  * useDeath Hook
@@ -27,6 +28,10 @@ export function useDeath({
   setHasSeenDeathPopup,
   digimonDataVer1,
   perfectStages,
+  selectedDigimon,
+  slotId,
+  currentUser,
+  mode,
 }) {
   /**
    * 사망 확정 함수 (환생 처리)
@@ -45,6 +50,19 @@ export function useDeath({
     }
     const old = { ...currentStats };
     const nx = initializeStats(ohaka, old, digimonDataVer1);
+    
+    // ✅ 도감 업데이트: 사망 전 디지몬 기록
+    if (selectedDigimon && selectedDigimon !== "Digitama") {
+      await updateEncyclopedia(
+        selectedDigimon,
+        old, // 사망 전 스탯
+        'death',
+        slotId,
+        currentUser,
+        mode
+      );
+    }
+    
     await setDigimonStatsAndSave(nx);
     await setSelectedDigimonAndSave(ohaka);
     toggleModal('deathModal', false);

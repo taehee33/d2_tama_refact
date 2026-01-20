@@ -672,6 +672,9 @@ function Game(){
     activityLogs,
     selectedDigimon,
     developerMode,
+    slotId,
+    currentUser,
+    mode,
     setIsEvolving,
     setEvolutionStage,
     setEvolvedDigimonName,
@@ -691,6 +694,10 @@ function Game(){
     setHasSeenDeathPopup,
     digimonDataVer1,
     perfectStages,
+    selectedDigimon,
+    slotId,
+    currentUser,
+    mode,
   });
 
   const {
@@ -1149,6 +1156,7 @@ async function setSelectedDigimonAndSave(name) {
     seasonDuration,
     ver1DigimonList,
     initializeStats,
+    currentUser,
   };
 
   return (

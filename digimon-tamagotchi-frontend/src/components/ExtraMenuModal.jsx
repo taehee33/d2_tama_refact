@@ -10,6 +10,7 @@ export default function ExtraMenuModal({
   onOpenDigimonInfo,
   onOpenCollection,
   onOpenActivityLog,
+  onOpenEncyclopedia,
 }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -43,12 +44,14 @@ export default function ExtraMenuModal({
           
           <button
             onClick={() => {
-              alert("준비중입니다.");
+              if (onOpenEncyclopedia) {
+                onOpenEncyclopedia();
+              }
+              onClose();
             }}
-            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-            disabled
+            className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
-            도감(준비중)
+            도감
           </button>
           
           <button

@@ -29,6 +29,7 @@ import ExtraMenuModal from "./ExtraMenuModal";
 import CollectionModal from "./CollectionModal";
 import BackgroundSettingsModal from "./BackgroundSettingsModal";
 import ActivityLogModal from "./ActivityLogModal";
+import EncyclopediaModal from "./EncyclopediaModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -685,6 +686,16 @@ export default function GameModals({
           onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
           onOpenCollection={() => toggleModal('collection', true)}
           onOpenActivityLog={() => toggleModal('activityLog', true)}
+          onOpenEncyclopedia={() => toggleModal('encyclopedia', true)}
+        />
+      )}
+
+      {/* Encyclopedia Modal (도감) */}
+      {modals.encyclopedia && (
+        <EncyclopediaModal
+          onClose={() => toggleModal('encyclopedia', false)}
+          slotId={slotId}
+          mode={mode}
         />
       )}
 
