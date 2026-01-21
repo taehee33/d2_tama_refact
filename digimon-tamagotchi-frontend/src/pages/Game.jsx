@@ -22,6 +22,7 @@ import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
 import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
+import KakaoAd from "../components/KakaoAd";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -1548,6 +1549,9 @@ async function setSelectedDigimonAndSave(name) {
       
       {/* Google AdSense 광고 */}
       <AdBanner />
+      
+      {/* 카카오 애드핏 광고 */}
+      <KakaoAd />
     </>
   );
 }

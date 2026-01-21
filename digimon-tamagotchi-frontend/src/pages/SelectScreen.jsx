@@ -7,6 +7,7 @@ import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
+import KakaoAd from "../components/KakaoAd";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -862,6 +863,9 @@ function SelectScreen() {
       
       {/* Google AdSense 광고 */}
       <AdBanner />
+      
+      {/* 카카오 애드핏 광고 */}
+      <KakaoAd />
     </div>
   );
 }
