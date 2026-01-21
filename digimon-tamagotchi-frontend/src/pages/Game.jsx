@@ -21,6 +21,7 @@ import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
 import { getTamerName } from "../utils/tamerNameUtils";
+import AdBanner from "../components/AdBanner";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -1524,26 +1525,29 @@ async function setSelectedDigimonAndSave(name) {
       </div>
 
       {modals && toggleModal && gameState && handlers && data && ui && (
-      <GameModals
-        modals={modals}
-        toggleModal={toggleModal}
-        gameState={{
-          ...gameState,
-          isLightsOn,
-        }}
-        handlers={handlers}
-        data={data}
-        ui={{ 
-          ...ui, 
-          statusDetailMessages,
-          sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
-          sleepStatus: sleepStatus,
-          wakeUntil: wakeUntil,
-          sleepLightOnStart: digimonStats.sleepLightOnStart || null,
-        }}
-        flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving }}
-      />
+        <GameModals
+          modals={modals}
+          toggleModal={toggleModal}
+          gameState={{
+            ...gameState,
+            isLightsOn,
+          }}
+          handlers={handlers}
+          data={data}
+          ui={{ 
+            ...ui, 
+            statusDetailMessages,
+            sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
+            sleepStatus: sleepStatus,
+            wakeUntil: wakeUntil,
+            sleepLightOnStart: digimonStats.sleepLightOnStart || null,
+          }}
+          flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving }}
+        />
       )}
+      
+      {/* Google AdSense 광고 */}
+      <AdBanner />
     </>
   );
 }

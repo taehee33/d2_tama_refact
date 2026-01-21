@@ -6,6 +6,7 @@ import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs } from "firebase
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { getTamerName } from "../utils/tamerNameUtils";
+import AdBanner from "../components/AdBanner";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -858,6 +859,9 @@ function SelectScreen() {
           </div>
         </div>
       )}
+      
+      {/* Google AdSense 광고 */}
+      <AdBanner />
     </div>
   );
 }
