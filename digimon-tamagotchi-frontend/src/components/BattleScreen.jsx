@@ -15,6 +15,7 @@ export default function BattleScreen({
   userDigimon,
   userStats,
   userSlotName,
+  userDigimonNickname,
   areaId,
   roundIndex,
   battleType,
@@ -88,16 +89,24 @@ export default function BattleScreen({
           type: enemyDigimonData.stats?.type || null,
         };
         
-        // 배틀 시뮬레이션 (슬롯 정보로 이름 통일: 슬롯명(디지몬명) 형식)
+        // 배틀 시뮬레이션 (디지몬 별명 반영: 별명(디지몬명) 형식)
         const userDigimonName = userDigimon.name || userDigimon.id || "Unknown";
         const enemyDigimonName = enemyDigimonData.name || enemyDigimonData.id || "Unknown";
-        const userName = userSlotName 
-          ? `${userSlotName}(${userDigimonName})`
+        // 유저 디지몬 별명이 있으면 "별명(디지몬명)", 없으면 "디지몬명"
+        const userDisplayName = userDigimonNickname && userDigimonNickname.trim()
+          ? `${userDigimonNickname}(${userDigimonName})`
           : userDigimonName;
+        const userName = userSlotName 
+          ? `${userSlotName}의 ${userDisplayName}`
+          : userDisplayName;
         // 스파링 모드에서는 항상 상대 디지몬명 앞에 (Ghost) 추가
+        // 적 디지몬 별명이 있으면 "별명(디지몬명)", 없으면 "디지몬명"
+        const enemyDisplayName = sparringEnemySlot?.digimonNickname && sparringEnemySlot.digimonNickname.trim()
+          ? `${sparringEnemySlot.digimonNickname}(${enemyDigimonName})`
+          : enemyDigimonName;
         const enemyName = sparringEnemySlot?.slotName
-          ? `(Ghost) ${sparringEnemySlot.slotName}(${enemyDigimonName})`
-          : `(Ghost) ${enemyDigimonName}`;
+          ? `(Ghost) ${sparringEnemySlot.slotName}의 ${enemyDisplayName}`
+          : `(Ghost) ${enemyDisplayName}`;
         
         const battleResult = simulateBattle(
           userDigimon, 
@@ -112,7 +121,7 @@ export default function BattleScreen({
           win: battleResult.won,
           logs: battleResult.log,
           enemy: {
-            name: `(Ghost) ${enemyDigimonData.name || enemyDigimonData.id}`,
+            name: `(Ghost) ${enemyDisplayName}`,
             power: enemyPower,
             attribute: enemyStats.type,
             isBoss: false,
@@ -120,6 +129,7 @@ export default function BattleScreen({
             sprite: enemyDigimonData.sprite || 0,
             attackSprite: enemyDigimonData.stats?.attackSprite || enemyDigimonData.sprite || 0,
             digimonId: enemyDigimonData.id || sparringEnemySlot.selectedDigimon,
+            digimonNickname: sparringEnemySlot.digimonNickname || null,
           },
           isAreaClear: false,
           reward: null,
@@ -159,10 +169,20 @@ export default function BattleScreen({
         };
 
         const userDigimonName = userDigimon.name || userDigimon.id || "Unknown";
-        const userName = userSlotName
-          ? `${userSlotName}의 ${userDigimonName}`
+        // 유저 디지몬 별명이 있으면 "별명(디지몬명)", 없으면 "디지몬명"
+        const userDisplayName = userDigimonNickname && userDigimonNickname.trim()
+          ? `${userDigimonNickname}(${userDigimonName})`
           : userDigimonName;
-        const enemyName = `${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}의 ${enemyDigimonData.name || enemyDigimonData.id}`;
+        const userName = userSlotName
+          ? `${userSlotName}의 ${userDisplayName}`
+          : userDisplayName;
+        // 적 디지몬 별명이 있으면 "별명(디지몬명)", 없으면 "디지몬명"
+        const enemyDigimonName = enemyDigimonData.name || enemyDigimonData.id;
+        const enemyDigimonNickname = arenaChallenger.digimonSnapshot?.digimonNickname;
+        const enemyDisplayName = enemyDigimonNickname && enemyDigimonNickname.trim()
+          ? `${enemyDigimonNickname}(${enemyDigimonName})`
+          : enemyDigimonName;
+        const enemyName = `${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}의 ${enemyDisplayName}`;
 
         const battleResult = simulateBattle(
           userDigimon,
@@ -186,6 +206,7 @@ export default function BattleScreen({
             sprite: enemyDigimonData.sprite || 0,
             attackSprite: enemyDigimonData.stats?.attackSprite || enemyDigimonData.sprite || 0,
             digimonId: enemyDigimonData.id || arenaChallenger.digimonSnapshot.digimonId,
+            digimonNickname: arenaChallenger.digimonSnapshot.digimonNickname || null,
           },
           isAreaClear: false,
           reward: null,
@@ -513,9 +534,17 @@ export default function BattleScreen({
             </div>
             <div className="digimon-info mt-2">
               <p className="font-bold">
-                {userSlotName
-                  ? `${userSlotName}의 ${userDigimonData?.name || "User"}`
-                  : userDigimonData?.name || "User"}
+                {(() => {
+                  const digimonName = userDigimonData?.name || "User";
+                  if (userDigimonNickname && userDigimonNickname.trim()) {
+                    return userSlotName
+                      ? `${userSlotName}의 ${userDigimonNickname}(${digimonName})`
+                      : `${userDigimonNickname}(${digimonName})`;
+                  }
+                  return userSlotName
+                    ? `${userSlotName}의 ${digimonName}`
+                    : digimonName;
+                })()}
               </p>
               <p className="text-sm text-gray-600">
                 속성: {getAttributeName(userAttribute)}
@@ -661,9 +690,23 @@ export default function BattleScreen({
               <p className="font-bold">
                 {hideEnemyInfo 
                   ? "???" 
-                  : battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)
-                  ? `${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
-                  : enemyDigimonData?.name || enemyData?.name || "Enemy"}
+                  : (() => {
+                      if (battleType === 'arena' && (enemyData?.tamerName || enemyData?.trainerName)) {
+                        const enemyDigimonName = enemyDigimonData?.name || enemyData?.name || "Unknown";
+                        const enemyNickname = enemyData?.digimonNickname;
+                        const enemyDisplayName = enemyNickname && enemyNickname.trim()
+                          ? `${enemyNickname}(${enemyDigimonName})`
+                          : enemyDigimonName;
+                        return `${enemyData.tamerName || enemyData.trainerName}의 ${enemyDisplayName}`;
+                      } else if (battleType === 'sparring' && enemyData?.digimonNickname) {
+                        const enemyDigimonName = enemyDigimonData?.name || enemyData?.name || "Enemy";
+                        const enemyNickname = enemyData.digimonNickname;
+                        return enemyNickname && enemyNickname.trim()
+                          ? `${enemyNickname}(${enemyDigimonName})`
+                          : enemyDigimonName;
+                      }
+                      return enemyDigimonData?.name || enemyData?.name || "Enemy";
+                    })()}
               </p>
               {!hideEnemyInfo && enemyAttribute && (
                 <p className="text-sm text-gray-600">

@@ -24,7 +24,7 @@ function SelectScreen() {
   
   // 디지몬 별명 변경
   // 각 슬롯별로 input value 관리 -> local state
-  const [slotNameEdits, setSlotNameEdits] = useState({});
+  const [digimonNicknameEdits, setDigimonNicknameEdits] = useState({});
 
   // 순서변경 모달 상태
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -341,6 +341,7 @@ function SelectScreen() {
           selectedDigimon: "Digitama",
           digimonStats: {},
           slotName,
+          digimonNickname: null, // 디지몬 별명 (기본값: null, 디지몬 이름 사용)
           createdAt: createdAtStr,
           device,
           version,
@@ -401,39 +402,62 @@ function SelectScreen() {
     }
   };
 
-  // 입력 변화 시
-  const handleNameChange = (slotId, newName) => {
-    setSlotNameEdits((prev) => ({
+  // 디지몬 별명 입력 변화 시
+  const handleDigimonNicknameChange = (slotId, newNickname) => {
+    setDigimonNicknameEdits((prev) => ({
       ...prev,
-      [slotId]: newName,
+      [slotId]: newNickname,
     }));
   };
 
-  // "수정" 버튼
-  const handleSaveName = async (slotId) => {
+  // 디지몬 별명 "수정" 버튼
+  const handleSaveDigimonNickname = async (slotId) => {
     // Firebase 로그인 필수
     if (!isFirebaseAvailable || !currentUser) {
       return;
     }
 
-    const newName = slotNameEdits[slotId] || "";
-    if (!newName.trim()) {
-      alert("이름이 비어있습니다.");
-      return;
-    }
+    const newNickname = digimonNicknameEdits[slotId];
+    // 빈 문자열도 허용 (기본값으로 복구)
+    const trimmedNickname = newNickname !== undefined ? newNickname.trim() : "";
 
     try {
       // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 업데이트
       const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
       await updateDoc(slotRef, {
-        slotName: newName,
+        digimonNickname: trimmedNickname || null, // 빈 문자열이면 null로 저장
         updatedAt: new Date(),
       });
       loadSlots();
-      alert(`슬롯 ${slotId}의 디지몬 별명을 "${newName}" 로 변경했습니다.`);
     } catch (err) {
-      console.error("디지몬 별명 변경 오류:", err);
-      alert("디지몬 별명 변경에 실패했습니다.");
+      console.error("디지몬 별명 저장 오류:", err);
+      alert("디지몬 별명 저장에 실패했습니다.");
+    }
+  };
+
+  // 디지몬 별명 기본값 복구
+  const handleResetDigimonNickname = async (slotId, defaultDigimonName) => {
+    // Firebase 로그인 필수
+    if (!isFirebaseAvailable || !currentUser) {
+      return;
+    }
+
+    try {
+      // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 제거
+      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+      await updateDoc(slotRef, {
+        digimonNickname: null,
+        updatedAt: new Date(),
+      });
+      // 로컬 상태도 업데이트
+      setDigimonNicknameEdits((prev) => ({
+        ...prev,
+        [slotId]: defaultDigimonName,
+      }));
+      loadSlots();
+    } catch (err) {
+      console.error("디지몬 별명 복구 오류:", err);
+      alert("디지몬 별명 복구에 실패했습니다.");
     }
   };
 
@@ -676,34 +700,58 @@ function SelectScreen() {
           </div>
 
           <div className="mt-2">
+            <p className="text-sm text-gray-600 mb-1">슬롯: {slot.slotName || `슬롯${slot.id}`}</p>
             <p className="font-bold flex items-center gap-2">
-              <span>슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}</span>
+              <span>
+                {(() => {
+                  const digimonName = digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                  const nickname = slot.digimonNickname;
+                  if (nickname && nickname.trim()) {
+                    return `${nickname}(${digimonName})`;
+                  }
+                  return digimonName;
+                })()}
+              </span>
               {slot.isFrozen && (
                 <span className="text-cyan-600 font-semibold text-sm" title="냉장고에 보관 중">
                   🧊 냉장고
                 </span>
               )}
             </p>
-            <p>생성일: {slot.createdAt}</p>
-            <p>
+            <p className="text-sm text-gray-500">생성일: {slot.createdAt}</p>
+            <p className="text-sm text-gray-500">
               기종: {slot.device} / 버전: {slot.version}
             </p>
           </div>
 
           <div className="mt-2">
-            <label>디지몬 별명: </label>
-            <input
-              type="text"
-              defaultValue={slot.slotName}
-              onChange={(e) => handleNameChange(slot.id, e.target.value)}
-              className="border p-1 mr-2"
-            />
-            <button
-              onClick={() => handleSaveName(slot.id)}
-              className="px-2 py-1 bg-gray-300 rounded"
-            >
-              수정
-            </button>
+            {/* 디지몬 별명 수정 */}
+            <div>
+              <label className="text-sm">디지몬 별명: </label>
+              <div className="flex gap-2 mt-1">
+                <input
+                  type="text"
+                  value={digimonNicknameEdits[slot.id] !== undefined 
+                    ? digimonNicknameEdits[slot.id] 
+                    : (slot.digimonNickname || digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon || "")}
+                  onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
+                  placeholder={digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon || "디지몬 이름"}
+                  className="border p-1 flex-1 text-sm"
+                />
+                <button
+                  onClick={() => handleSaveDigimonNickname(slot.id)}
+                  className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                >
+                  저장
+                </button>
+                <button
+                  onClick={() => handleResetDigimonNickname(slot.id, digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon)}
+                  className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                >
+                  기본값
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ))}
@@ -737,8 +785,18 @@ function SelectScreen() {
                       <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2 py-1 rounded">
                         {index + 1}.
                       </span>
+                      <p className="text-xs text-gray-500 mb-1">슬롯: {slot.slotName || `슬롯${slot.id}`}</p>
                       <p className="font-bold flex items-center gap-2">
-                        <span>슬롯 {slot.id} - {digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon}</span>
+                        <span>
+                          {(() => {
+                            const digimonName = digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                            const nickname = slot.digimonNickname;
+                            if (nickname && nickname.trim()) {
+                              return `${nickname}(${digimonName})`;
+                            }
+                            return digimonName;
+                          })()}
+                        </span>
                         {slot.isFrozen && (
                           <span className="text-cyan-600 font-semibold text-sm" title="냉장고에 보관 중">
                             🧊 냉장고
@@ -747,7 +805,7 @@ function SelectScreen() {
                       </p>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      {slot.slotName || `슬롯${slot.id}`} | 생성일: {slot.createdAt}
+                      생성일: {slot.createdAt}
                     </p>
                     <p className="text-sm text-gray-500">
                       기종: {slot.device} / 버전: {slot.version}

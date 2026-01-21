@@ -93,6 +93,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [slotCreatedAt, setSlotCreatedAt] = useState("");
   const [slotDevice, setSlotDevice] = useState("");
   const [slotVersion, setSlotVersion] = useState("");
+  const [digimonNickname, setDigimonNickname] = useState(null);
   
   // 퀘스트 관련
   const [currentQuestArea, setCurrentQuestArea] = useState(null);
@@ -397,6 +398,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setSlotDevice,
       slotVersion,
       setSlotVersion,
+      digimonNickname,
+      setDigimonNickname,
       
       // 퀘스트
       currentQuestArea,

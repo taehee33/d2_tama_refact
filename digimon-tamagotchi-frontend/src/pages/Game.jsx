@@ -126,6 +126,8 @@ function Game(){
     setSlotDevice,
     slotVersion,
     setSlotVersion,
+    digimonNickname,
+    setDigimonNickname,
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
@@ -222,6 +224,7 @@ function Game(){
     setSlotCreatedAt,
     setSlotDevice,
     setSlotVersion,
+    setDigimonNickname,
     setIsLightsOn,
     setWakeUntil,
     setDailySleepMistake,
@@ -1374,7 +1377,13 @@ async function setSelectedDigimonAndSave(name) {
 
       <div className={`text-center mb-1 ${isMobile ? "pt-20" : "pt-20"}`}>
         <h2 className="text-base font-bold">
-          슬롯 {slotId} - {newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon}
+          슬롯 {slotId} - {(() => {
+            const digimonName = newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon;
+            if (digimonNickname && digimonNickname.trim()) {
+              return `${digimonNickname}(${digimonName})`;
+            }
+            return digimonName;
+          })()}
           {digimonStats.isFrozen && (
             <span className="ml-2 text-blue-600">🧊 냉장고</span>
           )}

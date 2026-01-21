@@ -27,7 +27,7 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname }) {
   // 배경 스크롤 방지
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -84,12 +84,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       let digimonName = null;
       let digimonStatsData = null;
       let slotName = null;
+      let digimonNicknameData = null;
       
       // Firebase 로그인 필수: props로 전달받은 데이터 사용
       if (selectedDigimon && digimonStats) {
         digimonName = selectedDigimon;
         digimonStatsData = digimonStats;
         slotName = localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`;
+        digimonNicknameData = digimonNickname || null;
       }
       
       if (digimonName && digimonName !== "Digitama") {
@@ -101,6 +103,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
             digimonStats: digimonStatsData || {},
             slotName,
             digimonData,
+            digimonNickname: digimonNicknameData,
           });
         } else {
           setCurrentDigimonInfo(null);
@@ -111,7 +114,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     } else {
       setCurrentDigimonInfo(null);
     }
-  }, [currentSlotId, selectedDigimon, digimonStats]);
+  }, [currentSlotId, selectedDigimon, digimonStats, digimonNickname]);
 
   // 테이머명 로드
   useEffect(() => {
@@ -496,6 +499,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
             slotName: data.slotName || `슬롯${slotId}`,
             selectedDigimon: data.selectedDigimon,
             digimonStats: data.digimonStats || {},
+            digimonNickname: data.digimonNickname || null,
           });
         } else {
           console.log(`[Arena] 현재 슬롯 ${slotId} 제외됨:`, {
@@ -579,6 +583,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     return {
       digimonId: slot.selectedDigimon,
       digimonName: slot.selectedDigimon,
+      digimonNickname: slot.digimonNickname || null,
       sprite: digimonData.sprite || 0,
       attackSprite: digimonData.stats?.attackSprite || digimonData.sprite || 0,
       stage: digimonData.stage || "Unknown",
@@ -787,7 +792,13 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                   />
                 </div>
                 <p className="font-bold text-center text-sm mb-1">
-                  {currentDigimonInfo.slotName} - {currentDigimonInfo.digimonData?.name || currentDigimonInfo.digimonName || "Unknown"}
+                  {(() => {
+                    const digimonName = currentDigimonInfo.digimonData?.name || currentDigimonInfo.digimonName || "Unknown";
+                    if (currentDigimonInfo.digimonNickname && currentDigimonInfo.digimonNickname.trim()) {
+                      return `${currentDigimonInfo.slotName} - ${currentDigimonInfo.digimonNickname}(${digimonName})`;
+                    }
+                    return `${currentDigimonInfo.slotName} - ${digimonName}`;
+                  })()}
                 </p>
                 <p className="text-xs text-gray-500 text-center">세대: {translateStage(currentDigimonInfo.digimonData?.stage)}</p>
                 {(() => {
@@ -949,7 +960,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                       />
                     </div>
                     <p className="font-bold text-center text-sm mb-1">
-                      {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || "Unknown"}
+                      {(() => {
+                        const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || "Unknown";
+                        const digimonNickname = entry.digimonSnapshot?.digimonNickname;
+                        const displayName = digimonNickname && digimonNickname.trim()
+                          ? `${digimonNickname}(${digimonName})`
+                          : digimonName;
+                        return `${entry.tamerName || entry.trainerName || 'Unknown'} - ${displayName}`;
+                      })()}
                     </p>
                     <p className="text-xs text-gray-500 text-center">세대: {translateStage(entry.digimonSnapshot?.stage)}</p>
                     <p className="text-xs text-gray-500 text-center">
@@ -1016,7 +1034,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                   <strong>히트레이트 계산:</strong>
                   <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
                     <li>기본 공식: (공격자 파워 × 100) ÷ (공격자 파워 + 방어자 파워)</li>
-                    <li>속성 보너스: Vaccine > Virus, Virus > Data, Data > Vaccine (+5%)</li>
+                    <li>속성 보너스: Vaccine &gt; Virus, Virus &gt; Data, Data &gt; Vaccine (+5%)</li>
                     <li>역속성: -5%, Free 속성: 0%</li>
                   </ul>
                 </div>
@@ -1148,7 +1166,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                           : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                       }`}
                     >
-                      {digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown'} (슬롯{entry.digimonSnapshot?.slotId || '?'})
+                      {(() => {
+                        const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown';
+                        const digimonNickname = entry.digimonSnapshot?.digimonNickname;
+                        const displayName = digimonNickname && digimonNickname.trim()
+                          ? `${digimonNickname}(${digimonName})`
+                          : digimonName;
+                        return `${displayName} (슬롯${entry.digimonSnapshot?.slotId || '?'})`;
+                      })()}
                     </button>
                   ))}
                 </div>
@@ -1409,6 +1434,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                   const total = wins + losses;
                   const winRate = total === 0 ? 0 : Math.round((wins / total) * 100);
                   const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown';
+                  const digimonNickname = entry.digimonSnapshot?.digimonNickname;
+                  const displayName = digimonNickname && digimonNickname.trim()
+                    ? `${digimonNickname}(${digimonName})`
+                    : digimonName;
 
                   const rankClass =
                     rank === 1 ? 'bg-yellow-100 border-yellow-300'
@@ -1427,7 +1456,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-sm sm:text-base break-words">
-                            {entry.tamerName || entry.trainerName || 'Unknown'} - {digimonName}
+                            {entry.tamerName || entry.trainerName || 'Unknown'} - {displayName}
                           </p>
                           <p className="text-xs text-gray-600">
                             Wins: {wins} / Win Rate: {winRate}%
@@ -1480,7 +1509,15 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                           />
                         </div>
                         <p className="font-bold text-center text-sm mb-1">{slot.slotName}</p>
-                        <p className="text-xs text-gray-500 text-center mb-1">{digimonData.name || slot.selectedDigimon}</p>
+                        <p className="text-xs text-gray-500 text-center mb-1">
+                          {(() => {
+                            const digimonName = digimonData.name || slot.selectedDigimon;
+                            const digimonNickname = slot.digimonNickname;
+                            return digimonNickname && digimonNickname.trim()
+                              ? `${digimonNickname}(${digimonName})`
+                              : digimonName;
+                          })()}
+                        </p>
                         <p className="text-xs text-gray-500 text-center">Power: {power}</p>
                       </div>
                     );
@@ -1560,7 +1597,13 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               </div>
               <p className="font-bold text-center mb-2">
                 {selectedEntry.isMyEntry
-                  ? digimonDataVer1[selectedEntry.digimonSnapshot?.digimonId || selectedEntry.digimonSnapshot?.digimonName]?.name || selectedEntry.digimonSnapshot?.digimonName || "Unknown"
+                  ? (() => {
+                      const digimonName = digimonDataVer1[selectedEntry.digimonSnapshot?.digimonId || selectedEntry.digimonSnapshot?.digimonName]?.name || selectedEntry.digimonSnapshot?.digimonName || "Unknown";
+                      const digimonNickname = selectedEntry.digimonSnapshot?.digimonNickname;
+                      return digimonNickname && digimonNickname.trim()
+                        ? `${digimonNickname}(${digimonName})`
+                        : digimonName;
+                    })()
                   : "Unknown Digimon" // Blind Pick
                 }
               </p>

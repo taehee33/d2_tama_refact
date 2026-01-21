@@ -45,6 +45,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
             slotName: data.slotName || `슬롯${slotId}`,
             selectedDigimon: data.selectedDigimon || "Digitama",
             digimonStats: data.digimonStats || {},
+            digimonNickname: data.digimonNickname || null,
             createdAt: data.createdAt || "",
           };
           

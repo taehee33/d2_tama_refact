@@ -70,6 +70,7 @@ export default function GameModals({
     slotId,
     slotName,
     slotVersion,
+    digimonNickname,
     currentQuestArea,
     currentQuestRound,
     clearedQuestIndex,
@@ -522,6 +523,7 @@ export default function GameModals({
           onOpenAdmin={() => toggleModal('admin', true)}
           selectedDigimon={selectedDigimon}
           digimonStats={digimonStats}
+          digimonNickname={digimonNickname || null}
         />
       )}
 
@@ -554,6 +556,7 @@ export default function GameModals({
           }}
           userStats={digimonStats}
           userSlotName={slotName || `슬롯${slotId}`}
+          userDigimonNickname={digimonNickname || null}
           areaId={currentQuestArea}
           roundIndex={currentQuestRound}
           battleType={battleType}

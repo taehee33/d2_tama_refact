@@ -48,6 +48,7 @@ export function useGameData({
   setSlotCreatedAt,
   setSlotDevice,
   setSlotVersion,
+  setDigimonNickname,
   setIsLightsOn,
   setWakeUntil,
   setDailySleepMistake,
@@ -362,6 +363,7 @@ export function useGameData({
           setSlotCreatedAt(slotData.createdAt || "");
           setSlotDevice(slotData.device || "");
           setSlotVersion(slotData.version || "Ver.1");
+          setDigimonNickname(slotData.digimonNickname || null);
           setIsLightsOn(slotData.isLightsOn !== undefined ? slotData.isLightsOn : true);
           setWakeUntil(slotData.wakeUntil || null);
           if (slotData.dailySleepMistake !== undefined) setDailySleepMistake(slotData.dailySleepMistake);
