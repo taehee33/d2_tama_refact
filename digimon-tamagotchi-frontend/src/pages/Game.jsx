@@ -666,6 +666,7 @@ function Game(){
   const {
     evolve,
     handleEvolutionButton,
+    proceedEvolution: handleProceedEvolution,
   } = useEvolution({
     digimonStats,
     setDigimonStats,
@@ -684,6 +685,7 @@ function Game(){
     setEvolvedDigimonName,
     digimonDataVer1,
     newDigimonDataVer1,
+    toggleModal,
   });
 
   // useDeath 훅 호출 (죽음/환생 로직)
@@ -1197,6 +1199,7 @@ async function setSelectedDigimonAndSave(name) {
     handleToggleLights: handleToggleLightsFromHook,
     putInFridge,
     takeOutFromFridge,
+    proceedEvolution: handleProceedEvolution,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)

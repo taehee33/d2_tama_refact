@@ -31,6 +31,8 @@ import BackgroundSettingsModal from "./BackgroundSettingsModal";
 import ActivityLogModal from "./ActivityLogModal";
 import EncyclopediaModal from "./EncyclopediaModal";
 import FridgeModal from "./FridgeModal";
+import EvolutionConfirmModal from "./EvolutionConfirmModal";
+import EvolutionGuideModal from "./EvolutionGuideModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 
@@ -741,6 +743,29 @@ export default function GameModals({
           backgroundSettings={ui?.backgroundSettings}
           setBackgroundSettings={ui?.setBackgroundSettings}
           currentTime={ui?.customTime || new Date()}
+        />
+      )}
+
+      {/* Evolution Confirm Modal (진화 확인) */}
+      {modals.evolutionConfirm && (
+        <EvolutionConfirmModal
+          onConfirm={handlers?.proceedEvolution || (() => {})}
+          onOpenGuide={() => {
+            toggleModal('evolutionConfirm', false);
+            toggleModal('evolutionGuide', true);
+          }}
+          onClose={() => toggleModal('evolutionConfirm', false)}
+        />
+      )}
+
+      {/* Evolution Guide Modal (진화 가이드) */}
+      {modals.evolutionGuide && (
+        <EvolutionGuideModal
+          currentDigimonName={selectedDigimon}
+          currentDigimonData={getCurrentDigimonData()}
+          currentStats={digimonStats}
+          digimonDataMap={newDigimonDataVer1}
+          onClose={() => toggleModal('evolutionGuide', false)}
         />
       )}
     </>

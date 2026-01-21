@@ -46,17 +46,34 @@ export function useEvolution({
   newDigimonDataVer1,
   slotId,
   currentUser,
-  mode,
+  toggleModal,
 }) {
   /**
-   * 진화 버튼 클릭 핸들러
+   * 진화 버튼 클릭 핸들러 - 확인 모달 열기
    */
-  async function handleEvolutionButton() {
+  function handleEvolutionButton() {
+    // 진화 확인 모달 열기
+    if (toggleModal) {
+      toggleModal('evolutionConfirm', true);
+    }
+  }
+
+  /**
+   * 실제 진화 진행 함수
+   */
+  async function proceedEvolution() {
+    // 모달 닫기
+    if (toggleModal) {
+      toggleModal('evolutionConfirm', false);
+    }
+
     // 액션 전 Lazy Update 적용
     const updatedStats = await applyLazyUpdateBeforeAction();
     setDigimonStats(updatedStats);
     
-    if (updatedStats.isDead && !developerMode) return;
+    if (updatedStats.isDead && !developerMode) {
+      return;
+    }
     
     // 현재 디지몬 데이터 가져오기 (새 데이터 구조 사용 - evolutionCriteria 포함)
     // selectedDigimon이 없으면 evolutionStage를 통해 찾기
@@ -233,6 +250,7 @@ export function useEvolution({
   return {
     evolve,
     handleEvolutionButton,
+    proceedEvolution,
     checkEvolutionReady,
   };
 }
