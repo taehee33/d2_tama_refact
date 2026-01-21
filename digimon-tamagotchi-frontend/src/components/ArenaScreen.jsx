@@ -966,7 +966,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                         const displayName = digimonNickname && digimonNickname.trim()
                           ? `${digimonNickname}(${digimonName})`
                           : digimonName;
-                        return `${entry.tamerName || entry.trainerName || 'Unknown'} - ${displayName}`;
+                        const slotId = entry.digimonSnapshot?.slotId;
+                        return `${entry.tamerName || entry.trainerName || 'Unknown'} - ${displayName}${slotId ? ` (슬롯${slotId})` : ''}`;
                       })()}
                     </p>
                     <p className="text-xs text-gray-500 text-center">세대: {translateStage(entry.digimonSnapshot?.stage)}</p>
