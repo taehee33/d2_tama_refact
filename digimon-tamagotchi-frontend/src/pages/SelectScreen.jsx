@@ -8,6 +8,7 @@ import { digimonDataVer1 } from "../data/v1/digimons";
 import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
+import AblyWrapper from "../components/AblyWrapper";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -602,6 +603,7 @@ function SelectScreen() {
   }
 
   return (
+    <AblyWrapper tamerName={tamerName}>
     <div className="p-4">
         <div className="flex justify-between items-center mb-4">
         <h1 className="text-xl font-bold">Select Tamagotchi</h1>
@@ -866,7 +868,11 @@ function SelectScreen() {
       
       {/* 카카오 애드핏 광고 */}
       <KakaoAd />
+      
+      {/* 실시간 채팅 및 접속자 목록 */}
+      {/* ChatRoom은 AblyWrapper 내부에서 렌더링됨 */}
     </div>
+    </AblyWrapper>
   );
 }
 
