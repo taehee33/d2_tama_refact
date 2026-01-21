@@ -26,7 +26,12 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     }
 
     // 테이머명을 clientId로 사용 (없으면 Anonymous)
-    const clientId = tamerName || 'Anonymous';
+    // clientId는 반드시 문자열이어야 하며, Presence 기능에 필수
+    const clientId = tamerName && String(tamerName).trim() 
+      ? String(tamerName).trim() 
+      : `Guest_${Math.floor(Math.random() * 10000)}`;
+    
+    console.log('🔑 Ably clientId 설정:', clientId);
 
     // 기존 클라이언트가 있고 clientId가 같으면 재사용
     if (clientRef.current) {

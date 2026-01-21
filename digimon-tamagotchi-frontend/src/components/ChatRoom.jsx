@@ -19,9 +19,13 @@ const ChatRoom = () => {
   
   // 1. 실시간 접속자 목록 가져오기 (Presence)
   // usePresence는 자동으로 presence에 참여하고 떠날 때 자동으로 제거됨
-  const { presenceData } = usePresence(CHANNEL_NAME);
+  // initialData를 설정하여 presence에 참여할 때 초기 데이터 포함
+  const { presenceData, updateStatus } = usePresence(CHANNEL_NAME, {
+    initialData: { status: 'online', joinedAt: new Date().toISOString() }
+  });
   
   // 2. 채팅 메시지 수신 및 발신 (Channel)
+  // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
     setChatLog((prev) => {
       const newLog = [
@@ -39,14 +43,14 @@ const ChatRoom = () => {
   });
 
   // Presence 상태 업데이트 함수
+  // usePresence의 updateStatus 메서드를 사용
   const updatePresenceStatus = async (newStatus) => {
-    if (!ably || !channel) return;
+    if (!updateStatus) return;
     
     try {
       setPresenceStatus(newStatus);
-      // Presence 데이터 업데이트
-      const presenceChannel = ably.channels.get(CHANNEL_NAME);
-      await presenceChannel.presence.update({
+      // usePresence의 updateStatus 메서드 사용
+      await updateStatus({
         status: newStatus,
         updatedAt: new Date().toISOString()
       });
@@ -76,21 +80,9 @@ const ChatRoom = () => {
     }
   }, [ably, presenceData]);
 
-  // 컴포넌트 마운트 시 presence에 참여 및 이벤트 리스너 설정
+  // Presence 이벤트 리스너 설정 (usePresence가 자동으로 enter/leave를 처리하므로 리스너만 설정)
   useEffect(() => {
-    if (!ably) return;
-
-    const presenceChannel = ably.channels.get(CHANNEL_NAME);
-    
-    // Presence에 초기 참여 (온라인 상태)
-    presenceChannel.presence.enter({
-      status: 'online',
-      joinedAt: new Date().toISOString()
-    }).then(() => {
-      console.log('✅ Presence 참여 완료');
-    }).catch((error) => {
-      console.error('❌ Presence 참여 실패:', error);
-    });
+    if (!channel) return;
 
     // Presence 이벤트 리스너
     const enterHandler = (presenceMessage) => {
@@ -105,22 +97,21 @@ const ChatRoom = () => {
       console.log('🔄 사용자 상태 업데이트:', presenceMessage.clientId, presenceMessage.data);
     };
 
-    presenceChannel.presence.subscribe('enter', enterHandler);
-    presenceChannel.presence.subscribe('leave', leaveHandler);
-    presenceChannel.presence.subscribe('update', updateHandler);
+    channel.presence.subscribe('enter', enterHandler);
+    channel.presence.subscribe('leave', leaveHandler);
+    channel.presence.subscribe('update', updateHandler);
 
-    // 클린업: 컴포넌트 언마운트 시 presence에서 나가기
+    // 클린업
     return () => {
       try {
-        presenceChannel.presence.unsubscribe('enter', enterHandler);
-        presenceChannel.presence.unsubscribe('leave', leaveHandler);
-        presenceChannel.presence.unsubscribe('update', updateHandler);
-        presenceChannel.presence.leave();
+        channel.presence.unsubscribe('enter', enterHandler);
+        channel.presence.unsubscribe('leave', leaveHandler);
+        channel.presence.unsubscribe('update', updateHandler);
       } catch (error) {
         console.error('Presence 정리 실패:', error);
       }
     };
-  }, [ably]);
+  }, [channel]);
 
   // Ably 클라이언트가 없으면 렌더링하지 않음 (모든 hooks 호출 후)
   if (!ably) {
