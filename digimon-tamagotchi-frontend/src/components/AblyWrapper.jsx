@@ -3,8 +3,11 @@
 // 테이머명이 로드된 후에만 Ably를 초기화
 
 import React from 'react';
+import { ChannelProvider } from 'ably/react';
 import { AblyContextProvider } from '../contexts/AblyContext';
 import ChatRoom from './ChatRoom';
+
+const CHANNEL_NAME = 'tamer-lobby';
 
 const AblyWrapper = ({ tamerName, children }) => {
   // Ably API Key가 없으면 AblyProvider 없이 렌더링
@@ -18,7 +21,11 @@ const AblyWrapper = ({ tamerName, children }) => {
   return (
     <AblyContextProvider 
       tamerName={tamerName}
-      renderChatRoom={() => <ChatRoom />}
+      renderChatRoom={() => (
+        <ChannelProvider channelName={CHANNEL_NAME}>
+          <ChatRoom />
+        </ChannelProvider>
+      )}
     >
       {children}
     </AblyContextProvider>

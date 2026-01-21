@@ -52,9 +52,9 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     }
 
     try {
-      // Ably 클라이언트 생성 (Realtime.Promise 사용)
-      // Ably v2.0+에서는 클라이언트가 연결되기 전에도 AblyProvider에 전달 가능
-      const client = new Ably.Realtime.Promise({
+      // Ably 클라이언트 생성 (v2.0+에서는 Realtime.Promise가 제거됨)
+      // Ably v2.0+에서는 모든 비동기 메서드가 기본적으로 Promise를 반환
+      const client = new Ably.Realtime({
         key: ablyKey,
         clientId: clientId,
       });
@@ -93,13 +93,33 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   // Ably 클라이언트가 없으면 children만 렌더링 (AblyProvider 없이)
   // 하지만 renderChatRoom이 있으면 연결 중 메시지 표시
   if (!ablyClient) {
+    const ablyKey = process.env.REACT_APP_ABLY_KEY;
+    const hasKey = !!ablyKey;
+    const hasTamerName = !!tamerName;
+    
     return (
       <>
         {children}
         {renderChatRoom && (
           <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
-            <div className="text-center text-gray-500 text-sm">
-              Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)
+            <div className="text-center text-gray-500 text-sm space-y-2">
+              {!hasKey ? (
+                <div>
+                  <p className="text-red-600 font-semibold">⚠️ Ably API Key가 설정되지 않았습니다.</p>
+                  <p className="text-xs mt-1">REACT_APP_ABLY_KEY 환경 변수를 확인해주세요.</p>
+                </div>
+              ) : !hasTamerName ? (
+                <div>
+                  <p className="text-yellow-600 font-semibold">⚠️ 테이머명이 없습니다.</p>
+                  <p className="text-xs mt-1">로그인 후 실시간 채팅 기능을 사용할 수 있습니다.</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="animate-pulse">🔄</div>
+                  <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
+                  <p className="text-xs mt-1">잠시만 기다려주세요...</p>
+                </div>
+              )}
             </div>
           </div>
         )}
