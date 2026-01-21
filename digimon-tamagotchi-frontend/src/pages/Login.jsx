@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { initializeTamerName } from "../utils/tamerNameUtils";
 
 function Login() {
   const navigate = useNavigate();
@@ -44,9 +45,13 @@ function Login() {
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
+          tamerName: null, // null이면 displayName 사용
           createdAt: new Date(),
           updatedAt: new Date(),
         }, { merge: true });
+        
+        // 테이머명 초기화 (기존 tamerName이 없으면 displayName 사용)
+        await initializeTamerName(user.uid, user.displayName);
 
         // 로그인 성공 후 SelectScreen으로 리디렉션
         // AuthContext의 onAuthStateChanged 리스너가 currentUser를 업데이트하므로

@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
+import { getTamerName } from "../utils/tamerNameUtils";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -31,12 +32,31 @@ function SelectScreen() {
   const [initialOrderedSlots, setInitialOrderedSlots] = useState([]); // 초기 순서 저장 (변경사항 확인용)
   const [highlightedSlotId, setHighlightedSlotId] = useState(null); // 이동된 슬롯 하이라이트용 
   
+  // 테이머명 상태
+  const [tamerName, setTamerName] = useState("");
+  
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
       navigate("/");
     }
   }, [isFirebaseAvailable, currentUser, navigate]);
+
+  // 테이머명 로드
+  useEffect(() => {
+    const loadTamerName = async () => {
+      if (currentUser) {
+        try {
+          const name = await getTamerName(currentUser.uid, currentUser.displayName);
+          setTamerName(name);
+        } catch (error) {
+          console.error("테이머명 로드 오류:", error);
+          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "익명의 테이머");
+        }
+      }
+    };
+    loadTamerName();
+  }, [currentUser]);
 
   // 슬롯 목록 재로드 (Firestore의 /users/{uid}/slots 컬렉션에서 직접 가져오기)
   const loadSlots = async () => {
@@ -570,7 +590,7 @@ function SelectScreen() {
                     className="w-8 h-8 rounded-full"
                   />
                 )}
-                <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
+                <span className="text-sm text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
               </div>
               <button
                 onClick={handleLogout}

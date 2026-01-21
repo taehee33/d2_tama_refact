@@ -20,6 +20,7 @@ import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { calculatePower } from "../logic/battle/hitrate";
 import { translateStage } from "../utils/stageTranslator";
+import { getTamerName } from "../utils/tamerNameUtils";
 import "../styles/Battle.css";
 
 const MAX_ENTRIES = 3;
@@ -56,6 +57,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
   const [showSlotSelection, setShowSlotSelection] = useState(false);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [activeTab, setActiveTab] = useState('challengers'); // 'challengers' | 'battleLog' | 'leaderboard'
+  const [tamerName, setTamerName] = useState("");
   const [logFilter, setLogFilter] = useState('all'); // 'all' | entryId
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -110,6 +112,22 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       setCurrentDigimonInfo(null);
     }
   }, [currentSlotId, selectedDigimon, digimonStats]);
+
+  // 테이머명 로드
+  useEffect(() => {
+    const loadTamerName = async () => {
+      if (currentUser) {
+        try {
+          const name = await getTamerName(currentUser.uid, currentUser.displayName);
+          setTamerName(name);
+        } catch (error) {
+          console.error("테이머명 로드 오류:", error);
+          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "익명의 테이머");
+        }
+      }
+    };
+    loadTamerName();
+  }, [currentUser]);
 
   useEffect(() => {
     if (isFirebaseAvailable && currentUser) {
@@ -592,11 +610,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       }
       
       const snapshot = createDigimonSnapshot(slot);
-      const tamerName = currentUser.displayName || slot.slotName || `슬롯${slot.id}`;
+      // 테이머명 가져오기 (커스텀 닉네임 또는 기본값)
+      const entryTamerName = tamerName || currentUser.displayName || slot.slotName || `슬롯${slot.id}`;
       
       const entryData = {
         userId: currentUser.uid,
-        tamerName: tamerName,
+        tamerName: entryTamerName,
         digimonSnapshot: snapshot,
         record: { wins: 0, losses: 0 },
         createdAt: serverTimestamp(),
@@ -744,7 +763,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
         {/* 스크롤 가능한 콘텐츠 영역 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
           <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
-            <h2 className="text-2xl font-bold">아레나 [PvP(Ghost)]</h2>
+            <div>
+              <h2 className="text-2xl font-bold">아레나 [PvP(Ghost)]</h2>
+              {currentUser && tamerName && (
+                <p className="text-sm text-gray-600 mt-1">테이머: {tamerName}</p>
+              )}
+            </div>
           </div>
 
         {/* 현재 디지몬 영역 */}

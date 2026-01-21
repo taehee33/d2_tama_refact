@@ -34,6 +34,14 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
+    
+    // metadata 컬렉션 (테이머명 중복 검사용)
+    match /metadata/nicknames {
+      // 모든 인증된 사용자가 읽기 가능 (중복 검사용)
+      // 쓰기는 서버에서만 처리하거나, 사용자가 자신의 닉네임만 추가/제거 가능하도록 제한
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // 실제로는 서버에서만 쓰는 것이 안전하지만, 개발 편의를 위해 허용
+    }
   }
 }
 ```
@@ -67,8 +75,9 @@ service cloud.firestore {
 ## 📋 규칙 설명
 
 ### 기본 구조
-- `users/{userId}`: 각 유저의 문서
+- `users/{userId}`: 각 유저의 문서 (tamerName 포함)
 - `users/{userId}/slots/{slotId}`: 각 유저의 슬롯 서브컬렉션
+- `metadata/nicknames`: 사용 중인 테이머명 목록 (중복 검사용)
 
 ### 접근 조건
 - `request.auth != null`: 로그인된 사용자만

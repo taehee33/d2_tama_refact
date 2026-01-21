@@ -20,6 +20,7 @@ import { useGameHandlers, getSleepSchedule, isWithinSleepSchedule } from "../hoo
 import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
+import { getTamerName } from "../utils/tamerNameUtils";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -83,12 +84,31 @@ function Game(){
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   
+  // 테이머명 상태
+  const [tamerName, setTamerName] = useState("");
+  
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
       navigate("/");
     }
   }, [isFirebaseAvailable, currentUser, navigate]);
+
+  // 테이머명 로드
+  useEffect(() => {
+    const loadTamerName = async () => {
+      if (currentUser) {
+        try {
+          const name = await getTamerName(currentUser.uid, currentUser.displayName);
+          setTamerName(name);
+        } catch (error) {
+          console.error("테이머명 로드 오류:", error);
+          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "익명의 테이머");
+        }
+      }
+    };
+    loadTamerName();
+  }, [currentUser]);
 
   // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
   const {
@@ -1263,7 +1283,7 @@ async function setSelectedDigimonAndSave(name) {
                       </span>
                     )}
                     <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate">
-                      {currentUser.displayName || currentUser.email?.split('@')[0]}
+                      {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
                     </span>
                     <span className="text-xs">▼</span>
                   </button>
@@ -1278,7 +1298,7 @@ async function setSelectedDigimonAndSave(name) {
                       <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] profile-dropdown">
                         <div className="px-3 py-2 border-b border-gray-200">
                           <p className="text-xs font-semibold text-gray-700 truncate">
-                            {currentUser.displayName || currentUser.email}
+                            테이머: {tamerName || currentUser.displayName || currentUser.email}
                           </p>
                           <p className="text-xs text-gray-500 truncate">
                             {currentUser.email}
@@ -1335,7 +1355,7 @@ async function setSelectedDigimonAndSave(name) {
                       className="w-8 h-8 rounded-full"
                     />
                   )}
-                  <span className="text-sm text-gray-600">{currentUser.displayName || currentUser.email}</span>
+                  <span className="text-sm text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
                 </div>
                 <button
                   onClick={handleLogoutFromHook}
