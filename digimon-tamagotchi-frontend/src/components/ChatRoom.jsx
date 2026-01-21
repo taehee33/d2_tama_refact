@@ -2,7 +2,7 @@
 // 실시간 채팅 및 접속자 목록 컴포넌트
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useChannel, usePresence, useAbly } from 'ably/react';
+import { useChannel, usePresence, usePresenceListener, useAbly } from 'ably/react';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 50; // 최신 50개 메시지만 유지
@@ -17,14 +17,17 @@ const ChatRoom = () => {
   // React Hooks 규칙: 항상 같은 순서로 호출해야 하므로 조건부로 호출하지 않음
   const ably = useAbly();
   
-  // 1. 실시간 접속자 목록 가져오기 (Presence)
-  // usePresence는 자동으로 presence에 참여하고 떠날 때 자동으로 제거됨
-  // initialData를 설정하여 presence에 참여할 때 초기 데이터 포함
-  const { presenceData, updateStatus } = usePresence(CHANNEL_NAME, {
+  // 1. 자신의 Presence 관리 (enter/update)
+  // usePresence는 자신을 presence set에 추가하고 상태를 업데이트
+  const { updateStatus } = usePresence(CHANNEL_NAME, {
     initialData: { status: 'online', joinedAt: new Date().toISOString() }
   });
   
-  // 2. 채팅 메시지 수신 및 발신 (Channel)
+  // 2. 모든 접속자 목록 가져오기 (Presence Listener)
+  // usePresenceListener는 모든 presence 멤버의 목록을 실시간으로 제공
+  const { presenceData } = usePresenceListener(CHANNEL_NAME);
+  
+  // 3. 채팅 메시지 수신 및 발신 (Channel)
   // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
     setChatLog((prev) => {
@@ -45,7 +48,10 @@ const ChatRoom = () => {
   // Presence 상태 업데이트 함수
   // usePresence의 updateStatus 메서드를 사용
   const updatePresenceStatus = async (newStatus) => {
-    if (!updateStatus) return;
+    if (!updateStatus) {
+      console.warn('⚠️ updateStatus가 사용 불가능합니다.');
+      return;
+    }
     
     try {
       setPresenceStatus(newStatus);
@@ -80,11 +86,12 @@ const ChatRoom = () => {
     }
   }, [ably, presenceData]);
 
-  // Presence 이벤트 리스너 설정 (usePresence가 자동으로 enter/leave를 처리하므로 리스너만 설정)
+  // Presence 이벤트 리스너 설정 (디버깅용)
+  // usePresenceListener가 자동으로 처리하지만, 추가 로깅을 위해 설정
   useEffect(() => {
     if (!channel) return;
 
-    // Presence 이벤트 리스너
+    // Presence 이벤트 리스너 (디버깅용)
     const enterHandler = (presenceMessage) => {
       console.log('👋 사용자 입장:', presenceMessage.clientId, presenceMessage.data);
     };
