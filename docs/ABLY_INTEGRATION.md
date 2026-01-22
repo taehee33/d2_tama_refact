@@ -187,16 +187,18 @@ const { channel } = useChannel(CHANNEL_NAME, (message) => {
 
 ### 로컬 개발
 
-`.env` 파일:
+`.env` 파일을 생성하고 다음을 추가:
 ```env
-REACT_APP_ABLY_KEY=E5rgYw.-u7Shw:EH29ZpbCubGw0CQxq6WP5AnGEaRZE7XPGFzj3ytXwrU
+REACT_APP_ABLY_KEY=your_ably_api_key_here
 ```
+
+**⚠️ 보안 주의**: 실제 API 키를 코드나 문서에 직접 작성하지 마세요!
 
 ### 배포 환경 (Vercel)
 
 Vercel 대시보드 > Settings > Environment Variables에 추가:
 - Key: `REACT_APP_ABLY_KEY`
-- Value: Ably API Key
+- Value: Ably API Key (실제 키 값)
 
 ## API Key 권한
 
