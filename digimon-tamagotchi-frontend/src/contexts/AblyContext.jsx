@@ -83,15 +83,38 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
 
     // 클린업
     return () => {
-      if (clientRef.current) {
-        try {
-          clientRef.current.close();
-        } catch (error) {
-          console.error('Ably 클라이언트 종료 실패:', error);
+      // 약간의 지연을 주어 ChatRoom 컴포넌트가 먼저 정리되도록 함
+      setTimeout(() => {
+        if (clientRef.current) {
+          try {
+            // 모든 채널을 먼저 detach
+            const channels = clientRef.current.channels;
+            if (channels) {
+              channels.forEach((channel) => {
+                try {
+                  if (channel.state === 'attached' || channel.state === 'attaching') {
+                    channel.detach().catch(() => {
+                      // detach 실패는 무시 (이미 detached 상태일 수 있음)
+                    });
+                  }
+                } catch (error) {
+                  // 채널 detach 오류는 무시
+                }
+              });
+            }
+            
+            // 클라이언트 종료
+            clientRef.current.close();
+          } catch (error) {
+            // detached 상태에서 발생하는 오류는 무시
+            if (error.message && !error.message.includes('detached') && !error.message.includes('Channel operation failed')) {
+              console.error('Ably 클라이언트 종료 실패:', error);
+            }
+          }
+          clientRef.current = null;
         }
-        clientRef.current = null;
-      }
-      setAblyClient(null);
+        setAblyClient(null);
+      }, 100); // 100ms 지연
     };
   }, [tamerName]);
 
@@ -134,6 +157,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
 
   // AblyProvider로 감싸서 children과 함께 렌더링
   // renderChatRoom이 있으면 AblyProvider 내부에서만 렌더링
+  // children도 AblyProvider 내부에 있어야 ChatRoom이 useAbly를 사용할 수 있음
   return (
     <AblyProvider client={ablyClient}>
       <AblyContext.Provider value={ablyClient}>
