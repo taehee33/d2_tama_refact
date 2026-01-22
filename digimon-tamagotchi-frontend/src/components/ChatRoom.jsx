@@ -5,13 +5,77 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChannel, usePresence, usePresenceListener, useAbly } from 'ably/react';
 
 const CHANNEL_NAME = 'tamer-lobby';
-const MAX_MESSAGES = 50; // 최신 50개 메시지만 유지
+const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
+const HISTORY_HOURS = 48; // 48시간 동안의 메시지 히스토리
+
+// 연결 상태를 확인하고 연결 완료 후에만 ChatRoom을 렌더링하는 래퍼
+const ChatRoomWithConnectionCheck = () => {
+  const ably = useAbly();
+  const [isConnected, setIsConnected] = useState(false);
+
+  useEffect(() => {
+    if (!ably) {
+      setIsConnected(false);
+      return;
+    }
+
+    const checkConnection = () => {
+      const state = ably.connection.state;
+      const connected = state === 'connected';
+      setIsConnected(connected);
+      
+      if (!connected) {
+        console.log('⏳ Ably 연결 대기 중... 현재 상태:', state);
+      } else {
+        console.log('✅ Ably 연결 완료');
+      }
+    };
+
+    // 초기 상태 확인
+    checkConnection();
+
+    // 연결 상태 변경 리스너
+    const handleStateChange = () => {
+      checkConnection();
+    };
+
+    ably.connection.on('connected', handleStateChange);
+    ably.connection.on('disconnected', handleStateChange);
+    ably.connection.on('failed', handleStateChange);
+    ably.connection.on('suspended', handleStateChange);
+
+    return () => {
+      ably.connection.off('connected', handleStateChange);
+      ably.connection.off('disconnected', handleStateChange);
+      ably.connection.off('failed', handleStateChange);
+      ably.connection.off('suspended', handleStateChange);
+    };
+  }, [ably]);
+
+  // 연결이 완료될 때까지 대기
+  if (!isConnected) {
+    return (
+      <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
+        <div className="text-center text-gray-500 text-sm space-y-2">
+          <div className="animate-pulse">🔄</div>
+          <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
+          <p className="text-xs mt-1">잠시만 기다려주세요...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 연결이 완료되면 ChatRoom 렌더링
+  return <ChatRoom />;
+};
 
 const ChatRoom = () => {
   const [messageText, setMessageText] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [presenceStatus, setPresenceStatus] = useState('online'); // online, away, offline
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const chatBoxRef = useRef(null);
+  const historyLoadedRef = useRef(false); // 히스토리 로드 여부 추적
 
   // Ably 클라이언트 확인 (AblyProvider 내부에서만 호출되어야 함)
   // React Hooks 규칙: 항상 같은 순서로 호출해야 하므로 조건부로 호출하지 않음
@@ -19,6 +83,7 @@ const ChatRoom = () => {
   
   // 1. 자신의 Presence 관리 (enter/update)
   // usePresence는 자신을 presence set에 추가하고 상태를 업데이트
+  // 연결이 완료된 후에만 ChatRoom이 렌더링되므로 안전하게 호출 가능
   const { updateStatus } = usePresence(CHANNEL_NAME, {
     initialData: { status: 'online', joinedAt: new Date().toISOString() }
   });
@@ -30,20 +95,116 @@ const ChatRoom = () => {
   // 3. 채팅 메시지 수신 및 발신 (Channel)
   // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
+    // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
+    const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
+    
     setChatLog((prev) => {
+      // 중복 메시지 체크
+      if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
+        return prev;
+      }
+      
       const newLog = [
         ...prev,
         {
-          id: message.id || Date.now() + Math.random(),
+          id: messageId,
           user: message.clientId || 'Unknown',
           text: message.data,
-          time: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          time: message.timestamp 
+            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: message.timestamp || Date.now(),
         },
       ];
+      // 시간순으로 정렬
+      newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       // 최신 MAX_MESSAGES개만 유지
       return newLog.slice(-MAX_MESSAGES);
     });
   });
+
+  // 채널이 준비되면 히스토리 로드
+  useEffect(() => {
+    if (!channel || historyLoadedRef.current) return;
+
+    const loadHistory = async () => {
+      try {
+        setIsLoadingHistory(true);
+        historyLoadedRef.current = true;
+
+        // 48시간 전의 타임스탬프 계산
+        const hoursAgo = HISTORY_HOURS * 60 * 60 * 1000;
+        const startTime = Date.now() - hoursAgo;
+
+        console.log('📜 채팅 히스토리 로드 중... (48시간)');
+
+        // 채널이 attach될 때까지 대기
+        await channel.attach();
+
+        // 히스토리 가져오기 (48시간 전부터)
+        const historyPage = await channel.history({ 
+          start: startTime,
+          limit: MAX_MESSAGES 
+        });
+
+        const historyMessages = [];
+        
+        // 첫 페이지 처리
+        if (historyPage.items && historyPage.items.length > 0) {
+          historyPage.items.forEach((message) => {
+            historyMessages.push({
+              id: message.id || `history_${message.timestamp}_${Math.random()}`,
+              user: message.clientId || 'Unknown',
+              text: message.data,
+              time: message.timestamp 
+                ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: message.timestamp || Date.now(),
+            });
+          });
+        }
+
+        // 추가 페이지가 있으면 모두 가져오기
+        let currentPage = historyPage;
+        while (currentPage.hasNext()) {
+          currentPage = await currentPage.next();
+          if (currentPage.items && currentPage.items.length > 0) {
+            currentPage.items.forEach((message) => {
+              historyMessages.push({
+                id: message.id || `history_${message.timestamp}_${Math.random()}`,
+                user: message.clientId || 'Unknown',
+                text: message.data,
+                time: message.timestamp 
+                  ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+                  : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+                timestamp: message.timestamp || Date.now(),
+              });
+            });
+          }
+        }
+
+        // 시간순으로 정렬 (오래된 것부터)
+        historyMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+        // 중복 제거
+        const uniqueMessages = historyMessages.reduce((acc, msg) => {
+          if (!acc.find(m => m.id === msg.id || (m.timestamp === msg.timestamp && m.user === msg.user && m.text === msg.text))) {
+            acc.push(msg);
+          }
+          return acc;
+        }, []);
+
+        setChatLog(uniqueMessages);
+        console.log(`✅ 채팅 히스토리 로드 완료: ${uniqueMessages.length}개 메시지`);
+        setIsLoadingHistory(false);
+      } catch (error) {
+        console.error('❌ 채팅 히스토리 로드 오류:', error);
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadHistory();
+  }, [channel]);
 
   // Presence 상태 업데이트 함수
   // usePresence의 updateStatus 메서드를 사용
@@ -122,7 +283,6 @@ const ChatRoom = () => {
 
   // Ably 클라이언트가 없으면 렌더링하지 않음 (모든 hooks 호출 후)
   if (!ably) {
-    console.warn('⚠️ ChatRoom: Ably 클라이언트가 없습니다.');
     return (
       <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
         <div className="text-center text-gray-500 text-sm space-y-2">
@@ -208,7 +368,12 @@ const ChatRoom = () => {
       <div className="chat-box bg-white border border-gray-300 rounded p-3 mb-3" 
            style={{ height: '200px', overflowY: 'auto' }}
            ref={chatBoxRef}>
-        {chatLog.length === 0 ? (
+        {isLoadingHistory ? (
+          <div className="text-center text-gray-400 text-sm py-8">
+            <div className="animate-pulse">📜</div>
+            <p className="mt-2">채팅 히스토리 로드 중... (48시간)</p>
+          </div>
+        ) : chatLog.length === 0 ? (
           <div className="text-center text-gray-400 text-sm py-8">
             채팅 메시지가 없습니다. 첫 메시지를 보내보세요!
           </div>
@@ -230,7 +395,7 @@ const ChatRoom = () => {
           value={messageText}
           onChange={(e) => setMessageText(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="메시지를 입력하세요... (Enter로 전송)"
+          placeholder="메시지를 입력하세요..(enter로 전송, 메세지는 200개 까지 48시간 후에 사라집니다.)"
           className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
         />
         <button
@@ -245,4 +410,4 @@ const ChatRoom = () => {
   );
 };
 
-export default ChatRoom;
+export default ChatRoomWithConnectionCheck;
