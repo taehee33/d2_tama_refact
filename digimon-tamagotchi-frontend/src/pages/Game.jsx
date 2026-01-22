@@ -24,6 +24,7 @@ import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AblyWrapper from "../components/AblyWrapper";
+import AccountSettingsModal from "../components/AccountSettingsModal";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -86,6 +87,9 @@ function Game(){
   
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // 계정 설정 모달 상태
+  const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   
   // 테이머명 상태
   const [tamerName, setTamerName] = useState("");
@@ -1314,11 +1318,11 @@ async function setSelectedDigimonAndSave(name) {
                         <button
                           onClick={() => {
                             setShowProfileMenu(false);
-                            handleLogoutFromHook();
+                            setShowAccountSettingsModal(true);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 pixel-art-button"
+                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
                         >
-                          로그아웃
+                          계정 설정/로그아웃
                         </button>
                       </div>
                     </>
@@ -1365,10 +1369,10 @@ async function setSelectedDigimonAndSave(name) {
                   <span className="text-sm text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
                 </div>
                 <button
-                  onClick={handleLogoutFromHook}
+                  onClick={() => setShowAccountSettingsModal(true)}
                   className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
                 >
-                  로그아웃
+                  계정 설정/로그아웃
                 </button>
               </>
             ) : null}
@@ -1557,6 +1561,16 @@ async function setSelectedDigimonAndSave(name) {
       
       {/* 실시간 채팅 및 접속자 목록 */}
       {/* ChatRoom은 AblyWrapper 내부에서 렌더링됨 */}
+      
+      {/* 계정 설정 모달 */}
+      {showAccountSettingsModal && (
+        <AccountSettingsModal
+          onClose={() => setShowAccountSettingsModal(false)}
+          onLogout={handleLogoutFromHook}
+          tamerName={tamerName}
+          setTamerName={setTamerName}
+        />
+      )}
     </>
     </AblyWrapper>
   );

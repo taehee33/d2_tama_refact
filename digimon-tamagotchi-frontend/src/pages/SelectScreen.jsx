@@ -9,6 +9,7 @@ import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AblyWrapper from "../components/AblyWrapper";
+import AccountSettingsModal from "../components/AccountSettingsModal";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -37,6 +38,9 @@ function SelectScreen() {
   
   // 테이머명 상태
   const [tamerName, setTamerName] = useState("");
+  
+  // 계정 설정 모달 상태
+  const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
@@ -621,10 +625,10 @@ function SelectScreen() {
                 <span className="text-sm text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
               </div>
               <button
-                onClick={handleLogout}
-                className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm"
+                onClick={() => setShowAccountSettingsModal(true)}
+                className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
               >
-                로그아웃
+                계정 설정/로그아웃
               </button>
             </>
           ) : null}
@@ -871,6 +875,16 @@ function SelectScreen() {
       
       {/* 실시간 채팅 및 접속자 목록 */}
       {/* ChatRoom은 AblyWrapper 내부에서 렌더링됨 */}
+      
+      {/* 계정 설정 모달 */}
+      {showAccountSettingsModal && (
+        <AccountSettingsModal
+          onClose={() => setShowAccountSettingsModal(false)}
+          onLogout={handleLogout}
+          tamerName={tamerName}
+          setTamerName={setTamerName}
+        />
+      )}
     </div>
     </AblyWrapper>
   );
