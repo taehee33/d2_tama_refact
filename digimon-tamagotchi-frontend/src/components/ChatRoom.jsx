@@ -88,6 +88,38 @@ const ChatRoom = () => {
     initialData: { status: 'online', joinedAt: new Date().toISOString() }
   });
   
+  // 채널 상태 모니터링 및 안전한 정리
+  useEffect(() => {
+    if (!channel || !ably) return;
+
+    // 채널 상태 변경 감지
+    const handleStateChange = (stateChange) => {
+      if (stateChange.current === 'detached' || stateChange.current === 'failed') {
+        console.log('⏳ 채널이 detached/failed 상태입니다. Presence 정리는 자동으로 처리됩니다.');
+      }
+    };
+
+    channel.on('attached', () => console.log('✅ 채널 attached'));
+    channel.on('detached', () => console.log('⏳ 채널 detached'));
+    channel.on('failed', () => console.log('❌ 채널 failed'));
+
+    return () => {
+      // 컴포넌트 언마운트 시 채널 상태 확인
+      try {
+        if (channel && (channel.state === 'attached' || channel.state === 'attaching')) {
+          // 채널이 여전히 attached 상태면 안전하게 정리
+          // usePresence가 자동으로 처리하므로 여기서는 로깅만
+          console.log('🧹 ChatRoom 언마운트: Presence 정리 중...');
+        }
+      } catch (error) {
+        // detached 상태에서 발생하는 오류는 무시
+        if (error.message && !error.message.includes('detached') && !error.message.includes('Channel operation failed')) {
+          console.error('채널 정리 오류:', error);
+        }
+      }
+    };
+  }, [channel, ably]);
+  
   // 2. 모든 접속자 목록 가져오기 (Presence Listener)
   // usePresenceListener는 모든 presence 멤버의 목록을 실시간으로 제공
   const { presenceData } = usePresenceListener(CHANNEL_NAME);
@@ -209,8 +241,14 @@ const ChatRoom = () => {
   // Presence 상태 업데이트 함수
   // usePresence의 updateStatus 메서드를 사용
   const updatePresenceStatus = async (newStatus) => {
-    if (!updateStatus) {
-      console.warn('⚠️ updateStatus가 사용 불가능합니다.');
+    if (!updateStatus || !channel) {
+      console.warn('⚠️ updateStatus 또는 channel이 사용 불가능합니다.');
+      return;
+    }
+    
+    // 채널이 detached 상태면 업데이트하지 않음
+    if (channel.state === 'detached' || channel.state === 'failed') {
+      console.log('⏳ 채널이 detached/failed 상태입니다. Presence 상태 업데이트를 건너뜁니다.');
       return;
     }
     
@@ -223,7 +261,12 @@ const ChatRoom = () => {
       });
       console.log('✅ Presence 상태 업데이트:', newStatus);
     } catch (error) {
-      console.error('❌ Presence 상태 업데이트 실패:', error);
+      // detached 상태에서 발생하는 오류는 무시
+      if (error.message && (error.message.includes('detached') || error.message.includes('Channel operation failed'))) {
+        console.log('⏳ 채널이 detached 상태입니다. Presence 상태 업데이트를 건너뜁니다.');
+      } else {
+        console.error('❌ Presence 상태 업데이트 실패:', error);
+      }
     }
   };
 
@@ -272,11 +315,17 @@ const ChatRoom = () => {
     // 클린업
     return () => {
       try {
-        channel.presence.unsubscribe('enter', enterHandler);
-        channel.presence.unsubscribe('leave', leaveHandler);
-        channel.presence.unsubscribe('update', updateHandler);
+        // 채널이 detached 상태가 아닐 때만 정리 작업 수행
+        if (channel && channel.state !== 'detached' && channel.state !== 'failed') {
+          channel.presence.unsubscribe('enter', enterHandler);
+          channel.presence.unsubscribe('leave', leaveHandler);
+          channel.presence.unsubscribe('update', updateHandler);
+        }
       } catch (error) {
-        console.error('Presence 정리 실패:', error);
+        // detached 상태에서 발생하는 오류는 무시
+        if (error.message && !error.message.includes('detached')) {
+          console.error('Presence 정리 실패:', error);
+        }
       }
     };
   }, [channel]);

@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   signInWithPopup, 
+  signInAnonymously,
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider 
@@ -47,6 +48,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // 익명 로그인
+  const signInAnonymouslyAuth = async () => {
+    if (!isFirebaseAvailable()) {
+      throw new Error('Firebase가 설정되지 않았습니다. .env 파일에 Firebase 설정을 추가하세요.');
+    }
+    
+    try {
+      const result = await signInAnonymously(auth);
+      return result; // UserCredential 반환
+    } catch (error) {
+      console.error('익명 로그인 실패:', error);
+      throw error;
+    }
+  };
+
   // 로그아웃
   const logout = async () => {
     if (!isFirebaseAvailable()) {
@@ -80,6 +96,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     signInWithGoogle,
+    signInAnonymously: signInAnonymouslyAuth,
     logout,
     loading,
     isFirebaseAvailable: isFirebaseAvailable(),
