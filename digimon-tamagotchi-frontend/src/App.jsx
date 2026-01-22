@@ -5,11 +5,14 @@ import { Analytics } from "@vercel/analytics/react";
 import ReactGA from "react-ga4";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
+import { ChannelProvider } from "ably/react";
 import ChatRoom from "./components/ChatRoom";
 import { getTamerName } from "./utils/tamerNameUtils";
 import Login from "./pages/Login";
 import SelectScreen from "./pages/SelectScreen";
 import Game from "./pages/Game";
+
+const CHANNEL_NAME = 'tamer-lobby';
 
 const GA_ID = process.env.REACT_APP_GA_ID;
 
@@ -43,7 +46,12 @@ function ChatRoomWrapper() {
     return null;
   }
 
-  return <ChatRoom />;
+  // ChannelProvider로 감싸서 usePresence, useChannel 등이 작동하도록 함
+  return (
+    <ChannelProvider channelName={CHANNEL_NAME}>
+      <ChatRoom />
+    </ChannelProvider>
+  );
 }
 
 // Ably 및 ChatRoom을 포함한 내부 컴포넌트

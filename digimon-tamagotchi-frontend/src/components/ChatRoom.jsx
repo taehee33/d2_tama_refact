@@ -11,23 +11,30 @@ const HISTORY_HOURS = 48; // 48시간 동안의 메시지 히스토리
 // 연결 상태를 확인하고 연결 완료 후에만 ChatRoom을 렌더링하는 래퍼
 const ChatRoomWithConnectionCheck = () => {
   const ably = useAbly();
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState(null);
+  const [connectionError, setConnectionError] = useState(null);
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
     if (!ably) {
-      setIsConnected(false);
+      setConnectionState(null);
       return;
     }
 
     const checkConnection = () => {
       const state = ably.connection.state;
-      const connected = state === 'connected';
-      setIsConnected(connected);
+      setConnectionState(state);
+      setConnectionError(null);
       
-      if (!connected) {
-        console.log('⏳ Ably 연결 대기 중... 현재 상태:', state);
-      } else {
+      console.log('🔍 Ably 연결 상태:', state);
+      
+      if (state === 'connected') {
         console.log('✅ Ably 연결 완료');
+        // 타임아웃 클리어
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
       }
     };
 
@@ -35,31 +42,123 @@ const ChatRoomWithConnectionCheck = () => {
     checkConnection();
 
     // 연결 상태 변경 리스너
-    const handleStateChange = () => {
+    const handleStateChange = (stateChange) => {
+      console.log('🔄 Ably 상태 변경:', stateChange.current, '이전:', stateChange.previous);
       checkConnection();
     };
 
+    // 연결 실패 핸들러
+    const handleFailed = (stateChange) => {
+      console.error('❌ Ably 연결 실패:', stateChange);
+      setConnectionState('failed');
+      setConnectionError(stateChange.reason || '연결에 실패했습니다.');
+    };
+
+    // 모든 상태 변경 이벤트 리스너 등록
     ably.connection.on('connected', handleStateChange);
     ably.connection.on('disconnected', handleStateChange);
-    ably.connection.on('failed', handleStateChange);
+    ably.connection.on('failed', handleFailed);
     ably.connection.on('suspended', handleStateChange);
+    ably.connection.on('closed', handleStateChange);
+    ably.connection.on('connecting', handleStateChange);
+    ably.connection.on('update', handleStateChange);
+
+    // 연결 타임아웃 설정 (30초)
+    timeoutRef.current = setTimeout(() => {
+      if (ably.connection.state !== 'connected') {
+        console.error('⏱️ Ably 연결 타임아웃');
+        setConnectionError('연결 시간이 초과되었습니다. 페이지를 새로고침해주세요.');
+        setConnectionState('timeout');
+      }
+    }, 30000);
 
     return () => {
+      // 타임아웃 클리어
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      
+      // 이벤트 리스너 제거
       ably.connection.off('connected', handleStateChange);
       ably.connection.off('disconnected', handleStateChange);
-      ably.connection.off('failed', handleStateChange);
+      ably.connection.off('failed', handleFailed);
       ably.connection.off('suspended', handleStateChange);
+      ably.connection.off('closed', handleStateChange);
+      ably.connection.off('connecting', handleStateChange);
+      ably.connection.off('update', handleStateChange);
     };
   }, [ably]);
 
-  // 연결이 완료될 때까지 대기
-  if (!isConnected) {
+  // 연결이 완료되지 않았거나 에러가 있는 경우
+  if (!ably || connectionState !== 'connected' || connectionError) {
+    const getStateMessage = () => {
+      if (connectionError) {
+        return {
+          emoji: '❌',
+          title: '연결 실패',
+          message: connectionError,
+          isError: true
+        };
+      }
+      
+      switch (connectionState) {
+        case 'connecting':
+        case 'initialized':
+          return {
+            emoji: '🔄',
+            title: 'Ably 연결 중...',
+            message: '실시간 채팅 기능을 초기화하는 중입니다',
+            isError: false
+          };
+        case 'disconnected':
+          return {
+            emoji: '⏳',
+            title: '연결 끊김',
+            message: '다시 연결을 시도하는 중입니다...',
+            isError: false
+          };
+        case 'suspended':
+          return {
+            emoji: '⏸️',
+            title: '연결 일시 중지',
+            message: '네트워크 문제로 연결이 일시 중지되었습니다',
+            isError: false
+          };
+        case 'failed':
+        case 'timeout':
+          return {
+            emoji: '❌',
+            title: '연결 실패',
+            message: connectionError || 'Ably 서버에 연결할 수 없습니다. 페이지를 새로고침해주세요.',
+            isError: true
+          };
+        default:
+          return {
+            emoji: '🔄',
+            title: 'Ably 연결 중...',
+            message: '실시간 채팅 기능을 초기화하는 중입니다',
+            isError: false
+          };
+      }
+    };
+
+    const stateInfo = getStateMessage();
+
     return (
       <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
-        <div className="text-center text-gray-500 text-sm space-y-2">
-          <div className="animate-pulse">🔄</div>
-          <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
-          <p className="text-xs mt-1">잠시만 기다려주세요...</p>
+        <div className={`text-center text-sm space-y-2 ${stateInfo.isError ? 'text-red-600' : 'text-gray-500'}`}>
+          <div className={stateInfo.isError ? '' : 'animate-pulse'}>{stateInfo.emoji}</div>
+          <p className={`font-semibold ${stateInfo.isError ? 'text-red-600' : ''}`}>{stateInfo.title}</p>
+          <p className="text-xs mt-1">{stateInfo.message}</p>
+          {stateInfo.isError && (
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs font-semibold"
+            >
+              페이지 새로고침
+            </button>
+          )}
         </div>
       </div>
     );
@@ -88,7 +187,44 @@ const ChatRoom = () => {
     initialData: { status: 'online', joinedAt: new Date().toISOString() }
   });
   
-  // 채널 상태 모니터링 및 안전한 정리
+  // 2. 모든 접속자 목록 가져오기 (Presence Listener)
+  // usePresenceListener는 모든 presence 멤버의 목록을 실시간으로 제공
+  const { presenceData } = usePresenceListener(CHANNEL_NAME);
+  
+  // 3. 채팅 메시지 수신 및 발신 (Channel)
+  // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
+  // ⚠️ 중요: useChannel을 먼저 선언하여 channel 변수를 확보해야 함
+  const { channel } = useChannel(CHANNEL_NAME, (message) => {
+    // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
+    const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
+    
+    setChatLog((prev) => {
+      // 중복 메시지 체크
+      if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
+        return prev;
+      }
+      
+      const newLog = [
+        ...prev,
+        {
+          id: messageId,
+          user: message.clientId || 'Unknown',
+          text: message.data,
+          time: message.timestamp 
+            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: message.timestamp || Date.now(),
+        },
+      ];
+      // 시간순으로 정렬
+      newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      // 최신 MAX_MESSAGES개만 유지
+      return newLog.slice(-MAX_MESSAGES);
+    });
+  });
+
+  // 4. 채널 상태 모니터링 및 안전한 정리
+  // ⚠️ 중요: channel이 선언된 후에 사용해야 함
   useEffect(() => {
     if (!channel || !ably) return;
 
@@ -119,43 +255,8 @@ const ChatRoom = () => {
       }
     };
   }, [channel, ably]);
-  
-  // 2. 모든 접속자 목록 가져오기 (Presence Listener)
-  // usePresenceListener는 모든 presence 멤버의 목록을 실시간으로 제공
-  const { presenceData } = usePresenceListener(CHANNEL_NAME);
-  
-  // 3. 채팅 메시지 수신 및 발신 (Channel)
-  // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
-  const { channel } = useChannel(CHANNEL_NAME, (message) => {
-    // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
-    const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
-    
-    setChatLog((prev) => {
-      // 중복 메시지 체크
-      if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
-        return prev;
-      }
-      
-      const newLog = [
-        ...prev,
-        {
-          id: messageId,
-          user: message.clientId || 'Unknown',
-          text: message.data,
-          time: message.timestamp 
-            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          timestamp: message.timestamp || Date.now(),
-        },
-      ];
-      // 시간순으로 정렬
-      newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      // 최신 MAX_MESSAGES개만 유지
-      return newLog.slice(-MAX_MESSAGES);
-    });
-  });
 
-  // 채널이 준비되면 히스토리 로드
+  // 5. 채널이 준비되면 히스토리 로드
   useEffect(() => {
     if (!channel || historyLoadedRef.current) return;
 
