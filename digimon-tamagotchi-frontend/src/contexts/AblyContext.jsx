@@ -12,11 +12,20 @@ export const useAblyContext = () => {
   return context;
 };
 
+// Presence 데이터를 위한 별도 컨텍스트
+const PresenceContext = createContext({ presenceData: [], presenceCount: 0 });
+
+export const usePresenceContext = () => {
+  return useContext(PresenceContext);
+};
+
 export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => {
   const [ablyClient, setAblyClient] = useState(null);
+  const [presenceData, setPresenceData] = useState([]);
   const clientRef = useRef(null);
   const tamerNameRef = useRef(null);
   const cleanupTimeoutRef = useRef(null);
+  const presenceChannelRef = useRef(null);
 
   // clientId 계산 (tamerName이 없으면 익명 사용자용 ID 생성)
   const clientId = useMemo(() => {
@@ -55,20 +64,36 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           try {
             // 기존 클라이언트 정리
             const oldClient = clientRef.current;
-            const channelsObj = oldClient.channels;
-            if (channelsObj) {
+            
+            // 연결 상태 확인
+            const connectionState = oldClient?.connection?.state;
+            if (connectionState !== 'closed' && connectionState !== 'failed') {
               try {
-                const knownChannel = channelsObj.get('tamer-lobby');
-                if (knownChannel) {
-                  knownChannel.detach().catch(() => {});
+                const channelsObj = oldClient.channels;
+                if (channelsObj) {
+                  try {
+                    const knownChannel = channelsObj.get('tamer-lobby');
+                    if (knownChannel && (knownChannel.state === 'attached' || knownChannel.state === 'attaching')) {
+                      knownChannel.detach().catch(() => {});
+                    }
+                  } catch (error) {
+                    // 무시
+                  }
                 }
               } catch (error) {
-                // 무시
+                // 채널 접근 오류는 무시
               }
+              
+              // 클라이언트 종료
+              oldClient.close();
             }
-            oldClient.close();
           } catch (error) {
-            console.error('기존 Ably 클라이언트 종료 실패:', error);
+            // Connection closed 에러는 정상적인 클린업 과정에서 발생할 수 있음
+            if (error.message && 
+                !error.message.includes('closed') && 
+                !error.message.includes('Connection closed')) {
+              console.error('기존 Ably 클라이언트 종료 실패:', error);
+            }
           }
           clientRef.current = null;
           setAblyClient(null);
@@ -78,9 +103,15 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
         console.warn('기존 클라이언트 확인 실패, 새로 생성:', error);
         if (clientRef.current) {
           try {
-            clientRef.current.close();
+            const connectionState = clientRef.current?.connection?.state;
+            if (connectionState !== 'closed' && connectionState !== 'failed') {
+              clientRef.current.close();
+            }
           } catch (e) {
-            // 무시
+            // Connection closed 에러는 무시
+            if (!e.message?.includes('closed') && !e.message?.includes('Connection closed')) {
+              console.warn('클라이언트 종료 중 오류 (무시):', e);
+            }
           }
         }
         clientRef.current = null;
@@ -96,7 +127,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
       const client = new Ably.Realtime({
         key: ablyKey,
         clientId: clientId, // Presence 기능을 위해 필수
-        echoMessages: false, // 자신이 보낸 메시지는 수신하지 않음
+        echoMessages: true, // 자신이 보낸 메시지도 수신 (실시간 업데이트 보장)
         autoConnect: true, // 자동 연결
       });
       
@@ -145,46 +176,79 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
 
       // 클린업 함수
       return () => {
-        // 이벤트 리스너 제거
-        client.connection.off('connected', handleConnected);
-        client.connection.off('connecting', handleConnecting);
-        client.connection.off('disconnected', handleDisconnected);
-        client.connection.off('suspended', handleSuspended);
-        client.connection.off('failed', handleFailed);
-        client.connection.off('closed', handleClosed);
-        client.connection.off('update', handleUpdate);
-
         // 클린업 타임아웃 정리
         if (cleanupTimeoutRef.current) {
           clearTimeout(cleanupTimeoutRef.current);
+          cleanupTimeoutRef.current = null;
+        }
+
+        // 이벤트 리스너 제거 (안전하게)
+        try {
+          if (client && client.connection) {
+            client.connection.off('connected', handleConnected);
+            client.connection.off('connecting', handleConnecting);
+            client.connection.off('disconnected', handleDisconnected);
+            client.connection.off('suspended', handleSuspended);
+            client.connection.off('failed', handleFailed);
+            client.connection.off('closed', handleClosed);
+            client.connection.off('update', handleUpdate);
+          }
+        } catch (error) {
+          // 이미 닫힌 연결에서 발생하는 오류는 무시
+          if (!error.message?.includes('closed') && !error.message?.includes('Connection closed')) {
+            console.warn('이벤트 리스너 제거 중 오류 (무시):', error);
+          }
         }
 
         // 약간의 지연을 주어 ChatRoom 컴포넌트가 먼저 정리되도록 함
         cleanupTimeoutRef.current = setTimeout(() => {
-          if (clientRef.current === client) {
+          // 클라이언트가 여전히 현재 클라이언트인지 확인
+          if (clientRef.current !== client) {
+            console.log('⏭️ 클라이언트가 이미 변경됨, 클린업 건너뜀');
+            return;
+          }
+
+          try {
+            // 연결 상태 확인
+            const connectionState = client?.connection?.state;
+            if (connectionState === 'closed' || connectionState === 'failed') {
+              console.log('⏭️ 클라이언트가 이미 닫힌 상태:', connectionState);
+              clientRef.current = null;
+              setAblyClient(null);
+              return;
+            }
+
+            // 특정 채널이 있다면 직접 detach
             try {
-              // 특정 채널이 있다면 직접 detach
               const channelsObj = client.channels;
               if (channelsObj) {
-                try {
-                  const knownChannel = channelsObj.get('tamer-lobby');
-                  if (knownChannel) {
-                    if (knownChannel.state === 'attached' || knownChannel.state === 'attaching') {
-                      knownChannel.detach().catch(() => {});
-                    }
-                  }
-                } catch (error) {
-                  // 무시
+                const knownChannel = channelsObj.get('tamer-lobby');
+                if (knownChannel && (knownChannel.state === 'attached' || knownChannel.state === 'attaching')) {
+                  knownChannel.detach().catch(() => {
+                    // detach 실패는 무시
+                  });
                 }
               }
-              
-              // 클라이언트 종료 (이것이 모든 채널을 자동으로 정리함)
-              client.close();
             } catch (error) {
-              if (error.message && !error.message.includes('detached') && !error.message.includes('Channel operation failed')) {
-                console.error('Ably 클라이언트 종료 실패:', error);
-              }
+              // 채널 접근 오류는 무시
             }
+            
+            // 클라이언트 종료 (안전하게)
+            if (client && client.connection && client.connection.state !== 'closed') {
+              console.log('🔒 Ably 클라이언트 종료 중...');
+              client.close();
+            }
+          } catch (error) {
+            // Connection closed 에러는 정상적인 클린업 과정에서 발생할 수 있음
+            if (error.message && 
+                !error.message.includes('closed') && 
+                !error.message.includes('Connection closed') &&
+                !error.message.includes('detached') && 
+                !error.message.includes('Channel operation failed')) {
+              console.error('Ably 클라이언트 종료 중 오류:', error);
+            }
+          } finally {
+            // 클라이언트 참조 정리
             if (clientRef.current === client) {
               clientRef.current = null;
             }
@@ -197,6 +261,90 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
       setAblyClient(null);
     }
   }, [clientId]); // tamerName 대신 clientId를 dependency로 사용
+
+  // Presence 데이터 구독 (클라이언트가 준비된 후)
+  useEffect(() => {
+    if (!ablyClient) {
+      setPresenceData([]);
+      return;
+    }
+
+    const CHANNEL_NAME = 'tamer-lobby';
+    const presenceChannel = ablyClient.channels.get(CHANNEL_NAME);
+    presenceChannelRef.current = presenceChannel;
+
+    // Presence 이벤트 리스너
+    const updatePresenceData = async () => {
+      try {
+        const presenceMembers = await presenceChannel.presence.get();
+        setPresenceData(presenceMembers || []);
+        console.log('📊 Presence 데이터 업데이트:', presenceMembers?.length || 0, '명');
+      } catch (error) {
+        console.warn('Presence 데이터 가져오기 실패:', error);
+        setPresenceData([]);
+      }
+    };
+
+    // Presence 이벤트 구독
+    const presenceEnterHandler = () => {
+      console.log('👋 Presence enter 이벤트');
+      updatePresenceData();
+    };
+
+    const presenceLeaveHandler = () => {
+      console.log('👋 Presence leave 이벤트');
+      updatePresenceData();
+    };
+
+    const presenceUpdateHandler = () => {
+      console.log('🔄 Presence update 이벤트');
+      updatePresenceData();
+    };
+
+    // 연결이 완료되면 Presence 구독 시작
+    const startPresenceSubscription = () => {
+      if (presenceChannel.state === 'attached' || presenceChannel.state === 'attaching') {
+        presenceChannel.presence.subscribe('enter', presenceEnterHandler);
+        presenceChannel.presence.subscribe('leave', presenceLeaveHandler);
+        presenceChannel.presence.subscribe('update', presenceUpdateHandler);
+        updatePresenceData(); // 초기 데이터 로드
+      } else {
+        presenceChannel.attach().then(() => {
+          presenceChannel.presence.subscribe('enter', presenceEnterHandler);
+          presenceChannel.presence.subscribe('leave', presenceLeaveHandler);
+          presenceChannel.presence.subscribe('update', presenceUpdateHandler);
+          updatePresenceData(); // 초기 데이터 로드
+        }).catch((error) => {
+          console.warn('채널 attach 실패 (Presence 구독):', error);
+        });
+      }
+    };
+
+    // 연결 상태에 따라 Presence 구독 시작
+    if (ablyClient.connection.state === 'connected') {
+      startPresenceSubscription();
+    } else {
+      const connectedHandler = () => {
+        startPresenceSubscription();
+        ablyClient.connection.off('connected', connectedHandler);
+      };
+      ablyClient.connection.on('connected', connectedHandler);
+    }
+
+    // 클린업
+    return () => {
+      try {
+        if (presenceChannel && presenceChannel.presence) {
+          presenceChannel.presence.unsubscribe('enter', presenceEnterHandler);
+          presenceChannel.presence.unsubscribe('leave', presenceLeaveHandler);
+          presenceChannel.presence.unsubscribe('update', presenceUpdateHandler);
+        }
+        presenceChannelRef.current = null;
+      } catch (error) {
+        // Presence 구독 해제 오류는 무시
+      }
+    };
+  }, [ablyClient]);
 
   // Ably 클라이언트가 없으면 children만 렌더링 (AblyProvider 없이)
   // 하지만 renderChatRoom이 있으면 연결 중 메시지 표시
@@ -241,8 +389,10 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   return (
     <AblyProvider client={ablyClient}>
       <AblyContext.Provider value={ablyClient}>
-        {children}
-        {renderChatRoom && renderChatRoom()}
+        <PresenceContext.Provider value={{ presenceData, presenceCount: presenceData.length }}>
+          {children}
+          {renderChatRoom && renderChatRoom()}
+        </PresenceContext.Provider>
       </AblyContext.Provider>
     </AblyProvider>
   );

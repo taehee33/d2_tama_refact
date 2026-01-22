@@ -9,6 +9,7 @@ import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
+import OnlineUsersCount from "../components/OnlineUsersCount";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
@@ -612,6 +613,9 @@ function SelectScreen() {
         <div className="flex items-center space-x-4">
           {isFirebaseAvailable && currentUser ? (
             <>
+              {/* 접속 중인 테이머 수 */}
+              <OnlineUsersCount />
+              
               <div className="flex items-center space-x-2">
                 {currentUser.photoURL && (
                   <img

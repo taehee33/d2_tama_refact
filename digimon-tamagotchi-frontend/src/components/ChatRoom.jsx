@@ -195,26 +195,46 @@ const ChatRoom = () => {
   // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
   // ⚠️ 중요: useChannel을 먼저 선언하여 channel 변수를 확보해야 함
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
+    console.log('📨 메시지 수신:', message);
+    console.log('📨 메시지 데이터:', {
+      name: message.name,
+      data: message.data,
+      clientId: message.clientId,
+      timestamp: message.timestamp,
+      id: message.id
+    });
+    
+    // 메시지 이름이 'chat-message'인지 확인
+    if (message.name !== 'chat-message') {
+      console.log('⏭️ 다른 이벤트 메시지, 무시:', message.name);
+      return;
+    }
+    
     // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
     const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
     
     setChatLog((prev) => {
       // 중복 메시지 체크
       if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
+        console.log('⏭️ 중복 메시지, 무시:', messageId);
         return prev;
       }
       
+      const newMessage = {
+        id: messageId,
+        user: message.clientId || 'Unknown',
+        text: message.data,
+        time: message.timestamp 
+          ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+          : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: message.timestamp || Date.now(),
+      };
+      
+      console.log('✅ 새 메시지 추가:', newMessage);
+      
       const newLog = [
         ...prev,
-        {
-          id: messageId,
-          user: message.clientId || 'Unknown',
-          text: message.data,
-          time: message.timestamp 
-            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          timestamp: message.timestamp || Date.now(),
-        },
+        newMessage,
       ];
       // 시간순으로 정렬
       newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
@@ -223,30 +243,117 @@ const ChatRoom = () => {
     });
   });
 
-  // 4. 채널 상태 모니터링 및 안전한 정리
+  // 4. 채널 상태 모니터링 및 메시지 구독
   // ⚠️ 중요: channel이 선언된 후에 사용해야 함
   useEffect(() => {
     if (!channel || !ably) return;
 
     // 채널 상태 변경 감지
     const handleStateChange = (stateChange) => {
+      console.log('🔄 채널 상태 변경:', stateChange.current, '이전:', stateChange.previous);
       if (stateChange.current === 'detached' || stateChange.current === 'failed') {
         console.log('⏳ 채널이 detached/failed 상태입니다. Presence 정리는 자동으로 처리됩니다.');
       }
     };
 
-    channel.on('attached', () => console.log('✅ 채널 attached'));
-    channel.on('detached', () => console.log('⏳ 채널 detached'));
-    channel.on('failed', () => console.log('❌ 채널 failed'));
+    // 채널 상태 이벤트 리스너
+    channel.on('attached', () => {
+      console.log('✅ 채널 attached - 메시지 구독 준비 완료');
+    });
+    channel.on('detached', () => {
+      console.log('⏳ 채널 detached');
+    });
+    channel.on('failed', () => {
+      console.log('❌ 채널 failed');
+    });
+
+    // 채널에 직접 메시지 리스너 추가 (실시간 업데이트 보장)
+    const messageHandler = (message) => {
+      console.log('📨 채널 메시지 리스너에서 수신:', message);
+      console.log('📨 메시지 상세:', {
+        name: message.name,
+        data: message.data,
+        clientId: message.clientId,
+        timestamp: message.timestamp,
+        id: message.id
+      });
+      
+      // 메시지 이름이 'chat-message'인지 확인
+      if (message.name !== 'chat-message') {
+        console.log('⏭️ 다른 이벤트 메시지, 무시:', message.name);
+        return;
+      }
+      
+      // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
+      const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
+      
+      setChatLog((prev) => {
+        // 중복 메시지 체크
+        if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
+          console.log('⏭️ 중복 메시지, 무시:', messageId);
+          return prev;
+        }
+        
+        const newMessage = {
+          id: messageId,
+          user: message.clientId || 'Unknown',
+          text: message.data,
+          time: message.timestamp 
+            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: message.timestamp || Date.now(),
+        };
+        
+        console.log('✅ 새 메시지 추가 (채널 리스너):', newMessage);
+        
+        const newLog = [
+          ...prev,
+          newMessage,
+        ];
+        // 시간순으로 정렬
+        newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        // 최신 MAX_MESSAGES개만 유지
+        return newLog.slice(-MAX_MESSAGES);
+      });
+    };
+
+    // 채널이 attached 상태일 때 메시지 구독
+    const subscribeToMessages = () => {
+      if (channel.state === 'attached') {
+        console.log('📡 채널에 메시지 구독 시작');
+        channel.subscribe('chat-message', messageHandler);
+      } else {
+        console.log('⏳ 채널이 attached 상태가 아닙니다. 현재 상태:', channel.state);
+        // 채널이 attached 상태가 아니면 attach 시도
+        channel.attach().then(() => {
+          console.log('✅ 채널 attach 완료, 메시지 구독 시작');
+          channel.subscribe('chat-message', messageHandler);
+        }).catch((error) => {
+          console.error('❌ 채널 attach 실패:', error);
+        });
+      }
+    };
+
+    // 초기 구독 시도
+    subscribeToMessages();
+
+    // 채널이 attached 상태가 되면 구독
+    channel.on('attached', () => {
+      console.log('✅ 채널 attached - 메시지 구독 시작');
+      channel.subscribe('chat-message', messageHandler);
+    });
 
     return () => {
-      // 컴포넌트 언마운트 시 채널 상태 확인
+      // 컴포넌트 언마운트 시 정리
       try {
-        if (channel && (channel.state === 'attached' || channel.state === 'attaching')) {
-          // 채널이 여전히 attached 상태면 안전하게 정리
-          // usePresence가 자동으로 처리하므로 여기서는 로깅만
-          console.log('🧹 ChatRoom 언마운트: Presence 정리 중...');
-        }
+        console.log('🧹 ChatRoom 언마운트: 메시지 구독 해제');
+        channel.unsubscribe('chat-message', messageHandler);
+        
+        // 이벤트 리스너 제거
+        channel.off('attached');
+        channel.off('detached');
+        channel.off('failed');
+        channel.off('update', handleStateChange);
       } catch (error) {
         // detached 상태에서 발생하는 오류는 무시
         if (error.message && !error.message.includes('detached') && !error.message.includes('Channel operation failed')) {
@@ -444,10 +551,40 @@ const ChatRoom = () => {
     );
   }
 
-  const sendChat = () => {
-    if (messageText.trim() !== '' && channel) {
-      channel.publish('chat-message', messageText.trim());
+  const sendChat = async () => {
+    const message = messageText.trim();
+    
+    if (!message) {
+      console.warn('⚠️ 빈 메시지는 전송할 수 없습니다.');
+      return;
+    }
+    
+    if (!channel) {
+      console.error('❌ 채널이 없습니다. Ably 연결을 확인해주세요.');
+      return;
+    }
+    
+    // 채널 상태 확인
+    if (channel.state !== 'attached' && channel.state !== 'attaching') {
+      console.warn('⚠️ 채널이 attached 상태가 아닙니다. 현재 상태:', channel.state);
+      try {
+        // 채널을 attach 시도
+        await channel.attach();
+        console.log('✅ 채널 attach 완료');
+      } catch (error) {
+        console.error('❌ 채널 attach 실패:', error);
+        return;
+      }
+    }
+    
+    try {
+      console.log('📤 메시지 전송 시도:', message);
+      await channel.publish('chat-message', message);
+      console.log('✅ 메시지 전송 성공:', message);
       setMessageText('');
+    } catch (error) {
+      console.error('❌ 메시지 전송 실패:', error);
+      alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
@@ -497,9 +634,12 @@ const ChatRoom = () => {
                 ? 'bg-yellow-100 text-yellow-800' 
                 : 'bg-gray-100 text-gray-800';
               
+              // 고유한 key 생성: clientId + connectionId (또는 timestamp) + index
+              const uniqueKey = `${member.clientId || 'unknown'}_${member.connectionId || member.timestamp || idx}_${idx}`;
+              
               return (
                 <span
-                  key={member.clientId || idx}
+                  key={uniqueKey}
                   className={`px-2 py-1 ${statusColor} rounded text-xs font-semibold flex items-center gap-1`}
                   title={`상태: ${memberStatus === 'online' ? '온라인' : memberStatus === 'away' ? '자리비움' : '오프라인'}`}
                 >

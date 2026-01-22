@@ -24,6 +24,7 @@ import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
+import OnlineUsersCount from "../components/OnlineUsersCount";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
@@ -1262,8 +1263,11 @@ async function setSelectedDigimonAndSave(name) {
               <span>← select</span>
             </button>
 
-            {/* 오른쪽: Settings + 프로필 */}
+            {/* 오른쪽: 접속자 수 + Settings + 프로필 */}
             <div className="flex items-center gap-2">
+              {/* 접속 중인 테이머 수 */}
+              <OnlineUsersCount />
+              
               {/* Settings 버튼 */}
               <button
                 onClick={() => toggleModal('settings', true)}
@@ -1343,8 +1347,11 @@ async function setSelectedDigimonAndSave(name) {
             </button>
           </div>
 
-          {/* 우측 상단 UI 컨테이너 (Settings + 프로필) */}
+          {/* 우측 상단 UI 컨테이너 (접속자 수 + Settings + 프로필) */}
           <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+            {/* 접속 중인 테이머 수 */}
+            <OnlineUsersCount />
+            
             {/* Settings 버튼 */}
             <button
               onClick={() => toggleModal('settings', true)}

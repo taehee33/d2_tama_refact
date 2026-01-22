@@ -109,17 +109,19 @@ function App() {
       window.gaInitialized = true;
     }
 
-    // Ably 채널 detached 상태 오류를 무시하는 전역 에러 핸들러
+    // Ably 채널 detached 상태 및 Connection closed 오류를 무시하는 전역 에러 핸들러
     const originalError = window.onerror;
     window.onerror = (message, source, lineno, colno, error) => {
-      // Ably 채널 detached 상태 오류는 무시
+      // Ably 관련 정상적인 클린업 오류는 무시
       if (
         error &&
         (error.message?.includes('Channel operation failed') ||
          error.message?.includes('channel state is detached') ||
-         error.message?.includes('detached'))
+         error.message?.includes('detached') ||
+         error.message?.includes('Connection closed') ||
+         error.message?.includes('closed'))
       ) {
-        console.log('⏳ Ably 채널 detached 상태 오류 무시:', error.message);
+        console.log('⏳ Ably 정상적인 클린업 오류 무시:', error.message);
         return true; // 에러를 처리했음을 표시
       }
       
@@ -136,9 +138,11 @@ function App() {
         event.reason &&
         (event.reason.message?.includes('Channel operation failed') ||
          event.reason.message?.includes('channel state is detached') ||
-         event.reason.message?.includes('detached'))
+         event.reason.message?.includes('detached') ||
+         event.reason.message?.includes('Connection closed') ||
+         event.reason.message?.includes('closed'))
       ) {
-        console.log('⏳ Ably 채널 detached 상태 Promise rejection 무시:', event.reason.message);
+        console.log('⏳ Ably 정상적인 클린업 Promise rejection 무시:', event.reason.message);
         event.preventDefault(); // 에러를 처리했음을 표시
       }
     };
