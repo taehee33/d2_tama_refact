@@ -42,6 +42,9 @@ function SelectScreen() {
   // 계정 설정 모달 상태
   const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   
+  // 프로필 드롭다운 메뉴 상태
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
@@ -616,22 +619,58 @@ function SelectScreen() {
               {/* 접속 중인 테이머 수 */}
               <OnlineUsersCount />
               
-              <div className="flex items-center space-x-2">
-                {currentUser.photoURL && (
-                  <img
-                    src={currentUser.photoURL}
-                    alt="프로필"
-                    className="w-8 h-8 rounded-full"
-                  />
+              {/* 프로필 UI - 드롭다운 메뉴 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
+                >
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt="프로필"
+                      className="w-8 h-8 rounded-full"
+                    />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
+                      {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
+                    </span>
+                  )}
+                  <span className="text-sm text-gray-700">
+                    테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
+                  </span>
+                  <span className="text-xs text-gray-500">▼</span>
+                </button>
+                
+                {/* 드롭다운 메뉴 */}
+                {showProfileMenu && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowProfileMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px]">
+                      <div className="px-3 py-2 border-b border-gray-200">
+                        <p className="text-sm font-semibold text-gray-700 truncate">
+                          테이머: {tamerName || currentUser.displayName || currentUser.email}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {currentUser.email}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          setShowAccountSettingsModal(true);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
+                      >
+                        계정 설정/로그아웃
+                      </button>
+                    </div>
+                  </>
                 )}
-                <span className="text-sm text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
               </div>
-              <button
-                onClick={() => setShowAccountSettingsModal(true)}
-                className="px-3 py-1 bg-gray-500 hover:bg-gray-600 text-white rounded text-sm pixel-art-button"
-              >
-                계정 설정/로그아웃
-              </button>
             </>
           ) : null}
         </div>
