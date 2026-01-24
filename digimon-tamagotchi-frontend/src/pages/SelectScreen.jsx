@@ -45,6 +45,9 @@ function SelectScreen() {
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   
+  // 새 다마고치 시작 모달 상태
+  const [showNewTamaModal, setShowNewTamaModal] = useState(false);
+  
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
@@ -265,8 +268,10 @@ function SelectScreen() {
   //   }
   // };
 
-  // 새 다마고치 시작
+  // 새 다마고치 시작 (모달에서 호출)
   const handleNewTama = async () => {
+    // 모달 닫기
+    setShowNewTamaModal(false);
     console.log("새 다마고치 시작 버튼 클릭");
     console.log("isFirebaseAvailable:", isFirebaseAvailable);
     console.log("currentUser:", currentUser);
@@ -682,38 +687,9 @@ function SelectScreen() {
         </div>
       )}
 
-      {/* 기종/버전 */}
-      <div className="mb-4">
-        <label className="block mb-1">기종(Device):</label>
-        <select
-          value={device}
-          onChange={(e) => setDevice(e.target.value)}
-          className="border p-2"
-        >
-          <option value="Digital Monster Color 25th">
-            Digital Monster Color 25th
-          </option>
-          <option value="기타기종" disabled>기타기종</option>
-        </select>
-      </div>
-      <div className="mb-4">
-        <label className="block mb-1">버전(Version):</label>
-        <select
-          value={version}
-          onChange={(e) => setVersion(e.target.value)}
-          className="border p-2"
-        >
-          <option value="Ver.1">Ver.1</option>
-          <option value="Ver.2" disabled>Ver.2 (준비 중)</option>
-          <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
-          <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
-          <option value="Ver.5" disabled>Ver.5 (준비 중)</option>
-        </select>
-      </div>
-
       <button
-        onClick={handleNewTama}
-        className="px-4 py-2 bg-green-500 text-white rounded mb-4"
+        onClick={() => setShowNewTamaModal(true)}
+        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded mb-4 transition-colors"
       >
         새 다마고치 시작
       </button>
@@ -925,6 +901,82 @@ function SelectScreen() {
           tamerName={tamerName}
           setTamerName={setTamerName}
         />
+      )}
+      
+      {/* 새 다마고치 시작 모달 */}
+      {showNewTamaModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setShowNewTamaModal(false)}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold">새 다마고치 시작</h3>
+              <button
+                onClick={() => setShowNewTamaModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* 기종 선택 */}
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  기종(Device):
+                </label>
+                <select
+                  value={device}
+                  onChange={(e) => setDevice(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="Digital Monster Color 25th">
+                    Digital Monster Color 25th
+                  </option>
+                  <option value="기타기종" disabled>기타기종</option>
+                </select>
+              </div>
+              
+              {/* 버전 선택 */}
+              <div>
+                <label className="block mb-2 text-sm font-semibold text-gray-700">
+                  버전(Version):
+                </label>
+                <select
+                  value={version}
+                  onChange={(e) => setVersion(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="Ver.1">Ver.1</option>
+                  <option value="Ver.2" disabled>Ver.2 (준비 중)</option>
+                  <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
+                  <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
+                  <option value="Ver.5" disabled>Ver.5 (준비 중)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 mt-6">
+              <button
+                onClick={() => setShowNewTamaModal(false)}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded text-sm transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleNewTama}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm transition-colors"
+              >
+                시작하기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
