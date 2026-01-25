@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useChannel, usePresence, usePresenceListener, useAbly } from 'ably/react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '../supabase';
+import { getDeviceHint, getPresenceDisplayName, getDeviceIndex, formatDeviceSuffix } from '../utils/presenceUtils';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
@@ -16,13 +17,18 @@ const uuid = () =>
     ? crypto.randomUUID()
     : `t-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
-// Ably 메시지 data 파싱: { text, clientTempId } 또는 레거시 문자열
+// Ably 메시지 data 파싱: { text, clientTempId, deviceHint, deviceIndex } (connectionId는 미노출)
 const parseAblyData = (data) => {
-  if (data == null) return { text: '', clientTempId: null };
+  if (data == null) return { text: '', clientTempId: null, deviceHint: null, deviceIndex: null };
   if (typeof data === 'object' && data !== null && 'text' in data) {
-    return { text: String(data.text ?? ''), clientTempId: data.clientTempId || null };
+    return {
+      text: String(data.text ?? ''),
+      clientTempId: data.clientTempId || null,
+      deviceHint: data.deviceHint || null,
+      deviceIndex: typeof data.deviceIndex === 'number' ? data.deviceIndex : null,
+    };
   }
-  return { text: String(data), clientTempId: null };
+  return { text: String(data), clientTempId: null, deviceHint: null, deviceIndex: null };
 };
 
 // 연결 상태를 확인하고 연결 완료 후에만 ChatRoom을 렌더링하는 래퍼
@@ -200,7 +206,7 @@ const ChatRoom = () => {
   // usePresence는 자신을 presence set에 추가하고 상태를 업데이트
   // 연결이 완료된 후에만 ChatRoom이 렌더링되므로 안전하게 호출 가능
   const { updateStatus } = usePresence(CHANNEL_NAME, {
-    initialData: { status: 'online', joinedAt: new Date().toISOString() }
+    initialData: { status: 'online', joinedAt: new Date().toISOString(), deviceHint: getDeviceHint() }
   });
   
   // 2. 모든 접속자 목록 가져오기 (Presence Listener)
@@ -210,7 +216,7 @@ const ChatRoom = () => {
   // 3. 채팅 메시지 수신 (Channel) — 발신은 sendChat에서 Ably + Supabase
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
     if (message.name !== 'chat-message') return;
-    const { text: msgText, clientTempId } = parseAblyData(message.data);
+    const { text: msgText, clientTempId, deviceHint, deviceIndex } = parseAblyData(message.data);
     const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
     const ts = message.timestamp || Date.now();
     const user = message.clientId || 'Unknown';
@@ -223,6 +229,8 @@ const ChatRoom = () => {
         text: msgText,
         time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         timestamp: ts,
+        deviceHint: deviceHint || null,
+        deviceIndex: deviceIndex ?? null,
       };
       const next = [...prev, newMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       return next.slice(-MAX_MESSAGES);
@@ -256,7 +264,7 @@ const ChatRoom = () => {
     // 채널 직접 리스너 (실시간 보장, useChannel 콜백과 동일 로직)
     const messageHandler = (message) => {
       if (message.name !== 'chat-message') return;
-      const { text: msgText, clientTempId } = parseAblyData(message.data);
+      const { text: msgText, clientTempId, deviceHint, deviceIndex } = parseAblyData(message.data);
       const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
       const ts = message.timestamp || Date.now();
       const user = message.clientId || 'Unknown';
@@ -269,6 +277,8 @@ const ChatRoom = () => {
           text: msgText,
           time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
           timestamp: ts,
+          deviceHint: deviceHint || null,
+          deviceIndex: deviceIndex ?? null,
         };
         const next = [...prev, newMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         return next.slice(-MAX_MESSAGES);
@@ -386,7 +396,8 @@ const ChatRoom = () => {
       // usePresence의 updateStatus 메서드 사용
       await updateStatus({
         status: newStatus,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        deviceHint: getDeviceHint()
       });
       console.log('✅ Presence 상태 업데이트:', newStatus);
     } catch (error) {
@@ -488,6 +499,9 @@ const ChatRoom = () => {
     const id = uuid();
     const tamerName = ably?.auth?.clientId || 'Unknown';
     const ts = Date.now();
+    const deviceHint = getDeviceHint();
+    const connId = ably?.connection?.id || '';
+    const deviceIndex = getDeviceIndex(tamerName, deviceHint, connId, presenceData || []);
 
     // 1) 낙관적 추가 (Ably echo 시 clientTempId로 dedup)
     setChatLog((prev) => {
@@ -497,14 +511,16 @@ const ChatRoom = () => {
         text,
         time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
         timestamp: ts,
+        deviceHint: deviceHint || null,
+        deviceIndex: deviceIndex || null,
       }].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
       return next.slice(-MAX_MESSAGES);
     });
     setMessageText('');
 
-    // 2) Ably 실시간 전송 (객체: text + clientTempId로 수신 측 dedup)
+    // 2) Ably 실시간 전송 (deviceHint, deviceIndex. connectionId는 미포함)
     try {
-      await channel.publish('chat-message', { text, clientTempId: id });
+      await channel.publish('chat-message', { text, clientTempId: id, deviceHint, deviceIndex });
     } catch (e) {
       console.error('Ably 전송 실패:', e);
       setChatLog((prev) => prev.filter((m) => m.id !== id));
@@ -573,8 +589,7 @@ const ChatRoom = () => {
                 : memberStatus === 'away' 
                 ? 'bg-yellow-100 text-yellow-800' 
                 : 'bg-gray-100 text-gray-800';
-              
-              // 고유한 key 생성: clientId + connectionId (또는 timestamp) + index
+              const displayName = getPresenceDisplayName(member, presenceData);
               const uniqueKey = `${member.clientId || 'unknown'}_${member.connectionId || member.timestamp || idx}_${idx}`;
               
               return (
@@ -584,7 +599,7 @@ const ChatRoom = () => {
                   title={`상태: ${memberStatus === 'online' ? '온라인' : memberStatus === 'away' ? '자리비움' : '오프라인'}`}
                 >
                   <span>{statusEmoji}</span>
-                  <span>{member.clientId || 'Unknown'}</span>
+                  <span>{displayName}</span>
                 </span>
               );
             })
@@ -608,13 +623,16 @@ const ChatRoom = () => {
             채팅 메시지가 없습니다. 첫 메시지를 보내보세요!
           </div>
         ) : (
-          chatLog.map((msg) => (
-            <div key={msg.id} className="mb-2 text-sm">
-              <span className="font-bold text-blue-600">{msg.user}:</span>{' '}
-              <span className="text-gray-700">{msg.text}</span>
-              <span className="text-xs text-gray-400 ml-2">{msg.time}</span>
-            </div>
-          ))
+          chatLog.map((msg) => {
+            const namePart = formatDeviceSuffix(msg.deviceHint, msg.deviceIndex);
+            return (
+              <div key={msg.id} className="mb-2 text-sm">
+                <span className="font-bold text-blue-600">{msg.user}{namePart}:</span>{' '}
+                <span className="text-gray-700">{msg.text}</span>
+                <span className="text-xs text-gray-400 ml-2">{msg.time}</span>
+              </div>
+            );
+          })
         )}
       </div>
 

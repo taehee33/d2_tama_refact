@@ -3,6 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { usePresenceContext } from '../contexts/AblyContext';
+import { getPresenceDisplayName } from '../utils/presenceUtils';
 
 const OnlineUsersCount = () => {
   const { presenceData, presenceCount } = usePresenceContext();
@@ -82,8 +83,7 @@ const OnlineUsersCount = () => {
                     : memberStatus === 'away' 
                     ? 'text-yellow-600' 
                     : 'text-gray-600';
-                  
-                  // 고유한 key 생성
+                  const displayName = getPresenceDisplayName(member, presenceData);
                   const uniqueKey = `${member.clientId || 'unknown'}_${member.connectionId || member.timestamp || idx}_${idx}`;
                   
                   return (
@@ -94,7 +94,7 @@ const OnlineUsersCount = () => {
                       <span className="text-base">{statusEmoji}</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-gray-800 truncate">
-                          {member.clientId || 'Unknown'}
+                          {displayName}
                         </div>
                         <div className={`text-xs ${statusColor}`}>
                           {statusText}
