@@ -1,12 +1,29 @@
 // src/components/ChatRoom.jsx
 // 실시간 채팅 및 접속자 목록 컴포넌트
+// - 실시간: Ably | 히스토리(200개/48h): Supabase
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useChannel, usePresence, usePresenceListener, useAbly } from 'ably/react';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase, isSupabaseConfigured } from '../supabase';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
 const HISTORY_HOURS = 48; // 48시간 동안의 메시지 히스토리
+
+const uuid = () =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `t-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+// Ably 메시지 data 파싱: { text, clientTempId } 또는 레거시 문자열
+const parseAblyData = (data) => {
+  if (data == null) return { text: '', clientTempId: null };
+  if (typeof data === 'object' && data !== null && 'text' in data) {
+    return { text: String(data.text ?? ''), clientTempId: data.clientTempId || null };
+  }
+  return { text: String(data), clientTempId: null };
+};
 
 // 연결 상태를 확인하고 연결 완료 후에만 ChatRoom을 렌더링하는 래퍼
 const ChatRoomWithConnectionCheck = () => {
@@ -169,6 +186,7 @@ const ChatRoomWithConnectionCheck = () => {
 };
 
 const ChatRoom = () => {
+  const { currentUser } = useAuth();
   const [messageText, setMessageText] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [presenceStatus, setPresenceStatus] = useState('online'); // online, away, offline
@@ -176,8 +194,6 @@ const ChatRoom = () => {
   const chatBoxRef = useRef(null);
   const historyLoadedRef = useRef(false); // 히스토리 로드 여부 추적
 
-  // Ably 클라이언트 확인 (AblyProvider 내부에서만 호출되어야 함)
-  // React Hooks 규칙: 항상 같은 순서로 호출해야 하므로 조건부로 호출하지 않음
   const ably = useAbly();
   
   // 1. 자신의 Presence 관리 (enter/update)
@@ -191,55 +207,25 @@ const ChatRoom = () => {
   // usePresenceListener는 모든 presence 멤버의 목록을 실시간으로 제공
   const { presenceData } = usePresenceListener(CHANNEL_NAME);
   
-  // 3. 채팅 메시지 수신 및 발신 (Channel)
-  // ChannelProvider 내부에서도 channelName을 명시적으로 전달해야 함
-  // ⚠️ 중요: useChannel을 먼저 선언하여 channel 변수를 확보해야 함
+  // 3. 채팅 메시지 수신 (Channel) — 발신은 sendChat에서 Ably + Supabase
   const { channel } = useChannel(CHANNEL_NAME, (message) => {
-    console.log('📨 메시지 수신:', message);
-    console.log('📨 메시지 데이터:', {
-      name: message.name,
-      data: message.data,
-      clientId: message.clientId,
-      timestamp: message.timestamp,
-      id: message.id
-    });
-    
-    // 메시지 이름이 'chat-message'인지 확인
-    if (message.name !== 'chat-message') {
-      console.log('⏭️ 다른 이벤트 메시지, 무시:', message.name);
-      return;
-    }
-    
-    // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
-    const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
-    
+    if (message.name !== 'chat-message') return;
+    const { text: msgText, clientTempId } = parseAblyData(message.data);
+    const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
+    const ts = message.timestamp || Date.now();
+    const user = message.clientId || 'Unknown';
+
     setChatLog((prev) => {
-      // 중복 메시지 체크
-      if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
-        console.log('⏭️ 중복 메시지, 무시:', messageId);
-        return prev;
-      }
-      
+      if (prev.some(m => m.id === messageId)) return prev;
       const newMessage = {
         id: messageId,
-        user: message.clientId || 'Unknown',
-        text: message.data,
-        time: message.timestamp 
-          ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-          : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-        timestamp: message.timestamp || Date.now(),
+        user,
+        text: msgText,
+        time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: ts,
       };
-      
-      console.log('✅ 새 메시지 추가:', newMessage);
-      
-      const newLog = [
-        ...prev,
-        newMessage,
-      ];
-      // 시간순으로 정렬
-      newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      // 최신 MAX_MESSAGES개만 유지
-      return newLog.slice(-MAX_MESSAGES);
+      const next = [...prev, newMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      return next.slice(-MAX_MESSAGES);
     });
   });
 
@@ -267,53 +253,25 @@ const ChatRoom = () => {
       console.log('❌ 채널 failed');
     });
 
-    // 채널에 직접 메시지 리스너 추가 (실시간 업데이트 보장)
+    // 채널 직접 리스너 (실시간 보장, useChannel 콜백과 동일 로직)
     const messageHandler = (message) => {
-      console.log('📨 채널 메시지 리스너에서 수신:', message);
-      console.log('📨 메시지 상세:', {
-        name: message.name,
-        data: message.data,
-        clientId: message.clientId,
-        timestamp: message.timestamp,
-        id: message.id
-      });
-      
-      // 메시지 이름이 'chat-message'인지 확인
-      if (message.name !== 'chat-message') {
-        console.log('⏭️ 다른 이벤트 메시지, 무시:', message.name);
-        return;
-      }
-      
-      // 히스토리에서 이미 로드된 메시지인지 확인 (중복 방지)
-      const messageId = message.id || `ably_${message.timestamp}_${Math.random()}`;
-      
+      if (message.name !== 'chat-message') return;
+      const { text: msgText, clientTempId } = parseAblyData(message.data);
+      const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
+      const ts = message.timestamp || Date.now();
+      const user = message.clientId || 'Unknown';
+
       setChatLog((prev) => {
-        // 중복 메시지 체크
-        if (prev.some(msg => msg.id === messageId || (msg.timestamp && msg.timestamp === message.timestamp && msg.user === (message.clientId || 'Unknown')))) {
-          console.log('⏭️ 중복 메시지, 무시:', messageId);
-          return prev;
-        }
-        
+        if (prev.some(m => m.id === messageId)) return prev;
         const newMessage = {
           id: messageId,
-          user: message.clientId || 'Unknown',
-          text: message.data,
-          time: message.timestamp 
-            ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-            : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-          timestamp: message.timestamp || Date.now(),
+          user,
+          text: msgText,
+          time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: ts,
         };
-        
-        console.log('✅ 새 메시지 추가 (채널 리스너):', newMessage);
-        
-        const newLog = [
-          ...prev,
-          newMessage,
-        ];
-        // 시간순으로 정렬
-        newLog.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-        // 최신 MAX_MESSAGES개만 유지
-        return newLog.slice(-MAX_MESSAGES);
+        const next = [...prev, newMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+        return next.slice(-MAX_MESSAGES);
       });
     };
 
@@ -363,88 +321,51 @@ const ChatRoom = () => {
     };
   }, [channel, ably]);
 
-  // 5. 채널이 준비되면 히스토리 로드
+  // 5. 초기 히스토리 로드 (Supabase, 48h / 200건)
   useEffect(() => {
-    if (!channel || historyLoadedRef.current) return;
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+    setIsLoadingHistory(true);
 
     const loadHistory = async () => {
-      try {
-        setIsLoadingHistory(true);
-        historyLoadedRef.current = true;
-
-        // 48시간 전의 타임스탬프 계산
-        const hoursAgo = HISTORY_HOURS * 60 * 60 * 1000;
-        const startTime = Date.now() - hoursAgo;
-
-        console.log('📜 채팅 히스토리 로드 중... (48시간)');
-
-        // 채널이 attach될 때까지 대기
-        await channel.attach();
-
-        // 히스토리 가져오기 (48시간 전부터)
-        const historyPage = await channel.history({ 
-          start: startTime,
-          limit: MAX_MESSAGES 
-        });
-
-        const historyMessages = [];
-        
-        // 첫 페이지 처리
-        if (historyPage.items && historyPage.items.length > 0) {
-          historyPage.items.forEach((message) => {
-            historyMessages.push({
-              id: message.id || `history_${message.timestamp}_${Math.random()}`,
-              user: message.clientId || 'Unknown',
-              text: message.data,
-              time: message.timestamp 
-                ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-                : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-              timestamp: message.timestamp || Date.now(),
-            });
-          });
-        }
-
-        // 추가 페이지가 있으면 모두 가져오기
-        let currentPage = historyPage;
-        while (currentPage.hasNext()) {
-          currentPage = await currentPage.next();
-          if (currentPage.items && currentPage.items.length > 0) {
-            currentPage.items.forEach((message) => {
-              historyMessages.push({
-                id: message.id || `history_${message.timestamp}_${Math.random()}`,
-                user: message.clientId || 'Unknown',
-                text: message.data,
-                time: message.timestamp 
-                  ? new Date(message.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-                  : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
-                timestamp: message.timestamp || Date.now(),
-              });
-            });
-          }
-        }
-
-        // 시간순으로 정렬 (오래된 것부터)
-        historyMessages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-
-        // 중복 제거
-        const uniqueMessages = historyMessages.reduce((acc, msg) => {
-          if (!acc.find(m => m.id === msg.id || (m.timestamp === msg.timestamp && m.user === msg.user && m.text === msg.text))) {
-            acc.push(msg);
-          }
-          return acc;
-        }, []);
-
-        setChatLog(uniqueMessages);
-        console.log(`✅ 채팅 히스토리 로드 완료: ${uniqueMessages.length}개 메시지`);
+      if (!isSupabaseConfigured() || !supabase) {
+        setChatLog([]);
         setIsLoadingHistory(false);
-      } catch (error) {
-        console.error('❌ 채팅 히스토리 로드 오류:', error);
+        return;
+      }
+      try {
+        const since = new Date(Date.now() - HISTORY_HOURS * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from('chat_messages')
+          .select('id, tamer_name, content, created_at')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(MAX_MESSAGES);
+
+        if (error) {
+          console.warn('Supabase 채팅 히스토리 로드 실패:', error.message);
+          setChatLog([]);
+        } else {
+          const list = (data || []).reverse().map((m) => ({
+            id: m.id,
+            user: m.tamer_name || 'Unknown',
+            text: m.content,
+            time: new Date(m.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+            timestamp: new Date(m.created_at).getTime(),
+          }));
+          setChatLog(list);
+          console.log(`✅ 채팅 히스토리 로드 완료 (Supabase): ${list.length}개`);
+        }
+      } catch (e) {
+        console.warn('채팅 히스토리 로드 예외:', e);
+        setChatLog([]);
+      } finally {
         setIsLoadingHistory(false);
       }
     };
 
     loadHistory();
-  }, [channel]);
+  }, []);
 
   // Presence 상태 업데이트 함수
   // usePresence의 updateStatus 메서드를 사용
@@ -552,39 +473,58 @@ const ChatRoom = () => {
   }
 
   const sendChat = async () => {
-    const message = messageText.trim();
-    
-    if (!message) {
-      console.warn('⚠️ 빈 메시지는 전송할 수 없습니다.');
-      return;
-    }
-    
-    if (!channel) {
-      console.error('❌ 채널이 없습니다. Ably 연결을 확인해주세요.');
-      return;
-    }
-    
-    // 채널 상태 확인
+    const text = messageText.trim();
+    if (!text || !channel) return;
+
     if (channel.state !== 'attached' && channel.state !== 'attaching') {
-      console.warn('⚠️ 채널이 attached 상태가 아닙니다. 현재 상태:', channel.state);
       try {
-        // 채널을 attach 시도
         await channel.attach();
-        console.log('✅ 채널 attach 완료');
-      } catch (error) {
-        console.error('❌ 채널 attach 실패:', error);
+      } catch (e) {
+        console.error('채널 attach 실패:', e);
         return;
       }
     }
-    
+
+    const id = uuid();
+    const tamerName = ably?.auth?.clientId || 'Unknown';
+    const ts = Date.now();
+
+    // 1) 낙관적 추가 (Ably echo 시 clientTempId로 dedup)
+    setChatLog((prev) => {
+      const next = [...prev, {
+        id,
+        user: tamerName,
+        text,
+        time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: ts,
+      }].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      return next.slice(-MAX_MESSAGES);
+    });
+    setMessageText('');
+
+    // 2) Ably 실시간 전송 (객체: text + clientTempId로 수신 측 dedup)
     try {
-      console.log('📤 메시지 전송 시도:', message);
-      await channel.publish('chat-message', message);
-      console.log('✅ 메시지 전송 성공:', message);
-      setMessageText('');
-    } catch (error) {
-      console.error('❌ 메시지 전송 실패:', error);
+      await channel.publish('chat-message', { text, clientTempId: id });
+    } catch (e) {
+      console.error('Ably 전송 실패:', e);
+      setChatLog((prev) => prev.filter((m) => m.id !== id));
       alert('메시지 전송에 실패했습니다. 다시 시도해주세요.');
+      return;
+    }
+
+    // 3) Supabase 저장 (firebase_uid로 Firebase 사용자와 매칭)
+    if (isSupabaseConfigured() && supabase) {
+      supabase
+        .from('chat_messages')
+        .insert([{
+          id,
+          tamer_name: tamerName,
+          content: text,
+          firebase_uid: currentUser?.uid ?? null,
+        }])
+        .then(({ error }) => {
+          if (error) console.warn('Supabase 채팅 저장 실패:', error.message);
+        });
     }
   };
 
