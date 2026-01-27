@@ -35,6 +35,7 @@ import EvolutionConfirmModal from "./EvolutionConfirmModal";
 import EvolutionGuideModal from "./EvolutionGuideModal";
 import { addActivityLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
+import { checkEvolution } from "../logic/evolution/checker";
 
 /**
  * GameModals 컴포넌트
@@ -750,16 +751,38 @@ export default function GameModals({
       )}
 
       {/* Evolution Confirm Modal (진화 확인) */}
-      {modals.evolutionConfirm && (
-        <EvolutionConfirmModal
-          onConfirm={handlers?.proceedEvolution || (() => {})}
-          onOpenGuide={() => {
-            toggleModal('evolutionConfirm', false);
-            toggleModal('evolutionGuide', true);
-          }}
-          onClose={() => toggleModal('evolutionConfirm', false)}
-        />
-      )}
+      {modals.evolutionConfirm && (() => {
+        // 진화 가능 여부 확인
+        let canEvolve = true;
+        let remainingTime = null;
+        
+        if (digimonStats && currentDigimonData && newDigimonDataVer1) {
+          const evolutionResult = checkEvolution(
+            digimonStats,
+            currentDigimonData,
+            currentDigimonKey,
+            newDigimonDataVer1
+          );
+          
+          canEvolve = evolutionResult.success;
+          if (evolutionResult.reason === "NOT_READY" && evolutionResult.remainingTime) {
+            remainingTime = evolutionResult.remainingTime;
+          }
+        }
+        
+        return (
+          <EvolutionConfirmModal
+            onConfirm={handlers?.proceedEvolution || (() => {})}
+            onOpenGuide={() => {
+              toggleModal('evolutionConfirm', false);
+              toggleModal('evolutionGuide', true);
+            }}
+            onClose={() => toggleModal('evolutionConfirm', false)}
+            canEvolve={canEvolve}
+            remainingTime={remainingTime}
+          />
+        );
+      })()}
 
       {/* Evolution Guide Modal (진화 가이드) */}
       {modals.evolutionGuide && (

@@ -1538,8 +1538,8 @@ async function setSelectedDigimonAndSave(name) {
         <div className="flex items-center justify-center space-x-2 mt-1 pb-20">
       <button
         onClick={handleEvolutionButton}
-            disabled={!isEvoEnabled || isEvolving}
-            className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${isEvoEnabled && !isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+            disabled={isEvolving}
+            className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
             style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
       >
         <span className="whitespace-nowrap">진화!</span>

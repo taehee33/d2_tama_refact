@@ -1,5 +1,27 @@
 // src/components/EvolutionConfirmModal.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
+
+/**
+ * 남은 시간을 포맷팅하는 함수
+ * @param {number} seconds - 남은 시간 (초)
+ * @returns {string} "x일 x시간 x분 x초" 형식의 문자열
+ */
+function formatRemainingTime(seconds) {
+  if (!seconds || seconds <= 0) return "";
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days}일`);
+  if (hours > 0) parts.push(`${hours}시간`);
+  if (minutes > 0) parts.push(`${minutes}분`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}초`);
+  
+  return parts.join(" ");
+}
 
 /**
  * 진화 확인 모달 컴포넌트
@@ -9,7 +31,39 @@ export default function EvolutionConfirmModal({
   onConfirm,
   onOpenGuide,
   onClose,
+  canEvolve = true,
+  remainingTime = null,
 }) {
+  const [currentRemainingTime, setCurrentRemainingTime] = useState(remainingTime);
+  
+  // 실시간으로 남은 시간 업데이트
+  useEffect(() => {
+    if (!remainingTime || remainingTime <= 0) {
+      setCurrentRemainingTime(null);
+      return;
+    }
+    
+    setCurrentRemainingTime(remainingTime);
+    
+    const interval = setInterval(() => {
+      setCurrentRemainingTime((prev) => {
+        if (!prev || prev <= 0) {
+          clearInterval(interval);
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [remainingTime]);
+  
+  const isDisabled = !canEvolve;
+  const timeText = currentRemainingTime ? formatRemainingTime(currentRemainingTime) : "";
+  const buttonText = isDisabled && timeText 
+    ? `진화(${timeText})`
+    : "진화";
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
@@ -34,12 +88,19 @@ export default function EvolutionConfirmModal({
         <div className="flex flex-col gap-3 mt-6">
           <button
             onClick={() => {
-              onConfirm();
-              onClose();
+              if (!isDisabled) {
+                onConfirm();
+                onClose();
+              }
             }}
-            className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
+            disabled={isDisabled}
+            className={`px-6 py-3 text-white font-bold rounded pixel-art-button ${
+              isDisabled 
+                ? "bg-gray-500 cursor-not-allowed" 
+                : "bg-green-500 hover:bg-green-600"
+            }`}
           >
-            진화
+            {buttonText}
           </button>
           <button
             onClick={() => {

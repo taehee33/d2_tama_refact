@@ -46,10 +46,11 @@ const OnlineUsersCount = () => {
       <button
         ref={buttonRef}
         onClick={handleClick}
-        className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-semibold hover:bg-green-200 transition-colors cursor-pointer"
+        className="flex items-center gap-1.5 px-2 py-1.5 bg-green-100 text-green-800 border border-gray-800 rounded text-xs font-semibold hover:bg-green-200 transition-colors cursor-pointer"
       >
         <span>🟢</span>
         <span>접속: {presenceCount}명</span>
+        <span className="text-xs text-gray-600">▼</span>
       </button>
 
       {/* 플로팅 팝업 */}
