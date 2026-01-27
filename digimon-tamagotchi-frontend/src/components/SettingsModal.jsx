@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { translateStage } from "../utils/stageTranslator";
-import { 
-  getTamerName, 
-  updateTamerName, 
-  resetToDefaultTamerName, 
-  checkNicknameAvailability 
-} from "../utils/tamerNameUtils";
 
 const SettingsModal = ({
   onClose,
@@ -38,13 +32,6 @@ const SettingsModal = ({
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   
-  // 테이머명 관련 상태
-  const [tamerName, setTamerName] = useState("");
-  const [tamerNameInput, setTamerNameInput] = useState("");
-  const [tamerNameLoading, setTamerNameLoading] = useState(false);
-  const [tamerNameMessage, setTamerNameMessage] = useState("");
-  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
-  
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
   const [localHeight, setLocalHeight] = useState(height);
@@ -59,96 +46,6 @@ const SettingsModal = ({
     setLocalDevMode(developerMode);
     setAspectRatio(height / width); // 비율 업데이트
   }, [width, height, developerMode]);
-
-  // 테이머명 로드
-  useEffect(() => {
-    const loadTamerName = async () => {
-      if (currentUser) {
-        try {
-          const name = await getTamerName(currentUser.uid, currentUser.displayName);
-          setTamerName(name);
-          setTamerNameInput(name);
-        } catch (error) {
-          console.error("테이머명 로드 오류:", error);
-        }
-      }
-    };
-    loadTamerName();
-  }, [currentUser]);
-
-  // 테이머명 중복 확인
-  const handleCheckAvailability = async () => {
-    if (!tamerNameInput.trim()) {
-      setTamerNameMessage("테이머명을 입력해주세요.");
-      return;
-    }
-
-    setIsCheckingAvailability(true);
-    setTamerNameMessage("");
-
-    try {
-      const result = await checkNicknameAvailability(tamerNameInput.trim(), tamerName);
-      setTamerNameMessage(result.message);
-    } catch (error) {
-      setTamerNameMessage(`오류: ${error.message}`);
-    } finally {
-      setIsCheckingAvailability(false);
-    }
-  };
-
-  // 테이머명 저장
-  const handleSaveTamerName = async () => {
-    if (!currentUser) return;
-
-    setTamerNameLoading(true);
-    setTamerNameMessage("");
-
-    try {
-      const oldName = tamerName;
-      await updateTamerName(currentUser.uid, tamerNameInput.trim(), oldName);
-      const newName = tamerNameInput.trim();
-      setTamerName(newName);
-      setTamerNameMessage("테이머명이 저장되었습니다.");
-      
-      // 페이지 새로고침하여 모든 화면에 반영
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (error) {
-      setTamerNameMessage(`오류: ${error.message}`);
-    } finally {
-      setTamerNameLoading(false);
-    }
-  };
-
-  // 기본값으로 복구
-  const handleResetToDefault = async () => {
-    if (!currentUser) return;
-
-    setTamerNameLoading(true);
-    setTamerNameMessage("");
-
-    try {
-      await resetToDefaultTamerName(
-        currentUser.uid, 
-        currentUser.displayName, 
-        tamerName !== currentUser.displayName ? tamerName : null
-      );
-      const defaultName = currentUser.displayName || `Trainer_${currentUser.uid.slice(0, 6)}`;
-      setTamerName(defaultName);
-      setTamerNameInput(defaultName);
-      setTamerNameMessage("기본값으로 복구되었습니다.");
-      
-      // 페이지 새로고침하여 모든 화면에 반영
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (error) {
-      setTamerNameMessage(`오류: ${error.message}`);
-    } finally {
-      setTamerNameLoading(false);
-    }
-  };
 
   // PWA 설치 프롬프트 감지
   useEffect(() => {
@@ -337,59 +234,6 @@ const SettingsModal = ({
 
         {/* 스크롤 가능한 컨텐츠 영역 */}
         <div className="flex-1 overflow-y-auto p-6 pt-4">
-          {/* 테이머명 설정 */}
-          {currentUser && (
-            <div className="mb-4 pb-4 border-b border-gray-300">
-              <label className="block font-semibold mb-2">테이머명</label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={tamerNameInput}
-                    onChange={(e) => {
-                      setTamerNameInput(e.target.value);
-                      setTamerNameMessage("");
-                    }}
-                    placeholder="테이머명을 입력하세요"
-                    className="flex-1 p-2 border border-gray-300 rounded"
-                    maxLength={20}
-                  />
-                  <button
-                    onClick={handleCheckAvailability}
-                    disabled={isCheckingAvailability || !tamerNameInput.trim()}
-                    className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {isCheckingAvailability ? "확인 중..." : "중복 확인"}
-                  </button>
-                </div>
-                {tamerNameMessage && (
-                  <p className={`text-sm ${tamerNameMessage.includes("오류") || tamerNameMessage.includes("이미 사용") || tamerNameMessage.includes("부족") ? "text-red-500" : tamerNameMessage.includes("저장") || tamerNameMessage.includes("복구") ? "text-green-500" : "text-gray-600"}`}>
-                    {tamerNameMessage}
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveTamerName}
-                    disabled={tamerNameLoading || tamerNameInput.trim() === tamerName || !tamerNameInput.trim()}
-                    className="flex-1 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {tamerNameLoading ? "저장 중..." : "저장"}
-                  </button>
-                  <button
-                    onClick={handleResetToDefault}
-                    disabled={tamerNameLoading || tamerName === (currentUser.displayName || `Trainer_${currentUser.uid.slice(0, 6)}`)}
-                    className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    기본값 복구
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  현재 테이머명: <span className="font-semibold">{tamerName}</span>
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Dev Mode */}
           <div className="mb-4">
             <label className="block font-semibold">Developer Mode</label>
