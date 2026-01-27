@@ -92,6 +92,9 @@ export function initializeStats(digiName, oldStats = {}, dataMap = {}) {
  */
 export function updateLifespan(stats, deltaSec = 1, isSleeping = false) {
   if (stats.isDead) return stats;
+  
+  // 냉장고 상태에서는 모든 수치 고정 (시간 정지)
+  if (stats.isFrozen) return stats;
 
   const s = { ...stats };
   s.lifespanSeconds += deltaSec;
@@ -236,29 +239,10 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   const now = new Date();
   
-  // 냉장고 상태 체크
-  if (stats.isFrozen && stats.frozenAt) {
-    // 냉장고에 넣은 시간 이후의 경과 시간을 계산에서 제외
-    const frozenTime = typeof stats.frozenAt === 'number' 
-      ? stats.frozenAt 
-      : new Date(stats.frozenAt).getTime();
-    
-    // frozenAt 이후의 시간은 계산하지 않음
-    // lastSavedAt을 frozenAt으로 조정하여 경과 시간을 0으로 만듦
-    const adjustedLastSaved = Math.max(
-      lastSaved.getTime(),
-      frozenTime
-    );
-    
-    // 조정된 시간으로 경과 시간 재계산
-    const adjustedElapsedSeconds = Math.floor((now.getTime() - adjustedLastSaved) / 1000);
-    
-    if (adjustedElapsedSeconds <= 0) {
-      // 냉장고 상태에서는 모든 수치 고정 (경과 시간 0으로 처리)
-      return { ...stats, lastSavedAt: now };
-    }
-    
-    // 냉장고 상태에서는 경과 시간을 0으로 처리 (모든 수치 고정)
+  // 냉장고 상태 체크: 냉장고에 넣은 경우 모든 수치 고정 (시간 정지)
+  if (stats.isFrozen) {
+    // 냉장고 상태에서는 모든 수치 고정 (경과 시간 0으로 처리)
+    // lastSavedAt만 업데이트하여 다음 lazy update가 정상 작동하도록 함
     return { ...stats, lastSavedAt: now };
   }
   
@@ -364,33 +348,35 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     }
   }
 
-  // 배고픔/힘이 0이고 12시간 경과 시 사망
-  if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
-    const hungerZeroTime =
-      typeof updatedStats.lastHungerZeroAt === "number"
-        ? updatedStats.lastHungerZeroAt
-        : new Date(updatedStats.lastHungerZeroAt).getTime();
-    const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
+  // 배고픔/힘이 0이고 12시간 경과 시 사망 (냉장고 상태에서는 사망하지 않음)
+  if (!updatedStats.isFrozen) {
+    if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
+      const hungerZeroTime =
+        typeof updatedStats.lastHungerZeroAt === "number"
+          ? updatedStats.lastHungerZeroAt
+          : new Date(updatedStats.lastHungerZeroAt).getTime();
+      const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
 
-    if (elapsedSinceZero >= 43200) {
-      updatedStats.isDead = true;
+      if (elapsedSinceZero >= 43200) {
+        updatedStats.isDead = true;
+      }
+    } else if (updatedStats.fullness > 0) {
+      updatedStats.lastHungerZeroAt = null;
     }
-  } else if (updatedStats.fullness > 0) {
-    updatedStats.lastHungerZeroAt = null;
-  }
 
-  if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
-    const strengthZeroTime =
-      typeof updatedStats.lastStrengthZeroAt === "number"
-        ? updatedStats.lastStrengthZeroAt
-        : new Date(updatedStats.lastStrengthZeroAt).getTime();
-    const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
+    if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
+      const strengthZeroTime =
+        typeof updatedStats.lastStrengthZeroAt === "number"
+          ? updatedStats.lastStrengthZeroAt
+          : new Date(updatedStats.lastStrengthZeroAt).getTime();
+      const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
 
-    if (elapsedSinceZero >= 43200) {
-      updatedStats.isDead = true;
+      if (elapsedSinceZero >= 43200) {
+        updatedStats.isDead = true;
+      }
+    } else if (updatedStats.strength > 0) {
+      updatedStats.lastStrengthZeroAt = null;
     }
-  } else if (updatedStats.strength > 0) {
-    updatedStats.lastStrengthZeroAt = null;
   }
 
   // Energy 회복 처리
@@ -516,6 +502,11 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
  */
 export function handleEnergyRecovery(stats, sleepSchedule = null, maxEnergy = null, now = new Date()) {
   if (!maxEnergy || stats.isDead) {
+    return stats;
+  }
+  
+  // 냉장고 상태에서는 에너지 회복 멈춤 (시간 정지)
+  if (stats.isFrozen) {
     return stats;
   }
 

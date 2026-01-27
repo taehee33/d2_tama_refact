@@ -84,6 +84,10 @@ export function useFridge({
       takeOutAt: Date.now(), // 꺼내기 애니메이션 시작 시간 기록
       // lastSavedAt을 현재 시간으로 업데이트하여 다음 Lazy Update가 정상 작동하도록
       lastSavedAt: new Date(),
+      // 냉장고에 넣은 동안 시간이 멈췄으므로, 힘이 0이었던 시간 타이머 리셋
+      // (냉장고에서 꺼낸 후부터 다시 12시간 카운트 시작)
+      lastHungerZeroAt: currentStats.fullness === 0 ? Date.now() : currentStats.lastHungerZeroAt,
+      lastStrengthZeroAt: currentStats.strength === 0 ? Date.now() : currentStats.lastStrengthZeroAt,
     };
     
     // 냉장고 전용 대사

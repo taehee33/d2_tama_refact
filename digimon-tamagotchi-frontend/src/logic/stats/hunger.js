@@ -13,6 +13,8 @@
  */
 export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSleeping = false) {
   if (currentStats.isDead) return currentStats;
+  // 냉장고 상태에서는 모든 수치 고정 (시간 정지)
+  if (currentStats.isFrozen) return currentStats;
   // 수면 중에는 타이머 감소하지 않음
   if (isSleeping) return currentStats;
 
