@@ -7,6 +7,7 @@ import { useChannel, usePresence, usePresenceListener, useAbly } from 'ably/reac
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { getDeviceHint, getPresenceDisplayName, getDeviceIndex, formatDeviceSuffix } from '../utils/presenceUtils';
+import { formatTimestamp } from '../utils/dateUtils';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
@@ -227,7 +228,7 @@ const ChatRoom = () => {
         id: messageId,
         user,
         text: msgText,
-        time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        time: formatTimestamp(ts, 'short'),
         timestamp: ts,
         deviceHint: deviceHint || null,
         deviceIndex: deviceIndex ?? null,
@@ -275,7 +276,7 @@ const ChatRoom = () => {
           id: messageId,
           user,
           text: msgText,
-          time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+          time: formatTimestamp(ts, 'short'),
           timestamp: ts,
           deviceHint: deviceHint || null,
           deviceIndex: deviceIndex ?? null,
@@ -360,7 +361,7 @@ const ChatRoom = () => {
             id: m.id,
             user: m.tamer_name || 'Unknown',
             text: m.content,
-            time: new Date(m.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+            time: formatTimestamp(new Date(m.created_at), 'short'),
             timestamp: new Date(m.created_at).getTime(),
           }));
           setChatLog(list);
@@ -509,7 +510,7 @@ const ChatRoom = () => {
         id,
         user: tamerName,
         text,
-        time: new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+        time: formatTimestamp(ts, 'short'),
         timestamp: ts,
         deviceHint: deviceHint || null,
         deviceIndex: deviceIndex || null,
