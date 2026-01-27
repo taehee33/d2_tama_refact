@@ -44,13 +44,17 @@ function isWithinSleepSchedule(schedule, nowDate = new Date()) {
 
 /**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
+ * 순수 함수로 동작하여 업데이트된 스탯을 반환합니다.
+ * 저장은 호출하는 쪽에서 통합하여 처리합니다.
+ * 
  * @param {Object} digimonStats - 디지몬 스탯
  * @param {Function} setWakeUntil - wakeUntil 설정 함수
- * @param {Function} setDigimonStatsAndSave - 스탯 저장 함수
+ * @param {Function} setDigimonStatsAndSave - 스탯 저장 함수 (사용하지 않음, 호환성을 위해 유지)
  * @param {boolean} isSleepTime - 정규 수면 시간 여부
  * @param {Function} onSleepDisturbance - 수면 방해 콜백
+ * @returns {Object} 업데이트된 디지몬 스탯 (sleepDisturbances가 증가된 상태)
  */
-function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime = true, onSleepDisturbance = null) {
+export function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime = true, onSleepDisturbance = null) {
   const until = Date.now() + 10 * 60 * 1000; // 10분
   setWakeUntil(until);
   
@@ -66,12 +70,17 @@ function wakeForInteraction(digimonStats, setWakeUntil, setDigimonStatsAndSave, 
       ? (digimonStats.sleepDisturbances || 0) + 1 
       : (digimonStats.sleepDisturbances || 0)
   };
-  setDigimonStatsAndSave(updated);
+  
+  // 저장은 호출하는 쪽에서 통합하여 처리하도록 변경 (중복 저장 방지)
+  // setDigimonStatsAndSave(updated);
   
   // 수면 방해 콜백 호출 (낮잠 중이 아닐 때만)
   if (onSleepDisturbance && isSleepTime && !isNapTime) {
     onSleepDisturbance();
   }
+  
+  // 업데이트된 스탯 반환 (호출하는 쪽에서 사용)
+  return updated;
 }
 
 /**
@@ -252,8 +261,11 @@ export function useGameActions({
       const schedule = getSleepSchedule(digimonData, selectedDigimon, currentStats);
       const isSleepTime = isWithinSleepSchedule(schedule, new Date());
       const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
+      
+      // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+      let statsAfterWake = currentStats;
       if (nowSleeping) {
-        wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+        statsAfterWake = wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
         // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
         setDigimonStats((prevStats) => {
           const actionType = type === 'meat' ? '고기' : '프로틴';
@@ -263,9 +275,9 @@ export function useGameActions({
             timestamp: Date.now()
           };
           const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+          // statsAfterWake에 이미 증가된 sleepDisturbances가 포함되어 있으므로 중복 증가 제거
           const statsWithLogs = {
-            ...currentStats,
-            sleepDisturbances: (currentStats.sleepDisturbances || 0) + 1,
+            ...statsAfterWake,
             activityLogs: updatedLogs
           };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -274,26 +286,29 @@ export function useGameActions({
           return statsWithLogs;
         });
       }
-      const oldFullness = currentStats.fullness || 0;
-      const oldWeight = currentStats.weight || 0;
-      const oldStrength = currentStats.strength || 0;
-      const oldEnergy = currentStats.energy || 0;
-      const oldOverfeeds = currentStats.overfeeds || 0;
+      // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 currentStats 사용
+      const baseStats = nowSleeping ? statsAfterWake : currentStats;
+      
+      const oldFullness = baseStats.fullness || 0;
+      const oldWeight = baseStats.weight || 0;
+      const oldStrength = baseStats.strength || 0;
+      const oldEnergy = baseStats.energy || 0;
+      const oldOverfeeds = baseStats.overfeeds || 0;
       
       // 먹이기 로직 실행 (결과 객체도 함께 받음)
       let eatResult;
       let updatedStats;
       if (isRefused && type === "meat") {
         // 거절 상태이고 "아니오"를 선택한 경우: feedMeat 호출하지 않음 (overfeed 증가 없음)
-        updatedStats = currentStats;
+        updatedStats = baseStats;
         eatResult = { updatedStats, fullnessIncreased: false, canEatMore: false, isOverfeed: false };
       } else if (type === "meat") {
         // 거절 상태에서 "예"를 선택한 경우 forceFeed = true로 전달
-        const wasRefusing = willRefuseMeat(currentStats);
-        eatResult = feedMeat(currentStats, wasRefusing && !isRefused); // wasRefusing이 true이고 isRefused가 false면 forceFeed = true
+        const wasRefusing = willRefuseMeat(baseStats);
+        eatResult = feedMeat(baseStats, wasRefusing && !isRefused); // wasRefusing이 true이고 isRefused가 false면 forceFeed = true
         updatedStats = eatResult.updatedStats;
       } else {
-        eatResult = feedProtein(currentStats);
+        eatResult = feedProtein(baseStats);
         updatedStats = eatResult.updatedStats;
       }
       
@@ -321,7 +336,7 @@ export function useGameActions({
           oldOverfeeds,
           newOverfeeds,
           isOverfeed: eatResult.isOverfeed,
-          maxFullness: 5 + (currentStats.maxOverfeed || 0),
+          maxFullness: 5 + (baseStats.maxOverfeed || 0),
         });
       }
       
@@ -417,8 +432,11 @@ export function useGameActions({
     const schedule = getSleepSchedule(digimonData, selectedDigimon, updatedStats);
     const isSleepTime = isWithinSleepSchedule(schedule, new Date());
     const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
+    
+    // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+    let statsAfterWake = updatedStats;
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+      statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {
@@ -427,9 +445,9 @@ export function useGameActions({
           timestamp: Date.now()
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        // statsAfterWake에 이미 증가된 sleepDisturbances가 포함되어 있으므로 중복 증가 제거
         const statsWithLogs = {
-          ...updatedStats,
-          sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1,
+          ...statsAfterWake,
           activityLogs: updatedLogs
         };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -439,10 +457,12 @@ export function useGameActions({
       });
     }
     
-    setDigimonStats(updatedStats);
+    // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 updatedStats 사용
+    const baseStats = nowSleeping ? statsAfterWake : updatedStats;
+    setDigimonStats(baseStats);
     
     // Weight 체크: Weight가 0 이하면 훈련 불가
-    if ((updatedStats.weight || 0) <= 0) {
+    if ((baseStats.weight || 0) <= 0) {
       setDigimonStats((prevStats) => {
         const newLog = {
           type: 'TRAIN',
@@ -464,7 +484,7 @@ export function useGameActions({
     }
     
     // 에너지 부족 체크
-    if ((updatedStats.energy || 0) <= 0) {
+    if ((baseStats.energy || 0) <= 0) {
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const newLog = {
@@ -474,7 +494,7 @@ export function useGameActions({
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
         const statsWithLogs = {
-          ...updatedStats,
+          ...baseStats,
           activityLogs: updatedLogs
         };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -489,7 +509,7 @@ export function useGameActions({
     
     // userSelections: 길이5의 "U"/"D" 배열
     // doVer1Training -> stats 업데이트
-    const result = doVer1Training(updatedStats, userSelections);
+    const result = doVer1Training(baseStats, userSelections);
     let finalStats = result.updatedStats;
     
     // 호출 해제: strength > 0이 되면 strength 호출 리셋
@@ -952,8 +972,11 @@ export function useGameActions({
     const schedule = getSleepSchedule(digimonData, selectedDigimon, updatedStats);
     const isSleepTime = isWithinSleepSchedule(schedule, new Date());
     const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
+    
+    // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+    let statsAfterWake = updatedStats;
     if (nowSleeping) {
-      wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+      statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
         const battleTypeText = battleType === 'quest' ? '퀘스트' : battleType === 'sparring' ? '스파링' : battleType === 'arena' ? '아레나' : '배틀';
@@ -963,9 +986,9 @@ export function useGameActions({
           timestamp: Date.now()
         };
         const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        // statsAfterWake에 이미 증가된 sleepDisturbances가 포함되어 있으므로 중복 증가 제거
         const statsWithLogs = {
-          ...updatedStats,
-          sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1,
+          ...statsAfterWake,
           activityLogs: updatedLogs
         };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -975,14 +998,17 @@ export function useGameActions({
       });
     }
     
+    // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 updatedStats 사용
+    const baseStats = nowSleeping ? statsAfterWake : updatedStats;
+    
     // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
-    const oldWeight = updatedStats.weight || 0;
-    const oldEnergy = updatedStats.energy || 0;
+    const oldWeight = baseStats.weight || 0;
+    const oldEnergy = baseStats.energy || 0;
     
     const battleStats = {
-      ...updatedStats,
-      weight: Math.max(0, (updatedStats.weight || 0) - 4),
-      energy: Math.max(0, (updatedStats.energy || 0) - 1),
+      ...baseStats,
+      weight: Math.max(0, (baseStats.weight || 0) - 4),
+      energy: Math.max(0, (baseStats.energy || 0) - 1),
     };
     
     const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';

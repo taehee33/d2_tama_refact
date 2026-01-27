@@ -7,6 +7,7 @@ import { addActivityLog, resetCallStatus } from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule, isWithinSleepSchedule } from "./useGameHandlers";
+import { wakeForInteraction } from "./useGameActions";
 
 /**
  * useGameAnimations Hook
@@ -178,9 +179,10 @@ export function useGameAnimations({
       
       // 수면 중 청소 시도 시 수면 방해 처리 (실제 액션 수행 시점)
       const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, digimonStats);
-      const nowSleeping = isWithinSleepSchedule(schedule, now) && !(wakeUntil && Date.now() < wakeUntil);
+      const isSleepTime = isWithinSleepSchedule(schedule, now);
+      const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
       
-      let updatedStats = {
+      let baseStats = {
         ...digimonStats,
         poopCount: 0,
         lastMaxPoopTime: null,
@@ -189,16 +191,10 @@ export function useGameAnimations({
         lastSavedAt: now
       };
       
-      // 수면방해 처리
+      // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+      let updatedStats = baseStats;
       if (nowSleeping && setWakeUntil) {
-        const until = Date.now() + 10 * 60 * 1000; // 10분
-        setWakeUntil(until);
-        updatedStats.wakeUntil = until;
-        updatedStats.sleepDisturbances = (updatedStats.sleepDisturbances || 0) + 1;
-        // 수면 방해 콜백 호출
-        if (onSleepDisturbance) {
-          onSleepDisturbance();
-        }
+        updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       }
       
       // Activity Log 추가
@@ -248,7 +244,8 @@ export function useGameAnimations({
     
     // 수면 중 치료 시도 시 수면 방해 처리 (실제 액션 수행 시점)
     const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, currentStats);
-    const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
+    const isSleepTime = isWithinSleepSchedule(schedule, new Date());
+    const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
     
     // 치료 로직
     const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
@@ -267,21 +264,15 @@ export function useGameAnimations({
     const randomTreatment = treatmentTypes[Math.floor(Math.random() * treatmentTypes.length)];
     const treatmentMessage = `${randomTreatment} 성공`;
     
-    let updatedStats = {
+    let baseStats = {
       ...currentStats,
       healedDosesCurrent: newHealedDoses,
     };
     
-    // 수면방해 처리
+    // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+    let updatedStats = baseStats;
     if (nowSleeping && setWakeUntil) {
-      const until = Date.now() + 10 * 60 * 1000; // 10분
-      setWakeUntil(until);
-      updatedStats.wakeUntil = until;
-      updatedStats.sleepDisturbances = (updatedStats.sleepDisturbances || 0) + 1;
-      // 수면 방해 콜백 호출
-      if (onSleepDisturbance) {
-        onSleepDisturbance();
-      }
+      updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
     }
     
     // 필요 치료 횟수 충족 시 완전 회복
