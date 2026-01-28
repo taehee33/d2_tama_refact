@@ -168,6 +168,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
               showLabels={true}
               size="sm"
               position="inline"
+              isFrozen={stats.isFrozen || false}
             />
             
           </div>

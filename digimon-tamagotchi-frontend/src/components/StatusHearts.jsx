@@ -13,6 +13,7 @@ const StatusHearts = ({
   showLabels = true,
   size = "md", // "sm" | "md" | "lg"
   position = "top-left", // "top-left" | "top-right" | "bottom-left" | "bottom-right" | "inline"
+  isFrozen = false, // 냉장고 상태 (얼어있음)
 }) => {
   // 하트 크기 설정
   const heartSize = {
@@ -190,6 +191,11 @@ const StatusHearts = ({
         <div className="flex items-center">
           {renderHearts(baseFullness, 5, "red", showLabels ? "🍖 Fullness" : "")}
           {renderOverfeed()}
+          {isFrozen && (
+            <span className="text-blue-600 text-xs font-semibold ml-2">
+              🧊 멈춤
+            </span>
+          )}
         </div>
         
         {/* Strength (단백질) */}
@@ -197,6 +203,11 @@ const StatusHearts = ({
           {renderHearts(strength, 5, "blue", showLabels ? "💪 Strength" : "")}
           {renderStrengthOver()}
           {renderProteinOverdose()}
+          {isFrozen && (
+            <span className="text-blue-600 text-xs font-semibold ml-2">
+              🧊 멈춤
+            </span>
+          )}
         </div>
       </div>
     );
@@ -228,6 +239,11 @@ const StatusHearts = ({
         <div className="flex items-center">
           {renderHearts(baseFullness, 5, "red", showLabels ? "🍖" : "")}
           {renderOverfeed()}
+          {isFrozen && (
+            <span className="text-blue-600 text-xs font-semibold ml-2">
+              🧊 멈춤
+            </span>
+          )}
         </div>
         
         {/* Strength (단백질) */}
@@ -235,6 +251,11 @@ const StatusHearts = ({
           {renderHearts(strength, 5, "blue", showLabels ? "💪" : "")}
           {renderStrengthOver()}
           {renderProteinOverdose()}
+          {isFrozen && (
+            <span className="text-blue-600 text-xs font-semibold ml-2">
+              🧊 멈춤
+            </span>
+          )}
         </div>
       </div>
     </div>
