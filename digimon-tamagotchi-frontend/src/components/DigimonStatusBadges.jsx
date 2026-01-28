@@ -138,7 +138,8 @@ const DigimonStatusBadges = ({
     }
 
     // 3.5. 수면 방해 - 깨어있는 시간 표시 (wakeUntil이 있을 때, 초 단위)
-    if (wakeUntil && currentTime < wakeUntil) {
+    // 냉장고 상태(isFrozen)에서는 수면 방해 개념 자체가 없으므로 표시하지 않음
+    if (!isFrozen && wakeUntil && currentTime < wakeUntil) {
       const remainingMs = wakeUntil - currentTime;
       const remainingMinutes = Math.floor(remainingMs / 60000);
       const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
