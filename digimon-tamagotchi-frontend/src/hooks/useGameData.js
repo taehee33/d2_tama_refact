@@ -465,6 +465,20 @@ export function useGameData({
               delete savedStats.proteinCount;
             }
             
+            // 스프라이트 값 동기화 확인 (데이터 일관성 보장)
+            // selectedDigimon과 digimonStats.sprite가 일치하지 않을 수 있으므로 수정
+            if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
+              const expectedSprite = digimonDataVer1[savedName].sprite;
+              if (expectedSprite !== undefined && savedStats.sprite !== expectedSprite) {
+                console.warn("[loadSlot] 스프라이트 불일치 감지 및 수정:", {
+                  selectedDigimon: savedName,
+                  savedSprite: savedStats.sprite,
+                  expectedSprite: expectedSprite,
+                });
+                savedStats.sprite = expectedSprite;
+              }
+            }
+            
             setSelectedDigimon(savedName);
             setDigimonStats(savedStats);
             

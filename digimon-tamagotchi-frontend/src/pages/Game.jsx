@@ -919,11 +919,16 @@ async function setSelectedDigimonAndSave(name) {
   // ⚠️ 중요: 오하카다몬은 고정 스프라이트만 사용하므로 기본 애니메이션 계산을 건너뜀
   let idleFrames, eatFramesArr, rejectFramesArr;
   
+  // ⚠️ 중요: 모든 프레임 계산에서 selectedDigimon에서 직접 스프라이트 가져오기
+  // digimonStats.sprite가 잘못된 값일 수 있으므로 데이터 일관성 보장
+  const digimonData = digimonDataVer1[selectedDigimon];
+  const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
+  
   if(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2"){
     // 오하카다몬은 고정 스프라이트만 사용 (애니메이션 없음)
-    idleFrames = [ `${digimonStats.sprite}` ];
-    eatFramesArr = [ `${digimonStats.sprite}` ];
-    rejectFramesArr = [ `${digimonStats.sprite}` ];
+    idleFrames = [ `${baseSprite}` ];
+    eatFramesArr = [ `${baseSprite}` ];
+    rejectFramesArr = [ `${baseSprite}` ];
     // 오하카다몬은 애니메이션 없이 고정 스프라이트만 표시
     if(currentAnimation !== "idle"){
       setCurrentAnimation("idle");
@@ -936,18 +941,18 @@ async function setSelectedDigimonAndSave(name) {
     const eatOff= digimonAnimations[eatAnimId]?.frames||[0];
     const rejectOff= digimonAnimations[rejectAnimId]?.frames||[14];
 
-    idleFrames= idleOff.map(n=> `${digimonStats.sprite + n}`);
-    eatFramesArr= eatOff.map(n=> `${digimonStats.sprite + n}`);
-    rejectFramesArr= rejectOff.map(n=> `${digimonStats.sprite + n}`);
+    idleFrames= idleOff.map(n=> `${baseSprite + n}`);
+    eatFramesArr= eatOff.map(n=> `${baseSprite + n}`);
+    rejectFramesArr= rejectOff.map(n=> `${baseSprite + n}`);
 
     // 애니메이션 우선순위: 죽음 > 부상 > 수면 > 일반
     // 죽음 상태: 모션 15번(아픔2) 사용, 스프라이트 14만 표시
     // ⚠️ 중요: 오하카다몬은 제외 (오하카다몬은 이미 환생한 상태이므로 isDead가 false여야 함)
     if(digimonStats.isDead){
       // 모션 15번 (아픔2) - 죽음 상태에서는 sprite+14만 표시
-      idleFrames= [ `${digimonStats.sprite+14}` ];
-      eatFramesArr= [ `${digimonStats.sprite+14}` ];
-      rejectFramesArr= [ `${digimonStats.sprite+14}` ];
+      idleFrames= [ `${baseSprite+14}` ];
+      eatFramesArr= [ `${baseSprite+14}` ];
+      rejectFramesArr= [ `${baseSprite+14}` ];
       // 죽음 상태에서는 항상 아픔2 모션 사용
       if(currentAnimation !== "pain2"){
         setCurrentAnimation("pain2");
@@ -957,7 +962,7 @@ async function setSelectedDigimonAndSave(name) {
     else if(digimonStats.isInjured){
       // 모션 10번 (sick) - digimonAnimations[10] = { name: "sick", frames: [13, 14] }
       // 스프라이트 13과 14를 번갈아 표시 (애니메이션 정의에 맞춤)
-      idleFrames = [`${digimonStats.sprite + 13}`, `${digimonStats.sprite + 14}`];
+      idleFrames = [`${baseSprite + 13}`, `${baseSprite + 14}`];
       eatFramesArr = idleFrames;
       rejectFramesArr = idleFrames;
       // 부상 상태에서는 항상 sick 모션 사용
@@ -968,8 +973,9 @@ async function setSelectedDigimonAndSave(name) {
     // 수면/피곤 상태: 모션 8번(sleep) 사용, 스프라이트 11과 12 표시
     // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
     // ⚠️ 디지타마는 수면 상태 없음
+    // baseSprite는 위에서 이미 계산됨
     else if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && selectedDigimon !== "Digitama"){
-      idleFrames = [`${digimonStats.sprite + 11}`, `${digimonStats.sprite + 12}`];
+      idleFrames = [`${baseSprite + 11}`, `${baseSprite + 12}`];
       eatFramesArr = idleFrames;
       rejectFramesArr = idleFrames;
       // 수면 상태에서는 sleep 모션 사용

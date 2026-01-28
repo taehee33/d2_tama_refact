@@ -489,7 +489,7 @@ export const digimonDataVer1 = {
     id: "Tyranomon",
     name: "티라노몬",
     stage: "Adult",
-    sprite: 290, // TODO: Check actual sprite
+    sprite: 285, // 레거시 데이터와 일치 (수면 프레임: 296, 297)
     stats: {
       hungerCycle: 59, // Hunger Loss: 59 Minutes
       strengthCycle: 59, // Strength Loss: 59 Minutes

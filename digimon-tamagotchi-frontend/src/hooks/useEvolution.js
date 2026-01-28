@@ -207,6 +207,17 @@ export function useEvolution({
     };
     
     const nx = initializeStats(newName, resetStats, digimonDataVer1);
+    
+    // 스프라이트 값 강제 동기화 (데이터 일관성 보장)
+    // digimonStats.sprite가 잘못된 값일 수 있으므로 digimonDataVer1에서 직접 가져오기
+    if (newDigimonData?.sprite !== undefined) {
+      nx.sprite = newDigimonData.sprite;
+      console.log("[evolve] 스프라이트 동기화:", {
+        digimon: newName,
+        sprite: newDigimonData.sprite,
+      });
+    }
+    
     // 진화 시 activityLogs 계승 (초기화하지 않음)
     const existingLogs = currentStats.activityLogs || activityLogs || [];
     const newDigimonName = newDigimonData.name || newName;

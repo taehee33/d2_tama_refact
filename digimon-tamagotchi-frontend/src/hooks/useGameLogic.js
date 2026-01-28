@@ -518,17 +518,29 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
   }
 
   // Sleep 호출 트리거 (수면 시간이고 불이 켜져있을 때)
-  const hour = now.getHours();
-  const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
-  const isSleepTime = (() => {
-    if (start === end) return false;
-    if (start < end) return hour >= start && hour < end;
-    return hour >= start || hour < end;
-  })();
+  // ⚠️ 중요: 실제로 잠들었을 때는 수면 호출 비활성화
+  if (isActuallySleeping) {
+    // 실제로 잠들었으면 수면 호출 비활성화
+    callStatus.sleep.isActive = false;
+    callStatus.sleep.startedAt = null;
+  } else {
+    // 잠들지 않았을 때만 수면 호출 체크
+    const hour = now.getHours();
+    const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
+    const isSleepTime = (() => {
+      if (start === end) return false;
+      if (start < end) return hour >= start && hour < end;
+      return hour >= start || hour < end;
+    })();
 
-  if (isSleepTime && isLightsOn && !callStatus.sleep.isActive) {
-    callStatus.sleep.isActive = true;
-    callStatus.sleep.startedAt = now.getTime();
+    if (isSleepTime && isLightsOn && !callStatus.sleep.isActive) {
+      callStatus.sleep.isActive = true;
+      callStatus.sleep.startedAt = now.getTime();
+    } else if (!isSleepTime || !isLightsOn) {
+      // 수면 시간이 아니거나 불이 꺼져있으면 수면 호출 비활성화
+      callStatus.sleep.isActive = false;
+      callStatus.sleep.startedAt = null;
+    }
   }
 
   return updatedStats;
