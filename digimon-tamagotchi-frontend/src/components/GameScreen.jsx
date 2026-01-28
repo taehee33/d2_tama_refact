@@ -114,8 +114,8 @@ const GameScreen = ({
         />
       )}
       
-      {/* 수면/피곤 상태 아이콘 */}
-      {(sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && (
+      {/* 수면/피곤 상태 아이콘 (냉장고 상태에서는 표시하지 않음) */}
+      {!isFrozen && (sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && (
         <div
           style={{
             position: "absolute",

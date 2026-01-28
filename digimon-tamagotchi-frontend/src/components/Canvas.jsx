@@ -119,8 +119,8 @@ const Canvas = ({
     imageSources["poop"]= poopSprite;    // "/images/533.png"
     imageSources["clean"]= cleanSprite;  // "/images/534.png"
     
-    // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외)
-    if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && selectedDigimon !== "Digitama"){
+    // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
+    if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
       zzzSprites.forEach((src, idx)=>{
         imageSources[`zzz${idx}`]= src;
       });
@@ -307,8 +307,8 @@ const Canvas = ({
         }
       }
 
-      // ★ (6) Zzz 애니메이션 (수면 상태, 사망 상태가 아닐 때만, 디지타마 제외)
-      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && selectedDigimon !== "Digitama"){
+      // ★ (6) Zzz 애니메이션 (수면 상태, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
+      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
         const zzzFrameIdx = Math.floor(frame/speed) % zzzSprites.length;
         const zzzKey = `zzz${zzzFrameIdx}`;
         const zzzImg = spriteCache.current[zzzKey];

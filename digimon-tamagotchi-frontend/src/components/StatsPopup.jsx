@@ -818,7 +818,12 @@ export default function StatsPopup({
       
       {/* Sec 4. 수면 정보 */}
       <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">4. 수면 정보</h3>
+        <h3 className="font-bold text-base mb-2">4. {isFrozen ? '냉장고 상태' : '수면 정보'}</h3>
+        {isFrozen ? (
+          <ul className="space-y-1">
+            <li className="text-blue-600 font-semibold">🧊 냉장고에 넣어서 얼어있음 (수면 개념 없음)</li>
+          </ul>
+        ) : (
         <ul className="space-y-1">
           <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? (
             <span>
@@ -1078,9 +1083,10 @@ export default function StatsPopup({
           })()}
           <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
         </ul>
+        )}
         
         {/* 수면 방해 이력 아코디언 */}
-        {sleepDisturbances > 0 && (
+        {!isFrozen && sleepDisturbances > 0 && (
           <SleepDisturbanceHistory 
             activityLogs={stats?.activityLogs || []} 
             formatTimestamp={formatTimestamp}
@@ -1296,6 +1302,14 @@ export default function StatsPopup({
           </li>
 
           {/* Sleep Call */}
+          {isFrozen ? (
+            <li className="border-l-4 pl-2 border-blue-300">
+              <div className="font-semibold">😴 Sleep Call (수면 호출)</div>
+              <div className="text-blue-600 ml-2">
+                🧊 냉장고 상태에서는 수면 개념이 없습니다
+              </div>
+            </li>
+          ) : (
           <li className="border-l-4 pl-2" style={{ borderColor: (sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn)) ? '#ef4444' : '#e5e7eb' }}>
             <div className="font-semibold">😴 Sleep Call (수면 호출)</div>
             <div className="text-xs text-gray-600 ml-2">
@@ -1335,6 +1349,8 @@ export default function StatsPopup({
               </div>
             )}
           </li>
+          )
+          }
         </ul>
         
         {/* 케어미스 발생 이력 */}

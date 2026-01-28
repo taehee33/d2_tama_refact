@@ -154,8 +154,8 @@ const DigimonStatusBadges = ({
       }
     }
 
-    // 4. 수면/피곤 상태
-    if (sleepStatus === "SLEEPING") {
+    // 4. 수면/피곤 상태 (냉장고 상태에서는 수면 개념이 없으므로 표시하지 않음)
+    if (!isFrozen && sleepStatus === "SLEEPING") {
       // 낮잠 중인지 확인
       const isNapTime = napUntil && currentTime < napUntil;
       
@@ -185,7 +185,7 @@ const DigimonStatusBadges = ({
       } else {
         messages.push({ text: "수면 중 😴", color: "text-blue-500", bgColor: "bg-blue-100", priority: 4, category: "info" });
       }
-    } else if (sleepStatus === "TIRED") {
+    } else if (!isFrozen && sleepStatus === "TIRED") {
       // TIRED 상태일 때 불 켜진 시간 카운트다운 표시
       if (sleepLightOnStart) {
         const elapsedMs = currentTime - sleepLightOnStart;
@@ -218,7 +218,8 @@ const DigimonStatusBadges = ({
 
     // 4.5. 수면까지 남은 시간 표시 (AWAKE 상태이고 wakeUntil이 없을 때)
     // 우선순위를 낮춰서 다른 중요한 상태 메시지 뒤에 표시
-    if (sleepStatus === "AWAKE" && !wakeUntil && sleepSchedule) {
+    // 냉장고 상태에서는 수면 개념이 없으므로 표시하지 않음
+    if (!isFrozen && sleepStatus === "AWAKE" && !wakeUntil && sleepSchedule) {
       const timeUntil = getTimeUntilSleep(sleepSchedule, new Date());
       messages.push({ 
         text: `수면까지 ${timeUntil} 😴`, 
