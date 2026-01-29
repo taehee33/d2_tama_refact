@@ -296,7 +296,38 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   }
 
   const now = new Date();
-  const elapsedSeconds = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
+  
+  // 냉장고 시간을 제외한 경과 시간 계산
+  let elapsedSeconds;
+  if (stats.isFrozen && stats.frozenAt) {
+    // 냉장고 상태: 냉장고에 넣은 시간 이후의 시간만 제외
+    const frozenTime = typeof stats.frozenAt === 'number' 
+      ? stats.frozenAt 
+      : new Date(stats.frozenAt).getTime();
+    const lastSavedTime = lastSaved.getTime();
+    
+    // 냉장고에 넣은 시간이 마지막 저장 시간보다 이후인 경우
+    if (frozenTime > lastSavedTime) {
+      // 냉장고에 넣기 전의 시간만 계산 (냉장고에 넣은 이후의 시간은 제외)
+      elapsedSeconds = Math.floor((frozenTime - lastSavedTime) / 1000);
+    } else {
+      // 냉장고에 넣은 시간이 마지막 저장 시간보다 이전이거나 같은 경우
+      // (냉장고에 넣은 후 저장했을 수 있음)
+      // 냉장고에 넣은 이후의 시간은 모두 제외하므로 경과 시간 = 0
+      elapsedSeconds = 0;
+    }
+    
+    // 경과 시간이 0이면 스탯 변경 없음
+    if (elapsedSeconds <= 0) {
+      // 냉장고에 넣은 이후의 시간만 있었으므로 스탯 변경 없음
+      // lastSavedAt만 업데이트하여 다음 lazy update가 정상 작동하도록 함
+      return { ...stats, lastSavedAt: now };
+    }
+    // 냉장고에 넣기 전의 시간이 있었다면 그 시간만큼만 스탯 변경
+  } else {
+    // 냉장고 상태가 아니면 일반 경과 시간 계산
+    elapsedSeconds = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
+  }
 
   // 경과 시간이 없거나 음수면 그대로 반환
   if (elapsedSeconds <= 0) {
