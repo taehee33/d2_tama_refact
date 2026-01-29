@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '../supabase';
 import { getDeviceHint, getPresenceDisplayName, getDeviceIndex, formatDeviceSuffix } from '../utils/presenceUtils';
 import { formatTimestamp } from '../utils/dateUtils';
+import { usePresenceContext } from '../contexts/AblyContext';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
@@ -194,14 +195,54 @@ const ChatRoomWithConnectionCheck = () => {
 
 const ChatRoom = () => {
   const { currentUser } = useAuth();
+  const { isChatOpen, setIsChatOpen, unreadCount, setUnreadCount, clearUnreadCount } = usePresenceContext();
   const [messageText, setMessageText] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [presenceStatus, setPresenceStatus] = useState('online'); // online, away, offline
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const chatBoxRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const historyLoadedRef = useRef(false); // 히스토리 로드 여부 추적
+  const isChatOpenRef = useRef(false); // 클로저 문제 해결을 위한 ref
+  const processedMessageIdsRef = useRef(new Set()); // 중복 메시지 처리 방지
 
   const ably = useAbly();
+  
+  // ChatRoom이 실제로 화면에 보이는지 확인 (Intersection Observer 사용)
+  useEffect(() => {
+    if (!chatContainerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isVisible = entries[0].isIntersecting;
+        console.log('📱 ChatRoom 가시성 변경:', isVisible ? '보임' : '숨김');
+        isChatOpenRef.current = isVisible; // ref 업데이트
+        setIsChatOpen(isVisible);
+        // 채팅창이 보이면 읽지 않은 메시지 수 초기화
+        if (isVisible) {
+          console.log('✅ 채팅창이 보임 - 알림 초기화');
+          clearUnreadCount();
+        }
+      },
+      {
+        threshold: 0.1, // 10% 이상 보이면 "열려있다"고 간주
+        rootMargin: '0px',
+      }
+    );
+
+    observer.observe(chatContainerRef.current);
+
+    return () => {
+      if (chatContainerRef.current) {
+        observer.unobserve(chatContainerRef.current);
+      }
+    };
+  }, [setIsChatOpen, clearUnreadCount]);
+
+  // unreadCount 디버깅
+  useEffect(() => {
+    console.log('🔔 unreadCount 변경:', unreadCount);
+  }, [unreadCount]);
   
   // 1. 자신의 Presence 관리 (enter/update)
   // usePresence는 자신을 presence set에 추가하고 상태를 업데이트
@@ -215,27 +256,9 @@ const ChatRoom = () => {
   const { presenceData } = usePresenceListener(CHANNEL_NAME);
   
   // 3. 채팅 메시지 수신 (Channel) — 발신은 sendChat에서 Ably + Supabase
-  const { channel } = useChannel(CHANNEL_NAME, (message) => {
-    if (message.name !== 'chat-message') return;
-    const { text: msgText, clientTempId, deviceHint, deviceIndex } = parseAblyData(message.data);
-    const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
-    const ts = message.timestamp || Date.now();
-    const user = message.clientId || 'Unknown';
-
-    setChatLog((prev) => {
-      if (prev.some(m => m.id === messageId)) return prev;
-      const newMessage = {
-        id: messageId,
-        user,
-        text: msgText,
-        time: formatTimestamp(ts, 'short'),
-        timestamp: ts,
-        deviceHint: deviceHint || null,
-        deviceIndex: deviceIndex ?? null,
-      };
-      const next = [...prev, newMessage].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-      return next.slice(-MAX_MESSAGES);
-    });
+  // 주의: useChannel 콜백은 중복 방지를 위해 사용하지 않고, 직접 리스너만 사용
+  const { channel } = useChannel(CHANNEL_NAME, () => {
+    // useChannel 콜백은 비워두고, 직접 리스너(messageHandler)만 사용하여 중복 처리 방지
   });
 
   // 4. 채널 상태 모니터링 및 메시지 구독
@@ -262,13 +285,40 @@ const ChatRoom = () => {
       console.log('❌ 채널 failed');
     });
 
-    // 채널 직접 리스너 (실시간 보장, useChannel 콜백과 동일 로직)
+    // 채널 직접 리스너 (실시간 보장, 중복 처리 방지)
     const messageHandler = (message) => {
       if (message.name !== 'chat-message') return;
       const { text: msgText, clientTempId, deviceHint, deviceIndex } = parseAblyData(message.data);
       const messageId = clientTempId || message.id || `ably_${message.timestamp}_${message.clientId || ''}_${Math.random()}`;
       const ts = message.timestamp || Date.now();
       const user = message.clientId || 'Unknown';
+
+      // 중복 메시지 처리 방지
+      if (processedMessageIdsRef.current.has(messageId)) {
+        console.log('⚠️ 중복 메시지 무시:', messageId);
+        return;
+      }
+      processedMessageIdsRef.current.add(messageId);
+      
+      // Set 크기 제한 (메모리 누수 방지)
+      if (processedMessageIdsRef.current.size > 1000) {
+        const firstId = Array.from(processedMessageIdsRef.current)[0];
+        processedMessageIdsRef.current.delete(firstId);
+      }
+
+      // 채팅창이 닫혀있을 때만 읽지 않은 메시지 수 증가
+      // 자신이 보낸 메시지는 제외 (clientId 비교)
+      const isOwnMessage = user === (ably?.auth?.clientId || 'Unknown');
+      // ref를 사용하여 최신 isChatOpen 상태 확인 (클로저 문제 해결)
+      if (!isChatOpenRef.current && !isOwnMessage) {
+        setUnreadCount((prev) => {
+          const newCount = prev + 1;
+          console.log('🔔 새 메시지 수신 - 알림 카운트:', prev, '→', newCount, '| isChatOpen:', isChatOpenRef.current, '| isOwnMessage:', isOwnMessage);
+          return newCount;
+        });
+      } else {
+        console.log('🔔 새 메시지 수신 - 알림 카운트 증가 안함 | isChatOpen:', isChatOpenRef.current, '| isOwnMessage:', isOwnMessage);
+      }
 
       setChatLog((prev) => {
         if (prev.some(m => m.id === messageId)) return prev;
@@ -365,6 +415,10 @@ const ChatRoom = () => {
             timestamp: new Date(m.created_at).getTime(),
           }));
           setChatLog(list);
+          // 히스토리 메시지 ID를 processedMessageIdsRef에 추가하여 중복 처리 방지
+          list.forEach((msg) => {
+            processedMessageIdsRef.current.add(msg.id);
+          });
           console.log(`✅ 채팅 히스토리 로드 완료 (Supabase): ${list.length}개`);
         }
       } catch (e) {
@@ -553,7 +607,7 @@ const ChatRoom = () => {
   };
 
   return (
-    <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
+    <div ref={chatContainerRef} className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
       {/* Presence 상태 컨트롤 */}
       <div className="presence-control mb-3 pb-3 border-b border-gray-300">
         <div className="flex items-center justify-between">
