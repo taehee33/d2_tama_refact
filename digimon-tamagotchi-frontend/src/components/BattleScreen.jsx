@@ -35,6 +35,7 @@ export default function BattleScreen({
   const [hasRoundStarted, setHasRoundStarted] = useState(false); // 라운드 시작 여부
   const [showLogReview, setShowLogReview] = useState(false); // 로그 리뷰 화면 표시 여부
   const [showUserPowerDetails, setShowUserPowerDetails] = useState(false); // 유저 파워 상세 정보 표시 여부
+  const [showEnemyPowerDetails, setShowEnemyPowerDetails] = useState(false); // 상대방 파워 상세 정보 표시 여부
   const [showBattleGuide, setShowBattleGuide] = useState(false); // 배틀 가이드 표시 여부
   // Start를 누르기 전까지는 상대방 정보를 숨김
   const hideEnemyInfo = !hasRoundStarted;
@@ -286,7 +287,14 @@ export default function BattleScreen({
     traitedEggBonus: 0,
     effortBonus: 0,
   };
-  const enemyPower = enemyData?.power || 0;
+  const enemyPower = enemyData?.power || battleResult?.enemyPower || 0;
+  // 상대방 파워 상세 정보 (battleResult에서 가져오거나 기본값 사용)
+  const enemyPowerDetails = battleResult?.enemyPowerDetails || {
+    basePower: enemyDigimonData?.stats?.basePower || enemyData?.power || 0,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
 
   // 퀘스트 클리어 여부 확인
   const isQuestCleared = battleResult?.isAreaClear || false;
@@ -578,7 +586,7 @@ export default function BattleScreen({
                   </span>
                 )}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-center gap-2">
                 <p>
                   Power: {userPower}
                   {(() => {
@@ -740,7 +748,61 @@ export default function BattleScreen({
               {hideEnemyInfo && (
                 <p className="text-sm text-gray-600">속성: ???</p>
               )}
-              <p>Power: {hideEnemyInfo ? "??" : enemyPower}</p>
+              <div className="flex items-center justify-center gap-2">
+                <p>
+                  Power: {hideEnemyInfo ? "??" : enemyPower}
+                  {(() => {
+                    // 보너스 개수 계산
+                    let bonusCount = 0;
+                    if (enemyPowerDetails.strengthBonus > 0) bonusCount++;
+                    if (enemyPowerDetails.traitedEggBonus > 0) bonusCount++;
+                    if (enemyPowerDetails.effortBonus > 0) bonusCount++;
+                    // 보너스가 있으면 ↑ 아이콘 표시
+                    return !hideEnemyInfo && bonusCount > 0 ? (
+                      <span className="text-green-600 ml-1">
+                        {Array(bonusCount).fill('↑').join('')}
+                      </span>
+                    ) : null;
+                  })()}
+                </p>
+                {!hideEnemyInfo && (
+                  <button
+                    onClick={() => setShowEnemyPowerDetails(!showEnemyPowerDetails)}
+                    className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded transition-colors flex items-center gap-1"
+                    title="파워 계산 상세 보기"
+                  >
+                    <span>상세</span>
+                    <span>{showEnemyPowerDetails ? '▼' : '▶'}</span>
+                  </button>
+                )}
+              </div>
+              {!hideEnemyInfo && showEnemyPowerDetails && (
+                <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                  <div className="space-y-1">
+                    <div>Base Power: {enemyPowerDetails.basePower}</div>
+                    <div className={enemyPowerDetails.strengthBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Strength 보너스: {enemyPowerDetails.strengthBonus > 0 ? `(+${enemyPowerDetails.strengthBonus}) ✅` : '0'}
+                    </div>
+                    <div className={enemyPowerDetails.traitedEggBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Traited Egg 보너스: {enemyPowerDetails.traitedEggBonus > 0 ? `(+${enemyPowerDetails.traitedEggBonus}) ✅` : '0'}
+                    </div>
+                    <div className={enemyPowerDetails.effortBonus > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                      Effort 보너스: {enemyPowerDetails.effortBonus > 0 ? `(+${enemyPowerDetails.effortBonus}) ✅` : '0'}
+                    </div>
+                    <div className="border-t pt-1 mt-1">
+                      <div>
+                        = {enemyPowerDetails.basePower} 
+                        {enemyPowerDetails.strengthBonus > 0 && ` + (${enemyPowerDetails.strengthBonus})`}
+                        {enemyPowerDetails.traitedEggBonus > 0 && ` + (${enemyPowerDetails.traitedEggBonus})`}
+                        {enemyPowerDetails.effortBonus > 0 && ` + (${enemyPowerDetails.effortBonus})`}
+                      </div>
+                      <div className="font-bold mt-1">
+                        = {enemyPower}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {/* 히트 마커 */}
             <div className="hit-markers flex justify-center gap-2 mt-2">
