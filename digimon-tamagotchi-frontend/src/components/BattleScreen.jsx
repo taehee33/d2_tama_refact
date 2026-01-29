@@ -413,6 +413,30 @@ export default function BattleScreen({
     onClose();
   };
 
+  // 재전투 (아레나 전용)
+  const handleRematch = () => {
+    console.log("🔍 [BattleScreen] 재전투 시작 - 상태 초기화");
+    // 주의: onBattleComplete를 호출하지 않음 (재전투 시에는 결과 저장하지 않음)
+    // 배틀 상태만 리셋하여 새로운 배틀 시작
+    // 모든 배틀 관련 상태 초기화
+    setShowLogReview(false);
+    setCurrentLogIndex(0);
+    setUserHits(0);
+    setEnemyHits(0);
+    setHasRoundStarted(false);
+    setShowReadyModal(false);
+    // 발사체 및 이펙트 상태도 초기화
+    setProjectile(null);
+    setHitText(null);
+    setMissText(null);
+    // battleResult는 나중에 useEffect에서 설정되므로 여기서는 null로 설정
+    setBattleResult(null);
+    // 마지막에 battleState를 "loading"으로 설정하여 useEffect가 다시 실행되도록 함
+    // 이렇게 하면 useEffect의 의존성 배열에 battleState가 포함되어 있어서 다시 실행됨
+    console.log("🔍 [BattleScreen] 재전투 - battleState를 loading으로 설정");
+    setBattleState("loading");
+  };
+
   // 패배 처리
   const handleDefeat = () => {
     // Arena 모드에서는 배틀 완료 핸들러를 먼저 호출
@@ -733,9 +757,21 @@ export default function BattleScreen({
         {/* 배틀 로그 */}
         {battleState === "playing" && battleResult?.logs && (
           <div className="battle-log-container mb-4 mt-4 pt-4 border-t border-gray-200">
-            <div className="battle-log text-center text-sm text-gray-600 mb-2">
-              <strong>현재 턴:</strong> {battleResult.logs[currentLogIndex]?.message || "배틀 진행 중..."}
-            </div>
+            {(() => {
+              const currentLog = battleResult.logs[currentLogIndex];
+              // 배틀 로그와 동일한 색상 로직 적용
+              const logClass = currentLog 
+                ? (currentLog.attacker === "user" 
+                    ? (currentLog.hit ? "user-hit" : "user-miss")
+                    : (currentLog.hit ? "enemy-hit" : "enemy-miss"))
+                : "";
+              
+              return (
+                <div className={`battle-log-entry text-center text-sm mb-2 p-2 rounded ${logClass}`}>
+                  <strong>현재 턴:</strong> {currentLog?.message || "배틀 진행 중..."}
+                </div>
+              );
+            })()}
             
             {/* 배틀 가이드 (아코디언) */}
             <div className="mb-3">
@@ -753,12 +789,45 @@ export default function BattleScreen({
                 <div className="mt-2 p-3 bg-blue-50 rounded text-xs">
                   {/* 배틀 로직 공식 */}
                   <div className="mb-3">
-                    <div className="font-bold mb-1">배틀 로직:</div>
+                    <div className="font-bold mb-1">📊 명중률 계산:</div>
                     <div className="font-mono bg-white p-2 rounded border">
-                      (내파워 × 100) ÷ (내파워 + 상대파워) + 속성보너스
+                      명중률 = (내파워 × 100) ÷ (내파워 + 상대파워) + 속성보너스
                     </div>
                     <div className="mt-1 text-gray-600">
                       • 속성보너스: 유리 +5%, 불리 -5%, 무관 0%
+                    </div>
+                  </div>
+
+                  {/* 주사위 메커니즘 */}
+                  <div className="mb-3">
+                    <div className="font-bold mb-1">🎲 주사위 메커니즘:</div>
+                    <div className="bg-white p-2 rounded border space-y-2">
+                      <div>
+                        <div className="font-semibold text-purple-600 mb-1">1. 주사위 굴리기</div>
+                        <div className="text-xs text-gray-700 ml-2">
+                          • 0 ~ 100 사이의 랜덤 값 생성
+                          <br />
+                          • 예: 45.23, 78.91, 12.34 등
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-blue-600 mb-1">2. 명중 판정</div>
+                        <div className="text-xs text-gray-700 ml-2">
+                          • <span className="font-bold text-green-600">주사위 값 &lt; 명중률</span> → 명중 (HIT) 💀
+                          <br />
+                          • <span className="font-bold text-red-600">주사위 값 ≥ 명중률</span> → 미스 (MISS) ❌
+                        </div>
+                      </div>
+                      <div className="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                        <div className="font-semibold text-orange-600 mb-1">📌 예시:</div>
+                        <div className="text-xs text-gray-700">
+                          명중률: <span className="font-mono">67.5%</span>
+                          <br />
+                          주사위: <span className="font-mono">45.23</span> → <span className="text-green-600 font-bold">45.23 &lt; 67.5</span> → <span className="text-green-600 font-bold">명중! 💀</span>
+                          <br />
+                          주사위: <span className="font-mono">78.91</span> → <span className="text-red-600 font-bold">78.91 ≥ 67.5</span> → <span className="text-red-600 font-bold">미스... ❌</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
@@ -806,17 +875,66 @@ export default function BattleScreen({
               )}
             </div>
             
-            {/* 상세 계산 공식 */}
-            {battleResult.logs[currentLogIndex]?.formula && (
-              <div className="battle-formula text-xs text-gray-500 mb-2 font-mono">
-                {battleResult.logs[currentLogIndex].formula}
-              </div>
-            )}
-            {battleResult.logs[currentLogIndex]?.roll !== undefined && (
-              <div className="battle-roll text-xs text-gray-500 mb-2 font-mono">
-                Rolled: {battleResult.logs[currentLogIndex].roll} {battleResult.logs[currentLogIndex].hit ? "(Hit!)" : "(Miss)"}
-              </div>
-            )}
+            {/* 배틀 로직 섹션 */}
+            {battleResult.logs[currentLogIndex] && (() => {
+              const currentLog = battleResult.logs[currentLogIndex];
+              // 배틀 로그와 동일한 색상 로직 적용
+              const logClass = currentLog.attacker === "user" 
+                ? (currentLog.hit ? "user-hit" : "user-miss")
+                : (currentLog.hit ? "enemy-hit" : "enemy-miss");
+              
+              // 공격자 정보
+              const attackerName = currentLog.attacker === "user" 
+                ? (userSlotName ? `${userSlotName}의 ${userDigimonNickname || userDigimon.name || "내"}` : "내")
+                : (enemyData?.tamerName || enemyData?.trainerName || enemyData?.name || "상대");
+              const attackLabel = currentLog.attacker === "user" ? "내 공격" : "상대 공격";
+              
+              // 명중률과 주사위 값 추출
+              const hitRate = parseFloat(currentLog.hitRate || 0);
+              const roll = parseFloat(currentLog.roll || 0);
+              const isHit = currentLog.hit;
+              
+              return (
+                <div className="battle-logic-section bg-gray-100 p-3 rounded mb-2">
+                  <div className="text-xs font-bold mb-2">배틀 로직 :</div>
+                  <div className={`battle-log-entry ${logClass} p-2 rounded`}>
+                    {/* 공격자 정보 */}
+                    <div className="text-xs font-bold mb-2 text-gray-800">
+                      {attackLabel} ({attackerName})
+                    </div>
+                    
+                    {currentLog.formula && (
+                      <div className="mb-2">
+                        <div className="text-xs font-semibold mb-1">📊 명중률 계산 과정:</div>
+                        <div className="text-xs font-mono">
+                          {currentLog.formula}
+                        </div>
+                      </div>
+                    )}
+                    {currentLog.roll !== undefined && (
+                      <div className="mb-2">
+                        <div className="text-xs font-semibold mb-1">🎲 주사위 결과:</div>
+                        <div className="text-xs font-mono mb-1">
+                          Rolled: {currentLog.roll} {currentLog.hit ? "(Hit!)" : "(Miss)"}
+                        </div>
+                        {/* 판정 결과 */}
+                        <div className={`text-xs font-bold mt-1 p-1 rounded ${
+                          isHit 
+                            ? "bg-green-100 text-green-700" 
+                            : "bg-red-100 text-red-700"
+                        }`}>
+                          {isHit ? (
+                            <>명중률({hitRate.toFixed(2)}%) &gt; 주사위({roll.toFixed(2)}) =&gt; <span className="text-green-700">공격 성공! 💀</span></>
+                          ) : (
+                            <>명중률({hitRate.toFixed(2)}%) ≤ 주사위({roll.toFixed(2)}) =&gt; <span className="text-red-700">빗나감... ❌</span></>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {/* 전체 배틀 로그 (스크롤 가능) */}
             <div className="battle-log-history bg-gray-100 p-3 rounded max-h-32 overflow-y-auto">
               <div className="text-xs font-bold mb-1">배틀 로그:</div>
@@ -906,6 +1024,12 @@ export default function BattleScreen({
                       className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
+                    </button>
+                    <button
+                      onClick={handleRematch}
+                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px]"
+                    >
+                      재전투
                     </button>
                     <button
                       onClick={handleExit}
@@ -1000,6 +1124,14 @@ export default function BattleScreen({
                   >
                     Review Log
                   </button>
+                  {battleType === 'arena' && (
+                    <button
+                      onClick={handleRematch}
+                      className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px]"
+                    >
+                      재전투
+                    </button>
+                  )}
                   <button
                     onClick={handleDefeat}
                     className={`px-4 sm:px-6 py-3 rounded-lg font-bold transition-colors text-base min-h-[44px] ${
