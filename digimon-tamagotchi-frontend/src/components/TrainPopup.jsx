@@ -356,50 +356,80 @@ export default function TrainPopup({
                     </div>
                     
                     {/* 능력치 변화 표시 */}
-                    {statChanges && (
+                    {statChanges && beforeStats && finalResult?.updatedStats && (
                       <div className="mt-3 pt-3 border-t border-blue-200">
                         <div className="font-bold text-sm mb-2 text-gray-700">능력치 변화:</div>
                         <div className="space-y-1 text-xs">
                           {/* 체중: 항상 -2g */}
                           <div className="flex justify-between">
                             <span>체중:</span>
-                            <span className="font-bold text-red-600">
-                              {statChanges.weight}g
+                            <span>
+                              <span className="text-gray-600">{beforeStats.weight}g</span>
+                              <span className="mx-1">→</span>
+                              <span className="font-bold text-gray-800">{finalResult.updatedStats.weight}g</span>
+                              <span className={`ml-2 font-bold ${statChanges.weight < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                ({statChanges.weight > 0 ? '+' : ''}{statChanges.weight}g)
+                              </span>
                             </span>
                           </div>
                           {/* 에너지: 항상 -1 */}
                           <div className="flex justify-between">
                             <span>에너지:</span>
-                            <span className="font-bold text-red-600">
-                              {statChanges.energy}
+                            <span>
+                              <span className="text-gray-600">{beforeStats.energy}</span>
+                              <span className="mx-1">→</span>
+                              <span className="font-bold text-gray-800">{finalResult.updatedStats.energy}</span>
+                              <span className={`ml-2 font-bold ${statChanges.energy < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                ({statChanges.energy > 0 ? '+' : ''}{statChanges.energy})
+                              </span>
                             </span>
                           </div>
                           {/* 힘: 성공 시에만 +1 (hits >= 3) */}
                           {statChanges.strength !== 0 ? (
                             <div className="flex justify-between">
                               <span>힘:</span>
-                              <span className="font-bold text-green-600">
-                                +{statChanges.strength}
+                              <span>
+                                <span className="text-gray-600">{beforeStats.strength}</span>
+                                <span className="mx-1">→</span>
+                                <span className="font-bold text-gray-800">{finalResult.updatedStats.strength}</span>
+                                <span className="ml-2 font-bold text-green-600">
+                                  (+{statChanges.strength})
+                                </span>
                               </span>
                             </div>
                           ) : (
                             <div className="flex justify-between text-gray-500">
                               <span>힘:</span>
-                              <span>변화 없음</span>
+                              <span>
+                                <span>{beforeStats.strength}</span>
+                                <span className="mx-1">→</span>
+                                <span>{finalResult.updatedStats.strength}</span>
+                                <span className="ml-2">(변화 없음)</span>
+                              </span>
                             </div>
                           )}
                           {/* 노력: 4회마다 +1 (trainings % 4 === 0) */}
                           {statChanges.effort !== 0 ? (
                             <div className="flex justify-between">
                               <span>노력:</span>
-                              <span className="font-bold text-green-600">
-                                +{statChanges.effort}
+                              <span>
+                                <span className="text-gray-600">{beforeStats.effort}</span>
+                                <span className="mx-1">→</span>
+                                <span className="font-bold text-gray-800">{finalResult.updatedStats.effort}</span>
+                                <span className="ml-2 font-bold text-green-600">
+                                  (+{statChanges.effort})
+                                </span>
                               </span>
                             </div>
                           ) : (
                             <div className="flex justify-between text-gray-500">
                               <span>노력:</span>
-                              <span>변화 없음</span>
+                              <span>
+                                <span>{beforeStats.effort}</span>
+                                <span className="mx-1">→</span>
+                                <span>{finalResult.updatedStats.effort}</span>
+                                <span className="ml-2">(변화 없음)</span>
+                              </span>
                             </div>
                           )}
                         </div>
