@@ -563,7 +563,7 @@ export const digimonDataVer1 = {
     id: "Seadramon",
     name: "시드라몬",
     stage: "Adult",
-    sprite: 330, // TODO: Check actual sprite
+    sprite: 345,
     stats: {
       hungerCycle: 38, // Hunger Loss: 38 Minutes
       strengthCycle: 38, // Strength Loss: 38 Minutes
