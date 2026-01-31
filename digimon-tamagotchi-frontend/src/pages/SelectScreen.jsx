@@ -624,11 +624,10 @@ function SelectScreen() {
 
   return (
     <div className="p-4">
-        <div className="flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">Select Tamagotchi</h1>
-        <div className="flex items-center space-x-4">
+        {/* 상단: 오른쪽 UI만 (접속 수, 프로필) - 제목/버튼과 겹치지 않도록 별도 행 */}
+        <div className="flex justify-end items-center mb-2">
           {isFirebaseAvailable && currentUser ? (
-            <>
+            <div className="flex items-center space-x-4">
               {/* 접속 중인 테이머 수 */}
               <OnlineUsersCount />
               
@@ -649,7 +648,7 @@ function SelectScreen() {
                       {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
                     </span>
                   )}
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-gray-700 whitespace-nowrap truncate max-w-[120px] sm:max-w-none">
                     테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
                   </span>
                   <span className="text-xs text-gray-500">▼</span>
@@ -662,9 +661,9 @@ function SelectScreen() {
                       className="fixed inset-0 z-40" 
                       onClick={() => setShowProfileMenu(false)}
                     />
-                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px]">
+                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
                       <div className="px-3 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 truncate">
+                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate">
                           테이머: {tamerName || currentUser.displayName || currentUser.email}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
@@ -684,23 +683,26 @@ function SelectScreen() {
                   </>
                 )}
               </div>
-            </>
+            </div>
           ) : null}
         </div>
-      </div>
+
+        {/* 제목과 새 다마고치 버튼 - 오른쪽 UI 아래에 배치 */}
+        <div className="mb-4">
+          <h1 className="text-xl font-bold mb-3">Select Tamagotchi</h1>
+          <button
+            onClick={() => setShowNewTamaModal(true)}
+            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+          >
+            새 다마고치 시작
+          </button>
+        </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
           {error}
         </div>
       )}
-
-      <button
-        onClick={() => setShowNewTamaModal(true)}
-        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded mb-4 transition-colors"
-      >
-        새 다마고치 시작
-      </button>
 
       <div className="flex justify-between items-center mb-2">
         <h2 className="font-semibold">슬롯 목록 (현재 {slots.length}개 / 최대 {MAX_SLOTS}개)</h2>
@@ -715,20 +717,35 @@ function SelectScreen() {
       </div>
       {slots.length === 0 && <p>등록된 다마고치가 없습니다.</p>}
 
-      {slots.map((slot) => (
-        <div key={slot.id} className="border p-2 mb-4">
+      {slots.map((slot) => {
+        const slotDigimonData = getDigimonDataForSlot(slot.selectedDigimon, slot.version);
+        const spriteBasePath = slotDigimonData?.spriteBasePath || '/images';
+        const spriteNum = slotDigimonData?.sprite ?? 0;
+        return (
+        <div key={slot.id} className="border p-2 mb-4 flex gap-4">
+          {/* 슬롯별 디지몬 도감 이미지 */}
+          <div className="flex-shrink-0 flex flex-col items-center justify-center">
+            <img
+              src={`${spriteBasePath}/${spriteNum}.png`}
+              alt={slotDigimonData?.name || slot.selectedDigimon || '디지몬'}
+              className="w-16 h-16 object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleContinue(slot.id)}
-              className="px-4 py-2 bg-blue-500 text-white rounded"
-            >
-              이어하기
-            </button>
             <button
               onClick={() => handleDeleteSlot(slot.id)}
               className="px-4 py-2 bg-red-500 text-white rounded"
             >
               삭제
+            </button>
+            <button
+              onClick={() => handleContinue(slot.id)}
+              className="px-4 py-2 bg-blue-500 text-white rounded"
+            >
+              이어하기
             </button>
           </div>
 
@@ -737,7 +754,7 @@ function SelectScreen() {
             <p className="font-bold flex items-center gap-2">
               <span>
                 {(() => {
-                  const digimonName = getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon;
+                  const digimonName = slotDigimonData?.name || slot.selectedDigimon;
                   const nickname = slot.digimonNickname;
                   if (nickname && nickname.trim()) {
                     return `${nickname}(${digimonName})`;
@@ -766,9 +783,9 @@ function SelectScreen() {
                   type="text"
                   value={digimonNicknameEdits[slot.id] !== undefined 
                     ? digimonNicknameEdits[slot.id] 
-                    : (slot.digimonNickname || getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon || "")}
+                    : (slot.digimonNickname || slotDigimonData?.name || slot.selectedDigimon || "")}
                   onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
-                  placeholder={getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon || "디지몬 이름"}
+                  placeholder={slotDigimonData?.name || slot.selectedDigimon || "디지몬 이름"}
                   className="border p-1 flex-1 text-sm"
                 />
                 <button
@@ -778,7 +795,7 @@ function SelectScreen() {
                   저장
                 </button>
                 <button
-                  onClick={() => handleResetDigimonNickname(slot.id, getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon)}
+                  onClick={() => handleResetDigimonNickname(slot.id, slotDigimonData?.name || slot.selectedDigimon)}
                   className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
                 >
                   기본값
@@ -786,8 +803,10 @@ function SelectScreen() {
               </div>
             </div>
           </div>
+          </div>
         </div>
-      ))}
+        );
+      })}
 
       {/* 순서변경 모달 */}
       {isOrderModalOpen && (

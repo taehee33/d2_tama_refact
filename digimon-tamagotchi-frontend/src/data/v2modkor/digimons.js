@@ -79,7 +79,7 @@ export const digimonDataVer2 = {
   // Digitama (Ver.2 전용 ID — 이름은 직접 수정)
   DigitamaV2: {
     id: "DigitamaV2",
-    name: "알 Ver.2",
+    name: "디지타마 Ver.2",
     stage: "Digitama",
     sprite: 133,
     spriteBasePath: V2_SPRITE_BASE,

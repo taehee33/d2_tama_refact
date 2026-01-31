@@ -1372,9 +1372,9 @@ async function setSelectedDigimonAndSave(name) {
                         className="fixed inset-0 z-40" 
                         onClick={() => setShowProfileMenu(false)}
                       />
-                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] profile-dropdown">
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] w-max max-w-[min(90vw,280px)] profile-dropdown">
                         <div className="px-3 py-2 border-b border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700 truncate">
+                          <p className="text-xs font-semibold text-gray-700 whitespace-nowrap truncate">
                             테이머: {tamerName || currentUser.displayName || currentUser.email}
                           </p>
                           <p className="text-xs text-gray-500 truncate">
@@ -1455,9 +1455,9 @@ async function setSelectedDigimonAndSave(name) {
                       className="fixed inset-0 z-40" 
                       onClick={() => setShowProfileMenu(false)}
                     />
-                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px]">
+                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
                       <div className="px-3 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 truncate">
+                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate">
                           테이머: {tamerName || currentUser.displayName || currentUser.email}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
