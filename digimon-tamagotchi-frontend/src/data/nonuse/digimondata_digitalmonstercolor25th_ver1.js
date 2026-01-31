@@ -1,4 +1,4 @@
-// src/data/digimondata_digitalmonstercolor25th_ver1.js
+// src/data/nonuse/digimondata_digitalmonstercolor25th_ver1.js (미사용 — v1/digimons.js로 대체됨)
 export const digimonDataVer1 = {
   // 사망 형태
   Ohakadamon1: {

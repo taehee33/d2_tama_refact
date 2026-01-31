@@ -4,7 +4,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { digimonDataVer1 } from "../data/v1/digimons";
-import { loadEncyclopedia, addMissingEncyclopediaEntries } from "../hooks/useEncyclopedia";
+import { digimonDataVer2 } from "../data/v2modkor";
+import { loadEncyclopedia, addMissingEncyclopediaEntries, saveEncyclopedia } from "../hooks/useEncyclopedia";
 import { translateStage } from "../utils/stageTranslator";
 import EncyclopediaDetailModal from "./EncyclopediaDetailModal";
 import "../styles/Battle.css";
@@ -36,34 +37,39 @@ export default function EncyclopediaModal({
     loadData();
   }, [currentUser]);
 
-  // Ver.1 디지몬 목록 가져오기 (Ohakadamon 제외)
-  const digimonList = Object.keys(digimonDataVer1)
-    .filter(key => {
-      const digimon = digimonDataVer1[key];
-      return digimon && digimon.stage !== "Ohakadamon" && digimon.id !== "Ohakadamon1" && digimon.id !== "Ohakadamon2";
-    })
-    .map(key => ({
-      id: key,
-      ...digimonDataVer1[key]
-    }))
-    .sort((a, b) => {
-      // Stage 순서로 정렬
-      const stageOrder = {
-        "Digitama": 0,
-        "Baby I": 1,
-        "Baby II": 2,
-        "Child": 3,
-        "Adult": 4,
-        "Perfect": 5,
-        "Ultimate": 6,
-        "Super Ultimate": 7
-      };
-      const aOrder = stageOrder[a.stage] || 999;
-      const bOrder = stageOrder[b.stage] || 999;
-      if (aOrder !== bOrder) return aOrder - bOrder;
-      // 같은 Stage면 이름순
-      return (a.name || a.id).localeCompare(b.name || b.id, 'ko');
-    });
+  // 선택된 버전에 따라 디지몬 목록 가져오기 (Ohakadamon 제외)
+  const getDigimonList = (version) => {
+    const dataMap = version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    return Object.keys(dataMap)
+      .filter(key => {
+        const digimon = dataMap[key];
+        return digimon && digimon.stage !== "Ohakadamon" && digimon.id !== "Ohakadamon1" && digimon.id !== "Ohakadamon2";
+      })
+      .map(key => ({
+        id: key,
+        ...dataMap[key]
+      }))
+      .sort((a, b) => {
+        // Stage 순서로 정렬
+        const stageOrder = {
+          "Digitama": 0,
+          "Baby I": 1,
+          "Baby II": 2,
+          "Child": 3,
+          "Adult": 4,
+          "Perfect": 5,
+          "Ultimate": 6,
+          "Super Ultimate": 7
+        };
+        const aOrder = stageOrder[a.stage] || 999;
+        const bOrder = stageOrder[b.stage] || 999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        // 같은 Stage면 이름순
+        return (a.name || a.id).localeCompare(b.name || b.id, 'ko');
+      });
+  };
+  
+  const digimonList = getDigimonList(selectedVersion);
 
   const versionData = encyclopedia[selectedVersion] || {};
 
@@ -98,7 +104,7 @@ export default function EncyclopediaModal({
           </button>
         </div>
 
-        {/* 버전 탭 (현재는 Ver.1만) */}
+        {/* 버전 탭 (Ver.1, Ver.2 별도 관리) */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex gap-2">
             <button
@@ -110,6 +116,16 @@ export default function EncyclopediaModal({
               }`}
             >
               Ver.1
+            </button>
+            <button
+              onClick={() => setSelectedVersion("Ver.2")}
+              className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+                selectedVersion === "Ver.2"
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Ver.2
             </button>
           </div>
         </div>
@@ -136,10 +152,10 @@ export default function EncyclopediaModal({
                       : 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
                   }`}
                 >
-                  {/* 스프라이트 이미지 */}
+                  {/* 스프라이트 이미지 (v2는 Ver2_Mod_Kor 경로) */}
                   <div className="flex justify-center mb-2">
                     <img
-                      src={`/images/${digimon.sprite || 0}.png`}
+                      src={`${digimon.spriteBasePath || '/images'}/${digimon.sprite || 0}.png`}
                       alt={digimon.name || digimonKey}
                       className="w-16 h-16"
                       style={{
@@ -199,17 +215,43 @@ export default function EncyclopediaModal({
                   }
                   setFixingMessage("처리 중...");
                   try {
-                    const { added, skipped } = await addMissingEncyclopediaEntries(currentUser, [
-                      currentDigimonId
-                    ]);
-                    const data = await loadEncyclopedia(currentUser);
-                    setEncyclopedia(data);
-                    if (added.length > 0) {
-                      setFixingMessage(`도감에 ${digimonDataVer1[currentDigimonId]?.name || currentDigimonId} 반영되었습니다.`);
-                    } else if (skipped.length > 0) {
-                      setFixingMessage("이미 도감에 등록되어 있습니다.");
+                    // 현재 디지몬이 v1인지 v2인지 확인
+                    const mergedDigimonData = { ...digimonDataVer1, ...digimonDataVer2 };
+                    const digimonData = mergedDigimonData[currentDigimonId];
+                    const digimonVersion = digimonData?.spriteBasePath === '/Ver2_Mod_Kor' ? 'Ver.2' : 'Ver.1';
+                    
+                    // addMissingEncyclopediaEntries는 Ver.1만 지원하므로, 수동으로 Ver.2 처리
+                    if (digimonVersion === 'Ver.2') {
+                      const data = await loadEncyclopedia(currentUser);
+                      if (!data['Ver.2']) data['Ver.2'] = {};
+                      if (!data['Ver.2'][currentDigimonId]?.isDiscovered) {
+                        data['Ver.2'][currentDigimonId] = {
+                          isDiscovered: true,
+                          firstDiscoveredAt: Date.now(),
+                          raisedCount: 1,
+                          lastRaisedAt: Date.now(),
+                          bestStats: {},
+                          history: []
+                        };
+                        await saveEncyclopedia(data, currentUser);
+                        setEncyclopedia(data);
+                        setFixingMessage(`도감(Ver.2)에 ${digimonData?.name || currentDigimonId} 반영되었습니다.`);
+                      } else {
+                        setFixingMessage("이미 도감(Ver.2)에 등록되어 있습니다.");
+                      }
                     } else {
-                      setFixingMessage("반영할 항목이 없습니다.");
+                      const { added, skipped } = await addMissingEncyclopediaEntries(currentUser, [
+                        currentDigimonId
+                      ]);
+                      const data = await loadEncyclopedia(currentUser);
+                      setEncyclopedia(data);
+                      if (added.length > 0) {
+                        setFixingMessage(`도감(Ver.1)에 ${digimonDataVer1[currentDigimonId]?.name || currentDigimonId} 반영되었습니다.`);
+                      } else if (skipped.length > 0) {
+                        setFixingMessage("이미 도감에 등록되어 있습니다.");
+                      } else {
+                        setFixingMessage("반영할 항목이 없습니다.");
+                      }
                     }
                   } catch (e) {
                     setFixingMessage("보정 실패: " + (e.message || "알 수 없는 오류"));
@@ -232,7 +274,9 @@ export default function EncyclopediaModal({
       {selectedDigimon && (
         <EncyclopediaDetailModal
           digimonName={selectedDigimon}
-          digimonData={digimonDataVer1[selectedDigimon]}
+          digimonData={selectedVersion === "Ver.2" 
+            ? digimonDataVer2[selectedDigimon] 
+            : digimonDataVer1[selectedDigimon]}
           encyclopediaData={versionData[selectedDigimon]}
           onClose={() => setSelectedDigimon(null)}
         />

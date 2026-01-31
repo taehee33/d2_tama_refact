@@ -21,6 +21,8 @@ export function adaptNewDataToOldFormat(newData) {
     maxOverfeed: newData.stats?.maxOverfeed || 0,
     minWeight: newData.stats?.minWeight || 0,
     maxStamina: newData.stats?.maxEnergy || 0,
+    // v2용: 스프라이트 이미지 기준 경로 (있으면 UI에서 사용)
+    spriteBasePath: newData.spriteBasePath || null,
   };
 
   // 디버깅: 어댑터가 호출되는지 확인

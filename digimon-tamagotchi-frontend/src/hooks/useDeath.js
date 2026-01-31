@@ -52,6 +52,7 @@ function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt
  * @param {Function} params.setHasSeenDeathPopup - 사망 팝업 표시 여부 설정 함수
  * @param {Object} params.digimonDataVer1 - 디지몬 데이터
  * @param {Array} params.perfectStages - Perfect 단계 목록
+ * @param {string} params.version - 슬롯 버전 ("Ver.1" | "Ver.2" 등, 도감 관리용)
  * @returns {Object} confirmDeath, checkDeathCondition
  */
 export function useDeath({
@@ -66,6 +67,7 @@ export function useDeath({
   selectedDigimon,
   slotId,
   currentUser,
+  version = "Ver.1", // 슬롯 버전 (도감 관리용)
 }) {
   /**
    * 사망 확정 함수 (환생 처리)
@@ -85,13 +87,14 @@ export function useDeath({
     const old = { ...currentStats };
     const nx = initializeStats(ohaka, old, digimonDataVer1);
     
-    // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합)
+    // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합, 버전별 관리)
     if (selectedDigimon && selectedDigimon !== "Digitama") {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 사망 전 스탯
         'death',
-        currentUser
+        currentUser,
+        version // 버전 전달 (Ver.2 별도 관리)
       );
     }
     

@@ -29,6 +29,7 @@ import OnlineUsersCount from "../components/OnlineUsersCount";
 import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2 } from "../data/v2modkor";
 import { initializeStats, updateLifespan } from "../data/stats";
 import { handleEnergyRecovery } from "../logic/stats/stats";
 import { quests } from "../data/v1/quests";
@@ -72,7 +73,9 @@ function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt
   return Math.max(0, totalElapsed - frozenDuration);
 }
 
-const digimonDataVer1 = adaptDataMapToOldFormat(newDigimonDataVer1);
+// v1 + v2 merge 후 adapter 적용 (v2 스프라이트는 Ver2_Mod_Kor 경로 사용)
+const mergedDigimonData = { ...newDigimonDataVer1, ...digimonDataVer2 };
+const digimonDataVer1 = adaptDataMapToOldFormat(mergedDigimonData);
 const DEFAULT_SEASON_ID = 1;
 
 const ver1DigimonList = [
@@ -762,6 +765,7 @@ function Game(){
     digimonDataVer1,
     newDigimonDataVer1,
     toggleModal,
+    version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
   });
 
   // useDeath 훅 호출 (죽음/환생 로직)
@@ -779,6 +783,7 @@ function Game(){
     selectedDigimon,
     slotId,
     currentUser,
+    version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
   });
 
   const {
@@ -923,6 +928,8 @@ async function setSelectedDigimonAndSave(name) {
   // digimonStats.sprite가 잘못된 값일 수 있으므로 데이터 일관성 보장
   const digimonData = digimonDataVer1[selectedDigimon];
   const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
+  // v2 디지몬은 Ver2_Mod_Kor, v1은 /images
+  const digimonImageBase = digimonData?.spriteBasePath || "/images";
   
   if(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2"){
     // 오하카다몬은 고정 스프라이트만 사용 (애니메이션 없음)
@@ -1539,6 +1546,7 @@ async function setSelectedDigimonAndSave(name) {
         idleFrames={idleFrames}
         eatFrames={eatFramesArr}
         foodRejectFrames={rejectFramesArr}
+        digimonImageBase={digimonImageBase}
         showFood={modals.food}
         feedStep={feedStep}
         feedType={feedType}

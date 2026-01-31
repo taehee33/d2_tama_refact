@@ -1,4 +1,4 @@
-// src/data/digimondata_digitalmonstercolor25th_ver2.js
+// src/data/nonuse/digimondata_digitalmonstercolor25th_ver2.js (미사용 — v2는 src/data/v2modkor/ 사용)
 // 실제로는 Ver.2 디지몬 정보( Punimon, Tsunomon, etc. )를 넣어주시면 됩니다.
 
 const entriesVer2 = {

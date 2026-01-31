@@ -72,17 +72,16 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
  * @param {Object} finalStats - 최종 스탯
  * @param {string} eventType - 이벤트 타입 ('evolution' | 'death' | 'discovery')
  * @param {Object|null} currentUser - 현재 사용자
+ * @param {string} version - 버전 ("Ver.1" | "Ver.2" 등, 기본값: "Ver.1")
  */
 export async function updateEncyclopedia(
   digimonName,
   finalStats,
   eventType, // 'evolution' | 'death' | 'discovery'
-  currentUser
+  currentUser,
+  version = "Ver.1" // 버전 파라미터 추가 (Ver.2 별도 관리)
 ) {
   if (!digimonName) return;
-  
-  // 버전 확인 (현재는 Ver.1만 존재)
-  const version = "Ver.1";
   
   // 도감 데이터 로드 (계정별)
   const encyclopedia = await loadEncyclopedia(currentUser);

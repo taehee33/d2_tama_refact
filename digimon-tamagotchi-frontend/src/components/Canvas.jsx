@@ -34,6 +34,7 @@ const Canvas = ({
   idleFrames=[],
   eatFrames=[],
   foodRejectFrames=[],
+  digimonImageBase="/images", // v2는 /Ver2_Mod_Kor
   currentAnimation="idle",
   showFood=false,
   feedStep=0,
@@ -79,6 +80,7 @@ const Canvas = ({
   },[
     width,height,
     idleFrames,eatFrames,foodRejectFrames,
+    digimonImageBase,
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
@@ -106,10 +108,10 @@ const Canvas = ({
     }
     if(!frames || frames.length===0) frames=["210"]; // fallback
 
-    // ★ (3) 로드할 이미지들
+    // ★ (3) 로드할 이미지들 (v2 디지몬은 digimonImageBase가 /Ver2_Mod_Kor)
     const imageSources={};
     frames.forEach((fn,idx)=>{
-      imageSources[`digimon${idx}`] = `/images/${fn}.png`;
+      imageSources[`digimon${idx}`] = `${digimonImageBase}/${fn}.png`;
     });
     foodSprites.forEach((src,idx)=>{
       imageSources[`food${idx}`]= src;

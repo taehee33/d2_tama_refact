@@ -4,6 +4,124 @@
 
 ---
 
+## [2026-01-28] Feat: SelectScreen Ver.2 선택 기능 및 도감 Ver.2 별도 관리
+
+### 작업 유형
+- ✨ 기능 추가
+
+### 목적 및 영향
+- **목적:** 선택 화면에서 Ver.2 선택 가능, Ver.2 선택 시 Punimon으로 시작. 도감에서 Ver.1과 Ver.2를 별도로 관리
+- **영향:** 사용자가 Ver.2를 선택하면 Punimon으로 시작하며, 도감에서 Ver.1/Ver.2 탭으로 분리하여 관리
+
+### 변경 사항
+
+#### 1. `src/pages/SelectScreen.jsx`
+- Ver.2 옵션 활성화 (disabled 제거)
+- Ver.2 선택 시 `selectedDigimon: "Punimon"`으로 시작 (Ver.1은 "Digitama")
+- v1+v2 merge된 데이터로 디지몬 이름 표시
+
+#### 2. `src/hooks/useEncyclopedia.js`
+- `updateEncyclopedia`에 `version` 파라미터 추가 (기본값 "Ver.1")
+- Ver.2 도감 데이터를 `encyclopedia["Ver.2"]`에 별도 저장
+
+#### 3. `src/hooks/useEvolution.js`, `src/hooks/useDeath.js`
+- `version` 파라미터 추가 (기본값 "Ver.1")
+- `updateEncyclopedia` 호출 시 `version` 전달
+
+#### 4. `src/pages/Game.jsx`
+- `useEvolution`, `useDeath` 호출 시 `slotVersion || "Ver.1"` 전달
+
+#### 5. `src/components/EncyclopediaModal.jsx`
+- Ver.2 탭 추가 (Ver.1과 별도 표시)
+- `selectedVersion`에 따라 v1/v2 디지몬 목록 표시
+- v2 디지몬 스프라이트 경로 (`spriteBasePath`) 처리
+- 도감 강제 업데이트 시 v2 디지몬도 처리
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/EncyclopediaModal.jsx`
+
+---
+
+## [2026-01-28] Feat: Ver.2 푸니몬 테스트 추가 및 v2 스프라이트 경로(Ver2_Mod_Kor) 반영
+
+### 작업 유형
+- ✨ 기능 추가
+
+### 목적 및 영향
+- **목적:** v2 디지몬 테스트로 푸니몬 추가, v2 스프라이트를 `public/Ver2_Mod_Kor` 경로에서 로드하도록 반영
+- **영향:** Game.jsx에서 v1+v2 merge 후 adapter 적용. Punimon 선택 시 Canvas가 `/Ver2_Mod_Kor/210.png` 등으로 이미지 로드
+
+### 변경 사항
+
+#### 1. `src/data/v2modkor/digimons.js`
+- 푸니몬(Punimon) 엔트리 추가: Baby I, sprite 210, `spriteBasePath: '/Ver2_Mod_Kor'`
+- `V2_SPRITE_BASE` export 추가
+
+#### 2. `src/data/v1/adapter.js`
+- `adaptNewDataToOldFormat`에 `spriteBasePath` 전달 추가 (v2 UI 경로용)
+
+#### 3. `src/pages/Game.jsx`
+- `digimonDataVer2` import, v1+v2 merge 후 `adaptDataMapToOldFormat(mergedDigimonData)` 적용
+- `digimonImageBase = digimonData?.spriteBasePath || "/images"` 계산 후 GameScreen에 `digimonImageBase` prop 전달
+
+#### 4. `src/components/GameScreen.jsx`
+- `digimonImageBase` prop 추가 (기본값 `/images`), Canvas에 전달
+
+#### 5. `src/components/Canvas.jsx`
+- `digimonImageBase` prop 추가 (기본값 `/images`)
+- 디지몬 프레임 이미지 경로: `/images/${fn}.png` → `${digimonImageBase}/${fn}.png`
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/v2modkor/digimons.js`
+- `digimon-tamagotchi-frontend/src/data/v2modkor/index.js`
+- `digimon-tamagotchi-frontend/src/data/v1/adapter.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+
+---
+
+## [2026-01-28] Refactor: 미사용 데이터 nonuse 이동 및 v2 버전 관리 폴더(v2modkor) 추가
+
+### 작업 유형
+- ♻️ 리팩토링
+
+### 목적 및 영향
+- **목적:** 미사용 데이터 파일을 `data/nonuse/` 아래로 정리하고, v2 디지몬 버전 관리를 위해 `src/data/v2modkor/` 구조 추가
+- **영향:** 기존 앱 동작 변경 없음. 데이터 참조는 모두 v1/digimons.js만 사용 중이므로 이동한 파일은 미사용 상태 유지
+
+### 변경 사항
+
+#### 1. 미사용 파일 → `src/data/nonuse/` 이동
+- `digimondata_digitalmonstercolor25th_ver1.js` → `nonuse/digimondata_digitalmonstercolor25th_ver1.js`
+- `digimondata_digitalmonstercolor25th_ver2.js` → `nonuse/digimondata_digitalmonstercolor25th_ver2.js`
+- `evolution_digitalmonstercolor25th_ver1.js` → `nonuse/evolution_digitalmonstercolor25th_ver1.js`  
+- 원본 파일은 삭제 (내용은 nonuse 아래에 보존)
+
+#### 2. v2 버전 관리 폴더 추가: `src/data/v2modkor/`
+- `v2modkor/digimons.js`: `digimonDataVer2` export (v1과 동일 스키마, 현재 빈 객체)
+- `v2modkor/index.js`: re-export  
+- Ver.2 라인(푸니몬, 쯔노몬 등) 추가 시 이 폴더에 정의하여 버전별로 관리
+
+#### 3. 문서 수정
+- `digimon-tamagotchi-frontend/docs/DIGIMON_DATA_AND_V2_GUIDE.md`: 미사용 파일 경로를 nonuse 기준으로 수정, v2 추가 방법을 v2modkor 기준으로 수정
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/nonuse/` (신규 3개 파일)
+- `digimon-tamagotchi-frontend/src/data/v2modkor/digimons.js` (신규)
+- `digimon-tamagotchi-frontend/src/data/v2modkor/index.js` (신규)
+- `digimon-tamagotchi-frontend/src/data/digimondata_digitalmonstercolor25th_ver1.js` (삭제)
+- `digimon-tamagotchi-frontend/src/data/digimondata_digitalmonstercolor25th_ver2.js` (삭제)
+- `digimon-tamagotchi-frontend/src/data/evolution_digitalmonstercolor25th_ver1.js` (삭제)
+- `digimon-tamagotchi-frontend/docs/DIGIMON_DATA_AND_V2_GUIDE.md`
+
+---
+
 ## [2026-01-28] Fix: 티라노몬 수면 중 데블몬 스프라이트 표시 버그 수정 (2차 수정)
 
 ### 작업 유형

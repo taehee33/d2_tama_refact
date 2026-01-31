@@ -17,6 +17,7 @@ const GameScreen = ({
   idleFrames = [],
   eatFrames = [],
   foodRejectFrames = [],
+  digimonImageBase = "/images", // v2는 /Ver2_Mod_Kor
   
   // 먹이 관련
   showFood = false,
@@ -478,6 +479,7 @@ const GameScreen = ({
         className={evolutionStage === 'flashing' ? 'evolution-flashing' : ''}
         width={width}
         height={height}
+        digimonImageBase={digimonImageBase}
         currentAnimation={currentAnimation}
         idleFrames={idleFrames}
         eatFrames={eatFrames}

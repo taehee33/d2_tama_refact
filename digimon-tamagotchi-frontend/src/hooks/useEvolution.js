@@ -26,6 +26,7 @@ import { updateEncyclopedia } from "./useEncyclopedia";
  * @param {Function} params.setEvolvedDigimonName - 진화된 디지몬 이름 설정 함수
  * @param {Object} params.digimonDataVer1 - 디지몬 데이터 (구버전)
  * @param {Object} params.newDigimonDataVer1 - 디지몬 데이터 (신버전)
+ * @param {string} params.version - 슬롯 버전 ("Ver.1" | "Ver.2" 등, 도감 관리용)
  * @returns {Object} evolve, checkEvolutionReady, isEvolving, evolutionStage, evolvedDigimonName
  */
 export function useEvolution({
@@ -47,6 +48,7 @@ export function useEvolution({
   slotId,
   currentUser,
   toggleModal,
+  version = "Ver.1", // 슬롯 버전 (도감 관리용)
 }) {
   /**
    * 진화 버튼 클릭 핸들러 - 확인 모달 열기
@@ -227,23 +229,25 @@ export function useEvolution({
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);
     
-    // ✅ 도감 업데이트: 진화 전 디지몬 기록 (계정별 통합)
+    // ✅ 도감 업데이트: 진화 전 디지몬 기록 (계정별 통합, 버전별 관리)
     if (selectedDigimon && selectedDigimon !== "Digitama") {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 진화 전 스탯
         'evolution',
-        currentUser
+        currentUser,
+        version // 버전 전달 (Ver.2 별도 관리)
       );
     }
     
-    // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리 (계정별 통합)
+    // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리 (계정별 통합, 버전별 관리)
     if (newName && newName !== "Digitama") {
       await updateEncyclopedia(
         newName,
         nxWithLogs, // 진화 후 스탯
         'discovery',
-        currentUser
+        currentUser,
+        version // 버전 전달 (Ver.2 별도 관리)
       );
     }
   }

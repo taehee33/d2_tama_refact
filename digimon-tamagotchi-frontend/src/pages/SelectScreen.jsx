@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2 } from "../data/v2modkor";
 import { getTamerName } from "../utils/tamerNameUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
@@ -17,6 +18,9 @@ function SelectScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
+  
+  // v1 + v2 merge된 디지몬 데이터 (SelectScreen에서 표시용)
+  const mergedDigimonData = { ...digimonDataVer1, ...digimonDataVer2 };
   
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -351,9 +355,12 @@ function SelectScreen() {
           await Promise.all(updatePromises);
         }
 
+        // Ver.2 선택 시 Punimon으로 시작, Ver.1은 Digitama
+        const startingDigimon = version === "Ver.2" ? "Punimon" : "Digitama";
+        
         // 새 슬롯 저장 (displayOrder = 1, 최신이 위로)
         await setDoc(slotRef, {
-          selectedDigimon: "Digitama",
+          selectedDigimon: startingDigimon,
           digimonStats: {},
           slotName,
           digimonNickname: null, // 디지몬 별명 (기본값: null, 디지몬 이름 사용)
@@ -729,7 +736,7 @@ function SelectScreen() {
             <p className="font-bold flex items-center gap-2">
               <span>
                 {(() => {
-                  const digimonName = digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                  const digimonName = mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon;
                   const nickname = slot.digimonNickname;
                   if (nickname && nickname.trim()) {
                     return `${nickname}(${digimonName})`;
@@ -758,9 +765,9 @@ function SelectScreen() {
                   type="text"
                   value={digimonNicknameEdits[slot.id] !== undefined 
                     ? digimonNicknameEdits[slot.id] 
-                    : (slot.digimonNickname || digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon || "")}
+                    : (slot.digimonNickname || mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon || "")}
                   onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
-                  placeholder={digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon || "디지몬 이름"}
+                  placeholder={mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon || "디지몬 이름"}
                   className="border p-1 flex-1 text-sm"
                 />
                 <button
@@ -770,7 +777,7 @@ function SelectScreen() {
                   저장
                 </button>
                 <button
-                  onClick={() => handleResetDigimonNickname(slot.id, digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon)}
+                  onClick={() => handleResetDigimonNickname(slot.id, mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon)}
                   className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
                 >
                   기본값
@@ -814,7 +821,7 @@ function SelectScreen() {
                       <p className="font-bold flex items-center gap-2">
                         <span>
                           {(() => {
-                            const digimonName = digimonDataVer1[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                            const digimonName = mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon;
                             const nickname = slot.digimonNickname;
                             if (nickname && nickname.trim()) {
                               return `${nickname}(${digimonName})`;
@@ -953,7 +960,7 @@ function SelectScreen() {
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="Ver.1">Ver.1</option>
-                  <option value="Ver.2" disabled>Ver.2 (준비 중)</option>
+                  <option value="Ver.2">Ver.2</option>
                   <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
                   <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
                   <option value="Ver.5" disabled>Ver.5 (준비 중)</option>
