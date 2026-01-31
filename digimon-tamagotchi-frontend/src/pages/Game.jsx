@@ -73,9 +73,9 @@ function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt
   return Math.max(0, totalElapsed - frozenDuration);
 }
 
-// v1 + v2 merge 후 adapter 적용 (v2 스프라이트는 Ver2_Mod_Kor 경로 사용)
-const mergedDigimonData = { ...newDigimonDataVer1, ...digimonDataVer2 };
-const digimonDataVer1 = adaptDataMapToOldFormat(mergedDigimonData);
+// v1·v2 병합하지 않고 버전별로 각각 사용
+const adaptedV1 = adaptDataMapToOldFormat(newDigimonDataVer1);
+const adaptedV2 = adaptDataMapToOldFormat(digimonDataVer2);
 const DEFAULT_SEASON_ID = 1;
 
 const ver1DigimonList = [
@@ -88,6 +88,9 @@ const ver1DigimonList = [
   "Ohakadamon1",
   "Ohakadamon2",
 ];
+
+/** 사망 폼 ID (Ver.1: Ohakadamon1/2, Ver.2: Ohakadamon1V2/2V2 — 공통 ID 사용 안 함) */
+const DEATH_FORM_IDS = ["Ohakadamon1", "Ohakadamon2", "Ohakadamon1V2", "Ohakadamon2V2"];
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
 
@@ -116,7 +119,7 @@ function Game(){
     ui,
   } = useGameState({
     slotId,
-    digimonDataVer1,
+    digimonDataVer1: adaptedV1,
     defaultSeasonId: DEFAULT_SEASON_ID,
   });
 
@@ -197,9 +200,15 @@ function Game(){
     setHealTreatmentMessage,
   } = gameState;
 
+  // v1·v2 병합 없이 슬롯 버전에 따라 해당 버전 데이터만 사용
+  const digimonDataForSlot = slotVersion === "Ver.2" ? adaptedV2 : adaptedV1;
+  const evolutionDataForSlot = slotVersion === "Ver.2" ? digimonDataVer2 : newDigimonDataVer1;
+
   const {
     developerMode,
     setDeveloperMode,
+    encyclopediaShowQuestionMark,
+    setEncyclopediaShowQuestionMark,
     isEvolving,
     setIsEvolving,
     setIsSleeping,
@@ -276,7 +285,7 @@ function Game(){
     setIsLoadingSlot,
     setDeathReason,
     toggleModal,
-    digimonDataVer1,
+    digimonDataVer1: digimonDataForSlot,
     isFirebaseAvailable,
     navigate,
     isLightsOn,
@@ -412,9 +421,9 @@ function Game(){
 
         // 수면 로직 (타이머 감소 전에 수면 상태 확인)
         const currentDigimonName = prevStats.evolutionStage ? 
-          Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === prevStats.evolutionStage) || "Digitama" :
+          Object.keys(digimonDataForSlot).find(key => digimonDataForSlot[key]?.evolutionStage === prevStats.evolutionStage) || "Digitama" :
           "Digitama";
-        const schedule = getSleepSchedule(currentDigimonName, digimonDataVer1, prevStats);
+        const schedule = getSleepSchedule(currentDigimonName, digimonDataForSlot, prevStats);
         const nowMs = Date.now();
         const nowDate = new Date(nowMs);
         const inSchedule = isWithinSleepSchedule(schedule, nowDate);
@@ -438,7 +447,7 @@ function Game(){
         // isActuallySleeping은 SLEEPING 또는 TIRED 상태를 의미 (배고픔/힘 타이머 정지용)
         let updatedStats = updateLifespan(prevStats, safeElapsedSeconds, isActuallySleeping);
         // 매뉴얼 기반 배고픔/힘 감소 로직 적용
-        const currentDigimonData = digimonDataVer1[currentDigimonName] || digimonDataVer1["Digitama"];
+        const currentDigimonData = digimonDataForSlot[currentDigimonName] || digimonDataForSlot["Digitama"];
         // 매뉴얼 기반 배고픔/힘 감소 처리 (SLEEPING 또는 TIRED 상태일 때 감소하지 않음)
         // 실제 경과 시간만큼 처리하여 브라우저 탭 throttling 문제 해결
         updatedStats = handleHungerTick(updatedStats, currentDigimonData, safeElapsedSeconds, isActuallySleeping);
@@ -588,7 +597,7 @@ function Game(){
         }
         // 수명 종료 체크 제거됨 - 수명으로 인한 사망 없음
         // 호출(Call) 시스템 체크 및 타임아웃 처리
-        const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataVer1, prevStats);
+        const sleepSchedule = getSleepSchedule(selectedDigimon, digimonDataForSlot, prevStats);
         const oldCallStatus = { ...prevStats.callStatus };
         updatedStats = checkCalls(updatedStats, isLightsOn, sleepSchedule, new Date(), isActuallySleeping);
         // 호출 시작 로그 추가 (이전 로그 보존 - 함수형 업데이트)
@@ -707,7 +716,7 @@ function Game(){
     selectedDigimon,
     wakeUntil,
     setWakeUntil,
-    digimonData: digimonDataVer1,
+    digimonData: digimonDataForSlot,
     setCurrentAnimation,
     setShowFood: (value) => toggleModal('food', value),
     setFeedStep,
@@ -762,8 +771,8 @@ function Game(){
     setIsEvolving,
     setEvolutionStage,
     setEvolvedDigimonName,
-    digimonDataVer1,
-    newDigimonDataVer1,
+    digimonDataVer1: digimonDataForSlot,
+    newDigimonDataVer1: evolutionDataForSlot,
     toggleModal,
     version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
   });
@@ -778,7 +787,7 @@ function Game(){
     applyLazyUpdateBeforeAction,
     toggleModal,
     setHasSeenDeathPopup,
-    digimonDataVer1,
+    digimonDataVer1: digimonDataForSlot,
     perfectStages,
     selectedDigimon,
     slotId,
@@ -807,7 +816,7 @@ function Game(){
     wakeUntil,
     setWakeUntil,
     selectedDigimon,
-    newDigimonDataVer1,
+    newDigimonDataVer1: evolutionDataForSlot,
     setHealTreatmentMessage,
     setHealModalStats,
     onSleepDisturbance: () => {
@@ -895,7 +904,7 @@ function Game(){
     startHealCycle,
     setHealModalStats, // HealModal에 전달할 최신 스탯 설정
     quests,
-    digimonDataVer1,
+    digimonDataVer1: digimonDataForSlot,
     slotId,
     currentUser,
     logout,
@@ -926,13 +935,13 @@ async function setSelectedDigimonAndSave(name) {
   
   // ⚠️ 중요: 모든 프레임 계산에서 selectedDigimon에서 직접 스프라이트 가져오기
   // digimonStats.sprite가 잘못된 값일 수 있으므로 데이터 일관성 보장
-  const digimonData = digimonDataVer1[selectedDigimon];
+  const digimonData = digimonDataForSlot[selectedDigimon];
   const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
   // v2 디지몬은 Ver2_Mod_Kor, v1은 /images
   const digimonImageBase = digimonData?.spriteBasePath || "/images";
   
-  if(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2"){
-    // 오하카다몬은 고정 스프라이트만 사용 (애니메이션 없음)
+  if (DEATH_FORM_IDS.includes(selectedDigimon)) {
+    // 사망 폼(오하카다몬)은 고정 스프라이트만 사용 (애니메이션 없음)
     idleFrames = [ `${baseSprite}` ];
     eatFramesArr = [ `${baseSprite}` ];
     rejectFramesArr = [ `${baseSprite}` ];
@@ -943,7 +952,7 @@ async function setSelectedDigimonAndSave(name) {
   } else {
     // 일반 디지몬: 기본 애니메이션 계산
     let idleAnimId=1, eatAnimId=2, rejectAnimId=3;
-    if(selectedDigimon==="Digitama") idleAnimId=90;
+    if (selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2") idleAnimId = 90;
     const idleOff= digimonAnimations[idleAnimId]?.frames||[0];
     const eatOff= digimonAnimations[eatAnimId]?.frames||[0];
     const rejectOff= digimonAnimations[rejectAnimId]?.frames||[14];
@@ -981,7 +990,7 @@ async function setSelectedDigimonAndSave(name) {
     // digimonAnimations[8] = { name: "sleep", frames: [11, 12] } 정의에 맞춤
     // ⚠️ 디지타마는 수면 상태 없음
     // baseSprite는 위에서 이미 계산됨
-    else if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && selectedDigimon !== "Digitama"){
+    else if ((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && selectedDigimon !== "Digitama" && selectedDigimon !== "DigitamaV2") {
       idleFrames = [`${baseSprite + 11}`, `${baseSprite + 12}`];
       eatFramesArr = idleFrames;
       rejectFramesArr = idleFrames;
@@ -1007,9 +1016,9 @@ async function setSelectedDigimonAndSave(name) {
     try {
       console.log("[resetDigimon] 새로운 시작 시작");
       
-      // 오하카다몬일 때는 확인 없이 바로 초기화
-      const isOhakadamon = selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2";
-      if(!isOhakadamon && !window.confirm("정말로 초기화?")) return;
+      // 사망 폼(오하카다몬)일 때는 확인 없이 바로 초기화
+      const isOhakadamon = DEATH_FORM_IDS.includes(selectedDigimon);
+      if (!isOhakadamon && !window.confirm("정말로 초기화?")) return;
       
       // 최신 스탯 가져오기 (Lazy Update 적용)
       const currentStats = await applyLazyUpdateBeforeAction();
@@ -1058,28 +1067,25 @@ async function setSelectedDigimonAndSave(name) {
         age: updatedStats.age,
       });
       
-      // 디지타마로 초기화 (환생 횟수는 유지, isDead와 age는 명시적으로 false/0으로 설정)
-      const ns = initializeStats("Digitama", updatedStats, digimonDataVer1);
-      
+      // Ver.2는 DigitamaV2, Ver.1은 Digitama로 초기화 (공통 ID 사용 안 함)
+      const initialDigimonId = slotVersion === "Ver.2" ? "DigitamaV2" : "Digitama";
+      const ns = initializeStats(initialDigimonId, updatedStats, digimonDataForSlot);
+
       // 새로운 시작이므로 isDead와 age를 명시적으로 설정
       ns.isDead = false;
       ns.age = 0;
       ns.birthTime = Date.now();
-      // 새로운 시작: lastSavedAt을 현재 시간으로 설정하여 Lazy Update가 즉시 실행되지 않도록
       ns.lastSavedAt = new Date();
-      // 새로운 시작: 기본 스탯 설정
-      ns.fullness = 0; // 디지타마는 기본적으로 0
-      ns.strength = 0; // 디지타마는 기본적으로 0
-      // 새로운 시작: 사망 관련 필드 완전 초기화 (중복이지만 확실히)
+      ns.fullness = 0;
+      ns.strength = 0;
       ns.lastHungerZeroAt = null;
       ns.lastStrengthZeroAt = null;
       ns.injuredAt = null;
       ns.isInjured = false;
       ns.injuries = 0;
-      // 새로운 시작: 똥 초기화
       ns.poopCount = 0;
       ns.lastMaxPoopTime = null;
-      
+
       console.log("[resetDigimon] 최종 초기화된 스탯:", {
         evolutionStage: ns.evolutionStage,
         isDead: ns.isDead,
@@ -1093,15 +1099,13 @@ async function setSelectedDigimonAndSave(name) {
         injuredAt: ns.injuredAt,
         isInjured: ns.isInjured,
       });
-      
-      // 로컬 상태를 즉시 업데이트 (UI 반영) - 타이머가 새로운 상태를 참조하도록
-      // selectedDigimon을 먼저 업데이트하여 애니메이션 계산이 올바른 스프라이트를 사용하도록 함
-      setSelectedDigimon("Digitama");
+
+      // 로컬 상태를 즉시 업데이트 (UI 반영)
+      setSelectedDigimon(initialDigimonId);
       setDigimonStats(ns);
-      
-      // Firestore에 저장 (saveStats에서 새로운 시작 감지하여 applyLazyUpdate 건너뜀)
+
       await setDigimonStatsAndSave(ns);
-      await setSelectedDigimonAndSave("Digitama");
+      await setSelectedDigimonAndSave(initialDigimonId);
       toggleModal('deathModal', false);
       setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
       
@@ -1123,9 +1127,9 @@ async function setSelectedDigimonAndSave(name) {
       return;
     }
     // Data-Driven 방식: digimons.js의 evolutions 배열 사용
-    const currentDigimonData = newDigimonDataVer1[selectedDigimon];
-    if(currentDigimonData && currentDigimonData.evolutions){
-      const evolutionResult = checkEvolution(digimonStats, currentDigimonData, selectedDigimon, newDigimonDataVer1);
+    const currentDigimonData = evolutionDataForSlot[selectedDigimon];
+    if (currentDigimonData && currentDigimonData.evolutions) {
+      const evolutionResult = checkEvolution(digimonStats, currentDigimonData, selectedDigimon, evolutionDataForSlot);
       if(evolutionResult.success){
         setIsEvoEnabled(true);
         return;
@@ -1139,7 +1143,7 @@ async function setSelectedDigimonAndSave(name) {
   useEffect(() => {
     const timer = setInterval(() => {
       const status = getSleepStatus({
-        sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
+        sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataForSlot, digimonStats),
         isLightsOn,
         wakeUntil,
         fastSleepStart: digimonStats.fastSleepStart || null,
@@ -1293,8 +1297,9 @@ async function setSelectedDigimonAndSave(name) {
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
   const data = {
-    newDigimonDataVer1,
-    digimonDataVer1,
+    newDigimonDataVer1: evolutionDataForSlot,
+    digimonDataVer1: digimonDataForSlot,
+    digimonDataVer2,
     quests,
     seasonName,
     seasonDuration,
@@ -1483,7 +1488,7 @@ async function setSelectedDigimonAndSave(name) {
       <div className={`text-center mb-1 ${isMobile ? "pt-20" : "pt-20"}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {(() => {
-            const digimonName = newDigimonDataVer1[selectedDigimon]?.name || selectedDigimon;
+            const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
             if (digimonNickname && digimonNickname.trim()) {
               return `${digimonNickname}(${digimonName})`;
             }
@@ -1525,7 +1530,7 @@ async function setSelectedDigimonAndSave(name) {
             currentAnimation={currentAnimation}
             feedType={feedType}
             canEvolve={isEvoEnabled}
-            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats)}
+            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataForSlot, digimonStats)}
             wakeUntil={wakeUntil}
             sleepLightOnStart={digimonStats.sleepLightOnStart || null}
             deathReason={deathReason}
@@ -1615,15 +1620,15 @@ async function setSelectedDigimonAndSave(name) {
             <span className="whitespace-nowrap">가이드</span>
           </button>
           {/* Death Info 버튼: 죽었을 때 또는 오하카다몬일 때 표시 */}
-          {(digimonStats.isDead || selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2") && (
+          {(digimonStats.isDead || DEATH_FORM_IDS.includes(selectedDigimon)) && (
             <button
               onClick={() => toggleModal('deathModal', true)}
               className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
-              title={selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2" ? "새로운 시작" : "사망 정보"}
+              title={DEATH_FORM_IDS.includes(selectedDigimon) ? "새로운 시작" : "사망 정보"}
               style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
             >
               <span className="whitespace-nowrap">
-                {(selectedDigimon === "Ohakadamon1" || selectedDigimon === "Ohakadamon2") ? "🥚 새로운 시작" : "💀 사망 확인"}
+                {DEATH_FORM_IDS.includes(selectedDigimon) ? "🥚 새로운 시작" : "💀 사망 확인"}
               </span>
             </button>
           )}
@@ -1643,12 +1648,12 @@ async function setSelectedDigimonAndSave(name) {
           ui={{ 
             ...ui, 
             statusDetailMessages,
-            sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats),
+            sleepSchedule: getSleepSchedule(selectedDigimon, digimonDataForSlot, digimonStats),
             sleepStatus: sleepStatus,
             wakeUntil: wakeUntil,
             sleepLightOnStart: digimonStats.sleepLightOnStart || null,
           }}
-          flags={{ developerMode, setDeveloperMode, isEvolving, setIsEvolving }}
+          flags={{ developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, isEvolving, setIsEvolving }}
         />
       )}
       

@@ -153,6 +153,7 @@ export default function GameModals({
   const {
     newDigimonDataVer1,
     digimonDataVer1,
+    digimonDataVer2,
     quests,
     seasonName,
     seasonDuration,
@@ -180,7 +181,7 @@ export default function GameModals({
     setWakeUntil,
   } = ui || {};
 
-  const { developerMode, setDeveloperMode, setIsEvolving } = flags || {};
+  const { developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, setIsEvolving } = flags || {};
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
@@ -254,6 +255,8 @@ export default function GameModals({
             onClose={() => toggleModal('settings', false)}
             developerMode={developerMode}
             setDeveloperMode={setDeveloperMode || (() => {})}
+            encyclopediaShowQuestionMark={encyclopediaShowQuestionMark}
+            setEncyclopediaShowQuestionMark={setEncyclopediaShowQuestionMark || (() => {})}
             width={width}
             height={height}
             setWidth={setWidth}
@@ -268,6 +271,7 @@ export default function GameModals({
             setFoodSizeScale={setFoodSizeScale}
             newDigimonDataVer1={newDigimonDataVer1}
             digimonDataVer1={digimonDataVer1}
+            digimonDataVer2={digimonDataVer2}
             initializeStats={initializeStats}
             setDigimonStatsAndSave={setDigimonStatsAndSave}
             setSelectedDigimonAndSave={setSelectedDigimonAndSave}
@@ -711,6 +715,8 @@ export default function GameModals({
         <EncyclopediaModal
           currentDigimonId={selectedDigimon}
           onClose={() => toggleModal('encyclopedia', false)}
+          developerMode={developerMode}
+          encyclopediaShowQuestionMark={encyclopediaShowQuestionMark}
         />
       )}
 

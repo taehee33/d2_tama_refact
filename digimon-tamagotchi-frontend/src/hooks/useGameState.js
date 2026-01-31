@@ -66,6 +66,26 @@ const saveDeveloperMode = (enabled) => {
   }
 };
 
+/** Dev 모드일 때만 사용: 도감 미발견 물음표(???) 표시 여부 */
+const ENCYCLOPEDIA_QUESTION_MARK_KEY = 'digimon_encyclopedia_show_question_mark';
+
+const loadEncyclopediaShowQuestionMark = () => {
+  try {
+    const saved = localStorage.getItem(ENCYCLOPEDIA_QUESTION_MARK_KEY);
+    if (saved !== null) return saved === 'true';
+  } catch (e) {
+    console.error('도감 물음표 설정 로드 오류:', e);
+  }
+  return true; // 기본값: 물음표 켜기
+};
+
+const saveEncyclopediaShowQuestionMark = (enabled) => {
+  try {
+    localStorage.setItem(ENCYCLOPEDIA_QUESTION_MARK_KEY, enabled ? 'true' : 'false');
+  } catch (e) {
+    console.error('도감 물음표 설정 저장 오류:', e);
+  }
+};
 
 /**
  * useGameState Hook
@@ -185,6 +205,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 4. Flags (상태 플래그)
   // ============================================
   const [developerMode, setDeveloperMode] = useState(() => loadDeveloperMode());
+  const [encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark] = useState(() => loadEncyclopediaShowQuestionMark());
   const [isEvolving, setIsEvolving] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -226,6 +247,11 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   useEffect(() => {
     saveDeveloperMode(developerMode);
   }, [developerMode]);
+
+  // encyclopediaShowQuestionMark 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveEncyclopediaShowQuestionMark(encyclopediaShowQuestionMark);
+  }, [encyclopediaShowQuestionMark]);
   
   // 먹이 관련
   const [feedType, setFeedType] = useState(null);
@@ -440,6 +466,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     flags: {
       developerMode,
       setDeveloperMode,
+      encyclopediaShowQuestionMark,
+      setEncyclopediaShowQuestionMark,
       isEvolving,
       setIsEvolving,
       isSleeping,

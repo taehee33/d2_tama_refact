@@ -419,7 +419,8 @@ export function useGameData({
             }
           }
           
-          const savedName = slotData.selectedDigimon || "Digitama";
+          // Ver.2 슬롯은 초기 디지몬 푸니몬(Punimon), Ver.1은 디지타마(Digitama)
+          const savedName = slotData.selectedDigimon || (slotData.version === "Ver.2" ? "Punimon" : "Digitama");
           let savedStats = slotData.digimonStats || {};
           
           // Activity Logs 로드: digimonStats 안의 activityLogs를 우선 사용, 없으면 최상위 activityLogs 사용
@@ -439,10 +440,10 @@ export function useGameData({
           }
           
           if (Object.keys(savedStats).length === 0) {
-            const ns = initializeStats("Digitama", {}, digimonDataVer1);
-            // 새 디지몬 생성 시 birthTime 설정
+            // 새 디지몬: 저장된 이름(Ver.2면 Punimon, Ver.1이면 Digitama)으로 초기화
+            const ns = initializeStats(savedName, {}, digimonDataVer1);
             ns.birthTime = Date.now();
-            setSelectedDigimon("Digitama");
+            setSelectedDigimon(savedName);
             setDigimonStats(ns);
           } else {
             const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();

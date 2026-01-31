@@ -7,6 +7,8 @@ const SettingsModal = ({
   // 기본 상태들
   foodSizeScale, setFoodSizeScale,
   developerMode, setDeveloperMode,
+  encyclopediaShowQuestionMark = true,
+  setEncyclopediaShowQuestionMark,
   width, height, setWidth, setHeight,
   backgroundNumber, setBackgroundNumber,
   digimonSizeScale, setDigimonSizeScale,
@@ -16,6 +18,7 @@ const SettingsModal = ({
   // Dev Digimon Select 관련 props
   newDigimonDataVer1,
   digimonDataVer1,
+  digimonDataVer2,
   initializeStats,
   setDigimonStatsAndSave,
   setSelectedDigimonAndSave,
@@ -36,6 +39,7 @@ const SettingsModal = ({
   const [localWidth, setLocalWidth] = useState(width);
   const [localHeight, setLocalHeight] = useState(height);
   const [localDevMode, setLocalDevMode] = useState(developerMode);
+  const [localEncyclopediaQuestionMark, setLocalEncyclopediaQuestionMark] = useState(encyclopediaShowQuestionMark);
   const [uniformScale, setUniformScale] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(height / width); // 초기 비율 저장
 
@@ -44,8 +48,9 @@ const SettingsModal = ({
     setLocalWidth(width);
     setLocalHeight(height);
     setLocalDevMode(developerMode);
+    setLocalEncyclopediaQuestionMark(encyclopediaShowQuestionMark);
     setAspectRatio(height / width); // 비율 업데이트
-  }, [width, height, developerMode]);
+  }, [width, height, developerMode, encyclopediaShowQuestionMark]);
 
   // PWA 설치 프롬프트 감지
   useEffect(() => {
@@ -137,9 +142,10 @@ const SettingsModal = ({
     setLocalDevMode(!localDevMode);
   };
 
-  // 디지몬을 stage별로 그룹화하여 정렬된 옵션 생성
+  // 디지몬을 stage별로 그룹화하여 정렬된 옵션 생성 (Ver.2 슬롯이면 v2 디지몬, 아니면 v1)
   const groupedDigimonOptions = React.useMemo(() => {
-    if (!newDigimonDataVer1) return null;
+    const dataMap = slotVersion === "Ver.2" ? digimonDataVer2 : newDigimonDataVer1;
+    if (!dataMap || typeof dataMap !== 'object') return null;
 
     // Stage 순서 정의
     const stageOrder = [
@@ -156,8 +162,8 @@ const SettingsModal = ({
 
     // 디지몬을 stage별로 그룹화
     const digimonByStage = {};
-    Object.keys(newDigimonDataVer1).forEach(key => {
-      const digimon = newDigimonDataVer1[key];
+    Object.keys(dataMap).forEach(key => {
+      const digimon = dataMap[key];
       const stage = digimon?.stage || "Unknown";
       if (!digimonByStage[stage]) {
         digimonByStage[stage] = [];
@@ -177,7 +183,7 @@ const SettingsModal = ({
     });
 
     return { stageOrder, digimonByStage };
-  }, [newDigimonDataVer1]);
+  }, [slotVersion, newDigimonDataVer1, digimonDataVer2]);
 
   // Save
   const handleSave = () => {
@@ -249,8 +255,26 @@ const SettingsModal = ({
           {localDevMode && (
             <div className="mb-4 pt-4 border-t border-gray-300">
               <h3 className="font-semibold mb-2">개발자 옵션</h3>
-              {/* Dev Digimon Select */}
-              {slotVersion === "Ver.1" && groupedDigimonOptions && initializeStats && setDigimonStatsAndSave && setSelectedDigimonAndSave && (
+              {/* 도감 물음표 켜기/끄기 (Dev 모드일 때만) */}
+              {setEncyclopediaShowQuestionMark && (
+                <div className="mb-3">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={localEncyclopediaQuestionMark}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setLocalEncyclopediaQuestionMark(checked);
+                        setEncyclopediaShowQuestionMark(checked);
+                      }}
+                      className="mr-2"
+                    />
+                    <span>도감 물음표 켜기 (미발견 시 ??? 표시)</span>
+                  </label>
+                </div>
+              )}
+              {/* Dev Digimon Select (Dev 모드 ON이면 Ver.1/Ver.2 슬롯 모두 표시) */}
+              {groupedDigimonOptions && initializeStats && setDigimonStatsAndSave && setSelectedDigimonAndSave && (
                 <div className="mb-3">
                   <label className="block text-sm font-medium mb-1">Dev Digimon Select:</label>
                   <select

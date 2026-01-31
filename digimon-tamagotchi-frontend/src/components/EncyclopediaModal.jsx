@@ -13,6 +13,8 @@ import "../styles/Battle.css";
 export default function EncyclopediaModal({ 
   currentDigimonId,
   onClose,
+  developerMode = false,
+  encyclopediaShowQuestionMark = true, // Dev 모드에서 끄면 미발견도 이름 표시
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [encyclopedia, setEncyclopedia] = useState({ "Ver.1": {} });
@@ -43,7 +45,7 @@ export default function EncyclopediaModal({
     return Object.keys(dataMap)
       .filter(key => {
         const digimon = dataMap[key];
-        return digimon && digimon.stage !== "Ohakadamon" && digimon.id !== "Ohakadamon1" && digimon.id !== "Ohakadamon2";
+        return digimon && digimon.stage !== "Ohakadamon";
       })
       .map(key => ({
         id: key,
@@ -137,17 +139,19 @@ export default function EncyclopediaModal({
               const digimonKey = digimon.id || digimon.name;
               const discoveredData = versionData[digimonKey];
               const isDiscovered = discoveredData?.isDiscovered || false;
+              // Dev 모드 + 도감 물음표 끄기 → 미발견도 이름/이미지 표시 및 클릭 가능
+              const showAsDiscovered = isDiscovered || (developerMode && !encyclopediaShowQuestionMark);
 
               return (
                 <div
                   key={digimonKey}
                   onClick={() => {
-                    if (isDiscovered) {
+                    if (showAsDiscovered) {
                       setSelectedDigimon(digimonKey);
                     }
                   }}
                   className={`relative p-3 rounded-lg border-2 transition-all ${
-                    isDiscovered
+                    showAsDiscovered
                       ? 'bg-white border-blue-300 hover:border-blue-500 cursor-pointer hover:shadow-lg'
                       : 'bg-gray-100 border-gray-300 cursor-not-allowed opacity-60'
                   }`}
@@ -160,25 +164,25 @@ export default function EncyclopediaModal({
                       className="w-16 h-16"
                       style={{
                         imageRendering: "pixelated",
-                        filter: isDiscovered ? 'none' : 'blur(8px) grayscale(100%)',
-                        opacity: isDiscovered ? 1 : 0.5
+                        filter: showAsDiscovered ? 'none' : 'blur(8px) grayscale(100%)',
+                        opacity: showAsDiscovered ? 1 : 0.5
                       }}
                     />
                   </div>
 
                   {/* 디지몬 이름 */}
                   <div className="text-center text-sm font-bold">
-                    {isDiscovered ? (digimon.name || digimonKey) : '???'}
+                    {showAsDiscovered ? (digimon.name || digimonKey) : '???'}
                   </div>
 
                   {/* 세대 표시 */}
-                  {isDiscovered && (
+                  {showAsDiscovered && (
                     <div className="text-center text-xs text-gray-500 mt-1">
                       {translateStage(digimon.stage)}
                     </div>
                   )}
 
-                  {/* 체크마크 */}
+                  {/* 체크마크 (실제 발견된 경우만) */}
                   {isDiscovered && (
                     <div className="absolute top-1 right-1 text-green-500 text-xl font-bold">
                       ✓
@@ -186,7 +190,7 @@ export default function EncyclopediaModal({
                   )}
 
                   {/* 잠금 아이콘 */}
-                  {!isDiscovered && (
+                  {!showAsDiscovered && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-3xl">🔒</span>
                     </div>
@@ -215,10 +219,11 @@ export default function EncyclopediaModal({
                   }
                   setFixingMessage("처리 중...");
                   try {
-                    // 현재 디지몬이 v1인지 v2인지 확인
-                    const mergedDigimonData = { ...digimonDataVer1, ...digimonDataVer2 };
-                    const digimonData = mergedDigimonData[currentDigimonId];
-                    const digimonVersion = digimonData?.spriteBasePath === '/Ver2_Mod_Kor' ? 'Ver.2' : 'Ver.1';
+                    // v1·v2 병합 없이 각각 조회하여 해당 버전 판별
+                    const fromV2 = digimonDataVer2[currentDigimonId];
+                    const fromV1 = digimonDataVer1[currentDigimonId];
+                    const digimonData = fromV2 ?? fromV1;
+                    const digimonVersion = fromV2 ? 'Ver.2' : (fromV1 ? 'Ver.1' : null);
                     
                     // addMissingEncyclopediaEntries는 Ver.1만 지원하므로, 수동으로 Ver.2 처리
                     if (digimonVersion === 'Ver.2') {

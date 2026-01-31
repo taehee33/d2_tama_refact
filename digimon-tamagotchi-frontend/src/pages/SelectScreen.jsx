@@ -19,8 +19,9 @@ function SelectScreen() {
   const location = useLocation();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
   
-  // v1 + v2 merge된 디지몬 데이터 (SelectScreen에서 표시용)
-  const mergedDigimonData = { ...digimonDataVer1, ...digimonDataVer2 };
+  // v1·v2 병합 없이 슬롯 버전에 따라 해당 버전 데이터만 사용
+  const getDigimonDataForSlot = (digimonId, slotVersion) =>
+    slotVersion === "Ver.2" ? digimonDataVer2[digimonId] : digimonDataVer1[digimonId];
   
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -736,7 +737,7 @@ function SelectScreen() {
             <p className="font-bold flex items-center gap-2">
               <span>
                 {(() => {
-                  const digimonName = mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                  const digimonName = getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon;
                   const nickname = slot.digimonNickname;
                   if (nickname && nickname.trim()) {
                     return `${nickname}(${digimonName})`;
@@ -765,9 +766,9 @@ function SelectScreen() {
                   type="text"
                   value={digimonNicknameEdits[slot.id] !== undefined 
                     ? digimonNicknameEdits[slot.id] 
-                    : (slot.digimonNickname || mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon || "")}
+                    : (slot.digimonNickname || getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon || "")}
                   onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
-                  placeholder={mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon || "디지몬 이름"}
+                  placeholder={getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon || "디지몬 이름"}
                   className="border p-1 flex-1 text-sm"
                 />
                 <button
@@ -777,7 +778,7 @@ function SelectScreen() {
                   저장
                 </button>
                 <button
-                  onClick={() => handleResetDigimonNickname(slot.id, mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon)}
+                  onClick={() => handleResetDigimonNickname(slot.id, getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon)}
                   className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
                 >
                   기본값
@@ -821,7 +822,7 @@ function SelectScreen() {
                       <p className="font-bold flex items-center gap-2">
                         <span>
                           {(() => {
-                            const digimonName = mergedDigimonData[slot.selectedDigimon]?.name || slot.selectedDigimon;
+                            const digimonName = getDigimonDataForSlot(slot.selectedDigimon, slot.version)?.name || slot.selectedDigimon;
                             const nickname = slot.digimonNickname;
                             if (nickname && nickname.trim()) {
                               return `${nickname}(${digimonName})`;
@@ -960,7 +961,7 @@ function SelectScreen() {
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="Ver.1">Ver.1</option>
-                  <option value="Ver.2">Ver.2</option>
+                  <option value="Ver.2">Ver.2(준비중)</option>
                   <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
                   <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
                   <option value="Ver.5" disabled>Ver.5 (준비 중)</option>

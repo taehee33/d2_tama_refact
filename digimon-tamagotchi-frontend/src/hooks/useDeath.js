@@ -76,10 +76,11 @@ export function useDeath({
     // 최신 스탯 가져오기
     const currentStats = await applyLazyUpdateBeforeAction();
     
-    let ohaka = "Ohakadamon1";
-    if (perfectStages.includes(currentStats.evolutionStage)) {
-      ohaka = "Ohakadamon2";
-    }
+    // Ver.2는 Ohakadamon1V2/Ohakadamon2V2, Ver.1은 Ohakadamon1/Ohakadamon2 (공통 ID 사용 안 함)
+    const isPerfect = perfectStages.includes(currentStats.evolutionStage);
+    let ohaka = version === "Ver.2"
+      ? (isPerfect ? "Ohakadamon2V2" : "Ohakadamon1V2")
+      : (isPerfect ? "Ohakadamon2" : "Ohakadamon1");
     if (!digimonDataVer1[ohaka]) {
       console.error(`No data for ${ohaka} in digimonDataVer1!? fallback => Digitama`);
       ohaka = "Digitama";
@@ -88,7 +89,7 @@ export function useDeath({
     const nx = initializeStats(ohaka, old, digimonDataVer1);
     
     // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합, 버전별 관리)
-    if (selectedDigimon && selectedDigimon !== "Digitama") {
+    if (selectedDigimon && selectedDigimon !== "Digitama" && selectedDigimon !== "DigitamaV2") {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 사망 전 스탯
