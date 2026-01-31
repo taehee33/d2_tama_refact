@@ -229,8 +229,8 @@ export function useEvolution({
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);
     
-    // ✅ 도감 업데이트: 진화 전 디지몬 기록 (계정별 통합, 버전별 관리)
-    if (selectedDigimon && selectedDigimon !== "Digitama") {
+    // ✅ 도감 업데이트: 진화 전 디지몬 기록 (Digitama·DigitamaV2 포함 — 진화 시 도감 연동)
+    if (selectedDigimon) {
       await updateEncyclopedia(
         selectedDigimon,
         old, // 진화 전 스탯
@@ -241,7 +241,7 @@ export function useEvolution({
     }
     
     // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리 (계정별 통합, 버전별 관리)
-    if (newName && newName !== "Digitama") {
+    if (newName && newName !== "Digitama" && newName !== "DigitamaV2") {
       await updateEncyclopedia(
         newName,
         nxWithLogs, // 진화 후 스탯

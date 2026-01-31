@@ -39,13 +39,16 @@ export default function EncyclopediaModal({
     loadData();
   }, [currentUser]);
 
-  // 선택된 버전에 따라 디지몬 목록 가져오기 (Ohakadamon 제외)
+  // 선택된 버전에 따라 디지몬 목록 가져오기 (Ohakadamon 제외, Ver.1에서 크레스가루몬 제외)
   const getDigimonList = (version) => {
     const dataMap = version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
     return Object.keys(dataMap)
       .filter(key => {
         const digimon = dataMap[key];
-        return digimon && digimon.stage !== "Ohakadamon";
+        if (!digimon || digimon.stage === "Ohakadamon") return false;
+        if (version === "Ver.1" && key === "CresGarurumon") return false; // Ver.1 도감에서 제외
+        if (version === "Ver.2" && key === "BlitzGreymonV2") return false; // Ver.2 도감에서 제외 (Jogress 파트너용)
+        return true;
       })
       .map(key => ({
         id: key,
