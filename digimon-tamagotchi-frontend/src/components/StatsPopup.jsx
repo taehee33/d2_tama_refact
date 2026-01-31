@@ -757,7 +757,7 @@ export default function StatsPopup({
   
   // New 탭 렌더링 (Ver.1 스펙 뷰)
   const renderNewTab = () => (
-    <div className="space-y-4 text-sm" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+    <div className="space-y-4 text-sm">
       {/* Sec 1. 종(Species) 고정 파라미터 */}
       <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">1. 종(Species) 고정 파라미터</h3>
@@ -2029,14 +2029,11 @@ export default function StatsPopup({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
-        className="bg-white p-4 rounded shadow-xl w-96 relative modal-mobile stats-popup-mobile"
-        style={{
-          maxHeight: "80vh",    // 화면 80% 높이까지만
-          overflowY: "auto",    // 세로 스크롤
-        }}
+        className="bg-white p-4 rounded shadow-xl w-96 relative modal-mobile stats-popup-mobile flex flex-col"
+        style={{ maxHeight: "80vh" }}
       >
-        {/* 헤더 영역: 제목과 닫기 버튼 */}
-        <div className="flex justify-between items-center mb-2">
+        {/* 헤더 영역: 제목과 닫기 버튼 (상단 고정) */}
+        <div className="flex-shrink-0 flex justify-between items-center mb-2">
           <h2 className="text-lg font-bold">Digimon Status</h2>
           <button
             onClick={onClose}
@@ -2047,8 +2044,8 @@ export default function StatsPopup({
           </button>
         </div>
         
-        {/* 탭 UI */}
-        <div className="flex gap-2 mb-4 border-b">
+        {/* 탭 UI (상단 고정) */}
+        <div className="flex-shrink-0 flex gap-2 mb-4 border-b">
           <button
             onClick={() => setActiveTab('OLD')}
             className={`px-4 py-2 font-bold ${
@@ -2071,9 +2068,11 @@ export default function StatsPopup({
           </button>
         </div>
         
-        {/* 탭 콘텐츠 */}
-        {activeTab === 'OLD' && renderOldTab()}
-        {activeTab === 'NEW' && renderNewTab()}
+        {/* 탭 콘텐츠 (스크롤 영역만) */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {activeTab === 'OLD' && renderOldTab()}
+          {activeTab === 'NEW' && renderNewTab()}
+        </div>
       </div>
     </div>
   );

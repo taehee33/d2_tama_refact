@@ -28,7 +28,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
-            디지몬 가이드
+            📖 디지몬 가이드
           </button>
           
           <button
@@ -40,7 +40,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
-            활동 로그
+            📋 활동 로그
           </button>
           
           <button
@@ -52,7 +52,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
           >
-            도감
+            📚 도감
           </button>
           
           <button
@@ -64,7 +64,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-cyan-500 text-white rounded-lg font-bold hover:bg-cyan-600 transition-colors"
           >
-            냉장고
+            🧊 냉장고
           </button>
           
           <button
@@ -76,7 +76,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-amber-200 text-gray-800 rounded-lg font-bold hover:bg-amber-300 transition-colors"
           >
-            컬렉션
+            ⭐ 컬렉션
           </button>
           
           <hr className="border-gray-300 my-2" />
@@ -90,7 +90,7 @@ export default function ExtraMenuModal({
             }}
             className="px-6 py-3 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
           >
-            설정
+            ⚙️ 설정
           </button>
           
           <hr className="border-gray-300 my-2" />
