@@ -4,12 +4,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { digimonDataVer1 } from "../data/v1/digimons";
-import { loadEncyclopedia } from "../hooks/useEncyclopedia";
+import { loadEncyclopedia, addMissingEncyclopediaEntries } from "../hooks/useEncyclopedia";
 import { translateStage } from "../utils/stageTranslator";
 import EncyclopediaDetailModal from "./EncyclopediaDetailModal";
 import "../styles/Battle.css";
 
 export default function EncyclopediaModal({ 
+  currentDigimonId,
   onClose,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
@@ -17,6 +18,7 @@ export default function EncyclopediaModal({
   const [selectedVersion, setSelectedVersion] = useState("Ver.1");
   const [selectedDigimon, setSelectedDigimon] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [fixingMessage, setFixingMessage] = useState(null); // 도감 보정 결과 메시지
 
   // 도감 데이터 로드 (계정별 통합)
   useEffect(() => {
@@ -184,6 +186,45 @@ export default function EncyclopediaModal({
           <div className="text-sm text-gray-600">
             발견: {Object.values(versionData).filter(d => d.isDiscovered).length} / {digimonList.length}
           </div>
+          {/* 도감 강제 업데이트: 현재 슬롯의 디지몬을 도감에 반영 */}
+          {currentUser && isFirebaseAvailable && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!currentDigimonId) {
+                    setFixingMessage("현재 선택된 디지몬이 없습니다.");
+                    setTimeout(() => setFixingMessage(null), 3000);
+                    return;
+                  }
+                  setFixingMessage("처리 중...");
+                  try {
+                    const { added, skipped } = await addMissingEncyclopediaEntries(currentUser, [
+                      currentDigimonId
+                    ]);
+                    const data = await loadEncyclopedia(currentUser);
+                    setEncyclopedia(data);
+                    if (added.length > 0) {
+                      setFixingMessage(`도감에 ${digimonDataVer1[currentDigimonId]?.name || currentDigimonId} 반영되었습니다.`);
+                    } else if (skipped.length > 0) {
+                      setFixingMessage("이미 도감에 등록되어 있습니다.");
+                    } else {
+                      setFixingMessage("반영할 항목이 없습니다.");
+                    }
+                  } catch (e) {
+                    setFixingMessage("보정 실패: " + (e.message || "알 수 없는 오류"));
+                  }
+                  setTimeout(() => setFixingMessage(null), 4000);
+                }}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                도감 강제 업데이트
+              </button>
+              {fixingMessage && (
+                <div className="text-xs text-gray-700 mt-1">{fixingMessage}</div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

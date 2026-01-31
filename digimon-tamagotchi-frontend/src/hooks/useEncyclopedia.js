@@ -161,3 +161,53 @@ export async function updateEncyclopedia(
   encyclopedia[version][digimonName] = digimonData;
   await saveEncyclopedia(encyclopedia, currentUser);
 }
+
+/**
+ * 도감 개발 이전에 진화한 디지몬을 도감에 안전하게 추가 (누락 보정)
+ * - 기존 도감 데이터는 건드리지 않고, 누락된 ID만 최소 구조로 추가합니다.
+ * @param {Object|null} currentUser - 현재 사용자 (Firebase Auth)
+ * @param {string[]} digimonIds - 추가할 디지몬 ID (예: ["BlitzGreymon", "ShinMonzaemon"])
+ * @returns {Promise<{ added: string[], skipped: string[] }>} 추가된 ID 목록, 이미 있어서 스킵된 ID 목록
+ */
+export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []) {
+  const added = [];
+  const skipped = [];
+
+  if (!currentUser || !db || !Array.isArray(digimonIds) || digimonIds.length === 0) {
+    return { added, skipped };
+  }
+
+  const version = "Ver.1";
+  const encyclopedia = await loadEncyclopedia(currentUser);
+
+  if (!encyclopedia[version]) {
+    encyclopedia[version] = {};
+  }
+
+  const now = Date.now();
+  const minimalEntry = {
+    isDiscovered: true,
+    firstDiscoveredAt: now,
+    raisedCount: 1,
+    lastRaisedAt: now,
+    bestStats: {},
+    history: [{ date: now, result: "도감 보정으로 등록 (진화 이력 반영)", finalStats: {} }]
+  };
+
+  for (const id of digimonIds) {
+    if (!id || typeof id !== "string") continue;
+    const existing = encyclopedia[version][id];
+    if (existing?.isDiscovered) {
+      skipped.push(id);
+      continue;
+    }
+    encyclopedia[version][id] = { ...minimalEntry };
+    added.push(id);
+  }
+
+  if (added.length > 0) {
+    await saveEncyclopedia(encyclopedia, currentUser);
+  }
+
+  return { added, skipped };
+}

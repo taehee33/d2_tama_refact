@@ -709,6 +709,7 @@ export default function GameModals({
       {/* Encyclopedia Modal (도감) */}
       {modals.encyclopedia && (
         <EncyclopediaModal
+          currentDigimonId={selectedDigimon}
           onClose={() => toggleModal('encyclopedia', false)}
         />
       )}
