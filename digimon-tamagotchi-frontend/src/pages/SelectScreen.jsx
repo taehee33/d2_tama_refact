@@ -34,6 +34,8 @@ function SelectScreen() {
   // 디지몬 별명 변경
   // 각 슬롯별로 input value 관리 -> local state
   const [digimonNicknameEdits, setDigimonNicknameEdits] = useState({});
+  // 별명 변경 패널이 열린 슬롯 ID (null이면 모두 닫힘)
+  const [openNicknameSlotId, setOpenNicknameSlotId] = useState(null);
 
   // 순서변경 모달 상태
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -734,24 +736,9 @@ function SelectScreen() {
           </div>
 
           <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleDeleteSlot(slot.id)}
-              className="px-4 py-2 bg-red-500 text-white rounded"
-            >
-              삭제
-            </button>
-            <button
-              onClick={() => handleContinue(slot.id)}
-              className="px-4 py-2 bg-blue-500 text-white rounded"
-            >
-              이어하기
-            </button>
-          </div>
-
           <div className="mt-2">
             <p className="text-sm text-gray-600 mb-1">슬롯: {slot.slotName || `슬롯${slot.id}`}</p>
-            <p className="font-bold flex items-center gap-2">
+            <p className="font-bold flex flex-wrap items-center gap-2">
               <span>
                 {(() => {
                   const digimonName = slotDigimonData?.name || slot.selectedDigimon;
@@ -762,45 +749,78 @@ function SelectScreen() {
                   return digimonName;
                 })()}
               </span>
+              <button
+                type="button"
+                onClick={() => setOpenNicknameSlotId(openNicknameSlotId === slot.id ? null : slot.id)}
+                className="px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded border border-gray-300"
+              >
+                별명 변경
+              </button>
               {slot.isFrozen && (
                 <span className="text-cyan-600 font-semibold text-sm" title="냉장고에 보관 중">
                   🧊 냉장고
                 </span>
               )}
             </p>
-            <p className="text-sm text-gray-500">생성일: {slot.createdAt}</p>
+            {/* 별명 변경 패널 (버튼 클릭 시에만 표시) */}
+            {openNicknameSlotId === slot.id && (
+              <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                <label className="text-sm text-gray-600 block mb-1">디지몬 별명</label>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={digimonNicknameEdits[slot.id] !== undefined 
+                      ? digimonNicknameEdits[slot.id] 
+                      : (slot.digimonNickname || slotDigimonData?.name || slot.selectedDigimon || "")}
+                    onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
+                    placeholder={slotDigimonData?.name || slot.selectedDigimon || "디지몬 이름"}
+                    className="border p-1.5 flex-1 min-w-[120px] text-sm rounded"
+                  />
+                  <button
+                    onClick={() => {
+                      handleSaveDigimonNickname(slot.id);
+                      setOpenNicknameSlotId(null);
+                    }}
+                    className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleResetDigimonNickname(slot.id, slotDigimonData?.name || slot.selectedDigimon);
+                      setOpenNicknameSlotId(null);
+                    }}
+                    className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                  >
+                    기본값
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpenNicknameSlotId(null)}
+                    className="px-2 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+            <p className="text-sm text-gray-500 mt-1">생성일: {slot.createdAt}</p>
             <p className="text-sm text-gray-500">
               기종: {slot.device} / 버전: {slot.version}
             </p>
-          </div>
-
-          <div className="mt-2">
-            {/* 디지몬 별명 수정 */}
-            <div>
-              <label className="text-sm">디지몬 별명: </label>
-              <div className="flex gap-2 mt-1">
-                <input
-                  type="text"
-                  value={digimonNicknameEdits[slot.id] !== undefined 
-                    ? digimonNicknameEdits[slot.id] 
-                    : (slot.digimonNickname || slotDigimonData?.name || slot.selectedDigimon || "")}
-                  onChange={(e) => handleDigimonNicknameChange(slot.id, e.target.value)}
-                  placeholder={slotDigimonData?.name || slot.selectedDigimon || "디지몬 이름"}
-                  className="border p-1 flex-1 text-sm"
-                />
-                <button
-                  onClick={() => handleSaveDigimonNickname(slot.id)}
-                  className="px-2 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                >
-                  저장
-                </button>
-                <button
-                  onClick={() => handleResetDigimonNickname(slot.id, slotDigimonData?.name || slot.selectedDigimon)}
-                  className="px-2 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-                >
-                  기본값
-                </button>
-              </div>
+            <div className="flex items-center space-x-2 mt-2">
+              <button
+                onClick={() => handleDeleteSlot(slot.id)}
+                className="px-4 py-2 bg-red-500 text-white rounded"
+              >
+                삭제
+              </button>
+              <button
+                onClick={() => handleContinue(slot.id)}
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+              >
+                이어하기
+              </button>
             </div>
           </div>
           </div>
