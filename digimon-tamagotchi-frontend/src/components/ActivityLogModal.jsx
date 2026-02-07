@@ -99,7 +99,7 @@ export default function ActivityLogModal({
         onClick={(e) => e.stopPropagation()}
         style={{ wordBreak: "break-word", overflowWrap: "break-word" }}
       >
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-1">
           <h2 className="text-2xl font-bold text-yellow-400 pixel-art-text">
             활동 로그
           </h2>
@@ -110,6 +110,7 @@ export default function ActivityLogModal({
             ✕
           </button>
         </div>
+        <p className="text-gray-400 text-sm mb-4">최대 100개까지 저장됩니다.</p>
 
         {/* 종류별 탭 */}
         <div className="flex flex-wrap gap-1 mb-4 border-b border-gray-600 pb-2">

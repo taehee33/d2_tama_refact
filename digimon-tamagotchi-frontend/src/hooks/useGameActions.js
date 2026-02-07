@@ -231,7 +231,7 @@ export function useGameActions({
             text: proteinOverdose >= 7 ? "Feed: Refused (Protein Overdose max reached: 7/7)" : "Feed: Refused",
             timestamp: Date.now(),
           };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -286,7 +286,7 @@ export function useGameActions({
             text: `수면 방해(사유: 먹이 주기 - ${actionType}): 10분 동안 깨어있음`,
             timestamp: Date.now(),
           };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -383,7 +383,7 @@ export function useGameActions({
       }
       setDigimonStats((prevStats) => {
         const newLog = { type: "FEED", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -446,7 +446,7 @@ export function useGameActions({
           text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -469,7 +469,7 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 체중 부족). 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -491,7 +491,7 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 에너지 부족). 에너지: ${en}, 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -533,7 +533,7 @@ export function useGameActions({
         type: "TRAIN",
         timestamp: Date.now(),
       };
-      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, 50);
+      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, 100);
       if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
       const finalStatsWithLogs = { ...finalStats, activityLogs: updatedLogs };
       setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs).catch((error) => {
@@ -595,7 +595,7 @@ export function useGameActions({
         // 똥 청소 시 부상 상태는 자동으로 회복되지 않음
         
         const newLog = { type: "CLEAN", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -940,7 +940,7 @@ export function useGameActions({
           text: `수면 방해(사유: 배틀 - ${battleTypeText}): 10분 동안 깨어있음`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 50);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
