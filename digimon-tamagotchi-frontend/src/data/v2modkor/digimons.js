@@ -184,7 +184,7 @@ export const digimonDataVer2 = {
       maxEnergy: 20,
       minWeight: 20,
       healDoses: 2,
-      type: "Vaccine",
+      type: "Data",
       sleepTime: "20:00",
       attackSprite: 4,
     },
@@ -195,19 +195,19 @@ export const digimonDataVer2 = {
       {
         targetId: "Kabuterimon",
         targetName: "캅테리몬",
-        conditions: { careMistakes: { max: 3 }, trainings: { min: 32 } },
+        conditions: { careMistakes: { max: 3 }, trainings: { min: 48 } },
       },
       {
         targetId: "Angemon",
         targetName: "엔젤몬",
-        conditions: { careMistakes: { max: 3 }, trainings: { max: 31 } },
+        conditions: { careMistakes: { max: 3 }, trainings: { max: 47 } },
       },
       {
         targetId: "Garurumon",
         targetName: "가루몬",
         conditions: {
           careMistakes: { min: 4 },
-          trainings: { min: 5, max: 15 },
+          trainings: { min: 5, max: 31 },
           overfeeds: { min: 3 },
           sleepDisturbances: { min: 4, max: 5 },
         },
@@ -217,7 +217,7 @@ export const digimonDataVer2 = {
         targetName: "프리지몬",
         conditions: {
           careMistakes: { min: 4 },
-          trainings: { min: 16 },
+          trainings: { min: 32 },
           overfeeds: { min: 3 },
           sleepDisturbances: { min: 6 },
         },
@@ -228,9 +228,9 @@ export const digimonDataVer2 = {
         conditionGroups: [
           { careMistakes: { min: 4 }, trainings: { max: 4 } },
           { careMistakes: { min: 4 }, overfeeds: { max: 2 } },
-          { careMistakes: { min: 4 }, trainings: { min: 5, max: 15 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 3 } },
-          { careMistakes: { min: 4 }, trainings: { min: 5, max: 15 }, overfeeds: { min: 3 }, sleepDisturbances: { min: 6 } },
-          { careMistakes: { min: 4 }, trainings: { min: 16 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 5 } },
+          { careMistakes: { min: 4 }, trainings: { min: 5, max: 31 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 3 } },
+          { careMistakes: { min: 4 }, trainings: { min: 5, max: 31 }, overfeeds: { min: 3 }, sleepDisturbances: { min: 6 } },
+          { careMistakes: { min: 4 }, trainings: { min: 32 }, overfeeds: { min: 3 }, sleepDisturbances: { max: 5 } },
         ],
       },
     ],
@@ -252,7 +252,7 @@ export const digimonDataVer2 = {
       maxEnergy: 20,
       minWeight: 20,
       healDoses: 2,
-      type: "Virus",
+      type: "Data",
       sleepTime: "21:00",
       attackSprite: 5,
     },
@@ -266,18 +266,18 @@ export const digimonDataVer2 = {
         conditions: { careMistakes: { max: 3 }, trainings: { min: 48 } },
       },
       {
-        targetId: "Frigimon",
-        targetName: "프리지몬",
+        targetId: "Birdramon",
+        targetName: "버드라몬",
         conditions: { careMistakes: { max: 3 }, trainings: { max: 47 } },
       },
       {
-        targetId: "Birdramon",
-        targetName: "버드라몬",
+        targetId: "Frigimon",
+        targetName: "프리지몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 8, max: 31 },
-          overfeeds: { max: 3 },
-          sleepDisturbances: { min: 9 },
+          overfeeds: { max: 5 },
+          sleepDisturbances: { min: 6 },
         },
       },
       {
@@ -285,9 +285,9 @@ export const digimonDataVer2 = {
         targetName: "고래몬",
         conditions: {
           careMistakes: { min: 4 },
-          trainings: { min: 8, max: 31 },
-          overfeeds: { min: 4 },
-          sleepDisturbances: { max: 8 },
+          trainings: { min: 32 },
+          overfeeds: { min: 6 },
+          sleepDisturbances: { min: 4 },
         },
       },
       {
@@ -296,8 +296,9 @@ export const digimonDataVer2 = {
         conditionGroups: [
           { careMistakes: { min: 4 }, trainings: { max: 7 } },
           { careMistakes: { min: 4 }, trainings: { min: 32 } },
-          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, overfeeds: { min: 4 }, sleepDisturbances: { min: 9 } },
-          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, overfeeds: { max: 3 }, sleepDisturbances: { max: 8 } },
+          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, overfeeds: { min: 6 }},
+          { careMistakes: { min: 4 }, trainings: { min: 32 }, sleepDisturbances: { max :4 } },
+          { careMistakes: { min: 4 }, trainings: { min: 8, max: 31 }, sleepDisturbances: { max: 5 } },
         ],
       },
     ],
@@ -353,8 +354,8 @@ export const digimonDataVer2 = {
       maxEnergy: 30,
       minWeight: 40,
       healDoses: 1,
-      type: "Virus",
-      sleepTime: "23:00",
+      type: "Vaccine",
+      sleepTime: "24:00",
       attackSprite: 51,
     },
     evolutionCriteria: {
@@ -432,8 +433,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "MetalMammemon",
-        targetName: "메탈콩알몬",
+        targetId: "Vademon",
+        targetName: "베이더몬",
         conditions: { battles: { min: 15 }, winRatio: { min: 80 } },
       },
     ],
@@ -455,7 +456,7 @@ export const digimonDataVer2 = {
       maxEnergy: 30,
       minWeight: 20,
       healDoses: 2,
-      type: "Data",
+      type: "Vaccine",
       sleepTime: "22:00",
       attackSprite: 4,
     },
@@ -466,8 +467,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "Vademon",
-        targetName: "베이더몬",
+        targetId: "MetalMammemon",
+        targetName: "메탈콩알몬",
         conditions: { battles: { min: 15 }, winRatio: { min: 80 } },
       },
     ],
@@ -500,8 +501,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "Vademon",
-        targetName: "베이더몬",
+        targetId: "MetalMammemon",
+        targetName: "메탈콩알몬",
         conditions: { battles: { min: 15 }, winRatio: { min: 80 } },
       },
     ],
@@ -523,7 +524,7 @@ export const digimonDataVer2 = {
       maxEnergy: 30,
       minWeight: 20,
       healDoses: 2,
-      type: "Data",
+      type: "Vaccine",
       sleepTime: "23:00",
       attackSprite: 15,
     },
@@ -534,8 +535,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "SkullGreymon",
-        targetName: "스컬그레이몬",
+        targetId: "MetalMammemon",
+        targetName: "메탈콩알몬",
         conditions: { battles: { min: 15 }, winRatio: { min: 80 } },
       },
     ],
@@ -569,8 +570,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "BlitzGreymon",
-        targetName: "블리츠그레이몬",
+        targetId: "skullmamon",
+        targetName: "스컬맘몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -596,7 +597,7 @@ export const digimonDataVer2 = {
       maxEnergy: 40,
       minWeight: 40,
       healDoses: 1,
-      type: "Vaccine",
+      type: "Data",
       sleepTime: "21:00",
       attackSprite: 23,
     },
@@ -608,8 +609,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "SkullMammon",
-        targetName: "스컬맘몬",
+        targetId: "cresgarurumon",
+        targetName: "크레스가루루몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -635,7 +636,7 @@ export const digimonDataVer2 = {
       maxEnergy: 40,
       minWeight: 5,
       healDoses: 1,
-      type: "Data",
+      type: "Virus",
       sleepTime: "23:00",
       attackSprite: 8,
     },
@@ -647,8 +648,8 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "CresGarurumon",
-        targetName: "크레스가루루몬",
+        targetId: "Ebemon",
+        targetName: "이바몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -681,13 +682,7 @@ export const digimonDataVer2 = {
     evolutionCriteria: {
       jogress: true,
     },
-    evolutions: [
-      {
-        targetId: "OmegamonAlterSV2",
-        targetName: "오메가몬 Alter-S",
-        jogress: { partner: "CresGarurumon" },
-      },
-    ],
+    evolutions: [    ],
   },
 
   // Ultimate — 스컬맘몬 (SkullMammon)
@@ -734,7 +729,13 @@ export const digimonDataVer2 = {
       attackSprite: 116,
     },
     evolutionCriteria: null,
-    evolutions: [],
+    evolutions: [
+      {
+        targetId: "OmegamonAlterSV2",
+        targetName: "오메가몬 Alter-S",
+        jogress: { partner: "BlitzGreymon" },
+      },
+    ],
   },
 
   // Super Ultimate
