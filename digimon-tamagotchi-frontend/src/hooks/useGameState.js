@@ -191,6 +191,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     
     // 추가 기능 모달
     extra: false,
+    activityLog: false,
+    battleLog: false,
     collection: false,
     backgroundSettings: false,
   });
@@ -374,6 +376,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       collection: false,
       backgroundSettings: false,
       activityLog: false,
+      battleLog: false,
       encyclopedia: false,
       fridge: false,
       train: false,

@@ -141,32 +141,24 @@ function CareMistakeHistory({ activityLogs, formatTimestamp }) {
 
 /**
  * 부상 이력 아코디언 컴포넌트
+ * activityLogs: 기존 활동 로그 (POOP/INJURY/BATTLE 타입)
+ * battleLogs: 배틀 전용 로그 (injury 필드 또는 텍스트로 부상 여부 판단)
  */
-function InjuryHistory({ activityLogs, formatTimestamp }) {
+function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp }) {
   const [isOpen, setIsOpen] = useState(false);
   
-  // 부상 관련 로그 필터링
-  const injuryLogs = (activityLogs || []).filter(log => {
+  const fromActivity = (activityLogs || []).filter(log => {
     if (!log.text) return false;
-    
-    // POOP 타입이면서 'Injury'가 포함된 로그
-    if (log.type === 'POOP' && log.text.includes('Injury')) {
-      return true;
-    }
-    
-    // BATTLE 타입이면서 부상 정보가 포함된 로그
-    if (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) {
-      return true;
-    }
-    
-    // INJURY 타입이 있는 경우
-    if (log.type === 'INJURY') {
-      return true;
-    }
-    
+    if (log.type === 'POOP' && log.text.includes('Injury')) return true;
+    if (log.type === 'BATTLE' && (log.text.includes('Injury') || log.text.includes('부상'))) return true;
+    if (log.type === 'INJURY') return true;
     return false;
-  }).sort((a, b) => {
-    // 최신순 정렬
+  });
+  
+  const fromBattle = (battleLogs || []).filter(b => b.injury || (b.text && (b.text.includes('Injury') || b.text.includes('부상'))))
+    .map(b => ({ timestamp: b.timestamp, text: b.text }));
+  
+  const injuryLogs = [...fromActivity, ...fromBattle].sort((a, b) => {
     const timestampA = ensureTimestamp(a.timestamp);
     const timestampB = ensureTimestamp(b.timestamp);
     return (timestampB || 0) - (timestampA || 0);
@@ -308,6 +300,7 @@ export default function StatsPopup({
   sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
   isLightsOn = false, // 조명 상태
   callStatus = null, // 호출 상태 { hunger: { isActive, startedAt }, strength: { isActive, startedAt }, sleep: { isActive, startedAt } }
+  appendLogToSubcollection, // Firestore logs 서브컬렉션에 로그 추가 (선택)
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
   
@@ -1111,9 +1104,8 @@ export default function StatsPopup({
                 const logText = newMode 
                   ? '야행성 모드 ON: 수면/기상 시간이 3시간씩 미뤄집니다 🌙'
                   : '야행성 모드 OFF: 일반 수면 시간으로 복귀합니다 ☀️';
-                const updatedLogs = addActivityLog(currentLogs, 'ACTION', logText);
-                
-                // 스탯과 로그를 함께 업데이트
+                const updatedLogs = addActivityLog(currentLogs, "ACTION", logText);
+                if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
                 onChangeStats({ ...updatedStats, activityLogs: updatedLogs });
               }}
               className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
@@ -1839,7 +1831,8 @@ export default function StatsPopup({
                   {/* 부상 이력 아코디언 - 항상 표시 */}
                   <div className="mt-2">
                     <InjuryHistory 
-                      activityLogs={stats?.activityLogs || []} 
+                      activityLogs={stats?.activityLogs || []}
+                      battleLogs={stats?.battleLogs || []}
                       formatTimestamp={formatTimestamp}
                     />
                   </div>

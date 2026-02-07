@@ -10,6 +10,7 @@ export default function ExtraMenuModal({
   onOpenDigimonInfo,
   onOpenCollection,
   onOpenActivityLog,
+  onOpenBattleLog,
   onOpenEncyclopedia,
   onOpenFridge,
 }) {
@@ -41,6 +42,18 @@ export default function ExtraMenuModal({
             className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
             📋 활동 로그
+          </button>
+          
+          <button
+            onClick={() => {
+              if (onOpenBattleLog) {
+                onOpenBattleLog();
+              }
+              onClose();
+            }}
+            className="px-6 py-3 bg-amber-600 text-white rounded-lg font-bold hover:bg-amber-700 transition-colors"
+          >
+            ⚔️ 배틀 기록
           </button>
           
           <button

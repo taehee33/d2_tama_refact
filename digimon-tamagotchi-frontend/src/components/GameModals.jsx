@@ -26,6 +26,7 @@ import PlayOrSnackModal from "./PlayOrSnackModal";
 import TeaseModal from "./TeaseModal";
 import LightsModal from "./LightsModal";
 import ExtraMenuModal from "./ExtraMenuModal";
+import BattleLogModal from "./BattleLogModal";
 import CollectionModal from "./CollectionModal";
 import BackgroundSettingsModal from "./BackgroundSettingsModal";
 import ActivityLogModal from "./ActivityLogModal";
@@ -96,9 +97,9 @@ export default function GameModals({
       
       // 수면방해 로그 추가
       const sleepDisturbanceLog = {
-        type: 'CARE_MISTAKE',
-        text: `수면 방해: 교감 (${actionType}) - 10분 동안 깨어있음`,
-        timestamp: Date.now()
+        type: "CARE_MISTAKE",
+        text: `수면 방해(사유: 교감 - ${actionType}): 10분 동안 깨어있음`,
+        timestamp: Date.now(),
       };
       const logsWithDisturbance = [sleepDisturbanceLog, ...updatedLogs].slice(0, 50);
       
@@ -108,6 +109,7 @@ export default function GameModals({
         sleepDisturbances: (updatedStats.sleepDisturbances || 0) + 1,
         activityLogs: logsWithDisturbance,
       };
+      if (appendLogToSubcollection) appendLogToSubcollection(sleepDisturbanceLog).catch(() => {});
       setDigimonStatsAndSave(statsWithDisturbance, logsWithDisturbance);
       return {
         updatedStats: statsWithDisturbance,
@@ -148,6 +150,7 @@ export default function GameModals({
     setArenaEnemyId,
     setMyArenaEntryId,
     handleToggleLights,
+    appendLogToSubcollection,
   } = handlers || {};
 
   const {
@@ -234,6 +237,7 @@ export default function GameModals({
           sleepLightOnStart={ui?.sleepLightOnStart || null}
           isLightsOn={gameState?.isLightsOn || false}
           callStatus={digimonStats?.callStatus || null}
+          appendLogToSubcollection={appendLogToSubcollection}
         />
       )}
 
@@ -298,6 +302,10 @@ export default function GameModals({
           onClose={() => toggleModal('battleSelection', false)}
           onQuestStart={handleQuestStart}
           onCommunicationStart={handleCommunicationStart}
+          onOpenBattleLog={() => {
+            toggleModal('battleSelection', false);
+            toggleModal('battleLog', true);
+          }}
         />
       )}
 
@@ -357,12 +365,11 @@ export default function GameModals({
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
-                'DIET',
+                "DIET",
                 `다이어트 성공! 포만감: ${currentStats.fullness || 0} → ${newFullness}`
               );
-              
-              // 수면방해 처리 (실제 액션 수행 시점)
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '다이어트');
+              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "다이어트");
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
@@ -393,12 +400,11 @@ export default function GameModals({
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
-                'REST',
+                "REST",
                 `누워있기 성공! Strength: ${currentStats.strength || 0} → ${newStrength}`
               );
-              
-              // 수면방해 처리 (실제 액션 수행 시점)
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '누워있기');
+              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "누워있기");
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
@@ -429,12 +435,11 @@ export default function GameModals({
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
-                'DETOX',
+                "DETOX",
                 `디톡스 성공! Protein Overdose: ${currentStats.proteinOverdose || 0} → ${newProteinOverdose}`
               );
-              
-              // 수면방해 처리 (실제 액션 수행 시점)
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '디톡스');
+              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "디톡스");
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
@@ -465,12 +470,11 @@ export default function GameModals({
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
-                'PLAY_OR_SNACK',
+                "PLAY_OR_SNACK",
                 `놀아주기/간식주기 성공! Care Mistakes: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
               );
-              
-              // 수면방해 처리 (실제 액션 수행 시점)
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '놀아주기/간식주기');
+              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "놀아주기/간식주기");
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
@@ -501,12 +505,11 @@ export default function GameModals({
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
-                'CAREMISTAKE',
-                `괜히 괴롭히기 성공! 케어미스: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
+                "CAREMISTAKE",
+                `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${newCareMistakes}`
               );
-              
-              // 수면방해 처리 (실제 액션 수행 시점)
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, '괜히 괴롭히기');
+              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "괜히 괴롭히기");
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
@@ -695,6 +698,7 @@ export default function GameModals({
           onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
           onOpenCollection={() => toggleModal('collection', true)}
           onOpenActivityLog={() => toggleModal('activityLog', true)}
+          onOpenBattleLog={() => toggleModal('battleLog', true)}
           onOpenEncyclopedia={() => toggleModal('encyclopedia', true)}
           onOpenFridge={() => toggleModal('fridge', true)}
         />
@@ -725,6 +729,14 @@ export default function GameModals({
         <ActivityLogModal
           activityLogs={activityLogs || []}
           onClose={() => toggleModal('activityLog', false)}
+        />
+      )}
+
+      {/* Battle Log Modal (배틀 기록) */}
+      {modals.battleLog && (
+        <BattleLogModal
+          battleLogs={digimonStats?.battleLogs || []}
+          onClose={() => toggleModal('battleLog', false)}
         />
       )}
 

@@ -1,8 +1,8 @@
 // src/hooks/useGameData.js
 // Game.jsx의 데이터 저장/로딩 로직을 분리한 Custom Hook
 
-import { useState, useEffect } from "react";
-import { doc, getDoc, updateDoc, deleteField } from "firebase/firestore";
+import { useState, useEffect, useCallback } from "react";
+import { doc, getDoc, updateDoc, deleteField, collection, addDoc, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
 import { initializeStats } from "../data/stats";
@@ -43,6 +43,22 @@ function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt
   
   // 냉장고 시간을 제외한 경과 시간 반환
   return Math.max(0, totalElapsed - frozenDuration);
+}
+
+/**
+ * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
+ * @param {Object} obj - 1depth 객체 (중첩 객체/배열은 그대로 유지)
+ * @returns {Object} null/undefined가 제거된 새 객체
+ */
+function cleanObject(obj) {
+  if (obj == null || typeof obj !== "object") return obj;
+  const result = { ...obj };
+  Object.keys(result).forEach((key) => {
+    if (result[key] === null || result[key] === undefined) {
+      delete result[key];
+    }
+  });
+  return result;
 }
 
 /**
@@ -226,8 +242,11 @@ export function useGameData({
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        // 루트 전용 필드는 digimonStats에 중복 저장하지 않음 (isLightsOn, wakeUntil, lastSavedAt)
+        // activityLogs·battleLogs는 서브컬렉션에만 저장하므로 슬롯 문서에서는 제외
+        const { isLightsOn: _dropl, wakeUntil: _dropw, lastSavedAt: _dropt, activityLogs: _dropLogs, battleLogs: _dropBattleLogs, ...digimonStatsOnly } = statsWithoutProteinCount;
         const updateData = {
-          digimonStats: statsWithoutProteinCount,
+          digimonStats: cleanObject(digimonStatsOnly),
           isLightsOn,
           wakeUntil,
           lastSavedAt: statsWithoutProteinCount.lastSavedAt,
@@ -423,12 +442,36 @@ export function useGameData({
           const savedName = slotData.selectedDigimon || (slotData.version === "Ver.2" ? "Punimon" : "Digitama");
           let savedStats = slotData.digimonStats || {};
           
-          // Activity Logs 로드: digimonStats 안의 activityLogs를 우선 사용, 없으면 최상위 activityLogs 사용
-          const logs = initializeActivityLogs(
-            savedStats.activityLogs || slotData.activityLogs
-          );
-          setActivityLogs((prevLogs) => logs || prevLogs || []);
-          
+          // Activity Logs 로드: 서브컬렉션 logs 우선, 없으면 구 문서 activityLogs 사용 (마이그레이션 호환)
+          const slotRefForLogs = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+          try {
+            const logsRef = collection(slotRefForLogs, "logs");
+            const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(100));
+            const logsSnap = await getDocs(logsQuery);
+            if (!logsSnap.empty) {
+              const logs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+              setActivityLogs(logs);
+            } else {
+              setActivityLogs(initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []));
+            }
+          } catch (_e) {
+            setActivityLogs(initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []));
+          }
+
+          // Battle Logs 로드: 서브컬렉션 battleLogs 우선, 없으면 구 문서 digimonStats.battleLogs 사용 (마이그레이션 호환)
+          let loadedBattleLogs = savedStats.battleLogs || [];
+          try {
+            const battleLogsRef = collection(slotRefForLogs, "battleLogs");
+            const battleLogsQuery = query(battleLogsRef, orderBy("timestamp", "desc"), limit(100));
+            const battleLogsSnap = await getDocs(battleLogsQuery);
+            if (!battleLogsSnap.empty) {
+              loadedBattleLogs = battleLogsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            }
+          } catch (_e) {
+            // fallback: 문서 내 battleLogs 유지
+          }
+          savedStats.battleLogs = loadedBattleLogs;
+
           // proteinCount 필드 제거 (마이그레이션)
           if (savedStats.proteinCount !== undefined) {
             delete savedStats.proteinCount;
@@ -446,7 +489,8 @@ export function useGameData({
             setSelectedDigimon(savedName);
             setDigimonStats(ns);
           } else {
-            const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || new Date();
+            // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
+            const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || savedStats.lastSavedAt || new Date();
             
             // sleepSchedule과 maxEnergy 계산
             let sleepSchedule = null;
@@ -488,12 +532,8 @@ export function useGameData({
               setDeathReason(savedStats.deathReason);
             }
             
-            await updateDoc(slotRef, {
-              digimonStats: savedStats,
-              'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
-              lastSavedAt: savedStats.lastSavedAt,
-              updatedAt: new Date(),
-            });
+            // 로드 직후에는 Firestore 쓰기 하지 않음 (Lazy Update는 메모리만 반영, 다음 액션 시 saveStats에서 저장)
+            // updatedAt이 불필요하게 자주 바뀌는 것과 비용 절감을 위해 제거
           }
         } else {
           const ns = initializeStats("Digitama", {}, digimonDataVer1);
@@ -522,13 +562,12 @@ export function useGameData({
   }, [slotId, currentUser, isFirebaseAvailable, navigate]);
 
   /**
-   * 배경화면 설정 저장 함수
+   * 배경화면 설정 저장 함수 (참조 안정화: useCallback으로 1초마다 리렌더 시 불필요한 저장 방지)
    * @param {Object} newBackgroundSettings - 새로운 배경화면 설정
    */
-  async function saveBackgroundSettings(newBackgroundSettings) {
+  const saveBackgroundSettings = useCallback(async (newBackgroundSettings) => {
     if (!slotId) return;
 
-    // Firebase 로그인 필수
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
@@ -545,12 +584,61 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }
+  }, [slotId, currentUser, isFirebaseAvailable]);
+
+  /**
+   * 활동 로그 한 건을 서브컬렉션 logs에만 추가 (방안 A: 전면 서브컬렉션)
+   * @param {{ type: string, text: string, timestamp?: number }} logEntry
+   */
+  const appendLogToSubcollection = useCallback(
+    async (logEntry) => {
+      if (!slotId || !currentUser || !isFirebaseAvailable || !logEntry?.type) return;
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        const logsRef = collection(slotRef, "logs");
+        await addDoc(logsRef, {
+          type: logEntry.type,
+          text: logEntry.text ?? "",
+          timestamp: logEntry.timestamp ?? Date.now(),
+        });
+      } catch (error) {
+        console.error("[appendLogToSubcollection] 오류:", error);
+      }
+    },
+    [slotId, currentUser, isFirebaseAvailable]
+  );
+
+  /**
+   * 배틀 로그 한 건을 서브컬렉션 battleLogs에만 추가 (활동 로그와 동일 패턴)
+   * @param {{ timestamp?: number, mode: string, text: string, win?: boolean, enemyName?: string, injury?: boolean }} entry
+   */
+  const appendBattleLogToSubcollection = useCallback(
+    async (entry) => {
+      if (!slotId || !currentUser || !isFirebaseAvailable || !entry?.mode) return;
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        const battleLogsRef = collection(slotRef, "battleLogs");
+        await addDoc(battleLogsRef, {
+          timestamp: entry.timestamp ?? Date.now(),
+          mode: entry.mode,
+          text: entry.text ?? "",
+          ...(typeof entry.win === "boolean" && { win: entry.win }),
+          ...(entry.enemyName != null && entry.enemyName !== "" && { enemyName: entry.enemyName }),
+          ...(typeof entry.injury === "boolean" && { injury: entry.injury }),
+        });
+      } catch (error) {
+        console.error("[appendBattleLogToSubcollection] 오류:", error);
+      }
+    },
+    [slotId, currentUser, isFirebaseAvailable]
+  );
 
   return {
     saveStats,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
+    appendLogToSubcollection,
+    appendBattleLogToSubcollection,
     isLoading,
     error,
   };

@@ -14,6 +14,13 @@ import OnlineUsersCount from "../components/OnlineUsersCount";
 
 const MAX_SLOTS = 10; // 10개로 늘림
 
+/** 생성일 표시: 숫자(ms)는 로케일 포맷, 문자열(구 데이터)은 그대로 표시 */
+function formatSlotCreatedAt(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "number") return new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+  return String(value);
+}
+
 function SelectScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -334,9 +341,9 @@ function SelectScreen() {
 
         console.log("새 슬롯 ID:", slotId);
 
-        // 생성일
+        // 생성일 (숫자 ms 저장 → 정렬·비교 용이, 표시 시 포맷)
         const now = new Date();
-        const createdAtStr = now.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+        const createdAtMs = now.getTime();
         const slotName = `슬롯${slotId}`;
 
         // Firestore의 /users/{uid}/slots/{slotId}에 새 슬롯 저장
@@ -367,7 +374,7 @@ function SelectScreen() {
           digimonStats: {},
           slotName,
           digimonNickname: null, // 디지몬 별명 (기본값: null, 디지몬 이름 사용)
-          createdAt: createdAtStr,
+          createdAt: createdAtMs, // 숫자(ms) 저장 — 정렬·비교 효율, 표시 시 toLocaleString
           device,
           version,
           displayOrder: 1, // 새 슬롯은 항상 맨 위에
@@ -804,7 +811,7 @@ function SelectScreen() {
                 </div>
               </div>
             )}
-            <p className="text-sm text-gray-500 mt-1">생성일: {slot.createdAt}</p>
+            <p className="text-sm text-gray-500 mt-1">생성일: {formatSlotCreatedAt(slot.createdAt)}</p>
             <p className="text-sm text-gray-500">
               기종: {slot.device} / 버전: {slot.version}
             </p>
@@ -877,7 +884,7 @@ function SelectScreen() {
                       </p>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      생성일: {slot.createdAt}
+                      생성일: {formatSlotCreatedAt(slot.createdAt)}
                     </p>
                     <p className="text-sm text-gray-500">
                       기종: {slot.device} / 버전: {slot.version}

@@ -1,7 +1,6 @@
 // src/hooks/useGameAnimations.js
 // Game.jsx의 애니메이션 사이클 로직을 분리한 Custom Hook
 
-import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { addActivityLog, resetCallStatus } from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
@@ -39,6 +38,7 @@ export function useGameAnimations({
   setDigimonStats,
   activityLogs,
   setActivityLogs,
+  appendLogToSubcollection,
   modals,
   toggleModal,
   setCurrentAnimation,
@@ -141,19 +141,13 @@ export function useGameAnimations({
         }
       }
       
-      // Activity Log 추가
       const currentLogs = updatedStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(currentLogs, 'FEED', logText);
-      
-      // updatedStats에 activityLogs 포함하여 저장
-      const statsWithLogs = {
-        ...updatedStats,
-        activityLogs: updatedLogs,
-      };
+      const updatedLogs = addActivityLog(currentLogs, "FEED", logText);
+      if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+      const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
       setDigimonStatsAndSave(statsWithLogs, updatedLogs);
     }
     
-    // 애니메이션 종료 처리
     if (step >= frameCount) {
       setCurrentAnimation("idle");
       toggleModal('food', false);
@@ -200,29 +194,17 @@ export function useGameAnimations({
       // Activity Log 추가
       let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
       if (nowSleeping) {
-        logText = `수면 방해: 화장실 청소 - 10분 동안 깨어있음`;
+        logText = "수면 방해(사유: 화장실 청소): 10분 동안 깨어있음";
       }
       
       setDigimonStats(updatedStats);
       setActivityLogs((prevLogs) => {
         const currentLogs = updatedStats.activityLogs || prevLogs || [];
-        const updatedLogs = addActivityLog(currentLogs, nowSleeping ? 'CARE_MISTAKE' : 'CLEAN', logText);
-        
-        // Firestore에도 저장 (비동기 처리)
-        if (slotId && currentUser) {
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          updateDoc(slotRef, {
-            digimonStats: { ...updatedStats, activityLogs: updatedLogs },
-            isLightsOn,
-            wakeUntil: nowSleeping ? updatedStats.wakeUntil : wakeUntil,
-            // activityLogs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요 (중복 저장 방지)
-            lastSavedAt: now,
-            updatedAt: now,
-          }).catch((error) => {
-            console.error("청소 상태 저장 오류:", error);
-          });
-        }
-        
+        const updatedLogs = addActivityLog(currentLogs, nowSleeping ? "CARE_MISTAKE" : "CLEAN", logText);
+        if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs).catch((error) => {
+          console.error("청소 상태 저장 오류:", error);
+        });
         return updatedLogs;
       });
       return;
@@ -281,15 +263,16 @@ export function useGameAnimations({
       updatedStats.injuredAt = null;
       updatedStats.healedDosesCurrent = 0;
       updatedStats.injuryReason = null; // 부상 원인 리셋
-      const logType = nowSleeping ? 'CARE_MISTAKE' : 'HEAL';
-      const logText = nowSleeping ? '수면 방해: 치료 - 10분 동안 깨어있음' : treatmentMessage;
+      const logType = nowSleeping ? "CARE_MISTAKE" : "HEAL";
+      const logText = nowSleeping ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
+      if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-      // 완전 회복 시 모달은 열어두고 확인 버튼만 보이도록 함 (모달에서 처리)
     } else {
-      const logType = nowSleeping ? 'CARE_MISTAKE' : 'HEAL';
-      const logText = nowSleeping ? '수면 방해: 치료 - 10분 동안 깨어있음' : treatmentMessage;
+      const logType = nowSleeping ? "CARE_MISTAKE" : "HEAL";
+      const logText = nowSleeping ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
+      if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
       // 추가 치료 필요 시 모달은 열어두고 "추가 치료가 필요합니다." 메시지 표시
     }

@@ -3,6 +3,7 @@
 
 import { initializeStats } from "../data/stats";
 import { updateEncyclopedia } from "./useEncyclopedia";
+import { addActivityLog } from "./useGameLogic";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -67,7 +68,8 @@ export function useDeath({
   selectedDigimon,
   slotId,
   currentUser,
-  version = "Ver.1", // 슬롯 버전 (도감 관리용)
+  version = "Ver.1",
+  appendLogToSubcollection,
 }) {
   /**
    * 사망 확정 함수 (환생 처리)
@@ -87,6 +89,14 @@ export function useDeath({
     }
     const old = { ...currentStats };
     const nx = initializeStats(ohaka, old, digimonDataVer1);
+    // 활동 로그: 오하카다몬(사망 폼)으로 환생 기록
+    const reincarnationLogs = addActivityLog(
+      nx.activityLogs || old.activityLogs || [],
+      "REINCARNATION",
+      `Reincarnation: Transformed to ${ohaka} (death form)`
+    );
+    if (appendLogToSubcollection) await appendLogToSubcollection(reincarnationLogs[reincarnationLogs.length - 1]).catch(() => {});
+    const nxWithLogs = { ...nx, activityLogs: reincarnationLogs };
     
     // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합, 버전별 관리)
     if (selectedDigimon && selectedDigimon !== "Digitama" && selectedDigimon !== "DigitamaV2") {
@@ -99,7 +109,7 @@ export function useDeath({
       );
     }
     
-    await setDigimonStatsAndSave(nx);
+    await setDigimonStatsAndSave(nxWithLogs, reincarnationLogs);
     await setSelectedDigimonAndSave(ohaka);
     toggleModal('deathModal', false);
     setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화

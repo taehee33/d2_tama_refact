@@ -4,16 +4,16 @@
 import React from "react";
 import "../styles/Battle.css";
 
-export default function BattleSelectionModal({ onClose, onQuestStart, onCommunicationStart }) {
+export default function BattleSelectionModal({ onClose, onQuestStart, onCommunicationStart, onOpenBattleLog }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{ 
-        width: '90%', 
+      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{
+        width: '90%',
         maxWidth: '400px',
         margin: 'auto'
       }}>
         <h2 className="text-2xl font-bold mb-4 text-center">배틀모드 선택</h2>
-        
+
         <div className="flex flex-col space-y-4">
           <button
             onClick={() => {
@@ -24,7 +24,7 @@ export default function BattleSelectionModal({ onClose, onQuestStart, onCommunic
           >
             퀘스트 모드
           </button>
-          
+
           <button
             onClick={() => {
               onCommunicationStart();
@@ -34,7 +34,19 @@ export default function BattleSelectionModal({ onClose, onQuestStart, onCommunic
           >
             온라인 배틀
           </button>
-          
+
+          {onOpenBattleLog && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenBattleLog();
+              }}
+              className="px-6 py-3 bg-amber-500 text-white rounded-lg font-bold hover:bg-amber-600 transition-colors"
+            >
+              ⚔️ 배틀 기록
+            </button>
+          )}
+
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"

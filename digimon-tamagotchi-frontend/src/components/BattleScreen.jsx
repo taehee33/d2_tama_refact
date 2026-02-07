@@ -400,7 +400,10 @@ export default function BattleScreen({
   // 다음 라운드 진행
   const handleNextBattle = () => {
     if (isQuestCleared) {
-      // 퀘스트 클리어 시 onQuestClear 호출 후 종료
+      // 퀘스트 클리어 시 마지막 승리도 배틀 기록에 남긴 뒤 onQuestClear 호출
+      if (battleResult && onBattleComplete) {
+        onBattleComplete(battleResult);
+      }
       if (onQuestClear) {
         onQuestClear();
       }
@@ -413,9 +416,11 @@ export default function BattleScreen({
 
   // 배틀 종료
   const handleExit = () => {
-    // Arena 모드에서는 배틀 완료 핸들러를 먼저 호출
-    if (battleType === 'arena' && battleResult && onBattleComplete) {
-      console.log("🔍 [BattleScreen] Arena 모드 종료 - onBattleComplete 호출");
+    // Arena/퀘스트 모드: 결과가 있으면 배틀 기록 저장 후 종료
+    if (battleResult && onBattleComplete) {
+      if (battleType === 'arena') {
+        console.log("🔍 [BattleScreen] Arena 모드 종료 - onBattleComplete 호출");
+      }
       onBattleComplete(battleResult);
     }
     onClose();
@@ -447,9 +452,11 @@ export default function BattleScreen({
 
   // 패배 처리
   const handleDefeat = () => {
-    // Arena 모드에서는 배틀 완료 핸들러를 먼저 호출
-    if (battleType === 'arena' && battleResult && onBattleComplete) {
-      console.log("🔍 [BattleScreen] Arena 모드 패배 - onBattleComplete 호출");
+    // Arena/퀘스트 모드: 패배 결과를 배틀 기록에 저장
+    if (battleResult && onBattleComplete) {
+      if (battleType === 'arena') {
+        console.log("🔍 [BattleScreen] Arena 모드 패배 - onBattleComplete 호출");
+      }
       onBattleComplete(battleResult);
     }
     onClose();

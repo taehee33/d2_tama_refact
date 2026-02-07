@@ -13,6 +13,7 @@ import { addActivityLog } from "./useGameLogic";
  * @param {Function} params.applyLazyUpdateBeforeAction - Lazy Update 적용 함수
  * @param {Function} params.setActivityLogs - Activity Logs 설정 함수
  * @param {Array} params.activityLogs - Activity Logs 배열
+ * @param {Function} [params.appendLogToSubcollection] - Firestore logs 서브컬렉션에 로그 추가
  * @returns {Object} putInFridge, takeOutFromFridge
  */
 export function useFridge({
@@ -21,6 +22,7 @@ export function useFridge({
   applyLazyUpdateBeforeAction,
   setActivityLogs,
   activityLogs,
+  appendLogToSubcollection,
 }) {
   /**
    * 냉장고에 넣기
@@ -52,10 +54,10 @@ export function useFridge({
     
     const updatedLogs = addActivityLog(
       activityLogs || [],
-      'FRIDGE',
-      '냉장고에 보관했습니다. 시간이 멈춥니다.'
+      "FRIDGE",
+      "냉장고에 보관했습니다. 시간이 멈춥니다."
     );
-    
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
   }
   
@@ -113,10 +115,10 @@ export function useFridge({
     
     const updatedLogs = addActivityLog(
       activityLogs || [],
-      'FRIDGE',
+      "FRIDGE",
       `냉장고에서 꺼냈습니다. (${durationText} 동안 보관) - ${randomMessage}`
     );
-    
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
   }
   

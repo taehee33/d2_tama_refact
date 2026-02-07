@@ -38,6 +38,7 @@ export function useEvolution({
   applyLazyUpdateBeforeAction,
   setActivityLogs,
   activityLogs,
+  appendLogToSubcollection,
   selectedDigimon,
   developerMode,
   setIsEvolving,
@@ -220,11 +221,10 @@ export function useEvolution({
       });
     }
     
-    // 진화 시 activityLogs 계승 (초기화하지 않음)
     const existingLogs = currentStats.activityLogs || activityLogs || [];
     const newDigimonName = newDigimonData.name || newName;
-    const updatedLogs = addActivityLog(existingLogs, 'EVOLUTION', `Evolution: Evolved to ${newDigimonName}!`);
-    // activityLogs를 계승한 상태로 저장
+    const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `Evolution: Evolved to ${newDigimonName}!`);
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     const nxWithLogs = { ...nx, activityLogs: updatedLogs };
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);

@@ -267,6 +267,8 @@ function Game(){
     saveStats: setDigimonStatsAndSave,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
     saveBackgroundSettings,
+    appendLogToSubcollection,
+    appendBattleLogToSubcollection,
   } = useGameData({
     slotId,
     currentUser,
@@ -315,22 +317,13 @@ function Game(){
     }
   }, [isLoadingSlot, slotId]);
   
-  // backgroundSettings 변경 시 Firebase/localStorage에 저장
-  // Firebase 모드: Firebase에 저장
-  // 로컬 모드: localStorage에 저장
-  // 주의: 초기 로드 중이거나 로드가 완료되기 전에는 저장하지 않음
+  // backgroundSettings 변경 시에만 Firebase/localStorage에 저장 (사용자가 배경을 바꿀 때만)
+  // ⚠️ saveBackgroundSettings는 useGameData에서 useCallback으로 고정되어 있어, 1초 리렌더 시 참조가 바뀌지 않음.
+  //    (이전에는 매 렌더마다 새 함수라 이 effect가 1초마다 실행되며 updatedAt이 1초마다 갱신되는 원인이 됨)
   useEffect(() => {
     if (!slotId || !backgroundSettings) return;
-    
-    // 초기 로드 중이면 저장하지 않음 (로드 완료 후 저장)
     if (isLoadingSlot) return;
-    
-    // 로드가 완료되지 않았으면 저장하지 않음
-    if (!backgroundSettingsLoadedRef.current) {
-      return;
-    }
-    
-    // saveBackgroundSettings 함수가 있으면 호출 (Firebase 저장)
+    if (!backgroundSettingsLoadedRef.current) return;
     if (saveBackgroundSettings) {
       saveBackgroundSettings(backgroundSettings);
     }
@@ -371,6 +364,32 @@ function Game(){
     localStorage.setItem(`slot${slotId}_clearedQuestIndex`, clearedQuestIndex.toString());
   }, [clearedQuestIndex, slotId]);
 
+  // 탭 이탈/닫기 시 현재 스탯 저장 시도 (비용 절감: 액션 기반 + 탭 이탈 시 1회)
+  const latestStatsRef = useRef(digimonStats);
+  useEffect(() => {
+    latestStatsRef.current = digimonStats;
+  }, [digimonStats]);
+  useEffect(() => {
+    if (!slotId || !currentUser || !setDigimonStatsAndSave) return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        setDigimonStatsAndSave(latestStatsRef.current).catch((err) =>
+          console.warn("[Game] 탭 이탈 시 저장 실패:", err)
+        );
+      }
+    };
+    const handleBeforeUnload = () => {
+      setDigimonStatsAndSave(latestStatsRef.current).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotId, currentUser]);
+
   // (2) 시계만 업데이트 (스탯은 Lazy Update로 처리)
   useEffect(()=>{
     const clock= setInterval(()=> setCustomTime(new Date()),1000);
@@ -381,10 +400,12 @@ function Game(){
   },[]);
 
   // (3) 클라이언트 타이머: 1초마다 UI 실시간 업데이트 (Time to Evolve, Lifespan, Waste 등)
-  // 주의: Firestore 쓰기는 하지 않음. 메모리 상태만 업데이트하여 UI에 반영
-  // 브라우저 탭 throttling 문제 해결: 실제 경과 시간을 계산하여 전달
+  // ⚠️ Firestore 쓰기 금지: 이 타이머에서는 setDigimonStats(메모리)만 수행합니다.
+  //    서버 저장은 사망 시 1회 또는 먹이/훈련/배틀 등 액션 시에만 수행됩니다.
+  //    (1초마다 저장 시 1시간 접속만으로 3,600회 쓰기 발생 → 비용·한도 소모)
   const lastUpdateTimeRef = useRef(Date.now());
-  
+  const prevSleepingRef = useRef(null);
+
   useEffect(()=>{
     // 사망한 경우 타이머 중지
     if(digimonStats.isDead) {
@@ -475,10 +496,14 @@ function Game(){
         updatedStats.tiredStartAt = prevStats.tiredStartAt || null;
         updatedStats.tiredCounted = prevStats.tiredCounted || false;
 
-        // 일자 변경 시 일일 수면 케어 미스 리셋
-        const todayKey = nowDate.toDateString();
-        if (updatedStats.sleepMistakeDate !== todayKey) {
-          updatedStats.sleepMistakeDate = todayKey;
+        // 일자 변경 시 일일 수면 케어 미스 리셋 (해당일 0시 ms로 저장 → 비교·정렬 효율)
+        const todayStartMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
+        const storedSleepMistake = updatedStats.sleepMistakeDate;
+        const isNewDay = typeof storedSleepMistake === "number"
+          ? storedSleepMistake !== todayStartMs
+          : storedSleepMistake !== nowDate.toDateString(); // 구 데이터(문자열) 호환
+        if (isNewDay) {
+          updatedStats.sleepMistakeDate = todayStartMs;
           updatedStats.dailySleepMistake = false;
           setDailySleepMistake(false);
         }
@@ -500,13 +525,14 @@ function Game(){
               updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
               updatedStats.tiredCounted = true;
               updatedStats.dailySleepMistake = true;
+              updatedStats.sleepMistakeDate = todayStartMs; // 해당일 0시 ms로 기록 (비교·저장 통일)
               setDailySleepMistake(true);
               // Activity Log 추가
               const currentLogs = updatedStats.activityLogs || [];
               updatedStats.activityLogs = addActivityLog(
                 currentLogs,
-                'CAREMISTAKE',
-                'Care Mistake: Tired for too long'
+                "CAREMISTAKE",
+                "케어미스(사유: 수면 시간에 불 켜둔 채 30분 경과 - 피곤 방치)"
               );
             }
           }
@@ -539,6 +565,23 @@ function Game(){
             // (현재는 리셋하지 않음)
           }
         }
+
+        // 잠듦/깨어남 활동 로그 (SLEEP_START / SLEEP_END)
+        const wasSleeping = prevSleepingRef.current;
+        if (wasSleeping !== null) {
+          const timeStr = new Date(nowMs).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+          const currentLogs = updatedStats.activityLogs || [];
+          if (!wasSleeping && sleepingNow) {
+            const newLogs = addActivityLog(currentLogs, "SLEEP_START", `잠들음 (${timeStr})`);
+            updatedStats.activityLogs = newLogs;
+            if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
+          } else if (wasSleeping && !sleepingNow) {
+            const newLogs = addActivityLog(currentLogs, "SLEEP_END", `깨어남 (${timeStr})`);
+            updatedStats.activityLogs = newLogs;
+            if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
+          }
+        }
+        prevSleepingRef.current = sleepingNow;
 
         setIsSleeping(sleepingNow);
         // 수면 상태 변경 시 애니메이션 업데이트 (부상 상태는 아래 애니메이션 우선순위 로직에서 처리)
@@ -604,19 +647,25 @@ function Game(){
         if (!oldCallStatus?.hunger?.isActive && updatedStats.callStatus?.hunger?.isActive) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            return addActivityLog(currentLogs, 'CALL', 'Call: Hungry!');
+            const updated = addActivityLog(currentLogs, "CALL", "Call: Hungry!");
+            if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
+            return updated;
           });
         }
         if (!oldCallStatus?.strength?.isActive && updatedStats.callStatus?.strength?.isActive) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            return addActivityLog(currentLogs, 'CALL', 'Call: No Energy!');
+            const updated = addActivityLog(currentLogs, "CALL", "Call: No Energy!");
+            if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
+            return updated;
           });
         }
         if (!oldCallStatus?.sleep?.isActive && updatedStats.callStatus?.sleep?.isActive) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            return addActivityLog(currentLogs, 'CALL', 'Call: Sleepy!');
+            const updated = addActivityLog(currentLogs, "CALL", "Call: Sleepy!");
+            if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
+            return updated;
           });
         }
         const oldCareMistakes = prevStats.careMistakes || 0;
@@ -625,63 +674,60 @@ function Game(){
         if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
           const newCareMistakes = updatedStats.careMistakes || 0;
           let logText = '';
-          // 배고픔 케어미스 발생 체크
+          // 배고픔 케어미스 발생 체크 (사유: 배고픔 콜 10분 무시)
           if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
-            logText = `배고픔 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
-          } 
-          // 힘 케어미스 발생 체크
+            logText = `케어미스(사유: 배고픔 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
+          }
+          // 힘 케어미스 발생 체크 (사유: 힘 콜 10분 무시)
           else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
-            logText = `힘 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
-          } 
-          // 수면 케어미스 발생 체크
+            logText = `케어미스(사유: 힘 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
+          }
+          // 수면 케어미스 발생 체크 (사유: 수면 콜 10분 무시)
           else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
-            logText = `수면 케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+            logText = `케어미스(사유: 수면 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
           }
           // 위 조건에 해당하지 않지만 케어미스가 증가한 경우 (안전장치)
           else {
-            logText = `케어미스 발생: ${oldCareMistakes} → ${newCareMistakes}`;
+            logText = `케어미스(사유: 호출 타임아웃): ${oldCareMistakes} → ${newCareMistakes}`;
           }
           if (logText) {
             setActivityLogs((prevLogs) => {
               const currentLogs = updatedStats.activityLogs || prevLogs || [];
-              return addActivityLog(currentLogs, 'CARE_MISTAKE', logText);
+              const updated = addActivityLog(currentLogs, "CARE_MISTAKE", logText);
+              if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
+              return updated;
             });
           }
         }
-        // 배변 로그 추가 (poopCount 증가 시) - 이전 로그 보존
         const oldPoopCount = prevStats.poopCount || 0;
         if ((updatedStats.poopCount || 0) > oldPoopCount) {
           const newPoopCount = updatedStats.poopCount || 0;
           let logText = `Pooped (Total: ${oldPoopCount}→${newPoopCount})`;
           if (newPoopCount === 8 && updatedStats.isInjured) {
-            logText += ' - Injury: Too much poop (8 piles)';
+            logText += " - Injury: Too much poop (8 piles)";
           }
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            return addActivityLog(currentLogs, 'POOP', logText);
+            const updated = addActivityLog(currentLogs, "POOP", logText);
+            if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
+            return updated;
           });
         }
-        // 사망 상태 변경 감지 (로그만 추가, 팝업은 자동 표시하지 않음 - Death Info 버튼으로 수동 열기)
-        if(!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup){
-          // 사망 로그 추가 (이전 로그 보존 - 함수형 업데이트)
-          const reason = deathReason || 'Unknown';
+        if (!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup) {
+          const reason = deathReason || "Unknown";
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            const updatedLogs = addActivityLog(currentLogs, 'DEATH', `Death: Passed away (Reason: ${reason})`);
-            // Firestore에도 저장 (비동기 처리)
-            if(slotId && currentUser){
-              const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-              updateDoc(slotRef, {
-                digimonStats: { ...updatedStats, activityLogs: updatedLogs },
-                // activityLogs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요 (중복 저장 방지)
-                updatedAt: new Date(),
-              }).catch((error) => {
-                console.error("사망 로그 저장 오류:", error);
+            const updatedLogs = addActivityLog(currentLogs, "DEATH", `Death: Passed away (Reason: ${reason})`);
+            if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+            if (slotId && currentUser) {
+              const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+              const { activityLogs: _dropLogs, ...statsForDoc } = updatedStats;
+              updateDoc(slotRef, { digimonStats: statsForDoc, updatedAt: new Date() }).catch((error) => {
+                console.error("사망 스탯 저장 오류:", error);
               });
             }
             return updatedLogs;
           });
-          // 팝업은 자동으로 표시하지 않음 (Death Info 버튼으로 수동 열기)
           setHasSeenDeathPopup(true);
         }
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
@@ -713,6 +759,8 @@ function Game(){
     applyLazyUpdateBeforeAction,
     setActivityLogs,
     activityLogs,
+    appendLogToSubcollection,
+    appendBattleLogToSubcollection,
     selectedDigimon,
     wakeUntil,
     setWakeUntil,
@@ -764,6 +812,7 @@ function Game(){
     applyLazyUpdateBeforeAction,
     setActivityLogs,
     activityLogs,
+    appendLogToSubcollection,
     selectedDigimon,
     developerMode,
     slotId,
@@ -792,7 +841,8 @@ function Game(){
     selectedDigimon,
     slotId,
     currentUser,
-    version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
+    version: slotVersion || "Ver.1",
+    appendLogToSubcollection,
   });
 
   const {
@@ -802,6 +852,7 @@ function Game(){
     setDigimonStats,
     activityLogs,
     setActivityLogs,
+    appendLogToSubcollection,
     modals,
     toggleModal,
     setCurrentAnimation,
@@ -836,6 +887,7 @@ function Game(){
     applyLazyUpdateBeforeAction,
     setActivityLogs,
     activityLogs,
+    appendLogToSubcollection,
   });
 
   // useArenaLogic 훅 호출 (아레나 로직)
@@ -892,6 +944,7 @@ function Game(){
     setSparringEnemySlot,
     setClearedQuestIndex,
     setActivityLogs,
+    appendLogToSubcollection,
     toggleModal,
     setDigimonStatsAndSave,
     applyLazyUpdateBeforeAction,
@@ -1100,11 +1153,17 @@ async function setSelectedDigimonAndSave(name) {
         isInjured: ns.isInjured,
       });
 
-      // 로컬 상태를 즉시 업데이트 (UI 반영)
+      const currentLogs = ns.activityLogs || updatedStats.activityLogs || [];
+      const newStartLogs = addActivityLog(
+        currentLogs,
+        "NEW_START",
+        `New start: Reborn as ${initialDigimonId}`
+      );
+      if (appendLogToSubcollection) appendLogToSubcollection(newStartLogs[newStartLogs.length - 1]).catch(() => {});
+      const nsWithLogs = { ...ns, activityLogs: newStartLogs };
       setSelectedDigimon(initialDigimonId);
-      setDigimonStats(ns);
-
-      await setDigimonStatsAndSave(ns);
+      setDigimonStats(nsWithLogs);
+      await setDigimonStatsAndSave(nsWithLogs, newStartLogs);
       await setSelectedDigimonAndSave(initialDigimonId);
       toggleModal('deathModal', false);
       setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
@@ -1293,6 +1352,7 @@ async function setSelectedDigimonAndSave(name) {
     putInFridge,
     takeOutFromFridge,
     proceedEvolution: handleProceedEvolution,
+    appendLogToSubcollection,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)

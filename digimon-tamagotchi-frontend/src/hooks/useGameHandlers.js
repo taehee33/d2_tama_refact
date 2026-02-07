@@ -103,8 +103,7 @@ export function useGameHandlers({
   setSparringEnemySlot,
   setClearedQuestIndex,
   setActivityLogs,
-  
-  // Functions
+  appendLogToSubcollection,
   toggleModal,
   setDigimonStatsAndSave,
   applyLazyUpdateBeforeAction,
@@ -291,13 +290,11 @@ export function useGameHandlers({
       updatedStats.napUntil = null; // 불 켜면 낮잠 종료
     }
     
-    // Activity Log 추가
     const currentLogs = updatedStats.activityLogs || [];
-    const logText = next ? 'Lights: ON' : 'Lights: OFF';
-    const updatedLogs = addActivityLog(currentLogs, 'ACTION', logText);
+    const logText = next ? "Lights: ON" : "Lights: OFF";
+    const updatedLogs = addActivityLog(currentLogs, "ACTION", logText);
     updatedStats.activityLogs = updatedLogs;
-    
-    // 스탯 저장
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
     
     // 디버깅: 저장 후 확인
