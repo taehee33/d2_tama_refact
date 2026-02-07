@@ -430,7 +430,7 @@ export default function DigimonInfoModal({
           <h3 className="text-xl font-bold text-indigo-300 mb-3 pixel-art-text">🎮 기본 조작</h3>
           <ul className="space-y-2 text-white text-sm break-words">
             <li className="break-words">• <strong>상단 메뉴:</strong> 상태, 먹이기, 훈련, 배틀</li>
-            <li className="break-words">• <strong>하단 메뉴:</strong> 화장실, 전기, 치료, 호출</li>
+            <li className="break-words">• <strong>하단 메뉴:</strong> 화장실, 조명, 치료, 호출</li>
             <li className="break-words">• <strong>Evolution 버튼:</strong> 진화 조건을 만족하면 진화할 수 있습니다</li>
             <li className="break-words">• <strong>❓ 버튼:</strong> 디지몬 정보, 진화 가이드, 활동 로그 등을 확인할 수 있습니다</li>
           </ul>

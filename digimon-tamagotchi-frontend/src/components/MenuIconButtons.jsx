@@ -27,7 +27,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
       battle: "배틀",
       communication: "교감",
       bathroom: "화장실",
-      electric: "전기",
+      electric: "조명",
       heal: "치료",
       callSign: "호출",
       extra: "추가기능",

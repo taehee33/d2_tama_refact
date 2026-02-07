@@ -1007,7 +1007,7 @@ function SelectScreen() {
                   className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="Ver.1">Ver.1</option>
-                  <option value="Ver.2">Ver.2(준비중)</option>
+                  <option value="Ver.2">Ver.2</option>
                   <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
                   <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
                   <option value="Ver.5" disabled>Ver.5 (준비 중)</option>

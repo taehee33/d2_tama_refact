@@ -133,12 +133,19 @@ export function useGameHandlers({
    */
   const handleMenuClick = (menu) => {
     // 수면방해는 실제 액션 수행 시점에 처리됨 (메뉴 클릭 시점이 아님)
-    // 스탯(status), 호출(callSign), 전기(electric)는 수면방해 제외
+    // 스탯(status), 호출(callSign), 조명(electric)은 수면방해 제외
 
     // Lights 모달은 electric 버튼에 매핑 (수면방해 제외)
     if (menu === "electric") {
       toggleModal('lights', true);
       setActiveMenu(menu);
+      return;
+    }
+
+    // 불이 꺼진 상태에서는 식사·훈련·배틀·교감·화장실·치료 동작 불가
+    const needsLights = ['eat', 'train', 'battle', 'communication', 'bathroom', 'heal'];
+    if (needsLights.includes(menu) && !isLightsOn) {
+      alert('💡 조명을 먼저 켜주세요! 💡');
       return;
     }
 
