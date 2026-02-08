@@ -21,6 +21,7 @@ import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
 import { getTamerName } from "../utils/tamerNameUtils";
+import { formatSlotCreatedAt } from "../utils/dateUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
@@ -405,6 +406,8 @@ function Game(){
   //    (1초마다 저장 시 1시간 접속만으로 3,600회 쓰기 발생 → 비용·한도 소모)
   const lastUpdateTimeRef = useRef(Date.now());
   const prevSleepingRef = useRef(null);
+  /** 틱에서 "같은 케어미스 이벤트" 로그를 한 번만 넣기 위한 키 집합 (부상은 poopCount>oldPoopCount가 한 틱만 true라 중복 없음) */
+  const lastAddedCareMistakeKeysRef = useRef(new Set());
 
   useEffect(()=>{
     // 사망한 경우 타이머 중지
@@ -670,48 +673,60 @@ function Game(){
         }
         const oldCareMistakes = prevStats.careMistakes || 0;
         updatedStats = checkCallTimeouts(updatedStats, new Date(), isActuallySleeping);
-        // 케어 미스 로그 추가 (호출 타임아웃) - 이전 로그 보존
+        // 케어미스 로그: 동일 이벤트(timeoutOccurredAt+타입)는 ref로 1회만 추가 (틱이 연속으로 stale prevStats로 들어와도 중복 방지)
         if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
           const newCareMistakes = updatedStats.careMistakes || 0;
           let logText = '';
-          // 배고픔 케어미스 발생 체크 (사유: 배고픔 콜 10분 무시)
+          let timeoutOccurredAt = null;
+          let callType = 'other';
+          const CALL_TIMEOUT_MS = 10 * 60 * 1000;
           if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
+            callType = 'hunger';
             logText = `케어미스(사유: 배고픔 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-          }
-          // 힘 케어미스 발생 체크 (사유: 힘 콜 10분 무시)
-          else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
+            const t = oldCallStatus?.hunger?.startedAt;
+            const startedAtMs = t == null ? null : (typeof t === 'number' ? t : (t?.seconds != null ? t.seconds * 1000 : null));
+            timeoutOccurredAt = startedAtMs != null ? startedAtMs + CALL_TIMEOUT_MS : Date.now();
+          } else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
+            callType = 'strength';
             logText = `케어미스(사유: 힘 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-          }
-          // 수면 케어미스 발생 체크 (사유: 수면 콜 10분 무시)
-          else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
+            const t = oldCallStatus?.strength?.startedAt;
+            const startedAtMs = t == null ? null : (typeof t === 'number' ? t : (t?.seconds != null ? t.seconds * 1000 : null));
+            timeoutOccurredAt = startedAtMs != null ? startedAtMs + CALL_TIMEOUT_MS : Date.now();
+          } else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
+            callType = 'sleep';
             logText = `케어미스(사유: 수면 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-          }
-          // 위 조건에 해당하지 않지만 케어미스가 증가한 경우 (안전장치)
-          else {
+            timeoutOccurredAt = Date.now();
+          } else {
             logText = `케어미스(사유: 호출 타임아웃): ${oldCareMistakes} → ${newCareMistakes}`;
+            timeoutOccurredAt = Date.now();
           }
-          if (logText) {
-            setActivityLogs((prevLogs) => {
-              const currentLogs = updatedStats.activityLogs || prevLogs || [];
-              const updated = addActivityLog(currentLogs, "CARE_MISTAKE", logText);
-              if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
-              return updated;
-            });
+          const eventKey = `${timeoutOccurredAt}-${callType}`;
+          const alreadyAdded = lastAddedCareMistakeKeysRef.current.has(eventKey);
+          if (logText && !alreadyAdded) {
+            lastAddedCareMistakeKeysRef.current.add(eventKey);
+            const currentLogs = updatedStats.activityLogs || prevStats.activityLogs || [];
+            const newLogs = addActivityLog(currentLogs, "CAREMISTAKE", logText, timeoutOccurredAt);
+            setActivityLogs(newLogs);
+            if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
+            updatedStats = { ...updatedStats, activityLogs: newLogs };
           }
         }
         const oldPoopCount = prevStats.poopCount || 0;
         if ((updatedStats.poopCount || 0) > oldPoopCount) {
           const newPoopCount = updatedStats.poopCount || 0;
           let logText = `Pooped (Total: ${oldPoopCount}→${newPoopCount})`;
+          // 똥 8개 부상: applyLazyUpdate와 동일 시각(lastMaxPoopTime) 사용 → 한 경로만 로그 쌓임
+          const poopInjuryTs = (newPoopCount === 8 && updatedStats.isInjured && updatedStats.lastMaxPoopTime)
+            ? (typeof updatedStats.lastMaxPoopTime === 'number' ? updatedStats.lastMaxPoopTime : new Date(updatedStats.lastMaxPoopTime).getTime())
+            : undefined;
           if (newPoopCount === 8 && updatedStats.isInjured) {
             logText += " - Injury: Too much poop (8 piles)";
           }
-          setActivityLogs((prevLogs) => {
-            const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            const updated = addActivityLog(currentLogs, "POOP", logText);
-            if (appendLogToSubcollection) appendLogToSubcollection(updated[updated.length - 1]).catch(() => {});
-            return updated;
-          });
+          const currentLogs = updatedStats.activityLogs || prevStats.activityLogs || [];
+          const newLogs = addActivityLog(currentLogs, "POOP", logText, poopInjuryTs);
+          setActivityLogs(newLogs);
+          if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
+          updatedStats = { ...updatedStats, activityLogs: newLogs };
         }
         if (!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup) {
           const reason = deathReason || "Unknown";
@@ -734,6 +749,18 @@ function Game(){
         updatedStats.isLightsOn = isLightsOn;
         updatedStats.wakeUntil = wakeUntil;
         updatedStats.dailySleepMistake = dailySleepMistake;
+        // 호출 활성화·데드라인·케어미스·부상 발생 시 DB 저장 → 새로고침 없이 이력 유지
+        const zeroAtChanged = (updatedStats.lastHungerZeroAt && updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt) ||
+          (updatedStats.lastStrengthZeroAt && updatedStats.lastStrengthZeroAt !== prevStats.lastStrengthZeroAt);
+        const deadlineChanged = (updatedStats.hungerMistakeDeadline !== prevStats.hungerMistakeDeadline) ||
+          (updatedStats.strengthMistakeDeadline !== prevStats.strengthMistakeDeadline);
+        const careMistakeJustIncreased = (updatedStats.careMistakes || 0) > (prevStats.careMistakes || 0);
+        const injuryJustHappened = (updatedStats.poopCount || 0) > (prevStats.poopCount || 0) &&
+          updatedStats.isInjured && (updatedStats.poopCount || 0) >= 8;
+        if (slotId && currentUser && setDigimonStatsAndSave &&
+            (zeroAtChanged || deadlineChanged || careMistakeJustIncreased || injuryJustHappened)) {
+          setTimeout(() => setDigimonStatsAndSave(updatedStats).catch(() => {}), 0);
+        }
         return updatedStats;
       });
     }, 1000);
@@ -1558,7 +1585,7 @@ async function setSelectedDigimonAndSave(name) {
             <span className="ml-2 text-blue-600">🧊 냉장고</span>
           )}
         </h2>
-        <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {slotCreatedAt}</p>
+        <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {formatSlotCreatedAt(slotCreatedAt)}</p>
         <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
         <p className="text-sm font-semibold text-blue-600 mt-1">
           현재 시간: {customTime.toLocaleString('ko-KR', { 

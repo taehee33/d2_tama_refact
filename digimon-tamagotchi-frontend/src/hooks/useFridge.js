@@ -46,8 +46,8 @@ export function useFridge({
       frozenAt: Date.now(),
       // 호출 상태 모두 비활성화
       callStatus: {
-        hunger: { isActive: false, startedAt: null, sleepStartAt: null },
-        strength: { isActive: false, startedAt: null, sleepStartAt: null },
+        hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
         sleep: { isActive: false, startedAt: null }
       },
     };

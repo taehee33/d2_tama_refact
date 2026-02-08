@@ -1,6 +1,18 @@
 // src/utils/dateUtils.js
 
 /**
+ * 슬롯/디지몬 생성일 표시용 (Select 화면·Game 화면 공통)
+ * 숫자(ms)는 로케일 포맷, 문자열(구 데이터)은 그대로 표시
+ * @param {number|string|null|undefined} value - createdAt (ms) 또는 레거시 문자열
+ * @returns {string}
+ */
+export function formatSlotCreatedAt(value) {
+  if (value == null || value === "") return "";
+  if (typeof value === "number") return new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+  return String(value);
+}
+
+/**
  * 타임스탬프를 읽기 쉬운 형식으로 포맷팅
  * @param {number|Date|string} timestamp - 밀리초 타임스탬프, Date 객체, 또는 ISO 문자열
  * @param {string} format - 포맷 옵션 ('short' | 'long' | 'time')

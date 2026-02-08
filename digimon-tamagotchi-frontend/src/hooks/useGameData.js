@@ -334,11 +334,19 @@ export function useGameData({
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
         const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
+        const prevLogs = Array.isArray(digimonStats.activityLogs) ? digimonStats.activityLogs : [];
         const updated = applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
-        
+
+        // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
+        const nextLogs = Array.isArray(updated.activityLogs) ? updated.activityLogs : [];
+        const newLogs = nextLogs.slice(prevLogs.length);
+        newLogs.forEach((log) => {
+          if (log?.type) appendLogToSubcollection(log).catch(() => {});
+        });
+
         // 사망 상태 변경 감지
         checkDeathStatus(updated);
-        
+
         return updated;
       }
     } catch (error) {
@@ -443,20 +451,26 @@ export function useGameData({
           let savedStats = slotData.digimonStats || {};
           
           // Activity Logs 로드: 서브컬렉션 logs 우선, 없으면 구 문서 activityLogs 사용 (마이그레이션 호환)
+          // 로드한 로그를 savedStats.activityLogs에 넣어야 StatsPopup/케어미스 이력에 반영됨 (서브컬렉션만 쓰면 digimonStats.activityLogs가 비어 이력이 사라진 것처럼 보임)
+          let loadedActivityLogs = [];
           const slotRefForLogs = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
           try {
             const logsRef = collection(slotRefForLogs, "logs");
             const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(100));
             const logsSnap = await getDocs(logsQuery);
             if (!logsSnap.empty) {
-              const logs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-              setActivityLogs(logs);
+              loadedActivityLogs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+              setActivityLogs(loadedActivityLogs);
             } else {
-              setActivityLogs(initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []));
+              loadedActivityLogs = initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []);
+              setActivityLogs(loadedActivityLogs);
             }
           } catch (_e) {
-            setActivityLogs(initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []));
+            loadedActivityLogs = initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []);
+            setActivityLogs(loadedActivityLogs);
           }
+          // 서브컬렉션은 timestamp desc이므로 오래된 순(이력 표시용)으로 뒤집어 digimonStats에 넣음
+          savedStats.activityLogs = [...loadedActivityLogs].reverse();
 
           // Battle Logs 로드: 서브컬렉션 battleLogs 우선, 없으면 구 문서 digimonStats.battleLogs 사용 (마이그레이션 호환)
           let loadedBattleLogs = savedStats.battleLogs || [];
@@ -503,8 +517,14 @@ export function useGameData({
               }
             }
             
+            const prevLogCount = (savedStats.activityLogs || []).length;
             savedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
-            
+            // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
+            const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
+            newLogs.forEach((log) => {
+              if (log?.type) appendLogToSubcollection(log).catch(() => {});
+            });
+
             // proteinCount 필드 제거 (마이그레이션)
             if (savedStats.proteinCount !== undefined) {
               delete savedStats.proteinCount;

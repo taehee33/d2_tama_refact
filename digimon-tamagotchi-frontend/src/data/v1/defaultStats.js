@@ -49,8 +49,10 @@ export const defaultStats = {
   
   // 사망 관련
   isDead: false,              // 사망 여부
-  lastHungerZeroAt: null,    // 배고픔이 0이 된 시간
-  lastStrengthZeroAt: null,  // 힘이 0이 된 시간
+  lastHungerZeroAt: null,    // 배고픔이 0이 된 시간 (절대 기준점, DB 저장·값 있으면 now로 덮어쓰지 않음)
+  lastStrengthZeroAt: null,  // 힘이 0이 된 시간 (절대 기준점)
+  hungerMistakeDeadline: null,  // 케어미스 타임아웃 데드라인(ms). 배고픔 0 발생 시 lastHungerZeroAt+10분, DB 저장
+  strengthMistakeDeadline: null, // 힘 0 발생 시 lastStrengthZeroAt+10분, DB 저장
   injuredAt: null,            // 부상 당한 시간
   
   // 환생 관련

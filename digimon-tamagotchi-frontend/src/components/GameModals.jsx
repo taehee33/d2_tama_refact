@@ -223,10 +223,11 @@ export default function GameModals({
         />
       )}
 
-      {/* Stats Popup */}
+      {/* Stats Popup - 이력: activityLogs(틱 즉시 반영) 우선, 없으면 digimonStats.activityLogs (새로고침 없이 부상/케어미스 이력 표시) */}
       {modals?.stats && (
         <StatsPopup
           stats={digimonStats}
+          activityLogs={activityLogs}
           digimonData={currentDigimonData}
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}

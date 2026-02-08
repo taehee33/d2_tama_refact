@@ -2,24 +2,19 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { doc, setDoc, updateDoc, deleteDoc, collection, getDocs } from "firebase/firestore";
+import { doc, setDoc, updateDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
+import { deleteSlotWithSubcollections } from "../utils/firestoreHelpers";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { getTamerName } from "../utils/tamerNameUtils";
+import { formatSlotCreatedAt } from "../utils/dateUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
 
 const MAX_SLOTS = 10; // 10개로 늘림
-
-/** 생성일 표시: 숫자(ms)는 로케일 포맷, 문자열(구 데이터)은 그대로 표시 */
-function formatSlotCreatedAt(value) {
-  if (value == null || value === "") return "";
-  if (typeof value === "number") return new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-  return String(value);
-}
 
 function SelectScreen() {
   const navigate = useNavigate();
@@ -423,9 +418,8 @@ function SelectScreen() {
 
     if (window.confirm(`슬롯 ${slotId}을 정말 삭제하시겠습니까?`)) {
       try {
-        // Firestore의 /users/{uid}/slots/{slotId}에서 삭제
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await deleteDoc(slotRef);
+        // 서브컬렉션(logs, battleLogs) 포함 삭제 — 문서만 지우면 로그가 남아 재생성 시 옛 이력이 보임
+        await deleteSlotWithSubcollections(db, currentUser.uid, slotId);
         loadSlots();
       } catch (err) {
         console.error("슬롯 삭제 오류:", err);

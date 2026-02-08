@@ -56,8 +56,8 @@ export const defaultStats = {
     healedDosesCurrent: 0, // 현재 투여된 치료제 횟수
     // 호출(Call) 시스템
     callStatus: {
-      hunger: { isActive: false, startedAt: null }, // 제한시간 10분
-      strength: { isActive: false, startedAt: null }, // 제한시간 10분
+      hunger: { isActive: false, startedAt: null, isLogged: false }, // 제한시간 10분
+      strength: { isActive: false, startedAt: null, isLogged: false },
       sleep: { isActive: false, startedAt: null }     // 제한시간 60분
     },
     

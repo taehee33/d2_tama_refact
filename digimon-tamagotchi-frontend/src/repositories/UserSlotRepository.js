@@ -9,7 +9,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   deleteField,
   collection,
   getDocs,
@@ -18,6 +17,7 @@ import {
   limit,
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { deleteSlotWithSubcollections } from '../utils/firestoreHelpers';
 
 class UserSlotRepository {
   /**
@@ -146,8 +146,7 @@ class UserSlotRepository {
       throw new Error('userId is required');
     }
 
-    const slotRef = doc(db, 'users', userId, 'slots', `slot${slotId}`);
-    await deleteDoc(slotRef);
+    await deleteSlotWithSubcollections(db, userId, slotId);
   }
 
   /**

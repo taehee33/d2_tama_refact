@@ -1,6 +1,16 @@
 // src/data/stats.js
 import { defaultStats } from "./defaultStatsFile";
-import { calculateSleepSecondsInRange } from "../utils/sleepUtils"; 
+import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
+
+/** 냉장고 구간을 제외한 경과 시간(ms). data/stats 내 applyLazyUpdate 8시간 부상/케어미스 판정용 */
+function getElapsedTimeExcludingFridge(startTime, endTime, frozenAt = null, takeOutAt = null) {
+  if (!frozenAt) return endTime - startTime;
+  const frozenMs = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
+  const takeOutMs = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
+  if (frozenMs < startTime || frozenMs >= endTime) return endTime - startTime;
+  const frozenDuration = takeOutMs - frozenMs;
+  return Math.max(0, (endTime - startTime) - frozenDuration);
+} 
 
 export function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
@@ -23,6 +33,8 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
     merged.lastStrengthZeroAt = null;
+    merged.hungerMistakeDeadline = null;
+    merged.strengthMistakeDeadline = null;
     merged.injuredAt = null;
     merged.isInjured = false;
     merged.injuries = 0;
@@ -62,8 +74,8 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.healedDosesCurrent = 0; // 치료제 횟수 리셋
   // 호출 상태 초기화 (진화 시 리셋)
   merged.callStatus = {
-    hunger: { isActive: false, startedAt: null },
-    strength: { isActive: false, startedAt: null },
+    hunger: { isActive: false, startedAt: null, isLogged: false },
+    strength: { isActive: false, startedAt: null, isLogged: false },
     sleep: { isActive: false, startedAt: null }
   };
   
@@ -155,9 +167,16 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
         s.poopCount++;
         s.poopCountdown = s.poopTimer*60;
 
-        // ★ 추가: 8이 딱 되었으면 그 순간 lastMaxPoopTime 기록
+        // ★ 8이 딱 되었으면 그 순간 lastMaxPoopTime 기록 + 즉시 부상 적용
         if(s.poopCount === 8 && !s.lastMaxPoopTime){
           s.lastMaxPoopTime = Date.now();
+          if(!s.isInjured){
+            s.isInjured = true;
+            s.injuredAt = Date.now();
+            s.injuries = (s.injuries || 0) + 1;
+            s.healedDosesCurrent = 0;
+            s.injuryReason = 'poop';
+          }
         }
       } else {
         // 이미 8 이상
@@ -165,10 +184,14 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
           // 아직 기록 안된 경우
           s.lastMaxPoopTime = Date.now();
         } else {
-          // 기록되어 있고, 8시간(28800초) 지났다면 careMistakes++
+          // 기록되어 있고, 8시간(28800초) 지났다면 추가 부상 + 케어미스
           const e = (Date.now() - s.lastMaxPoopTime)/1000;
           if(e >= 28800){
             s.careMistakes++;
+            s.injuries = (s.injuries || 0) + 1;
+            s.injuredAt = Date.now();
+            s.isInjured = true;
+            s.healedDosesCurrent = 0;
             s.lastMaxPoopTime = Date.now(); // 다시 리셋
           }
         }
@@ -267,6 +290,46 @@ function ensureTimestamp(val) {
   // Date 객체나 문자열 처리
   const date = new Date(val);
   return isNaN(date.getTime()) ? null : date.getTime();
+}
+
+/**
+ * 과거 재구성 시 activityLogs에 소급 시각으로 로그 한 건 추가 (이력 누락 방지)
+ * @param {Array} activityLogs - 기존 활동 로그 배열
+ * @param {string} type - 로그 타입 ('POOP', 'CAREMISTAKE' 등)
+ * @param {string} text - 로그 텍스트
+ * @param {number} timestampMs - 소급 적용할 시각 (ms)
+ * @param {number} maxLogs - 최대 유지 개수
+ * @returns {Array} 업데이트된 로그 배열
+ */
+function pushBackdatedActivityLog(activityLogs, type, text, timestampMs, maxLogs = 100) {
+  const logs = Array.isArray(activityLogs) ? activityLogs : [];
+  const next = [...logs, { type, text, timestamp: timestampMs }];
+  return next.length > maxLogs ? next.slice(-maxLogs) : next;
+}
+
+/** 이미 동일 이벤트(타입+타임스탬프+텍스트 패턴) 로그가 있으면 true. 중복 로그/카운터 방지용 */
+function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = '') {
+  const logs = Array.isArray(activityLogs) ? activityLogs : [];
+  return logs.some(
+    (log) =>
+      log.type === type &&
+      log.timestamp === timestampMs &&
+      (!textContains || (log.text && log.text.includes(textContains)))
+  );
+}
+
+/** 동일 타입·텍스트 패턴 로그가 기준 시각 ±windowMs 안에 있으면 true. applyLazyUpdate가 연속 호출될 때 같은 케어미스가 여러 번 쌓이는 것 방지 */
+function alreadyHasLogInWindow(activityLogs, type, timeMs, textContains, windowMs = 120000) {
+  const logs = Array.isArray(activityLogs) ? activityLogs : [];
+  const minT = timeMs - windowMs;
+  const maxT = timeMs + windowMs;
+  return logs.some((log) => {
+    if (log.type !== type) return false;
+    if (textContains && (!log.text || !log.text.includes(textContains))) return false;
+    const t = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
+    if (t == null) return false;
+    return t >= minT && t <= maxT;
+  });
 }
 
 /**
@@ -441,33 +504,100 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
         updatedStats.poopCount++;
         updatedStats.poopCountdown += updatedStats.poopTimer * 60;
         
-        // 8개가 되면 lastMaxPoopTime 기록
+        // 8개가 되면 lastMaxPoopTime 기록 + 즉시 부상 적용 (같은 턴에서). !isInjured로 소급 분기와 이중 적용 방지
         if (updatedStats.poopCount === 8 && !updatedStats.lastMaxPoopTime) {
           const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
           updatedStats.lastMaxPoopTime = timeToMax;
+          if (!updatedStats.isInjured) {
+            updatedStats.isInjured = true;
+            updatedStats.injuredAt = timeToMax;
+            updatedStats.injuries = (updatedStats.injuries || 0) + 1;
+            updatedStats.healedDosesCurrent = 0;
+            updatedStats.injuryReason = 'poop';
+            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
+              updatedStats.activityLogs = pushBackdatedActivityLog(
+                updatedStats.activityLogs,
+                'POOP',
+                'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+                timeToMax
+              );
+            }
+          }
         }
         } else {
           // 이미 8개 이상
           if (!updatedStats.lastMaxPoopTime) {
             const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
             updatedStats.lastMaxPoopTime = timeToMax;
-            // 똥 8개가 되면 부상 상태로 설정
+            // 똥 8개 부상 (로드 시 poop 8인데 lastMaxPoopTime 없을 때). !isInjured로 즉시 분기와 이중 적용 방지
             if (!updatedStats.isInjured) {
-              // 처음 부상 발생 시에만 injuries 증가 및 시간 기록
               updatedStats.isInjured = true;
               updatedStats.injuredAt = timeToMax;
               updatedStats.injuries = (updatedStats.injuries || 0) + 1;
               updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
               updatedStats.injuryReason = 'poop'; // 부상 원인 저장
+              if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
+                updatedStats.activityLogs = pushBackdatedActivityLog(
+                  updatedStats.activityLogs,
+                  'POOP',
+                  'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+                  timeToMax
+                );
+              }
             }
           } else {
-            // 이미 8개였고, 계속 8개 이상이면 부상 상태 유지
+            // 이미 8개였고, lastMaxPoopTime만 있고 isInjured 미설정(과거 세이드) 시 소급. !isInjured로 즉시/위 분기와 이중 적용 방지
             if (updatedStats.poopCount >= 8 && !updatedStats.isInjured) {
+              const backdatedInjuryTime =
+                typeof updatedStats.lastMaxPoopTime === 'number'
+                  ? updatedStats.lastMaxPoopTime
+                  : updatedStats.lastMaxPoopTime
+                    ? new Date(updatedStats.lastMaxPoopTime).getTime()
+                    : lastSaved.getTime();
               updatedStats.isInjured = true;
-              updatedStats.injuredAt = now.getTime();
+              updatedStats.injuredAt = backdatedInjuryTime;
               updatedStats.injuries = (updatedStats.injuries || 0) + 1;
               updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
               updatedStats.injuryReason = 'poop'; // 부상 원인 저장
+              if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', backdatedInjuryTime, 'Too much poop')) {
+                updatedStats.activityLogs = pushBackdatedActivityLog(
+                  updatedStats.activityLogs,
+                  'POOP',
+                  'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+                  backdatedInjuryTime
+                );
+              }
+            }
+            // 8시간마다 추가 부상 + 케어미스 (냉장고 시간 제외 경과로 판정)
+            const lastMaxTime = typeof updatedStats.lastMaxPoopTime === 'number'
+              ? updatedStats.lastMaxPoopTime
+              : updatedStats.lastMaxPoopTime ? new Date(updatedStats.lastMaxPoopTime).getTime() : 0;
+            if (lastMaxTime > 0) {
+              const elapsedSinceMaxMs = getElapsedTimeExcludingFridge(
+                lastMaxTime,
+                now.getTime(),
+                updatedStats.frozenAt,
+                updatedStats.takeOutAt
+              );
+              const elapsedSinceMaxSec = elapsedSinceMaxMs / 1000;
+              const periods = Math.floor(elapsedSinceMaxSec / 28800); // 8시간 = 28800초
+              if (periods >= 1) {
+                const nowMs = now.getTime();
+                updatedStats.careMistakes = (updatedStats.careMistakes || 0) + periods;
+                updatedStats.injuries = (updatedStats.injuries || 0) + periods;
+                updatedStats.injuredAt = nowMs;
+                updatedStats.isInjured = true;
+                updatedStats.healedDosesCurrent = 0;
+                updatedStats.lastMaxPoopTime = nowMs;
+                if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과')) {
+                  updatedStats.activityLogs = pushBackdatedActivityLog(
+                    updatedStats.activityLogs,
+                    'POOP',
+                    `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 + 케어미스 [과거 재구성]`,
+                    nowMs
+                  );
+                }
+              }
             }
           }
           updatedStats.poopCountdown += updatedStats.poopTimer * 60;
@@ -533,14 +663,18 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     }
   }
 
-  // 호출(Call) 시스템 처리 (Lazy Update)
-  // callStatus 초기화 (없으면 생성)
   if (!updatedStats.callStatus) {
     updatedStats.callStatus = {
-      hunger: { isActive: false, startedAt: null },
-      strength: { isActive: false, startedAt: null },
+      hunger: { isActive: false, startedAt: null, isLogged: false },
+      strength: { isActive: false, startedAt: null, isLogged: false },
       sleep: { isActive: false, startedAt: null }
     };
+  }
+  if (updatedStats.callStatus.hunger && updatedStats.callStatus.hunger.isLogged === undefined) {
+    updatedStats.callStatus.hunger.isLogged = false;
+  }
+  if (updatedStats.callStatus.strength && updatedStats.callStatus.strength.isLogged === undefined) {
+    updatedStats.callStatus.strength.isLogged = false;
   }
 
   const callStatus = updatedStats.callStatus;
@@ -549,7 +683,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // Hunger 호출 처리
   if (updatedStats.fullness === 0) {
-    // startedAt이 없으면 lastHungerZeroAt를 기반으로 복원
+    // startedAt이 없으면 lastHungerZeroAt(DB 절대 기준점)를 기반으로 복원 — 값이 있으면 now로 덮어쓰지 않음
     if (!callStatus.hunger.startedAt && updatedStats.lastHungerZeroAt) {
       const hungerZeroTime = ensureTimestamp(updatedStats.lastHungerZeroAt);
       if (hungerZeroTime) {
@@ -557,12 +691,28 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
         callStatus.hunger.startedAt = hungerZeroTime;
       }
     } else if (callStatus.hunger.startedAt) {
-      // startedAt이 있으면 isActive를 true로 설정 (복원)
       callStatus.hunger.isActive = true;
     }
-    
+    // 값이 없을 때만 딱 한 번 기록: DB에 lastHungerZeroAt가 있으면 절대 now로 덮어쓰지 않음
+    if (!updatedStats.lastHungerZeroAt) {
+      const fromStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+      updatedStats.lastHungerZeroAt = fromStartedAt || now.getTime();
+      callStatus.hunger.isActive = true;
+      callStatus.hunger.startedAt = updatedStats.lastHungerZeroAt;
+    }
+    // 데드라인도 값이 없을 때만 설정 (birthTime처럼 절대 기준점으로 DB 저장)
+    if (!updatedStats.hungerMistakeDeadline && updatedStats.lastHungerZeroAt) {
+      const startMs = ensureTimestamp(updatedStats.lastHungerZeroAt);
+      if (startMs) updatedStats.hungerMistakeDeadline = startMs + HUNGER_CALL_TIMEOUT;
+    }
+
     // 타임아웃 체크 (오프라인 수면 시간 고려)
     const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+    // DB isLogged 망령 보정: 아직 10분 미만이면 판정 대기 상태이므로 false
+    if (hungerStartedAt) {
+      const hungerElapsed = now.getTime() - hungerStartedAt;
+      if (hungerElapsed < HUNGER_CALL_TIMEOUT) callStatus.hunger.isLogged = false;
+    }
     if (hungerStartedAt && sleepSchedule) {
       // 호출 시작 시점부터 지금까지의 수면 시간 계산
       const sleepDuringCall = calculateSleepSecondsInRange(hungerStartedAt, now.getTime(), sleepSchedule);
@@ -570,38 +720,64 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
       
       if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
-        // 타임아웃 발생
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
+        const alreadyLogged = callStatus.hunger.isLogged === true;
+        if (!alreadyLogged &&
+            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
+            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+          updatedStats.activityLogs = pushBackdatedActivityLog(
+            updatedStats.activityLogs,
+            'CAREMISTAKE',
+            '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+            timeoutOccurredAt
+          );
+          callStatus.hunger.isLogged = true;
+        }
         callStatus.hunger.isActive = false;
         callStatus.hunger.startedAt = null;
         updatedStats.lastHungerZeroAt = null;
+        updatedStats.hungerMistakeDeadline = null;
       } else {
-        // 아직 타임아웃 전이라면, 수면 시간만큼 startedAt을 뒤로 밀어서 보존
-        // (다음 실시간 체크에서 정확한 계산을 위해)
-        callStatus.hunger.startedAt = hungerStartedAt + (sleepDuringCall * 1000);
+        // 아직 타임아웃 전: 수면 시간만큼 startedAt을 뒤로 밀어서 보존 (UI 경과 시간 계산용)
+        // 단, 절대 시각이 '현재'를 넘어가면 안 됨 → T_rem = max(0, deadline - now) 일관성 유지
+        const pushedStart = hungerStartedAt + (sleepDuringCall * 1000);
+        callStatus.hunger.startedAt = Math.min(now.getTime(), pushedStart);
       }
     } else if (hungerStartedAt) {
-      // sleepSchedule이 없으면 기존 로직 사용
       const elapsed = now.getTime() - hungerStartedAt;
-      
       if (elapsed > HUNGER_CALL_TIMEOUT) {
-        // 타임아웃 발생
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
+        const alreadyLogged = callStatus.hunger.isLogged === true;
+        if (!alreadyLogged &&
+            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
+            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+          updatedStats.activityLogs = pushBackdatedActivityLog(
+            updatedStats.activityLogs,
+            'CAREMISTAKE',
+            '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+            timeoutOccurredAt
+          );
+          callStatus.hunger.isLogged = true;
+        }
         callStatus.hunger.isActive = false;
         callStatus.hunger.startedAt = null;
         updatedStats.lastHungerZeroAt = null;
+        updatedStats.hungerMistakeDeadline = null;
       }
     }
   } else {
-    // 배고픔이 0이 아니면 호출 리셋
     callStatus.hunger.isActive = false;
     callStatus.hunger.startedAt = null;
+    callStatus.hunger.isLogged = false;
     updatedStats.lastHungerZeroAt = null;
+    updatedStats.hungerMistakeDeadline = null;
   }
 
   // Strength 호출 처리
   if (updatedStats.strength === 0) {
-    // startedAt이 없으면 lastStrengthZeroAt를 기반으로 복원
+    // startedAt이 없으면 lastStrengthZeroAt(DB 절대 기준점)를 기반으로 복원 — 값이 있으면 now로 덮어쓰지 않음
     if (!callStatus.strength.startedAt && updatedStats.lastStrengthZeroAt) {
       const strengthZeroTime = ensureTimestamp(updatedStats.lastStrengthZeroAt);
       if (strengthZeroTime) {
@@ -609,12 +785,26 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
         callStatus.strength.startedAt = strengthZeroTime;
       }
     } else if (callStatus.strength.startedAt) {
-      // startedAt이 있으면 isActive를 true로 설정 (복원)
       callStatus.strength.isActive = true;
     }
-    
+    // 값이 없을 때만 딱 한 번 기록
+    if (!updatedStats.lastStrengthZeroAt) {
+      const fromStartedAt = ensureTimestamp(callStatus.strength.startedAt);
+      updatedStats.lastStrengthZeroAt = fromStartedAt || now.getTime();
+      callStatus.strength.isActive = true;
+      callStatus.strength.startedAt = updatedStats.lastStrengthZeroAt;
+    }
+    if (!updatedStats.strengthMistakeDeadline && updatedStats.lastStrengthZeroAt) {
+      const startMs = ensureTimestamp(updatedStats.lastStrengthZeroAt);
+      if (startMs) updatedStats.strengthMistakeDeadline = startMs + STRENGTH_CALL_TIMEOUT;
+    }
+
     // 타임아웃 체크 (오프라인 수면 시간 고려)
     const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
+    if (strengthStartedAt) {
+      const strengthElapsed = now.getTime() - strengthStartedAt;
+      if (strengthElapsed < STRENGTH_CALL_TIMEOUT) callStatus.strength.isLogged = false;
+    }
     if (strengthStartedAt && sleepSchedule) {
       // 호출 시작 시점부터 지금까지의 수면 시간 계산
       const sleepDuringCall = calculateSleepSecondsInRange(strengthStartedAt, now.getTime(), sleepSchedule);
@@ -622,33 +812,57 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
       const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
       
       if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
-        // 타임아웃 발생
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
+        const alreadyLogged = callStatus.strength.isLogged === true;
+        if (!alreadyLogged &&
+            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
+            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+          updatedStats.activityLogs = pushBackdatedActivityLog(
+            updatedStats.activityLogs,
+            'CAREMISTAKE',
+            '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+            timeoutOccurredAt
+          );
+          callStatus.strength.isLogged = true;
+        }
         callStatus.strength.isActive = false;
         callStatus.strength.startedAt = null;
         updatedStats.lastStrengthZeroAt = null;
+        updatedStats.strengthMistakeDeadline = null;
       } else {
-        // 아직 타임아웃 전이라면, 수면 시간만큼 startedAt을 뒤로 밀어서 보존
-        // (다음 실시간 체크에서 정확한 계산을 위해)
-        callStatus.strength.startedAt = strengthStartedAt + (sleepDuringCall * 1000);
+        const pushedStart = strengthStartedAt + (sleepDuringCall * 1000);
+        callStatus.strength.startedAt = Math.min(now.getTime(), pushedStart);
       }
     } else if (strengthStartedAt) {
-      // sleepSchedule이 없으면 기존 로직 사용
       const elapsed = now.getTime() - strengthStartedAt;
-      
       if (elapsed > STRENGTH_CALL_TIMEOUT) {
-        // 타임아웃 발생
-        updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+        const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
+        const alreadyLogged = callStatus.strength.isLogged === true;
+        if (!alreadyLogged &&
+            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
+            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+          updatedStats.activityLogs = pushBackdatedActivityLog(
+            updatedStats.activityLogs,
+            'CAREMISTAKE',
+            '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+            timeoutOccurredAt
+          );
+          callStatus.strength.isLogged = true;
+        }
         callStatus.strength.isActive = false;
         callStatus.strength.startedAt = null;
         updatedStats.lastStrengthZeroAt = null;
+        updatedStats.strengthMistakeDeadline = null;
       }
     }
   } else {
-    // 힘이 0이 아니면 호출 리셋
     callStatus.strength.isActive = false;
     callStatus.strength.startedAt = null;
+    callStatus.strength.isLogged = false;
     updatedStats.lastStrengthZeroAt = null;
+    updatedStats.strengthMistakeDeadline = null;
   }
 
   // Sleep 호출 처리 (수면 주기당 1회만)

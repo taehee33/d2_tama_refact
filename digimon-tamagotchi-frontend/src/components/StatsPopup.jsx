@@ -290,6 +290,7 @@ function ensureTimestamp(val) {
 
 export default function StatsPopup({
   stats,
+  activityLogs: activityLogsProp = null, // 틱에서 즉시 반영된 로그 (부상/케어미스 새로고침 없이 표시)
   digimonData = null, // 종족 고정 파라미터 (digimonData)
   onClose,
   devMode=false,
@@ -303,6 +304,11 @@ export default function StatsPopup({
   appendLogToSubcollection, // Firestore logs 서브컬렉션에 로그 추가 (선택)
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
+  // 이력 표시: 틱에서 setActivityLogs로 갱신된 prop이 더 많거나 같으면 사용(즉시 반영), 아니면 stats.activityLogs
+  const statsLogs = stats?.activityLogs ?? [];
+  const displayActivityLogs = (activityLogsProp != null && activityLogsProp.length >= statsLogs.length)
+    ? activityLogsProp
+    : statsLogs;
   
   // 실시간 업데이트를 위한 상태
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -329,6 +335,8 @@ export default function StatsPopup({
     lastMaxPoopTime,
     lastHungerZeroAt=null,
     lastStrengthZeroAt=null,
+    hungerMistakeDeadline=null,
+    strengthMistakeDeadline=null,
     trainings=0,
     overfeeds=0,
     sleepDisturbances=0,
@@ -453,24 +461,15 @@ export default function StatsPopup({
    * @param {number|null} takeOutAt - 냉장고에서 꺼낸 시간 (timestamp)
    * @returns {number} 냉장고 시간을 제외한 경과 시간 (밀리초)
    */
+  // 절대 시각 기반: 경과 시간은 항상 >= 0 (음수/미래 시각 차단 → T_rem = max(0, deadline - now) 일관성)
   const getElapsedTimeExcludingFridge = (startTime, endTime = currentTime, frozenAt = null, takeOutAt = null) => {
     if (!frozenAt || !startTime) {
-      // 냉장고에 넣은 적이 없거나 시작 시간이 없으면 일반 경과 시간 반환
-      return endTime - startTime;
+      return Math.max(0, endTime - startTime);
     }
-    
     const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
     const takeOutTime = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
-    
-    // 냉장고에 넣은 시간이 시작 시간보다 이전이면 무시
-    if (frozenTime < startTime) {
-      return endTime - startTime;
-    }
-    
-    // 냉장고에 넣은 시간이 종료 시간보다 이후면 무시
-    if (frozenTime >= endTime) {
-      return endTime - startTime;
-    }
+    if (frozenTime < startTime) return Math.max(0, endTime - startTime);
+    if (frozenTime >= endTime) return Math.max(0, endTime - startTime);
     
     // 냉장고에 넣은 시간부터 꺼낸 시간(또는 현재)까지의 시간을 제외
     const frozenDuration = takeOutTime - frozenTime;
@@ -1081,7 +1080,7 @@ export default function StatsPopup({
         {/* 수면 방해 이력 아코디언 */}
         {!isFrozen && sleepDisturbances > 0 && (
           <SleepDisturbanceHistory 
-            activityLogs={stats?.activityLogs || []} 
+            activityLogs={displayActivityLogs} 
             formatTimestamp={formatTimestamp}
           />
         )}
@@ -1100,7 +1099,7 @@ export default function StatsPopup({
                 const updatedStats = { ...stats, isNocturnal: newMode };
                 
                 // Activity Log 추가
-                const currentLogs = stats?.activityLogs || [];
+                const currentLogs = displayActivityLogs;
                 const logText = newMode 
                   ? '야행성 모드 ON: 수면/기상 시간이 3시간씩 미뤄집니다 🌙'
                   : '야행성 모드 OFF: 일반 수면 시간으로 복귀합니다 ☀️';
@@ -1158,51 +1157,44 @@ export default function StatsPopup({
                 // 수면 중일 때는 타임아웃이 멈춤 (Timestamp Pushing 방식)
                 // 수면 중에는 startedAt이 현재 시간으로 계속 업데이트되므로,
                 // 경과 시간을 0으로 간주하여 마지막으로 깨어있던 시점의 남은 시간을 표시합니다.
+                const timeout = 10 * 60 * 1000; // 10분
+                // DB 데드라인 우선 사용 (새로고침 후에도 동일한 남은 시간 유지)
+                const deadlineMs = (hungerMistakeDeadline && hungerMistakeDeadline > 0)
+                  ? hungerMistakeDeadline
+                  : (startedAt + timeout);
+                const remaining = Math.max(0, deadlineMs - currentTime);
                 if (sleepStatus === 'SLEEPING') {
-                  // ⚠️ 중요: 수면 중에는 startedAt이 checkCallTimeouts에서 현재 시간으로 업데이트되지만,
-                  // StatsPopup이 렌더링될 때는 아직 업데이트되지 않았을 수 있습니다.
-                  // 따라서 수면 중일 때는 startedAt을 현재 시간으로 간주하여 경과 시간을 0으로 계산합니다.
-                  const elapsed = 0; // 수면 중에는 경과 시간이 0 (타임아웃이 멈춤)
-                  const timeout = 10 * 60 * 1000; // 10분
-                  const remaining = timeout - elapsed;
                   if (remaining > 0) {
                     const minutes = Math.floor(remaining / 60000);
                     const seconds = Math.floor((remaining % 60000) / 1000);
                     return (
                       <div className="text-blue-600 font-semibold ml-2">
                         😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div className="text-red-600 font-semibold ml-2">
-                        ❌ 타임아웃! 케어미스 발생
+                        <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
                       </div>
                     );
                   }
-                }
-                
-                // 수면 중이 아닐 때는 정상적으로 카운트다운
-                // 냉장고 시간을 제외한 경과 시간 계산
-                const elapsedMs = getElapsedTimeExcludingFridge(startedAt, currentTime, frozenAt, takeOutAt);
-                const elapsed = elapsedMs;
-                const timeout = 10 * 60 * 1000; // 10분
-                const remaining = timeout - elapsed;
-                if (remaining > 0) {
-                  const minutes = Math.floor(remaining / 60000);
-                  const seconds = Math.floor((remaining % 60000) / 1000);
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                    </div>
-                  );
-                } else {
                   return (
                     <div className="text-red-600 font-semibold ml-2">
                       ❌ 타임아웃! 케어미스 발생
                     </div>
                   );
                 }
+                if (remaining > 0) {
+                  const minutes = Math.floor(remaining / 60000);
+                  const seconds = Math.floor((remaining % 60000) / 1000);
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-red-600 font-semibold ml-2">
+                    ❌ 타임아웃! 케어미스 발생
+                  </div>
+                );
               })() : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               )
@@ -1237,54 +1229,43 @@ export default function StatsPopup({
                   );
                 }
                 
-                // 수면 중일 때는 타임아웃이 멈춤 (Timestamp Pushing 방식)
-                // 수면 중에는 startedAt이 현재 시간으로 계속 업데이트되므로,
-                // 경과 시간을 0으로 간주하여 마지막으로 깨어있던 시점의 남은 시간을 표시합니다.
+                const timeout = 10 * 60 * 1000; // 10분
+                const deadlineMs = (strengthMistakeDeadline && strengthMistakeDeadline > 0)
+                  ? strengthMistakeDeadline
+                  : (startedAt + timeout);
+                const remaining = Math.max(0, deadlineMs - currentTime);
                 if (sleepStatus === 'SLEEPING') {
-                  // ⚠️ 중요: 수면 중에는 startedAt이 checkCallTimeouts에서 현재 시간으로 업데이트되지만,
-                  // StatsPopup이 렌더링될 때는 아직 업데이트되지 않았을 수 있습니다.
-                  // 따라서 수면 중일 때는 startedAt을 현재 시간으로 간주하여 경과 시간을 0으로 계산합니다.
-                  const elapsed = 0; // 수면 중에는 경과 시간이 0 (타임아웃이 멈춤)
-                  const timeout = 10 * 60 * 1000; // 10분
-                  const remaining = timeout - elapsed;
                   if (remaining > 0) {
                     const minutes = Math.floor(remaining / 60000);
                     const seconds = Math.floor((remaining % 60000) / 1000);
                     return (
                       <div className="text-blue-600 font-semibold ml-2">
                         😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                      </div>
-                    );
-                  } else {
-                    return (
-                      <div className="text-red-600 font-semibold ml-2">
-                        ❌ 타임아웃! 케어미스 발생
+                        <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
                       </div>
                     );
                   }
-                }
-                
-                // 수면 중이 아닐 때는 정상적으로 카운트다운
-                // 냉장고 시간을 제외한 경과 시간 계산
-                const elapsedMs = getElapsedTimeExcludingFridge(startedAt, currentTime, frozenAt, takeOutAt);
-                const elapsed = elapsedMs;
-                const timeout = 10 * 60 * 1000; // 10분
-                const remaining = timeout - elapsed;
-                if (remaining > 0) {
-                  const minutes = Math.floor(remaining / 60000);
-                  const seconds = Math.floor((remaining % 60000) / 1000);
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                    </div>
-                  );
-                } else {
                   return (
                     <div className="text-red-600 font-semibold ml-2">
                       ❌ 타임아웃! 케어미스 발생
                     </div>
                   );
                 }
+                if (remaining > 0) {
+                  const minutes = Math.floor(remaining / 60000);
+                  const seconds = Math.floor((remaining % 60000) / 1000);
+                  return (
+                    <div className="text-red-600 font-semibold ml-2">
+                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
+                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="text-red-600 font-semibold ml-2">
+                    ❌ 타임아웃! 케어미스 발생
+                  </div>
+                );
               })() : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               )
@@ -1314,15 +1295,17 @@ export default function StatsPopup({
                 if (!startedAt || startedAt <= 0) {
                   return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
                 }
-                const elapsed = currentTime - startedAt;
+                const elapsed = Math.max(0, currentTime - startedAt);
                 const timeout = 60 * 60 * 1000; // 60분
-                const remaining = timeout - elapsed;
+                const remaining = Math.max(0, timeout - elapsed);
+                const deadlineMs = startedAt + timeout;
                 if (remaining > 0) {
                   const minutes = Math.floor(remaining / 60000);
                   const seconds = Math.floor((remaining % 60000) / 1000);
                   return (
                     <div className="text-red-600 font-semibold ml-2">
                       ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (60분 초과 시 케어미스 +1)
+                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
                     </div>
                   );
                 } else {
@@ -1347,7 +1330,7 @@ export default function StatsPopup({
         
         {/* 케어미스 발생 이력 */}
         <CareMistakeHistory 
-          activityLogs={stats?.activityLogs || []} 
+          activityLogs={displayActivityLogs} 
           formatTimestamp={formatTimestamp} 
         />
       </div>
@@ -1429,13 +1412,12 @@ export default function StatsPopup({
                       {isDeadFromStarvation ? (
                         <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
-                        // 냉장고 시간을 제외한 경과 시간 계산
-                        const elapsedMs = getElapsedTimeExcludingFridge(hungerZeroTime, currentTime, frozenAt, takeOutAt);
+                        const nowMs = Date.now();
+                        const elapsedMs = getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt);
                         const elapsed = Math.floor(elapsedMs / 1000);
-                        const threshold = 43200;
-                        const remaining = threshold - elapsed;
-                        
-                        // 냉장고 상태일 때 표시
+                        const threshold = 43200; // 12시간(초)
+                        const remaining = Math.max(0, threshold - elapsed);
+                        const deathDeadlineMs = hungerZeroTime + threshold * 1000;
                         if (isFrozen) {
                           return (
                             <div className="text-blue-600 font-semibold">
@@ -1446,11 +1428,11 @@ export default function StatsPopup({
                             </div>
                           );
                         }
-                        
                         return remaining > 0 ? (
                           <div className="text-red-600 font-mono">
                             {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
                             <div className="text-[10px] text-red-500 mt-1">(12시간 초과 시 사망)</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">데드라인: {formatTimestamp(deathDeadlineMs)}</div>
                           </div>
                         ) : (
                           <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
@@ -1468,11 +1450,12 @@ export default function StatsPopup({
                       {(isActive || isDeadFromStarvation) && (
                         <>
                           <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
-                            {[...Array(12)].map((_, i) => {
-                              // 냉장고 시간을 제외한 경과 시간 계산
-                              const elapsedMs = isDeadFromStarvation 
-                                ? 43200 * 1000 
-                                : getElapsedTimeExcludingFridge(hungerZeroTime, currentTime, frozenAt, takeOutAt);
+                            {(() => {
+                              const nowMs = Date.now();
+                              return [...Array(12)].map((_, i) => {
+                                const elapsedMs = isDeadFromStarvation 
+                                  ? 43200 * 1000 
+                                  : getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt);
                               const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
                               const isFilled = i < hourElapsed;
                               return (
@@ -1492,7 +1475,8 @@ export default function StatsPopup({
                                   title={`${i + 1}시간 경과`}
                                 />
                               );
-                            })}
+                            });
+                            })()}
                           </div>
                           <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
                         </>
@@ -1546,13 +1530,12 @@ export default function StatsPopup({
                       {isDeadFromExhaustion ? (
                         <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
-                        // 냉장고 시간을 제외한 경과 시간 계산
-                        const elapsedMs = getElapsedTimeExcludingFridge(strengthZeroTime, currentTime, frozenAt, takeOutAt);
+                        const nowMs = Date.now();
+                        const elapsedMs = getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt);
                         const elapsed = Math.floor(elapsedMs / 1000);
-                        const threshold = 43200;
-                        const remaining = threshold - elapsed;
-                        
-                        // 냉장고 상태일 때 표시
+                        const threshold = 43200; // 12시간(초)
+                        const remaining = Math.max(0, threshold - elapsed);
+                        const deathDeadlineMs = strengthZeroTime + threshold * 1000;
                         if (isFrozen) {
                           return (
                             <div className="text-blue-600 font-semibold">
@@ -1563,11 +1546,11 @@ export default function StatsPopup({
                             </div>
                           );
                         }
-                        
                         return remaining > 0 ? (
                           <div className="text-orange-600 font-mono">
                             {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
                             <div className="text-[10px] text-orange-500 mt-1">(12시간 초과 시 사망)</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">데드라인: {formatTimestamp(deathDeadlineMs)}</div>
                           </div>
                         ) : (
                           <div className="text-orange-800 font-bold">⚠️ 사망 위험!</div>
@@ -1585,31 +1568,33 @@ export default function StatsPopup({
                       {(isActive || isDeadFromExhaustion) && (
                         <>
                           <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
-                            {[...Array(12)].map((_, i) => {
-                              // 냉장고 시간을 제외한 경과 시간 계산
-                              const elapsedMs = isDeadFromExhaustion 
-                                ? 43200 * 1000 
-                                : getElapsedTimeExcludingFridge(strengthZeroTime, currentTime, frozenAt, takeOutAt);
-                              const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
-                              const isFilled = i < hourElapsed;
-                              return (
-                                <div 
-                                  key={i}
-                                  className={`flex-1 border-r border-white last:border-0 ${
-                                    isFilled
-                                      ? hourElapsed >= 12
-                                        ? 'bg-orange-700'
-                                        : hourElapsed >= 10
-                                        ? 'bg-orange-600'
-                                        : hourElapsed >= 8
-                                        ? 'bg-orange-500'
-                                        : 'bg-orange-400'
-                                      : 'bg-gray-300'
-                                  }`}
-                                  title={`${i + 1}시간 경과`}
-                                />
-                              );
-                            })}
+                            {(() => {
+                              const nowMs = Date.now();
+                              return [...Array(12)].map((_, i) => {
+                                const elapsedMs = isDeadFromExhaustion 
+                                  ? 43200 * 1000 
+                                  : getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt);
+                                const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
+                                const isFilled = i < hourElapsed;
+                                return (
+                                  <div 
+                                    key={i}
+                                    className={`flex-1 border-r border-white last:border-0 ${
+                                      isFilled
+                                        ? hourElapsed >= 12
+                                          ? 'bg-orange-700'
+                                          : hourElapsed >= 10
+                                          ? 'bg-orange-600'
+                                          : hourElapsed >= 8
+                                          ? 'bg-orange-500'
+                                          : 'bg-orange-400'
+                                        : 'bg-gray-300'
+                                    }`}
+                                    title={`${i + 1}시간 경과`}
+                                  />
+                                );
+                              });
+                            })()}
                           </div>
                           <div className="text-[10px] text-gray-500">12시간 게이지 (각 박스 = 1시간)</div>
                         </>
@@ -1643,28 +1628,28 @@ export default function StatsPopup({
             );
           })()}
 
-          {/* 똥 가득참 부상 발생 시간 카운터 - 항상 표시 */}
+          {/* 똥 가득참 부상 발생 시간 카운터 - 조건 충족 시 배고픔/힘처럼 진하게 표시 */}
           {(() => {
             const pooFullTime = ensureTimestamp(lastMaxPoopTime);
             const isActive = poopCount >= 8 && pooFullTime;
             
             return (
-              <li className={`border-l-4 pl-2 p-2 rounded ${isActive ? 'border-brown-500 bg-brown-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
-                <div className={`font-semibold mb-1 ${isActive ? 'text-brown-600' : 'text-gray-500'}`}>
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive ? 'border-amber-600 bg-amber-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive ? 'text-amber-800' : 'text-gray-500'}`}>
                   💩 똥 가득참 (8개):
                 </div>
                 <div className="space-y-1 text-xs">
                   {isActive ? (
                     <>
-                      <div className="text-gray-600">
+                      <div className={isActive ? 'text-amber-700' : 'text-gray-600'}>
                         즉시 부상 발생 시간: <span className="font-mono">{formatTimestamp(pooFullTime)}</span>
                       </div>
                       {(() => {
-                        // 냉장고 시간을 제외한 경과 시간 계산
-                        const elapsedMs = getElapsedTimeExcludingFridge(pooFullTime, currentTime, frozenAt, takeOutAt);
-                        const elapsed = Math.floor(elapsedMs / 1000);
+                        const nowMs = Date.now();
+                        const elapsedMs = getElapsedTimeExcludingFridge(pooFullTime, nowMs, frozenAt, takeOutAt);
+                        const elapsed = Math.max(0, Math.floor(elapsedMs / 1000));
                         const threshold = 28800; // 8시간 = 28800초
-                        const nextInjuryIn = threshold - (elapsed % threshold);
+                        const nextInjuryIn = Math.max(0, threshold - (elapsed % threshold));
                         const hours = Math.floor(nextInjuryIn / 3600);
                         const minutes = Math.floor((nextInjuryIn % 3600) / 60);
                         const seconds = nextInjuryIn % 60;
@@ -1681,7 +1666,6 @@ export default function StatsPopup({
                               </div>
                               <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
                                 {[...Array(8)].map((_, i) => {
-                                  // 냉장고 시간을 제외한 경과 시간 계산
                                   const hourElapsed = Math.floor((elapsed % threshold) / 3600);
                                   const isFilled = i < hourElapsed;
                                   return (
@@ -1690,12 +1674,12 @@ export default function StatsPopup({
                                       className={`flex-1 border-r border-white last:border-0 ${
                                         isFilled
                                           ? hourElapsed >= 8
-                                            ? 'bg-brown-700'
+                                            ? 'bg-amber-700'
                                             : hourElapsed >= 6
-                                            ? 'bg-brown-600'
+                                            ? 'bg-amber-600'
                                             : hourElapsed >= 4
-                                            ? 'bg-brown-500'
-                                            : 'bg-brown-400'
+                                            ? 'bg-amber-500'
+                                            : 'bg-amber-400'
                                           : 'bg-gray-300'
                                       }`}
                                       title={`${i + 1}시간 경과`}
@@ -1703,22 +1687,23 @@ export default function StatsPopup({
                                   );
                                 })}
                               </div>
-                              <div className="text-[10px] text-brown-500">
+                              <div className="text-[10px] text-amber-600">
                                 8시간 게이지 (각 박스 = 1시간, 8시간마다 추가 부상 발생)
                               </div>
                             </>
                           );
                         }
                         
-                        // 냉장고 상태가 아닐 때 정상 표시
+                        // 냉장고 상태가 아닐 때 정상 표시 (다음 부상 데드라인 = 현재 + nextInjuryIn)
+                        const nextInjuryDeadlineMs = nowMs + nextInjuryIn * 1000;
                         return (
                           <>
-                            <div className="text-brown-600 font-mono">
+                            <div className="text-amber-700 font-mono font-semibold">
                               다음 추가 부상까지: {hours}시간 {minutes}분 {seconds}초
+                              <div className="text-[10px] text-amber-600 mt-0.5 font-normal">데드라인: {formatTimestamp(nextInjuryDeadlineMs)}</div>
                             </div>
                             <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
                               {[...Array(8)].map((_, i) => {
-                                // 냉장고 시간을 제외한 경과 시간 계산
                                 const hourElapsed = Math.floor((elapsed % threshold) / 3600);
                                 const isFilled = i < hourElapsed;
                                 return (
@@ -1727,12 +1712,12 @@ export default function StatsPopup({
                                     className={`flex-1 border-r border-white last:border-0 ${
                                       isFilled
                                         ? hourElapsed >= 8
-                                          ? 'bg-brown-700'
+                                          ? 'bg-amber-700'
                                           : hourElapsed >= 6
-                                          ? 'bg-brown-600'
+                                          ? 'bg-amber-600'
                                           : hourElapsed >= 4
-                                          ? 'bg-brown-500'
-                                          : 'bg-brown-400'
+                                          ? 'bg-amber-500'
+                                          : 'bg-amber-400'
                                         : 'bg-gray-300'
                                     }`}
                                     title={`${i + 1}시간 경과`}
@@ -1740,7 +1725,7 @@ export default function StatsPopup({
                                 );
                               })}
                             </div>
-                            <div className="text-[10px] text-brown-500">
+                            <div className="text-[10px] text-amber-600">
                               8시간 게이지 (각 박스 = 1시간, 8시간마다 추가 부상 발생)
                             </div>
                           </>
@@ -1768,6 +1753,123 @@ export default function StatsPopup({
                         ))}
                       </div>
                       <div className="text-[10px] text-gray-500">8시간 게이지 (각 박스 = 1시간)</div>
+                    </>
+                  )}
+                </div>
+              </li>
+            );
+          })()}
+
+          {/* 부상 방치 사망 카운터 - 항상 표시 */}
+          {(() => {
+            const injuredTime = ensureTimestamp(injuredAt);
+            const isActive = isInjured && injuredTime;
+            const isDeadFromInjuryNeglect = isDead && deathReason === 'INJURY NEGLECT (부상 방치: 6시간)';
+            
+            return (
+              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromInjuryNeglect ? 'border-red-600 bg-red-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
+                <div className={`font-semibold mb-1 ${isActive || isDeadFromInjuryNeglect ? 'text-red-700' : 'text-gray-500'}`}>
+                  🏥 부상 방치 (6시간):
+                </div>
+                <div className="space-y-1 text-xs">
+                  {injuredTime ? (
+                    <>
+                      <div className="text-gray-600">
+                        부상 발생 시간: <span className="font-mono">{formatTimestamp(injuredTime)}</span>
+                      </div>
+                      {isDeadFromInjuryNeglect ? (
+                        <div className="text-red-800 font-bold">💀 사망 (6시간 방치)</div>
+                      ) : isActive ? (() => {
+                        // 부상 방치 경과: 매 렌더 시점의 현재 시각 사용(줄어들지 않는 버그 방지)
+                        const nowMs = Date.now();
+                        const elapsedMs = getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt);
+                        const elapsed = Math.floor(elapsedMs / 1000);
+                        const threshold = 21600; // 6시간 = 21600초
+                        const remaining = Math.max(0, threshold - elapsed);
+                        const neglectDeadlineMs = injuredTime + threshold * 1000;
+                        if (isFrozen) {
+                          return (
+                            <div className="text-blue-600 font-semibold">
+                              🧊 냉장고에 넣어서 얼어서 멈춤
+                              <div className="text-[10px] text-blue-500 mt-1">
+                                (냉장고에서 꺼내면 타이머가 다시 시작됩니다)
+                              </div>
+                            </div>
+                          );
+                        }
+                        return remaining > 0 ? (
+                          <div className="text-red-600 font-mono">
+                            {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
+                            <div className="text-[10px] text-red-500 mt-1">(6시간 초과 시 사망)</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">데드라인: {formatTimestamp(neglectDeadlineMs)}</div>
+                          </div>
+                        ) : (
+                          <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
+                        );
+                      })(                      ) : (
+                        <div className="text-gray-500">
+                          ✓ 조건 미충족 (현재 부상 상태 아님)
+                          {isFrozen && (
+                            <div className="text-blue-600 font-semibold mt-1">
+                              🧊 냉장고에 넣어서 얼어서 멈춤 (타이머가 멈춰있습니다)
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {(isActive || isDeadFromInjuryNeglect) && (
+                        <>
+                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
+                            {[...Array(6)].map((_, i) => {
+                              const nowMs = Date.now();
+                              const elapsedMs = isDeadFromInjuryNeglect 
+                                ? 21600 * 1000 
+                                : getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt);
+                              const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
+                              const isFilled = i < hourElapsed;
+                              return (
+                                <div 
+                                  key={i}
+                                  className={`flex-1 border-r border-white last:border-0 ${
+                                    isFilled
+                                      ? hourElapsed >= 6
+                                        ? 'bg-red-700'
+                                        : hourElapsed >= 5
+                                        ? 'bg-red-600'
+                                        : hourElapsed >= 4
+                                        ? 'bg-red-500'
+                                        : 'bg-red-400'
+                                      : 'bg-gray-300'
+                                  }`}
+                                  title={`${i + 1}시간 경과`}
+                                />
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-gray-500 mb-2">
+                        조건 미충족 (부상 발생 이력 없음)
+                        {isFrozen && (
+                          <div className="text-blue-600 font-semibold mt-1">
+                            🧊 냉장고에 넣어서 얼어서 멈춤 (타이머가 멈춰있습니다)
+                          </div>
+                        )}
+                      </div>
+                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
+                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
+                        {[...Array(6)].map((_, i) => (
+                          <div 
+                            key={i}
+                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
+                            title={`${i + 1}시간`}
+                          />
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
                     </>
                   )}
                 </div>
@@ -1831,128 +1933,11 @@ export default function StatsPopup({
                   {/* 부상 이력 아코디언 - 항상 표시 */}
                   <div className="mt-2">
                     <InjuryHistory 
-                      activityLogs={stats?.activityLogs || []}
+                      activityLogs={displayActivityLogs}
                       battleLogs={stats?.battleLogs || []}
                       formatTimestamp={formatTimestamp}
                     />
                   </div>
-                </div>
-              </li>
-            );
-          })()}
-
-          {/* 부상 방치 사망 카운터 - 항상 표시 */}
-          {(() => {
-            const injuredTime = ensureTimestamp(injuredAt);
-            const isActive = isInjured && injuredTime;
-            const isDeadFromInjuryNeglect = isDead && deathReason === 'INJURY NEGLECT (부상 방치: 6시간)';
-            
-            return (
-              <li className={`border-l-4 pl-2 p-2 rounded ${isActive || isDeadFromInjuryNeglect ? 'border-red-600 bg-red-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
-                <div className={`font-semibold mb-1 ${isActive || isDeadFromInjuryNeglect ? 'text-red-700' : 'text-gray-500'}`}>
-                  🏥 부상 방치 (6시간):
-                </div>
-                <div className="space-y-1 text-xs">
-                  {injuredTime ? (
-                    <>
-                      <div className="text-gray-600">
-                        부상 발생 시간: <span className="font-mono">{formatTimestamp(injuredTime)}</span>
-                      </div>
-                      {isDeadFromInjuryNeglect ? (
-                        <div className="text-red-800 font-bold">💀 사망 (6시간 방치)</div>
-                      ) : isActive ? (() => {
-                        // 냉장고 시간을 제외한 경과 시간 계산
-                        const elapsedMs = getElapsedTimeExcludingFridge(injuredTime, currentTime, frozenAt, takeOutAt);
-                        const elapsed = Math.floor(elapsedMs / 1000);
-                        const threshold = 21600; // 6시간 = 21600초
-                        const remaining = threshold - elapsed;
-                        
-                        // 냉장고 상태일 때 표시
-                        if (isFrozen) {
-                          return (
-                            <div className="text-blue-600 font-semibold">
-                              🧊 냉장고에 넣어서 얼어서 멈춤
-                              <div className="text-[10px] text-blue-500 mt-1">
-                                (냉장고에서 꺼내면 타이머가 다시 시작됩니다)
-                              </div>
-                            </div>
-                          );
-                        }
-                        
-                        return remaining > 0 ? (
-                          <div className="text-red-600 font-mono">
-                            {Math.floor(remaining / 3600)}시간 {Math.floor((remaining % 3600) / 60)}분 {remaining % 60}초 남음
-                            <div className="text-[10px] text-red-500 mt-1">(6시간 초과 시 사망)</div>
-                          </div>
-                        ) : (
-                          <div className="text-red-800 font-bold">⚠️ 사망 위험!</div>
-                        );
-                      })(                      ) : (
-                        <div className="text-gray-500">
-                          ✓ 조건 미충족 (현재 부상 상태 아님)
-                          {isFrozen && (
-                            <div className="text-blue-600 font-semibold mt-1">
-                              🧊 냉장고에 넣어서 얼어서 멈춤 (타이머가 멈춰있습니다)
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {(isActive || isDeadFromInjuryNeglect) && (
-                        <>
-                          <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mt-2 mb-1">
-                            {[...Array(6)].map((_, i) => {
-                              // 냉장고 시간을 제외한 경과 시간 계산
-                              const elapsedMs = isDeadFromInjuryNeglect 
-                                ? 21600 * 1000 
-                                : getElapsedTimeExcludingFridge(injuredTime, currentTime, frozenAt, takeOutAt);
-                              const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
-                              const isFilled = i < hourElapsed;
-                              return (
-                                <div 
-                                  key={i}
-                                  className={`flex-1 border-r border-white last:border-0 ${
-                                    isFilled
-                                      ? hourElapsed >= 6
-                                        ? 'bg-red-700'
-                                        : hourElapsed >= 5
-                                        ? 'bg-red-600'
-                                        : hourElapsed >= 4
-                                        ? 'bg-red-500'
-                                        : 'bg-red-400'
-                                      : 'bg-gray-300'
-                                  }`}
-                                  title={`${i + 1}시간 경과`}
-                                />
-                              );
-                            })}
-                          </div>
-                          <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-gray-500 mb-2">
-                        조건 미충족 (부상 발생 이력 없음)
-                        {isFrozen && (
-                          <div className="text-blue-600 font-semibold mt-1">
-                            🧊 냉장고에 넣어서 얼어서 멈춤 (타이머가 멈춰있습니다)
-                          </div>
-                        )}
-                      </div>
-                      {/* 조건 미충족 시에도 게이지 표시 (모두 회색) */}
-                      <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
-                        {[...Array(6)].map((_, i) => (
-                          <div 
-                            key={i}
-                            className="flex-1 border-r border-white last:border-0 bg-gray-300"
-                            title={`${i + 1}시간`}
-                          />
-                        ))}
-                      </div>
-                      <div className="text-[10px] text-gray-500">6시간 게이지 (각 박스 = 1시간)</div>
-                    </>
-                  )}
                 </div>
               </li>
             );
