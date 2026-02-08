@@ -83,7 +83,9 @@ function cleanObject(obj) {
  * @param {Function} params.setIsLoadingSlot - 로딩 상태 설정 함수
  * @param {Function} params.setDeathReason - 사망 사유 설정 함수
  * @param {Function} params.toggleModal - 모달 토글 함수
- * @param {Object} params.digimonDataVer1 - 디지몬 데이터 맵
+ * @param {Object} params.digimonDataVer1 - 디지몬 데이터 맵 (현재 슬롯용, 호환)
+ * @param {Object} [params.adaptedV1] - v1 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
+ * @param {Object} [params.adaptedV2] - v2 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {boolean} params.isFirebaseAvailable - Firebase 사용 가능 여부
  * @param {Function} params.navigate - 네비게이션 함수
  * @returns {Object} saveStats, applyLazyUpdate, isLoading, error
@@ -107,6 +109,8 @@ export function useGameData({
   setDeathReason,
   toggleModal,
   digimonDataVer1,
+  adaptedV1,
+  adaptedV2,
   isFirebaseAvailable,
   navigate,
   // 추가 상태들 (applyLazyUpdateBeforeAction에서 사용)
@@ -446,8 +450,10 @@ export function useGameData({
             }
           }
           
-          // Ver.2 슬롯은 초기 디지몬 푸니몬(Punimon), Ver.1은 디지타마(Digitama)
-          const savedName = slotData.selectedDigimon || (slotData.version === "Ver.2" ? "Punimon" : "Digitama");
+          // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
+          const dataMap = slotData.version === "Ver.2" ? (adaptedV2 || digimonDataVer1) : (adaptedV1 || digimonDataVer1);
+          // Ver.2 슬롯은 디지타마(DigitamaV2), Ver.1은 디지타마(Digitama)로 시작
+          const savedName = slotData.selectedDigimon || (slotData.version === "Ver.2" ? "DigitamaV2" : "Digitama");
           let savedStats = slotData.digimonStats || {};
           
           // Activity Logs 로드: 서브컬렉션 logs 우선, 없으면 구 문서 activityLogs 사용 (마이그레이션 호환)
@@ -497,8 +503,8 @@ export function useGameData({
           }
           
           if (Object.keys(savedStats).length === 0) {
-            // 새 디지몬: 저장된 이름(Ver.2면 Punimon, Ver.1이면 Digitama)으로 초기화
-            const ns = initializeStats(savedName, {}, digimonDataVer1);
+            // 새 디지몬: 저장된 이름(Ver.2면 DigitamaV2, Ver.1이면 Digitama)으로 버전별 데이터 맵으로 초기화
+            const ns = initializeStats(savedName, {}, dataMap);
             ns.birthTime = Date.now();
             setSelectedDigimon(savedName);
             setDigimonStats(ns);
@@ -506,14 +512,21 @@ export function useGameData({
             // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
             const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || savedStats.lastSavedAt || new Date();
             
-            // sleepSchedule과 maxEnergy 계산
+            // sleepSchedule과 maxEnergy 계산 (버전별 데이터 맵 사용)
             let sleepSchedule = null;
             let maxEnergy = null;
-            if (digimonDataVer1 && savedName) {
-              sleepSchedule = getSleepSchedule(savedName, digimonDataVer1, savedStats);
-              const digimonData = digimonDataVer1[savedName];
+            if (dataMap && savedName) {
+              sleepSchedule = getSleepSchedule(savedName, dataMap, savedStats);
+              const digimonData = dataMap[savedName];
               if (digimonData) {
                 maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
+              }
+              // 디지타마/디지타마V2인데 timeToEvolveSeconds 없음·0·NaN이면 데이터맵 값으로 보정 (구 저장·초기화 누락 대비)
+              if ((savedName === "Digitama" || savedName === "DigitamaV2") && digimonData?.timeToEvolveSeconds != null) {
+                const tte = savedStats.timeToEvolveSeconds;
+                if (tte === undefined || tte === null || tte === 0 || Number.isNaN(tte)) {
+                  savedStats = { ...savedStats, timeToEvolveSeconds: digimonData.timeToEvolveSeconds };
+                }
               }
             }
             
@@ -530,10 +543,9 @@ export function useGameData({
               delete savedStats.proteinCount;
             }
             
-            // 스프라이트 값 동기화 확인 (데이터 일관성 보장)
-            // selectedDigimon과 digimonStats.sprite가 일치하지 않을 수 있으므로 수정
-            if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
-              const expectedSprite = digimonDataVer1[savedName].sprite;
+            // 스프라이트 값 동기화 확인 (데이터 일관성 보장, 버전별 데이터 맵 사용)
+            if (dataMap && savedName && dataMap[savedName]) {
+              const expectedSprite = dataMap[savedName].sprite;
               if (expectedSprite !== undefined && savedStats.sprite !== expectedSprite) {
                 console.warn("[loadSlot] 스프라이트 불일치 감지 및 수정:", {
                   selectedDigimon: savedName,
@@ -556,7 +568,9 @@ export function useGameData({
             // updatedAt이 불필요하게 자주 바뀌는 것과 비용 절감을 위해 제거
           }
         } else {
-          const ns = initializeStats("Digitama", {}, digimonDataVer1);
+          // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
+          const fallbackDataMap = adaptedV1 || digimonDataVer1;
+          const ns = initializeStats("Digitama", {}, fallbackDataMap);
           setSelectedDigimon("Digitama");
           setDigimonStats(ns);
           setSlotName(`슬롯${slotId}`);
@@ -568,7 +582,8 @@ export function useGameData({
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         setError(error);
-        const ns = initializeStats("Digitama", {}, digimonDataVer1);
+        const fallbackDataMap = adaptedV1 || digimonDataVer1;
+        const ns = initializeStats("Digitama", {}, fallbackDataMap);
         setSelectedDigimon("Digitama");
         setDigimonStats(ns);
       } finally {

@@ -289,6 +289,8 @@ function Game(){
     setDeathReason,
     toggleModal,
     digimonDataVer1: digimonDataForSlot,
+    adaptedV1,
+    adaptedV2,
     isFirebaseAvailable,
     navigate,
     isLightsOn,

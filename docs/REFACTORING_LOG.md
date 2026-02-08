@@ -4,6 +4,68 @@
 
 ---
 
+## [2025-02-08] 디지타마(v1·v2) 10초/8초 진화 조건 적용 보강
+
+### 작업 유형
+- 🐛 버그 수정 (디지타마·디지타마V2일 때 진화 시간 조건이 적용되지 않던 경우 보정)
+
+### 목적 및 영향
+- **원인:** (1) `timeToEvolveSeconds`가 `undefined`일 때 `updateLifespan`/`applyLazyUpdate`에서 `undefined - deltaSec` → NaN이 되어 값이 깨짐. (2) 구 저장 데이터에 `timeToEvolveSeconds` 필드가 없으면 로드 후에도 0으로만 처리되어 즉시 진화 가능. (3) `isNewStart`가 `Digitama`만 보고 있어 v2 다음 세대(DigitamaV2) 시 초기화 분기가 적용되지 않음.
+- **해결:**
+  1. **data/stats.js**  
+     - `updateLifespan`: `timeToEvolveSeconds`가 숫자가 아니거나 NaN이면 0으로 간주 후 감소만 적용해 NaN 방지.  
+     - `applyLazyUpdate`: 동일하게 유효 숫자가 아니면 0으로 간주 후 경과 시간만큼 감소.  
+     - `isNewStart`: `(digiName === "Digitama" || digiName === "DigitamaV2")` 로 넓혀 v2 다음 세대 시작 시에도 동일 초기화 적용.
+  2. **useGameData.js**  
+     - 슬롯 로드 후 기존 스탯이 있을 때, `savedName`이 `Digitama` 또는 `DigitamaV2`이고 `timeToEvolveSeconds`가 없음/0/NaN이면 `dataMap[savedName].timeToEvolveSeconds`로 보정한 뒤 `applyLazyUpdate` 호출. (구 저장·초기화 누락 대비)
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2025-02-08] Ver.2 시작 시 디지타마(DigitamaV2)로 동일하게 시작
+
+### 작업 유형
+- ✨ 기능 일관성 (v2도 v1처럼 알(디지타마)부터 시작)
+
+### 목적 및 영향
+- **목적:** Ver.2 슬롯도 Ver.1과 동일하게 **디지타마(알)** 부터 시작하도록 통일. 이전에는 v2 새 슬롯/빈 스탯 시 `Punimon`(푸니몬)으로 저장·로드되어 알 단계가 건너뛰어졌음.
+- **변경 사항:**
+  1. **SelectScreen.jsx:** 새 슬롯 생성 시 Ver.2면 `selectedDigimon: "DigitamaV2"` 저장 (기존 "Punimon" → "DigitamaV2").
+  2. **useGameData.js:** 슬롯 로드 시 `slotData.version` 기준으로 데이터 맵 선택 (`dataMap = Ver.2 ? adaptedV2 : adaptedV1`). 저장된 디지몬 없을 때 기본값을 Ver.2면 `"DigitamaV2"`, Ver.1이면 `"Digitama"`로 설정. `initializeStats(savedName, {}, dataMap)`, `getSleepSchedule(..., dataMap)`, 스프라이트 동기화에 `dataMap` 사용.
+  3. **Game.jsx:** useGameData에 `adaptedV1`, `adaptedV2` 전달하여 로드 시점에 버전별 데이터 맵 사용 (로드 시 slotVersion 상태는 아직 반영 전이므로 slotData.version으로 선택).
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2025-02-08] 디지타마 10초 진화 조건 복원 및 다음 세대 적용
+
+### 작업 유형
+- 🐛 버그 수정 (디지타마 → 다음 세대 시 10초 진화 조건이 적용되지 않던 현상)
+
+### 목적 및 영향
+- **원인 (두 가지):**
+  1. v1 디지몬 데이터에서 디지타마의 `timeToEvolveSeconds`가 8초로 되어 있었고, 레거시 매뉴얼 기준 10초가 맞음.
+  2. `initializeStats`에 **원본** `digimonDataVer1`(v1 구조)을 넘기는 경로(useGameData 새 슬롯, useEvolution 진화 후, useDeath 오하카다몬→디지타마, useGameState 초기값, SettingsModal 디지몬 변경)에서는 `custom`이 `{ id, name, stage, stats, evolutionCriteria, evolutions }` 형태라 **최상위에 `timeToEvolveSeconds`가 없음**. `merged = { ...defaultStats, ...custom }`만으로는 `timeToEvolveSeconds`가 0으로 남아, 디지타마/다음 단계 진화 시간 조건이 사라짐.
+- **해결:**
+  1. **데이터:** `src/data/v1/digimons.js` 디지타마 `evolutionCriteria.timeToEvolveSeconds`를 8 → **10**으로 복원 (주석: "10초 후 자동 진화 (다음 세대 알 → 깜몬)").
+  2. **로직:** `src/data/stats.js`의 `initializeStats`에서 `merged` 생성 직후, `timeToEvolveSeconds`가 없거나 0일 때 `custom.evolutionCriteria?.timeToEvolveSeconds`가 있으면 그 값으로 설정. 이렇게 해서 원본 v1 데이터를 넘기든, adapted(최상위 timeToEvolveSeconds 포함) 데이터를 넘기든 모두 진화까지 시간이 올바르게 적용됨.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/v1/digimons.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2025-02-08] 케어미스 isLogged 'DB 망령' 보정 (10분 미만이면 무조건 false)
 
 ### 작업 유형

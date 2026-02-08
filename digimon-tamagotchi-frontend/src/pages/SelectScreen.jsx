@@ -360,8 +360,8 @@ function SelectScreen() {
           await Promise.all(updatePromises);
         }
 
-        // Ver.2 선택 시 Punimon으로 시작, Ver.1은 Digitama
-        const startingDigimon = version === "Ver.2" ? "Punimon" : "Digitama";
+        // Ver.2 선택 시 디지타마(DigitamaV2)로 시작, Ver.1은 Digitama (v1·v2 동일하게 알부터 시작)
+        const startingDigimon = version === "Ver.2" ? "DigitamaV2" : "Digitama";
         
         // 새 슬롯 저장 (displayOrder = 1, 최신이 위로)
         await setDoc(slotRef, {

@@ -21,8 +21,16 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   
   let merged= { ...defaultStats, ...custom };
 
-  // 새로운 시작(디지타마 초기화)인지 확인
-  const isNewStart = digiName === "Digitama" && oldStats.totalReincarnations !== undefined;
+  // 원본 v1 데이터(evolutionCriteria 내 timeToEvolveSeconds)를 쓰는 경로 대비: 진화까지 시간 반영
+  if (merged.timeToEvolveSeconds === undefined || merged.timeToEvolveSeconds === 0) {
+    const fromCriteria = custom.evolutionCriteria?.timeToEvolveSeconds;
+    if (fromCriteria !== undefined && fromCriteria !== null) {
+      merged.timeToEvolveSeconds = fromCriteria;
+    }
+  }
+
+  // 새로운 시작(디지타마/디지타마V2 초기화)인지 확인
+  const isNewStart = (digiName === "Digitama" || digiName === "DigitamaV2") && oldStats.totalReincarnations !== undefined;
   
   // 기존 이어받기 (나이, 수명)
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
@@ -144,7 +152,9 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
 
   const s= { ...stats };
   s.lifespanSeconds += deltaSec;
-  s.timeToEvolveSeconds= Math.max(0, s.timeToEvolveSeconds - deltaSec);
+  // undefined면 NaN 방지 및 디지타마 초기값 누락 대비 (0으로 간주해 감소만 적용)
+  const currentTimeToEvolve = typeof s.timeToEvolveSeconds === 'number' && !Number.isNaN(s.timeToEvolveSeconds) ? s.timeToEvolveSeconds : 0;
+  s.timeToEvolveSeconds = Math.max(0, currentTimeToEvolve - deltaSec);
 
   // 배고픔/힘 감소 로직은 handleHungerTick, handleStrengthTick으로 이동
   // 이 함수는 lifespanSeconds, timeToEvolveSeconds, poop만 처리
@@ -415,7 +425,9 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   // updateLifespan을 경과 시간만큼 호출
   // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
   updatedStats.lifespanSeconds += elapsedSeconds;
-  updatedStats.timeToEvolveSeconds = Math.max(0, updatedStats.timeToEvolveSeconds - elapsedSeconds);
+  // undefined/NaN 방지 — 구 저장 데이터에 timeToEvolveSeconds 없을 수 있음
+  const currentTte = typeof updatedStats.timeToEvolveSeconds === 'number' && !Number.isNaN(updatedStats.timeToEvolveSeconds) ? updatedStats.timeToEvolveSeconds : 0;
+  updatedStats.timeToEvolveSeconds = Math.max(0, currentTte - elapsedSeconds);
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.hungerTimer > 0) {

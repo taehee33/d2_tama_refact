@@ -88,8 +88,8 @@ export const digimonDataVer1 = {
       attackSprite: null, // 공격 스프라이트 (null이면 기본 sprite 사용)
     },
     evolutionCriteria: {
-      // 8초 후 자동 진화
-      timeToEvolveSeconds: 8,
+      // 10초 후 자동 진화 (다음 세대 알 → 깜몬)
+      timeToEvolveSeconds: 10,
     },
     evolutions: [
       {
