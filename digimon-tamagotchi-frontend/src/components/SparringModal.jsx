@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2 } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
 import "../styles/Battle.css";
 
@@ -44,6 +45,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
             id: slotId,
             slotName: data.slotName || `슬롯${slotId}`,
             selectedDigimon: data.selectedDigimon || "Digitama",
+            version: data.version || "Ver.1",
             digimonStats: data.digimonStats || {},
             digimonNickname: data.digimonNickname || null,
             createdAt: data.createdAt || "",
@@ -93,9 +95,7 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
         ) : (
           <div className="flex flex-col space-y-2 mb-4">
             {slots.map((slot) => {
-              // 디지몬 데이터 가져오기
-              const digimonData = digimonDataVer1[slot.selectedDigimon];
-              // 실제 파워 계산 (digimonStats.power 또는 calculatePower 사용)
+              const digimonData = (slot.version === "Ver.2" ? digimonDataVer2[slot.selectedDigimon] : digimonDataVer1[slot.selectedDigimon]) || digimonDataVer1[slot.selectedDigimon] || digimonDataVer2[slot.selectedDigimon];
               const actualPower = slot.digimonStats?.power 
                 || (digimonData ? calculatePower(slot.digimonStats || {}, digimonData) : 0)
                 || digimonData?.stats?.basePower 

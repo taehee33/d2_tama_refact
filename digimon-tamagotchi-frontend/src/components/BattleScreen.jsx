@@ -6,7 +6,9 @@ import { playQuestRound } from "../logic/battle/questEngine";
 import { simulateBattle } from "../logic/battle/calculator";
 import { getAttributeBonus } from "../logic/battle/types";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2 } from "../data/v2modkor";
 import { getQuestArea } from "../data/v1/quests";
+import { calculatePower } from "../logic/battle/hitrate";
 import "../styles/Battle.css";
 
 // 타격 이펙트는 이제 텍스트로 표시되므로 스프라이트 경로는 더 이상 필요 없음
@@ -75,15 +77,21 @@ export default function BattleScreen({
       let result;
       
       if (battleType === 'sparring' && sparringEnemySlot) {
-        // Sparring 모드: 직접 simulateBattle 호출
-        const enemyDigimonData = newDigimonDataVer1[sparringEnemySlot.selectedDigimon] || {
-          id: sparringEnemySlot.selectedDigimon,
+        // Sparring 모드: 상대 슬롯 버전에 따라 v1/v2 디지몬 데이터 사용 (v1에 없으면 v2 시도)
+        const id = sparringEnemySlot.selectedDigimon;
+        const fromV1 = newDigimonDataVer1[id];
+        const fromV2 = digimonDataVer2[id];
+        const enemyDigimonData = (sparringEnemySlot.version === "Ver.2" ? (fromV2 || fromV1) : (fromV1 || fromV2)) || {
+          id,
           name: sparringEnemySlot.selectedDigimon,
           stats: {},
         };
         
-        // 적 스탯에서 power 계산 (digimonStats.power 또는 basePower 사용)
-        const enemyPower = sparringEnemySlot.digimonStats?.power || enemyDigimonData.stats?.basePower || 0;
+        // 저장된 power가 0이면 계산 사용 (스파링 상대 파워가 0으로 보이지 않도록)
+        const savedPower = sparringEnemySlot.digimonStats?.power;
+        const enemyPower = (savedPower != null && savedPower > 0)
+          ? savedPower
+          : (calculatePower(sparringEnemySlot.digimonStats || {}, enemyDigimonData) || enemyDigimonData?.stats?.basePower || 0);
         
         const enemyStats = {
           power: enemyPower,
@@ -127,9 +135,10 @@ export default function BattleScreen({
             attribute: enemyStats.type,
             isBoss: false,
             slotName: sparringEnemySlot.slotName,
-            sprite: enemyDigimonData.sprite || 0,
-            attackSprite: enemyDigimonData.stats?.attackSprite || enemyDigimonData.sprite || 0,
-            digimonId: enemyDigimonData.id || sparringEnemySlot.selectedDigimon,
+            sprite: enemyDigimonData?.sprite ?? 0,
+            spriteBasePath: enemyDigimonData?.spriteBasePath || null,
+            attackSprite: enemyDigimonData?.stats?.attackSprite ?? enemyDigimonData?.sprite ?? 0,
+            digimonId: enemyDigimonData?.id || sparringEnemySlot.selectedDigimon,
             digimonNickname: sparringEnemySlot.digimonNickname || null,
           },
           isAreaClear: false,
@@ -701,7 +710,7 @@ export default function BattleScreen({
             >
               <img
                 ref={enemyDigimonImgRef}
-                src={`${(battleType === 'arena' && enemyData?.spriteBasePath) ? enemyData.spriteBasePath : "/images"}/${hideEnemyInfo 
+                src={`${enemyData?.spriteBasePath || "/images"}/${hideEnemyInfo 
                   ? 0
                   : (battleType === 'sparring' && enemyData?.sprite !== undefined) 
                   ? enemyData.sprite 
