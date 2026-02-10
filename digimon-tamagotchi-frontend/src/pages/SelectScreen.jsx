@@ -9,6 +9,7 @@ import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { getTamerName } from "../utils/tamerNameUtils";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
+import { translateStage } from "../utils/stageTranslator";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
@@ -725,15 +726,21 @@ function SelectScreen() {
         const spriteBasePath = slotDigimonData?.spriteBasePath || '/images';
         const spriteNum = slotDigimonData?.sprite ?? 0;
         return (
-        <div key={slot.id} className="border p-2 mb-4 flex gap-4">
-          {/* 슬롯별 디지몬 도감 이미지 */}
+        <div key={slot.id} className="border p-4 mb-4 flex gap-4 items-start">
+          {/* 디지몬 썸네일 */}
           <div className="flex-shrink-0 flex flex-col items-center justify-center">
             <img
               src={`${spriteBasePath}/${spriteNum}.png`}
               alt={slotDigimonData?.name || slot.selectedDigimon || '디지몬'}
-              className="w-16 h-16 object-contain"
+              className="w-24 h-24 object-contain"
               style={{ imageRendering: 'pixelated' }}
             />
+            <p className="font-bold text-base mt-2 text-center">
+              {slot.digimonNickname?.trim() ? `${slot.digimonNickname}(${slotDigimonData?.name || slot.selectedDigimon})` : (slotDigimonData?.name || slot.selectedDigimon)}
+            </p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              세대: {translateStage(slotDigimonData?.stage)}
+            </p>
           </div>
 
           <div className="flex-1 min-w-0">
