@@ -82,7 +82,7 @@ export function getAttributeAdvantage(playerType, opponentType) {
  * @returns {number|Object} 최종 파워 또는 { power, details }
  */
 export function calculatePower(stats, digimonData, returnDetails = false) {
-  const basePower = digimonData.stats.basePower || 0;
+  const basePower = digimonData?.stats?.basePower ?? 0;
   let power = basePower;
   
   const details = {
@@ -92,11 +92,15 @@ export function calculatePower(stats, digimonData, returnDetails = false) {
     effortBonus: 0,
   };
   
+  if (!digimonData?.stats) {
+    return returnDetails ? { power: 0, details } : 0;
+  }
+  
   // Strength Hearts 보너스 (가득 찬 경우)
   // strength >= 6이면 5로 계산
   const effectiveStrength = Math.min(5, stats.strength || 0);
   if (effectiveStrength >= 5) {
-    const stage = digimonData.stage;
+    const stage = digimonData?.stage;
     let strengthBonus = 0;
     if (stage === "Child") strengthBonus = 5;
     else if (stage === "Adult") strengthBonus = 8;
@@ -109,7 +113,7 @@ export function calculatePower(stats, digimonData, returnDetails = false) {
   
   // Traited Egg 보너스
   if (stats.traitedEgg) {
-    const stage = digimonData.stage;
+    const stage = digimonData?.stage;
     let traitedEggBonus = 0;
     if (stage === "Child") traitedEggBonus = 5;
     else if (stage === "Adult") traitedEggBonus = 8;

@@ -194,20 +194,22 @@ export default function BattleScreen({
           enemyName
         );
 
+        const snap = arenaChallenger.digimonSnapshot;
         result = {
           win: battleResult.won,
           logs: battleResult.log,
           enemy: {
-            name: enemyDigimonData.name || enemyDigimonData.id, // 실제 디지몬 이름
-            power: calculatedEnemyPower, // 계산된 Power 사용
+            name: enemyDigimonData.name || enemyDigimonData.id,
+            power: calculatedEnemyPower,
             attribute: enemyStats.type,
             isBoss: false,
             tamerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
-            trainerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown', // For backward compatibility
-            sprite: enemyDigimonData.sprite || 0,
-            attackSprite: enemyDigimonData.stats?.attackSprite || enemyDigimonData.sprite || 0,
-            digimonId: enemyDigimonData.id || arenaChallenger.digimonSnapshot.digimonId,
-            digimonNickname: arenaChallenger.digimonSnapshot.digimonNickname || null,
+            trainerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
+            sprite: snap?.sprite ?? enemyDigimonData.sprite ?? 0,
+            spriteBasePath: snap?.spriteBasePath || null,
+            attackSprite: snap?.stats?.attackSprite ?? enemyDigimonData.stats?.attackSprite ?? enemyDigimonData.sprite ?? 0,
+            digimonId: enemyDigimonData.id || snap?.digimonId,
+            digimonNickname: snap?.digimonNickname || null,
           },
           isAreaClear: false,
           reward: null,
@@ -313,10 +315,9 @@ export default function BattleScreen({
           const attackSprite = userDigimonData?.stats?.attackSprite || userDigimonData?.sprite || 0;
           setProjectile({ type: "user", sprite: attackSprite });
         } else {
-          // Sparring/Arena 모드일 때는 enemyData에서 attackSprite 가져오기
-          const attackSprite = (battleType === 'sparring' || battleType === 'arena') && enemyData?.attackSprite !== undefined
-            ? enemyData.attackSprite
-            : (enemyDigimonData?.stats?.attackSprite || enemyDigimonData?.sprite || 0);
+          // 적 공격 발사체: 항상 Ver.1 공격 스프라이트 사용 (/images/ 경로와 호환)
+          const enemyV1Data = newDigimonDataVer1[enemyData?.digimonId || enemyData?.name];
+          const attackSprite = enemyV1Data?.stats?.attackSprite ?? enemyV1Data?.sprite ?? enemyDigimonData?.stats?.attackSprite ?? enemyDigimonData?.sprite ?? 0;
           setProjectile({ type: "enemy", sprite: attackSprite });
         }
 
@@ -553,7 +554,7 @@ export default function BattleScreen({
             >
               <img
                 ref={userDigimonImgRef}
-                src={`/images/${userDigimonData?.sprite || 0}.png`}
+                src={`${(userDigimon?.spriteBasePath || userDigimonData?.spriteBasePath) || "/images"}/${userDigimon?.spriteBasePath ? (userDigimon?.sprite ?? 0) : (userDigimonData?.sprite ?? userDigimon?.sprite ?? 0)}.png`}
                 alt={userDigimonData?.name || "User Digimon"}
                 className={`player-sprite ${projectile?.type === "user" ? "animate-attack-user" : ""}`}
                 style={{
@@ -700,8 +701,8 @@ export default function BattleScreen({
             >
               <img
                 ref={enemyDigimonImgRef}
-                src={`/images/${hideEnemyInfo 
-                  ? 0 // 물음표 스프라이트 (또는 기본 스프라이트)
+                src={`${(battleType === 'arena' && enemyData?.spriteBasePath) ? enemyData.spriteBasePath : "/images"}/${hideEnemyInfo 
+                  ? 0
                   : (battleType === 'sparring' && enemyData?.sprite !== undefined) 
                   ? enemyData.sprite 
                   : (battleType === 'arena' && enemyData?.sprite !== undefined)

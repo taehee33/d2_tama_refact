@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2, V2_SPRITE_BASE } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
 import { translateStage } from "../utils/stageTranslator";
 import { getTamerName } from "../utils/tamerNameUtils";
@@ -95,7 +96,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       }
       
       if (digimonName && digimonName !== "Digitama") {
-        const digimonData = digimonDataVer1[digimonName];
+        const digimonData = digimonDataVer1[digimonName] || digimonDataVer2[digimonName];
         
         if (digimonData) {
           setCurrentDigimonInfo({
@@ -498,6 +499,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
             id: slotId,
             slotName: data.slotName || `슬롯${slotId}`,
             selectedDigimon: data.selectedDigimon,
+            version: data.version || "Ver.1",
             digimonStats: data.digimonStats || {},
             digimonNickname: data.digimonNickname || null,
           });
@@ -562,37 +564,33 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     }
   };
 
+  // 슬롯 버전에 맞는 디지몬 데이터 반환 (Ver.2 / Ver.1)
+  const getDigimonDataForSlot = (digimonId, slotVersion) =>
+    slotVersion === "Ver.2" ? (digimonDataVer2[digimonId] || {}) : (digimonDataVer1[digimonId] || {});
+
   // 디지몬 스냅샷 생성 (Deep Copy)
   const createDigimonSnapshot = (slot) => {
-    const digimonData = digimonDataVer1[slot.selectedDigimon] || {};
+    const digimonData = getDigimonDataForSlot(slot.selectedDigimon, slot.version);
     const stats = slot.digimonStats || {};
     
     // Power 계산: stats.power가 있으면 사용, 없으면 calculatePower로 계산
-    const calculatedPower = stats.power ?? calculatePower(stats, digimonData) ?? digimonData.stats?.basePower ?? 0;
-    
-    // 디버깅: Power 계산 과정 확인
-    console.log("🔍 [ArenaScreen] createDigimonSnapshot Power 계산:", {
-      digimonName: slot.selectedDigimon,
-      statsPower: stats.power,
-      calculatedPowerValue: calculatePower(stats, digimonData),
-      basePower: digimonData.stats?.basePower,
-      finalPower: calculatedPower,
-      digimonData: digimonData.stats,
-    });
+    const calculatedPower = stats.power ?? calculatePower(stats, digimonData) ?? digimonData?.stats?.basePower ?? 0;
     
     return {
       digimonId: slot.selectedDigimon,
       digimonName: slot.selectedDigimon,
       digimonNickname: slot.digimonNickname || null,
-      sprite: digimonData.sprite || 0,
-      attackSprite: digimonData.stats?.attackSprite || digimonData.sprite || 0,
-      stage: digimonData.stage || "Unknown",
+      sprite: digimonData?.sprite ?? 0,
+      spriteBasePath: digimonData?.spriteBasePath || null,
+      slotVersion: slot.version || "Ver.1",
+      attackSprite: digimonData?.stats?.attackSprite ?? digimonData?.sprite ?? 0,
+      stage: digimonData?.stage || "Unknown",
       stats: {
-        ...stats, // 모든 스탯 포함 (먼저 펼치기)
-        power: calculatedPower, // 계산된 power로 덮어쓰기 (중요: ...stats 이후에 배치)
-        type: digimonData.stats?.type || stats.type || null, // type도 덮어쓰기
+        ...stats,
+        power: calculatedPower,
+        type: digimonData?.stats?.type ?? stats.type ?? null,
       },
-      image: digimonData.sprite || 0, // 이미지도 포함
+      image: digimonData?.sprite ?? 0,
       slotId: slot.id,
       slotName: slot.slotName,
     };
@@ -785,7 +783,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               <div className="flex-shrink-0 w-full sm:w-48 p-3 rounded-lg border bg-white border-gray-300">
                 <div className="flex justify-center mb-2">
                   <img
-                    src={`/images/${currentDigimonInfo.digimonData?.sprite || 0}.png`}
+                    src={`${currentDigimonInfo.digimonData?.spriteBasePath || "/images"}/${currentDigimonInfo.digimonData?.sprite ?? 0}.png`}
                     alt={currentDigimonInfo.digimonName || "Unknown"}
                     className="w-24 h-24"
                     style={{ imageRendering: "pixelated" }}
@@ -953,7 +951,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                   <div onClick={() => handleEntryClick(entry, true)} className="cursor-pointer">
                     <div className="flex justify-center mb-2">
                       <img
-                        src={`/images/${entry.digimonSnapshot?.sprite || 0}.png`}
+                        src={`${entry.digimonSnapshot?.spriteBasePath || (entry.digimonSnapshot?.slotVersion === "Ver.2" ? V2_SPRITE_BASE : "/images")}/${entry.digimonSnapshot?.sprite ?? 0}.png`}
                         alt={entry.digimonSnapshot?.digimonName || "Unknown"}
                         className="w-24 h-24"
                         style={{ imageRendering: "pixelated" }}
@@ -1490,10 +1488,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   {availableSlots.map((slot) => {
-                    const digimonData = digimonDataVer1[slot.selectedDigimon] || {};
+                    const digimonData = (slot.version === "Ver.2" ? digimonDataVer2[slot.selectedDigimon] : digimonDataVer1[slot.selectedDigimon]) || {};
+                    const spriteBasePath = digimonData.spriteBasePath || "/images";
+                    const spriteNum = digimonData.sprite ?? 0;
                     const power = slot.digimonStats?.power 
                       || calculatePower(slot.digimonStats || {}, digimonData) 
-                      || digimonData.stats?.basePower || 0;
+                      || digimonData?.stats?.basePower || 0;
                     
                     return (
                       <div
@@ -1503,7 +1503,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                       >
                         <div className="flex justify-center mb-2">
                           <img
-                            src={`/images/${digimonData.sprite || 0}.png`}
+                            src={`${spriteBasePath}/${spriteNum}.png`}
                             alt={slot.selectedDigimon}
                             className="w-20 h-20"
                             style={{ imageRendering: "pixelated" }}
@@ -1587,9 +1587,9 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               <h3 className="text-xl font-bold mb-4">상세 정보</h3>
               <div className="flex justify-center mb-4">
                 <img
-                  src={`/images/${selectedEntry.isMyEntry 
-                    ? (selectedEntry.digimonSnapshot?.sprite || 0)
-                    : 0 // Blind Pick: 내 디지몬이 아니면 마스킹
+                  src={`${selectedEntry.isMyEntry ? (selectedEntry.digimonSnapshot?.spriteBasePath || (selectedEntry.digimonSnapshot?.slotVersion === "Ver.2" ? V2_SPRITE_BASE : "/images")) : "/images"}/${selectedEntry.isMyEntry 
+                    ? (selectedEntry.digimonSnapshot?.sprite ?? 0)
+                    : 0
                   }.png`}
                   alt={selectedEntry.digimonSnapshot?.digimonName || "Unknown"}
                   className="w-32 h-32"
