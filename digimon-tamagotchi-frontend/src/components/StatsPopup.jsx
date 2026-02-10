@@ -6,16 +6,22 @@ import { addActivityLog } from "../hooks/useGameLogic";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
+ * currentStageStartedAt: 현재 진화 단계 시작 시각(ms). 이 시점 이후 로그만 표시해 카운터와 일치시킴.
  */
-function SleepDisturbanceHistory({ activityLogs, formatTimestamp }) {
+function SleepDisturbanceHistory({ activityLogs, formatTimestamp, currentStageStartedAt }) {
   const [isOpen, setIsOpen] = useState(false);
   
-  // 수면 방해 관련 로그 필터링
+  // 수면 방해 관련 로그 필터링 + 현재 진화 단계 시작 시점 이후만 표시
   const sleepDisturbanceLogs = (activityLogs || []).filter(log => {
     if (log.type === 'CARE_MISTAKE' && log.text) {
       return log.text.includes('수면 방해');
     }
     return false;
+  }).filter(log => {
+    const logMs = ensureTimestamp(log.timestamp);
+    if (logMs == null) return false;
+    if (currentStageStartedAt == null || currentStageStartedAt === undefined) return true;
+    return logMs >= currentStageStartedAt;
   }).sort((a, b) => {
     // 최신순 정렬
     const timestampA = ensureTimestamp(a.timestamp);
@@ -71,11 +77,12 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp }) {
 
 /**
  * 케어미스 발생 이력 아코디언 컴포넌트
+ * currentStageStartedAt: 현재 진화 단계 시작 시각(ms). 이 시점 이후 로그만 표시해 카운터와 일치시킴.
  */
-function CareMistakeHistory({ activityLogs, formatTimestamp }) {
+function CareMistakeHistory({ activityLogs, formatTimestamp, currentStageStartedAt }) {
   const [isOpen, setIsOpen] = useState(false);
   
-  // 케어미스 관련 로그 필터링 (수면 방해 제외)
+  // 케어미스 관련 로그 필터링 (수면 방해 제외) + 현재 진화 단계 시작 시점 이후만 표시
   const careMistakeLogs = (activityLogs || []).filter(log => {
     // CARE_MISTAKE 또는 CAREMISTAKE 타입
     if (log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE') {
@@ -86,6 +93,12 @@ function CareMistakeHistory({ activityLogs, formatTimestamp }) {
       return true;
     }
     return false;
+  }).filter(log => {
+    // 방법 B: 현재 진화 단계 시작 시점 이후 로그만 표시 (카운터와 일치)
+    const logMs = ensureTimestamp(log.timestamp);
+    if (logMs == null) return false;
+    if (currentStageStartedAt == null || currentStageStartedAt === undefined) return true; // 구 데이터 호환: 없으면 전체 표시
+    return logMs >= currentStageStartedAt;
   }).sort((a, b) => {
     // 최신순 정렬
     const timestampA = ensureTimestamp(a.timestamp);
@@ -568,7 +581,7 @@ export default function StatsPopup({
           <li>Energy (DP): {energy || 0}</li>
           <li>Effort: {effort || 0}</li>
           <li>WinRate: {winRate || 0}%</li>
-          <li>CareMistakes: {careMistakes || 0}</li>
+          <li>CareMistakes: {careMistakes || 0} <span className="text-gray-500 text-xs">(진화 구간 기준)</span></li>
 
           <li>Lifespan: {formatTime(lifespanSeconds)}</li>
           <li>TimeToEvolve: {formatTimeToEvolve(timeToEvolveSeconds)}</li>
@@ -1073,7 +1086,15 @@ export default function StatsPopup({
               );
             }
           })()}
-          <li>수면 방해 횟수: {sleepDisturbances || 0}회</li>
+          <li>
+                수면 방해 횟수: {sleepDisturbances || 0}회
+                <span
+                  className="text-gray-500 text-xs ml-1"
+                  title="현재 진화 단계가 시작된 이후의 수면 방해만 집계됩니다."
+                >
+                  (진화 구간 기준)
+                </span>
+              </li>
         </ul>
         )}
         
@@ -1082,6 +1103,7 @@ export default function StatsPopup({
           <SleepDisturbanceHistory 
             activityLogs={displayActivityLogs} 
             formatTimestamp={formatTimestamp}
+            currentStageStartedAt={stats?.evolutionStageStartedAt ?? null}
           />
         )}
         
@@ -1328,10 +1350,11 @@ export default function StatsPopup({
           }
         </ul>
         
-        {/* 케어미스 발생 이력 */}
+        {/* 케어미스 발생 이력 (현재 진화 단계 시작 시점 이후만 표시 → Care Mistakes 카운터와 일치) */}
         <CareMistakeHistory 
           activityLogs={displayActivityLogs} 
-          formatTimestamp={formatTimestamp} 
+          formatTimestamp={formatTimestamp}
+          currentStageStartedAt={stats?.evolutionStageStartedAt ?? null}
         />
       </div>
 
@@ -1339,10 +1362,13 @@ export default function StatsPopup({
       <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">6. 진화 판정 카운터</h3>
         <ul className="space-y-1">
-          <li>Care Mistakes: {careMistakes || 0}</li>
+          <li title="현재 진화 단계(스테이지)가 시작된 이후의 케어미스만 집계됩니다.">
+            Care Mistakes: {careMistakes || 0}
+            <span className="text-gray-500 text-xs font-normal ml-1">(진화 구간 기준)</span>
+          </li>
           <li>Training Count: {trainings || 0}</li>
           <li>Overfeeds: {overfeeds || 0}</li>
-          <li>Sleep Disturbances: {sleepDisturbances || 0}</li>
+          <li title="현재 진화 단계가 시작된 이후의 수면 방해만 집계됩니다.">Sleep Disturbances: {sleepDisturbances || 0} (진화 구간 기준)</li>
           <li className="mt-2 pt-1 border-t">
             <strong>배틀 기록 (현재 디지몬):</strong>
           </li>

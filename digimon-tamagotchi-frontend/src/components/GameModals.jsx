@@ -34,7 +34,7 @@ import EncyclopediaModal from "./EncyclopediaModal";
 import FridgeModal from "./FridgeModal";
 import EvolutionConfirmModal from "./EvolutionConfirmModal";
 import EvolutionGuideModal from "./EvolutionGuideModal";
-import { addActivityLog } from "../hooks/useGameLogic";
+import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
 
@@ -93,6 +93,10 @@ export default function GameModals({
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     
     if (nowSleeping && setWakeUntil && setDigimonStatsAndSave) {
+      // 동일 15분 창 내 수면 방해 로그가 있으면 중복 추가·증가 방지 (케어미스와 동일)
+      if (hasDuplicateSleepDisturbanceLog(updatedLogs || [], Date.now())) {
+        return { updatedStats, updatedLogs, sleepDisturbed: false };
+      }
       const until = Date.now() + 10 * 60 * 1000; // 10분
       setWakeUntil(until);
       

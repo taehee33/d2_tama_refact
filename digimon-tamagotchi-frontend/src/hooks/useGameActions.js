@@ -1,7 +1,7 @@
 // src/hooks/useGameActions.js
 // Game.jsx의 비즈니스 로직을 분리한 Custom Hook
 
-import { resetCallStatus } from "./useGameLogic";
+import { resetCallStatus, hasDuplicateSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { feedProtein, willRefuseProtein } from "../logic/food/protein";
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
@@ -277,23 +277,28 @@ export function useGameActions({
       // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
       let statsAfterWake = currentStats;
       if (nowSleeping) {
-        statsAfterWake = wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
-        // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-        setDigimonStats((prevStats) => {
-          const actionType = type === "meat" ? "고기" : "프로틴";
-          const newLog = {
-            type: "CARE_MISTAKE",
-            text: `수면 방해(사유: 먹이 주기 - ${actionType}): 10분 동안 깨어있음`,
-            timestamp: Date.now(),
-          };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
-          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-          const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
-            console.error("수면 방해 로그 저장 오류:", error);
+        if (hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now())) {
+          statsAfterWake = currentStats; // 15분 창 내 중복 수면 방해 방지
+        } else {
+          statsAfterWake = wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+          setDigimonStats((prevStats) => {
+            // 레이스 컨디션 방지: 동일 액션이 연달아 호출되면 prev에 이미 로그가 있을 수 있음
+            if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
+            const actionType = type === "meat" ? "고기" : "프로틴";
+            const newLog = {
+              type: "CARE_MISTAKE",
+              text: `수면 방해(사유: 먹이 주기 - ${actionType}): 10분 동안 깨어있음`,
+              timestamp: Date.now(),
+            };
+            const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+            if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+            const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
+            setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+              console.error("수면 방해 로그 저장 오류:", error);
+            });
+            return statsWithLogs;
           });
-          return statsWithLogs;
-        });
+        }
       }
       // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 currentStats 사용
       const baseStats = nowSleeping ? statsAfterWake : currentStats;
@@ -438,22 +443,26 @@ export function useGameActions({
     // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
     let statsAfterWake = updatedStats;
     if (nowSleeping) {
-      statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
-      // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-      setDigimonStats((prevStats) => {
-        const newLog = {
-          type: "CARE_MISTAKE",
-          text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
-          timestamp: Date.now(),
-        };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
-          console.error("수면 방해 로그 저장 오류:", error);
+      if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
+        statsAfterWake = updatedStats; // 15분 창 내 중복 수면 방해 방지
+      } else {
+        statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+        setDigimonStats((prevStats) => {
+          if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
+          const newLog = {
+            type: "CARE_MISTAKE",
+            text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
+            timestamp: Date.now(),
+          };
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+          const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
+          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+            console.error("수면 방해 로그 저장 오류:", error);
+          });
+          return statsWithLogs;
         });
-        return statsWithLogs;
-      });
+      }
     }
     
     // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 updatedStats 사용
@@ -931,23 +940,27 @@ export function useGameActions({
     // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
     let statsAfterWake = updatedStats;
     if (nowSleeping) {
-      statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
-      // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
-      setDigimonStats((prevStats) => {
-        const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
-        const newLog = {
-          type: "CARE_MISTAKE",
-          text: `수면 방해(사유: 배틀 - ${battleTypeText}): 10분 동안 깨어있음`,
-          timestamp: Date.now(),
-        };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
-          console.error("수면 방해 로그 저장 오류:", error);
+      if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
+        statsAfterWake = updatedStats; // 15분 창 내 중복 수면 방해 방지
+      } else {
+        statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+        setDigimonStats((prevStats) => {
+          if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
+          const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
+          const newLog = {
+            type: "CARE_MISTAKE",
+            text: `수면 방해(사유: 배틀 - ${battleTypeText}): 10분 동안 깨어있음`,
+            timestamp: Date.now(),
+          };
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+          const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
+          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+            console.error("수면 방해 로그 저장 오류:", error);
+          });
+          return statsWithLogs;
         });
-        return statsWithLogs;
-      });
+      }
     }
     
     const baseStats = nowSleeping ? statsAfterWake : updatedStats;

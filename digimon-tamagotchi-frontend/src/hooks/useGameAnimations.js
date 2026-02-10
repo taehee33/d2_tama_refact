@@ -2,7 +2,7 @@
 // Game.jsx의 애니메이션 사이클 로직을 분리한 Custom Hook
 
 import { db } from "../firebase";
-import { addActivityLog, resetCallStatus } from "./useGameLogic";
+import { addActivityLog, resetCallStatus, hasDuplicateSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule, isWithinSleepSchedule } from "./useGameHandlers";
@@ -186,21 +186,23 @@ export function useGameAnimations({
       };
       
       // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+      const sleepDisturbanceDuplicate = nowSleeping && hasDuplicateSleepDisturbanceLog(digimonStats.activityLogs || [], Date.now());
       let updatedStats = baseStats;
-      if (nowSleeping && setWakeUntil) {
+      if (nowSleeping && setWakeUntil && !sleepDisturbanceDuplicate) {
         updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
       }
       
-      // Activity Log 추가
-      let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
-      if (nowSleeping) {
-        logText = "수면 방해(사유: 화장실 청소): 10분 동안 깨어있음";
-      }
+      // Activity Log 추가 (중복 시 수면 방해 로그/카운트 없이 청소 로그만)
+      const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
+      const logText = applySleepDisturbanceLog
+        ? "수면 방해(사유: 화장실 청소): 10분 동안 깨어있음"
+        : `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
+      const logType = applySleepDisturbanceLog ? "CARE_MISTAKE" : "CLEAN";
       
       setDigimonStats(updatedStats);
       setActivityLogs((prevLogs) => {
         const currentLogs = updatedStats.activityLogs || prevLogs || [];
-        const updatedLogs = addActivityLog(currentLogs, nowSleeping ? "CARE_MISTAKE" : "CLEAN", logText);
+        const updatedLogs = addActivityLog(currentLogs, logType, logText);
         if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
         setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs).catch((error) => {
           console.error("청소 상태 저장 오류:", error);
@@ -252,10 +254,15 @@ export function useGameAnimations({
     };
     
     // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+    const sleepDisturbanceDuplicate = nowSleeping && hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now());
     let updatedStats = baseStats;
-    if (nowSleeping && setWakeUntil) {
+    if (nowSleeping && setWakeUntil && !sleepDisturbanceDuplicate) {
       updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
     }
+    
+    const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
+    const logType = applySleepDisturbanceLog ? "CARE_MISTAKE" : "HEAL";
+    const logText = applySleepDisturbanceLog ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
     
     // 필요 치료 횟수 충족 시 완전 회복
     if (newHealedDoses >= requiredDoses) {
@@ -263,14 +270,10 @@ export function useGameAnimations({
       updatedStats.injuredAt = null;
       updatedStats.healedDosesCurrent = 0;
       updatedStats.injuryReason = null; // 부상 원인 리셋
-      const logType = nowSleeping ? "CARE_MISTAKE" : "HEAL";
-      const logText = nowSleeping ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
       if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
     } else {
-      const logType = nowSleeping ? "CARE_MISTAKE" : "HEAL";
-      const logText = nowSleeping ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
       if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);

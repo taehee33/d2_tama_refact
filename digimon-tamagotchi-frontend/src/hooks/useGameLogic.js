@@ -388,8 +388,8 @@ export function initializeActivityLogs(existingLogs = []) {
  * @param {number} [timestampMs] - 로그 시각(ms). 생략 시 Date.now() 사용. applyLazyUpdate와 동일 시각을 쓰면 중복 로그 방지됨.
  * @returns {Array} 업데이트된 로그 배열
  */
-/** 케어미스 로그 중복 여부: 동일 타입·동일 사유(배고픔/힘/수면) 로그가 기준 시각 ±windowMs 안에 있으면 true */
-function hasDuplicateCareMistakeLog(logs, type, text, timestampMs, windowMs = 120000) {
+/** 케어미스 로그 중복 여부: 동일 타입·동일 사유(배고픔/힘/수면) 로그가 기준 시각 ±15분 안에 있으면 true (실시간·과거 재구성 중복 방지) */
+function hasDuplicateCareMistakeLog(logs, type, text, timestampMs, windowMs = 15 * 60 * 1000) {
   if (type !== 'CAREMISTAKE' || !logs.length) return false;
   const keyPhrases = ['배고픔 콜', '힘 콜', '수면'];
   const hasKey = keyPhrases.some((phrase) => text && text.includes(phrase));
@@ -407,10 +407,26 @@ function hasDuplicateCareMistakeLog(logs, type, text, timestampMs, windowMs = 12
   });
 }
 
+/** 수면 방해 로그 중복 여부: "수면 방해" 로그가 기준 시각 ±15분 안에 있으면 true (케어미스와 동일한 중복 방지) */
+export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windowMs = 15 * 60 * 1000) {
+  const logs = Array.isArray(activityLogs) ? activityLogs : [];
+  if (!logs.length) return false;
+  const t = timestampMs !== undefined ? timestampMs : Date.now();
+  const minT = t - windowMs;
+  const maxT = t + windowMs;
+  return logs.some((log) => {
+    if (log.type !== 'CARE_MISTAKE' && log.type !== 'CAREMISTAKE') return false;
+    if (!log.text || !log.text.includes('수면 방해')) return false;
+    const logT = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
+    if (logT == null) return false;
+    return logT >= minT && logT <= maxT;
+  });
+}
+
 export function addActivityLog(currentLogs = [], type, text, timestampMs) {
   const logs = initializeActivityLogs(currentLogs);
   const ts = timestampMs !== undefined ? timestampMs : Date.now();
-  // 케어미스 이력 멱등성: 동일 사유 로그가 2분 이내에 있으면 추가하지 않음 (실시간·과거 재구성 중복 방지)
+  // 케어미스 이력 멱등성: 동일 사유 로그가 15분 이내에 있으면 추가하지 않음 (실시간·과거 재구성 중복 방지)
   if (hasDuplicateCareMistakeLog(logs, type, text, ts)) {
     return logs;
   }

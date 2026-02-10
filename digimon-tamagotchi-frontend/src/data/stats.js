@@ -144,6 +144,13 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // 야행성 모드 (진화 시 유지)
   merged.isNocturnal = oldStats.isNocturnal !== undefined ? oldStats.isNocturnal : false;
 
+  // 현재 진화 단계 시작 시각 (케어미스 이력 필터: 이 시점 이후 로그만 표시 → 카운터와 일치)
+  if (isNewStart) {
+    merged.evolutionStageStartedAt = merged.birthTime || Date.now();
+  } else {
+    merged.evolutionStageStartedAt = Date.now();
+  }
+
   return merged;
 }
 
@@ -317,26 +324,51 @@ function pushBackdatedActivityLog(activityLogs, type, text, timestampMs, maxLogs
   return next.length > maxLogs ? next.slice(-maxLogs) : next;
 }
 
-/** 이미 동일 이벤트(타입+타임스탬프+텍스트 패턴) 로그가 있으면 true. 중복 로그/카운터 방지용 */
-function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = '') {
-  const logs = Array.isArray(activityLogs) ? activityLogs : [];
-  return logs.some(
-    (log) =>
-      log.type === type &&
-      log.timestamp === timestampMs &&
-      (!textContains || (log.text && log.text.includes(textContains)))
-  );
+/**
+ * 로그 항목의 timestamp를 ms 숫자로 정규화 (Firestore Timestamp 지원).
+ * null/undefined 또는 파싱 실패 시 null 반환, 예외 없음.
+ * @param {Object|null|undefined} log - 로그 객체 (timestamp 필드 보유)
+ * @returns {number|null} ms 단위 타임스탬프 또는 null
+ */
+function logTimestampToMs(log) {
+  if (log == null || typeof log !== 'object' || log.timestamp == null) return null;
+  const t = log.timestamp;
+  if (typeof t === 'number' && !Number.isNaN(t)) return t;
+  if (typeof t === 'object' && t !== null && t.seconds != null) {
+    const sec = Number(t.seconds);
+    const nano = t.nanoseconds != null ? Number(t.nanoseconds) : 0;
+    return Number.isNaN(sec) ? null : sec * 1000 + nano / 1e6;
+  }
+  try {
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  } catch (_) {
+    return null;
+  }
 }
 
-/** 동일 타입·텍스트 패턴 로그가 기준 시각 ±windowMs 안에 있으면 true. applyLazyUpdate가 연속 호출될 때 같은 케어미스가 여러 번 쌓이는 것 방지 */
-function alreadyHasLogInWindow(activityLogs, type, timeMs, textContains, windowMs = 120000) {
+/** 이미 동일 이벤트(타입+타임스탬프+텍스트 패턴) 로그가 있으면 true. 중복 로그/카운터 방지용. Firestore timestamp 정규화 적용 */
+function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = '') {
+  const logs = Array.isArray(activityLogs) ? activityLogs : [];
+  const targetMs = typeof timestampMs === 'number' ? timestampMs : null;
+  if (targetMs == null) return false;
+  return logs.some((log) => {
+    if (log.type !== type) return false;
+    if (textContains && (!log.text || !log.text.includes(textContains))) return false;
+    const logMs = logTimestampToMs(log);
+    return logMs != null && logMs === targetMs;
+  });
+}
+
+/** 동일 타입·텍스트 패턴 로그가 기준 시각 ±windowMs 안에 있으면 true. applyLazyUpdate 연속 호출·과거 재구성 시 같은 케어미스 중복 방지 (15분 창) */
+function alreadyHasLogInWindow(activityLogs, type, timeMs, textContains, windowMs = 15 * 60 * 1000) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
   const minT = timeMs - windowMs;
   const maxT = timeMs + windowMs;
   return logs.some((log) => {
     if (log.type !== type) return false;
     if (textContains && (!log.text || !log.text.includes(textContains))) return false;
-    const t = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
+    const t = logTimestampToMs(log);
     if (t == null) return false;
     return t >= minT && t <= maxT;
   });
