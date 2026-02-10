@@ -118,6 +118,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 퀘스트 관련
   const [currentQuestArea, setCurrentQuestArea] = useState(null);
   const [currentQuestRound, setCurrentQuestRound] = useState(0);
+  const [currentQuestVersion, setCurrentQuestVersion] = useState("Ver.1"); // 퀘스트 모드 Ver.1 | Ver.2
   const [clearedQuestIndex, setClearedQuestIndex] = useState(0);
   
   // 배틀 관련
@@ -435,6 +436,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setCurrentQuestArea,
       currentQuestRound,
       setCurrentQuestRound,
+      currentQuestVersion,
+      setCurrentQuestVersion,
       clearedQuestIndex,
       setClearedQuestIndex,
       

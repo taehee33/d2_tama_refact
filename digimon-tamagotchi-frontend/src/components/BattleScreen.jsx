@@ -8,6 +8,7 @@ import { getAttributeBonus } from "../logic/battle/types";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { getQuestArea } from "../data/v1/quests";
+import { getQuestAreaVer2 } from "../data/v2modkor/quests";
 import { calculatePower } from "../logic/battle/hitrate";
 import "../styles/Battle.css";
 
@@ -20,6 +21,7 @@ export default function BattleScreen({
   userDigimonNickname,
   areaId,
   roundIndex,
+  questVersion = "Ver.1",
   battleType,
   sparringEnemySlot,
   arenaChallenger,
@@ -229,8 +231,8 @@ export default function BattleScreen({
           userPowerDetails: battleResult.userPowerDetails,
         };
       } else {
-        // Quest 모드: 기존 로직
-        result = playQuestRound(userDigimon, userStats, areaId, roundIndex);
+        // Quest 모드: 버전에 따라 Ver.1/Ver.2 퀘스트 데이터 사용
+        result = playQuestRound(userDigimon, userStats, areaId, roundIndex, questVersion);
       }
       
       setBattleResult(result);
@@ -248,18 +250,20 @@ export default function BattleScreen({
       setBattleState("ready");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, userDigimon, userStats, areaId, roundIndex, battleType, sparringEnemySlot, arenaChallenger]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger]);
 
-  // 적 디지몬 데이터 가져오기
+  // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
     if (!enemyData) return null;
-    // enemyId로 먼저 찾고, 없으면 name으로 찾기
-    const questArea = getQuestArea(areaId);
+    const isVer2 = questVersion === "Ver.2";
+    const getArea = isVer2 ? getQuestAreaVer2 : getQuestArea;
+    const digimonData = isVer2 ? digimonDataVer2 : newDigimonDataVer1;
+    const questArea = getArea(areaId);
     if (questArea && questArea.enemies[roundIndex]) {
       const enemyId = questArea.enemies[roundIndex].enemyId;
-      return newDigimonDataVer1[enemyId] || null;
+      return digimonData[enemyId] || null;
     }
-    return newDigimonDataVer1[enemyData.name] || null;
+    return digimonData[enemyData.name] || null;
   };
 
   const enemyDigimonData = getEnemyDigimonData();
@@ -710,13 +714,13 @@ export default function BattleScreen({
             >
               <img
                 ref={enemyDigimonImgRef}
-                src={`${enemyData?.spriteBasePath || "/images"}/${hideEnemyInfo 
+                src={`${battleType === 'quest' ? (enemyDigimonData?.spriteBasePath || "/images") : (enemyData?.spriteBasePath || "/images")}/${hideEnemyInfo 
                   ? 0
                   : (battleType === 'sparring' && enemyData?.sprite !== undefined) 
                   ? enemyData.sprite 
                   : (battleType === 'arena' && enemyData?.sprite !== undefined)
                   ? enemyData.sprite
-                  : (enemyDigimonData?.sprite || 0)}.png`}
+                  : (enemyDigimonData?.sprite ?? enemyData?.sprite ?? 0)}.png`}
                 alt={hideEnemyInfo ? "???" : (enemyData?.name || "Enemy Digimon")}
                 className={projectile?.type === "enemy" ? "animate-attack-cpu" : ""}
                 style={{

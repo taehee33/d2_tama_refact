@@ -1,9 +1,26 @@
 // src/components/QuestSelectionModal.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import "./QuestSelectionModal.css";
 
-export default function QuestSelectionModal({ quests, clearedQuestIndex, onSelectArea, onClose }) {
+export default function QuestSelectionModal({
+  quests,
+  questsVer2 = [],
+  defaultVersion = "Ver.1",
+  clearedQuestIndex,
+  onSelectArea,
+  onClose,
+  digimonDataVer2 = {},
+}) {
+  const [activeTab, setActiveTab] = useState(defaultVersion);
+  const displayQuests = activeTab === "Ver.2" ? questsVer2 : quests;
+  const digimonData = activeTab === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+  const spriteBase = activeTab === "Ver.2" ? "/Ver2_Mod_Kor" : "/images";
+
+  useEffect(() => {
+    setActiveTab(defaultVersion);
+  }, [defaultVersion]);
+
   const getAreaStatus = (index) => {
     if (index < clearedQuestIndex) {
       return "cleared"; // 클리어됨
@@ -17,8 +34,15 @@ export default function QuestSelectionModal({ quests, clearedQuestIndex, onSelec
   const handleAreaClick = (area, index) => {
     const status = getAreaStatus(index);
     if (status === "open" || status === "cleared") {
-      onSelectArea(area.areaId);
+      onSelectArea(area.areaId, activeTab);
     }
+  };
+
+  const getSpriteSrc = (enemy) => {
+    const d = digimonData[enemy.enemyId] || digimonData[enemy.name];
+    const base = d?.spriteBasePath || spriteBase;
+    const sprite = d?.sprite ?? 0;
+    return `${base}/${sprite}.png`;
   };
 
   return (
@@ -34,8 +58,26 @@ export default function QuestSelectionModal({ quests, clearedQuestIndex, onSelec
           </button>
         </div>
 
+        {/* Ver.1 / Ver.2 탭 */}
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setActiveTab("Ver.1")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.1" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+          >
+            Ver.1
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("Ver.2")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.2" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+          >
+            Ver.2
+          </button>
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {quests.map((area, index) => {
+          {(displayQuests || []).map((area, index) => {
             const status = getAreaStatus(index);
             const isLocked = status === "locked";
             const isCleared = index < clearedQuestIndex; // 클리어 여부
@@ -98,29 +140,13 @@ export default function QuestSelectionModal({ quests, clearedQuestIndex, onSelec
                 <div className="mt-3 flex justify-center items-center">
                   {isCleared ? (
                     (() => {
-                      // 보스 적 찾기
                       const bossEnemy = area.enemies.find(e => e.isBoss);
-                      if (!bossEnemy) {
-                        // 보스가 없으면 마지막 적을 보스로 간주
-                        const lastEnemy = area.enemies[area.enemies.length - 1];
-                        if (!lastEnemy) return null;
-                        const enemyDigimon = digimonDataVer1[lastEnemy.enemyId] || digimonDataVer1[lastEnemy.name];
-                        const sprite = enemyDigimon?.sprite || 0;
-                        return (
-                          <img
-                            src={`/images/${sprite}.png`}
-                            alt={lastEnemy.name}
-                            className="w-16 h-16"
-                            style={{ imageRendering: "pixelated" }}
-                          />
-                        );
-                      }
-                      const enemyDigimon = digimonDataVer1[bossEnemy.enemyId] || digimonDataVer1[bossEnemy.name];
-                      const sprite = enemyDigimon?.sprite || 0;
+                      const enemy = bossEnemy || area.enemies[area.enemies.length - 1];
+                      if (!enemy) return null;
                       return (
                         <img
-                          src={`/images/${sprite}.png`}
-                          alt={bossEnemy.name}
+                          src={getSpriteSrc(enemy)}
+                          alt={enemy.name}
                           className="w-16 h-16"
                           style={{ imageRendering: "pixelated" }}
                         />

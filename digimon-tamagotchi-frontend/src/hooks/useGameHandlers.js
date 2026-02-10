@@ -99,6 +99,7 @@ export function useGameHandlers({
   clearedQuestIndex,
   setCurrentQuestArea,
   setCurrentQuestRound,
+  setCurrentQuestVersion,
   setBattleType,
   setSparringEnemySlot,
   setClearedQuestIndex,
@@ -217,10 +218,12 @@ export function useGameHandlers({
   /**
    * 영역 선택 핸들러
    * @param {string} areaId - 영역 ID
+   * @param {string} [version] - 퀘스트 버전 ("Ver.1" | "Ver.2")
    */
-  const handleSelectArea = (areaId) => {
+  const handleSelectArea = (areaId, version = "Ver.1") => {
     setCurrentQuestArea(areaId);
     setCurrentQuestRound(0);
+    setCurrentQuestVersion(version);
     toggleModal('questSelection', false);
     setBattleType('quest');
     setSparringEnemySlot(null);

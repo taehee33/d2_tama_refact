@@ -75,6 +75,7 @@ export default function GameModals({
     digimonNickname,
     currentQuestArea,
     currentQuestRound,
+    currentQuestVersion,
     clearedQuestIndex,
     battleType,
     sparringEnemySlot,
@@ -158,6 +159,7 @@ export default function GameModals({
     digimonDataVer1,
     digimonDataVer2,
     quests,
+    questsVer2,
     seasonName,
     seasonDuration,
     initializeStats,
@@ -549,9 +551,12 @@ export default function GameModals({
       {modals.questSelection && (
         <QuestSelectionModal
           quests={quests}
+          questsVer2={questsVer2 || []}
+          defaultVersion={slotVersion === "Ver.2" ? "Ver.2" : "Ver.1"}
           clearedQuestIndex={clearedQuestIndex}
           onSelectArea={handleSelectArea}
           onClose={() => toggleModal('questSelection', false)}
+          digimonDataVer2={digimonDataVer2 || {}}
         />
       )}
 
@@ -568,6 +573,7 @@ export default function GameModals({
           userDigimonNickname={digimonNickname || null}
           areaId={currentQuestArea}
           roundIndex={currentQuestRound}
+          questVersion={currentQuestVersion || "Ver.1"}
           battleType={battleType}
           sparringEnemySlot={sparringEnemySlot}
           arenaChallenger={arenaChallenger}

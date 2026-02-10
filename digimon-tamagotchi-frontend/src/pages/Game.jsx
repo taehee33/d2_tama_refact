@@ -31,6 +31,7 @@ import digimonAnimations from "../data/digimonAnimations";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
+import { questsVer2 } from "../data/v2modkor/quests";
 import { initializeStats, updateLifespan } from "../data/stats";
 import { handleEnergyRecovery } from "../logic/stats/stats";
 import { quests } from "../data/v1/quests";
@@ -180,6 +181,8 @@ function Game(){
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
+    currentQuestVersion,
+    setCurrentQuestVersion,
     clearedQuestIndex,
     setClearedQuestIndex,
     battleType,
@@ -969,6 +972,7 @@ function Game(){
     clearedQuestIndex,
     setCurrentQuestArea,
     setCurrentQuestRound,
+    setCurrentQuestVersion,
     setBattleType,
     setSparringEnemySlot,
     setClearedQuestIndex,
@@ -1390,6 +1394,7 @@ async function setSelectedDigimonAndSave(name) {
     digimonDataVer1: digimonDataForSlot,
     digimonDataVer2,
     quests,
+    questsVer2,
     seasonName,
     seasonDuration,
     ver1DigimonList,
