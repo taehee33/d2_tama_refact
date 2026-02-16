@@ -21,6 +21,7 @@ import { updateEncyclopedia } from "./useEncyclopedia";
  * @param {Array} params.activityLogs - 현재 Activity Logs
  * @param {string} params.selectedDigimon - 현재 선택된 디지몬
  * @param {boolean} params.developerMode - 개발자 모드 여부
+ * @param {boolean} params.ignoreEvolutionTime - 모든 진화 조건 무시 (개발자 옵션, 체크 시 첫 번째 진화 대상으로 바로 진화)
  * @param {Function} params.setIsEvolving - 진화 중 플래그 설정 함수
  * @param {Function} params.setEvolutionStage - 진화 단계 설정 함수
  * @param {Function} params.setEvolvedDigimonName - 진화된 디지몬 이름 설정 함수
@@ -41,6 +42,7 @@ export function useEvolution({
   appendLogToSubcollection,
   selectedDigimon,
   developerMode,
+  ignoreEvolutionTime = false,
   setIsEvolving,
   setEvolutionStage,
   setEvolvedDigimonName,
@@ -93,72 +95,72 @@ export function useEvolution({
       return;
     }
     
-    if (developerMode) {
-      // 개발자 모드: 시간 조건만 무시하고 다른 조건은 체크
-      // 시간 조건을 임시로 0으로 설정하여 체크
-      const statsForCheck = {
-        ...updatedStats,
-        timeToEvolveSeconds: 0, // 시간 조건만 무시
-      };
-      const evolutionResult = checkEvolution(statsForCheck, currentDigimonData, digimonName, newDigimonDataVer1);
-      
-      if (evolutionResult.success) {
-        const targetId = evolutionResult.targetId;
-        const targetData = newDigimonDataVer1[targetId];
-        const evolvedName = targetData?.name || targetData?.id || targetId;
-        setEvolvedDigimonName(evolvedName);
+    // '모든 진화 조건 무시' 옵션: 조건 검사 없이 첫 번째 진화 대상으로 진화
+    if (ignoreEvolutionTime) {
+      const evolutions = currentDigimonData.evolutions || [];
+      const firstOption = evolutions.find((e) => !e.jogress);
+      const targetId = firstOption ? (firstOption.targetId || firstOption.targetName) : null;
+      if (!targetId) {
+        alert("진화 가능한 형태가 없습니다.");
+        return;
+      }
+      const targetData = newDigimonDataVer1[targetId];
+      const evolvedName = targetData?.name || targetData?.id || targetId;
+      setEvolvedDigimonName(evolvedName);
+      if (developerMode) {
         setEvolutionStage('complete');
         await evolve(targetId);
       } else {
-        alert(`진화 조건을 만족하지 못했습니다!\n\n${evolutionResult.details?.map(d => `${d.target}: ${d.missing}`).join('\n') || evolutionResult.reason}`);
+        if (typeof setIsEvolving === 'function') setIsEvolving(true);
+        setEvolutionStage('shaking');
+        setTimeout(() => {
+          setEvolutionStage('flashing');
+          setTimeout(() => {
+            setEvolutionStage('complete');
+            setTimeout(async () => {
+              await evolve(targetId);
+              if (typeof setIsEvolving === 'function') setIsEvolving(false);
+            }, 500);
+          }, 2000);
+        }, 2000);
       }
       return;
     }
     
-    // 매뉴얼 기반 진화 판정 (상세 결과 객체 반환)
-    // Data-Driven 방식: digimons.js의 evolutions 배열을 직접 사용
-    const evolutionResult = checkEvolution(updatedStats, currentDigimonData, digimonName, newDigimonDataVer1);
+    // 개발자 모드: 시간 조건만 0으로 두고 나머지 조건은 판정
+    const statsForCheck = developerMode
+      ? { ...updatedStats, timeToEvolveSeconds: 0 }
+      : updatedStats;
+    const evolutionResult = checkEvolution(statsForCheck, currentDigimonData, digimonName, newDigimonDataVer1);
     
     if (evolutionResult.success) {
-      // 진화 성공 - 애니메이션 시작
       const targetId = evolutionResult.targetId;
-      
-      // 진화 애니메이션 시작
-      if (typeof setIsEvolving === 'function') {
-        setIsEvolving(true);
-      }
-      setEvolutionStage('shaking');
-      
-      // Step 1: Shaking (2초)
-      setTimeout(() => {
-        setEvolutionStage('flashing');
-        
-        // Step 2: Flashing (2초)
+      const targetData = newDigimonDataVer1[targetId];
+      const evolvedName = targetData?.name || targetData?.id || targetId;
+      setEvolvedDigimonName(evolvedName);
+      if (developerMode) {
+        setEvolutionStage('complete');
+        await evolve(targetId);
+      } else {
+        if (typeof setIsEvolving === 'function') setIsEvolving(true);
+        setEvolutionStage('shaking');
         setTimeout(() => {
-          setEvolutionStage('complete');
-          
-          // Step 3: Complete - 실제 진화 처리
-          setTimeout(async () => {
-            // 진화된 디지몬 이름 저장
-            const targetData = newDigimonDataVer1[targetId];
-            const evolvedName = targetData?.name || targetData?.id || targetId;
-            setEvolvedDigimonName(evolvedName);
-            await evolve(targetId);
-            if (typeof setIsEvolving === 'function') {
-              setIsEvolving(false);
-            }
-            // evolutionStage는 'complete'로 유지하여 확인 버튼을 눌러야만 닫히도록 함
-          }, 500);
+          setEvolutionStage('flashing');
+          setTimeout(() => {
+            setEvolutionStage('complete');
+            setTimeout(async () => {
+              await evolve(targetId);
+              if (typeof setIsEvolving === 'function') setIsEvolving(false);
+            }, 500);
+          }, 2000);
         }, 2000);
-      }, 2000);
+      }
     } else if (evolutionResult.reason === "NOT_READY") {
-      // 시간 부족
       const remainingSeconds = evolutionResult.remainingTime;
       const mm = Math.floor(remainingSeconds / 60);
       const ss = Math.floor(remainingSeconds % 60);
       alert(`아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초`);
     } else if (evolutionResult.reason === "CONDITIONS_UNMET") {
-      // 조건 부족
       const detailsText = evolutionResult.details
         .map(d => `• ${d.target}: ${d.missing}`)
         .join("\n");
@@ -167,13 +169,33 @@ export function useEvolution({
   }
 
   /**
+   * 진화 대상 ID를 데이터 맵에 있는 키로 보정 (대소문자/오타 대응)
+   * @param {string} targetId - 진화 대상 ID (예: skullmamon)
+   * @param {Object} dataMap - 디지몬 데이터 맵 (슬롯 버전에 맞는 데이터)
+   * @returns {string|null} 실제 키 또는 null
+   */
+  function resolveEvolutionTargetKey(targetId, dataMap) {
+    if (!targetId || !dataMap || typeof dataMap !== "object") return null;
+    if (dataMap[targetId]) return targetId;
+    const lower = targetId.toLowerCase();
+    const found = Object.keys(dataMap).find((k) => k.toLowerCase() === lower);
+    if (found) return found;
+    const byId = Object.entries(dataMap).find(([, v]) => (v && v.id && String(v.id).toLowerCase() === lower));
+    return byId ? byId[0] : null;
+  }
+
+  /**
    * 진화 실행 함수
    * @param {string} newName - 진화할 디지몬 이름 (ID)
    */
   async function evolve(newName) {
-    if (!digimonDataVer1[newName]) {
-      console.error(`No data for ${newName} in digimonDataVer1! fallback => Digitama`);
-      newName = "Digitama";
+    const resolvedKey = resolveEvolutionTargetKey(newName, digimonDataVer1) || newName;
+    if (!digimonDataVer1[resolvedKey]) {
+      const fallback = version === "Ver.2" ? "DigitamaV2" : "Digitama";
+      console.error(`No data for ${newName} (resolved: ${resolvedKey}) in slot data! fallback => ${fallback}`);
+      newName = fallback;
+    } else {
+      newName = resolvedKey;
     }
     const currentStats = await applyLazyUpdateBeforeAction();
     const old = { ...currentStats };

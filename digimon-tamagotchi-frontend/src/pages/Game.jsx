@@ -213,6 +213,8 @@ function Game(){
     setDeveloperMode,
     encyclopediaShowQuestionMark,
     setEncyclopediaShowQuestionMark,
+    ignoreEvolutionTime,
+    setIgnoreEvolutionTime,
     isEvolving,
     setIsEvolving,
     setIsSleeping,
@@ -847,6 +849,7 @@ function Game(){
     appendLogToSubcollection,
     selectedDigimon,
     developerMode,
+    ignoreEvolutionTime,
     slotId,
     currentUser,
     setIsEvolving,
@@ -1218,10 +1221,18 @@ async function setSelectedDigimonAndSave(name) {
       setIsEvoEnabled(true);
       return;
     }
-    // Data-Driven 방식: digimons.js의 evolutions 배열 사용
+    // '모든 진화 조건 무시' 옵션 시 진화 후보가 있으면 버튼 활성화
     const currentDigimonData = evolutionDataForSlot[selectedDigimon];
+    if (ignoreEvolutionTime && currentDigimonData?.evolutions?.length > 0) {
+      const hasNonJogress = currentDigimonData.evolutions.some((e) => !e.jogress);
+      if (hasNonJogress) {
+        setIsEvoEnabled(true);
+        return;
+      }
+    }
+    const statsForEvoCheck = digimonStats;
     if (currentDigimonData && currentDigimonData.evolutions) {
-      const evolutionResult = checkEvolution(digimonStats, currentDigimonData, selectedDigimon, evolutionDataForSlot);
+      const evolutionResult = checkEvolution(statsForEvoCheck, currentDigimonData, selectedDigimon, evolutionDataForSlot);
       if(evolutionResult.success){
         setIsEvoEnabled(true);
         return;
@@ -1229,7 +1240,7 @@ async function setSelectedDigimonAndSave(name) {
     }
     setIsEvoEnabled(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [digimonStats, selectedDigimon, developerMode]);
+  }, [digimonStats, selectedDigimon, developerMode, ignoreEvolutionTime]);
 
   // 수면 상태 계산 (TIRED 케어미스는 타이머 useEffect에서 처리)
   useEffect(() => {
@@ -1747,7 +1758,7 @@ async function setSelectedDigimonAndSave(name) {
             wakeUntil: wakeUntil,
             sleepLightOnStart: digimonStats.sleepLightOnStart || null,
           }}
-          flags={{ developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, isEvolving, setIsEvolving }}
+          flags={{ developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, ignoreEvolutionTime, setIgnoreEvolutionTime, isEvolving, setIsEvolving }}
         />
       )}
       

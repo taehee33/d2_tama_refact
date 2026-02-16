@@ -9,6 +9,8 @@ const SettingsModal = ({
   developerMode, setDeveloperMode,
   encyclopediaShowQuestionMark = true,
   setEncyclopediaShowQuestionMark,
+  ignoreEvolutionTime = false,
+  setIgnoreEvolutionTime,
   width, height, setWidth, setHeight,
   backgroundNumber, setBackgroundNumber,
   digimonSizeScale, setDigimonSizeScale,
@@ -40,6 +42,7 @@ const SettingsModal = ({
   const [localHeight, setLocalHeight] = useState(height);
   const [localDevMode, setLocalDevMode] = useState(developerMode);
   const [localEncyclopediaQuestionMark, setLocalEncyclopediaQuestionMark] = useState(encyclopediaShowQuestionMark);
+  const [localIgnoreEvolutionTime, setLocalIgnoreEvolutionTime] = useState(ignoreEvolutionTime);
   const [uniformScale, setUniformScale] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(height / width); // 초기 비율 저장
 
@@ -49,8 +52,9 @@ const SettingsModal = ({
     setLocalHeight(height);
     setLocalDevMode(developerMode);
     setLocalEncyclopediaQuestionMark(encyclopediaShowQuestionMark);
+    setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
     setAspectRatio(height / width); // 비율 업데이트
-  }, [width, height, developerMode, encyclopediaShowQuestionMark]);
+  }, [width, height, developerMode, encyclopediaShowQuestionMark, ignoreEvolutionTime]);
 
   // PWA 설치 프롬프트 감지
   useEffect(() => {
@@ -270,6 +274,24 @@ const SettingsModal = ({
                       className="mr-2"
                     />
                     <span>도감 물음표 켜기 (미발견 시 ??? 표시)</span>
+                  </label>
+                </div>
+              )}
+              {/* 모든 진화 조건 무시 (체크 시 시간·훈련·배틀 등 조건 없이 바로 진화 가능) */}
+              {setIgnoreEvolutionTime && (
+                <div className="mb-3">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={localIgnoreEvolutionTime}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setLocalIgnoreEvolutionTime(checked);
+                        setIgnoreEvolutionTime(checked);
+                      }}
+                      className="mr-2"
+                    />
+                    <span>모든 진화 조건 무시 (체크 시 바로 진화 가능)</span>
                   </label>
                 </div>
               )}

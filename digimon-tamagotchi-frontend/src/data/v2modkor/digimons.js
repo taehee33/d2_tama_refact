@@ -570,7 +570,7 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "skullmamon",
+        targetId: "SkullMammon",
         targetName: "스컬맘몬",
         conditions: {
           careMistakes: { max: 1 },

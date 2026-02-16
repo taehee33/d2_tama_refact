@@ -190,7 +190,8 @@ export default function GameModals({
     setWakeUntil,
   } = ui || {};
 
-  const { developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, setIsEvolving } = flags || {};
+  const { developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, ignoreEvolutionTime, setIgnoreEvolutionTime, setIsEvolving } = flags || {};
+  const ignoreAllEvolutionConditions = !!ignoreEvolutionTime;
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
@@ -268,6 +269,8 @@ export default function GameModals({
             setDeveloperMode={setDeveloperMode || (() => {})}
             encyclopediaShowQuestionMark={encyclopediaShowQuestionMark}
             setEncyclopediaShowQuestionMark={setEncyclopediaShowQuestionMark || (() => {})}
+            ignoreEvolutionTime={ignoreEvolutionTime}
+            setIgnoreEvolutionTime={setIgnoreEvolutionTime || (() => {})}
             width={width}
             height={height}
             setWidth={setWidth}
@@ -782,18 +785,17 @@ export default function GameModals({
 
       {/* Evolution Confirm Modal (진화 확인) */}
       {modals.evolutionConfirm && (() => {
-        // 진화 가능 여부 확인
+        // '모든 진화 조건 무시' 옵션 시 항상 진화 가능, 시간 미표시
         let canEvolve = true;
         let remainingTime = null;
         
-        if (digimonStats && currentDigimonData && newDigimonDataVer1) {
+        if (!ignoreAllEvolutionConditions && digimonStats && currentDigimonData && newDigimonDataVer1) {
           const evolutionResult = checkEvolution(
             digimonStats,
             currentDigimonData,
             currentDigimonKey,
             newDigimonDataVer1
           );
-          
           canEvolve = evolutionResult.success;
           if (evolutionResult.reason === "NOT_READY" && evolutionResult.remainingTime) {
             remainingTime = evolutionResult.remainingTime;
@@ -809,7 +811,7 @@ export default function GameModals({
             }}
             onClose={() => toggleModal('evolutionConfirm', false)}
             canEvolve={canEvolve}
-            remainingTime={remainingTime}
+            remainingTime={ignoreAllEvolutionConditions ? null : remainingTime}
           />
         );
       })()}

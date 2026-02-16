@@ -87,6 +87,27 @@ const saveEncyclopediaShowQuestionMark = (enabled) => {
   }
 };
 
+/** 개발자 옵션: 모든 진화 조건 무시 (체크 시 조건 없이 첫 번째 진화 대상으로 바로 진화 가능) */
+const IGNORE_EVOLUTION_TIME_KEY = 'digimon_ignore_evolution_time';
+
+const loadIgnoreEvolutionTime = () => {
+  try {
+    const saved = localStorage.getItem(IGNORE_EVOLUTION_TIME_KEY);
+    if (saved !== null) return saved === 'true';
+  } catch (e) {
+    console.error('진화 조건 무시 설정 로드 오류:', e);
+  }
+  return false;
+};
+
+const saveIgnoreEvolutionTime = (enabled) => {
+  try {
+    localStorage.setItem(IGNORE_EVOLUTION_TIME_KEY, enabled ? 'true' : 'false');
+  } catch (e) {
+    console.error('진화 조건 무시 설정 저장 오류:', e);
+  }
+};
+
 /**
  * useGameState Hook
  * Game.jsx의 모든 State를 통합 관리하는 Custom Hook
@@ -209,6 +230,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // ============================================
   const [developerMode, setDeveloperMode] = useState(() => loadDeveloperMode());
   const [encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark] = useState(() => loadEncyclopediaShowQuestionMark());
+  const [ignoreEvolutionTime, setIgnoreEvolutionTime] = useState(() => loadIgnoreEvolutionTime());
   const [isEvolving, setIsEvolving] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
@@ -255,6 +277,11 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   useEffect(() => {
     saveEncyclopediaShowQuestionMark(encyclopediaShowQuestionMark);
   }, [encyclopediaShowQuestionMark]);
+
+  // ignoreEvolutionTime 변경 시 localStorage에 저장
+  useEffect(() => {
+    saveIgnoreEvolutionTime(ignoreEvolutionTime);
+  }, [ignoreEvolutionTime]);
   
   // 먹이 관련
   const [feedType, setFeedType] = useState(null);
@@ -474,6 +501,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setDeveloperMode,
       encyclopediaShowQuestionMark,
       setEncyclopediaShowQuestionMark,
+      ignoreEvolutionTime,
+      setIgnoreEvolutionTime,
       isEvolving,
       setIsEvolving,
       isSleeping,
