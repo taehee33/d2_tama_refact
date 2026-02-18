@@ -733,7 +733,7 @@ export const digimonDataVer2 = {
       {
         targetId: "OmegamonAlterSV2",
         targetName: "오메가몬 Alter-S",
-        jogress: { partner: "BlitzGreymon" },
+        jogress: { partner: "BlitzGreymonV1" },
       },
     ],
   },
@@ -764,8 +764,8 @@ export const digimonDataVer2 = {
 
   // Ultimate — Jogress 파트너 (크레스가루루몬 / CresGarurumon)
   BlitzGreymonV2: {
-    id: "BlitzGreymonV2",
-    name: "블리츠그레이몬 Ver.2",
+    id: "BlitzGreymonV2forJogress",
+    name: "블리츠그레이몬 Ver.2 (for Jogress)",
     stage: "Ultimate",
     sprite: 210,
     spriteBasePath: V2_SPRITE_BASE,

@@ -332,7 +332,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 진화 관련
   const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
   const [evolvedDigimonName, setEvolvedDigimonName] = useState(null);
-  
+  const [evolutionCompleteIsJogress, setEvolutionCompleteIsJogress] = useState(false); // 조그레스 완료 시 성공 메시지에 파트너 사망 문구 표시용
+
   // 사망 관련
   const [deathReason, setDeathReason] = useState(null);
   
@@ -555,6 +556,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setEvolutionStage,
       evolvedDigimonName,
       setEvolvedDigimonName,
+      evolutionCompleteIsJogress,
+      setEvolutionCompleteIsJogress,
       deathReason,
       setDeathReason,
       isLightsOn,

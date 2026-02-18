@@ -302,7 +302,7 @@ export const quests = [
         isBoss: false,
       },
       {
-        enemyId: "OmegamonAlterS",
+        enemyId: "OmegamonAlterSV1",
         name: "Omegamon Alter-S",
         attribute: "Virus",
         power: 220,

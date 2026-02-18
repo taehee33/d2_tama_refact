@@ -180,8 +180,10 @@ export default function GameModals({
     foodSizeScale,
     evolutionStage,
     evolvedDigimonName,
+    evolutionCompleteIsJogress,
     setEvolutionStage,
     setEvolvedDigimonName,
+    setEvolutionCompleteIsJogress,
     setWidth,
     setHeight,
     setBackgroundNumber,
@@ -625,6 +627,9 @@ export default function GameModals({
           currentDigimonData={currentDigimonData}
           currentStats={digimonStats}
           digimonDataMap={newDigimonDataVer1}
+          slotVersion={slotVersion || "Ver.1"}
+          digimonDataVer1={data?.jogressDigimonDataVer1 || {}}
+          digimonDataVer2={data?.jogressDigimonDataVer2 || {}}
           activityLogs={activityLogs}
           onClose={() => toggleModal('digimonInfo', false)}
         />
@@ -674,10 +679,14 @@ export default function GameModals({
           <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-8 text-center pixel-art-modal">
             <h2 className="text-3xl font-bold text-black mb-2 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
             <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
+            {evolutionCompleteIsJogress && (
+              <p className="text-black mb-6 pixel-art-text">파트너 디지몬은 데이터가 되어 사라졌습니다.</p>
+            )}
             <button
               onClick={() => {
                 setEvolutionStage('idle');
                 setEvolvedDigimonName(null);
+                if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(false);
                 setIsEvolving(false);
               }}
               className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
@@ -825,6 +834,9 @@ export default function GameModals({
           currentDigimonData={getCurrentDigimonData()}
           currentStats={digimonStats}
           digimonDataMap={newDigimonDataVer1}
+          slotVersion={slotVersion || "Ver.1"}
+          digimonDataVer1={data?.jogressDigimonDataVer1 || {}}
+          digimonDataVer2={data?.jogressDigimonDataVer2 || {}}
           onClose={() => toggleModal('evolutionGuide', false)}
         />
       )}

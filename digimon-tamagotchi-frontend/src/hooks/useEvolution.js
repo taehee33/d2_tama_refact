@@ -49,6 +49,7 @@ export function useEvolution({
   setIsEvolving,
   setEvolutionStage,
   setEvolvedDigimonName,
+  setEvolutionCompleteIsJogress,
   digimonDataVer1,
   newDigimonDataVer1,
   slotId,
@@ -381,6 +382,7 @@ export function useEvolution({
         await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
       }
 
+      if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
       if (setEvolvedDigimonName) setEvolvedDigimonName(newDigimonName);
       if (setEvolutionStage) setEvolutionStage("complete");
     } catch (err) {

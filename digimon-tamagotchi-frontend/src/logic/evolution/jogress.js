@@ -2,13 +2,14 @@
 // 조그레스 진화 결과 판정 (순수 함수)
 
 /**
- * Ver.1 / Ver.2 동일 캐릭터 매칭용: ID에서 V2 접미사 제거
- * @param {string} id - 디지몬 ID (예: CresGarurumonV2, BlitzGreymon)
+ * Ver.1 / Ver.2 동일 캐릭터 매칭용: ID에서 V1·V2 접미사 제거해 베이스 ID로 통일
+ * (v1 슬롯은 "BlitzGreymon", v2 데이터는 partner "BlitzGreymonV1" 등 혼용되므로 둘 다 정규화)
+ * @param {string} id - 디지몬 ID (예: CresGarurumonV2, BlitzGreymonV1, BlitzGreymon)
  * @returns {string} 베이스 ID (예: CresGarurumon, BlitzGreymon)
  */
 function baseJogressId(id) {
   if (typeof id !== "string") return "";
-  return id.replace(/V2$/i, "");
+  return id.replace(/V2$/i, "").replace(/V1$/i, "");
 }
 
 /**

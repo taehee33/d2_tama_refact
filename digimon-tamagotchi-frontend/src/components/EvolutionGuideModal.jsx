@@ -6,11 +6,36 @@ import { checkEvolutionAvailability } from "../hooks/useGameLogic";
  * 진화 가이드 모달 컴포넌트 (Data-Driven)
  * digimons.js의 구조화된 진화 조건 데이터를 표시합니다.
  */
+/**
+ * 조그레스 파트너 표시명: Ver.1↔Ver.2 크로스이므로 반대 버전 맵에서 이름 조회
+ * @param {string} partnerId - 현재 맵의 partner ID (예: CresGarurumon, BlitzGreymon)
+ * @param {string} slotVersion - "Ver.1" | "Ver.2"
+ * @param {Object} digimonDataVer1 - v1 전체 맵
+ * @param {Object} digimonDataVer2 - v2 전체 맵
+ */
+function getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2) {
+  if (!partnerId) return "";
+  const otherMap = slotVersion === "Ver.2" ? digimonDataVer1 : digimonDataVer2;
+  // v1 맵 키는 "BlitzGreymon", v2 맵 키는 "CresGarurumonV2" 형태이므로 V1/V2 접미사 정규화
+  const keyForV1 = partnerId.replace(/V1$/i, "").replace(/V2$/i, "");
+  const keyForV2 = keyForV1 + "V2";
+  const otherKey = slotVersion === "Ver.2" ? keyForV1 : keyForV2;
+  const data = otherMap?.[otherKey] || otherMap?.[partnerId];
+  const baseName = data?.name || data?.id || partnerId;
+  const versionSuffix = slotVersion === "Ver.2" ? " Ver.1" : " Ver.2";
+  // 데이터 이름에 이미 버전이 포함돼 있으면 중복 붙이지 않음
+  if (baseName.endsWith(" Ver.1") || baseName.endsWith(" Ver.2")) return baseName;
+  return baseName + versionSuffix;
+}
+
 export default function EvolutionGuideModal({
   currentDigimonName,
   currentDigimonData,
   currentStats,
   digimonDataMap,
+  slotVersion = "Ver.1",
+  digimonDataVer1 = {},
+  digimonDataVer2 = {},
   onClose,
 }) {
   if (!currentDigimonData || !currentDigimonData.evolutions || currentDigimonData.evolutions.length === 0) {
@@ -88,16 +113,19 @@ export default function EvolutionGuideModal({
         });
       });
     }
-    // Case 3: 조그레스 (jogress)
+    // Case 3: 조그레스 (jogress) — Ver.1↔Ver.2 크로스, 파트너는 반대 버전 표기
     else if (evo.jogress) {
+      const partnerId = evo.jogress?.partner || "";
+      const partnerName = getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2);
       evolutionList.push({
         targetId,
         targetName,
         targetData,
         requirements: {},
-        availability: { isAvailable: false, missingConditions: ["조그레스 진화는 아직 지원되지 않습니다."] },
+        availability: { isAvailable: true, missingConditions: [] },
         conditionType: 'jogress',
         jogress: evo.jogress,
+        jogressPartnerName: partnerName,
       });
     }
     // Case 4: 조건이 없는 경우 (시간 조건만 있거나 자동 진화)
@@ -159,7 +187,14 @@ export default function EvolutionGuideModal({
               </h3>
 
               <div className="space-y-2">
-                {evo.availability.missingConditions.length > 0 ? (
+                {evo.conditionType === 'jogress' ? (
+                  <div className="text-amber-300 text-sm space-y-1">
+                    <p className="font-medium">조그레스 진화(로컬/온라인)로 진행할 수 있습니다.</p>
+                    {evo.jogressPartnerName && (
+                      <p className="text-gray-400">파트너: {evo.jogressPartnerName}</p>
+                    )}
+                  </div>
+                ) : evo.availability.missingConditions.length > 0 ? (
                   evo.availability.missingConditions.map((condition, idx) => {
                     const isMet = condition.includes("달성 ✅");
                     const isMissing = condition.includes("부족 ❌") || condition.includes("초과 ❌");
@@ -184,7 +219,7 @@ export default function EvolutionGuideModal({
               </div>
 
               {/* 조건 상세 정보 (개발자용) */}
-              {process.env.NODE_ENV === 'development' && evo.conditions && (
+              {process.env.NODE_ENV === 'development' && (evo.conditions || evo.conditionType === 'jogress') && (
                 <div className="mt-3 pt-3 border-t border-gray-600">
                   <p className="text-xs text-gray-400">
                     조건 타입: {evo.conditionType === 'single' ? '단일 조건' : evo.conditionType === 'group' ? `조건 그룹 ${evo.groupIndex}/${evo.totalGroups}` : '조그레스'}
