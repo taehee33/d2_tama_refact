@@ -837,6 +837,7 @@ function Game(){
     evolve,
     handleEvolutionButton,
     proceedEvolution: handleProceedEvolution,
+    proceedJogressLocal,
   } = useEvolution({
     digimonStats,
     setDigimonStats,
@@ -1397,6 +1398,11 @@ async function setSelectedDigimonAndSave(name) {
     takeOutFromFridge,
     proceedEvolution: handleProceedEvolution,
     appendLogToSubcollection,
+    onJogressPartnerSelected: (slot) => {
+      if (slot?.id != null && proceedJogressLocal) {
+        proceedJogressLocal(slot);
+      }
+    },
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1411,6 +1417,9 @@ async function setSelectedDigimonAndSave(name) {
     ver1DigimonList,
     initializeStats,
     currentUser,
+    // 조그레스 파트너 슬롯 모달용 (버전별 디지몬 데이터)
+    jogressDigimonDataVer1: newDigimonDataVer1,
+    jogressDigimonDataVer2: digimonDataVer2,
   };
 
   // Firebase 로그인 필수: 조건부 렌더링
@@ -1706,15 +1715,51 @@ async function setSelectedDigimonAndSave(name) {
         />
       </div>
 
-        <div className="flex items-center justify-center space-x-2 mt-1 pb-20">
-      <button
-        onClick={handleEvolutionButton}
-            disabled={isEvolving}
-            className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-            style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-      >
-        <span className="whitespace-nowrap">진화!</span>
-      </button>
+        <div className="flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2">
+      {/* 조그레스만 가능한 경우: "진화(조그레스)" 하나만 표시. 일반 진화도 있으면 "진화!" + "조그레스 진화" */}
+      {(() => {
+        const currentDigimonDataForEvo = evolutionDataForSlot[selectedDigimon];
+        const canJogressEvolve = !!(currentDigimonDataForEvo?.evolutions?.some((e) => e.jogress));
+        const onlyJogress = canJogressEvolve && !isEvoEnabled;
+        const openJogressFlow = () => toggleModal('jogressModeSelect', true);
+        return (
+          <>
+            {onlyJogress ? (
+              <button
+                onClick={openJogressFlow}
+                disabled={isEvolving}
+                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+                style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
+              >
+                <span className="whitespace-nowrap">진화(조그레스)</span>
+              </button>
+            ) : (
+              <>
+                {isEvoEnabled && (
+                  <button
+                    onClick={handleEvolutionButton}
+                    disabled={isEvolving}
+                    className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+                    style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
+                  >
+                    <span className="whitespace-nowrap">진화!</span>
+                  </button>
+                )}
+                {canJogressEvolve && (
+                  <button
+                    onClick={openJogressFlow}
+                    disabled={isEvolving}
+                    className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+                    style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
+                  >
+                    <span className="whitespace-nowrap">조그레스 진화</span>
+                  </button>
+                )}
+              </>
+            )}
+          </>
+        );
+      })()}
           <button
             onClick={() => toggleModal('digimonInfo', true)}
             className={`px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600 flex items-center justify-center gap-1 ${isMobile ? 'guide-button-mobile' : ''}`}

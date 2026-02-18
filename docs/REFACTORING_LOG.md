@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-02-18] 조그레스 진화 실행 로직 (로컬)
+
+### 작업 유형
+- ✨ 기능 추가 (로컬 조그레스: 현재 슬롯 진화 + 파트너 슬롯 사망, Firestore writeBatch)
+
+### 목적 및 영향
+- **목적:** 조그레스 진화 버튼 → 로컬 → 파트너 슬롯 선택 후, 실제로 현재 슬롯을 조그레스 결과 디지몬으로 진화시키고, 선택한 파트너 슬롯을 사망 처리하도록 실행 로직 구현.
+- **변경 사항:**
+  1. **logic/evolution/jogress.js** (신규): `getJogressResult(digimonIdA, digimonIdB, digimonDataMap)` — 두 디지몬이 조그레스 가능한지 검사하고 결과 `targetId` 반환.
+  2. **hooks/useEvolution.js**: `proceedJogressLocal(partnerSlot)` 추가. 동일 버전 검사 → `getJogressResult` 검증 → Lazy Update 적용 → 현재 슬롯용 진화 스탯·로그 생성 → Firestore `writeBatch`로 슬롯 A(진화), 슬롯 B(사망) 동시 갱신 → 로컬 상태 갱신, 도감·서브컬렉션 로그 반영.
+  3. **Game.jsx**: `onJogressPartnerSelected`에서 `proceedJogressLocal(slot)` 호출로 실행 연결.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/logic/evolution/jogress.js` (신규)
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2025-02-08] 디지타마(v1·v2) 10초/8초 진화 조건 적용 보강
 
 ### 작업 유형

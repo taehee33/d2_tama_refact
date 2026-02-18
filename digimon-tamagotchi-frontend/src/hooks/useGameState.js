@@ -169,6 +169,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     // 진화 관련
     evolutionConfirm: false,
     evolutionGuide: false,
+    jogressModeSelect: false,
+    jogressPartnerSlot: false,
     
     // 사망 관련
     deathConfirm: false,
@@ -375,6 +377,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       digimonInfo: false,
       evolutionConfirm: false,
       evolutionGuide: false,
+      jogressModeSelect: false,
+      jogressPartnerSlot: false,
       deathConfirm: false,
       deathModal: false,
       train: false,

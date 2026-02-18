@@ -1,7 +1,10 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
+import { writeBatch, doc } from "firebase/firestore";
+import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
+import { getJogressResult } from "../logic/evolution/jogress";
 import { initializeStats } from "../data/stats";
 import { addActivityLog } from "./useGameLogic";
 import { updateEncyclopedia } from "./useEncyclopedia";
@@ -275,6 +278,120 @@ export function useEvolution({
   }
 
   /**
+   * 로컬 조그레스 실행: 현재 슬롯 진화 + 파트너 슬롯 사망 처리 (Firestore writeBatch)
+   * @param {Object} partnerSlot - 파트너 슬롯 객체 { id, selectedDigimon, digimonStats, version, ... }
+   */
+  async function proceedJogressLocal(partnerSlot) {
+    if (!partnerSlot || partnerSlot.id == null) return;
+    if (!currentUser?.uid || !slotId || !db) {
+      alert("조그레스에는 로그인이 필요합니다.");
+      return;
+    }
+    // 현재 슬롯 버전 기준으로 조그레스 결과 판정 (Ver.1↔Ver.2 크로스 조그레스 가능)
+    const result = getJogressResult(
+      selectedDigimon,
+      partnerSlot.selectedDigimon,
+      newDigimonDataVer1
+    );
+    if (!result.success) {
+      alert(result.reason || "조그레스할 수 있는 조합이 아닙니다.");
+      return;
+    }
+
+    const targetId = resolveEvolutionTargetKey(result.targetId, digimonDataVer1) || result.targetId;
+    if (!digimonDataVer1[targetId]) {
+      alert("진화 대상 디지몬 데이터를 찾을 수 없습니다.");
+      return;
+    }
+
+    if (toggleModal) toggleModal("jogressPartnerSlot", false);
+    if (typeof setIsEvolving === "function") setIsEvolving(true);
+
+    try {
+      const currentStats = await applyLazyUpdateBeforeAction();
+      const old = { ...currentStats };
+      const newDigimonData = digimonDataVer1[targetId] || {};
+      const minWeight = newDigimonData.stats?.minWeight ?? newDigimonData.minWeight ?? 0;
+      const maxEnergy = newDigimonData.stats?.maxEnergy ?? newDigimonData.stats?.maxStamina ?? newDigimonData.maxEnergy ?? newDigimonData.maxStamina ?? 0;
+
+      const resetStats = {
+        ...old,
+        careMistakes: 0,
+        overfeeds: 0,
+        proteinOverdose: 0,
+        injuries: 0,
+        trainings: 0,
+        sleepDisturbances: 0,
+        strength: 0,
+        effort: 0,
+        energy: maxEnergy,
+        weight: minWeight,
+        battles: 0,
+        battlesWon: 0,
+        battlesLost: 0,
+        winRate: 0,
+      };
+      const nx = initializeStats(targetId, resetStats, digimonDataVer1);
+      if (newDigimonData?.sprite !== undefined) nx.sprite = newDigimonData.sprite;
+
+      const existingLogs = currentStats.activityLogs || activityLogs || [];
+      const newDigimonName = newDigimonData.name || targetId;
+      const updatedLogs = addActivityLog(
+        existingLogs,
+        "EVOLUTION",
+        `조그레스 진화(로컬): ${newDigimonName}!`
+      );
+      const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+
+      const now = new Date();
+      const slotARef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+      const slotBRef = doc(db, "users", currentUser.uid, "slots", `slot${partnerSlot.id}`);
+      const { activityLogs: _dropA, battleLogs: _dropB, ...statsAForDb } = nxWithLogs;
+      const partnerStats = partnerSlot.digimonStats || {};
+      const { activityLogs: _dropP1, battleLogs: _dropP2, ...partnerRest } = partnerStats;
+      const partnerStatsForDb = {
+        ...partnerRest,
+        isDead: true,
+        deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
+      };
+
+      const batch = writeBatch(db);
+      batch.update(slotARef, {
+        selectedDigimon: targetId,
+        digimonStats: statsAForDb,
+        updatedAt: now,
+      });
+      batch.update(slotBRef, {
+        digimonStats: partnerStatsForDb,
+        updatedAt: now,
+      });
+      await batch.commit();
+
+      setDigimonStats(nxWithLogs);
+      setSelectedDigimon(targetId);
+      const newLogEntry = updatedLogs[updatedLogs.length - 1];
+      if (appendLogToSubcollection && newLogEntry) {
+        await appendLogToSubcollection(newLogEntry).catch(() => {});
+      }
+
+      if (selectedDigimon) {
+        await updateEncyclopedia(selectedDigimon, old, "evolution", currentUser, version);
+      }
+      if (targetId && targetId !== "Digitama" && targetId !== "DigitamaV2") {
+        await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
+      }
+
+      if (setEvolvedDigimonName) setEvolvedDigimonName(newDigimonName);
+      if (setEvolutionStage) setEvolutionStage("complete");
+    } catch (err) {
+      console.error("[proceedJogressLocal] 오류:", err);
+      alert("조그레스 처리 중 오류가 발생했습니다.");
+    } finally {
+      if (typeof setIsEvolving === "function") setIsEvolving(false);
+    }
+  }
+
+  /**
    * 진화 준비 상태 확인
    * @returns {boolean} 진화 가능 여부
    */
@@ -288,6 +405,7 @@ export function useEvolution({
     evolve,
     handleEvolutionButton,
     proceedEvolution,
+    proceedJogressLocal,
     checkEvolutionReady,
   };
 }

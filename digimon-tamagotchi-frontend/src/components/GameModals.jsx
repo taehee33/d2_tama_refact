@@ -34,6 +34,8 @@ import EncyclopediaModal from "./EncyclopediaModal";
 import FridgeModal from "./FridgeModal";
 import EvolutionConfirmModal from "./EvolutionConfirmModal";
 import EvolutionGuideModal from "./EvolutionGuideModal";
+import JogressModeSelectModal from "./JogressModeSelectModal";
+import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
@@ -824,6 +826,35 @@ export default function GameModals({
           currentStats={digimonStats}
           digimonDataMap={newDigimonDataVer1}
           onClose={() => toggleModal('evolutionGuide', false)}
+        />
+      )}
+
+      {/* Jogress Mode Select Modal (조그레스: 로컬/온라인 선택) */}
+      {modals.jogressModeSelect && (
+        <JogressModeSelectModal
+          onClose={() => toggleModal('jogressModeSelect', false)}
+          onSelectLocal={() => {
+            toggleModal('jogressModeSelect', false);
+            toggleModal('jogressPartnerSlot', true);
+          }}
+          onSelectOnline={() => {
+            toggleModal('jogressModeSelect', false);
+            alert('온라인 조그레스는 준비 중입니다.');
+          }}
+        />
+      )}
+
+      {/* Jogress Partner Slot Modal (로컬: 파트너 슬롯 선택) */}
+      {modals.jogressPartnerSlot && (
+        <JogressPartnerSlotModal
+          currentUser={data?.currentUser}
+          currentSlotId={slotId != null ? parseInt(slotId, 10) : 0}
+          currentDigimonId={selectedDigimon}
+          currentSlotVersion={slotVersion || "Ver.1"}
+          digimonDataVer1={data?.jogressDigimonDataVer1 || {}}
+          digimonDataVer2={data?.jogressDigimonDataVer2 || {}}
+          onClose={() => toggleModal('jogressPartnerSlot', false)}
+          onSelectPartner={handlers?.onJogressPartnerSelected}
         />
       )}
     </>
