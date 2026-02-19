@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
-import { updateDoc, doc } from "firebase/firestore";
+import { updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
 import ControlPanel from "../components/ControlPanel";
@@ -252,6 +252,9 @@ function Game(){
     setEvolutionStage,
     setEvolvedDigimonName,
     setEvolutionCompleteIsJogress,
+    setEvolutionCompleteJogressSummary,
+    myJogressRoomId,
+    setMyJogressRoomId,
     deathReason,
     setDeathReason,
     isLightsOn,
@@ -268,6 +271,8 @@ function Game(){
 
   // 상태 상세 모달용 메시지 저장
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);
+  // 온라인 조그레스: 현재 슬롯의 jogressStatus (canEvolve 시 진화 버튼 노출)
+  const [slotJogressStatus, setSlotJogressStatus] = useState(null);
 
   // useGameData 훅 호출 (데이터 저장/로딩 로직)
   const {
@@ -839,6 +844,11 @@ function Game(){
     handleEvolutionButton,
     proceedEvolution: handleProceedEvolution,
     proceedJogressLocal,
+    createJogressRoom,
+    cancelJogressRoom,
+    proceedJogressOnlineAsGuest,
+    applyHostJogressStatusFromRoom,
+    proceedJogressOnlineAsHost,
   } = useEvolution({
     digimonStats,
     setDigimonStats,
@@ -858,8 +868,12 @@ function Game(){
     setEvolutionStage,
     setEvolvedDigimonName,
     setEvolutionCompleteIsJogress,
+    setEvolutionCompleteJogressSummary,
     digimonDataVer1: digimonDataForSlot,
     newDigimonDataVer1: evolutionDataForSlot,
+    digimonDataVer2,
+    slotName,
+    tamerName,
     toggleModal,
     version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
   });
@@ -1262,6 +1276,45 @@ async function setSelectedDigimonAndSave(name) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDigimon, isLightsOn, wakeUntil, digimonStats.fastSleepStart, digimonStats.napUntil]);
 
+  // 온라인 조그레스: 현재 슬롯 문서 구독 (jogressStatus.canEvolve 실시간 반영)
+  useEffect(() => {
+    if (!db || !currentUser?.uid || slotId == null) {
+      setSlotJogressStatus(null);
+      return;
+    }
+    const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+    const unsub = onSnapshot(slotRef, (snap) => {
+      const data = snap.data() || {};
+      setSlotJogressStatus(data.jogressStatus && typeof data.jogressStatus === "object" ? data.jogressStatus : null);
+    }, (err) => {
+      console.warn("[Game] slot jogressStatus 구독 오류:", err);
+      setSlotJogressStatus(null);
+    });
+    return () => unsub();
+  }, [currentUser?.uid, slotId]);
+
+  // 온라인 조그레스: 내가 만든 방 구독 → paired 시 호스트 슬롯에 canEvolve 반영
+  useEffect(() => {
+    if (!db || !currentUser?.uid || !myJogressRoomId || !applyHostJogressStatusFromRoom) return;
+    const roomRef = doc(db, "jogress_rooms", myJogressRoomId);
+    const unsub = onSnapshot(roomRef, (snap) => {
+      const data = snap.data() || {};
+      if (data.status === "paired") {
+        applyHostJogressStatusFromRoom(data, myJogressRoomId);
+        setMyJogressRoomId(null);
+        return;
+        // 구독 해제는 cleanup에서
+      }
+      if (data.status === "cancelled" || data.status === "completed") {
+        setMyJogressRoomId(null);
+      }
+    }, (err) => {
+      console.warn("[Game] jogress room 구독 오류:", err);
+      setMyJogressRoomId(null);
+    });
+    return () => unsub();
+  }, [currentUser?.uid, myJogressRoomId, applyHostJogressStatusFromRoom]);
+
   // 냉장고 꺼내기 애니메이션 완료 처리 (3.5초 후 takeOutAt을 null로 설정)
   useEffect(() => {
     if (!digimonStats.takeOutAt) return;
@@ -1405,6 +1458,11 @@ async function setSelectedDigimonAndSave(name) {
         proceedJogressLocal(slot);
       }
     },
+    createJogressRoom,
+    cancelJogressRoom,
+    proceedJogressOnlineAsGuest,
+    applyHostJogressStatusFromRoom,
+    proceedJogressOnlineAsHost,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1718,8 +1776,21 @@ async function setSelectedDigimonAndSave(name) {
       </div>
 
         <div className="flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2">
+      {/* 온라인 조그레스: 파트너 참가 후 진화 가능 시 배너 + 진화 버튼 */}
+      {slotJogressStatus?.canEvolve && (
+        <div className="w-full flex flex-col items-center gap-1 mb-1">
+          <p className="text-amber-400 text-sm font-bold">조그레스 파트너가 참가했습니다! 진화하려면 버튼을 눌러 주세요.</p>
+          <button
+            onClick={() => proceedJogressOnlineAsHost(slotJogressStatus)}
+            disabled={isEvolving}
+            className={`px-4 py-2 text-white rounded pixel-art-button ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+          >
+            <span className="whitespace-nowrap">진화!</span>
+          </button>
+        </div>
+      )}
       {/* 조그레스만 가능한 경우: "진화(조그레스)" 하나만 표시. 일반 진화도 있으면 "진화!" + "조그레스 진화" */}
-      {(() => {
+      {!slotJogressStatus?.canEvolve && (() => {
         const currentDigimonDataForEvo = evolutionDataForSlot[selectedDigimon];
         const canJogressEvolve = !!(currentDigimonDataForEvo?.evolutions?.some((e) => e.jogress));
         const onlyJogress = canJogressEvolve && !isEvoEnabled;

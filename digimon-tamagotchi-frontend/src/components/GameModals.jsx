@@ -36,6 +36,8 @@ import EvolutionConfirmModal from "./EvolutionConfirmModal";
 import EvolutionGuideModal from "./EvolutionGuideModal";
 import JogressModeSelectModal from "./JogressModeSelectModal";
 import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
+import JogressOnlineSelectModal from "./JogressOnlineSelectModal";
+import JogressRoomListModal from "./JogressRoomListModal";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
@@ -181,9 +183,13 @@ export default function GameModals({
     evolutionStage,
     evolvedDigimonName,
     evolutionCompleteIsJogress,
+    evolutionCompleteJogressSummary,
     setEvolutionStage,
     setEvolvedDigimonName,
     setEvolutionCompleteIsJogress,
+    setEvolutionCompleteJogressSummary,
+    myJogressRoomId,
+    setMyJogressRoomId,
     setWidth,
     setHeight,
     setBackgroundNumber,
@@ -680,13 +686,22 @@ export default function GameModals({
             <h2 className="text-3xl font-bold text-black mb-2 pixel-art-text"> 🎉 디지몬 진화~~! 🎉</h2>
             <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
             {evolutionCompleteIsJogress && (
-              <p className="text-black mb-6 pixel-art-text">파트너 디지몬은 데이터가 되어 사라졌습니다.</p>
+              <>
+                <p className="text-black mb-2 pixel-art-text">파트너 디지몬은 데이터가 되어 사라졌습니다.</p>
+                {evolutionCompleteJogressSummary && typeof evolutionCompleteJogressSummary === "object" && (
+                  <div className="text-black mb-6 text-sm pixel-art-text border border-black border-opacity-20 rounded px-3 py-2 bg-white bg-opacity-60 space-y-1">
+                    <p><span className="font-bold">현재 디지몬:</span> {evolutionCompleteJogressSummary.currentLabel} → {evolutionCompleteJogressSummary.resultName}</p>
+                    <p className="text-red-600 font-bold"><span>파트너(사라짐) 디지몬:</span> {evolutionCompleteJogressSummary.partnerLabel}</p>
+                  </div>
+                )}
+              </>
             )}
             <button
               onClick={() => {
                 setEvolutionStage('idle');
                 setEvolvedDigimonName(null);
                 if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(false);
+                if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(null);
                 setIsEvolving(false);
               }}
               className="px-6 py-3 bg-green-500 text-white font-bold rounded pixel-art-button hover:bg-green-600"
@@ -851,7 +866,51 @@ export default function GameModals({
           }}
           onSelectOnline={() => {
             toggleModal('jogressModeSelect', false);
-            alert('온라인 조그레스는 준비 중입니다.');
+            toggleModal('jogressRoomList', true);
+          }}
+        />
+      )}
+
+      {/* Jogress Online Select Modal (방 만들기 / 방 참가) */}
+      {modals.jogressOnlineSelect && (
+        <JogressOnlineSelectModal
+          onClose={() => toggleModal('jogressOnlineSelect', false)}
+          onCreateRoom={async () => {
+            const result = await handlers?.createJogressRoom?.();
+            if (result?.roomId && setMyJogressRoomId) {
+              setMyJogressRoomId(result.roomId);
+              alert("방이 생성되었습니다. 다른 테이머가 참가할 때까지 기다려 주세요.");
+            }
+          }}
+          onJoinRoom={() => {
+            toggleModal('jogressOnlineSelect', false);
+            toggleModal('jogressRoomList', true);
+          }}
+        />
+      )}
+
+      {/* Jogress Room List Modal (온라인: 방 목록 + 참가할 슬롯 선택) */}
+      {modals.jogressRoomList && (
+        <JogressRoomListModal
+          currentUser={data?.currentUser}
+          digimonDataVer1={data?.jogressDigimonDataVer1 || {}}
+          digimonDataVer2={data?.jogressDigimonDataVer2 || {}}
+          refreshTrigger={myJogressRoomId}
+          onClose={() => toggleModal('jogressRoomList', false)}
+          onSelectRoomAndSlot={(room, slot) => {
+            handlers?.proceedJogressOnlineAsGuest?.(room, slot);
+            toggleModal('jogressRoomList', false);
+          }}
+          onCreateRoom={async () => {
+            const result = await handlers?.createJogressRoom?.();
+            if (result?.roomId && setMyJogressRoomId) {
+              setMyJogressRoomId(result.roomId);
+              alert("방이 생성되었습니다. 다른 테이머가 참가할 때까지 기다려 주세요.");
+            }
+          }}
+          onCancelRoom={async (roomId) => {
+            await handlers?.cancelJogressRoom?.(roomId);
+            if (setMyJogressRoomId) setMyJogressRoomId(null);
           }}
         />
       )}

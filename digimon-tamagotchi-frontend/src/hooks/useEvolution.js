@@ -1,13 +1,27 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
-import { writeBatch, doc } from "firebase/firestore";
+import { writeBatch, doc, collection, addDoc, updateDoc, getDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
 import { getJogressResult } from "../logic/evolution/jogress";
 import { initializeStats } from "../data/stats";
 import { addActivityLog } from "./useGameLogic";
 import { updateEncyclopedia } from "./useEncyclopedia";
+
+/** 맵 키 또는 entry.id로 한글 이름 조회 (슬롯에 id가 저장된 경우 대비) */
+function getDigimonDisplayName(maps, digimonId) {
+  if (!digimonId) return digimonId;
+  const mapList = Array.isArray(maps) ? maps : [maps];
+  for (const map of mapList) {
+    if (!map || typeof map !== "object") continue;
+    const byKey = map[digimonId]?.name;
+    if (byKey) return byKey;
+    const entry = Object.values(map).find((e) => e && e.id === digimonId);
+    if (entry?.name) return entry.name;
+  }
+  return digimonId;
+}
 
 /**
  * useEvolution Hook
@@ -50,9 +64,13 @@ export function useEvolution({
   setEvolutionStage,
   setEvolvedDigimonName,
   setEvolutionCompleteIsJogress,
+  setEvolutionCompleteJogressSummary,
   digimonDataVer1,
   newDigimonDataVer1,
+  digimonDataVer2 = {},
   slotId,
+  slotName,
+  tamerName,
   currentUser,
   toggleModal,
   version = "Ver.1", // 슬롯 버전 (도감 관리용)
@@ -382,8 +400,47 @@ export function useEvolution({
         await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
       }
 
+      // 조그레스 성공 요약: 현재 디지몬 / 파트너(사라짐) 디지몬 구분 표시용 (한글명 사용, 키 또는 id로 조회)
+      const currentDataMap = version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+      const currentDisplayName = getDigimonDisplayName([currentDataMap, digimonDataVer1, digimonDataVer2], selectedDigimon);
+      const partnerDataMap = partnerSlot.version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+      const partnerDisplayName = getDigimonDisplayName([partnerDataMap, digimonDataVer1, digimonDataVer2], partnerSlot.selectedDigimon);
+      const resultDisplayName = getDigimonDisplayName([digimonDataVer1, digimonDataVer2], targetId) || newDigimonName;
+      const hostSlotLabel = slotName || `슬롯${slotId}`;
+      const guestSlotLabel = partnerSlot.slotName || `슬롯${partnerSlot.id}`;
+      const jogressSummary = {
+        currentLabel: `${currentDisplayName}(${hostSlotLabel})`,
+        partnerLabel: `${partnerDisplayName}(${guestSlotLabel})`,
+        resultName: resultDisplayName,
+      };
+      if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
+      if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
+
+      // 조그레스 성공 로그: Firestore jogress_logs 컬렉션 (로컬 = 동일 유저 호스트/게스트)
+      const tamerDisplay = tamerName || currentUser?.displayName || null;
+      try {
+        const logsRef = collection(db, "jogress_logs");
+        await addDoc(logsRef, {
+          hostUid: currentUser.uid,
+          hostTamerName: tamerDisplay,
+          hostSlotId: slotId,
+          hostDigimonName: currentDisplayName,
+          hostSlotVersion: version || "Ver.1",
+          guestUid: currentUser.uid,
+          guestTamerName: tamerDisplay,
+          guestSlotId: partnerSlot.id,
+          guestDigimonName: partnerDisplayName,
+          guestSlotVersion: partnerSlot.version || "Ver.1",
+          targetId,
+          targetName: newDigimonName,
+          isOnline: false,
+          createdAt: serverTimestamp(),
+        });
+      } catch (logErr) {
+        console.warn("[proceedJogressLocal] jogress_logs 저장 실패:", logErr);
+      }
+
       if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
-      if (setEvolvedDigimonName) setEvolvedDigimonName(newDigimonName);
       if (setEvolutionStage) setEvolutionStage("complete");
     } catch (err) {
       console.error("[proceedJogressLocal] 오류:", err);
@@ -403,12 +460,260 @@ export function useEvolution({
     return true;
   }
 
+  // ========== 온라인 조그레스 ==========
+
+  /**
+   * 조그레스 방 생성 (호스트)
+   * @returns {Promise<{ roomId: string }|null>}
+   */
+  async function createJogressRoom() {
+    if (!currentUser?.uid || !slotId || !db) {
+      alert("조그레스에는 로그인이 필요합니다.");
+      return null;
+    }
+    const evolutions = newDigimonDataVer1[selectedDigimon]?.evolutions || [];
+    const hasJogress = evolutions.some((e) => e.jogress);
+    if (!hasJogress) {
+      alert("현재 디지몬은 조그레스 진화가 불가능합니다.");
+      return null;
+    }
+    try {
+      const hostTamerName = tamerName || currentUser.displayName || null;
+      const roomsRef = collection(db, "jogress_rooms");
+      const docRef = await addDoc(roomsRef, {
+        hostUid: currentUser.uid,
+        hostSlotId: slotId,
+        hostDigimonId: selectedDigimon,
+        hostSlotVersion: version || "Ver.1",
+        hostTamerName,
+        status: "waiting",
+        createdAt: serverTimestamp(),
+      });
+      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+      await updateDoc(slotRef, {
+        jogressStatus: { isWaiting: true, roomId: docRef.id },
+        updatedAt: new Date(),
+      });
+      return { roomId: docRef.id };
+    } catch (err) {
+      console.error("[createJogressRoom] 오류:", err);
+      alert("방 생성 중 오류가 발생했습니다.");
+      return null;
+    }
+  }
+
+  /**
+   * 조그레스 방 취소 (호스트)
+   * @param {string} roomId
+   */
+  async function cancelJogressRoom(roomId) {
+    if (!currentUser?.uid || !roomId || !db) return;
+    try {
+      const roomRef = doc(db, "jogress_rooms", roomId);
+      const roomSnap = await getDoc(roomRef);
+      if (!roomSnap.exists() || roomSnap.data().hostUid !== currentUser.uid || roomSnap.data().status !== "waiting") {
+        alert("취소할 수 있는 방이 없습니다.");
+        return;
+      }
+      await updateDoc(roomRef, { status: "cancelled", updatedAt: new Date() });
+      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+      await updateDoc(slotRef, { jogressStatus: {}, updatedAt: new Date() });
+    } catch (err) {
+      console.error("[cancelJogressRoom] 오류:", err);
+      alert("방 취소 중 오류가 발생했습니다.");
+    }
+  }
+
+  /**
+   * 게스트: 방에 참가 (내 슬롯 사망, 호스트 슬롯에는 canEvolve는 호스트 클라이언트가 room 구독 후 설정)
+   * @param {Object} room - jogress_rooms 문서 스냅 데이터 + id
+   * @param {Object} guestSlot - 참가할 내 슬롯 { id, selectedDigimon, digimonStats, version, ... }
+   */
+  async function proceedJogressOnlineAsGuest(room, guestSlot) {
+    if (!currentUser?.uid || !db || !room?.id) return;
+    const hostMap = room.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const result = getJogressResult(room.hostDigimonId, guestSlot.selectedDigimon, hostMap);
+    if (!result.success) {
+      alert(result.reason || "조그레스할 수 있는 조합이 아닙니다.");
+      return;
+    }
+    const targetId = resolveEvolutionTargetKey(result.targetId, hostMap) || result.targetId;
+    try {
+      const roomRef = doc(db, "jogress_rooms", room.id);
+      const guestSlotRef = doc(db, "users", currentUser.uid, "slots", `slot${guestSlot.id}`);
+      const batch = writeBatch(db);
+      batch.update(roomRef, {
+        status: "paired",
+        guestUid: currentUser.uid,
+        guestTamerName: tamerName || currentUser?.displayName || null,
+        guestSlotId: guestSlot.id,
+        guestDigimonId: guestSlot.selectedDigimon,
+        guestSlotVersion: guestSlot.version || "Ver.1",
+        targetId,
+        updatedAt: new Date(),
+      });
+      const guestStats = guestSlot.digimonStats || {};
+      const { activityLogs: _a, battleLogs: _b, ...rest } = guestStats;
+      batch.update(guestSlotRef, {
+        digimonStats: { ...rest, isDead: true, deathReason: "JOGRESS_PARTNER (조그레스 파트너)" },
+        updatedAt: new Date(),
+      });
+      await batch.commit();
+      // 호스트 슬롯은 호스트 클라이언트가 room onSnapshot으로 paired 감지 후 직접 업데이트
+      alert("참가 완료! 파트너 디지몬(선택한 슬롯)은 데이터가 되어 사라졌습니다. 호스트가 진화를 완료하면 조그레스가 끝납니다.");
+    } catch (err) {
+      console.error("[proceedJogressOnlineAsGuest] 오류:", err);
+      alert("참가 처리 중 오류가 발생했습니다.");
+    }
+  }
+
+  /**
+   * 호스트: room이 paired일 때 내 슬롯에 canEvolve 반영 (호스트 클라이언트에서 room 구독 후 호출)
+   * @param {Object} roomData - room 문서 데이터 (status paired, targetId, guestUid 등)
+   * @param {string} roomId
+   */
+  async function applyHostJogressStatusFromRoom(roomData, roomId) {
+    if (!currentUser?.uid || roomData?.hostUid !== currentUser.uid || roomData?.status !== "paired" || !db) return;
+    const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+    await updateDoc(slotRef, {
+      jogressStatus: {
+        canEvolve: true,
+        roomId,
+        targetId: roomData.targetId,
+        partnerUserId: roomData.guestUid || null,
+        partnerSlotId: roomData.guestSlotId ?? null,
+      },
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * 호스트: 조그레스 온라인 진화 실행 (jogressStatus.canEvolve일 때)
+   * @param {Object} jogressStatus - 현재 슬롯의 jogressStatus (canEvolve, targetId, roomId)
+   */
+  async function proceedJogressOnlineAsHost(jogressStatus) {
+    if (!currentUser?.uid || !slotId || !db || !jogressStatus?.canEvolve || !jogressStatus?.targetId) {
+      alert("진화할 수 있는 상태가 아닙니다.");
+      return;
+    }
+    const targetId = jogressStatus.targetId;
+    const roomId = jogressStatus.roomId;
+    const hostMap = version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    if (!hostMap[targetId]) {
+      alert("진화 대상 디지몬 데이터를 찾을 수 없습니다.");
+      return;
+    }
+    if (toggleModal) toggleModal("jogressOnlineSelect", false);
+    if (typeof setIsEvolving === "function") setIsEvolving(true);
+    try {
+      const roomRef = doc(db, "jogress_rooms", roomId);
+      const roomSnap = await getDoc(roomRef);
+      const roomData = roomSnap.exists() ? roomSnap.data() : {};
+      const currentStats = await applyLazyUpdateBeforeAction();
+      const old = { ...currentStats };
+      const newDigimonData = hostMap[targetId] || {};
+      const minWeight = newDigimonData.stats?.minWeight ?? newDigimonData.minWeight ?? 0;
+      const maxEnergy = newDigimonData.stats?.maxEnergy ?? newDigimonData.stats?.maxStamina ?? newDigimonData.maxEnergy ?? newDigimonData.maxStamina ?? 0;
+      const resetStats = {
+        ...old,
+        careMistakes: 0,
+        overfeeds: 0,
+        proteinOverdose: 0,
+        injuries: 0,
+        trainings: 0,
+        sleepDisturbances: 0,
+        strength: 0,
+        effort: 0,
+        energy: maxEnergy,
+        weight: minWeight,
+        battles: 0,
+        battlesWon: 0,
+        battlesLost: 0,
+        winRate: 0,
+      };
+      const nx = initializeStats(targetId, resetStats, hostMap);
+      if (newDigimonData?.sprite !== undefined) nx.sprite = newDigimonData.sprite;
+      const newDigimonName = newDigimonData.name || targetId;
+      const existingLogs = currentStats.activityLogs || activityLogs || [];
+      const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${newDigimonName}!`);
+      const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+      const now = new Date();
+      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+      const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
+      await updateDoc(slotRef, {
+        selectedDigimon: targetId,
+        digimonStats: statsForDb,
+        jogressStatus: {},
+        updatedAt: now,
+      });
+      await updateDoc(roomRef, { status: "completed", completedAt: serverTimestamp(), updatedAt: now });
+      setDigimonStats(nxWithLogs);
+      setSelectedDigimon(targetId);
+      if (appendLogToSubcollection && updatedLogs[updatedLogs.length - 1]) {
+        await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+      }
+      if (selectedDigimon) await updateEncyclopedia(selectedDigimon, old, "evolution", currentUser, version);
+      if (targetId && targetId !== "Digitama" && targetId !== "DigitamaV2") {
+        await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
+      }
+      const hostDisplayName = getDigimonDisplayName([hostMap, digimonDataVer1, digimonDataVer2], selectedDigimon);
+      const guestDigimonName = getDigimonDisplayName(
+        [roomData.guestSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1, digimonDataVer1, digimonDataVer2],
+        roomData.guestDigimonId
+      );
+      const resultDisplayName = getDigimonDisplayName([digimonDataVer1, digimonDataVer2], targetId) || newDigimonName;
+      const hostSlotLabel = slotName || `슬롯${slotId}`;
+      const guestSlotLabel = roomData.guestSlotId != null ? `슬롯${roomData.guestSlotId}` : "";
+      const jogressSummary = {
+        currentLabel: `${hostDisplayName}(${hostSlotLabel})`,
+        partnerLabel: `${guestDigimonName}(${guestSlotLabel})`,
+        resultName: resultDisplayName,
+      };
+      if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
+      const tamerDisplay = tamerName || currentUser?.displayName || null;
+      try {
+        const logsRef = collection(db, "jogress_logs");
+        await addDoc(logsRef, {
+          hostUid: currentUser.uid,
+          hostTamerName: tamerDisplay,
+          hostSlotId: slotId,
+          hostDigimonName: newDigimonData.name || selectedDigimon,
+          hostSlotVersion: version || "Ver.1",
+          guestUid: roomData.guestUid || null,
+          guestTamerName: roomData.guestTamerName || null,
+          guestSlotId: roomData.guestSlotId ?? null,
+          guestDigimonName: guestDigimonName,
+          guestSlotVersion: roomData.guestSlotVersion || "Ver.1",
+          targetId,
+          targetName: newDigimonName,
+          isOnline: true,
+          createdAt: serverTimestamp(),
+        });
+      } catch (logErr) {
+        console.warn("[proceedJogressOnlineAsHost] jogress_logs 저장 실패:", logErr);
+      }
+      if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
+      if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
+      if (setEvolutionStage) setEvolutionStage("complete");
+    } catch (err) {
+      console.error("[proceedJogressOnlineAsHost] 오류:", err);
+      alert("조그레스 진화 처리 중 오류가 발생했습니다.");
+    } finally {
+      if (typeof setIsEvolving === "function") setIsEvolving(false);
+    }
+  }
+
   return {
     evolve,
     handleEvolutionButton,
     proceedEvolution,
     proceedJogressLocal,
     checkEvolutionReady,
+    createJogressRoom,
+    cancelJogressRoom,
+    proceedJogressOnlineAsGuest,
+    applyHostJogressStatusFromRoom,
+    proceedJogressOnlineAsHost,
   };
 }
 

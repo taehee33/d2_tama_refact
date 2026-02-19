@@ -171,6 +171,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     evolutionGuide: false,
     jogressModeSelect: false,
     jogressPartnerSlot: false,
+    jogressOnlineSelect: false,
+    jogressRoomList: false,
     
     // 사망 관련
     deathConfirm: false,
@@ -333,6 +335,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
   const [evolvedDigimonName, setEvolvedDigimonName] = useState(null);
   const [evolutionCompleteIsJogress, setEvolutionCompleteIsJogress] = useState(false); // 조그레스 완료 시 성공 메시지에 파트너 사망 문구 표시용
+  const [evolutionCompleteJogressSummary, setEvolutionCompleteJogressSummary] = useState(null); // 조그레스 성공 요약 { currentLabel, partnerLabel, resultName } (현재/파트너 구분 표시용)
+  const [myJogressRoomId, setMyJogressRoomId] = useState(null); // 호스트가 만든 대기 방 ID (취소/구독용)
 
   // 사망 관련
   const [deathReason, setDeathReason] = useState(null);
@@ -558,6 +562,10 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setEvolvedDigimonName,
       evolutionCompleteIsJogress,
       setEvolutionCompleteIsJogress,
+      evolutionCompleteJogressSummary,
+      setEvolutionCompleteJogressSummary,
+      myJogressRoomId,
+      setMyJogressRoomId,
       deathReason,
       setDeathReason,
       isLightsOn,
