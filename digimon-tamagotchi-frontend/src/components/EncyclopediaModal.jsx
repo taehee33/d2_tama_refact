@@ -51,6 +51,7 @@ export default function EncyclopediaModal({
         return true;
       })
       .map(key => ({
+        listKey: key, // 도감 조회용 맵 키 (id가 BlitzGreymonV1 등으로 덮어씌워지므로 유지)
         id: key,
         ...dataMap[key]
       }))
@@ -139,8 +140,13 @@ export default function EncyclopediaModal({
         <div className="flex-1 overflow-y-auto p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {digimonList.map((digimon) => {
-              const digimonKey = digimon.id || digimon.name;
-              const discoveredData = versionData[digimonKey];
+              const digimonKey = digimon.listKey || digimon.id || digimon.name;
+              // 저장 시 키는 맵 키(BlitzGreymon 등). listKey 사용해야 id(BlitzGreymonV1)와 불일치 방지
+              const discoveredData = versionData[digimonKey] || (() => {
+                const lower = (digimonKey || '').toLowerCase();
+                const found = Object.entries(versionData).find(([k]) => (k || '').toLowerCase() === lower);
+                return found ? found[1] : undefined;
+              })();
               const isDiscovered = discoveredData?.isDiscovered || false;
               // Dev 모드 + 도감 물음표 끄기 → 미발견도 이름/이미지 표시 및 클릭 가능
               const showAsDiscovered = isDiscovered || (developerMode && !encyclopediaShowQuestionMark);
