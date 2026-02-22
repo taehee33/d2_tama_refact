@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-02-22] 계정 설정에 Discord 웹훅 URL·알람 받기 기능 재구현
+
+### 작업 유형
+- ✨ 기능 추가 (Discord 알림 설정 UI)
+
+### 목적 및 영향
+- **목적:** 계정 설정 화면에서 Discord 웹훅 URL 입력 및 알람 수신 여부(알람 받기) 설정 기능 복구.
+- **구현:**
+  - **userSettingsUtils.js** 신규: `getUserSettings(uid)`, `saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled })`, `isValidDiscordWebhookUrl(url)`. Firestore `users/{uid}`에 `discordWebhookUrl`, `isNotificationEnabled` 저장. URL 검증: `https://discord.com/api/webhooks/`, `https://discordapp.com/api/webhooks/` 로 시작하는 경우만 허용.
+  - **AccountSettingsModal.jsx**: 테이머명 섹션 아래에 "Discord 알림" 섹션 추가. 웹훅 URL 입력란, "알람 받기 (호출 등 알림 수신)" 체크박스, "알림 설정 저장" 버튼. 설정 로드는 계정 설정 진입 시, 저장 시 userSettingsUtils 사용.
+- **데이터:** Firestore 문서 `users/{uid}` 필드: `discordWebhookUrl` (string | null), `isNotificationEnabled` (boolean).
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.js` (신규)
+- `digimon-tamagotchi-frontend/src/components/AccountSettingsModal.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-02-22] digimonDisplayName·게임 타이틀을 게임 UI 형식으로 통일 (한글명 + Ver.1/Ver.2)
+
+### 작업 유형
+- ✨ 동작 변경 (표시 형식)
+
+### 목적 및 영향
+- **목적:** Firestore `digimonDisplayName`과 게임 상단 타이틀을 **게임에서 보이는 것과 동일한 형식**으로 맞춤.
+- **형식:** 별명 없음 → `한글명 Ver.1` (예: `블리츠그레이몬 Ver.1`). 별명 있음 → `별명(한글명 Ver.2)` (예: `뚱떙이(오메가몬 Alter-S Ver.2)`).
+- **구현:** useGameData.js에서 digimonDisplayName 계산 시 `slotVersion`을 한글명 뒤에 붙임. Game.jsx 상단 h2에서도 동일하게 `digimonName + versionSuffix` 표시.
+- **문서:** FIRESTORE_DIGIMON_NAME_FOR_SCRIPT.md 표 형식 설명 갱신.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/FIRESTORE_DIGIMON_NAME_FOR_SCRIPT.md`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-02-22] 슬롯 문서에 digimonDisplayName 저장 (구글 스크립트/Discord 디지몬명)
+
+### 작업 유형
+- ✨ 기능 추가 (디지몬 표시명 필드 저장)
+
+### 목적 및 영향
+- **목적:** 구글 앱스 스크립트·Discord 알림에서 "디지몬명"을 한 필드로 읽을 수 있도록, 슬롯 문서에 **digimonDisplayName** 저장.
+- **형식:** 별명이 있으면 `"별명(한글명)"`, 없으면 `"한글명"` (예: `치치(파닥몬)`, `아구몬`). 스탯 저장 시마다 갱신.
+- **구현:** useGameData에 selectedDigimon, digimonNickname, slotVersion 전달. saveStats 시 dataMap으로 한글명 조회 후 digimonDisplayName·selectedDigimon를 updateData에 포함해 저장. Game.jsx에서 해당 인자 전달.
+- **문서:** FIRESTORE_DIGIMON_NAME_FOR_SCRIPT.md에 digimonDisplayName 권장 및 fallback 정리.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/FIRESTORE_DIGIMON_NAME_FOR_SCRIPT.md`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-02-18] 진화 버튼 ⭕/❌ — 개발자 모드 + 진화조건 무시 분리
 
 ### 작업 유형

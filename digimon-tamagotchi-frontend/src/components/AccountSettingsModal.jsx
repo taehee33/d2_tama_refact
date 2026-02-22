@@ -6,6 +6,7 @@ import {
   resetToDefaultTamerName, 
   checkNicknameAvailability 
 } from "../utils/tamerNameUtils";
+import { getUserSettings, saveUserSettings, isValidDiscordWebhookUrl } from "../utils/userSettingsUtils";
 
 const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, setTamerName: setTamerNameParent }) => {
   const { currentUser } = useAuth();
@@ -19,6 +20,12 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
   
   // 모달 모드: 'menu' (메뉴), 'settings' (계정 설정), 'logout' (로그아웃 확인)
   const [modalMode, setModalMode] = useState('menu');
+
+  // Discord·알림 설정 상태
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
+  const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
+  const [discordSettingsLoading, setDiscordSettingsLoading] = useState(false);
+  const [discordSettingsMessage, setDiscordSettingsMessage] = useState("");
 
   // 테이머명 로드
   useEffect(() => {
@@ -35,6 +42,22 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
     };
     loadTamerName();
   }, [currentUser]);
+
+  // Discord·알림 설정 로드 (계정 설정 화면 진입 시)
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      if (currentUser && modalMode === "settings") {
+        try {
+          const { discordWebhookUrl: url, isNotificationEnabled: enabled } = await getUserSettings(currentUser.uid);
+          setDiscordWebhookUrl(url || "");
+          setIsNotificationEnabled(enabled);
+        } catch (error) {
+          console.error("Discord 설정 로드 오류:", error);
+        }
+      }
+    };
+    loadUserSettings();
+  }, [currentUser, modalMode]);
 
   // 테이머명 중복 확인
   const handleCheckAvailability = async () => {
@@ -81,6 +104,29 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
       setTamerNameMessage(`오류: ${error.message}`);
     } finally {
       setTamerNameLoading(false);
+    }
+  };
+
+  // Discord·알림 설정 저장
+  const handleSaveDiscordSettings = async () => {
+    if (!currentUser) return;
+    const urlTrimmed = discordWebhookUrl.trim();
+    if (urlTrimmed && !isValidDiscordWebhookUrl(urlTrimmed)) {
+      setDiscordSettingsMessage("Discord 웹훅 URL은 https://discord.com/api/webhooks/ 또는 https://discordapp.com/api/webhooks/ 로 시작해야 합니다.");
+      return;
+    }
+    setDiscordSettingsLoading(true);
+    setDiscordSettingsMessage("");
+    try {
+      await saveUserSettings(currentUser.uid, {
+        discordWebhookUrl: urlTrimmed || null,
+        isNotificationEnabled,
+      });
+      setDiscordSettingsMessage("Discord 알림 설정이 저장되었습니다.");
+    } catch (error) {
+      setDiscordSettingsMessage(error.message || "저장 중 오류가 발생했습니다.");
+    } finally {
+      setDiscordSettingsLoading(false);
     }
   };
 
@@ -131,6 +177,7 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
   const handleBackToMenu = () => {
     setModalMode('menu');
     setTamerNameMessage("");
+    setDiscordSettingsMessage("");
   };
 
   return (
@@ -232,6 +279,48 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
                   <p className="text-xs text-gray-500">
                     현재 테이머명: <span className="font-semibold">{tamerName}</span>
                   </p>
+                </div>
+              </div>
+
+              {/* Discord 웹훅·알림 수신 */}
+              <div className="border-t border-gray-200 pt-4 mt-4">
+                <label className="block font-semibold mb-2">Discord 알림</label>
+                <div className="space-y-2">
+                  <input
+                    type="url"
+                    value={discordWebhookUrl}
+                    onChange={(e) => {
+                      setDiscordWebhookUrl(e.target.value);
+                      setDiscordSettingsMessage("");
+                    }}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full p-2 border border-gray-300 rounded text-sm"
+                  />
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isNotificationEnabled}
+                      onChange={(e) => setIsNotificationEnabled(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">알람 받기 (호출 등 알림 수신)</span>
+                  </label>
+                  {discordSettingsMessage && (
+                    <p className={`text-sm ${
+                      discordSettingsMessage.includes("오류") || discordSettingsMessage.includes("시작해야")
+                        ? "text-red-500"
+                        : "text-green-500"
+                    }`}>
+                      {discordSettingsMessage}
+                    </p>
+                  )}
+                  <button
+                    onClick={handleSaveDiscordSettings}
+                    disabled={discordSettingsLoading}
+                    className="px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm pixel-art-button"
+                  >
+                    {discordSettingsLoading ? "저장 중..." : "알림 설정 저장"}
+                  </button>
                 </div>
               </div>
             </div>

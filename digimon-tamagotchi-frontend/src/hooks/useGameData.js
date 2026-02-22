@@ -88,6 +88,11 @@ function cleanObject(obj) {
  * @param {Object} [params.adaptedV2] - v2 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {boolean} params.isFirebaseAvailable - Firebase 사용 가능 여부
  * @param {Function} params.navigate - 네비게이션 함수
+ * @param {string} [params.selectedDigimon] - 현재 선택된 디지몬 ID (digimonDisplayName 계산용)
+ * @param {string|null} [params.digimonNickname] - 현재 슬롯의 디지몬 별명 (있으면 "별명(한글명)" 형태로 저장)
+ * @param {string} [params.slotVersion] - 슬롯 버전 (Ver.1 | Ver.2, 데이터 맵 선택용)
+ * @param {boolean} [params.isLoadingSlot] - 슬롯 로딩 중 여부 (로드 완료 전 digimonDisplayName 저장 방지용)
+ * @param {Object} [params.evolutionDataForSlot] - 진화용 원본 데이터 맵 (한글명 .name 포함, adapted가 아님). 없으면 selectedDigimon+버전으로 fallback
  * @returns {Object} saveStats, applyLazyUpdate, isLoading, error
  */
 export function useGameData({
@@ -121,6 +126,12 @@ export function useGameData({
   // 배경화면 설정
   backgroundSettings,
   setBackgroundSettings,
+  // 디지몬 표시명 (구글 스크립트/Discord 알림용 - 슬롯 문서 digimonDisplayName)
+  selectedDigimon = null,
+  digimonNickname = null,
+  slotVersion = "Ver.1",
+  isLoadingSlot = true, // 기본 true: 로드 완료 전에는 digimonDisplayName 쓰지 않음
+  evolutionDataForSlot = null, // 한글명 .name 포함된 원본 맵 (adapted 맵에는 name 없음)
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -256,6 +267,15 @@ export function useGameData({
           lastSavedAt: statsWithoutProteinCount.lastSavedAt,
           updatedAt: now,
         };
+        
+        // digimonDisplayName·selectedDigimon: 로드 완료 후에만 저장. 한글명 또는 ID만 (버전 안 붙임)
+        if (!isLoadingSlot && selectedDigimon) {
+          const displayNameFromData = evolutionDataForSlot?.[selectedDigimon]?.name;
+          const baseDisplayName = displayNameFromData || selectedDigimon;
+          const digimonDisplayName = (digimonNickname && digimonNickname.trim()) ? `${digimonNickname.trim()}(${baseDisplayName})` : baseDisplayName;
+          updateData.digimonDisplayName = digimonDisplayName;
+          updateData.selectedDigimon = selectedDigimon;
+        }
         
         // 배경화면 설정 저장 (backgroundSettings가 전달된 경우)
         if (backgroundSettings !== undefined) {

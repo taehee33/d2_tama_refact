@@ -310,6 +310,11 @@ function Game(){
     activityLogs,
     backgroundSettings,
     setBackgroundSettings,
+    selectedDigimon,
+    digimonNickname,
+    slotVersion,
+    isLoadingSlot,
+    evolutionDataForSlot,
   });
 
   const meatSprites= ["/images/526.png","/images/527.png","/images/528.png","/images/529.png"];
@@ -1027,8 +1032,13 @@ async function setSelectedDigimonAndSave(name) {
     if (slotId && currentUser) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        // 진화/사망 시 표시명도 함께 갱신. 한글명 또는 ID만 (버전 안 붙임)
+        const displayNameFromData = evolutionDataForSlot?.[name]?.name;
+        const baseDisplayName = displayNameFromData || name;
+        const digimonDisplayName = (digimonNickname && digimonNickname.trim()) ? `${digimonNickname.trim()}(${baseDisplayName})` : baseDisplayName;
         await updateDoc(slotRef, {
           selectedDigimon: name,
+          digimonDisplayName,
           isLightsOn,
           wakeUntil,
           updatedAt: new Date(),
@@ -1689,10 +1699,11 @@ async function setSelectedDigimonAndSave(name) {
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {(() => {
             const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
+            const baseName = digimonName; // 한글명 또는 ID만 (버전 안 붙임)
             if (digimonNickname && digimonNickname.trim()) {
-              return `${digimonNickname}(${digimonName})`;
+              return `${digimonNickname}(${baseName})`;
             }
-            return digimonName;
+            return baseName;
           })()}
           {digimonStats.isFrozen && (
             <span className="ml-2 text-blue-600">🧊 냉장고</span>
