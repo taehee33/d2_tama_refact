@@ -337,6 +337,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [evolutionCompleteIsJogress, setEvolutionCompleteIsJogress] = useState(false); // 조그레스 완료 시 성공 메시지에 파트너 사망 문구 표시용
   const [evolutionCompleteJogressSummary, setEvolutionCompleteJogressSummary] = useState(null); // 조그레스 성공 요약 { currentLabel, partnerLabel, resultName } (현재/파트너 구분 표시용)
   const [myJogressRoomId, setMyJogressRoomId] = useState(null); // 호스트가 만든 대기 방 ID (취소/구독용)
+  const [jogressRoomListRefresh, setJogressRoomListRefresh] = useState(0); // 방 목록 모달 재조회 트리거 (내 방 최대 3개 등)
 
   // 사망 관련
   const [deathReason, setDeathReason] = useState(null);
@@ -566,6 +567,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setEvolutionCompleteJogressSummary,
       myJogressRoomId,
       setMyJogressRoomId,
+      jogressRoomListRefresh,
+      setJogressRoomListRefresh,
       deathReason,
       setDeathReason,
       isLightsOn,

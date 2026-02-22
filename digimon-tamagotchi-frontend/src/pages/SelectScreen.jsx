@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { doc, setDoc, updateDoc, collection, getDocs } from "firebase/firestore";
+import { doc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 import { deleteSlotWithSubcollections } from "../utils/firestoreHelpers";
 import { digimonDataVer1 } from "../data/v1/digimons";
@@ -449,11 +449,21 @@ function SelectScreen() {
     const trimmedNickname = newNickname !== undefined ? newNickname.trim() : "";
 
     try {
-      // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 업데이트
       const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
       await updateDoc(slotRef, {
-        digimonNickname: trimmedNickname || null, // 빈 문자열이면 null로 저장
+        digimonNickname: trimmedNickname || null,
         updatedAt: new Date(),
+      });
+      // 해당 슬롯으로 만든 조그레스 방의 별명도 동기화 (변경 시 반영)
+      const roomsRef = collection(db, "jogress_rooms");
+      const q = query(roomsRef, where("hostUid", "==", currentUser.uid), where("hostSlotId", "==", slotId));
+      const snap = await getDocs(q);
+      const now = new Date();
+      snap.docs.forEach((d) => {
+        updateDoc(doc(db, "jogress_rooms", d.id), {
+          hostDigimonNickname: trimmedNickname || null,
+          updatedAt: now,
+        }).catch((e) => console.warn("[별명 동기화] 조그레스 방 업데이트 실패:", e));
       });
       loadSlots();
     } catch (err) {
@@ -470,13 +480,21 @@ function SelectScreen() {
     }
 
     try {
-      // Firestore의 /users/{uid}/slots/{slotId}에서 디지몬 별명 제거
       const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
       await updateDoc(slotRef, {
         digimonNickname: null,
         updatedAt: new Date(),
       });
-      // 로컬 상태도 업데이트
+      const roomsRef = collection(db, "jogress_rooms");
+      const q = query(roomsRef, where("hostUid", "==", currentUser.uid), where("hostSlotId", "==", slotId));
+      const snap = await getDocs(q);
+      const now = new Date();
+      snap.docs.forEach((d) => {
+        updateDoc(doc(db, "jogress_rooms", d.id), {
+          hostDigimonNickname: null,
+          updatedAt: now,
+        }).catch((e) => console.warn("[별명 동기화] 조그레스 방 업데이트 실패:", e));
+      });
       setDigimonNicknameEdits((prev) => ({
         ...prev,
         [slotId]: defaultDigimonName,

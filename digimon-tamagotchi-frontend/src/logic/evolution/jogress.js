@@ -26,7 +26,12 @@ export function getJogressResult(currentDigimonId, partnerDigimonId, currentSlot
     return { success: false, reason: "잘못된 입력입니다." };
   }
 
-  const dataA = currentSlotDataMap[currentDigimonId];
+  // 호스트 ID가 BlitzGreymonV1 등이어도 v1 맵 키는 BlitzGreymon일 수 있으므로 베이스 ID로 폴백
+  let dataA = currentSlotDataMap[currentDigimonId];
+  if (!dataA) {
+    const baseId = baseJogressId(currentDigimonId);
+    dataA = currentSlotDataMap[baseId] || currentSlotDataMap[baseId + "V1"] || currentSlotDataMap[baseId + "V2"];
+  }
   if (!dataA) {
     return { success: false, reason: "조그레스할 수 있는 조합이 아닙니다." };
   }

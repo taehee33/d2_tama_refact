@@ -42,10 +42,11 @@ export function checkEvolution(currentStats, currentDigimonData, currentDigimonN
 
   const criteria = currentDigimonData.evolutionCriteria;
 
-  // 1단계: 시간 체크
+  // 1단계: 시간 체크 (진화 시간이 남았으면 NOT_READY, undefined/NaN도 미충족으로 처리)
   if (criteria.timeToEvolveSeconds !== undefined) {
-    if (currentStats.timeToEvolveSeconds > 0) {
-      const remainingSeconds = currentStats.timeToEvolveSeconds;
+    const tte = Number(currentStats.timeToEvolveSeconds);
+    if (Number.isNaN(tte) || tte > 0) {
+      const remainingSeconds = Number.isNaN(tte) ? criteria.timeToEvolveSeconds : Math.max(0, tte);
       return {
         success: false,
         reason: "NOT_READY",

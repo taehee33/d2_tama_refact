@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-02-18] 진화 버튼 ⭕/❌ — 개발자 모드 + 진화조건 무시 분리
+
+### 작업 유형
+- 🐛 버그 수정 (dev mode ON이어도 「진화조건 무시」가 꺼져 있으면 진화 불가 시 ❌ 표시)
+
+### 목적 및 영향
+- **원인:** 개발자 모드가 켜져 있으면 무조건 `setIsEvoEnabled(true)`로 ⭕ 표시하여, 「진화조건 무시」를 끈 상태에서도 시간/조건 미충족 시 ⭕로 나오던 문제.
+- **해결:** `developerMode`만으로 early return 하지 않고, `developerMode && ignoreEvolutionTime`일 때만 무조건 ⭕. 그 외(dev ON + 조건 무시 OFF, 또는 dev OFF)에는 기존대로 `checkEvolution`으로 ⭕/❌ 판정.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-02-18] 진화 버튼 ⭕/❌ — 진화 시간·가이드 달성 여부 반영
+
+### 작업 유형
+- 🐛 버그 수정 (진화 시간이 남아 있는데 버튼이 「진화! ⭕」로 표시되던 현상)
+
+### 목적 및 영향
+- **원인:** (1) `checkEvolution`에서 `timeToEvolveSeconds`가 `undefined`/NaN일 때 시간 조건을 통과해 버튼이 ⭕로 나옴. (2) 슬롯 로딩 중에는 기본/빈 스탯으로 effect가 돌아 ⭕가 잠깐 보일 수 있음.
+- **해결:**
+  1. **logic/evolution/checker.js**  
+     - 1단계 시간 체크 시 `Number(currentStats.timeToEvolveSeconds)`로 정규화.  
+     - `Number.isNaN(tte) || tte > 0`이면 `NOT_READY` 반환(남은 시간은 NaN이면 criteria 값, 아니면 `Math.max(0, tte)` 사용).
+  2. **pages/Game.jsx**  
+     - 진화 버튼 상태 effect 맨 앞에 `isLoadingSlot`일 때 `setIsEvoEnabled(false)` 후 return 추가.  
+     - effect 의존 배열에 `isLoadingSlot` 추가.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-02-18] 조그레스 진화 실행 로직 (로컬)
 
 ### 작업 유형

@@ -190,6 +190,8 @@ export default function GameModals({
     setEvolutionCompleteJogressSummary,
     myJogressRoomId,
     setMyJogressRoomId,
+    jogressRoomListRefresh,
+    setJogressRoomListRefresh,
     setWidth,
     setHeight,
     setBackgroundNumber,
@@ -687,11 +689,11 @@ export default function GameModals({
             <p className="text-2xl font-bold text-black mb-6 pixel-art-text"> 🎉 {evolvedDigimonName} 🎉 </p>
             {evolutionCompleteIsJogress && (
               <>
-                <p className="text-black mb-2 pixel-art-text">파트너 디지몬은 데이터가 되어 사라졌습니다.</p>
+                <p className="text-black mb-2 pixel-art-text">조그레스 진화 완료 (with 참가자명 / 디지몬명)</p>
                 {evolutionCompleteJogressSummary && typeof evolutionCompleteJogressSummary === "object" && (
                   <div className="text-black mb-6 text-sm pixel-art-text border border-black border-opacity-20 rounded px-3 py-2 bg-white bg-opacity-60 space-y-1">
-                    <p><span className="font-bold">현재 디지몬:</span> {evolutionCompleteJogressSummary.currentLabel} → {evolutionCompleteJogressSummary.resultName}</p>
-                    <p className="text-red-600 font-bold"><span>파트너(사라짐) 디지몬:</span> {evolutionCompleteJogressSummary.partnerLabel}</p>
+                    <p><span className="font-bold">방장:</span> {evolutionCompleteJogressSummary.currentLabel} → {evolutionCompleteJogressSummary.resultName}</p>
+                    <p><span className="font-bold">참가자:</span> {evolutionCompleteJogressSummary.partnerTamerName || "참가자"} / {evolutionCompleteJogressSummary.partnerDigimonName || evolutionCompleteJogressSummary.partnerLabel}</p>
                   </div>
                 )}
               </>
@@ -893,9 +895,10 @@ export default function GameModals({
       {modals.jogressRoomList && (
         <JogressRoomListModal
           currentUser={data?.currentUser}
+          currentSlotId={slotId != null ? parseInt(slotId, 10) : null}
           digimonDataVer1={data?.jogressDigimonDataVer1 || {}}
           digimonDataVer2={data?.jogressDigimonDataVer2 || {}}
-          refreshTrigger={myJogressRoomId}
+          refreshTrigger={`${myJogressRoomId}-${jogressRoomListRefresh}`}
           onClose={() => toggleModal('jogressRoomList', false)}
           onSelectRoomAndSlot={(room, slot) => {
             handlers?.proceedJogressOnlineAsGuest?.(room, slot);
@@ -905,13 +908,18 @@ export default function GameModals({
             const result = await handlers?.createJogressRoom?.();
             if (result?.roomId && setMyJogressRoomId) {
               setMyJogressRoomId(result.roomId);
+              if (setJogressRoomListRefresh) setJogressRoomListRefresh((n) => n + 1);
               alert("방이 생성되었습니다. 다른 테이머가 참가할 때까지 기다려 주세요.");
             }
           }}
+          onCreateRoomForSlot={handlers?.createJogressRoomForSlot}
+          onRefresh={setJogressRoomListRefresh ? () => setJogressRoomListRefresh((n) => n + 1) : undefined}
           onCancelRoom={async (roomId) => {
             await handlers?.cancelJogressRoom?.(roomId);
-            if (setMyJogressRoomId) setMyJogressRoomId(null);
+            if (roomId === myJogressRoomId && setMyJogressRoomId) setMyJogressRoomId(null);
+            if (setJogressRoomListRefresh) setJogressRoomListRefresh((n) => n + 1);
           }}
+          onHostEvolveFromRoom={handlers?.proceedJogressOnlineAsHostForRoom}
         />
       )}
 

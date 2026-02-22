@@ -845,10 +845,12 @@ function Game(){
     proceedEvolution: handleProceedEvolution,
     proceedJogressLocal,
     createJogressRoom,
+    createJogressRoomForSlot,
     cancelJogressRoom,
     proceedJogressOnlineAsGuest,
     applyHostJogressStatusFromRoom,
     proceedJogressOnlineAsHost,
+    proceedJogressOnlineAsHostForRoom,
   } = useEvolution({
     digimonStats,
     setDigimonStats,
@@ -871,9 +873,11 @@ function Game(){
     setEvolutionCompleteJogressSummary,
     digimonDataVer1: digimonDataForSlot,
     newDigimonDataVer1: evolutionDataForSlot,
+    evolutionDataVer1: newDigimonDataVer1, // 조그레스 시 호스트/게스트 Ver.1 맵용 (항상 v1)
     digimonDataVer2,
     slotName,
     tamerName,
+    digimonNickname,
     toggleModal,
     version: slotVersion || "Ver.1", // 슬롯 버전 전달 (도감 관리용)
   });
@@ -1227,18 +1231,22 @@ async function setSelectedDigimonAndSave(name) {
     }
   }
 
-  // evo 버튼 상태 (간단하게 현재 스탯으로 확인, 실제 진화는 클릭 시 Lazy Update 적용)
-  // 진화 가능 여부 확인 (현재 스탯 기준, 실제 진화 시에는 Lazy Update 적용)
+  // evo 버튼 상태: 진화 시간·조건 반영 (1초마다 customTime으로 재계산해 진화 시간 미충족 시 ❌ 표시)
   useEffect(() => {
+    if (isLoadingSlot) {
+      setIsEvoEnabled(false);
+      return;
+    }
     if(digimonStats.isDead && !developerMode) {
       setIsEvoEnabled(false);
       return;
     }
-    if(developerMode) {
+    // 개발자 모드 + '진화조건 무시' 둘 다 켜져 있을 때만 무조건 ⭕. 그 외에는 실제 조건 검사
+    if(developerMode && ignoreEvolutionTime) {
       setIsEvoEnabled(true);
       return;
     }
-    // '모든 진화 조건 무시' 옵션 시 진화 후보가 있으면 버튼 활성화
+    // '모든 진화 조건 무시' 옵션 시 진화 후보가 있으면 버튼 활성화 (dev mode 없이)
     const currentDigimonData = evolutionDataForSlot[selectedDigimon];
     if (ignoreEvolutionTime && currentDigimonData?.evolutions?.length > 0) {
       const hasNonJogress = currentDigimonData.evolutions.some((e) => !e.jogress);
@@ -1257,7 +1265,7 @@ async function setSelectedDigimonAndSave(name) {
     }
     setIsEvoEnabled(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [digimonStats, selectedDigimon, developerMode, ignoreEvolutionTime]);
+  }, [digimonStats, selectedDigimon, developerMode, ignoreEvolutionTime, customTime, isLoadingSlot]);
 
   // 수면 상태 계산 (TIRED 케어미스는 타이머 useEffect에서 처리)
   useEffect(() => {
@@ -1303,7 +1311,6 @@ async function setSelectedDigimonAndSave(name) {
         applyHostJogressStatusFromRoom(data, myJogressRoomId);
         setMyJogressRoomId(null);
         return;
-        // 구독 해제는 cleanup에서
       }
       if (data.status === "cancelled" || data.status === "completed") {
         setMyJogressRoomId(null);
@@ -1314,6 +1321,23 @@ async function setSelectedDigimonAndSave(name) {
     });
     return () => unsub();
   }, [currentUser?.uid, myJogressRoomId, applyHostJogressStatusFromRoom]);
+
+  // 온라인 조그레스: 현재 슬롯이 대기 중인 방(roomId) 구독 → paired 시 해당 슬롯에 canEvolve 반영 (모달에서 방 생성 시 myJogressRoomId 미설정 대비)
+  useEffect(() => {
+    if (!db || !currentUser?.uid || !slotId || !applyHostJogressStatusFromRoom) return;
+    const roomIdToSub = slotJogressStatus?.roomId && !slotJogressStatus?.canEvolve ? slotJogressStatus.roomId : null;
+    if (!roomIdToSub) return;
+    const roomRef = doc(db, "jogress_rooms", roomIdToSub);
+    const unsub = onSnapshot(roomRef, (snap) => {
+      const data = snap.data() || {};
+      if (data.status === "paired" && data.hostUid === currentUser.uid) {
+        applyHostJogressStatusFromRoom(data, roomIdToSub);
+      }
+    }, (err) => {
+      console.warn("[Game] slot jogress room 구독 오류:", err);
+    });
+    return () => unsub();
+  }, [currentUser?.uid, slotId, slotJogressStatus?.roomId, slotJogressStatus?.canEvolve, applyHostJogressStatusFromRoom]);
 
   // 냉장고 꺼내기 애니메이션 완료 처리 (3.5초 후 takeOutAt을 null로 설정)
   useEffect(() => {
@@ -1459,10 +1483,12 @@ async function setSelectedDigimonAndSave(name) {
       }
     },
     createJogressRoom,
+    createJogressRoomForSlot,
     cancelJogressRoom,
     proceedJogressOnlineAsGuest,
     applyHostJogressStatusFromRoom,
     proceedJogressOnlineAsHost,
+    proceedJogressOnlineAsHostForRoom,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1776,59 +1802,41 @@ async function setSelectedDigimonAndSave(name) {
       </div>
 
         <div className="flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2">
-      {/* 온라인 조그레스: 파트너 참가 후 진화 가능 시 배너 + 진화 버튼 */}
-      {slotJogressStatus?.canEvolve && (
-        <div className="w-full flex flex-col items-center gap-1 mb-1">
-          <p className="text-amber-400 text-sm font-bold">조그레스 파트너가 참가했습니다! 진화하려면 버튼을 눌러 주세요.</p>
-          <button
-            onClick={() => proceedJogressOnlineAsHost(slotJogressStatus)}
-            disabled={isEvolving}
-            className={`px-4 py-2 text-white rounded pixel-art-button ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-          >
-            <span className="whitespace-nowrap">진화!</span>
-          </button>
-        </div>
-      )}
-      {/* 조그레스만 가능한 경우: "진화(조그레스)" 하나만 표시. 일반 진화도 있으면 "진화!" + "조그레스 진화" */}
-      {!slotJogressStatus?.canEvolve && (() => {
+      {/* 진화 / 조그레스: "진화!" 버튼 + "조그레스 진화" 버튼(상태에 따라 텍스트만 변경) */}
+      {(() => {
         const currentDigimonDataForEvo = evolutionDataForSlot[selectedDigimon];
         const canJogressEvolve = !!(currentDigimonDataForEvo?.evolutions?.some((e) => e.jogress));
-        const onlyJogress = canJogressEvolve && !isEvoEnabled;
+        const hasNormalEvolution = !!(currentDigimonDataForEvo?.evolutions?.some((e) => !e.jogress));
+        const showEvolutionButton = hasNormalEvolution || canJogressEvolve;
         const openJogressFlow = () => toggleModal('jogressModeSelect', true);
+        const jogressLabel = slotJogressStatus?.canEvolve
+          ? "(조그레스 진화 가능)"
+          : slotJogressStatus?.isWaiting
+            ? "(대기중)"
+            : "(-)";
         return (
           <>
-            {onlyJogress ? (
+            {showEvolutionButton && (
+              <button
+                onClick={handleEvolutionButton}
+                disabled={isEvolving}
+                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${isEvolving ? "bg-gray-500 cursor-not-allowed" : hasNormalEvolution && isEvoEnabled ? "bg-green-500 hover:bg-green-600" : "bg-gray-600 hover:bg-gray-500"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+                style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
+                title={!hasNormalEvolution ? "이 디지몬은 조그레스로만 진화합니다. 클릭 시 진화 가이드 확인 가능" : undefined}
+              >
+                <span className="whitespace-nowrap">진화!</span>
+              </button>
+            )}
+            {canJogressEvolve && (
               <button
                 onClick={openJogressFlow}
                 disabled={isEvolving}
-                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
+                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center gap-1.5 ${!isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
                 style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
               >
-                <span className="whitespace-nowrap">진화(조그레스)</span>
+                <span className="whitespace-nowrap">조그레스 진화</span>
+                <span className={`text-xs font-bold ${jogressLabel === "(조그레스 진화 가능)" ? "text-green-400" : "text-amber-200"}`}>{jogressLabel}</span>
               </button>
-            ) : (
-              <>
-                {isEvoEnabled && (
-                  <button
-                    onClick={handleEvolutionButton}
-                    disabled={isEvolving}
-                    className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-green-500 hover:bg-green-600" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-                    style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-                  >
-                    <span className="whitespace-nowrap">진화!</span>
-                  </button>
-                )}
-                {canJogressEvolve && (
-                  <button
-                    onClick={openJogressFlow}
-                    disabled={isEvolving}
-                    className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${!isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-                    style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-                  >
-                    <span className="whitespace-nowrap">조그레스 진화</span>
-                  </button>
-                )}
-              </>
             )}
           </>
         );
