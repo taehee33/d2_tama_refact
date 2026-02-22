@@ -22,7 +22,7 @@ export default function BattleSelectionModal({ onClose, onQuestStart, onCommunic
             }}
             className="battle-mode-button quest-mode-button px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors"
           >
-            퀘스트 모드
+            ❓ 퀘스트 모드
           </button>
 
           <button
@@ -32,7 +32,7 @@ export default function BattleSelectionModal({ onClose, onQuestStart, onCommunic
             }}
             className="battle-mode-button communication-mode-button px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors"
           >
-            온라인 배틀
+            🖥️ 온라인 배틀
           </button>
 
           {onOpenBattleLog && (
