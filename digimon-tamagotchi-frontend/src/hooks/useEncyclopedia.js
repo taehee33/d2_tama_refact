@@ -47,17 +47,21 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
   try {
     // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
     const userRef = doc(db, 'users', currentUser.uid);
-    // 문서 존재 여부 확인
     const userSnap = await getDoc(userRef);
+    const existing = userSnap.exists() ? (userSnap.data().encyclopedia || {}) : {};
+    // 기존 도감과 병합하여 다른 버전/다른 키가 사라지지 않도록 함 (로컬 조그레스 시 Ver.1 블리츠그레이몬 등 소실 방지)
+    const merged = {};
+    for (const ver of ['Ver.1', 'Ver.2']) {
+      merged[ver] = { ...(existing[ver] || {}), ...(encyclopedia[ver] || {}) };
+    }
     if (userSnap.exists()) {
       await updateDoc(userRef, {
-        encyclopedia: encyclopedia,
+        encyclopedia: merged,
         updatedAt: new Date(),
       });
     } else {
-      // 문서가 없으면 생성
       await setDoc(userRef, {
-        encyclopedia: encyclopedia,
+        encyclopedia: merged,
         updatedAt: new Date(),
       });
     }

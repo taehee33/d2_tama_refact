@@ -609,7 +609,7 @@ export const digimonDataVer2 = {
     },
     evolutions: [
       {
-        targetId: "cresgarurumon",
+        targetId: "CresGarurumonV2",
         targetName: "크레스가루루몬",
         conditions: {
           careMistakes: { max: 1 },
