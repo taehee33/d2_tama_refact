@@ -1184,7 +1184,8 @@ export default function StatsPopup({
                 const deadlineMs = (hungerMistakeDeadline && hungerMistakeDeadline > 0)
                   ? hungerMistakeDeadline
                   : (startedAt + timeout);
-                const remaining = Math.max(0, deadlineMs - currentTime);
+                // 남은 시간 상한: 10분 타임아웃이면 표시는 최대 10분까지만 (음수·과대 표시 방지)
+                const remaining = Math.min(timeout, Math.max(0, deadlineMs - currentTime));
                 if (sleepStatus === 'SLEEPING') {
                   if (remaining > 0) {
                     const minutes = Math.floor(remaining / 60000);
@@ -1255,7 +1256,7 @@ export default function StatsPopup({
                 const deadlineMs = (strengthMistakeDeadline && strengthMistakeDeadline > 0)
                   ? strengthMistakeDeadline
                   : (startedAt + timeout);
-                const remaining = Math.max(0, deadlineMs - currentTime);
+                const remaining = Math.min(timeout, Math.max(0, deadlineMs - currentTime));
                 if (sleepStatus === 'SLEEPING') {
                   if (remaining > 0) {
                     const minutes = Math.floor(remaining / 60000);
@@ -1319,7 +1320,7 @@ export default function StatsPopup({
                 }
                 const elapsed = Math.max(0, currentTime - startedAt);
                 const timeout = 60 * 60 * 1000; // 60분
-                const remaining = Math.max(0, timeout - elapsed);
+                const remaining = Math.min(timeout, Math.max(0, timeout - elapsed));
                 const deadlineMs = startedAt + timeout;
                 if (remaining > 0) {
                   const minutes = Math.floor(remaining / 60000);
@@ -1439,10 +1440,10 @@ export default function StatsPopup({
                         <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = Math.max(0, getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt));
                         const elapsed = Math.floor(elapsedMs / 1000);
                         const threshold = 43200; // 12시간(초)
-                        const remaining = Math.max(0, threshold - elapsed);
+                        const remaining = Math.min(threshold, Math.max(0, threshold - elapsed));
                         const deathDeadlineMs = hungerZeroTime + threshold * 1000;
                         if (isFrozen) {
                           return (
