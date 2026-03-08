@@ -10,6 +10,7 @@ import { digimonDataVer2 } from "../data/v2modkor";
 import { getQuestArea } from "../data/v1/quests";
 import { getQuestAreaVer2 } from "../data/v2modkor/quests";
 import { calculatePower } from "../logic/battle/hitrate";
+import { BATTLE_CARD_BY_ID } from "../data/battleCards";
 import "../styles/Battle.css";
 
 // 타격 이펙트는 이제 텍스트로 표시되므로 스프라이트 경로는 더 이상 필요 없음
@@ -26,6 +27,7 @@ export default function BattleScreen({
   sparringEnemySlot,
   arenaChallenger,
   realtimeBattleResult,
+  realtimeDeckBattle,
   onBattleComplete,
   onQuestClear,
   onClose,
@@ -42,9 +44,38 @@ export default function BattleScreen({
   const [showUserPowerDetails, setShowUserPowerDetails] = useState(false); // 유저 파워 상세 정보 표시 여부
   const [showEnemyPowerDetails, setShowEnemyPowerDetails] = useState(false); // 상대방 파워 상세 정보 표시 여부
   const [showBattleGuide, setShowBattleGuide] = useState(false); // 배틀 가이드 표시 여부
+  const [deckChoiceRemainingSec, setDeckChoiceRemainingSec] = useState(null);
+  /** 덱 배틀: 이번 라운드에서 내가 선택한 카드의 인덱스(remainingCards 기준) — 같은 종류 여러 장 구분용 */
+  const [selectedCardIndexForCurrentRound, setSelectedCardIndexForCurrentRound] = useState(null);
+  /** 덱 배틀: 확인 버튼으로 선택을 전송했는지 (중복 전송 방지) */
+  const [choiceSentForCurrentRound, setChoiceSentForCurrentRound] = useState(false);
   // Start를 누르기 전까지는 상대방 정보를 숨김
   const hideEnemyInfo = !hasRoundStarted;
-  
+
+  // 덱 배틀: 제한시간 초 단위 갱신
+  useEffect(() => {
+    if (battleType !== 'realtime' || !realtimeDeckBattle?.choiceTimeoutAt) {
+      setDeckChoiceRemainingSec(null);
+      return;
+    }
+    const tick = () => {
+      const remain = Math.max(0, Math.ceil((realtimeDeckBattle.choiceTimeoutAt - Date.now()) / 1000));
+      setDeckChoiceRemainingSec(remain);
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [battleType, realtimeDeckBattle?.choiceTimeoutAt]);
+
+  // 덱 배틀: 라운드가 끝나면 선택 카드·전송 완료 표시 초기화
+  useEffect(() => {
+    if (battleType !== 'realtime' || !realtimeDeckBattle) return;
+    if (realtimeDeckBattle.pendingChoiceRoundIndex == null) {
+      setSelectedCardIndexForCurrentRound(null);
+      setChoiceSentForCurrentRound(false);
+    }
+  }, [battleType, realtimeDeckBattle?.pendingChoiceRoundIndex, realtimeDeckBattle]);
+
   // 발사체 및 이펙트 상태
   const [projectile, setProjectile] = useState(null); // { type: "user" | "enemy", sprite: number }
   const [hitText, setHitText] = useState(null); // { target: "user" | "enemy" } - 타격 텍스트
@@ -84,14 +115,27 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (battleState === "loading") {
+      // 실시간 배틀 진행 중(결과 미도착): playQuestRound/simulateBattle 실행 금지, 빈 상태로 ready만 설정
+      if (battleType === 'realtime' && !realtimeBattleResult) {
+        setBattleResult(null);
+        setEnemyData(null);
+        setCurrentLogIndex(0);
+        setUserHits(0);
+        setEnemyHits(0);
+        setBattleState("ready");
+        return;
+      }
+
       let result;
 
       if (battleType === 'realtime' && realtimeBattleResult) {
         const { room, isHost, battleLog, userHits: uh, enemyHits: eh, battleWinner: winner } = realtimeBattleResult;
         const enemySnap = isHost ? room?.guestDigimonSnapshot : room?.hostDigimonSnapshot;
         const enemyTamerName = isHost ? room?.guestTamerName : room?.hostTamerName;
+        // winner가 null이면 배틀 진행 중 → win을 null로 두어 LOSE/승리 모달이 뜨지 않게 함
+        const resolvedWin = winner == null ? null : ((winner === 'host' && isHost) || (winner === 'guest' && !isHost));
         result = {
-          win: (winner === 'host' && isHost) || (winner === 'guest' && !isHost),
+          win: resolvedWin,
           logs: battleLog || [],
           enemy: enemySnap ? {
             name: enemySnap.digimonName || enemySnap.digimonId,
@@ -272,19 +316,52 @@ export default function BattleScreen({
       setBattleResult(result);
       setEnemyData(result.enemy);
       setCurrentLogIndex(0);
-      setUserHits(result.userHits ?? 0);
-      setEnemyHits(result.enemyHits ?? 0);
+      // 로그를 순차 재생하는 모드(아레나/스파링/퀘스트 등)는 히트를 0으로 시작하고, 로그 재생 시 공격 성공할 때만 증가시킴
+      const hasLogs = result.logs && result.logs.length > 0;
+      setUserHits(hasLogs ? 0 : (result.userHits ?? 0));
+      setEnemyHits(hasLogs ? 0 : (result.enemyHits ?? 0));
       setProjectile(null);
       setHitText(null);
       setMissText(null);
-      
-      // 라운드 준비 모달 표시
-      setShowReadyModal(true);
-      setHasRoundStarted(false); // 새로운 라운드 시작 시 리셋
-      setBattleState("ready");
+
+      // 실시간 배틀 진행 중(winner null): 준비 모달 없이 바로 배틀 화면 → 카드 선택 대기
+      if (battleType === 'realtime' && result.win == null) {
+        setShowReadyModal(false);
+        setHasRoundStarted(true);
+        setBattleState("playing");
+      } else {
+        // 라운드 준비 모달 표시
+        setShowReadyModal(true);
+        setHasRoundStarted(false);
+        setBattleState("ready");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, realtimeBattleResult]);
+
+  // 실시간 배틀: realtimeBattleResult 갱신 시 로그/히트 반영, battleWinner 시 결과 화면 전환
+  useEffect(() => {
+    if (battleType !== 'realtime' || !realtimeBattleResult) return;
+    const { battleLog: logs, userHits: uh, enemyHits: eh, battleWinner: winner, isHost } = realtimeBattleResult;
+    setBattleResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            logs: logs ?? prev.logs ?? [],
+            userHits: uh ?? prev.userHits ?? 0,
+            enemyHits: eh ?? prev.enemyHits ?? 0,
+          }
+        : null
+    );
+    setUserHits(uh ?? 0);
+    setEnemyHits(eh ?? 0);
+    if (winner != null && battleState !== 'victory' && battleState !== 'result') {
+      const win = (winner === 'host' && isHost) || (winner === 'guest' && !isHost);
+      setBattleResult((prev) => (prev ? { ...prev, win } : null));
+      if (win) setBattleState('victory');
+      else setBattleState('result'); // 패배
+    }
+  }, [battleType, realtimeBattleResult, battleState]);
 
   // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
@@ -434,12 +511,13 @@ export default function BattleScreen({
 
         return () => clearTimeout(timer);
       } else {
-        // 모든 로그 재생 완료 - 승리/패배 확인
-        if (battleResult.win) {
+        // 모든 로그 재생 완료 - 승리/패배 확인 (실시간 진행 중이면 win이 null이므로 결과 전환 안 함)
+        if (battleResult.win === true) {
           setBattleState("victory"); // 승리 모달 표시
-        } else {
+        } else if (battleResult.win === false) {
           setBattleState("result"); // 패배 결과 표시
         }
+        // win === null이면 배틀 진행 중(예: 덱 카드 선택 대기), 결과 화면으로 넘기지 않음
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -531,14 +609,99 @@ export default function BattleScreen({
     );
   }
 
+  const showDeckChoice = battleType === 'realtime' && realtimeDeckBattle?.pendingChoiceRoundIndex != null && (realtimeDeckBattle.remainingCards?.length ?? 0) > 0;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
+      {/* 덱 배틀: 카드 선택 (제한시간 내 미선택 시 자동 랜덤) */}
+      {showDeckChoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-center mb-2">
+              라운드 {realtimeDeckBattle.pendingChoiceRoundIndex} — 카드 선택
+            </h3>
+            <p className="text-center text-gray-600 mb-2">
+              {deckChoiceRemainingSec != null && deckChoiceRemainingSec > 0
+                ? `${deckChoiceRemainingSec}초 안에 선택하세요 (미선택 시 자동 선택)`
+                : '선택 중…'}
+            </p>
+            {realtimeDeckBattle.opponentChoiceReceived && (
+              <p className="text-center text-green-600 font-medium mb-4">상대방 선택 완료</p>
+            )}
+
+            {/* 사용된 카드 (이미 쓴 카드) */}
+            {(realtimeDeckBattle.usedCardIds?.length ?? 0) > 0 && (
+              <div className="mb-4">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">사용된 카드</div>
+                <div className="flex flex-wrap gap-2">
+                  {realtimeDeckBattle.usedCardIds.map((cardId, idx) => {
+                    const meta = BATTLE_CARD_BY_ID[cardId];
+                    return (
+                      <span
+                        key={`used-${cardId}-${idx}`}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-200 text-gray-600 text-sm font-medium border border-gray-300"
+                      >
+                        {meta?.nameKo || cardId} <span className="ml-1 text-gray-400">(라운드 {idx + 1})</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 사용 가능 카드 (이번 라운드에서 고를 수 있는 카드) — 같은 종류여도 장수만큼만 표시, 한 장만 선택 표시 */}
+            <div>
+              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">사용 가능 카드</div>
+              <div className="flex flex-wrap gap-3 justify-center">
+                {(realtimeDeckBattle.remainingCards || []).map((cardId, idx) => {
+                  const meta = BATTLE_CARD_BY_ID[cardId];
+                  const isSelected = idx === selectedCardIndexForCurrentRound;
+                  return (
+                    <button
+                      key={`remaining-${idx}-${cardId}`}
+                      type="button"
+                      onClick={() => setSelectedCardIndexForCurrentRound(idx)}
+                      disabled={choiceSentForCurrentRound}
+                      className={`px-4 py-3 rounded-lg font-medium border-2 transition-colors ${
+                        isSelected
+                          ? 'border-green-500 bg-green-100 text-green-800 ring-2 ring-green-400'
+                          : 'border-indigo-500 bg-indigo-50 text-indigo-800 hover:bg-indigo-200'
+                      } ${choiceSentForCurrentRound ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      <span className="block">{meta?.nameKo || cardId}</span>
+                      {isSelected && <span className="block text-xs font-bold text-green-600 mt-1">✓ 선택 카드</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mt-4 flex justify-center">
+              <button
+                type="button"
+                disabled={selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound}
+                onClick={() => {
+                  if (selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound) return;
+                  const cardId = realtimeDeckBattle.remainingCards[selectedCardIndexForCurrentRound];
+                  if (cardId) {
+                    realtimeDeckBattle.sendChoice(cardId);
+                    setChoiceSentForCurrentRound(true);
+                  }
+                }}
+                className="px-6 py-3 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 라운드 준비 모달 */}
       {showReadyModal && !hasRoundStarted && (
         <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70">
           <div className="bg-white p-8 rounded-lg shadow-xl text-center modal-mobile" style={{ minWidth: "400px" }}>
             <h2 className="text-4xl font-bold mb-2">
-              {battleType === 'sparring' ? 'Sparring' : battleType === 'arena' ? 'Arena' : `Round ${roundIndex + 1}`}
+              {battleType === 'sparring' ? 'Sparring' : battleType === 'arena' ? 'Arena' : battleType === 'realtime' ? '실시간 배틀' : `Round ${roundIndex + 1}`}
             </h2>
             <p className="text-xl text-gray-700 mb-6">
               VS {hideEnemyInfo 
@@ -575,6 +738,8 @@ export default function BattleScreen({
               ? `Sparring - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
               : battleType === 'arena'
               ? `Arena - ${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+              : battleType === 'realtime'
+              ? `실시간 배틀 - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
               : `Round ${roundIndex + 1} - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`}
           </h2>
           {enemyData?.isBoss && (
@@ -874,6 +1039,29 @@ export default function BattleScreen({
         {/* 배틀 로그 */}
         {battleState === "playing" && battleResult?.logs && (
           <div className="battle-log-container mb-4 mt-4 pt-4 border-t border-gray-200">
+            {/* 실시간 덱 배틀: 이번 라운드 선택 카드 — 내 카드 / 상대 카드 두 블록으로 구분 표시 */}
+            {battleType === 'realtime' && realtimeDeckBattle?.lastRoundIndex != null && realtimeDeckBattle.lastRoundHostCardId != null && realtimeDeckBattle.lastRoundGuestCardId != null && (() => {
+              const isHost = realtimeBattleResult?.isHost;
+              const myCardId = isHost ? realtimeDeckBattle.lastRoundHostCardId : realtimeDeckBattle.lastRoundGuestCardId;
+              const oppCardId = isHost ? realtimeDeckBattle.lastRoundGuestCardId : realtimeDeckBattle.lastRoundHostCardId;
+              const myName = BATTLE_CARD_BY_ID[myCardId]?.nameKo ?? '?';
+              const oppName = BATTLE_CARD_BY_ID[oppCardId]?.nameKo ?? '?';
+              return (
+                <div className="mb-4">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 text-center">이번 라운드 선택 카드</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-lg border-2 border-indigo-300 bg-indigo-50 text-center">
+                      <div className="text-xs font-bold text-indigo-600 mb-1">내 카드</div>
+                      <div className="text-lg font-bold text-indigo-900">{myName}</div>
+                    </div>
+                    <div className="p-4 rounded-lg border-2 border-gray-300 bg-gray-100 text-center">
+                      <div className="text-xs font-bold text-gray-600 mb-1">상대 카드</div>
+                      <div className="text-lg font-bold text-gray-800">{oppName}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {(() => {
               const currentLog = battleResult.logs[currentLogIndex];
               // 배틀 로그와 동일한 색상 로직 적용

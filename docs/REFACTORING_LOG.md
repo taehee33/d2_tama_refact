@@ -4,6 +4,100 @@
 
 ---
 
+## [2026-03-08] 덱 배틀 엔진 분리 리팩토링
+
+### 작업 유형
+- ♻️ 리팩토링 (덱 배틀 규칙·판정을 logic 계층으로 분리, useRealtimeBattle는 Ably/React 연동만 담당)
+
+### 목적 및 영향
+- **목적:** 덱 배틀 규칙(남은 카드 계산, 1라운드 판정, 승자·동점 타이브레이커)을 순수 함수로 분리해 테스트·재사용·유지보수를 쉽게 함. useRealtimeBattle는 선택 수집·Ably 발행·setState만 담당.
+- **구현 요약:**
+  - **deckBattleEngine.js** (신규): `getRemainingCards(deck, usedCount)`, `pickRandomFrom(deck, usedCount)`, `resolveDeckRound(...)` (calculator.resolveCardRound 래퍼), `resolveDeckBattleWinner(userHits, enemyHits, roomSeed)`. calculator만 의존, Ably/React 무관.
+  - **useRealtimeBattle.js:** 훅 내부의 getRemainingCards/randomFrom 제거, deckBattleEngine에서 import. 덱 루프에서 resolveCardRound → resolveDeckRound, 인라인 승자 계산 → resolveDeckBattleWinner 호출로 교체. randomFrom(getRemainingCards(...)) → pickRandomFrom(deck, used) 사용.
+  - **logic/battle/index.js:** deckBattleEngine의 getRemainingCards, pickRandomFrom, resolveDeckRound, resolveDeckBattleWinner export 추가.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/logic/battle/deckBattleEngine.js` (신규)
+- `digimon-tamagotchi-frontend/src/logic/battle/index.js`
+- `digimon-tamagotchi-frontend/src/hooks/useRealtimeBattle.js`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-08] 아레나/스파링 배틀 히트 마커 표시 버그 수정
+
+### 작업 유형
+- 🐛 버그 수정 (디지몬 아래 공격 성공 인디케이터가 배틀 시작 시부터 최종값으로 고정되던 문제)
+
+### 목적 및 영향
+- **목적:** 아레나·스파링·퀘스트 등 로그를 순차 재생하는 배틀에서, 빨간 원 3개(히트 마커)가 **공격 성공 시에만** 하나씩 차도록 수정. 기존에는 시뮬레이션 결과의 최종 userHits/enemyHits를 초기 state에 넣어 시작 시점부터 찬 상태로 보였음.
+- **변경 요약:** `BattleScreen.jsx` 배틀 결과 적용 시, `result.logs`가 있으면 `userHits`/`enemyHits` 초기값을 0으로 설정. 로그 재생 애니메이션에서 `log.hit`일 때만 해당 쪽 히트를 1씩 증가시키므로, 화면상으로 공격 성공 시에만 원이 채워지도록 함.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-08] 실시간 배틀에 덱 배틀 모드 추가 (일반/덱 양분화, 카드 선택 제한시간)
+
+### 작업 유형
+- ✨ 기능 추가 (실시간 배틀에서 일반 vs 덱 모드 선택, 카드 선택 UI 및 제한시간·타임아웃 시 랜덤 선택)
+
+### 목적 및 영향
+- **목적:** 기존 hitRate 기반 실시간 배틀과 덱(카드) 기반 실시간 배틀을 양분화하고, 실시간 배틀 입장 시 "방 만들기 (일반)" / "방 만들기 (덱)" 중 선택 가능. 덱 배틀 시 라운드마다 양쪽이 카드를 선택하며, 제한시간(25초) 내 미선택 시 자동으로 덱 잔여 카드 중 랜덤 선택 후 진행.
+- **구현 요약:**
+  - **battleSnapshotUtils.js:** 스냅샷에 `battleDeck` 포함 (slot.battleDeck 배열 있을 때).
+  - **RealtimeBattleRoomRepository.js:** createRoom에 `battleMode` ('normal' | 'deck') 추가.
+  - **useRealtimeBattle.js:** createRoom(..., battleMode) 지원. room.battleMode === 'deck'일 때 호스트가 `request_choice` 발행 → 양쪽 선택 수집(또는 25초 타임아웃 시 랜덤) → resolveCardRound 호출 → round/result 발행. Ably 메시지 'request_choice', 'choice' 처리. sendDeckChoice(cardId), deckBattle: { pendingChoiceRoundIndex, choiceTimeoutAt, remainingCards, sendChoice } 반환.
+  - **RealtimeBattleRoomListModal.jsx:** "방 만들기 (일반)" / "방 만들기 (덱)" 버튼 분리, 방 목록에 모드 뱃지(일반/덱), 참가 시 덱 모드면 슬롯에 battleDeck 없을 때 DEFAULT_BATTLE_DECK 사용.
+  - **BattleScreen.jsx:** realtimeDeckBattle prop 추가. 덱 배틀 시 카드 선택 오버레이(라운드 N, 남은 초, 잔여 카드 버튼) 표시, sendChoice(cardId) 호출.
+  - **Game.jsx:** currentSlot에 battleDeck 포함.
+  - **GameModals.jsx:** BattleScreen에 realtimeDeckBattle 전달.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/battleSnapshotUtils.js`
+- `digimon-tamagotchi-frontend/src/repositories/RealtimeBattleRoomRepository.js`
+- `digimon-tamagotchi-frontend/src/hooks/useRealtimeBattle.js`
+- `digimon-tamagotchi-frontend/src/components/RealtimeBattleRoomListModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-08] 덱 빌딩 기능 추가 (배틀 카드·슬롯 덱·편집 UI)
+
+### 작업 유형
+- ✨ 기능 추가 (배틀 카드 정의, 슬롯별 battleDeck 저장/로드, 덱 편집 UI, resolveCardRound 기반)
+
+### 목적 및 영향
+- **목적:** 배틀 덱 빌딩 1단계 — 카드 풀(attack, defend, heavy_attack) 정의, 슬롯 문서에 `battleDeck` 저장/로드, 추가 기능 메뉴에서 "배틀 덱 편집"으로 덱 구성. 추후 실시간/퀘스트 배틀에서 카드 기반 라운드 판정 연동 가능.
+- **구현 요약:**
+  - **battleCards.js** (신규): BATTLE_CARD_POOL, BATTLE_CARD_BY_ID, DEFAULT_BATTLE_DECK, DECK_MIN_SIZE, DECK_MAX_SIZE.
+  - **useGameState.js**: battleDeck, setBattleDeck 상태 추가, modals.deckBuilding 추가.
+  - **useGameData.js**: 슬롯 로드 시 slotData.battleDeck 설정(없으면 DEFAULT_BATTLE_DECK), saveBattleDeck(slotId, deck)로 Firestore 슬롯 루트 필드 갱신.
+  - **DeckBuildingModal.jsx** (신규): 카드 풀에서 추가/제거, 현재 덱 표시, 기본 덱으로 초기화, 저장 시 saveBattleDeck 호출 후 모달 닫기.
+  - **ExtraMenuModal.jsx**: "배틀 덱 편집" 버튼 및 onOpenDeckBuilding.
+  - **GameModals.jsx**: DeckBuildingModal 렌더, gameState.battleDeck/setBattleDeck, handlers.saveBattleDeck, gameState.slotId 전달.
+  - **Game.jsx**: battleDeck, setBattleDeck, saveBattleDeck를 useGameData·handlers·gameState와 연동.
+  - **calculator.js**: resolveCardRound(userCardId, enemyCardId, userPower, enemyPower, userAttrBonus, enemyAttrBonus, roomSeed, roundIndex, userName, enemyName) 추가. 카드별 효과(attack 1히트, defend 1회 무효, heavy_attack -15% 명중·성공 시 2히트), 시드 기반 RNG. 배틀에서는 아직 미연동(기존 hitRate 방식 유지).
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/battleCards.js` (신규)
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/components/DeckBuildingModal.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/ExtraMenuModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.js`
+- `docs/REFACTORING_LOG.md`
+- `docs/REALTIME_BATTLE_AND_DECK_IMPLEMENTATION_PLAN.md`
+
+---
+
 ## [2026-03-08] localStorage 슬롯 모드 제거 후 정리
 
 ### 작업 유형
