@@ -16,7 +16,8 @@ export function createDigimonSnapshotForBattle(slot, digimonDataVer1, digimonDat
     ? (digimonDataVer2[slot.selectedDigimon] || digimonDataVer1[slot.selectedDigimon] || {})
     : (digimonDataVer1[slot.selectedDigimon] || digimonDataVer2[slot.selectedDigimon] || {});
   const stats = slot.digimonStats || {};
-  const calculatedPower = stats.power ?? calculatePower(stats, digimonData) ?? digimonData?.stats?.basePower ?? 0;
+  const base = calculatePower(stats, digimonData) ?? digimonData?.stats?.basePower ?? 0;
+  const calculatedPower = (stats.power != null && stats.power > 0) ? stats.power : base;
 
   return {
     digimonId: slot.selectedDigimon,

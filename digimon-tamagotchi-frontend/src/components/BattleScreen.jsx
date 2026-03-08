@@ -25,6 +25,7 @@ export default function BattleScreen({
   battleType,
   sparringEnemySlot,
   arenaChallenger,
+  realtimeBattleResult,
   onBattleComplete,
   onQuestClear,
   onClose,
@@ -55,6 +56,13 @@ export default function BattleScreen({
   const enemyDigimonImgRef = useRef(null);
   const battleAreaRef = useRef(null);
 
+  // 실시간 배틀: 참가 시 선택한 슬롯 디지몬(스냅샷)으로 표시·판정
+  const mySnap = realtimeBattleResult?.mySnapshot;
+  const effectiveUserDigimon = (battleType === 'realtime' && mySnap) ? { id: mySnap.digimonId, name: mySnap.digimonName, stats: mySnap.stats || {}, sprite: mySnap.sprite, spriteBasePath: mySnap.spriteBasePath } : userDigimon;
+  const effectiveUserStats = (battleType === 'realtime' && mySnap) ? (mySnap.stats || {}) : userStats;
+  const effectiveUserSlotName = (battleType === 'realtime' && mySnap?.slotName) ? mySnap.slotName : userSlotName;
+  const effectiveUserDigimonNickname = (battleType === 'realtime' && mySnap) ? (mySnap.digimonNickname || null) : userDigimonNickname;
+
   // 모달이 열렸을 때 배경 스크롤 방지
   useEffect(() => {
     // 컴포넌트가 마운트될 때 body 스크롤 막기
@@ -77,8 +85,34 @@ export default function BattleScreen({
   useEffect(() => {
     if (battleState === "loading") {
       let result;
-      
-      if (battleType === 'sparring' && sparringEnemySlot) {
+
+      if (battleType === 'realtime' && realtimeBattleResult) {
+        const { room, isHost, battleLog, userHits: uh, enemyHits: eh, battleWinner: winner } = realtimeBattleResult;
+        const enemySnap = isHost ? room?.guestDigimonSnapshot : room?.hostDigimonSnapshot;
+        const enemyTamerName = isHost ? room?.guestTamerName : room?.hostTamerName;
+        result = {
+          win: (winner === 'host' && isHost) || (winner === 'guest' && !isHost),
+          logs: battleLog || [],
+          enemy: enemySnap ? {
+            name: enemySnap.digimonName || enemySnap.digimonId,
+            power: enemySnap.stats?.power ?? 0,
+            attribute: enemySnap.stats?.type ?? null,
+            isBoss: false,
+            tamerName: enemyTamerName || '상대',
+            trainerName: enemyTamerName || '상대',
+            sprite: enemySnap.sprite ?? 0,
+            spriteBasePath: enemySnap.spriteBasePath || null,
+            attackSprite: enemySnap.stats?.attackSprite ?? enemySnap.sprite ?? 0,
+            digimonId: enemySnap.digimonId || enemySnap.digimonName,
+            digimonNickname: enemySnap.digimonNickname || null,
+          } : null,
+          isAreaClear: false,
+          reward: null,
+          rounds: (battleLog || []).length,
+          userHits: uh ?? 0,
+          enemyHits: eh ?? 0,
+        };
+      } else if (battleType === 'sparring' && sparringEnemySlot) {
         // Sparring 모드: 상대 슬롯 버전에 따라 v1/v2 디지몬 데이터 사용 (v1에 없으면 v2 시도)
         const id = sparringEnemySlot.selectedDigimon;
         const fromV1 = newDigimonDataVer1[id];
@@ -238,8 +272,8 @@ export default function BattleScreen({
       setBattleResult(result);
       setEnemyData(result.enemy);
       setCurrentLogIndex(0);
-      setUserHits(0);
-      setEnemyHits(0);
+      setUserHits(result.userHits ?? 0);
+      setEnemyHits(result.enemyHits ?? 0);
       setProjectile(null);
       setHitText(null);
       setMissText(null);
@@ -250,7 +284,7 @@ export default function BattleScreen({
       setBattleState("ready");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, realtimeBattleResult]);
 
   // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
@@ -267,10 +301,10 @@ export default function BattleScreen({
   };
 
   const enemyDigimonData = getEnemyDigimonData();
-  const userDigimonData = newDigimonDataVer1[userDigimon.id || userDigimon.name] || userDigimon;
+  const userDigimonData = newDigimonDataVer1[effectiveUserDigimon.id || effectiveUserDigimon.name] || effectiveUserDigimon;
 
   // 속성 정보 가져오기
-  const userAttribute = userDigimonData?.stats?.type || userStats.type || null;
+  const userAttribute = userDigimonData?.stats?.type || effectiveUserStats.type || null;
   // 적 속성: enemyData.attribute (quest), enemyDigimonData.stats.type, 또는 battleResult에서 가져오기
   const enemyAttribute = enemyData?.attribute || enemyDigimonData?.stats?.type || null;
   
@@ -295,7 +329,7 @@ export default function BattleScreen({
   };
 
   // 유저 파워 계산 (battleResult에서 상세 정보 가져오기)
-  const userPower = battleResult?.userPower || userStats.power || userDigimonData?.stats?.basePower || 0;
+  const userPower = battleResult?.userPower || effectiveUserStats.power || userDigimonData?.stats?.basePower || 0;
   const userPowerDetails = battleResult?.userPowerDetails || {
     basePower: userDigimonData?.stats?.basePower || 0,
     strengthBonus: 0,
@@ -558,7 +592,7 @@ export default function BattleScreen({
           <div className="battle-side user-side">
             {/* 플레이어 배지 */}
             <div className="battle-badge badge user">
-              {userSlotName || "USER"}
+              {effectiveUserSlotName || "USER"}
             </div>
             <div
               ref={userDigimonRef}
@@ -567,7 +601,7 @@ export default function BattleScreen({
             >
               <img
                 ref={userDigimonImgRef}
-                src={`${(userDigimon?.spriteBasePath || userDigimonData?.spriteBasePath) || "/images"}/${userDigimon?.spriteBasePath ? (userDigimon?.sprite ?? 0) : (userDigimonData?.sprite ?? userDigimon?.sprite ?? 0)}.png`}
+                src={`${(effectiveUserDigimon?.spriteBasePath || userDigimonData?.spriteBasePath) || "/images"}/${effectiveUserDigimon?.spriteBasePath ? (effectiveUserDigimon?.sprite ?? 0) : (userDigimonData?.sprite ?? effectiveUserDigimon?.sprite ?? 0)}.png`}
                 alt={userDigimonData?.name || "User Digimon"}
                 className={`player-sprite ${projectile?.type === "user" ? "animate-attack-user" : ""}`}
                 style={{
@@ -589,13 +623,13 @@ export default function BattleScreen({
               <p className="font-bold">
                 {(() => {
                   const digimonName = userDigimonData?.name || "User";
-                  if (userDigimonNickname && userDigimonNickname.trim()) {
-                    return userSlotName
-                      ? `${userSlotName}의 ${userDigimonNickname}(${digimonName})`
-                      : `${userDigimonNickname}(${digimonName})`;
+                  if (effectiveUserDigimonNickname && effectiveUserDigimonNickname.trim()) {
+                    return effectiveUserSlotName
+                      ? `${effectiveUserSlotName}의 ${effectiveUserDigimonNickname}(${digimonName})`
+                      : `${effectiveUserDigimonNickname}(${digimonName})`;
                   }
-                  return userSlotName
-                    ? `${userSlotName}의 ${digimonName}`
+                  return effectiveUserSlotName
+                    ? `${effectiveUserSlotName}의 ${digimonName}`
                     : digimonName;
                 })()}
               </p>
@@ -968,7 +1002,7 @@ export default function BattleScreen({
               
               // 공격자 정보
               const attackerName = currentLog.attacker === "user" 
-                ? (userSlotName ? `${userSlotName}의 ${userDigimonNickname || userDigimon.name || "내"}` : "내")
+                ? (effectiveUserSlotName ? `${effectiveUserSlotName}의 ${effectiveUserDigimonNickname || effectiveUserDigimon.name || "내"}` : "내")
                 : (enemyData?.tamerName || enemyData?.trainerName || enemyData?.name || "상대");
               const attackLabel = currentLog.attacker === "user" ? "내 공격" : "상대 공격";
               
