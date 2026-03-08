@@ -28,7 +28,7 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname }) {
+export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname, slotName: slotNameProp }) {
   // 배경 스크롤 방지
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -91,7 +91,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       if (selectedDigimon && digimonStats) {
         digimonName = selectedDigimon;
         digimonStatsData = digimonStats;
-        slotName = localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`;
+        slotName = slotNameProp ?? `슬롯${currentSlotId}`;
         digimonNicknameData = digimonNickname || null;
       }
       
@@ -115,7 +115,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     } else {
       setCurrentDigimonInfo(null);
     }
-  }, [currentSlotId, selectedDigimon, digimonStats, digimonNickname]);
+  }, [currentSlotId, selectedDigimon, digimonStats, digimonNickname, slotNameProp]);
 
   // 테이머명 로드
   useEffect(() => {
@@ -511,32 +511,11 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
           });
         }
       } else {
-        // localStorage 모드 - 현재 슬롯만
-        if (!currentSlotId) {
-          alert("현재 슬롯 정보를 찾을 수 없습니다.");
-          setLoading(false);
-          return;
-        }
-        
-        const digimonName = localStorage.getItem(`slot${currentSlotId}_selectedDigimon`);
-        if (digimonName && digimonName !== "Digitama") {
-          const statsJson = localStorage.getItem(`slot${currentSlotId}_digimonStats`);
-          const digimonStats = statsJson ? JSON.parse(statsJson) : {};
-          
-          // 이미 등록된 슬롯은 제외
-          const isRegistered = currentMyEntries.some(entry => 
-            entry.digimonSnapshot?.slotId === currentSlotId
-          );
-          
-          if (!isRegistered) {
-            slots.push({
-              id: currentSlotId,
-              slotName: localStorage.getItem(`slot${currentSlotId}_slotName`) || `슬롯${currentSlotId}`,
-              selectedDigimon: digimonName,
-              digimonStats,
-            });
-          }
-        }
+        // Firebase 로그인 필수: 비로그인 시 슬롯 없음 (SelectScreen/Game에서 이미 리다이렉트하므로 정상 흐름에서는 도달하지 않음)
+        setAvailableSlots([]);
+        setShowSlotSelection(true);
+        setLoading(false);
+        return;
       }
       
       setAvailableSlots(slots);

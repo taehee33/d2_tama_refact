@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
   // 인증 상태 변경 감지
   useEffect(() => {
     if (!isFirebaseAvailable()) {
-      // Firebase가 없으면 로딩 완료 처리 (localStorage 모드)
+      // Firebase가 없으면 로딩 완료 처리
       setLoading(false);
       return;
     }
