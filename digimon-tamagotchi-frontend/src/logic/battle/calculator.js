@@ -186,6 +186,115 @@ export function simulateBattle(userDigimon, userStats, enemyDigimon, enemyStats,
 }
 
 /**
+ * 시드 기반 의사난수 (실시간 PvP 동기화용)
+ * @param {number} seed - 시드 값
+ * @returns {number} 0 이상 1 미만
+ */
+function seededRandom(seed) {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+/**
+ * 1라운드만 시뮬레이션 (실시간 배틀용, 시드로 동기화)
+ * 유저 공격 → 적 공격 순서. 각각 hitRate로 명중 판정.
+ *
+ * @param {number} roundIndex - 라운드 번호 (시드 합성용)
+ * @param {number} userPower - 유저 파워
+ * @param {number} enemyPower - 적 파워
+ * @param {number} userAttrBonus - 유저 속성 보너스
+ * @param {number} enemyAttrBonus - 적 속성 보너스
+ * @param {number} roomSeed - 방 시드
+ * @param {string} userName - 유저 표시명
+ * @param {string} enemyName - 적 표시명
+ * @returns {{ userHit: boolean, enemyHit: boolean, userRoll: number, enemyRoll: number, userHitRate: number, enemyHitRate: number, logEntries: Array }}
+ */
+export function simulateOneRound(
+  roundIndex,
+  userPower,
+  enemyPower,
+  userAttrBonus,
+  enemyAttrBonus,
+  roomSeed,
+  userName = "User",
+  enemyName = "Enemy"
+) {
+  const userHitRate = calculateHitRate(userPower, enemyPower, userAttrBonus);
+  const enemyHitRate = calculateHitRate(enemyPower, userPower, enemyAttrBonus);
+  const userFormula = `Hit Rate: ((${userPower} * 100) / (${userPower} + ${enemyPower})) + ${userAttrBonus} = ${userHitRate.toFixed(2)}%`;
+  const enemyFormula = `Hit Rate: ((${enemyPower} * 100) / (${enemyPower} + ${userPower})) + ${enemyAttrBonus} = ${enemyHitRate.toFixed(2)}%`;
+
+  const seed1 = roomSeed + roundIndex * 1000 + 1;
+  const seed2 = roomSeed + roundIndex * 1000 + 2;
+  const userRoll = seededRandom(seed1) * 100;
+  const enemyRoll = seededRandom(seed2) * 100;
+  const userHit = userRoll < userHitRate;
+  const enemyHit = enemyRoll < enemyHitRate;
+
+  const logEntries = [];
+  if (userHit) {
+    logEntries.push({
+      round: roundIndex,
+      attacker: "user",
+      defender: "enemy",
+      hit: true,
+      roll: userRoll.toFixed(2),
+      hitRate: userHitRate.toFixed(2),
+      formula: userFormula,
+      comparison: `Hit Rate(${userName}) ${userHitRate.toFixed(2)} > Roll(${userName}) ${userRoll.toFixed(2)} => HIT!!`,
+      message: `라운드 ${roundIndex}: ${userName} 공격 성공!`,
+    });
+  } else {
+    logEntries.push({
+      round: roundIndex,
+      attacker: "user",
+      defender: "enemy",
+      hit: false,
+      roll: userRoll.toFixed(2),
+      hitRate: userHitRate.toFixed(2),
+      formula: userFormula,
+      comparison: `Hit Rate(${userName}) ${userHitRate.toFixed(2)} <= Roll(${userName}) ${userRoll.toFixed(2)} => MISS...`,
+      message: `라운드 ${roundIndex}: ${userName} 공격 실패`,
+    });
+  }
+  if (enemyHit) {
+    logEntries.push({
+      round: roundIndex,
+      attacker: "enemy",
+      defender: "user",
+      hit: true,
+      roll: enemyRoll.toFixed(2),
+      hitRate: enemyHitRate.toFixed(2),
+      formula: enemyFormula,
+      comparison: `Hit Rate(${enemyName}) ${enemyHitRate.toFixed(2)} > Roll(${enemyName}) ${enemyRoll.toFixed(2)} => HIT!!`,
+      message: `라운드 ${roundIndex}: ${enemyName} 공격 성공!`,
+    });
+  } else {
+    logEntries.push({
+      round: roundIndex,
+      attacker: "enemy",
+      defender: "user",
+      hit: false,
+      roll: enemyRoll.toFixed(2),
+      hitRate: enemyHitRate.toFixed(2),
+      formula: enemyFormula,
+      comparison: `Hit Rate(${enemyName}) ${enemyHitRate.toFixed(2)} <= Roll(${enemyName}) ${enemyRoll.toFixed(2)} => MISS...`,
+      message: `라운드 ${roundIndex}: ${enemyName} 공격 실패`,
+    });
+  }
+
+  return {
+    userHit,
+    enemyHit,
+    userRoll,
+    enemyRoll,
+    userHitRate,
+    enemyHitRate,
+    logEntries,
+  };
+}
+
+/**
  * 부상 확률 계산
  * 매뉴얼: "you have a 20% chance of getting injured when you win, and a 10% chance when you lose."
  * "That 10% chance is increased by 10% for every Protein Overdose you have, for a maximum of 80%."
