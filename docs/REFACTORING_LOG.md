@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-03-08] 덱 배틀: 25초 전 종료·이중 액션·방어 표시 수정
+
+### 작업 유형
+- 🐛 버그 수정 및 UX 개선 (카드 선택 25초 전 종료·이중 round 처리·스코어 요동 방지, 방어 시각 표시)
+
+### 목적 및 영향
+- **목적:** (1) 카드 선택창이 25초 전에 닫히는 원인 완화: 라운드별 resolve 1회만 보장, timeoutMs fallback 25000. (2) 같은 round 메시지 중복 수신 시 스킵(idempotency). (3) 실시간 배틀 sync 시 userHits/enemyHits가 감소하지 않도록 Math.max 적용. (4) 방어 카드 선택 시 "방어" 뱃지, 배틀 로그에서 `log.blocked === true`일 때 스타일(파란 테두리·배경) 및 "(방어)" 문구 표시.
+- **구현 요약:**
+  - **useRealtimeBattle.js:** `roundResolvedRef` 추가, resolve 호출 전 `roundResolvedRef.current` 체크 후 1회만 호출. 라운드 시작 시 `roundResolvedRef.current = false`. `request_choice` 및 게스트 타이머에 `timeoutMs` 검증 후 fallback `DECK_CHOICE_TIMEOUT_MS`. `lastProcessedRoundRef`로 `room.id`+`roundIndex` 기준 동일 round 재처리 스킵. roomId 변경 시 `lastProcessedRoundRef` 초기화.
+  - **BattleScreen.jsx:** 실시간 배틀 sync effect에서 `setUserHits`/`setEnemyHits` 및 battleResult 내 userHits/enemyHits를 `Math.max(prev, uh)` 형태로 갱신. "라운드 N 선택 카드" 블록에서 내/상대 카드가 `defend`일 때 "방어" 문구 표시. 배틀 로그(진행 중·승리 리뷰·패배 리뷰)에서 `log.blocked === true`일 때 `border-l-4 border-blue-500 bg-blue-50` 및 메시지 뒤 "(방어)" 추가.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useRealtimeBattle.js`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-03-08] 덱 배틀 다중 라운드 및 카드별 공격/방어 결과 표시
 
 ### 작업 유형
