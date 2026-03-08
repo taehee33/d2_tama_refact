@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-03-08] 덱 배틀 다중 라운드 및 카드별 공격/방어 결과 표시
+
+### 작업 유형
+- ✨ 동작 변경 (덱 배틀: 1라운드 즉시 종료 → 3히트 선승 다중 라운드, 라운드별 결과 표시 후 다음 라운드 진행)
+
+### 목적 및 영향
+- **목적:** 선택한 카드(공격/방어/강타)에 따라 라운드 결과(누가 공격·방어했는지, 몇 히트인지)를 보여준 뒤 다음 라운드로 넘어가고, 한 쪽이 3히트를 먼저 달성할 때만 최종 승패를 보여주도록 변경.
+- **구현 요약:**
+  - **useRealtimeBattle.js:** 덱 배틀을 `for (let r = 1; ; r++)` 루프로 변경. 매 라운드: request_choice → 양쪽 선택 수집(또는 타임아웃) → resolveDeckRound → round 발행 및 state 반영 → **2.5초 대기** → `uh >= 3 || eh >= 3`이면 winner 확정·result 발행·루프 종료, 아니면 다음 라운드 진행. `resolveDeckBattleWinner` 호출 제거(3선승 시 `uh >= 3 ? 'host' : 'guest'`로 직접 결정).
+  - **BattleScreen.jsx:** 실시간 덱 배틀 "이번 라운드 선택 카드" 제목을 "라운드 N 선택 카드"로 변경해 현재 라운드 번호 표시.
+- **엔진:** resolveCardRound/resolveDeckRound는 기존대로 사용(공격/방어/강타 판정 및 logEntries 메시지 그대로 반영).
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useRealtimeBattle.js`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-03-08] 덱 배틀 엔진 분리 리팩토링
 
 ### 작업 유형

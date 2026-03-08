@@ -57,6 +57,7 @@ export async function getRoom(roomId) {
  * @param {Object} params.hostDigimonSnapshot - createDigimonSnapshot() 결과
  * @param {string} params.hostTamerName
  * @param {number} params.roomSeed - Math.floor(Math.random() * 1e9) 등
+ * @param {string} [params.battleMode='normal'] - 'normal' | 'deck'
  * @returns {Promise<{ id: string }>}
  */
 export async function createRoom({
@@ -65,6 +66,7 @@ export async function createRoom({
   hostDigimonSnapshot,
   hostTamerName,
   roomSeed,
+  battleMode = 'normal',
 }) {
   if (!db) throw new Error('Firestore is not available');
   const ref = collection(db, COLLECTION);
@@ -74,6 +76,7 @@ export async function createRoom({
     hostDigimonSnapshot,
     hostTamerName,
     roomSeed: roomSeed ?? Math.floor(Math.random() * 1e9),
+    battleMode: battleMode === 'deck' ? 'deck' : 'normal',
     status: 'waiting',
     createdAt: serverTimestamp(),
   });

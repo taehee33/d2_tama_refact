@@ -39,6 +39,7 @@ import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
 import JogressOnlineSelectModal from "./JogressOnlineSelectModal";
 import JogressRoomListModal from "./JogressRoomListModal";
 import RealtimeBattleRoomListModal from "./RealtimeBattleRoomListModal";
+import DeckBuildingModal from "./DeckBuildingModal";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
@@ -325,6 +326,10 @@ export default function GameModals({
           onClose={() => toggleModal('battleSelection', false)}
           onQuestStart={handleQuestStart}
           onCommunicationStart={handleCommunicationStart}
+          onOpenDeckBuilding={() => {
+            toggleModal('battleSelection', false);
+            toggleModal('deckBuilding', true);
+          }}
           onOpenBattleLog={() => {
             toggleModal('battleSelection', false);
             toggleModal('battleLog', true);
@@ -638,6 +643,7 @@ export default function GameModals({
           sparringEnemySlot={sparringEnemySlot}
           arenaChallenger={arenaChallenger}
           realtimeBattleResult={gameState.realtimeBattleResult ?? null}
+          realtimeDeckBattle={handlers.realtimeBattle?.deckBattle ?? null}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {
@@ -787,6 +793,18 @@ export default function GameModals({
           onOpenBattleLog={() => toggleModal('battleLog', true)}
           onOpenEncyclopedia={() => toggleModal('encyclopedia', true)}
           onOpenFridge={() => toggleModal('fridge', true)}
+        />
+      )}
+
+      {/* Deck Building Modal (배틀 덱 편집) */}
+      {modals.deckBuilding && (
+        <DeckBuildingModal
+          key={gameState?.slotId ?? 'deck'}
+          onClose={() => toggleModal('deckBuilding', false)}
+          battleDeck={gameState?.battleDeck ?? []}
+          setBattleDeck={gameState?.setBattleDeck}
+          saveBattleDeck={handlers?.saveBattleDeck}
+          slotId={gameState?.slotId ?? null}
         />
       )}
 

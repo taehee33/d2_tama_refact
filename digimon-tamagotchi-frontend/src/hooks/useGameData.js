@@ -9,6 +9,7 @@ import { initializeStats } from "../data/stats";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { DEFAULT_BATTLE_DECK } from "../data/battleCards";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -107,6 +108,7 @@ export function useGameData({
   setSlotDevice,
   setSlotVersion,
   setDigimonNickname,
+  setBattleDeck,
   setIsLightsOn,
   setWakeUntil,
   setDailySleepMistake,
@@ -469,6 +471,13 @@ export function useGameData({
               setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
             }
           }
+          // 배틀 덱 로드 (슬롯 루트 필드 battleDeck)
+          if (setBattleDeck) {
+            const deck = slotData.battleDeck && Array.isArray(slotData.battleDeck)
+              ? slotData.battleDeck
+              : DEFAULT_BATTLE_DECK;
+            setBattleDeck(deck);
+          }
           
           // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
           const dataMap = slotData.version === "Ver.2" ? (adaptedV2 || digimonDataVer1) : (adaptedV1 || digimonDataVer1);
@@ -598,6 +607,9 @@ export function useGameData({
           if (setBackgroundSettings) {
             setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
           }
+          if (setBattleDeck) {
+            setBattleDeck(DEFAULT_BATTLE_DECK);
+          }
         }
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
@@ -688,10 +700,30 @@ export function useGameData({
     [slotId, currentUser, isFirebaseAvailable]
   );
 
+  /**
+   * 배틀 덱을 슬롯 문서에 저장 (루트 필드 battleDeck)
+   * @param {number} targetSlotId - 슬롯 ID
+   * @param {string[]} deck - 카드 ID 배열
+   */
+  const saveBattleDeck = useCallback(
+    async (targetSlotId, deck) => {
+      if (!currentUser || !isFirebaseAvailable || !targetSlotId || !Array.isArray(deck)) return;
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${targetSlotId}`);
+        await updateDoc(slotRef, { battleDeck: deck, updatedAt: new Date() });
+      } catch (error) {
+        console.error("[saveBattleDeck] 오류:", error);
+        throw error;
+      }
+    },
+    [currentUser, isFirebaseAvailable]
+  );
+
   return {
     saveStats,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
+    saveBattleDeck,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
     isLoading,

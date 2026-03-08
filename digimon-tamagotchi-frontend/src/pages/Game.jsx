@@ -151,7 +151,30 @@ function Game(){
     userId: currentUser?.uid ?? null,
     ablyClient: ablyClient ?? null,
   });
-  
+
+  // 실시간 배틀 화면이 열려 있는 동안 훅의 live 상태를 realtimeBattleResult에 반영
+  useEffect(() => {
+    if (!realtimeBattleRoomId || !realtimeBattleResult) return;
+    setRealtimeBattleResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            battleLog: realtimeBattle.battleLog ?? prev.battleLog,
+            userHits: realtimeBattle.userHits ?? prev.userHits,
+            enemyHits: realtimeBattle.enemyHits ?? prev.enemyHits,
+            battleWinner: realtimeBattle.battleWinner ?? prev.battleWinner,
+          }
+        : null
+    );
+  }, [
+    realtimeBattleRoomId,
+    realtimeBattleResult?.room?.id,
+    realtimeBattle.battleLog,
+    realtimeBattle.userHits,
+    realtimeBattle.enemyHits,
+    realtimeBattle.battleWinner,
+  ]);
+
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
@@ -208,6 +231,8 @@ function Game(){
     setSlotVersion,
     digimonNickname,
     setDigimonNickname,
+    battleDeck,
+    setBattleDeck,
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
@@ -309,6 +334,7 @@ function Game(){
     saveStats: setDigimonStatsAndSave,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
     saveBackgroundSettings,
+    saveBattleDeck,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
   } = useGameData({
@@ -323,6 +349,7 @@ function Game(){
     setSlotDevice,
     setSlotVersion,
     setDigimonNickname,
+    setBattleDeck,
     setIsLightsOn,
     setWakeUntil,
     setDailySleepMistake,
@@ -1557,7 +1584,8 @@ async function setSelectedDigimonAndSave(name) {
       toggleModal('realtimeBattleRoomList', false);
       toggleModal('battleScreen', true);
     },
-    currentSlot: slotId != null ? { id: slotId, selectedDigimon, digimonStats, slotName, version: slotVersion, digimonNickname } : null,
+    currentSlot: slotId != null ? { id: slotId, selectedDigimon, digimonStats, slotName, version: slotVersion, digimonNickname, battleDeck: battleDeck ?? [] } : null,
+    saveBattleDeck,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)

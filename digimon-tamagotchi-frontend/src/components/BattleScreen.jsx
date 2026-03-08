@@ -1048,7 +1048,7 @@ export default function BattleScreen({
               const oppName = BATTLE_CARD_BY_ID[oppCardId]?.nameKo ?? '?';
               return (
                 <div className="mb-4">
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 text-center">이번 라운드 선택 카드</div>
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 text-center">라운드 {realtimeDeckBattle.lastRoundIndex} 선택 카드</div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-4 rounded-lg border-2 border-indigo-300 bg-indigo-50 text-center">
                       <div className="text-xs font-bold text-indigo-600 mb-1">내 카드</div>

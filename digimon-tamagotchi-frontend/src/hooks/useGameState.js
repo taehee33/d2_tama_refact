@@ -135,6 +135,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [slotDevice, setSlotDevice] = useState("");
   const [slotVersion, setSlotVersion] = useState("");
   const [digimonNickname, setDigimonNickname] = useState(null);
+  /** 배틀 덱 (카드 ID 배열). 슬롯 로드 시 useGameData에서 설정 */
+  const [battleDeck, setBattleDeck] = useState([]);
   
   // 퀘스트 관련
   const [currentQuestArea, setCurrentQuestArea] = useState(null);
@@ -222,6 +224,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     battleLog: false,
     collection: false,
     backgroundSettings: false,
+    deckBuilding: false,
   });
   
   // ============================================
@@ -415,6 +418,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       extra: false,
       collection: false,
       backgroundSettings: false,
+      deckBuilding: false,
       activityLog: false,
       battleLog: false,
       encyclopedia: false,
@@ -470,6 +474,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setSlotVersion,
       digimonNickname,
       setDigimonNickname,
+      battleDeck,
+      setBattleDeck,
       
       // 퀘스트
       currentQuestArea,

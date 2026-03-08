@@ -19,7 +19,7 @@ export function createDigimonSnapshotForBattle(slot, digimonDataVer1, digimonDat
   const base = calculatePower(stats, digimonData) ?? digimonData?.stats?.basePower ?? 0;
   const calculatedPower = (stats.power != null && stats.power > 0) ? stats.power : base;
 
-  return {
+  const out = {
     digimonId: slot.selectedDigimon,
     digimonName: slot.selectedDigimon,
     digimonNickname: slot.digimonNickname || null,
@@ -37,4 +37,8 @@ export function createDigimonSnapshotForBattle(slot, digimonDataVer1, digimonDat
     slotId: slot.id,
     slotName: slot.slotName,
   };
+  if (slot.battleDeck && Array.isArray(slot.battleDeck)) {
+    out.battleDeck = [...slot.battleDeck];
+  }
+  return out;
 }

@@ -1,8 +1,9 @@
 // src/components/RealtimeBattleRoomListModal.jsx
 // 실시간 배틀: 방 목록(대기 중), 방 만들기, 참가, 방 대기(준비) UI
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createDigimonSnapshotForBattle } from '../utils/battleSnapshotUtils';
+import { DEFAULT_BATTLE_DECK } from '../data/battleCards';
 import { digimonDataVer1 } from '../data/v1/digimons';
 import { digimonDataVer2, V2_SPRITE_BASE } from '../data/v2modkor';
 import { getAchievementsAndMaxSlots } from '../utils/userProfileUtils';
@@ -21,6 +22,21 @@ function roomCreatedAt(room) {
 }
 
 const SPRITE_BASE = (snap) => snap?.spriteBasePath || (snap?.slotVersion === 'Ver.2' ? V2_SPRITE_BASE : '/images');
+
+/** 배틀 준비 중임을 알리는 표시 (렉이 아님) — 점 애니메이션 */
+function PreparingIndicator() {
+  const [dots, setDots] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setDots((d) => (d + 1) % 4), 500);
+    return () => clearInterval(t);
+  }, []);
+  const dotStr = '.'.repeat(dots);
+  return (
+    <p className="text-center text-gray-600">
+      배틀 준비중{dotStr}
+    </p>
+  );
+}
 
 export default function RealtimeBattleRoomListModal({
   onClose,
@@ -50,9 +66,15 @@ export default function RealtimeBattleRoomListModal({
 }) {
   const [waitingRooms, setWaitingRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
-  const [joinSlotModal, setJoinSlotModal] = useState(null); // { roomId, hostTamerName }
+  const [joinSlotModal, setJoinSlotModal] = useState(null); // { roomId, hostTamerName, battleMode }
   const [userSlots, setUserSlots] = useState([]);
   const [creating, setCreating] = useState(false);
+  const battleScreenOpenedForRoomRef = useRef(false);
+
+  // 방이 바뀌면 배틀 화면 오픈 플래그 초기화 (같은 방에서 한 번만 onStartBattle 호출하기 위함)
+  useEffect(() => {
+    battleScreenOpenedForRoomRef.current = false;
+  }, [roomId]);
 
   // 참가 시 슬롯 목록 로드
   useEffect(() => {
@@ -91,31 +113,35 @@ export default function RealtimeBattleRoomListModal({
     return () => { cancelled = true; };
   }, [roomId, getWaitingRooms, userId]);
 
-  // 배틀 시작 시 부모에게 알림 (BattleScreen 열기) — 참가 시 선택한 슬롯 디지몬(mySnapshot) 전달
+  // 배틀 시작 시 부모에게 알림 (BattleScreen 열기) — status fighting 또는 첫 라운드 후 한 번만 호출
   useEffect(() => {
-    if (battleStarted && room && onStartBattle) {
-      const mySnapshot = isHost ? room.hostDigimonSnapshot : room.guestDigimonSnapshot;
-      onStartBattle({
-        room,
-        isHost,
-        battleLog,
-        userHits,
-        enemyHits,
-        battleWinner,
-        mySnapshot: mySnapshot || null,
-      });
-    }
-  }, [battleStarted, room, isHost, battleLog, userHits, enemyHits, battleWinner, onStartBattle]);
+    const shouldOpen = (room?.status === 'fighting' || battleStarted) && room && onStartBattle && !battleScreenOpenedForRoomRef.current;
+    if (!shouldOpen) return;
+    battleScreenOpenedForRoomRef.current = true;
+    const mySnapshot = isHost ? room.hostDigimonSnapshot : room.guestDigimonSnapshot;
+    onStartBattle({
+      room,
+      isHost,
+      battleLog: battleLog || [],
+      userHits: userHits ?? 0,
+      enemyHits: enemyHits ?? 0,
+      battleWinner: battleWinner ?? null,
+      mySnapshot: mySnapshot || null,
+    });
+  }, [room?.status, battleStarted, room, isHost, battleLog, userHits, enemyHits, battleWinner, onStartBattle]);
 
-  const handleCreateRoom = async () => {
+  const handleCreateRoom = async (battleMode = 'normal') => {
     if (!currentSlot || currentSlot.selectedDigimon === 'Digitama' || !userId) {
       alert('배틀에 참가할 수 있는 슬롯을 선택한 뒤 시도해주세요.');
       return;
     }
     setCreating(true);
     try {
-      const snapshot = createDigimonSnapshotForBattle(currentSlot, digimonDataVer1, digimonDataVer2);
-      const id = await createRoom(snapshot, tamerName || '테이머');
+      const slotForSnapshot = battleMode === 'deck'
+        ? { ...currentSlot, battleDeck: (currentSlot.battleDeck && currentSlot.battleDeck.length) ? currentSlot.battleDeck : DEFAULT_BATTLE_DECK }
+        : currentSlot;
+      const snapshot = createDigimonSnapshotForBattle(slotForSnapshot, digimonDataVer1, digimonDataVer2);
+      const id = await createRoom(snapshot, tamerName || '테이머', battleMode);
       setRoomId(id);
     } catch (e) {
       alert(e.message || '방 생성에 실패했습니다.');
@@ -125,13 +151,16 @@ export default function RealtimeBattleRoomListModal({
   };
 
   const handleJoinClick = (r) => {
-    setJoinSlotModal({ roomId: r.id, hostTamerName: r.hostTamerName });
+    setJoinSlotModal({ roomId: r.id, hostTamerName: r.hostTamerName, battleMode: r.battleMode || 'normal' });
   };
 
   const handleJoinConfirm = async (slot) => {
     if (!joinSlotModal || slot.selectedDigimon === 'Digitama') return;
     try {
-      const snapshot = createDigimonSnapshotForBattle(slot, digimonDataVer1, digimonDataVer2);
+      const slotForSnapshot = (joinSlotModal.battleMode === 'deck' && (!slot.battleDeck || !slot.battleDeck.length))
+        ? { ...slot, battleDeck: DEFAULT_BATTLE_DECK }
+        : slot;
+      const snapshot = createDigimonSnapshotForBattle(slotForSnapshot, digimonDataVer1, digimonDataVer2);
       await joinRoom(joinSlotModal.roomId, snapshot, tamerName || '테이머');
       setRoomId(joinSlotModal.roomId);
       setJoinSlotModal(null);
@@ -171,15 +200,26 @@ export default function RealtimeBattleRoomListModal({
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <button
-                type="button"
-                onClick={handleCreateRoom}
-                disabled={!isAblyAvailable || loading || creating || !currentSlot || currentSlot.selectedDigimon === 'Digitama'}
-                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50"
-                title={!isAblyAvailable ? 'Ably 키 설정 후 이용 가능' : undefined}
-              >
-                {creating ? '방 만드는 중…' : '방 만들기'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCreateRoom('normal')}
+                  disabled={!isAblyAvailable || loading || creating || !currentSlot || currentSlot.selectedDigimon === 'Digitama'}
+                  className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50"
+                  title={!isAblyAvailable ? 'Ably 키 설정 후 이용 가능' : undefined}
+                >
+                  {creating ? '방 만드는 중…' : '방 만들기 (일반)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCreateRoom('deck')}
+                  disabled={!isAblyAvailable || loading || creating || !currentSlot || currentSlot.selectedDigimon === 'Digitama'}
+                  className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 disabled:opacity-50"
+                  title={!isAblyAvailable ? 'Ably 키 설정 후 이용 가능' : undefined}
+                >
+                  {creating ? '방 만드는 중…' : '방 만들기 (덱)'}
+                </button>
+              </div>
 
               <h3 className="font-semibold text-gray-700">대기 중인 방</h3>
               {roomsLoading ? (
@@ -199,7 +239,12 @@ export default function RealtimeBattleRoomListModal({
                         </div>
                         <div>
                           <p className="font-medium">{r.hostTamerName || '호스트'}</p>
-                          <p className="text-xs text-gray-500">대기 중</p>
+                          <p className="text-xs text-gray-500">
+                            대기 중
+                            <span className="ml-1 px-1.5 py-0.5 rounded text-xs bg-gray-200">
+                              {r.battleMode === 'deck' ? '덱' : '일반'}
+                            </span>
+                          </p>
                           {r.createdAt && (
                             <p className="text-xs text-gray-400 mt-0.5">만든 시간: {formatTimestamp(roomCreatedAt(r), 'short')}</p>
                           )}
@@ -258,6 +303,11 @@ export default function RealtimeBattleRoomListModal({
                       </>
                     )
                   )}
+                  {room.status === 'ready' && (
+                    <p className={`text-xs font-medium mt-2 ${isHost ? (readySent ? 'text-green-600' : 'text-gray-500') : (opponentReady ? 'text-green-600' : 'text-gray-500')}`}>
+                      {isHost ? (readySent ? '준비완료 ✓' : '대기중') : (opponentReady ? '준비완료 ✓' : '대기중')}
+                    </p>
+                  )}
                 </div>
                 <div className="text-center p-3 bg-gray-50 rounded-lg">
                   <p className="text-xs text-gray-500 mb-1">{isHost ? '상대' : '나'}</p>
@@ -289,6 +339,11 @@ export default function RealtimeBattleRoomListModal({
                       </>
                     )
                   )}
+                  {room.status === 'ready' && (
+                    <p className={`text-xs font-medium mt-2 ${isHost ? (opponentReady ? 'text-green-600' : 'text-gray-500') : (readySent ? 'text-green-600' : 'text-gray-500')}`}>
+                      {isHost ? (opponentReady ? '준비완료 ✓' : '대기중') : (readySent ? '준비완료 ✓' : '대기중')}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -306,13 +361,13 @@ export default function RealtimeBattleRoomListModal({
                     </button>
                   ) : (
                     <p className="text-center text-gray-600">
-                      {opponentReady ? '상대도 준비했습니다. 배틀을 시작합니다…' : '준비 완료. 상대 대기 중…'}
+                      {opponentReady ? '양쪽 준비 완료. 배틀을 시작합니다…' : '상대가 준비할 때까지 기다려 주세요.'}
                     </p>
                   )}
                 </>
               )}
               {room.status === 'fighting' && !battleStarted && (
-                <p className="text-center text-gray-600">배틀 진행 중…</p>
+                <PreparingIndicator />
               )}
             </div>
           </>
