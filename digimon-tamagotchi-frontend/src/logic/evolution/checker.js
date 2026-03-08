@@ -17,13 +17,6 @@
  *   - details: 조건 불만족 상세 정보 배열 (CONDITIONS_UNMET 시)
  */
 export function checkEvolution(currentStats, currentDigimonData, currentDigimonName, digimonDataMap = {}) {
-  // 디버깅: 데이터 확인
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[checkEvolution] currentDigimonName:', currentDigimonName);
-    console.log('[checkEvolution] currentDigimonData:', currentDigimonData);
-    console.log('[checkEvolution] evolutionCriteria:', currentDigimonData?.evolutionCriteria);
-  }
-  
   if (!currentDigimonData) {
     return {
       success: false,
@@ -79,20 +72,6 @@ export function checkEvolution(currentStats, currentDigimonData, currentDigimonN
     // Case 1: 단일 조건 그룹 (conditions) - AND Logic
     if (evolutionOption.conditions) {
       isMatch = checkConditions(evolutionOption.conditions, currentStats, missingConditions);
-      
-      // 디버그 로그 (개발 환경에서만)
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[checkEvolution] ${targetName} 체크:`, {
-          conditions: evolutionOption.conditions,
-          currentStats: {
-            careMistakes: currentStats.careMistakes,
-            trainings: currentStats.trainings,
-            overfeeds: currentStats.overfeeds,
-          },
-          isMatch,
-          missingConditions,
-        });
-      }
     }
     // Case 2: 다중 조건 그룹 (conditionGroups) - OR Logic
     else if (evolutionOption.conditionGroups && Array.isArray(evolutionOption.conditionGroups)) {
