@@ -2,9 +2,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { doc, setDoc, updateDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { doc, setDoc, updateDoc, collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { deleteSlotWithSubcollections } from "../utils/firestoreHelpers";
+import { getAchievementsAndMaxSlots, getMaxSlots, ACHIEVEMENT_VER1_MASTER, ACHIEVEMENT_VER2_MASTER } from "../utils/userProfileUtils";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { getTamerName } from "../utils/tamerNameUtils";
@@ -14,8 +15,6 @@ import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
-
-const MAX_SLOTS = 10; // 10개로 늘림
 
 function SelectScreen() {
   const navigate = useNavigate();
@@ -27,6 +26,10 @@ function SelectScreen() {
     slotVersion === "Ver.2" ? digimonDataVer2[digimonId] : digimonDataVer1[digimonId];
   
   const [slots, setSlots] = useState([]);
+  /** Firestore 모드에서 사용자별 최대 슬롯 수 (기본 10, 도감 마스터당 +5 반영) */
+  const [maxSlots, setMaxSlots] = useState(10);
+  /** Firestore 모드에서 도감 마스터 칭호 (ver1_master, ver2_master) — +5 슬롯 안내용 */
+  const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -100,9 +103,13 @@ function SelectScreen() {
           throw new Error("Firestore가 초기화되지 않았습니다.");
         }
         
-        // Firestore: /users/{uid}/slots 컬렉션에서 직접 가져오기
+        // Firestore: 사용자별 maxSlots·칭호(도감 마스터 반영) 조회
+        const { maxSlots: userMaxSlots, achievements: userAchievements } = await getAchievementsAndMaxSlots(currentUser.uid);
+        setMaxSlots(userMaxSlots);
+        setAchievements(userAchievements || []);
         const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
-        const querySnapshot = await getDocs(slotsRef);
+        const q = query(slotsRef, orderBy('createdAt', 'desc'), limit(userMaxSlots));
+        const querySnapshot = await getDocs(q);
         
         const userSlots = querySnapshot.docs.map((doc) => {
           const data = doc.data();
@@ -120,67 +127,6 @@ function SelectScreen() {
         // displayOrder가 없는 슬롯들을 생성일 기준으로 정렬 (최신이 위로)
         const slotsWithoutOrder = userSlots.filter(s => s.displayOrder === undefined);
         const slotsWithOrder = userSlots.filter(s => s.displayOrder !== undefined);
-        
-        // displayOrder가 없는 슬롯들을 생성일 기준 내림차순 정렬 (최신이 위로)
-        slotsWithoutOrder.sort((a, b) => {
-          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return bTime - aTime; // 최신이 위로
-        });
-        
-        // displayOrder가 없는 슬롯들에 순서 부여 (최신이 1부터 시작)
-        // 기존 displayOrder가 있는 슬롯들의 최대값을 찾아서 그 다음부터 시작
-        const maxExistingOrder = slotsWithOrder.length > 0 
-          ? Math.max(...slotsWithOrder.map(s => s.displayOrder))
-          : 0;
-        
-        slotsWithoutOrder.forEach((slot, index) => {
-          slot.displayOrder = maxExistingOrder + index + 1;
-        });
-        
-        // 모든 슬롯을 displayOrder 기준으로 정렬 (1이 가장 위)
-        const allSlots = [...slotsWithOrder, ...slotsWithoutOrder];
-        allSlots.sort((a, b) => a.displayOrder - b.displayOrder);
-        
-        setSlots(allSlots);
-      } else {
-        // localStorage 모드
-        const arr = [];
-        for (let i = 1; i <= MAX_SLOTS; i++) {
-          const digimonName = localStorage.getItem(`slot${i}_selectedDigimon`);
-          if (digimonName) {
-            const slotName = localStorage.getItem(`slot${i}_slotName`) || `슬롯${i}`;
-            const createdAt = localStorage.getItem(`slot${i}_createdAt`) || "";
-            const dev = localStorage.getItem(`slot${i}_device`) || "";
-            const ver = localStorage.getItem(`slot${i}_version`) || "";
-            const displayOrder = localStorage.getItem(`slot${i}_displayOrder`);
-            // digimonStats에서 냉장고 상태 확인
-            const digimonStatsStr = localStorage.getItem(`slot${i}_digimonStats`);
-            let isFrozen = false;
-            if (digimonStatsStr) {
-              try {
-                const digimonStats = JSON.parse(digimonStatsStr);
-                isFrozen = digimonStats.isFrozen || false;
-              } catch (e) {
-                console.error("digimonStats 파싱 오류:", e);
-              }
-            }
-            arr.push({
-              id: i,
-              slotName,
-              selectedDigimon: digimonName,
-              createdAt,
-              device: dev,
-              version: ver,
-              displayOrder: displayOrder ? parseInt(displayOrder) : undefined,
-              isFrozen,
-            });
-          }
-        }
-        
-        // displayOrder가 없는 슬롯들을 생성일 기준으로 정렬 (최신이 위로)
-        const slotsWithoutOrder = arr.filter(s => s.displayOrder === undefined);
-        const slotsWithOrder = arr.filter(s => s.displayOrder !== undefined);
         
         // displayOrder가 없는 슬롯들을 생성일 기준 내림차순 정렬 (최신이 위로)
         slotsWithoutOrder.sort((a, b) => {
@@ -301,10 +247,12 @@ function SelectScreen() {
           throw new Error("Firestore가 초기화되지 않았습니다. Firebase 설정을 확인하세요.");
         }
         
-        // Firestore 모드: /users/{uid}/slots 컬렉션에서 빈 슬롯 찾기
+        // Firestore 모드: 사용자별 maxSlots만큼만 조회 후 빈 슬롯 찾기
+        const userMaxSlots = await getMaxSlots(currentUser.uid);
         const slotsRef = collection(db, 'users', currentUser.uid, 'slots');
-        const querySnapshot = await getDocs(slotsRef);
-        console.log("기존 슬롯 개수:", querySnapshot.docs.length);
+        const q = query(slotsRef, orderBy('createdAt', 'desc'), limit(userMaxSlots));
+        const querySnapshot = await getDocs(q);
+        console.log("기존 슬롯 개수:", querySnapshot.docs.length, "최대:", userMaxSlots);
         
         const usedSlots = new Set(
           querySnapshot.docs.map(doc => parseInt(doc.id.replace('slot', '')))
@@ -322,8 +270,8 @@ function SelectScreen() {
           };
         });
         
-        // 빈 슬롯 찾기
-        for (let i = 1; i <= MAX_SLOTS; i++) {
+        // 빈 슬롯 찾기 (1 ~ userMaxSlots)
+        for (let i = 1; i <= userMaxSlots; i++) {
           if (!usedSlots.has(i)) {
             slotId = i;
             break;
@@ -608,11 +556,6 @@ function SelectScreen() {
           });
         });
         await Promise.all(updatePromises);
-      } else {
-        // localStorage 모드: 각 슬롯의 displayOrder 저장
-        updatedSlots.forEach((slot) => {
-          localStorage.setItem(`slot${slot.id}_displayOrder`, slot.displayOrder.toString());
-        });
       }
 
       // 슬롯 목록 다시 로드
@@ -670,8 +613,14 @@ function SelectScreen() {
                       {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
                     </span>
                   )}
-                  <span className="text-sm text-gray-700 whitespace-nowrap truncate max-w-[120px] sm:max-w-none">
-                    테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
+                  <span className="text-sm text-gray-700 whitespace-nowrap truncate max-w-[120px] sm:max-w-none flex items-center gap-1 flex-wrap">
+                    <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+                    {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
+                    )}
+                    {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
+                    )}
                   </span>
                   <span className="text-xs text-gray-500">▼</span>
                 </button>
@@ -685,8 +634,14 @@ function SelectScreen() {
                     />
                     <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
                       <div className="px-3 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate">
-                          테이머: {tamerName || currentUser.displayName || currentUser.email}
+                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
+                          <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                          {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
+                          )}
+                          {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {currentUser.email}
@@ -727,7 +682,7 @@ function SelectScreen() {
       )}
 
       <div className="flex justify-between items-center mb-2">
-        <h2 className="font-semibold">슬롯 목록 (현재 {slots.length}개 / 최대 {MAX_SLOTS}개)</h2>
+        <h2 className="font-semibold">슬롯 목록 (현재 {slots.length}개 / 최대 {maxSlots}개)</h2>
         {slots.length > 0 && (
           <button
             onClick={handleOpenOrderModal}
@@ -737,6 +692,14 @@ function SelectScreen() {
           </button>
         )}
       </div>
+      {achievements.length > 0 && (
+        <p className="text-sm text-gray-600 mb-2">
+          도감 완성 보너스: {achievements.includes(ACHIEVEMENT_VER1_MASTER) && "👑Ver.1 마스터 +5 슬롯"}
+          {achievements.includes(ACHIEVEMENT_VER1_MASTER) && achievements.includes(ACHIEVEMENT_VER2_MASTER) && ", "}
+          {achievements.includes(ACHIEVEMENT_VER2_MASTER) && "Ver.2 마스터 +5 슬롯"}
+          {(achievements.includes(ACHIEVEMENT_VER1_MASTER) || achievements.includes(ACHIEVEMENT_VER2_MASTER)) && " 적용됨"}
+        </p>
+      )}
       {slots.length === 0 && <p>등록된 다마고치가 없습니다.</p>}
 
       {slots.map((slot) => {
@@ -973,6 +936,7 @@ function SelectScreen() {
           onLogout={handleLogout}
           tamerName={tamerName}
           setTamerName={setTamerName}
+          slotCount={slots.length}
         />
       )}
       

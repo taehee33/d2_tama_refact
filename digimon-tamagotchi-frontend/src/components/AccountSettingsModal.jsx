@@ -7,8 +7,9 @@ import {
   checkNicknameAvailability 
 } from "../utils/tamerNameUtils";
 import { getUserSettings, saveUserSettings, isValidDiscordWebhookUrl } from "../utils/userSettingsUtils";
+import { getAchievementsAndMaxSlots, ACHIEVEMENT_VER1_MASTER, ACHIEVEMENT_VER2_MASTER, BASE_MAX_SLOTS, SLOTS_PER_MASTER } from "../utils/userProfileUtils";
 
-const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, setTamerName: setTamerNameParent }) => {
+const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, setTamerName: setTamerNameParent, slotCount }) => {
   const { currentUser } = useAuth();
   
   // 테이머명 관련 상태
@@ -20,6 +21,10 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
   
   // 모달 모드: 'menu' (메뉴), 'settings' (계정 설정), 'logout' (로그아웃 확인)
   const [modalMode, setModalMode] = useState('menu');
+
+  // 칭호·최대 슬롯 (도감 마스터 반영, 기본 10개)
+  const [achievements, setAchievements] = useState([]);
+  const [maxSlots, setMaxSlots] = useState(10);
 
   // Discord·알림 설정 상태
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
@@ -43,16 +48,21 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
     loadTamerName();
   }, [currentUser]);
 
-  // Discord·알림 설정 로드 (계정 설정 화면 진입 시)
+  // Discord·알림 설정 및 칭호·최대 슬롯 로드 (계정 설정 화면 진입 시)
   useEffect(() => {
     const loadUserSettings = async () => {
       if (currentUser && modalMode === "settings") {
         try {
-          const { discordWebhookUrl: url, isNotificationEnabled: enabled } = await getUserSettings(currentUser.uid);
-          setDiscordWebhookUrl(url || "");
-          setIsNotificationEnabled(enabled);
+          const [settings, profile] = await Promise.all([
+            getUserSettings(currentUser.uid),
+            getAchievementsAndMaxSlots(currentUser.uid),
+          ]);
+          setDiscordWebhookUrl(settings.discordWebhookUrl || "");
+          setIsNotificationEnabled(settings.isNotificationEnabled);
+          setAchievements(profile.achievements || []);
+          setMaxSlots(profile.maxSlots ?? 10);
         } catch (error) {
-          console.error("Discord 설정 로드 오류:", error);
+          console.error("계정 설정 로드 오류:", error);
         }
       }
     };
@@ -278,6 +288,34 @@ const AccountSettingsModal = ({ onClose, onLogout, tamerName: currentTamerName, 
                   </div>
                   <p className="text-xs text-gray-500">
                     현재 테이머명: <span className="font-semibold">{tamerName}</span>
+                  </p>
+                  {achievements.length > 0 && (
+                    <p className="text-xs text-gray-600 mt-1 flex flex-wrap items-center gap-1">
+                      <span>칭호:</span>
+                      {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                        <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-medium">
+                          👑 Ver.1
+                        </span>
+                      )}
+                      {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                        <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs font-medium">
+                          👑 Ver.2
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {typeof slotCount === "number"
+                      ? `슬롯: ${slotCount}개 / 최대 ${maxSlots}개`
+                      : `최대 슬롯: ${maxSlots}개`}
+                    {achievements.length > 0 && (
+                      <span className="block mt-0.5 text-gray-600">
+                        (기본 {BASE_MAX_SLOTS}개
+                        {achievements.includes(ACHIEVEMENT_VER1_MASTER) && ` + Ver.1 ${SLOTS_PER_MASTER}개`}
+                        {achievements.includes(ACHIEVEMENT_VER2_MASTER) && ` + Ver.2 ${SLOTS_PER_MASTER}개`}
+                        )
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

@@ -21,6 +21,7 @@ import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
 import { getTamerName } from "../utils/tamerNameUtils";
+import { getAchievementsAndMaxSlots, ACHIEVEMENT_VER1_MASTER, ACHIEVEMENT_VER2_MASTER } from "../utils/userProfileUtils";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
@@ -136,6 +137,8 @@ function Game(){
   
   // 테이머명 상태
   const [tamerName, setTamerName] = useState("");
+  // 도감 마스터 칭호 (테이머명 옆 👑 표시용)
+  const [achievements, setAchievements] = useState([]);
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
@@ -159,6 +162,21 @@ function Game(){
     };
     loadTamerName();
   }, [currentUser]);
+
+  // 도감 마스터 칭호 로드 (테이머명 옆 👑 표시용)
+  useEffect(() => {
+    const loadAchievements = async () => {
+      if (currentUser?.uid) {
+        try {
+          const { achievements: list } = await getAchievementsAndMaxSlots(currentUser.uid);
+          setAchievements(list || []);
+        } catch (e) {
+          console.error("칭호 로드 오류:", e);
+        }
+      }
+    };
+    loadAchievements();
+  }, [currentUser?.uid]);
 
   // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
   const {
@@ -1569,8 +1587,14 @@ async function setSelectedDigimonAndSave(name) {
                         {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
                       </span>
                     )}
-                    <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate">
-                      {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
+                    <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate flex items-center gap-1 flex-wrap">
+                      <span className="truncate">{tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+                      {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
+                      )}
+                      {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
+                      )}
                     </span>
                     <span className="text-xs">▼</span>
                   </button>
@@ -1584,8 +1608,14 @@ async function setSelectedDigimonAndSave(name) {
                       />
                       <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] w-max max-w-[min(90vw,280px)] profile-dropdown">
                         <div className="px-3 py-2 border-b border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700 whitespace-nowrap truncate">
-                            테이머: {tamerName || currentUser.displayName || currentUser.email}
+                          <p className="text-xs font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
+                            <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                            {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
+                            )}
+                            {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-500 truncate">
                             {currentUser.email}
@@ -1607,6 +1637,18 @@ async function setSelectedDigimonAndSave(name) {
               ) : null}
             </div>
           </div>
+          {/* 모바일: 테이머명 + 칭호 항상 표시 (버튼 클릭 없이) */}
+          {isFirebaseAvailable && currentUser && (
+            <div className="px-3 py-1.5 border-t border-gray-100 flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+              {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
+              )}
+              {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -1652,8 +1694,14 @@ async function setSelectedDigimonAndSave(name) {
                       {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
                     </span>
                   )}
-                  <span className="text-sm text-gray-700">
-                    테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}
+                  <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
+                    <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+                    {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
+                    )}
+                    {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
+                    )}
                   </span>
                   <span className="text-xs text-gray-500">▼</span>
                 </button>
@@ -1667,8 +1715,14 @@ async function setSelectedDigimonAndSave(name) {
                     />
                     <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
                       <div className="px-3 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate">
-                          테이머: {tamerName || currentUser.displayName || currentUser.email}
+                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
+                          <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                          {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
+                          )}
+                          {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-500 truncate">
                           {currentUser.email}

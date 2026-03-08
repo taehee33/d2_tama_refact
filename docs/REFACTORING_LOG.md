@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-03-08] 도감 마스터 칭호 및 슬롯 확장 (도감 완성 시 +5 슬롯)
+
+### 작업 유형
+- ✨ 기능 추가 (achievements, maxSlots, 계정 설정 UI)
+
+### 목적 및 영향
+- **목적:** 버전별 도감을 모두 채우면 칭호(Ver.1 Master, Ver.2 Master) 부여 및 최대 슬롯이 5개씩 증가하도록 구현.
+- **데이터 구조:** Firestore `users/{uid}`에 `achievements: string[]` (예: `["ver1_master", "ver2_master"]`), `maxSlots: number` (기본 10, 마스터당 +5) 저장.
+- **구현 요약:**
+  - **userProfileUtils.js** 신규: `getAchievementsAndMaxSlots(uid)`, `getMaxSlots(uid)`, `updateAchievementsAndMaxSlots(uid, achievements)`, `computeMaxSlotsFromAchievements(achievements)`. 상수: `BASE_MAX_SLOTS = 10` (기존 앱과 동일), `SLOTS_PER_MASTER = 5`, `ACHIEVEMENT_VER1_MASTER`, `ACHIEVEMENT_VER2_MASTER`.
+  - **logic/encyclopediaMaster.js** 신규: `getRequiredDigimonIds(v1Map, v2Map, version)`, `isVersionComplete(versionData, requiredIds)` (도감 완성 판정, EncyclopediaModal과 동일 규칙).
+  - **useEncyclopedia.js**: `saveEncyclopedia` 저장 후 `checkAndGrantEncyclopediaMasters(currentUser, merged)` 호출로 도감 완성 시 achievements·maxSlots 자동 갱신.
+  - **SelectScreen.jsx**: Firestore 모드에서 `getMaxSlots(uid)`로 사용자별 최대 슬롯 조회 후 `orderBy('createdAt','desc'), limit(maxSlots)` 적용. 새 슬롯 생성 시 빈 슬롯 탐색도 `maxSlots` 기준. localStorage 모드는 기존대로 `MAX_SLOTS_LOCAL = 10`.
+  - **AccountSettingsModal.jsx**: 계정 설정 진입 시 `getAchievementsAndMaxSlots` 로드 후 칭호 배지([Ver.1 Master], [Ver.2 Master]) 및 "최대 슬롯: N개 (도감 마스터 보너스 반영)" 표시. 선택적 `slotCount` prop으로 "슬롯: N개 / 최대 M개" 표시.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.js` (신규)
+- `digimon-tamagotchi-frontend/src/logic/encyclopediaMaster.js` (신규)
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/AccountSettingsModal.jsx`
+- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-02-22] 계정 설정에 Discord 웹훅 URL·알람 받기 기능 재구현
 
 ### 작업 유형

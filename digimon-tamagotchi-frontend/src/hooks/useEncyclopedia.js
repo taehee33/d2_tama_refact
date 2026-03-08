@@ -3,6 +3,15 @@
 
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { getRequiredDigimonIds, isVersionComplete } from "../logic/encyclopediaMaster";
+import { digimonDataVer1 } from "../data/v1/digimons";
+import { digimonDataVer2 } from "../data/v2modkor";
+import {
+  getAchievementsAndMaxSlots,
+  updateAchievementsAndMaxSlots,
+  ACHIEVEMENT_VER1_MASTER,
+  ACHIEVEMENT_VER2_MASTER,
+} from "../utils/userProfileUtils";
 
 /**
  * 도감 데이터 로드 (계정별 통합)
@@ -30,6 +39,30 @@ export async function loadEncyclopedia(currentUser) {
   }
 
   return { "Ver.1": {} };
+}
+
+/**
+ * 도감 완성 시 마스터 칭호·maxSlots 부여 (저장 후 호출)
+ * @param {Object|null} currentUser - Firebase Auth 사용자
+ * @param {Object} mergedEncyclopedia - 병합된 도감 { "Ver.1": {...}, "Ver.2": {...} }
+ */
+export async function checkAndGrantEncyclopediaMasters(currentUser, mergedEncyclopedia) {
+  if (!currentUser?.uid || !db || !mergedEncyclopedia) return;
+  try {
+    const idsVer1 = getRequiredDigimonIds(digimonDataVer1, digimonDataVer2, "Ver.1");
+    const idsVer2 = getRequiredDigimonIds(digimonDataVer1, digimonDataVer2, "Ver.2");
+    const ver1Complete = isVersionComplete(mergedEncyclopedia["Ver.1"] || {}, idsVer1);
+    const ver2Complete = isVersionComplete(mergedEncyclopedia["Ver.2"] || {}, idsVer2);
+    const { achievements } = await getAchievementsAndMaxSlots(currentUser.uid);
+    const next = [...achievements];
+    if (ver1Complete && !next.includes(ACHIEVEMENT_VER1_MASTER)) next.push(ACHIEVEMENT_VER1_MASTER);
+    if (ver2Complete && !next.includes(ACHIEVEMENT_VER2_MASTER)) next.push(ACHIEVEMENT_VER2_MASTER);
+    if (next.length > achievements.length) {
+      await updateAchievementsAndMaxSlots(currentUser.uid, next);
+    }
+  } catch (err) {
+    console.error("도감 마스터 칭호 부여 오류:", err);
+  }
 }
 
 /**
@@ -65,6 +98,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
         updatedAt: new Date(),
       });
     }
+    await checkAndGrantEncyclopediaMasters(currentUser, merged);
   } catch (error) {
     console.error("도감 저장 오류 (Firebase):", error);
   }

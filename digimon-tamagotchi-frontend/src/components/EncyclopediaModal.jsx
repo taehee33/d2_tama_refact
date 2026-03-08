@@ -79,6 +79,21 @@ export default function EncyclopediaModal({
 
   const versionData = encyclopedia[selectedVersion] || {};
 
+  // 버전별 완성 여부 (탭에 👑 표시용)
+  const listVer1 = getDigimonList("Ver.1");
+  const listVer2 = getDigimonList("Ver.2");
+  const dataVer1 = encyclopedia["Ver.1"] || {};
+  const dataVer2 = encyclopedia["Ver.2"] || {};
+  const isComplete = (list, data) =>
+    list.length > 0 &&
+    list.every((d) => {
+      const key = d.listKey || d.id || d.name;
+      const entry = data[key] || Object.entries(data).find(([k]) => (k || "").toLowerCase() === (key || "").toLowerCase())?.[1];
+      return entry?.isDiscovered === true;
+    });
+  const isVer1Complete = isComplete(listVer1, dataVer1);
+  const isVer2Complete = isComplete(listVer2, dataVer2);
+
   if (loading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -121,7 +136,7 @@ export default function EncyclopediaModal({
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Ver.1
+              {isVer1Complete && "👑 "}Ver.1
             </button>
             <button
               onClick={() => setSelectedVersion("Ver.2")}
@@ -131,7 +146,7 @@ export default function EncyclopediaModal({
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Ver.2
+              {isVer2Complete && "👑 "}Ver.2
             </button>
           </div>
         </div>
@@ -210,10 +225,14 @@ export default function EncyclopediaModal({
           </div>
         </div>
 
-        {/* 통계 */}
+        {/* 통계: 발견 수는 도감 목록(digimonList) 기준으로만 계산해 전체 개수와 불일치 방지 */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
           <div className="text-sm text-gray-600">
-            발견: {Object.values(versionData).filter(d => d.isDiscovered).length} / {digimonList.length}
+            발견: {digimonList.filter((d) => {
+              const key = d.listKey || d.id || d.name;
+              const data = versionData[key] || Object.entries(versionData).find(([k]) => (k || '').toLowerCase() === (key || '').toLowerCase())?.[1];
+              return data?.isDiscovered === true;
+            }).length} / {digimonList.length}
           </div>
           {/* 도감 강제 업데이트: 현재 슬롯의 디지몬을 도감에 반영 */}
           {currentUser && isFirebaseAvailable && (
