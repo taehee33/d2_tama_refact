@@ -4,7 +4,7 @@
 import React from "react";
 import "../styles/Battle.css";
 
-export default function BattleSelectionModal({ onClose, onQuestStart, onCommunicationStart, onOpenBattleLog, onOpenDeckBuilding }) {
+export default function BattleSelectionModal({ onClose, onQuestStart, onCommunicationStart, onOpenBattleLog, onOpenDeckBuilding, onDeckVsCpuStart }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{
@@ -34,6 +34,18 @@ export default function BattleSelectionModal({ onClose, onQuestStart, onCommunic
           >
             🖥️ 온라인 배틀
           </button>
+
+          {onDeckVsCpuStart && (
+            <button
+              onClick={() => {
+                onDeckVsCpuStart();
+                onClose();
+              }}
+              className="battle-mode-button px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors"
+            >
+              🃏 덱 배틀 (vs CPU)
+            </button>
+          )}
 
           {onOpenDeckBuilding && (
             <button

@@ -28,6 +28,7 @@ export default function BattleScreen({
   arenaChallenger,
   realtimeBattleResult,
   realtimeDeckBattle,
+  deckVsCpuState,
   onBattleComplete,
   onQuestClear,
   onClose,
@@ -49,8 +50,15 @@ export default function BattleScreen({
   const [selectedCardIndexForCurrentRound, setSelectedCardIndexForCurrentRound] = useState(null);
   /** 덱 배틀: 확인 버튼으로 선택을 전송했는지 (중복 전송 방지) */
   const [choiceSentForCurrentRound, setChoiceSentForCurrentRound] = useState(false);
+  /** 덱 배틀: 이번 라운드 로그만 재생할 때 사용하는 인덱스 */
+  const [deckBattleRoundLogIndex, setDeckBattleRoundLogIndex] = useState(0);
+  /** 덱 배틀: 드로우 애니메이션 재생 중 */
+  const [isDrawAnimating, setIsDrawAnimating] = useState(false);
+  const prevDeckHandLengthRef = useRef(0);
+  /** 덱 배틀: 다음 로그로 넘기는 setTimeout ID (cleanup에서 clear하지 않아 재실행 시 타이머가 취소되지 않도록) */
+  const deckBattleAdvanceTimerRef = useRef(null);
   // Start를 누르기 전까지는 상대방 정보를 숨김
-  const hideEnemyInfo = !hasRoundStarted;
+  const hideEnemyInfo = battleType === 'deckVsCpu' ? false : !hasRoundStarted;
 
   // 덱 배틀: 제한시간 초 단위 갱신
   useEffect(() => {
@@ -69,12 +77,15 @@ export default function BattleScreen({
 
   // 덱 배틀: 라운드가 끝나면 선택 카드·전송 완료 표시 초기화
   useEffect(() => {
-    if (battleType !== 'realtime' || !realtimeDeckBattle) return;
-    if (realtimeDeckBattle.pendingChoiceRoundIndex == null) {
+    if (battleType === 'realtime' && realtimeDeckBattle?.pendingChoiceRoundIndex == null) {
       setSelectedCardIndexForCurrentRound(null);
       setChoiceSentForCurrentRound(false);
     }
-  }, [battleType, realtimeDeckBattle?.pendingChoiceRoundIndex, realtimeDeckBattle]);
+    if (battleType === 'deckVsCpu' && deckVsCpuState && deckVsCpuState.phase !== 'choice') {
+      setSelectedCardIndexForCurrentRound(null);
+      setChoiceSentForCurrentRound(false);
+    }
+  }, [battleType, realtimeDeckBattle?.pendingChoiceRoundIndex, realtimeDeckBattle, deckVsCpuState]);
 
   // 발사체 및 이펙트 상태
   const [projectile, setProjectile] = useState(null); // { type: "user" | "enemy", sprite: number }
@@ -106,6 +117,16 @@ export default function BattleScreen({
     };
   }, []);
 
+  // 덱 배틀: 언마운트 시 advance 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (deckBattleAdvanceTimerRef.current) {
+        clearTimeout(deckBattleAdvanceTimerRef.current);
+        deckBattleAdvanceTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // 배틀 시작 시 적 데이터 가져오기 및 배틀 실행
   // roundIndex가 변경되면 새로운 배틀 시작
   useEffect(() => {
@@ -115,6 +136,27 @@ export default function BattleScreen({
 
   useEffect(() => {
     if (battleState === "loading") {
+      // 덱 배틀 vs CPU: 로컬 상태만 사용, 별도 시뮬레이션 없음
+      if (battleType === 'deckVsCpu' && deckVsCpuState) {
+        const enemy = deckVsCpuState.enemyData;
+        setBattleResult({
+          win: null,
+          logs: [],
+          enemy,
+          isAreaClear: false,
+          reward: null,
+          userHits: deckVsCpuState.userHits,
+          enemyHits: deckVsCpuState.enemyHits,
+        });
+        setEnemyData(enemy);
+        setUserHits(deckVsCpuState.userHits);
+        setEnemyHits(deckVsCpuState.enemyHits);
+        setShowReadyModal(false);
+        setHasRoundStarted(true);
+        setBattleState('playing');
+        setCurrentLogIndex(0);
+        return;
+      }
       // 실시간 배틀 진행 중(결과 미도착): playQuestRound/simulateBattle 실행 금지, 빈 상태로 ready만 설정
       if (battleType === 'realtime' && !realtimeBattleResult) {
         setBattleResult(null);
@@ -337,7 +379,18 @@ export default function BattleScreen({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, realtimeBattleResult]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, realtimeBattleResult, deckVsCpuState]);
+
+  // 덱 배틀 vs CPU: 히트/결과 동기화 및 종료 시 화면 전환
+  useEffect(() => {
+    if (battleType !== 'deckVsCpu' || !deckVsCpuState) return;
+    setUserHits(deckVsCpuState.userHits);
+    setEnemyHits(deckVsCpuState.enemyHits);
+    setBattleResult((prev) => (prev ? { ...prev, userHits: deckVsCpuState.userHits, enemyHits: deckVsCpuState.enemyHits } : prev));
+    if (deckVsCpuState.battleFinished && deckVsCpuState.battleWinner) {
+      setBattleState(deckVsCpuState.battleWinner === 'user' ? 'victory' : 'result');
+    }
+  }, [battleType, deckVsCpuState?.userHits, deckVsCpuState?.enemyHits, deckVsCpuState?.battleFinished, deckVsCpuState?.battleWinner]);
 
   // 실시간 배틀: realtimeBattleResult 갱신 시 로그/히트 반영, battleWinner 시 결과 화면 전환 (스코어 역전 방지: 히트 수는 감소하지 않게)
   useEffect(() => {
@@ -425,12 +478,111 @@ export default function BattleScreen({
   // 퀘스트 클리어 여부 확인
   const isQuestCleared = battleResult?.isAreaClear || false;
 
-  // 로그 재생 애니메이션 (1.5~2초 간격)
+  const deckBattleRoundLogs = realtimeDeckBattle?.lastRoundLogEntries ?? deckVsCpuState?.roundLogEntries ?? [];
+  const isDeckBattleReplay = (battleType === 'realtime' && realtimeDeckBattle) || (battleType === 'deckVsCpu' && deckVsCpuState);
+  const isDeckBattleLayout = (battleType === 'realtime' && realtimeDeckBattle) || (battleType === 'deckVsCpu' && deckVsCpuState);
+  const deckBattleHand = realtimeDeckBattle?.hand ?? deckVsCpuState?.hand ?? [];
+  const deckBattleUsedPile = realtimeDeckBattle?.usedPile ?? realtimeDeckBattle?.usedCardIds ?? deckVsCpuState?.usedPile ?? [];
+  const deckBattleDeckLength = realtimeDeckBattle?.deckLength ?? realtimeDeckBattle?.deck?.length ?? deckVsCpuState?.deckLength ?? deckVsCpuState?.deck?.length ?? 0;
+  const deckBattleRoundIndex = realtimeDeckBattle?.pendingChoiceRoundIndex ?? deckVsCpuState?.round ?? null;
+  const canChooseCard = (battleType === 'realtime' && realtimeDeckBattle?.pendingChoiceRoundIndex != null && deckBattleHand.length > 0) || (battleType === 'deckVsCpu' && deckVsCpuState?.phase === 'choice' && deckBattleHand.length > 0);
+  const sendDeckChoice = realtimeDeckBattle?.sendChoice ?? deckVsCpuState?.sendChoice;
+
+  // 덱 배틀: 손패가 늘어나면 드로우 애니메이션 (라운드 1: 3→4, 이후 라운드: +1)
   useEffect(() => {
-    // hasRoundStarted가 false이면 애니메이션 재생하지 않음
-    if (!hasRoundStarted) return;
-    
-    if (battleState === "playing" && battleResult && battleResult.logs) {
+    if (!isDeckBattleLayout || !deckBattleHand.length) return;
+    const len = deckBattleHand.length;
+    if (len > prevDeckHandLengthRef.current) {
+      setIsDrawAnimating(true);
+      const t = setTimeout(() => {
+        setIsDrawAnimating(false);
+        prevDeckHandLengthRef.current = len;
+      }, 520);
+      return () => clearTimeout(t);
+    }
+    prevDeckHandLengthRef.current = len;
+  }, [isDeckBattleLayout, deckBattleHand.length]);
+
+  // 덱 배틀: 이번 라운드 로그가 바뀌면 재생 인덱스 리셋 (기존 advance 타이머는 취소)
+  useEffect(() => {
+    if (!isDeckBattleReplay) return;
+    if (deckBattleAdvanceTimerRef.current) {
+      clearTimeout(deckBattleAdvanceTimerRef.current);
+      deckBattleAdvanceTimerRef.current = null;
+    }
+    setDeckBattleRoundLogIndex(0);
+  }, [isDeckBattleReplay, battleType, realtimeDeckBattle?.lastRoundIndex, deckVsCpuState?.round]);
+
+  const deckVsCpuRoundAnimDoneRef = useRef(false);
+  // 덱 배틀 vs CPU: 이번 라운드 재생이 끝나면 onRoundAnimDone 한 번만 호출
+  useEffect(() => {
+    if (battleType !== 'deckVsCpu' || !deckVsCpuState?.onRoundAnimDone || deckBattleRoundLogs.length === 0) return;
+    if (deckBattleRoundLogIndex < deckBattleRoundLogs.length) {
+      deckVsCpuRoundAnimDoneRef.current = false;
+      return;
+    }
+    if (deckVsCpuRoundAnimDoneRef.current) return;
+    deckVsCpuRoundAnimDoneRef.current = true;
+    const t = setTimeout(() => {
+      deckVsCpuState.onRoundAnimDone();
+    }, 800);
+    return () => clearTimeout(t);
+  }, [battleType, deckVsCpuState, deckBattleRoundLogs.length, deckBattleRoundLogIndex]);
+
+  // 로그 재생 애니메이션 (1.5~2초 간격). 덱 배틀일 때는 이번 라운드 로그만 재생하는 별도 effect 사용
+  useEffect(() => {
+    // hasRoundStarted가 false이면 애니메이션 재생하지 않음 (덱 배틀 vs CPU는 항상 표시)
+    if (!hasRoundStarted && battleType !== 'deckVsCpu') return;
+
+    if (isDeckBattleReplay && battleState === "playing" && deckBattleRoundLogs.length > 0 && deckBattleRoundLogIndex < deckBattleRoundLogs.length) {
+      const log = deckBattleRoundLogs[deckBattleRoundLogIndex];
+      if (log.attacker === "user") {
+        const attackSprite = userDigimonData?.stats?.attackSprite || userDigimonData?.sprite || 0;
+        setProjectile({ type: "user", sprite: attackSprite });
+      } else {
+        const enemyV1Data = newDigimonDataVer1[enemyData?.digimonId || enemyData?.name];
+        const attackSprite = enemyV1Data?.stats?.attackSprite ?? enemyV1Data?.sprite ?? enemyDigimonData?.stats?.attackSprite ?? enemyDigimonData?.sprite ?? 0;
+        setProjectile({ type: "enemy", sprite: attackSprite });
+      }
+      const projectileDuration = 800;
+      setTimeout(() => {
+        setProjectile(null);
+        if (log.hit) {
+          if (log.attacker === "user") {
+            setHitText({ target: "enemy" });
+            setTimeout(() => setHitText(null), 1000);
+          } else {
+            setHitText({ target: "user" });
+            setTimeout(() => setHitText(null), 1000);
+          }
+        } else {
+          if (log.attacker === "user") {
+            setMissText({ target: "enemy" });
+            if (enemyDigimonRef.current) {
+              enemyDigimonRef.current.classList.add("dodging");
+              setTimeout(() => { if (enemyDigimonRef.current) enemyDigimonRef.current.classList.remove("dodging"); }, 500);
+            }
+          } else {
+            setMissText({ target: "user" });
+            if (userDigimonRef.current) {
+              userDigimonRef.current.classList.add("dodge-motion");
+              setTimeout(() => { if (userDigimonRef.current) userDigimonRef.current.classList.remove("dodge-motion"); }, 600);
+            }
+            setTimeout(() => setMissText(null), 1000);
+          }
+        }
+      }, projectileDuration);
+      const delay = 1500 + Math.random() * 500;
+      if (!deckBattleAdvanceTimerRef.current) {
+        deckBattleAdvanceTimerRef.current = setTimeout(() => {
+          deckBattleAdvanceTimerRef.current = null;
+          setDeckBattleRoundLogIndex(prev => prev + 1);
+        }, delay);
+      }
+      return () => { /* advance 타이머는 clear하지 않음 (battleResult 등으로 effect 재실행 시 취소되면 무한 공격 발생) */ };
+    }
+
+    if (!isDeckBattleReplay && battleState === "playing" && battleResult && battleResult.logs) {
       if (currentLogIndex < battleResult.logs.length) {
         const log = battleResult.logs[currentLogIndex];
         
@@ -521,7 +673,7 @@ export default function BattleScreen({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, currentLogIndex, battleResult, userDigimonData, enemyDigimonData, hasRoundStarted]);
+  }, [battleState, currentLogIndex, battleResult, userDigimonData, enemyDigimonData, hasRoundStarted, isDeckBattleReplay, deckBattleRoundLogs, deckBattleRoundLogIndex]);
 
   // 다음 라운드 진행
   const handleNextBattle = () => {
@@ -609,93 +761,8 @@ export default function BattleScreen({
     );
   }
 
-  const showDeckChoice = battleType === 'realtime' && realtimeDeckBattle?.pendingChoiceRoundIndex != null && (realtimeDeckBattle.remainingCards?.length ?? 0) > 0;
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
-      {/* 덱 배틀: 카드 선택 (제한시간 내 미선택 시 자동 랜덤) */}
-      {showDeckChoice && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-center mb-2">
-              라운드 {realtimeDeckBattle.pendingChoiceRoundIndex} — 카드 선택
-            </h3>
-            <p className="text-center text-gray-600 mb-2">
-              {deckChoiceRemainingSec != null && deckChoiceRemainingSec > 0
-                ? `${deckChoiceRemainingSec}초 안에 선택하세요 (미선택 시 자동 선택)`
-                : '선택 중…'}
-            </p>
-            {realtimeDeckBattle.opponentChoiceReceived && (
-              <p className="text-center text-green-600 font-medium mb-4">상대방 선택 완료</p>
-            )}
-
-            {/* 사용된 카드 (이미 쓴 카드) */}
-            {(realtimeDeckBattle.usedCardIds?.length ?? 0) > 0 && (
-              <div className="mb-4">
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">사용된 카드</div>
-                <div className="flex flex-wrap gap-2">
-                  {realtimeDeckBattle.usedCardIds.map((cardId, idx) => {
-                    const meta = BATTLE_CARD_BY_ID[cardId];
-                    return (
-                      <span
-                        key={`used-${cardId}-${idx}`}
-                        className="inline-flex items-center px-3 py-1.5 rounded-lg bg-gray-200 text-gray-600 text-sm font-medium border border-gray-300"
-                      >
-                        {meta?.nameKo || cardId} <span className="ml-1 text-gray-400">(라운드 {idx + 1})</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 사용 가능 카드 (이번 라운드에서 고를 수 있는 카드) — 같은 종류여도 장수만큼만 표시, 한 장만 선택 표시 */}
-            <div>
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">사용 가능 카드</div>
-              <div className="flex flex-wrap gap-3 justify-center">
-                {(realtimeDeckBattle.remainingCards || []).map((cardId, idx) => {
-                  const meta = BATTLE_CARD_BY_ID[cardId];
-                  const isSelected = idx === selectedCardIndexForCurrentRound;
-                  return (
-                    <button
-                      key={`remaining-${idx}-${cardId}`}
-                      type="button"
-                      onClick={() => setSelectedCardIndexForCurrentRound(idx)}
-                      disabled={choiceSentForCurrentRound}
-                      className={`px-4 py-3 rounded-lg font-medium border-2 transition-colors ${
-                        isSelected
-                          ? 'border-green-500 bg-green-100 text-green-800 ring-2 ring-green-400'
-                          : 'border-indigo-500 bg-indigo-50 text-indigo-800 hover:bg-indigo-200'
-                      } ${choiceSentForCurrentRound ? 'opacity-70 cursor-not-allowed' : ''}`}
-                    >
-                      <span className="block">{meta?.nameKo || cardId}</span>
-                      {isSelected && <span className="block text-xs font-bold text-green-600 mt-1">✓ 선택 카드</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="mt-4 flex justify-center">
-              <button
-                type="button"
-                disabled={selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound}
-                onClick={() => {
-                  if (selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound) return;
-                  const cardId = realtimeDeckBattle.remainingCards[selectedCardIndexForCurrentRound];
-                  if (cardId) {
-                    realtimeDeckBattle.sendChoice(cardId);
-                    setChoiceSentForCurrentRound(true);
-                  }
-                }}
-                className="px-6 py-3 rounded-lg font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 라운드 준비 모달 */}
       {showReadyModal && !hasRoundStarted && (
         <div className="round-ready-modal fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-70">
@@ -737,9 +804,11 @@ export default function BattleScreen({
             {battleType === 'sparring'
               ? `Sparring - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
               : battleType === 'arena'
-              ? `Arena - ${enemyData.tamerName || enemyData.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+              ? `Arena - ${enemyData?.tamerName || enemyData?.trainerName}의 ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
               : battleType === 'realtime'
               ? `실시간 배틀 - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`
+              : battleType === 'deckVsCpu'
+              ? `덱 배틀 vs CPU - ${enemyDigimonData?.name || enemyData?.name || "CPU"}`
               : `Round ${roundIndex + 1} - ${enemyDigimonData?.name || enemyData?.name || "Unknown"}`}
           </h2>
           {enemyData?.isBoss && (
@@ -870,6 +939,20 @@ export default function BattleScreen({
                 />
               ))}
             </div>
+            {/* 덱 배틀: 내가 이번 라운드에 낸 카드 */}
+            {(isDeckBattleLayout && (() => {
+              const myCardId = battleType === 'realtime'
+                ? (realtimeBattleResult?.isHost ? realtimeDeckBattle?.lastRoundHostCardId : realtimeDeckBattle?.lastRoundGuestCardId)
+                : deckVsCpuState?.lastMyCardId;
+              if (!myCardId) return null;
+              const meta = BATTLE_CARD_BY_ID[myCardId];
+              return (
+                <div className="mt-2 px-2 py-1 rounded-lg bg-indigo-100 border border-indigo-300 text-center">
+                  <span className="text-xs font-bold text-indigo-700">낸 카드</span>
+                  <div className="text-sm font-bold text-indigo-900">{meta?.nameKo || myCardId}</div>
+                </div>
+              );
+            })())}
           </div>
 
           {/* 발사체 */}
@@ -1033,39 +1116,141 @@ export default function BattleScreen({
                 />
               ))}
             </div>
+            {/* 덱 배틀: 상대가 이번 라운드에 낸 카드 */}
+            {(isDeckBattleLayout && (() => {
+              const oppCardId = battleType === 'realtime'
+                ? (realtimeBattleResult?.isHost ? realtimeDeckBattle?.lastRoundGuestCardId : realtimeDeckBattle?.lastRoundHostCardId)
+                : deckVsCpuState?.lastCpuCardId;
+              if (!oppCardId) return null;
+              const meta = BATTLE_CARD_BY_ID[oppCardId];
+              return (
+                <div className="mt-2 px-2 py-1 rounded-lg bg-gray-100 border border-gray-300 text-center">
+                  <span className="text-xs font-bold text-gray-600">낸 카드</span>
+                  <div className="text-sm font-bold text-gray-800">{meta?.nameKo || oppCardId}</div>
+                </div>
+              );
+            })())}
           </div>
         </div>
 
-        {/* 배틀 로그 */}
-        {battleState === "playing" && battleResult?.logs && (
-          <div className="battle-log-container mb-4 mt-4 pt-4 border-t border-gray-200">
-            {/* 실시간 덱 배틀: 이번 라운드 선택 카드 — 내 카드 / 상대 카드 두 블록으로 구분 표시 */}
-            {battleType === 'realtime' && realtimeDeckBattle?.lastRoundIndex != null && realtimeDeckBattle.lastRoundHostCardId != null && realtimeDeckBattle.lastRoundGuestCardId != null && (() => {
-              const isHost = realtimeBattleResult?.isHost;
-              const myCardId = isHost ? realtimeDeckBattle.lastRoundHostCardId : realtimeDeckBattle.lastRoundGuestCardId;
-              const oppCardId = isHost ? realtimeDeckBattle.lastRoundGuestCardId : realtimeDeckBattle.lastRoundHostCardId;
-              const myName = BATTLE_CARD_BY_ID[myCardId]?.nameKo ?? '?';
-              const oppName = BATTLE_CARD_BY_ID[oppCardId]?.nameKo ?? '?';
-              return (
-                <div className="mb-4">
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 text-center">라운드 {realtimeDeckBattle.lastRoundIndex} 선택 카드</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-lg border-2 border-indigo-300 bg-indigo-50 text-center">
-                      <div className="text-xs font-bold text-indigo-600 mb-1">내 카드</div>
-                      <div className="text-lg font-bold text-indigo-900">{myName}</div>
-                      {myCardId === 'defend' && <div className="mt-1 text-sm font-semibold text-blue-700">방어</div>}
-                    </div>
-                    <div className="p-4 rounded-lg border-2 border-gray-300 bg-gray-100 text-center">
-                      <div className="text-xs font-bold text-gray-600 mb-1">상대 카드</div>
-                      <div className="text-lg font-bold text-gray-800">{oppName}</div>
-                      {oppCardId === 'defend' && <div className="mt-1 text-sm font-semibold text-blue-700">방어</div>}
-                    </div>
-                  </div>
+        {/* 덱 배틀: 배틀 영역 직하단 — 손패 + 확인 + 덱 + 사용한 카드 (팝업 없이 일체형) */}
+        {isDeckBattleLayout && (
+          <div className="deck-battle-bar border-t border-gray-200 pt-4 pb-2 mt-2 flex flex-col sm:flex-row gap-4 items-stretch relative">
+            {isDrawAnimating && (
+              <div className="deck-draw-card-anim absolute right-4 top-1/2 -translate-y-1/2 px-3 py-2 rounded-lg bg-indigo-100 border-2 border-indigo-400 text-indigo-800 text-sm font-bold shadow-lg animate-deck-draw" aria-hidden>
+                +1
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-gray-700">
+                  {deckVsCpuState?.phase === 'start' ? '시작 전' : deckBattleRoundIndex != null ? `라운드 ${deckBattleRoundIndex}` : '덱 배틀'}
+                </span>
+                {battleType === 'realtime' && realtimeDeckBattle?.choiceTimeoutAt && deckChoiceRemainingSec != null && deckChoiceRemainingSec > 0 && (
+                  <span className="text-xs text-amber-600 font-medium">{deckChoiceRemainingSec}초 안에 선택</span>
+                )}
+                {battleType === 'realtime' && realtimeDeckBattle?.opponentChoiceReceived && (
+                  <span className="text-xs text-green-600 font-medium">상대 선택 완료</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                {deckVsCpuState?.phase === 'start' ? (
+                  <>
+                    <span className="text-xs font-bold text-gray-500 uppercase">손패 3장 — 배틀 시작 시 1장 드로우</span>
+                    {deckBattleHand.map((cardId, idx) => {
+                      const meta = BATTLE_CARD_BY_ID[cardId];
+                      return (
+                        <span key={`pre-${idx}`} className="px-3 py-2 rounded-lg text-sm font-medium border-2 border-slate-300 bg-slate-50 text-slate-700">
+                          {meta?.nameKo || cardId}
+                        </span>
+                      );
+                    })}
+                    {deckVsCpuState.startBattle && (
+                      <button
+                        type="button"
+                        onClick={deckVsCpuState.startBattle}
+                        className="px-4 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700"
+                      >
+                        배틀 시작
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                <span className="text-xs font-bold text-gray-500 uppercase">손패 (1장 선택)</span>
+                {deckBattleHand.map((cardId, idx) => {
+                  const meta = BATTLE_CARD_BY_ID[cardId];
+                  const isSelected = idx === selectedCardIndexForCurrentRound;
+                  return (
+                    <button
+                      key={`hand-${idx}-${cardId}`}
+                      type="button"
+                      onClick={() => canChooseCard && setSelectedCardIndexForCurrentRound(idx)}
+                      disabled={!canChooseCard || choiceSentForCurrentRound}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        isSelected
+                          ? 'border-green-500 bg-green-100 text-green-800 ring-2 ring-green-400'
+                          : 'border-indigo-500 bg-indigo-50 text-indigo-800 hover:bg-indigo-200'
+                      } ${!canChooseCard || choiceSentForCurrentRound ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    >
+                      {meta?.nameKo || cardId}
+                    </button>
+                  );
+                })}
+                {canChooseCard && sendDeckChoice && (
+                  <button
+                    type="button"
+                    disabled={selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound}
+                    onClick={() => {
+                      if (selectedCardIndexForCurrentRound == null || choiceSentForCurrentRound) return;
+                      const cardId = deckBattleHand[selectedCardIndexForCurrentRound];
+                      if (cardId) {
+                        sendDeckChoice(cardId);
+                        setChoiceSentForCurrentRound(true);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    확인
+                  </button>
+                )}
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-shrink-0 flex-row sm:flex-col gap-2 sm:w-32 border-l border-gray-200 pl-4">
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase">덱</div>
+                <div className="flex items-center justify-center h-10 w-14 rounded bg-slate-100 border-2 border-slate-300 text-slate-700 font-bold text-sm">
+                  {deckBattleDeckLength}장
                 </div>
-              );
-            })()}
+              </div>
+              <div>
+                <div className="text-xs font-bold text-gray-500 uppercase">사용한 카드</div>
+                <div className="flex flex-wrap gap-1">
+                  {deckBattleUsedPile.length > 0 ? deckBattleUsedPile.map((cardId, idx) => {
+                    const meta = BATTLE_CARD_BY_ID[cardId];
+                    return (
+                      <span key={`used-${idx}`} className="px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 text-xs">
+                        {meta?.nameKo || cardId}
+                      </span>
+                    );
+                  }) : (
+                    <span className="text-gray-400 text-xs">없음</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 배틀 로그 */}
+        {battleState === "playing" && (battleResult?.logs || (isDeckBattleReplay && deckBattleRoundLogs.length > 0)) && (
+          <div className="battle-log-container mb-4 mt-4 pt-4 border-t border-gray-200">
             {(() => {
-              const currentLog = battleResult.logs[currentLogIndex];
+              const currentLog = isDeckBattleReplay && deckBattleRoundLogs.length > 0
+                ? deckBattleRoundLogs[deckBattleRoundLogIndex]
+                : battleResult?.logs?.[currentLogIndex];
               // 배틀 로그와 동일한 색상 로직 적용
               const logClass = currentLog 
                 ? (currentLog.attacker === "user" 
@@ -1183,8 +1368,11 @@ export default function BattleScreen({
             </div>
             
             {/* 배틀 로직 섹션 */}
-            {battleResult.logs[currentLogIndex] && (() => {
-              const currentLog = battleResult.logs[currentLogIndex];
+            {(() => {
+              const currentLog = isDeckBattleReplay && deckBattleRoundLogs.length > 0
+                ? deckBattleRoundLogs[deckBattleRoundLogIndex]
+                : battleResult?.logs?.[currentLogIndex];
+              if (!currentLog) return null;
               // 배틀 로그와 동일한 색상 로직 적용
               const logClass = currentLog.attacker === "user" 
                 ? (currentLog.hit ? "user-hit" : "user-miss")
@@ -1245,12 +1433,12 @@ export default function BattleScreen({
             {/* 전체 배틀 로그 (스크롤 가능) */}
             <div className="battle-log-history bg-gray-100 p-3 rounded max-h-32 overflow-y-auto">
               <div className="text-xs font-bold mb-1">배틀 로그:</div>
-              {battleResult.logs.slice(0, currentLogIndex + 1).map((log, idx) => {
+              {(isDeckBattleReplay ? deckBattleRoundLogs : (battleResult?.logs ?? [])).slice(0, (isDeckBattleReplay ? deckBattleRoundLogIndex : currentLogIndex) + 1).map((log, idx) => {
                 // 로그 컬러링 클래스 결정
                 const logClass = log.attacker === "user" 
                   ? (log.hit ? "user-hit" : "user-miss")
                   : (log.hit ? "enemy-hit" : "enemy-miss");
-                const isCurrent = idx === currentLogIndex;
+                const isCurrent = idx === (isDeckBattleReplay ? deckBattleRoundLogIndex : currentLogIndex);
                 const isBlocked = log.blocked === true;
                 return (
                   <div key={idx} className={`battle-log-entry text-xs mb-1 ${logClass} ${isCurrent ? 'current-log' : ''} ${isBlocked ? 'border-l-4 border-blue-500 bg-blue-50 pl-2' : ''}`}>

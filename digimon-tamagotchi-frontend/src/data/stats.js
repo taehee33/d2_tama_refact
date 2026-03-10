@@ -1,6 +1,7 @@
 // src/data/stats.js
 import { defaultStats } from "./defaultStatsFile";
 import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
+import { applyEnergyLazyUpdate } from "../logic/stats/stats";
 
 /** 냉장고 구간을 제외한 경과 시간(ms). data/stats 내 applyLazyUpdate 8시간 부상/케어미스 판정용 */
 function getElapsedTimeExcludingFridge(startTime, endTime, frozenAt = null, takeOutAt = null) {
@@ -912,6 +913,11 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   // Sleep 호출 처리 (수면 주기당 1회만)
   // 수면 호출은 실시간으로만 처리 (Lazy Update에서는 처리하지 않음)
   // 이유: 수면 호출은 수면 시간이 시작될 때 한 번만 발생해야 하므로
+
+  // 에너지 회복 처리 (수면 스케줄 + maxEnergy 기준 Lazy Update)
+  if (sleepSchedule && maxEnergy) {
+    updatedStats = applyEnergyLazyUpdate(updatedStats, lastSaved, now, sleepSchedule, maxEnergy);
+  }
 
   // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크
   updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSaved, now);

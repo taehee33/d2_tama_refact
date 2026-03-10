@@ -326,6 +326,7 @@ export default function GameModals({
           onClose={() => toggleModal('battleSelection', false)}
           onQuestStart={handleQuestStart}
           onCommunicationStart={handleCommunicationStart}
+          onDeckVsCpuStart={handlers.onDeckVsCpuStart}
           onOpenDeckBuilding={() => {
             toggleModal('battleSelection', false);
             toggleModal('deckBuilding', true);
@@ -626,7 +627,7 @@ export default function GameModals({
       )}
 
       {/* Battle Screen */}
-      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena' || battleType === 'realtime') && (
+      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena' || battleType === 'realtime' || battleType === 'deckVsCpu') && (
         <BattleScreen
           userDigimon={newDigimonDataVer1[selectedDigimon] || {
             id: selectedDigimon,
@@ -644,6 +645,7 @@ export default function GameModals({
           arenaChallenger={arenaChallenger}
           realtimeBattleResult={gameState.realtimeBattleResult ?? null}
           realtimeDeckBattle={handlers.realtimeBattle?.deckBattle ?? null}
+          deckVsCpuState={data?.deckVsCpuState ?? null}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {

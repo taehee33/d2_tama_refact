@@ -30,6 +30,10 @@ export {
 export {
   getRemainingCards,
   pickRandomFrom,
+  createDeckState,
+  draw,
+  playCardFromHand,
+  pickRandomFromHand,
   resolveDeckRound,
   resolveDeckBattleWinner,
 } from './deckBattleEngine';
