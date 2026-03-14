@@ -14,13 +14,7 @@ import {
 } from '../repositories/RealtimeBattleRoomRepository';
 import { simulateOneRound } from '../logic/battle/calculator';
 import { getAttributeBonus } from '../logic/battle/types';
-import {
-  createDeckState,
-  draw,
-  playCardFromHand,
-  pickRandomFromHand,
-  resolveDeckRound,
-} from '../logic/battle/deckBattleEngine';
+import { getRemainingCards, pickRandomFrom, resolveDeckRound } from '../logic/battle/deckBattleEngine';
 import { DEFAULT_BATTLE_DECK } from '../data/battleCards';
 
 const ABLY_CHANNEL_PREFIX = 'realtime-battle:';
@@ -48,16 +42,13 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
   // 덱 배틀: 카드 선택 대기 상태 (제한시간 표시용)
   const [pendingChoiceRoundIndex, setPendingChoiceRoundIndex] = useState(null);
   const [choiceTimeoutAt, setChoiceTimeoutAt] = useState(null);
-  /** 덱 배틀: 내 덱(미드로우된 카드), 손패, 사용더미 */
-  const [deckBattleDeck, setDeckBattleDeck] = useState([]);
-  const [deckBattleHand, setDeckBattleHand] = useState([]);
-  const [deckBattleUsedPile, setDeckBattleUsedPile] = useState([]);
+  const [deckBattleRemainingCards, setDeckBattleRemainingCards] = useState([]);
   // 덱 배틀: 직전 라운드에서 양쪽이 고른 카드 (배틀 화면에 표시용)
   const [lastRoundIndex, setLastRoundIndex] = useState(null);
   const [lastRoundHostCardId, setLastRoundHostCardId] = useState(null);
   const [lastRoundGuestCardId, setLastRoundGuestCardId] = useState(null);
-  /** 덱 배틀: 이번 라운드 로그만 (1회 액션 재생용) */
-  const [lastRoundLogEntries, setLastRoundLogEntries] = useState([]);
+  /** 덱 배틀: 내가 이번 배틀에서 이미 사용한 카드 ID 목록 (라운드 순) */
+  const [myUsedCardIdsInOrder, setMyUsedCardIdsInOrder] = useState([]);
   /** 덱 배틀: 현재 라운드에서 상대가 choice 메시지를 보냈는지 (상대방 선택 완료 표시용) */
   const [opponentChoiceReceived, setOpponentChoiceReceived] = useState(false);
 
@@ -73,12 +64,9 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
   const roundResolvedRef = useRef(false);
   /** 덱 배틀: 이미 처리한 round 메시지 스킵 (roomId + roundIndex) */
   const lastProcessedRoundRef = useRef({ roomId: null, roundIndex: null });
+  const myUsedCardsRef = useRef({}); // 게스트/호스트 본인 카드 사용 횟수
   const choiceTimeoutTimerRef = useRef(null);
   const guestSentChoiceForRoundRef = useRef(false);
-  /** 덱 배틀: 내 덱 상태(deck/hand/usedPile) — draw/playCardFromHand 반영용 */
-  const deckStateRef = useRef(null);
-  /** 덱 배틀: 게임 시작 시 3+1 드로우 완료 여부 */
-  const deckBattleInitializedRef = useRef(false);
 
   const isHost = room && room.hostUid === userId;
   const battleMode = room?.battleMode || 'normal';
@@ -98,16 +86,13 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     setGuestReady(false);
     setPendingChoiceRoundIndex(null);
     setChoiceTimeoutAt(null);
-    setDeckBattleDeck([]);
-    setDeckBattleHand([]);
-    setDeckBattleUsedPile([]);
+    setDeckBattleRemainingCards([]);
     setLastRoundIndex(null);
     setLastRoundHostCardId(null);
     setLastRoundGuestCardId(null);
-    setLastRoundLogEntries([]);
+    setMyUsedCardIdsInOrder([]);
     setOpponentChoiceReceived(false);
-    deckStateRef.current = null;
-    deckBattleInitializedRef.current = false;
+    myUsedCardsRef.current = {};
   }, [roomId]);
 
   // Firestore 방 구독
@@ -160,31 +145,14 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
         guestSentChoiceForRoundRef.current = false;
         const mySnap = room?.hostUid === userId ? room?.hostDigimonSnapshot : room?.guestDigimonSnapshot;
         const myDeck = mySnap?.battleDeck && mySnap.battleDeck.length ? mySnap.battleDeck : DEFAULT_BATTLE_DECK;
-
-        // 덱 배틀: 손패 기반 — 라운드 1이면 3+1 드로우 초기화, 이후엔 라운드 시작 시 1장 드로우
-        if (roundIdx === 1 && !deckBattleInitializedRef.current) {
-          let state = createDeckState(myDeck);
-          state = draw(state, 3);
-          state = draw(state, 1);
-          deckStateRef.current = state;
-          deckBattleInitializedRef.current = true;
-          setDeckBattleDeck(state.deck);
-          setDeckBattleHand(state.hand);
-          setDeckBattleUsedPile(state.usedPile);
-        } else if (deckBattleInitializedRef.current && deckStateRef.current) {
-          const state = draw(deckStateRef.current, 1);
-          deckStateRef.current = state;
-          setDeckBattleDeck(state.deck);
-          setDeckBattleHand(state.hand);
-          setDeckBattleUsedPile(state.usedPile);
-        }
-
+        setDeckBattleRemainingCards(getRemainingCards(myDeck, myUsedCardsRef.current));
         if (room?.hostUid !== userId) {
           if (choiceTimeoutTimerRef.current) clearTimeout(choiceTimeoutTimerRef.current);
           choiceTimeoutTimerRef.current = setTimeout(() => {
-            const hand = deckStateRef.current?.hand;
-            if (hand && hand.length > 0 && !guestSentChoiceForRoundRef.current && channelRef.current) {
-              const pick = pickRandomFromHand(hand);
+            const remaining = getRemainingCards(myDeck, myUsedCardsRef.current);
+            if (remaining.length > 0 && !guestSentChoiceForRoundRef.current && channelRef.current) {
+              const pick = pickRandomFrom(myDeck, myUsedCardsRef.current);
+              myUsedCardsRef.current[pick] = (myUsedCardsRef.current[pick] || 0) + 1;
               guestSentChoiceForRoundRef.current = true;
               channelRef.current.publish('realtime-battle', { type: 'choice', roundIndex: roundIdx, role: 'guest', cardId: pick });
             }
@@ -237,25 +205,26 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
           setLastRoundHostCardId(hostCardId);
           setLastRoundGuestCardId(guestCardId);
           const myCardThisRound = room?.hostUid === userId ? hostCardId : guestCardId;
-          if (deckStateRef.current) {
-            const nextState = playCardFromHand(deckStateRef.current, myCardThisRound);
-            deckStateRef.current = nextState;
-            setDeckBattleDeck(nextState.deck);
-            setDeckBattleHand(nextState.hand);
-            setDeckBattleUsedPile(nextState.usedPile);
-          }
+          setMyUsedCardIdsInOrder((prev) => [...prev, myCardThisRound]);
+          // 사용된 카드 카운트 갱신 → 다음 라운드 request_choice 시 remainingCards가 올바르게 계산됨
+          myUsedCardsRef.current[myCardThisRound] = (myUsedCardsRef.current[myCardThisRound] || 0) + 1;
         }
-        const isHostSide = room?.hostUid === userId;
-        const transformedRoundLogs = (logEntries || []).map((entry) => {
-          if (isHostSide) return entry;
-          return {
-            ...entry,
-            attacker: entry.attacker === 'user' ? 'enemy' : 'user',
-            defender: entry.defender === 'user' ? 'enemy' : 'user',
-          };
+        setBattleLog((prev) => {
+          const next = [...prev];
+          const isHostSide = room?.hostUid === userId;
+          logEntries.forEach((entry) => {
+            if (isHostSide) {
+              next.push(entry);
+            } else {
+              next.push({
+                ...entry,
+                attacker: entry.attacker === 'user' ? 'enemy' : 'user',
+                defender: entry.defender === 'user' ? 'enemy' : 'user',
+              });
+            }
+          });
+          return next;
         });
-        setLastRoundLogEntries(transformedRoundLogs);
-        setBattleLog((prev) => [...prev, ...transformedRoundLogs]);
         return;
       }
 
@@ -303,35 +272,19 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     let eh = 0;
 
     if (room.battleMode === 'deck') {
+      const hostUsed = {};
+      const guestUsed = {};
       updateRoom(room.id, { status: 'fighting' }).catch(console.error);
 
-      // 덱 배틀: 손패 기반 — 라운드별 드로우 → 선택 → 공개 → 판정 → 사용카드 더미
+      // 덱 배틀: 다중 라운드 (3히트 선승), 라운드별 공격/방어 결과 표시 후 다음 라운드
       (async () => {
         const channel = channelRef.current;
         for (let r = 1; ; r++) {
           roundResolvedRef.current = false;
-
-          // 호스트 덱 상태: 라운드 1이면 3+1 드로우, 이후엔 1장 드로우
-          if (r === 1) {
-            let hostState = createDeckState(hostDeck);
-            hostState = draw(hostState, 3);
-            hostState = draw(hostState, 1);
-            deckStateRef.current = hostState;
-            deckBattleInitializedRef.current = true;
-            setDeckBattleDeck(hostState.deck);
-            setDeckBattleHand(hostState.hand);
-            setDeckBattleUsedPile(hostState.usedPile);
-          } else if (deckStateRef.current) {
-            const hostState = draw(deckStateRef.current, 1);
-            deckStateRef.current = hostState;
-            setDeckBattleDeck(hostState.deck);
-            setDeckBattleHand(hostState.hand);
-            setDeckBattleUsedPile(hostState.usedPile);
-          }
-
           channel?.publish('realtime-battle', { type: 'request_choice', roundIndex: r, timeoutMs: DECK_CHOICE_TIMEOUT_MS });
           setPendingChoiceRoundIndex(r);
           setChoiceTimeoutAt(Date.now() + DECK_CHOICE_TIMEOUT_MS);
+          setDeckBattleRemainingCards(getRemainingCards(hostDeck, hostUsed));
           hostChoiceForRoundRef.current = null;
           guestChoiceForRoundRef.current = null;
           await new Promise((resume) => setTimeout(resume, 500));
@@ -346,14 +299,13 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
               }
             }, DECK_CHOICE_TIMEOUT_MS);
           });
-
-          const hCard = hostChoiceForRoundRef.current ?? (deckStateRef.current?.hand?.length ? pickRandomFromHand(deckStateRef.current.hand) : 'attack');
-          const gCard = guestChoiceForRoundRef.current ?? 'attack';
-
+          const hCard = hostChoiceForRoundRef.current ?? pickRandomFrom(hostDeck, hostUsed);
+          const gCard = guestChoiceForRoundRef.current ?? pickRandomFrom(guestDeck, guestUsed);
+          hostUsed[hCard] = (hostUsed[hCard] || 0) + 1;
+          guestUsed[gCard] = (guestUsed[gCard] || 0) + 1;
           const res = resolveDeckRound(hCard, gCard, hostPower, guestPower, hostAttr, guestAttr, roomSeed, r, hostName, guestName);
           uh += res.userHitsDelta;
           eh += res.enemyHitsDelta;
-
           if (channel) {
             channel.publish('realtime-battle', {
               type: 'round',
@@ -365,21 +317,13 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
               guestCardId: gCard,
             });
           }
-
-          if (deckStateRef.current) {
-            const nextState = playCardFromHand(deckStateRef.current, hCard);
-            deckStateRef.current = nextState;
-            setDeckBattleDeck(nextState.deck);
-            setDeckBattleHand(nextState.hand);
-            setDeckBattleUsedPile(nextState.usedPile);
-          }
-
           setUserHits(uh);
           setEnemyHits(eh);
           setBattleLog((prev) => [...prev, ...(res.logEntries || [])]);
           setBattleStarted(true);
           setPendingChoiceRoundIndex(null);
           setChoiceTimeoutAt(null);
+          // 라운드 결과를 볼 수 있도록 2.5초 대기
           await new Promise((delayResolve) => setTimeout(delayResolve, 2500));
           if (uh >= 3 || eh >= 3) {
             const winner = uh >= 3 ? 'host' : 'guest';
@@ -555,6 +499,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
       }
     } else {
       guestSentChoiceForRoundRef.current = true;
+      myUsedCardsRef.current[cardId] = (myUsedCardsRef.current[cardId] || 0) + 1;
       if (choiceTimeoutTimerRef.current) {
         clearTimeout(choiceTimeoutTimerRef.current);
         choiceTimeoutTimerRef.current = null;
@@ -589,16 +534,12 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     deckBattle: battleMode === 'deck' ? {
       pendingChoiceRoundIndex,
       choiceTimeoutAt,
-      hand: deckBattleHand,
-      deck: deckBattleDeck,
-      usedPile: deckBattleUsedPile,
-      deckLength: deckBattleDeck.length,
+      remainingCards: deckBattleRemainingCards,
       sendChoice: sendDeckChoice,
       lastRoundIndex,
       lastRoundHostCardId,
       lastRoundGuestCardId,
-      lastRoundLogEntries,
-      usedCardIds: deckBattleUsedPile,
+      usedCardIds: myUsedCardIdsInOrder,
       opponentChoiceReceived,
     } : null,
   };

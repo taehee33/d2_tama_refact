@@ -740,23 +740,3 @@
     padding-bottom: 20px; /* 하단 여백 */
   }
 }
-
-/* 덱 배틀: 드로우 애니메이션 (덱 → 손패) */
-@keyframes deck-draw-slide {
-  from {
-    transform: translate(0, -50%) scale(0.9);
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  to {
-    transform: translate(-180px, -50%) scale(1);
-    opacity: 0;
-  }
-}
-
-.animate-deck-draw {
-  animation: deck-draw-slide 0.5s ease-out forwards;
-  pointer-events: none;
-}

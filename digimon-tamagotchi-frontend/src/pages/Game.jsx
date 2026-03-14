@@ -5,8 +5,6 @@ import { updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 import { useAblyContext } from "../contexts/AblyContext";
 import { useRealtimeBattle } from "../hooks/useRealtimeBattle";
-import { useDeckVsCpu } from "../hooks/useDeckVsCpu";
-import { DEFAULT_BATTLE_DECK } from "../data/battleCards";
 
 import ControlPanel from "../components/ControlPanel";
 import GameModals from "../components/GameModals";
@@ -265,13 +263,6 @@ function Game(){
   const digimonDataForSlot = slotVersion === "Ver.2" ? adaptedV2 : adaptedV1;
   const evolutionDataForSlot = slotVersion === "Ver.2" ? digimonDataVer2 : newDigimonDataVer1;
 
-  const myDigimonForDeckVsCpu = digimonDataForSlot[selectedDigimon] || { id: selectedDigimon, name: selectedDigimon, stats: {} };
-  const deckVsCpuState = useDeckVsCpu({
-    myDeck: (battleDeck && battleDeck.length > 0) ? battleDeck : DEFAULT_BATTLE_DECK,
-    myDigimon: myDigimonForDeckVsCpu,
-    myStats: digimonStats,
-  });
-
   const {
     developerMode,
     setDeveloperMode,
@@ -457,22 +448,9 @@ function Game(){
     if (!slotId || !currentUser || !setDigimonStatsAndSave) return;
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        // 탭을 떠날 때 현재 스탯을 한 번 저장
         setDigimonStatsAndSave(latestStatsRef.current).catch((err) =>
           console.warn("[Game] 탭 이탈 시 저장 실패:", err)
         );
-      } else if (document.visibilityState === "visible") {
-        // 탭으로 다시 돌아왔을 때 Lazy Update를 한 번 적용해
-        // 오프라인 동안의 에너지/스탯 변화를 즉시 반영
-        applyLazyUpdateBeforeAction()
-          .then((updated) => {
-            if (updated) {
-              setDigimonStats(updated);
-            }
-          })
-          .catch((err) => {
-            console.warn("[Game] 탭 복귀 시 Lazy Update 실패:", err);
-          });
       }
     };
     const handleBeforeUnload = () => {
@@ -1606,19 +1584,12 @@ async function setSelectedDigimonAndSave(name) {
       toggleModal('realtimeBattleRoomList', false);
       toggleModal('battleScreen', true);
     },
-    onDeckVsCpuStart: () => {
-      setBattleType('deckVsCpu');
-      toggleModal('battleSelection', false);
-      toggleModal('battleScreen', true);
-    },
     currentSlot: slotId != null ? { id: slotId, selectedDigimon, digimonStats, slotName, version: slotVersion, digimonNickname, battleDeck: battleDeck ?? [] } : null,
     saveBattleDeck,
-    deckVsCpuState,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
   const data = {
-    deckVsCpuState,
     newDigimonDataVer1: evolutionDataForSlot,
     digimonDataVer1: digimonDataForSlot,
     digimonDataVer2,
