@@ -26,11 +26,3 @@ export {
   playQuestArea,
 } from './questEngine';
 
-// 덱 배틀 엔진 (순수 규칙·판정, Ably/React 무관)
-export {
-  getRemainingCards,
-  pickRandomFrom,
-  resolveDeckRound,
-  resolveDeckBattleWinner,
-} from './deckBattleEngine';
-

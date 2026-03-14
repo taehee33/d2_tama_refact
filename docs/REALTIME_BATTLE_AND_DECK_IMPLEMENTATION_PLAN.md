@@ -180,8 +180,8 @@
 - [ ] simulateOneRound(시드) 또는 서버 판정
 - [ ] BattleScreen 실시간 모드 (round 메시지로 로그 누적 재생)
 - [ ] 끊김 감지 및 타임아웃/이탈 = 패배 처리
-- [x] `battleCards.js` 카드 정의, 기본 덱
-- [x] 슬롯에 `battleDeck` 저장/로드
-- [x] DeckBuildingModal (덱 편집)
-- [x] resolveCardRound (덱 배틀 판정 함수 구현), 덱 배틀 플로우(실시간/퀘스트 연동은 추후)
+- [ ] `battleCards.js` 카드 정의, 기본 덱
+- [ ] 슬롯에 `battleDeck` 저장/로드
+- [ ] DeckBuildingModal (덱 편집)
+- [ ] resolveCardRound, 덱 배틀 플로우
 - [ ] (선택) 재접속 60초 대기
