@@ -3,8 +3,6 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
 import { updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
-import { useAblyContext } from "../contexts/AblyContext";
-import { useRealtimeBattle } from "../hooks/useRealtimeBattle";
 
 import ControlPanel from "../components/ControlPanel";
 import GameModals from "../components/GameModals";
@@ -141,16 +139,6 @@ function Game(){
   const [tamerName, setTamerName] = useState("");
   // 도감 마스터 칭호 (테이머명 옆 👑 표시용)
   const [achievements, setAchievements] = useState([]);
-  // 실시간 배틀: 방 ID, 배틀 결과(실시간 모드 BattleScreen용)
-  const [realtimeBattleRoomId, setRealtimeBattleRoomId] = useState(null);
-  const [realtimeBattleResult, setRealtimeBattleResult] = useState(null);
-
-  const ablyClient = useAblyContext();
-  const realtimeBattle = useRealtimeBattle({
-    roomId: realtimeBattleRoomId,
-    userId: currentUser?.uid ?? null,
-    ablyClient: ablyClient ?? null,
-  });
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
@@ -366,7 +354,7 @@ function Game(){
     }
   }, [isLoadingSlot, slotId]);
   
-  // backgroundSettings 변경 시에만 Firestore에 저장 (사용자가 배경을 바꿀 때만)
+  // backgroundSettings 변경 시에만 Firebase/localStorage에 저장 (사용자가 배경을 바꿀 때만)
   // ⚠️ saveBackgroundSettings는 useGameData에서 useCallback으로 고정되어 있어, 1초 리렌더 시 참조가 바뀌지 않음.
   //    (이전에는 매 렌더마다 새 함수라 이 effect가 1초마다 실행되며 updatedAt이 1초마다 갱신되는 원인이 됨)
   useEffect(() => {
@@ -399,7 +387,7 @@ function Game(){
     saveSpriteSettings(width, height);
   }, [width, height]);
 
-  // clearedQuestIndex: 슬롯별 퀘스트 클리어 진행은 브라우저 로컬 캐시로 유지. 필요 시 Firestore 슬롯 문서로 이전 가능.
+  // clearedQuestIndex 로컬 스토리지에서 로드
   useEffect(() => {
     const savedClearedQuestIndex = localStorage.getItem(`slot${slotId}_clearedQuestIndex`);
     if (savedClearedQuestIndex !== null) {
@@ -408,6 +396,7 @@ function Game(){
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotId]);
 
+  // clearedQuestIndex 로컬 스토리지에 저장
   useEffect(() => {
     localStorage.setItem(`slot${slotId}_clearedQuestIndex`, clearedQuestIndex.toString());
   }, [clearedQuestIndex, slotId]);
@@ -879,7 +868,6 @@ function Game(){
     setArenaEnemyId,
     setMyArenaEntryId,
     setShowArenaScreen: (value) => toggleModal('arenaScreen', value),
-    setShowRealtimeBattleRoomList: (value) => toggleModal('realtimeBattleRoomList', value),
     currentSeasonId,
     currentQuestArea,
     setCurrentQuestArea,
@@ -1547,17 +1535,6 @@ async function setSelectedDigimonAndSave(name) {
     applyHostJogressStatusFromRoom,
     proceedJogressOnlineAsHost,
     proceedJogressOnlineAsHostForRoom,
-    realtimeBattle,
-    realtimeBattleRoomId,
-    setRealtimeBattleRoomId,
-    realtimeBattleResult,
-    onRealtimeBattleStart: (data) => {
-      setRealtimeBattleResult(data);
-      setBattleType('realtime');
-      toggleModal('realtimeBattleRoomList', false);
-      toggleModal('battleScreen', true);
-    },
-    currentSlot: slotId != null ? { id: slotId, selectedDigimon, digimonStats, slotName, version: slotVersion, digimonNickname } : null,
   };
 
   // data 객체 생성 (GameModals에 전달할 데이터들)
@@ -1572,7 +1549,6 @@ async function setSelectedDigimonAndSave(name) {
     ver1DigimonList,
     initializeStats,
     currentUser,
-    tamerName,
     // 조그레스 파트너 슬롯 모달용 (버전별 디지몬 데이터)
     jogressDigimonDataVer1: newDigimonDataVer1,
     jogressDigimonDataVer2: digimonDataVer2,
@@ -1785,7 +1761,7 @@ async function setSelectedDigimonAndSave(name) {
               </div>
             ) : null}
             {!isFirebaseAvailable && (
-              <span className="text-sm text-gray-500">오프라인</span>
+              <span className="text-sm text-gray-500">localStorage 모드</span>
             )}
           </div>
         </>
@@ -1980,9 +1956,6 @@ async function setSelectedDigimonAndSave(name) {
           gameState={{
             ...gameState,
             isLightsOn,
-            realtimeBattleRoomId,
-            setRealtimeBattleRoomId,
-            realtimeBattleResult,
           }}
           handlers={handlers}
           data={data}

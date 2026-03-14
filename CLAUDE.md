@@ -40,11 +40,23 @@ npm test
 
 ## 아키텍처 개요
 
-### 저장소 아키텍처 (Firebase 전용)
+### 이중 저장소 아키텍처
 
-**슬롯·게임 데이터:** Firebase(Firestore) 전용입니다. Firebase Auth 로그인 필수이며, 슬롯/디지몬 스탯 등은 `users/{uid}/slots/{slotId}` 경로에 저장됩니다. localStorage 기반 오프라인 슬롯 모드는 제거되었습니다.
+애플리케이션은 독립적으로 동작할 수 있는 두 가지 저장소 모드를 지원합니다:
 
-**브라우저 로컬 설정:** 스프라이트 크기, 개발자 모드, 스탯 패널 접기 상태 등 UI·개발자용 설정만 `localStorage`에 저장됩니다. 게임 진행 데이터와 무관하며 기기/브라우저별 선호 설정용입니다.
+**모드 1: Firebase (클라우드 저장소)**
+- Firebase Auth를 통한 구글 인증 필요
+- Firestore의 `users/{uid}/slots/{slotId}` 경로에 데이터 저장
+- 실시간 동기화 기능
+- 프로덕션 모드
+
+**모드 2: localStorage (오프라인 모드)**
+- 인증 불필요
+- 브라우저 기반 저장소만 사용
+- Firebase 없이도 완전히 작동
+- 개발/테스트 모드
+
+**모드 감지:** 앱은 Firebase 사용 가능 여부와 사용자 인증 상태에 따라 자동으로 사용할 모드를 감지합니다. 저장소 계층을 추상화한 리포지토리 패턴을 사용하여 모드 간 원활한 전환이 가능합니다.
 
 ### Lazy Update 알고리즘 (핵심 성능 패턴)
 
@@ -85,7 +97,14 @@ npm test
 
 ### 리포지토리 패턴
 
-슬롯·게임 데이터 접근은 Firestore 전용입니다. `useGameData.js`에서 Firestore를 직접 사용하며, 필요 시 `SlotRepository.js`(Firestore 구현)를 통해 추상화할 수 있습니다. localStorage 기반 슬롯 저장소는 제거되었습니다.
+데이터 접근은 리포지토리를 통해 추상화되어 있습니다:
+
+- **`LocalStorageSlotRepository`** - 브라우저 localStorage 구현
+- **`UserSlotRepository`** - Firestore 구현
+
+두 리포지토리 모두 동일한 인터페이스를 구현합니다: `getSlot()`, `saveSlot()`, `getAllSlots()`, `deleteSlot()`.
+
+이를 통해 비즈니스 로직 변경 없이 어떤 저장소 백엔드든 사용할 수 있습니다.
 
 ### 순수 비즈니스 로직 계층
 
@@ -182,7 +201,7 @@ digimon-tamagotchi-frontend/src/
 1. **순수 로직 업데이트:** `/src/logic/`에서 함수를 추가/수정 (순수 함수로 유지)
 2. **필요시 Hook 추가:** 상태 관리가 필요하면 `/src/hooks/`에서 Hook 생성 또는 업데이트
 3. **UI 컴포넌트 업데이트:** `/src/components/`에서 컴포넌트 수정 또는 생성
-4. **Firebase에서 테스트:** 로그인 후 Firestore 기반으로 기능이 정상 동작하는지 확인
+4. **두 모드 모두 테스트:** Firebase와 localStorage 양쪽에서 기능이 작동하는지 확인
 5. **변경사항 문서화:** 날짜, 설명, 영향받은 파일을 `docs/REFACTORING_LOG.md`에 업데이트
 
 ### 코드 스타일 요구사항 (.cursorrules에서)
@@ -251,7 +270,7 @@ REACT_APP_FIREBASE_MESSAGING_SENDER_ID=xxx
 REACT_APP_FIREBASE_APP_ID=xxx
 ```
 
-**Graceful Degradation:** Firebase가 설정되지 않은 경우 로그인 및 슬롯 사용은 불가하며, 앱은 에러 없이 동작합니다. UI·설정용 localStorage는 계속 사용됩니다.
+**Graceful Degradation:** Firebase가 설정되지 않은 경우, 앱은 자동으로 localStorage 모드로 폴백됩니다. 에러가 발생하지 않습니다.
 
 ## 일반적인 디버깅 절차
 
@@ -265,7 +284,7 @@ REACT_APP_FIREBASE_APP_ID=xxx
 ## 중요한 프로젝트 제약사항
 
 1. **Firestore 쓰기를 위한 실시간 타이머 절대 사용 금지** - 항상 lazy update 패턴 사용
-2. **슬롯·게임 데이터는 Firebase 전용** - UI·개발자 설정만 localStorage 사용
+2. **두 저장소 모드 모두 지원** - 코드는 Firebase와 localStorage 모두에서 작동해야 함
 3. **모든 주요 변경사항 문서화** - REFACTORING_LOG.md 업데이트
 4. **한국어 우선** - 모든 UI 텍스트는 한국어로
 5. **순수 함수** - `/logic/`의 비즈니스 로직은 부작용 없이 유지

@@ -232,7 +232,8 @@ function SelectScreen() {
     console.log("isFirebaseAvailable:", isFirebaseAvailable);
     console.log("currentUser:", currentUser);
     
-    // Firebase 로그인 필수 (비로그인 시 상단 useEffect에서 / 로 리다이렉트됨)
+    // Firebase가 설정되어 있지만 로그인하지 않았으면 localStorage 모드 사용
+    // 로그인하지 않은 경우에도 게임을 시작할 수 있도록 함
 
     try {
       let slotId;

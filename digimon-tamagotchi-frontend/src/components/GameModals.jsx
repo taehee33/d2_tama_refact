@@ -38,7 +38,6 @@ import JogressModeSelectModal from "./JogressModeSelectModal";
 import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
 import JogressOnlineSelectModal from "./JogressOnlineSelectModal";
 import JogressRoomListModal from "./JogressRoomListModal";
-import RealtimeBattleRoomListModal from "./RealtimeBattleRoomListModal";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
@@ -338,45 +337,6 @@ export default function GameModals({
           onClose={() => toggleModal('communication', false)}
           onSparringStart={handleSparringStart}
           onArenaStart={handleArenaStart}
-          onRealtimeBattleStart={() => {
-            toggleModal('communication', false);
-            toggleModal('realtimeBattleRoomList', true);
-          }}
-          ablyAvailable={handlers.realtimeBattle?.isAblyAvailable !== false}
-        />
-      )}
-
-      {/* 실시간 배틀 방 목록/방 대기 모달 */}
-      {modals.realtimeBattleRoomList && handlers.realtimeBattle && (
-        <RealtimeBattleRoomListModal
-          onClose={() => {
-            handlers.realtimeBattle.leaveRoom();
-            gameState.setRealtimeBattleRoomId?.(null);
-            toggleModal('realtimeBattleRoomList', false);
-          }}
-          roomId={gameState.realtimeBattleRoomId ?? null}
-          setRoomId={gameState.setRealtimeBattleRoomId ?? (() => {})}
-          createRoom={handlers.realtimeBattle.createRoom}
-          joinRoom={handlers.realtimeBattle.joinRoom}
-          getWaitingRooms={handlers.realtimeBattle.getWaitingRooms}
-          leaveRoom={handlers.realtimeBattle.leaveRoom}
-          sendReady={handlers.realtimeBattle.sendReady}
-          room={handlers.realtimeBattle.room}
-          isHost={handlers.realtimeBattle.isHost}
-          battleLog={handlers.realtimeBattle.battleLog}
-          userHits={handlers.realtimeBattle.userHits}
-          enemyHits={handlers.realtimeBattle.enemyHits}
-          battleWinner={handlers.realtimeBattle.battleWinner}
-          battleStarted={handlers.realtimeBattle.battleStarted}
-          readySent={handlers.realtimeBattle.readySent}
-          opponentReady={handlers.realtimeBattle.opponentReady}
-          error={handlers.realtimeBattle.error}
-          loading={handlers.realtimeBattle.loading}
-          isAblyAvailable={handlers.realtimeBattle.isAblyAvailable !== false}
-          currentSlot={handlers.currentSlot ?? null}
-          tamerName={data.tamerName ?? data.currentUser?.displayName ?? ''}
-          userId={data.currentUser?.uid ?? null}
-          onStartBattle={handlers.onRealtimeBattleStart}
         />
       )}
 
@@ -594,7 +554,6 @@ export default function GameModals({
           selectedDigimon={selectedDigimon}
           digimonStats={digimonStats}
           digimonNickname={digimonNickname || null}
-          slotName={slotName ?? (slotId != null ? `슬롯${slotId}` : '')}
         />
       )}
 
@@ -621,7 +580,7 @@ export default function GameModals({
       )}
 
       {/* Battle Screen */}
-      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena' || battleType === 'realtime') && (
+      {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
         <BattleScreen
           userDigimon={newDigimonDataVer1[selectedDigimon] || {
             id: selectedDigimon,
@@ -637,21 +596,18 @@ export default function GameModals({
           battleType={battleType}
           sparringEnemySlot={sparringEnemySlot}
           arenaChallenger={arenaChallenger}
-          realtimeBattleResult={gameState.realtimeBattleResult ?? null}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {
             toggleModal('battleScreen', false);
             setCurrentQuestArea(null);
             setCurrentQuestRound(0);
-
+            
+            // Arena 모드일 때는 Arena 화면으로 복귀
             if (battleType === 'arena') {
               toggleModal('arenaScreen', true);
             }
-            if (battleType === 'realtime') {
-              gameState.setRealtimeBattleRoomId?.(null);
-            }
-
+            
             setBattleType(null);
             setSparringEnemySlot(null);
             setArenaChallenger(null);
