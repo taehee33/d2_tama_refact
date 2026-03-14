@@ -60,10 +60,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
   const hostChoiceForRoundRef = useRef(null);
   const guestChoiceForRoundRef = useRef(null);
   const deckChoiceResolveRef = useRef(null);
-  /** 덱 배틀: 같은 라운드에서 resolve가 두 번 호출되지 않도록 (이중 액션 방지) */
-  const roundResolvedRef = useRef(false);
-  /** 덱 배틀: 이미 처리한 round 메시지 스킵 (roomId + roundIndex) */
-  const lastProcessedRoundRef = useRef({ roomId: null, roundIndex: null });
   const myUsedCardsRef = useRef({}); // 게스트/호스트 본인 카드 사용 횟수
   const choiceTimeoutTimerRef = useRef(null);
   const guestSentChoiceForRoundRef = useRef(false);
@@ -75,7 +71,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
   useEffect(() => {
     if (!roomId) return;
     battleStartedForRoomIdRef.current = null;
-    lastProcessedRoundRef.current = { roomId: null, roundIndex: null };
     setBattleStarted(false);
     setBattleLog([]);
     setUserHits(0);
@@ -138,10 +133,9 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
 
       if (type === 'request_choice') {
         const roundIdx = data.roundIndex;
-        const timeoutMs = (data.timeoutMs != null && data.timeoutMs >= 5000) ? data.timeoutMs : DECK_CHOICE_TIMEOUT_MS;
         setOpponentChoiceReceived(false);
         setPendingChoiceRoundIndex(roundIdx);
-        setChoiceTimeoutAt(Date.now() + timeoutMs);
+        setChoiceTimeoutAt(Date.now() + (data.timeoutMs ?? DECK_CHOICE_TIMEOUT_MS));
         guestSentChoiceForRoundRef.current = false;
         const mySnap = room?.hostUid === userId ? room?.hostDigimonSnapshot : room?.guestDigimonSnapshot;
         const myDeck = mySnap?.battleDeck && mySnap.battleDeck.length ? mySnap.battleDeck : DEFAULT_BATTLE_DECK;
@@ -158,7 +152,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
             }
             setPendingChoiceRoundIndex(null);
             setChoiceTimeoutAt(null);
-          }, timeoutMs);
+          }, data.timeoutMs ?? DECK_CHOICE_TIMEOUT_MS);
         }
         return;
       }
@@ -168,9 +162,8 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
         if (!isMyRole) setOpponentChoiceReceived(true);
         if (data.role === 'guest' && room?.hostUid === userId) {
           guestChoiceForRoundRef.current = data.cardId;
-          // 호스트 자신의 선택도 들어온 경우에만 resolve (양쪽 선택 후에만 라운드 진행), 이중 resolve 방지
-          if (hostChoiceForRoundRef.current != null && deckChoiceResolveRef.current && !roundResolvedRef.current) {
-            roundResolvedRef.current = true;
+          // 호스트 자신의 선택도 들어온 경우에만 resolve (양쪽 선택 후에만 라운드 진행)
+          if (hostChoiceForRoundRef.current != null && deckChoiceResolveRef.current) {
             deckChoiceResolveRef.current();
             deckChoiceResolveRef.current = null;
           }
@@ -179,13 +172,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
       }
 
       if (type === 'round') {
-        const { roundIndex, userHit, enemyHit, userHits: uh, enemyHits: eh, logEntries = [], hostCardId, guestCardId } = data;
-        const rid = room?.id;
-        if (rid != null && roundIndex != null && lastProcessedRoundRef.current.roomId === rid && lastProcessedRoundRef.current.roundIndex === roundIndex) {
-          return;
-        }
-        if (rid != null && roundIndex != null) lastProcessedRoundRef.current = { roomId: rid, roundIndex };
-
         battleLoopRef.current = false;
         if (roundTimeoutRef.current) {
           clearTimeout(roundTimeoutRef.current);
@@ -198,6 +184,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
         setPendingChoiceRoundIndex(null);
         setChoiceTimeoutAt(null);
         setBattleStarted(true);
+        const { roundIndex, userHit, enemyHit, userHits: uh, enemyHits: eh, logEntries = [], hostCardId, guestCardId } = data;
         setUserHits(uh);
         setEnemyHits(eh);
         if (roundIndex != null && hostCardId != null && guestCardId != null) {
@@ -280,7 +267,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
       (async () => {
         const channel = channelRef.current;
         for (let r = 1; ; r++) {
-          roundResolvedRef.current = false;
           channel?.publish('realtime-battle', { type: 'request_choice', roundIndex: r, timeoutMs: DECK_CHOICE_TIMEOUT_MS });
           setPendingChoiceRoundIndex(r);
           setChoiceTimeoutAt(Date.now() + DECK_CHOICE_TIMEOUT_MS);
@@ -290,14 +276,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
           await new Promise((resume) => setTimeout(resume, 500));
           await new Promise((resolve) => {
             deckChoiceResolveRef.current = resolve;
-            setTimeout(() => {
-              if (roundResolvedRef.current) return;
-              roundResolvedRef.current = true;
-              if (deckChoiceResolveRef.current) {
-                deckChoiceResolveRef.current();
-                deckChoiceResolveRef.current = null;
-              }
-            }, DECK_CHOICE_TIMEOUT_MS);
+            setTimeout(() => { if (deckChoiceResolveRef.current) deckChoiceResolveRef.current(); }, DECK_CHOICE_TIMEOUT_MS);
           });
           const hCard = hostChoiceForRoundRef.current ?? pickRandomFrom(hostDeck, hostUsed);
           const gCard = guestChoiceForRoundRef.current ?? pickRandomFrom(guestDeck, guestUsed);
@@ -492,8 +471,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     if (role === 'host') {
       hostChoiceForRoundRef.current = cardId;
       ch.publish('realtime-battle', { type: 'choice', roundIndex: pendingChoiceRoundIndex, role: 'host', cardId });
-      if (guestChoiceForRoundRef.current != null && deckChoiceResolveRef.current && !roundResolvedRef.current) {
-        roundResolvedRef.current = true;
+      if (guestChoiceForRoundRef.current != null && deckChoiceResolveRef.current) {
         deckChoiceResolveRef.current();
         deckChoiceResolveRef.current = null;
       }

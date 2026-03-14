@@ -339,7 +339,7 @@ export default function BattleScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, realtimeBattleResult]);
 
-  // 실시간 배틀: realtimeBattleResult 갱신 시 로그/히트 반영, battleWinner 시 결과 화면 전환 (스코어 역전 방지: 히트 수는 감소하지 않게)
+  // 실시간 배틀: realtimeBattleResult 갱신 시 로그/히트 반영, battleWinner 시 결과 화면 전환
   useEffect(() => {
     if (battleType !== 'realtime' || !realtimeBattleResult) return;
     const { battleLog: logs, userHits: uh, enemyHits: eh, battleWinner: winner, isHost } = realtimeBattleResult;
@@ -348,13 +348,13 @@ export default function BattleScreen({
         ? {
             ...prev,
             logs: logs ?? prev.logs ?? [],
-            userHits: Math.max(prev.userHits ?? 0, uh ?? 0),
-            enemyHits: Math.max(prev.enemyHits ?? 0, eh ?? 0),
+            userHits: uh ?? prev.userHits ?? 0,
+            enemyHits: eh ?? prev.enemyHits ?? 0,
           }
         : null
     );
-    setUserHits((prev) => Math.max(prev ?? 0, uh ?? 0));
-    setEnemyHits((prev) => Math.max(prev ?? 0, eh ?? 0));
+    setUserHits(uh ?? 0);
+    setEnemyHits(eh ?? 0);
     if (winner != null && battleState !== 'victory' && battleState !== 'result') {
       const win = (winner === 'host' && isHost) || (winner === 'guest' && !isHost);
       setBattleResult((prev) => (prev ? { ...prev, win } : null));
@@ -1053,12 +1053,10 @@ export default function BattleScreen({
                     <div className="p-4 rounded-lg border-2 border-indigo-300 bg-indigo-50 text-center">
                       <div className="text-xs font-bold text-indigo-600 mb-1">내 카드</div>
                       <div className="text-lg font-bold text-indigo-900">{myName}</div>
-                      {myCardId === 'defend' && <div className="mt-1 text-sm font-semibold text-blue-700">방어</div>}
                     </div>
                     <div className="p-4 rounded-lg border-2 border-gray-300 bg-gray-100 text-center">
                       <div className="text-xs font-bold text-gray-600 mb-1">상대 카드</div>
                       <div className="text-lg font-bold text-gray-800">{oppName}</div>
-                      {oppCardId === 'defend' && <div className="mt-1 text-sm font-semibold text-blue-700">방어</div>}
                     </div>
                   </div>
                 </div>
@@ -1251,10 +1249,10 @@ export default function BattleScreen({
                   ? (log.hit ? "user-hit" : "user-miss")
                   : (log.hit ? "enemy-hit" : "enemy-miss");
                 const isCurrent = idx === currentLogIndex;
-                const isBlocked = log.blocked === true;
+                
                 return (
-                  <div key={idx} className={`battle-log-entry text-xs mb-1 ${logClass} ${isCurrent ? 'current-log' : ''} ${isBlocked ? 'border-l-4 border-blue-500 bg-blue-50 pl-2' : ''}`}>
-                    <div className="font-medium">{idx + 1}. {log.message}{isBlocked ? ' (방어)' : ''}</div>
+                  <div key={idx} className={`battle-log-entry text-xs mb-1 ${logClass} ${isCurrent ? 'current-log' : ''}`}>
+                    <div className="font-medium">{idx + 1}. {log.message}</div>
                     {log.formula && (
                       <div className="ml-4 text-gray-500 font-mono text-xs mt-1">
                         {log.formula}
@@ -1387,10 +1385,10 @@ export default function BattleScreen({
                   const logClass = log.attacker === "user" 
                     ? (log.hit ? "user-hit" : "user-miss")
                     : (log.hit ? "enemy-hit" : "enemy-miss");
-                  const isBlocked = log.blocked === true;
+                  
                   return (
-                    <div key={idx} className={`battle-log-entry text-sm mb-2 p-2 rounded ${logClass} ${isBlocked ? 'border-l-4 border-blue-500 bg-blue-50' : ''}`}>
-                      <div className="font-bold">{idx + 1}. {log.message}{isBlocked ? ' (방어)' : ''}</div>
+                    <div key={idx} className={`battle-log-entry text-sm mb-2 p-2 rounded ${logClass}`}>
+                      <div className="font-bold">{idx + 1}. {log.message}</div>
                       {log.formula && (
                         <div className="ml-4 text-gray-700 font-mono text-xs mt-1">
                           {log.formula}
@@ -1466,10 +1464,10 @@ export default function BattleScreen({
                   const logClass = log.attacker === "user" 
                     ? (log.hit ? "user-hit" : "user-miss")
                     : (log.hit ? "enemy-hit" : "enemy-miss");
-                  const isBlocked = log.blocked === true;
+                  
                   return (
-                    <div key={idx} className={`battle-log-entry text-sm mb-2 p-2 rounded ${logClass} ${isBlocked ? 'border-l-4 border-blue-500 bg-blue-50' : ''}`}>
-                      <div className="font-bold">{idx + 1}. {log.message}{isBlocked ? ' (방어)' : ''}</div>
+                    <div key={idx} className={`battle-log-entry text-sm mb-2 p-2 rounded ${logClass}`}>
+                      <div className="font-bold">{idx + 1}. {log.message}</div>
                       {log.formula && (
                         <div className="ml-4 text-gray-700 font-mono text-xs mt-1">
                           {log.formula}
