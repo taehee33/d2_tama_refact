@@ -629,19 +629,10 @@ function Game(){
         } else if (!sleepingNow && currentAnimation === "sleep" && !updatedStats.isInjured && !updatedStats.isDead) {
           setCurrentAnimation("idle");
         }
-        // 배고픔/힘이 0이고 12시간 경과 시 사망 체크 (냉장고 시간 제외 — applyLazyUpdate와 동일 기준)
+        // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
         // ⚠️ 새로운 시작 직후에는 사망 체크를 하지 않음 (lastHungerZeroAt이 null이어야 함)
         if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt && !updatedStats.isDead){
-          const hungerZeroMs = typeof updatedStats.lastHungerZeroAt === 'number'
-            ? updatedStats.lastHungerZeroAt
-            : new Date(updatedStats.lastHungerZeroAt).getTime();
-          const elapsedMs = getElapsedTimeExcludingFridge(
-            hungerZeroMs,
-            Date.now(),
-            updatedStats.frozenAt,
-            updatedStats.takeOutAt
-          );
-          const elapsed = elapsedMs / 1000;
+          const elapsed = (Date.now() - updatedStats.lastHungerZeroAt) / 1000;
           if(elapsed >= 43200){ // 12시간 = 43200초
             console.log("[타이머] 굶주림 사망 체크:", { elapsed, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
             updatedStats.isDead = true;
@@ -651,16 +642,7 @@ function Game(){
           }
         }
         if(updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt && !updatedStats.isDead){
-          const strengthZeroMs = typeof updatedStats.lastStrengthZeroAt === 'number'
-            ? updatedStats.lastStrengthZeroAt
-            : new Date(updatedStats.lastStrengthZeroAt).getTime();
-          const elapsedMs = getElapsedTimeExcludingFridge(
-            strengthZeroMs,
-            Date.now(),
-            updatedStats.frozenAt,
-            updatedStats.takeOutAt
-          );
-          const elapsed = elapsedMs / 1000;
+          const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
           if(elapsed >= 43200){
             console.log("[타이머] 힘 소진 사망 체크:", { elapsed, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
             updatedStats.isDead = true;
