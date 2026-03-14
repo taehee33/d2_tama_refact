@@ -186,7 +186,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     communication: false,
     sparring: false,
     arenaScreen: false,
-    realtimeBattleRoomList: false,
     
     // 치료/호출
     heal: false,
@@ -395,7 +394,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       communication: false,
       sparring: false,
       arenaScreen: false,
-      realtimeBattleRoomList: false,
       heal: false,
       call: false,
       interaction: false,
@@ -426,7 +424,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       communication: false,
       sparring: false,
       arenaScreen: false,
-      realtimeBattleRoomList: false,
       heal: false,
       call: false,
       interaction: false,

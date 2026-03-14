@@ -91,10 +91,9 @@ export default function RealtimeBattleRoomListModal({
     return () => { cancelled = true; };
   }, [roomId, getWaitingRooms, userId]);
 
-  // 배틀 시작 시 부모에게 알림 (BattleScreen 열기) — 참가 시 선택한 슬롯 디지몬(mySnapshot) 전달
+  // 배틀 시작 시 부모에게 알림 (BattleScreen 열기)
   useEffect(() => {
     if (battleStarted && room && onStartBattle) {
-      const mySnapshot = isHost ? room.hostDigimonSnapshot : room.guestDigimonSnapshot;
       onStartBattle({
         room,
         isHost,
@@ -102,7 +101,6 @@ export default function RealtimeBattleRoomListModal({
         userHits,
         enemyHits,
         battleWinner,
-        mySnapshot: mySnapshot || null,
       });
     }
   }, [battleStarted, room, isHost, battleLog, userHits, enemyHits, battleWinner, onStartBattle]);

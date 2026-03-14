@@ -39,23 +39,9 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
 
   const channelRef = useRef(null);
   const battleLoopRef = useRef(false);
-  const battleStartedForRoomIdRef = useRef(null); // 같은 방에서 배틀 루프 한 번만 실행
   const roundTimeoutRef = useRef(null);
 
   const isHost = room && room.hostUid === userId;
-
-  // 방이 바뀌면 배틀/준비 상태 초기화 (방 만들기만 했을 때 이전 배틀 화면이 뜨지 않도록)
-  useEffect(() => {
-    if (!roomId) return;
-    setBattleStarted(false);
-    setBattleLog([]);
-    setUserHits(0);
-    setEnemyHits(0);
-    setBattleWinner(null);
-    setReadySent(false);
-    setHostReady(false);
-    setGuestReady(false);
-  }, [roomId]);
 
   // Firestore 방 구독
   useEffect(() => {
@@ -132,8 +118,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
           clearTimeout(roundTimeoutRef.current);
           roundTimeoutRef.current = null;
         }
-        if (data.userHits != null) setUserHits(data.userHits);
-        if (data.enemyHits != null) setEnemyHits(data.enemyHits);
         setBattleWinner(data.winner ?? null);
         setBattleStarted(true);
       }
@@ -147,13 +131,12 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     };
   }, [ablyClient, roomId, userId, room?.hostUid]);
 
-  // 호스트: 양쪽 ready 시 배틀 루프 실행 (같은 방에서 한 번만)
+  // 호스트: 양쪽 ready 시 배틀 루프 실행
   useEffect(() => {
-    if (!room || !isHost || !hostReady || !guestReady || !room.guestDigimonSnapshot || !room.hostDigimonSnapshot) return;
-    if (battleLoopRef.current || battleStartedForRoomIdRef.current === room.id) return;
+    if (!room || !isHost || !hostReady || !guestReady || battleLoopRef.current) return;
+    if (!room.guestDigimonSnapshot || !room.hostDigimonSnapshot) return;
 
     battleLoopRef.current = true;
-    battleStartedForRoomIdRef.current = room.id;
     const hostSnap = room.hostDigimonSnapshot;
     const guestSnap = room.guestDigimonSnapshot;
     const roomSeed = room.roomSeed ?? 0;
@@ -203,10 +186,8 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
       if (uh >= 3 || eh >= 3) {
         const winner = uh >= 3 ? 'host' : 'guest';
         if (channel) {
-          channel.publish('realtime-battle', { type: 'result', winner, userHits: uh, enemyHits: eh });
+          channel.publish('realtime-battle', { type: 'result', winner });
         }
-        setUserHits(uh);
-        setEnemyHits(eh);
         setBattleWinner(winner);
         updateRoom(room.id, { status: 'finished', winner }).catch(console.error);
         return;
@@ -226,7 +207,7 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
     return () => {
       battleLoopRef.current = false;
     };
-  }, [room?.id, isHost, hostReady, guestReady]);
+  }, [room?.id, isHost, hostReady, guestReady]); // room dependency 시 배틀 한 번만 시작되도록
 
   const createRoom = useCallback(
     async (hostSlotSnapshot, hostTamerName) => {
@@ -278,7 +259,6 @@ export function useRealtimeBattle({ roomId, userId, ablyClient }) {
       clearTimeout(roundTimeoutRef.current);
       roundTimeoutRef.current = null;
     }
-    battleStartedForRoomIdRef.current = null;
     if (roomId && room && room.hostUid === userId && room.status === 'waiting') {
       try {
         await cancelRoomRepo(roomId);

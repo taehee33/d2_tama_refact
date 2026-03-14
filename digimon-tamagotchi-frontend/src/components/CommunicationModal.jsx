@@ -4,7 +4,7 @@
 import React from "react";
 import "../styles/Battle.css";
 
-export default function CommunicationModal({ onClose, onSparringStart, onArenaStart, onRealtimeBattleStart, ablyAvailable = true }) {
+export default function CommunicationModal({ onClose, onSparringStart, onArenaStart }) {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
       <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{ 
@@ -35,31 +35,14 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             아레나 [PvP(Ghost)]
           </button>
           
-          {onRealtimeBattleStart ? (
-            <button
-              onClick={() => {
-                if (ablyAvailable) {
-                  onRealtimeBattleStart();
-                  onClose();
-                }
-              }}
-              disabled={!ablyAvailable}
-              className={`px-6 py-3 rounded-lg font-bold transition-colors ${ablyAvailable ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-gray-400 text-white cursor-not-allowed opacity-60'}`}
-              title={!ablyAvailable ? 'REACT_APP_ABLY_KEY 설정 후 이용 가능' : undefined}
-            >
-              실시간 배틀 [1:1 PvP]
-              {!ablyAvailable && <span className="text-xs block mt-1">Ably 키 필요</span>}
-            </button>
-          ) : (
-            <button
-              className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-              disabled
-              title="Coming Soon"
-            >
-              실시간 배틀
-              <span className="text-xs block mt-1">Coming Soon</span>
-            </button>
-          )}
+          <button
+            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
+            disabled
+            title="Coming Soon"
+          >
+            실시간 배틀
+            <span className="text-xs block mt-1">Coming Soon</span>
+          </button>
           
           <button
             onClick={onClose}
