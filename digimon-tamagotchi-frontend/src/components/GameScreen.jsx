@@ -15,6 +15,7 @@ const GameScreen = ({
   // 디지몬 애니메이션
   currentAnimation = "idle",
   idleFrames = [],
+  idleMotionTimeline = [],
   eatFrames = [],
   foodRejectFrames = [],
   digimonImageBase = "/images", // v2는 /Ver2_Mod_Kor
@@ -491,6 +492,7 @@ const GameScreen = ({
         digimonImageBase={digimonImageBase}
         currentAnimation={currentAnimation}
         idleFrames={idleFrames}
+        idleMotionTimeline={idleMotionTimeline}
         eatFrames={eatFrames}
         foodRejectFrames={foodRejectFrames}
         showFood={showFood}
@@ -515,4 +517,3 @@ const GameScreen = ({
 };
 
 export default GameScreen;
-

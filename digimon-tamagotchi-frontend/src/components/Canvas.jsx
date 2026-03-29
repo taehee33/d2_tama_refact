@@ -7,6 +7,9 @@ const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/im
 const injurySprites= ["/images/541.png", "/images/542.png"]; // 부상 스프라이트
 const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
 const fridgeSprites= ["/images/552.png", "/images/553.png", "/images/554.png", "/images/555.png"]; // 냉장고 스프라이트 (냉장고, 냉장고 안, 덮개1, 덮개2)
+const DIGIMON_WIDTH_RATIO = 0.4;
+const DIGIMON_HEIGHT_RATIO = 0.4;
+const IDLE_MOTION_COORDINATE_GRID = 80;
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -26,12 +29,78 @@ const poopPositions = [
   { xRatio:0.15, yRatio:0.25 }, // #8
 ];
 
+function getDigimonSpriteKey(frameName) {
+  return `digimon:${frameName}`;
+}
+
+function getDefaultDigimonDrawState(width, height, currentAnimation) {
+  const digiW = width * DIGIMON_WIDTH_RATIO;
+  const digiH = height * DIGIMON_HEIGHT_RATIO;
+  let digiX = (width - digiW) / 2;
+
+  if (currentAnimation === "eat") {
+    digiX = width * 0.6 - digiW / 2;
+  }
+
+  return {
+    digiW,
+    digiH,
+    digiX,
+    digiY: (height - digiH) / 2,
+    flip: false,
+  };
+}
+
+function getIdleMotionDrawState(width, height, step) {
+  const digiW = width * DIGIMON_WIDTH_RATIO;
+  const digiH = height * DIGIMON_HEIGHT_RATIO;
+  const maxX = width - digiW;
+  const maxY = height - digiH;
+
+  // 외부 편집기 좌표계(0~80)를 현재 Canvas 크기로 변환
+  const digiX = Math.max(0, Math.min(maxX, (width * step.x) / IDLE_MOTION_COORDINATE_GRID));
+  const digiY = Math.max(0, Math.min(maxY, (height * step.y) / IDLE_MOTION_COORDINATE_GRID));
+
+  return {
+    digiW,
+    digiH,
+    digiX,
+    digiY,
+    flip: Boolean(step.flip),
+  };
+}
+
+function drawDigimonImage(ctx, image, drawState) {
+  if (drawState.flip) {
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.drawImage(
+      image,
+      -drawState.digiX - drawState.digiW,
+      drawState.digiY,
+      drawState.digiW,
+      drawState.digiH
+    );
+    ctx.restore();
+    return;
+  }
+
+  ctx.drawImage(
+    image,
+    drawState.digiX,
+    drawState.digiY,
+    drawState.digiW,
+    drawState.digiH
+  );
+}
+
 const Canvas = ({
   style={},
   width=300,
   height=200,
   // frames
   idleFrames=[],
+  idleMotionTimeline=[],
   eatFrames=[],
   foodRejectFrames=[],
   digimonImageBase="/images", // v2는 /Ver2_Mod_Kor
@@ -67,6 +136,99 @@ const Canvas = ({
   const animationID= useRef(null);
 
   useEffect(()=>{
+    const initImages = () => {
+      const canvas= canvasRef.current;
+      if(!canvas) return;
+      const ctx= canvas.getContext("2d");
+      canvas.style.imageRendering= "pixelated";
+
+      let frames=[];
+      if(currentAnimation==="eat"){
+        frames= eatFrames;
+      } else if(currentAnimation==="foodRejectRefuse"){
+        frames= foodRejectFrames.length>0 ? foodRejectFrames : ["14"];
+      } else if(currentAnimation==="pain2"){
+        // 죽음 상태: 모션 15번(아픔2) - 스프라이트 14만 표시
+        frames= idleFrames; // 이미 [sprite+14]로 설정됨
+      } else {
+        frames= idleFrames;
+      }
+      if(!frames || frames.length===0) frames=["210"]; // fallback
+
+      // ★ (3) 로드할 이미지들 (v2 디지몬은 digimonImageBase가 /Ver2_Mod_Kor)
+      const imageSources={};
+      const digimonSpriteNames = new Set(frames.map((fn) => String(fn)));
+      if (currentAnimation === "idle" && idleMotionTimeline.length > 0) {
+        idleMotionTimeline.forEach((step) => {
+          digimonSpriteNames.add(String(step.spriteNumber));
+        });
+      }
+      digimonSpriteNames.forEach((fn)=>{
+        imageSources[getDigimonSpriteKey(fn)] = `${digimonImageBase}/${fn}.png`;
+      });
+      foodSprites.forEach((src,idx)=>{
+        imageSources[`food${idx}`]= src;
+      });
+
+      // poop, clean
+      imageSources["poop"]= poopSprite;    // "/images/533.png"
+      imageSources["clean"]= cleanSprite;  // "/images/534.png"
+      
+      // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
+      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
+        zzzSprites.forEach((src, idx)=>{
+          imageSources[`zzz${idx}`]= src;
+        });
+      }
+      
+      // 부상 스프라이트 (부상 상태일 때, 사망 상태가 아닐 때만)
+      if(isInjured && !isDead){
+        injurySprites.forEach((src, idx)=>{
+          imageSources[`injury${idx}`]= src;
+        });
+      }
+      
+      // 해골 스프라이트 (죽음 상태일 때)
+      if(isDead){
+        skullSprites.forEach((src, idx)=>{
+          imageSources[`skull${idx}`]= src;
+        });
+      }
+      
+      // 냉장고 스프라이트 (냉장고 상태일 때 또는 꺼내기 애니메이션 중일 때)
+      if(isFrozen || takeOutAt){
+        fridgeSprites.forEach((src, idx)=>{
+          imageSources[`fridge${idx}`]= src;
+        });
+      }
+
+      let loaded=0;
+      const total= Object.keys(imageSources).length;
+      if(total===0){
+        startAnimation(ctx, frames);
+        return;
+      }
+
+      Object.keys(imageSources).forEach(key=>{
+        const img= new Image();
+        img.src= imageSources[key];
+        img.onload= ()=>{
+          loaded++;
+          if(loaded=== total){
+            startAnimation(ctx, frames);
+          }
+        };
+        img.onerror= ()=>{
+          console.warn("Fail to load:", imageSources[key]);
+          loaded++;
+          if(loaded=== total){
+            startAnimation(ctx, frames);
+          }
+        };
+        spriteCache.current[key]= img;
+      });
+    };
+
     if(animationID.current){
       cancelAnimationFrame(animationID.current);
       animationID.current= null;
@@ -77,104 +239,17 @@ const Canvas = ({
         cancelAnimationFrame(animationID.current);
       }
     };
+    // startAnimation은 같은 렌더 스코프의 상태를 읽는 로컬 함수로 관리
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[
     width,height,
-    idleFrames,eatFrames,foodRejectFrames,
+    idleFrames,idleMotionTimeline,eatFrames,foodRejectFrames,
     digimonImageBase,
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSprites,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
     sleepStatus,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // initImages는 컴포넌트 내부 함수이므로 의존성에서 제외
   ]);
-
-  function initImages(){
-    const canvas= canvasRef.current;
-    if(!canvas) return;
-    const ctx= canvas.getContext("2d");
-    canvas.style.imageRendering= "pixelated";
-
-    let frames=[];
-    if(currentAnimation==="eat"){
-      frames= eatFrames;
-    } else if(currentAnimation==="foodRejectRefuse"){
-      frames= foodRejectFrames.length>0 ? foodRejectFrames : ["14"];
-    } else if(currentAnimation==="pain2"){
-      // 죽음 상태: 모션 15번(아픔2) - 스프라이트 14만 표시
-      frames= idleFrames; // 이미 [sprite+14]로 설정됨
-    } else {
-      frames= idleFrames;
-    }
-    if(!frames || frames.length===0) frames=["210"]; // fallback
-
-    // ★ (3) 로드할 이미지들 (v2 디지몬은 digimonImageBase가 /Ver2_Mod_Kor)
-    const imageSources={};
-    frames.forEach((fn,idx)=>{
-      imageSources[`digimon${idx}`] = `${digimonImageBase}/${fn}.png`;
-    });
-    foodSprites.forEach((src,idx)=>{
-      imageSources[`food${idx}`]= src;
-    });
-
-    // poop, clean
-    imageSources["poop"]= poopSprite;    // "/images/533.png"
-    imageSources["clean"]= cleanSprite;  // "/images/534.png"
-    
-    // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
-    if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
-      zzzSprites.forEach((src, idx)=>{
-        imageSources[`zzz${idx}`]= src;
-      });
-    }
-    
-    // 부상 스프라이트 (부상 상태일 때, 사망 상태가 아닐 때만)
-    if(isInjured && !isDead){
-      injurySprites.forEach((src, idx)=>{
-        imageSources[`injury${idx}`]= src;
-      });
-    }
-    
-    // 해골 스프라이트 (죽음 상태일 때)
-    if(isDead){
-      skullSprites.forEach((src, idx)=>{
-        imageSources[`skull${idx}`]= src;
-      });
-    }
-    
-    // 냉장고 스프라이트 (냉장고 상태일 때 또는 꺼내기 애니메이션 중일 때)
-    if(isFrozen || takeOutAt){
-      fridgeSprites.forEach((src, idx)=>{
-        imageSources[`fridge${idx}`]= src;
-      });
-    }
-
-    let loaded=0;
-    const total= Object.keys(imageSources).length;
-    if(total===0){
-      startAnimation(ctx, frames);
-      return;
-    }
-
-    Object.keys(imageSources).forEach(key=>{
-      const img= new Image();
-      img.src= imageSources[key];
-      img.onload= ()=>{
-        loaded++;
-        if(loaded=== total){
-          startAnimation(ctx, frames);
-        }
-      };
-      img.onerror= ()=>{
-        console.warn("Fail to load:", imageSources[key]);
-        loaded++;
-        if(loaded=== total){
-          startAnimation(ctx, frames);
-        }
-      };
-      spriteCache.current[key]= img;
-    });
-  }
 
   function startAnimation(ctx, frames){
     let frame=0;
@@ -185,49 +260,49 @@ const Canvas = ({
 
       // 디지몬
       if(frames.length>0){
+        const motionStep = currentAnimation === "idle" && idleMotionTimeline.length > 0
+          ? idleMotionTimeline[Math.floor(frame / speed) % idleMotionTimeline.length]
+          : null;
+
         // 거절 애니메이션일 때는 feedStep으로 좌우 번갈아가게
-        let idx, name;
+        let idx = 0;
+        let name;
         if(currentAnimation === "foodRejectRefuse"){
           // feedStep % 2로 좌우 번갈아가게 (0: 좌, 1: 우)
           idx = feedStep % 2;
           name = frames[idx] || frames[0];
+        } else if (motionStep) {
+          name = `${motionStep.spriteNumber}`;
         } else {
           idx = Math.floor(frame/speed) % frames.length;
           name = frames[idx];
         }
-        const key= `digimon${idx}`;
+        const key= getDigimonSpriteKey(name);
         const digimonImg= spriteCache.current[key];
         if(digimonImg && digimonImg.naturalWidth>0){
-          const digiW= width*0.4;
-          const digiH= height*0.4;
-          let digiX= (width-digiW)/2;
-          // eat 애니메이션일 때만 오른쪽에 위치, foodRejectRefuse는 가운데
-          if(currentAnimation==="eat"){
-            digiX= width*0.6 - digiW/2;
-          }
-          
-          // 거절 애니메이션일 때 우측 프레임(홀수)은 좌우 반전 (가운데 기준)
-          if(currentAnimation === "foodRejectRefuse" && idx === 1){
-            ctx.save();
-            ctx.scale(-1, 1);
-            // 가운데 위치 기준으로 좌우 반전
-            ctx.drawImage(digimonImg, -digiX - digiW, (height-digiH)/2, digiW, digiH);
-            ctx.restore();
-          } else {
-            ctx.drawImage(digimonImg, digiX,(height-digiH)/2,digiW,digiH);
-          }
+          const drawState = motionStep
+            ? getIdleMotionDrawState(width, height, motionStep)
+            : {
+                ...getDefaultDigimonDrawState(width, height, currentAnimation),
+                flip: currentAnimation === "foodRejectRefuse" && idx === 1,
+              };
+
+          drawDigimonImage(ctx, digimonImg, drawState);
 
           // 거절 상태일 때만 😡 표시 (디지몬 오른쪽)
           if(currentAnimation === "foodRejectRefuse" && isRefused){
             ctx.font="32px Arial";
             ctx.fillStyle="red";
-            ctx.fillText("😡", digiX + digiW + 10, (height-digiH)/2 + digiH/2);
+            ctx.fillText("😡", drawState.digiX + drawState.digiW + 10, drawState.digiY + drawState.digiH/2);
           }
 
           if(developerMode){
             ctx.fillStyle="red";
             ctx.font="12px sans-serif";
-            ctx.fillText(`Sprite: ${name}.png`, digiX,(height-digiH)/2 + digiH+12);
+            const motionLabel = motionStep
+              ? ` F:${motionStep.f} X:${motionStep.x} Y:${motionStep.y} Flip:${motionStep.flip ? "Y" : "N"}`
+              : "";
+            ctx.fillText(`Sprite: ${name}.png${motionLabel}`, drawState.digiX, drawState.digiY + drawState.digiH + 12);
           }
         }
       }
