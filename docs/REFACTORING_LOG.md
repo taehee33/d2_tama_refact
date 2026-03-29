@@ -4,6 +4,312 @@
 
 ---
 
+## [2026-03-29] Codex 다중 관점 종합 분석 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (code-mapper, architect-reviewer, reviewer, performance-engineer, game-developer, refactoring-specialist 통합 종합 분석)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 여러 전문 관점에서 다시 교차 검토하고, 현재 구조 요약, 개발 상태와 강점, 핵심 리스크, 개선 필요 지점, 우선순위별 리팩터링/테스트/문서화 제안을 하나의 기준 문서로 통합.
+- **내용:** 기존 개별 분석 문서들을 다시 묶어 `App.jsx -> SelectScreen.jsx -> Game.jsx` 중심 실제 구조, Hook 책임 경계, Firebase/localStorage/repository 계약 드리프트, lazy update와 실시간 타이머의 긴장 관계, 규칙 canonical source 분산, 테스트 부재, Firestore write 비용, `Game.jsx` 비대화 문제를 우선순위 순으로 재정리. 마지막에는 `계약 정리 -> 테스트 기준선 확보 -> Game.jsx 조립 분리 -> 저장 경계 일원화 -> 규칙 엔진 단일화 -> 성능 최적화` 순서의 실행 계획을 제안.
+- **종합 관찰:**
+  - 현재 프로젝트는 기능 성숙도는 높지만, 구조 경계는 아직 `Game.jsx + useGameData + 분산된 규칙 파일` 중심으로 남아 있다.
+  - 가장 큰 리스크는 문서상의 아키텍처와 실제 런타임 계약이 다르고, 시간 기반 규칙의 canonical source가 하나가 아니라는 점이다.
+  - 가장 안전한 개선 순서는 대규모 재작성보다 테스트/문서/경계 정리를 선행하는 단계적 리팩터링이다.
+
+### 영향받은 파일
+- `codex analyze/20_digimon-tamagotchi-frontend-comprehensive-multi-review-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex documentation-engineer 기준 문서 정책/구조 정합성 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (documentation-engineer 정의 기준 문서 정책 비교 및 개선 제안)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 현재 코드 구조와 프로젝트 문서 정책이 얼마나 일치하는지 `documentation-engineer` 관점으로 다시 정리하고, 특히 `docs/REFACTORING_LOG.md`에 앞으로 어떤 형식으로 변경 기록을 남기면 좋은지 기준안을 제시.
+- **내용:** 루트 `README.md`, `docs/REFACTORING_LOG.md`, `docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`, `docs/game_mechanics.md`, `src/repositories/README.md`를 대조해 문서의 역할 구분, 구조 설명의 최신성, 저장소/Firebase-localStorage 설명의 일치 여부, 구조 문서의 canonical 여부를 점검. `REFACTORING_LOG`에 대해 코드 변경용/문서 전용 변경용 템플릿을 분리 제안하고, 현재 구조 설명 문서에 부족한 지점으로 문서 인덱스 부재, 상태 메타데이터 부재, 기준 문서와 참고 문서의 경계 불명확성을 정리.
+- **문서 정책 관찰:**
+  - 현재 문제는 문서 수량 부족보다 "기준 문서와 참고 문서가 섞여 있는 상태"에 더 가깝다.
+  - `docs/REFACTORING_LOG.md`는 이미 좋은 습관을 갖고 있지만, 사용자 동작 변화/저장 영향/검증 여부를 더 명확히 남기면 가치가 커진다.
+  - 루트 `README.md`와 `src/repositories/README.md`는 실제 코드 기준으로 우선 정리해야 할 문서다.
+
+### 영향받은 파일
+- `codex analyze/19_digimon-tamagotchi-frontend-documentation-engineer-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex test-automator 기준 회귀 테스트 자동화 우선순위 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (test-automator 정의 기준 고위험 회귀 자동화 계획)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`에서 `applyLazyUpdate`, 진화 조건, 배틀 계산, 사망 조건 중 무엇부터 자동 테스트를 추가해야 가장 큰 회귀 방지 효과를 얻는지 `test-automator` 관점으로 다시 정리.
+- **내용:** 비교 대상 네 축을 테스트 ROI 기준으로 재평가. `applyLazyUpdate -> 진화 조건 -> 배틀 계산 -> 사망 조건` 순서를 공식 우선순위로 정하고, 각 후보에 대해 왜 그 순서가 맞는지, 어떤 테스트 타입이 맞는지, 어떤 fixture/time/random 제어가 필요한지, 무엇이 characterization 테스트 대상인지 문서화.
+- **테스트 자동화 관찰:**
+  - `applyLazyUpdate`는 upstream state generator라 나머지 규칙보다 먼저 고정해야 함.
+  - 진화와 배틀은 순수 함수 경계가 비교적 명확해 적은 테스트로 큰 회귀 면적을 덮을 수 있음.
+  - 사망 조건은 도메인 중요도는 높지만 구현 경계가 가장 흐려서 마지막에 characterization 테스트로 다루는 편이 효율적임.
+
+### 영향받은 파일
+- `codex analyze/18_digimon-tamagotchi-frontend-test-automator-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex qa-expert 기준 테스트 전략 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (qa-expert 정의 기준 리스크 기반 테스트 전략 정리)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 현재 테스트 전략을 QA 관점에서 다시 정리하고, 특히 `/src/logic` 순수 함수 중 어떤 것부터 유닛 테스트를 추가해야 하는지 우선순위를 명확히 함.
+- **내용:** 현재 자동 테스트가 사실상 [App.test.js](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/digimon-tamagotchi-frontend/src/App.test.js#L1) 하나뿐이고, 그것도 CRA 샘플 수준이라는 점을 확인. `/src/logic` 내에서는 `evolution/checker`, `battle/calculator`, `battle/hitrate`, `stats/hunger`, `stats/strength`, `evolution/jogress`를 1차 자동화 대상으로 잡고, `/src/logic`만 테스트했을 때 남는 런타임 사각지점으로 `src/data/stats.js`, `src/data/train_*`, 페이지/Hook 통합 경계를 별도로 문서화.
+- **QA 관찰:**
+  - 가장 큰 품질 리스크는 시간 기반 게임 규칙인데, 이를 보호하는 자동화가 전무함.
+  - `/src/logic` 테스트는 필수지만 충분조건은 아니며, runtime source characterization 테스트가 이어져야 실제 회귀 방지 효과가 큼.
+  - 가장 작은 즉시 조치는 stale한 `App.test.js`를 의미 있는 smoke test로 바꾸는 것임.
+
+### 영향받은 파일
+- `codex analyze/17_digimon-tamagotchi-frontend-qa-expert-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex refactoring-specialist 기준 안전한 리팩터링 로드맵 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (refactoring-specialist 정의 기준 behavior preserving 리팩터링 로드맵)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`에서 `/src/pages/Game.jsx`와 대형 Hook들을 어떤 순서로 분해해야 안전한지, `behavior preserving` 원칙으로 작은 단계의 리팩터링 계획을 재정리.
+- **내용:** `Game.jsx`의 조립 코드, 렌더 블록, 실시간 타이머/구독, direct Firestore 호출, `useGameActions`, `useEvolution`, `useGameData`, `useGameLogic`, `useGameHandlers`의 책임 분해 순서를 단계별로 정리. 각 단계마다 목표, 영향 파일, 기대 효과, 주의할 회귀 위험, 테스트 게이트를 함께 명시.
+- **리팩터링 관찰:**
+  - 가장 큰 마찰 원인은 파일 길이보다도 page/controller/runtime/persistence/domain/UI 책임이 같은 경계에 섞여 있다는 점임.
+  - 가장 안전한 시작점은 규칙 엔진 수정이 아니라 `Game.jsx`의 props 조립과 렌더 블록 추출임.
+  - direct Firestore 호출 정리와 대형 Hook 내부 분해는 그 다음 순서여야 하며, repository/localStorage 계약 정리는 마지막으로 미루는 편이 안전함.
+
+### 영향받은 파일
+- `codex analyze/16_digimon-tamagotchi-frontend-refactoring-specialist-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex game-developer 기준 게임 규칙 품질 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (game-developer 정의 기준 게임플레이 규칙 일관성/엣지 케이스 리뷰)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 `game-developer` 관점으로 다시 읽고, 진화 조건, 케어미스, 배틀 명중률, 사망 조건, 배고픔/힘/배변/수명 변화, 훈련/먹이주기 로직의 도메인 일관성을 점검.
+- **내용:** 정상 루프(먹이 -> 훈련 -> 배틀 -> 진화), 실패 루프(배고픔/힘 0 -> 콜 -> 케어미스 -> 사망), 통합 경계(실시간 타이머, lazy update, 냉장고, Firestore 저장/복구)를 중심으로 정적 리뷰를 수행. 실시간 타이머와 lazy update의 다중 사이클 처리 차이, 사망 판정 경로 불일치, 훈련/먹이 규칙의 중복 구현, arena 상대 power fallback, sleep care mistake 오프라인 미재구성, jogress/진화 리셋 분산을 우선순위 순으로 정리.
+- **게임 규칙 관찰:**
+  - 가장 큰 리스크는 플레이 결과가 규칙 데이터보다 "실시간 경로를 탔는지, 복귀 경로를 탔는지"에 따라 달라질 수 있다는 점임.
+  - 진화 데이터와 일반 진화 해석기 자체는 강점이지만, 시간 기반 규칙과 훈련/먹이 규칙은 canonical source가 하나로 닫혀 있지 않음.
+  - 가장 먼저 고정해야 할 것은 시간 기반 characterization 테스트와 사망 판정 단일화임.
+
+### 영향받은 파일
+- `codex analyze/15_digimon-tamagotchi-frontend-game-developer-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex performance-engineer 기준 성능 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (performance-engineer 정의 기준 렌더링/저장 비용 리스크 리뷰)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 `performance-engineer` 관점으로 다시 읽고, lazy update 준수 여부, 불필요한 렌더링, 큰 컴포넌트/Hook의 과도한 상태 갱신, Firestore write/read 비용 리스크를 정리.
+- **내용:** 실시간 타이머와 UI 업데이트, 상태 파생 계산, 저장 빈도를 중심으로 재검토. 루트의 다중 1초 타이머, `Canvas` 재초기화 가능성, action당 `getDoc + updateDoc + addDoc` 패턴, 슬롯 전체 `onSnapshot` 구독, 큰 spread props 전파, render-phase `setCurrentAnimation()` 호출을 핵심 finding으로 정리.
+- **성능 관찰:**
+  - lazy update 원칙은 연속 스탯 저장에서는 유지되지만, 이벤트성 write와 로그 subcollection append 때문에 Firestore 비용 최적화는 덜 닫혀 있음.
+  - 가장 큰 프론트엔드 리스크는 초당 루트 리렌더가 큰 UI 트리와 `Canvas` 초기화로 전파될 가능성이 높다는 점임.
+  - 가장 먼저 계측할 대상은 idle 중 React commit 수, `Canvas.initImages()` 호출 수, 액션 1회당 Firestore read/write 수임.
+
+### 영향받은 파일
+- `codex analyze/14_digimon-tamagotchi-frontend-performance-engineer-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex reviewer 기준 PR 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (reviewer 정의 기준 correctness / regression risk / missing tests 리뷰)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 `reviewer` 관점으로 다시 읽고, PR 리뷰처럼 위험도가 높은 correctness 이슈와 회귀 위험, 테스트 공백을 우선순위 순으로 정리.
+- **내용:** 특히 시간 기반 스탯 변경, lazy update, 진화 조건, 배틀 계산, 저장 시점, 모달 상태 관리를 중심으로 코드상 근거를 재검토. 실시간 타이머의 stale closure 가능성, 냉장고 시간을 포함해버리는 사망 판정 경로, 메모리 상태 기준 lazy update, 분산된 저장 시점, Arena power fallback, battle modal 전이 리스크를 findings 형태로 문서화.
+- **리뷰 관찰:**
+  - 가장 큰 correctness 리스크는 시간 기반 엔진과 사망 조건의 경로별 불일치임.
+  - 저장 경계가 `saveStats` 하나로 닫혀 있지 않고 direct Firestore write가 여러 군데 남아 있어 회귀 면적이 큼.
+  - 진화/배틀/모달은 즉시 치명적 버그보다 테스트 공백이 더 큰 위험 요인으로 보임.
+
+### 영향받은 파일
+- `codex analyze/13_digimon-tamagotchi-frontend-reviewer-pr-review-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex architect-reviewer 기준 아키텍처 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (architect-reviewer 정의 기준 장기 유지보수 리스크 리뷰)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 현재 아키텍처를 `architect-reviewer` 관점으로 다시 점검하고, 특히 `Game.jsx` 비대화, Hook 간 책임 분리, `logic`/UI 계층 경계, repository 패턴 일관성, Firebase/localStorage 지원 구조의 실제 상태를 우선순위 기준으로 정리.
+- **내용:** 실제 런타임 경로와 문서화된 설계가 어디서 어긋나는지 다시 검토. `Game.jsx`가 페이지를 넘어 서비스/오케스트레이션/저장 조정 역할을 동시에 수행하고 있다는 점, `useGameData`를 중심으로 보이는 저장 경계가 실제로는 여러 Hook와 페이지로 분산되어 있다는 점, repository 문서와 실사용 경계가 불일치한다는 점을 근거 중심으로 정리.
+- **구조 관찰:**
+  - dual-storage와 repository 패턴은 문서상 계약에 더 가깝고, 실제 런타임은 Firebase 중심 구조임.
+  - Hook 분리는 되어 있지만 UI, 도메인 규칙, Firestore write 책임이 서로 섞여 있어 변경 비용이 높음.
+  - 시간 기반 규칙 소스가 `data/stats`, `logic/stats`, `Game.jsx` 타이머에 분산되어 있어 장기적으로 drift 위험이 큼.
+
+### 영향받은 파일
+- `codex analyze/12_digimon-tamagotchi-frontend-architect-review-validated.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex code-mapper 재확인 기준 구조 분석 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (code-mapper 정의 재확인 후 구조 분석 정리)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 전체 구조를 `code-mapper` 기준으로 다시 정리하고, 실제 호출 흐름, 상태 관리 경계, 저장소 경계, lazy update 적용 지점을 문서화.
+- **내용:** `App.jsx`, `Game.jsx`, `hooks`, `logic`, `repositories`, `data/v1` 중심으로 실제 런타임 구조를 재점검. 특히 Firebase 중심 저장 경계, `useGameState`/`useGameData` 역할 분리, `data/v1` 원본과 adapted 맵의 이중 소비, load/action/save/timer별 lazy update 적용 지점을 다시 정리.
+- **구조 관찰:**
+  - 현재 게임 경로는 사실상 Firebase 전제이며 localStorage는 보조 UI 설정용으로 남아 있음.
+  - `Game.jsx`가 여전히 오케스트레이션 중심이며 `useGameData`가 실질적인 영속성 경계를 소유함.
+  - 시간 기반 엔진은 `data/stats`, `logic/stats`, 실시간 타이머 조합으로 분산되어 있음.
+
+### 영향받은 파일
+- `codex analyze/11_digimon-tamagotchi-frontend-code-mapper-validated-structure-analysis.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 종합 분석 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (구조/아키텍처/리뷰/성능/게임 규칙/리팩터링 관점 종합 분석)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 여러 리뷰 관점으로 통합 평가하고, 현재 구조 요약, 개발 상태와 강점, 핵심 리스크, 개선 필요 영역, 우선순위별 제안을 한 문서로 정리.
+- **내용:** 기존 구조 분석, 아키텍처 리뷰, PR 리뷰, 성능 리뷰, 게임 규칙 리뷰, 리팩터링 로드맵을 하나로 묶어 현재 프로젝트의 실질적인 상태를 설명. 특히 `Game.jsx` 중심 구조, Firestore 중심 저장 경계, 시간 기반 규칙 분산, 테스트 부재, 문서-코드 드리프트를 핵심 주제로 재정리.
+- **종합 관찰:**
+  - 프로젝트는 기능적으로 성숙했지만 아키텍처 계약과 canonical rule source가 모호함.
+  - 가장 큰 리스크는 시간 기반 규칙과 저장 경계의 분산, 그리고 테스트 안전망 부재임.
+  - 우선순위는 계약/문서 정리 -> 테스트 안전망 확보 -> `Game.jsx` 조립 코드 분리 -> 저장 경계 정리 -> 규칙 소스 단일화 순이 적절함.
+
+### 영향받은 파일
+- `codex analyze/10_digimon-tamagotchi-frontend-comprehensive-analysis.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 문서 정책 및 구조 설명 문서 리뷰 추가
+
+### 작업 유형
+- 📝 문서 추가 (문서 정책 검토 및 구조 설명 문서 개선 제안)
+
+### 목적 및 영향
+- **목적:** 현재 코드 구조와 프로젝트 문서 정책을 비교해 `REFACTORING_LOG`의 권장 기록 형식과 구조 설명 문서의 부족한 부분을 정리.
+- **내용:** `REFACTORING_LOG`의 현재 강점과 한계를 분석하고, 행동 변화/저장 영향/검증 여부를 포함한 권장 템플릿을 제안. 동시에 루트 `README`, `src/repositories/README`, `docs/game_mechanics.md`, 구조 분석 문서들의 최신성 및 기준 문서 부재 문제를 정리.
+- **문서 정책 관찰:**
+  - 현재 로그 문화는 잘 자리잡았지만 코드 변경과 분석 문서 추가가 같은 레벨로 섞여 추적성이 떨어질 수 있음.
+  - 구조 설명 문서가 여러 개 존재하지만 기준 문서가 명확하지 않고 일부는 중복 또는 현재 코드와 불일치함.
+  - 저장 모드, repository 패턴, lazy update 기준 경로 같은 핵심 사실은 "현재 구현"과 "과거 설계"를 분리해 문서화할 필요가 있음.
+
+### 영향받은 파일
+- `codex analyze/9_digimon-tamagotchi-frontend-documentation-policy-review.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 회귀 테스트 자동화 우선순위 계획 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (회귀 위험 높은 순수 로직 테스트 자동화 우선순위 정리)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`에서 회귀 위험이 큰 순수 로직 후보를 기준으로, 어떤 규칙부터 자동 테스트를 추가해야 하는지 테스트 관점의 우선순위 계획 수립.
+- **내용:** `applyLazyUpdate`, 진화 조건, 배틀 계산, 사망 조건을 비교하여 테스트 자동화 순서를 정리하고, 왜 `applyLazyUpdate`가 최우선인지, 왜 사망 조건은 현재 구조상 characterization 테스트에 더 가깝게 접근해야 하는지 문서화.
+- **테스트 자동화 관찰:**
+  - 시간 기반 상태 생성 로직이 진화/사망/저장 결과의 선행 조건이므로 `applyLazyUpdate`가 가장 높은 ROI를 가짐.
+  - 진화 조건은 분기 수와 데이터 구조 복잡도가 높아 2순위 유닛 테스트 대상임.
+  - 배틀 계산은 랜덤 제어만 추가하면 deterministic 테스트가 가능해 3순위로 적합함.
+  - 사망 조건은 현재 `logic`과 `hooks`에 분산되어 있어, 초기에는 순수 유닛 테스트보다 characterization 테스트 접근이 더 안전함.
+
+### 영향받은 파일
+- `codex analyze/8_digimon-tamagotchi-frontend-regression-test-automation-plan.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 테스트 전략 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (QA 관점 테스트 전략 및 유닛 테스트 우선순위 정리)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 현재 테스트 커버리지 약점을 정리하고, `/src/logic`의 순수 함수들 중 무엇부터 유닛 테스트를 추가해야 하는지 우선순위를 수립.
+- **내용:** 현재 `App.test.js`만 존재하는 상태를 기준으로, 시간 기반 스탯 변화, lazy update, 진화 조건, 배틀 계산, 저장 타이밍, 모달/이벤트 흐름에 대한 테스트 공백을 분석하고, `/src/logic` 기준 우선 테스트 대상 파일과 추천 테스트 레이어를 문서화.
+- **테스트 전략 관찰:**
+  - 현재 테스트는 CRA 기본 샘플 수준이라 실질적인 회귀 방지 효과가 없음.
+  - `/src/logic` 유닛 테스트는 가장 빠른 안전망이지만, 실제 런타임 규칙 소스가 `data/*`에도 분산되어 있어 characterization 테스트가 병행되어야 함.
+  - 초기 ROI가 가장 높은 대상은 `evolution/checker`, `battle/hitrate`, `battle/calculator`, `stats/hunger`, `stats/strength` 순.
+
+### 영향받은 파일
+- `codex analyze/7_digimon-tamagotchi-frontend-test-strategy-review.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 아키텍처 리뷰 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (현재 아키텍처 장기 유지보수 리스크 리뷰)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 현재 아키텍처를 구조 관점에서 재검토하고, 장기 유지보수 리스크를 우선순위 기준으로 정리.
+- **내용:** `Game.jsx` 비대화, 주요 Hook 간 책임 분리 실패, `logic` 계층과 UI 계층 경계 혼합, `repositories` 패턴의 실사용 불일치, Firebase/localStorage 이중 저장소 설명과 실제 런타임 차이를 문서화.
+- **구조적 관찰:**
+  - 문서상 dual-storage 구조와 실제 Firebase 중심 런타임이 다름.
+  - `Game.jsx`가 여전히 실질적인 서비스 레이어 역할을 수행함.
+  - Hook 분리가 책임 분리보다 사이드이펙트 분산에 가까움.
+  - `data/stats.js`와 `logic/stats/stats.js`가 병존해 핵심 규칙 단일성이 약함.
+
+### 영향받은 파일
+- `codex analyze/digimon-tamagotchi-frontend-architecture-review.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] Codex 구조 분석 문서 추가
+
+### 작업 유형
+- 📝 문서 추가 (프로젝트 구조 분석 정리)
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`의 실제 구조를 코드 기준으로 다시 정리한 분석 문서를 별도 폴더에 추가.
+- **내용:** `App.jsx`, `Game.jsx`, `hooks`, `logic`, `repositories`, `data/v1` 중심으로 실제 호출 흐름, 상태 관리 경계, 저장소 경계, lazy update 적용 지점을 문서화.
+- **구조적 관찰:**
+  - 실제 런타임은 문서상 설명과 달리 Firebase 중심 경로가 강함.
+  - Repository 계층은 존재하지만 핵심 경로에서는 사용되지 않음.
+  - `data/stats.js`와 `logic/stats/stats.js`가 공존하여 스탯 엔진이 완전히 단일화되어 있지 않음.
+
+### 영향받은 파일
+- `codex analyze/digimon-tamagotchi-frontend-structure-analysis.md` (신규)
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-03-08] 도감 마스터 칭호 및 슬롯 확장 (도감 완성 시 +5 슬롯)
 
 ### 작업 유형
@@ -992,3 +1298,83 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `docs/TYRANOMON_SLEEP_SPRITE_BUG_ANALYSIS.md` - 상세 분석 문서
 
 ---
+# 2026-03-29
+
+## PR 리뷰 문서 추가
+
+- `codex analyze/digimon-tamagotchi-frontend-pr-review.md` 문서를 추가했다.
+- 현재 코드베이스를 PR 리뷰 형식으로 검토해 correctness, regression risk, missing tests 관점의 우선순위 높은 위험 지점을 정리했다.
+- 중점 검토 영역은 시간 기반 스탯 변경, lazy update, 진화 조건, 배틀 계산, 저장 시점, 모달 상태 관리였다.
+
+### 영향받은 파일
+
+- `codex analyze/digimon-tamagotchi-frontend-pr-review.md`
+- `docs/REFACTORING_LOG.md`
+
+### 비고
+
+- 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
+# 2026-03-29
+
+## code-mapper 구조 분석 문서 추가 (`codex analyze_2`)
+
+- `codex analyze_2/1_digimon-tamagotchi-frontend-code-mapper-structure-analysis.md` 문서를 추가했다.
+- `App.jsx`, `Game.jsx`, `hooks`, `logic`, `repositories`, `data/v1`를 기준으로 실제 호출 흐름, 상태 경계, Firebase/localStorage 경계, lazy update 적용 지점을 다시 정리했다.
+- 특히 문서상 dual-storage 설명과 실제 Firebase 중심 런타임의 차이, `Game.jsx`의 controller 비대화, `useGameData`에 집중된 영속성 경계를 핵심 관찰 포인트로 기록했다.
+
+### 영향받은 파일
+
+- `codex analyze_2/1_digimon-tamagotchi-frontend-code-mapper-structure-analysis.md`
+- `docs/REFACTORING_LOG.md`
+
+### 비고
+
+- 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
+# 2026-03-29
+
+## 성능 리뷰 문서 추가
+
+- `codex analyze/digimon-tamagotchi-frontend-performance-review.md` 문서를 추가했다.
+- lazy update 준수 여부, 루트 리렌더링 압력, Canvas 초기화 비용, Firestore read/write 비용, 저장 빈도 리스크를 중심으로 성능 관점 분석을 정리했다.
+- 특히 `Game.jsx`의 1초 타이머 구조, `Canvas` 재초기화 패턴, `saveStats` 경로의 Firestore 비용, 슬롯 문서 구독에 따른 리렌더 전파를 우선순위 높게 다뤘다.
+
+### 영향받은 파일
+
+- `codex analyze/digimon-tamagotchi-frontend-performance-review.md`
+- `docs/REFACTORING_LOG.md`
+
+### 비고
+
+- 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
+# 2026-03-29
+
+## 게임 규칙 리뷰 문서 추가
+
+- `codex analyze/digimon-tamagotchi-frontend-game-rules-review.md` 문서를 추가했다.
+- 진화 조건, 케어미스, 배틀 명중률/파워, 사망 조건, 시간 기반 스탯 변화, 훈련/먹이 규칙의 도메인 일관성을 중심으로 분석했다.
+- 특히 실시간 규칙과 lazy update 규칙의 불일치, 수면 중 콜 타이머 처리, 아레나 배틀 데이터 해석, 중복된 규칙 소스 파일을 우선순위 높게 정리했다.
+
+### 영향받은 파일
+
+- `codex analyze/digimon-tamagotchi-frontend-game-rules-review.md`
+- `docs/REFACTORING_LOG.md`
+
+### 비고
+
+- 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
+# 2026-03-29
+
+## 안전한 리팩터링 로드맵 문서 추가
+
+- `codex analyze/6_digimon-tamagotchi-frontend-safe-refactoring-roadmap.md` 문서를 추가했다.
+- 현재 구조 분석 결과를 바탕으로 `Game.jsx`와 대형 Hook들을 behavior preserving 원칙으로 나누는 단계별 리팩터링 순서를 정리했다.
+- 각 단계마다 목표, 영향 파일, 기대 효과, 회귀 위험을 함께 기록했다.
+
+### 영향받은 파일
+
+- `codex analyze/6_digimon-tamagotchi-frontend-safe-refactoring-roadmap.md`
+- `docs/REFACTORING_LOG.md`
+
+### 비고
+
+- 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
