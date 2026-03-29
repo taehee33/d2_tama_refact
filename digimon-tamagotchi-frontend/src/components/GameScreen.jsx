@@ -86,7 +86,16 @@ const GameScreen = ({
   }, [digimonStats.isInjured, selectedSickEmojis.length]);
   
   return (
-    <div style={{ position: "relative", width, height, border: "2px solid #555" }}>
+    <div
+      style={{
+        position: "relative",
+        width,
+        height,
+        border: "2px solid #555",
+        overflow: "hidden",
+        boxSizing: "border-box",
+      }}
+    >
       {/* 배경 이미지 */}
       <img
         src={`/images/${backgroundNumber}.png`}
@@ -506,5 +515,4 @@ const GameScreen = ({
 };
 
 export default GameScreen;
-
 

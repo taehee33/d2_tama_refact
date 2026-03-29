@@ -1506,6 +1506,41 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 
 # 2026-03-29
 
+## 게임 화면 overflow 클리핑 보강
+
+### 변경 내용
+- `GameScreen` 최상위 래퍼에 `overflow: hidden`과 `box-sizing: border-box`를 추가했다.
+- 부상/사망 이모지, 호출 토스트, 기타 절대 배치 연출이 게임 화면 경계 바깥으로 살짝 튀면서 페이지 전체 스크롤 폭과 높이를 흔들던 현상을 게임 화면 내부에서 클리핑하도록 바꿨다.
+- 루트 스타일에 `scrollbar-gutter: stable both-edges`와 `body { overflow-x: hidden; }`를 추가해, 세로 스크롤바가 생겼다 사라질 때 문서 폭이 흔들리며 가로 스크롤까지 같이 튀는 현상을 줄이도록 보강했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 데스크톱 게임 화면에서 위아래/좌우 스크롤바가 생겼다 사라졌다 하는 현상이 재현되었고, 게임 화면 내부의 떠다니는 이모지/토스트가 문서 전체 overflow를 만드는 구조였다.
+- 문제 원인이 페이지 레이아웃 전체보다는 게임 화면 절대 배치 연출과 문서 스크롤 폭의 흔들림에 가까워, 전역 overflow를 전부 막기보다 `GameScreen` 경계 클리핑과 루트 스크롤 거터 고정을 함께 적용하는 쪽이 더 안전했다.
+
+# 2026-03-29
+
+## Ably 재사용 경로 상태 동기화 보강
+
+### 변경 내용
+- `AblyContextProvider` effect 시작 시 이전 cleanup에서 예약해 둔 클라이언트 종료 타이머를 먼저 정리하도록 바꿨다.
+- 기존 Ably 클라이언트를 재사용하는 경로에서 `setAblyClient(clientRef.current)`를 다시 호출해 React state와 실제 싱글톤 클라이언트 참조가 어긋나지 않도록 맞췄다.
+- 같은 `clientId`라도 연결 상태가 `closed` 또는 `failed`면 재사용하지 않고 정리 후 새 클라이언트를 만들도록 조건을 보강했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/contexts/AblyContext.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 화면에서는 `REACT_APP_ABLY_KEY`와 테이머명이 모두 있는 상태인데도 `Ably 연결 중...` 메시지가 계속 유지되는 현상이 재현되었다.
+- 기존 구현은 같은 `clientId`의 클라이언트를 재사용할 때 React state를 다시 연결하지 않고 바로 return하는 구조였고, 이전 effect cleanup이 예약한 종료 타이머가 남아 있으면 실제 클라이언트와 `ablyClient` state가 어긋난 채 로딩 UI에 머무를 수 있었다.
+
+# 2026-03-29
+
 ## 수면 스케줄 공용화 및 배포 빌드 복구
 
 ### 변경 내용
@@ -1531,3 +1566,37 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - Vercel 배포 로그에서 `normalizeSleepSchedule is not exported from ../../utils/sleepUtils` 에러가 재현되었고, 로컬 워크트리에는 관련 수면 유틸/호출부 변경이 아직 미커밋 상태로 남아 있었다.
 - 로컬 `npm run build` 기준으로는 이 변경 묶음이 적용된 상태에서 빌드가 정상 통과했기 때문에, 배포 실패의 직접 원인은 코드 자체보다 커밋 누락에 가까웠다.
 - 수면 규칙은 시간 기반 상태와 케어미스 판정에 직접 연결되므로, 중복된 구현을 유지하기보다 공용 유틸로 합치는 쪽이 이후 버그 추적과 테스트 추가에 유리했다.
+
+# 2026-03-29
+
+## 디지몬 마스터 데이터 전역 저장 구조 재정비
+
+### 변경 내용
+- `디지몬 마스터 데이터` 진입점을 아레나 관리자 탭에서 분리하고, `설정 > 개발자 옵션` 아래 전용 버튼으로 옮겼다.
+- 마스터 데이터 저장을 Firestore 전역 문서 `game_settings/digimon_master_data` 기준으로만 반영되도록 정리하고, 저장 성공 후에만 런타임 데이터에 적용되게 바꿨다.
+- 각 저장 시점마다 스냅샷을 `game_settings/digimon_master_data/snapshots`에 남기도록 바꾸고, 저장 시각, 저장자, 액션 종류, 변경 대상, before/after override를 함께 기록하도록 했다.
+- 행 단위 기본 복원, 전체 기본 복원, 저장 스냅샷 기준 복원 기능을 추가했다.
+- 편집 패널에서 `기본값`, `현재값`, `편집값`을 한눈에 비교할 수 있게 UI를 재구성했다.
+- 미반영 상태였던 `wake hour/min`, `alt attack sprite`, `CSV/JSON 일괄 import`를 편집/저장 흐름에 포함했다.
+- `sleepUtils`, `adapter`, `Game` 동기화 경로를 보강해 분 단위 수면/기상 시간이 실제 런타임 판정과 현재 개체 동기화에도 반영되게 맞췄다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.jsx`
+- `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonMasterDataModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonMasterDataPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+- `digimon-tamagotchi-frontend/src/utils/masterDataUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/sleepUtils.js`
+- `digimon-tamagotchi-frontend/src/data/v1/adapter.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/stats.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 기존 구현은 아레나 리더보드 탭 안에 진입점이 숨겨져 있었고, 로컬 캐시를 먼저 반영한 뒤 Firestore를 쓰는 구조라 전역 관리자 기능으로서 동작 범위가 불명확했다.
+- 사용자 요구사항은 `설정` 안의 전용 진입, Firestore 성공 시에만 반영, 저장 이력/되돌리기/기본값 복원을 명확히 제공하는 쪽이었다.
+- `wake hour/min`은 단순 표기만으로는 의미가 없어 실제 수면 판정과 기상 에너지 회복 로직까지 같은 기준으로 맞춰야 했고, 그래서 공용 수면 유틸과 런타임 어댑터를 함께 정리했다.

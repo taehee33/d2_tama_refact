@@ -51,6 +51,12 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
 
   useEffect(() => {
     const ablyKey = process.env.REACT_APP_ABLY_KEY;
+
+    // 이전 effect cleanup이 예약해 둔 종료 작업이 있으면 재사용 전에 취소한다.
+    if (cleanupTimeoutRef.current) {
+      clearTimeout(cleanupTimeoutRef.current);
+      cleanupTimeoutRef.current = null;
+    }
     
     if (!ablyKey) {
       console.warn('REACT_APP_ABLY_KEY가 설정되지 않았습니다. Ably 기능이 비활성화됩니다.');
@@ -73,13 +79,26 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     if (clientRef.current) {
       try {
         const currentClientId = clientRef.current.auth?.clientId;
-        if (currentClientId === clientId) {
-          // 같은 clientId면 재사용 (새로 생성하지 않음)
-          console.log('♻️ 기존 Ably 클라이언트 재사용:', clientId);
+        const currentConnectionState = clientRef.current.connection?.state;
+        if (
+          currentClientId === clientId &&
+          currentConnectionState !== 'closed' &&
+          currentConnectionState !== 'failed'
+        ) {
+          // 같은 clientId면 재사용하고, React state도 현재 클라이언트로 다시 맞춘다.
+          console.log('♻️ 기존 Ably 클라이언트 재사용:', clientId, 'state:', currentConnectionState);
+          setAblyClient(clientRef.current);
           return;
         } else {
           // clientId가 다르면 기존 클라이언트 정리
-          console.log('🔄 clientId 변경 감지, 기존 클라이언트 정리:', currentClientId, '->', clientId);
+          console.log(
+            '🔄 clientId/연결 상태 변경 감지, 기존 클라이언트 정리:',
+            currentClientId,
+            '->',
+            clientId,
+            'state:',
+            currentConnectionState
+          );
           try {
             // 기존 클라이언트 정리
             const oldClient = clientRef.current;
