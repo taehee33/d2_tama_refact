@@ -1743,7 +1743,7 @@ async function setSelectedDigimonAndSave(name) {
               </div>
             ) : null}
             {!isFirebaseAvailable && (
-              <span className="text-sm text-gray-500">localStorage 모드</span>
+              <span className="text-sm text-gray-500">Firebase 미설정</span>
             )}
           </div>
         </>

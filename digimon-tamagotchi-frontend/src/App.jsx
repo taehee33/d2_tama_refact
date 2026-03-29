@@ -80,7 +80,7 @@ function AppContent() {
   return (
     <Router>
       <AblyContextProvider 
-        tamerName={tamerName} 
+        tamerName={currentUser ? tamerName : null}
         renderChatRoom={() => <ChatRoomWrapper />}
       >
         <PageViewTracker />

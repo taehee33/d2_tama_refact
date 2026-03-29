@@ -33,7 +33,6 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   const [unreadCount, setUnreadCount] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const clientRef = useRef(null);
-  const tamerNameRef = useRef(null);
   const cleanupTimeoutRef = useRef(null);
   const presenceChannelRef = useRef(null);
   
@@ -42,16 +41,12 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     setUnreadCount(0);
   };
 
-  // clientId 계산 (tamerName이 없으면 익명 사용자용 ID 생성)
+  // 로그아웃 상태에서는 Ably 연결을 만들지 않는다.
   const clientId = useMemo(() => {
     if (tamerName && String(tamerName).trim()) {
       return String(tamerName).trim();
     }
-    // 익명 사용자의 경우 고유한 ID 생성 (세션 유지)
-    if (!tamerNameRef.current) {
-      tamerNameRef.current = `Guest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    }
-    return tamerNameRef.current;
+    return null;
   }, [tamerName]);
 
   useEffect(() => {
@@ -60,6 +55,15 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     if (!ablyKey) {
       console.warn('REACT_APP_ABLY_KEY가 설정되지 않았습니다. Ably 기능이 비활성화됩니다.');
       setAblyClient(null);
+      return;
+    }
+
+    if (!clientId) {
+      console.log('⏭️ Ably 비활성화: 로그인 사용자용 clientId가 없습니다.');
+      setAblyClient(null);
+      setPresenceData([]);
+      setUnreadCount(0);
+      setIsChatOpen(false);
       return;
     }
 

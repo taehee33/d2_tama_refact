@@ -1,41 +1,131 @@
-Digimon Tamagotchi 🐾
-📂 폴더 구조
-digimon-tamagotchi-frontend/
-├── public/
-│   └── images/
-│       └── (디지몬 스프라이트 이미지)
-├── src/
-│   ├── components/       👉 UI 컴포넌트 (추후 추가)
-│   ├── data/             👉 디지몬 데이터
-│   │   ├── digimonStartNumber.js
-│   │   └── digimonAnimations.js
-│   ├── pages/
-│   │   └── Game.jsx
-│   ├── App.jsx
-│   └── index.js
-├── package.json
-└── README.md
+# D2 Tamagotchi / Digimon Tamagotchi
 
+디지털 몬스터 컬러 휴대용 기기에서 영감을 받은 디지몬 육성 웹 애플리케이션입니다.  
+실제 실행 앱은 [digimon-tamagotchi-frontend](./digimon-tamagotchi-frontend) 아래에 있습니다.
 
-🚀 실행 방법
-# 프론트엔드 폴더로 이동
+## 현재 공식 운영 계약
+
+2026-03-29 기준으로, 이 프로젝트를 이해할 때 가장 먼저 알아야 할 계약은 아래와 같습니다.
+
+- 플레이하려면 로그인해야 합니다.
+- 로그인 방식은 `Google 로그인` 또는 `게스트(익명) 로그인` 두 가지입니다.
+- 여기서 말하는 게스트 로그인도 `Firebase Auth`를 사용합니다.
+- 현재 공식 슬롯 저장소는 `Firestore`입니다.
+- `localStorage`는 현재 슬롯 저장소가 아니라 `UI 설정`, `개발자 옵션`, `일부 보조 값`에 주로 사용됩니다.
+- `src/repositories` 폴더는 남아 있지만, 현재 메인 런타임 저장 경계는 아닙니다.
+
+즉, 현재 프로젝트를 한 줄로 요약하면 다음과 같습니다.
+
+> "게스트 로그인도 포함해 Firebase 로그인 후 Firestore 슬롯을 사용하는 구조이며, localStorage는 보조 저장소로 남아 있다."
+
+## 이 문서를 먼저 읽어야 하는 사람
+
+- 프로젝트를 처음 여는 사람
+- "지금 localStorage 모드가 실제로 되는지" 헷갈리는 사람
+- "repositories가 아직 살아 있는 구조인지" 확인하려는 사람
+- 1주차 작업으로 저장소 계약과 기준 문서를 정리하려는 사람
+
+## 먼저 읽으면 좋은 문서
+
+- 현재 인증/저장 계약 상세:
+  [CURRENT_AUTH_STORAGE_CONTRACT.md](./docs/CURRENT_AUTH_STORAGE_CONTRACT.md)
+- 현재 코드 기준 구조 설명:
+  [CURRENT_PROJECT_STRUCTURE_ANALYSIS.md](./docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md)
+- 저장소 추상화 폴더의 현재 상태:
+  [repositories/README.md](./digimon-tamagotchi-frontend/src/repositories/README.md)
+- 작업 기록:
+  [REFACTORING_LOG.md](./docs/REFACTORING_LOG.md)
+
+## 저장 구조를 짧게 설명하면
+
+### 1. 로그인 없이 플레이 가능한가?
+
+아니요. 현재는 로그인 후 플레이하는 구조입니다.
+
+- `Google 로그인`
+- `게스트(익명) 로그인`
+
+두 방식 모두 현재 구현상 Firebase를 통과합니다.  
+예전 문서나 주석에는 localStorage 모드 설명이 남아 있지만, 현재 메인 화면 진입 경로는 Firebase 사용자 존재를 전제로 합니다.
+
+### 2. 슬롯은 어디에 저장되는가?
+
+여기서 "슬롯"은 디지몬 저장 슬롯을 뜻합니다.
+
+- 현재 공식 저장 위치: `Firestore`
+- 대표 경로: `users/{uid}/slots/slot{slotId}`
+
+즉, 각 사용자는 자기 UID 아래에 여러 슬롯을 갖고, 각 슬롯 문서에 선택된 디지몬과 스탯, 배경, 버전, 부가 정보가 저장됩니다.
+
+### 3. localStorage는 지금 어디에 쓰이는가?
+
+현재 localStorage는 주로 다음 범주의 값에 쓰입니다.
+
+- 스프라이트 크기/뷰 설정
+- 개발자 모드, 도감 표시 옵션, 진화 시간 무시 같은 개발 보조 옵션
+- 패널 접힘/펼침 상태 같은 UI 상태
+- 일부 보조 값
+  예: 특정 슬롯의 `clearedQuestIndex`
+- 레거시 또는 폴백 흔적
+  예: 일부 컴포넌트의 localStorage 기반 분기
+
+중요한 점은, 현재 localStorage를 "디지몬의 공식 저장 슬롯"이라고 보면 안 된다는 것입니다.
+
+### 4. repositories는 지금 살아 있는 구조인가?
+
+폴더와 파일은 남아 있지만, 현재 메인 런타임 저장 경계는 아닙니다.
+
+- 실제 슬롯 로드/저장은 `useGameData` 중심 Firestore 경로가 더 중요합니다.
+- `src/repositories/SlotRepository.js`에는 "실제 코드에서는 직접 사용하지 않는다"는 주석도 남아 있습니다.
+- 따라서 현재 `repositories`는 "주 저장 경계"라기보다 `남아 있는 추상화/보존된 설계 흔적`에 가깝습니다.
+
+## 권장 방향
+
+현재 상태와 유지보수 비용을 함께 보면, 당장은 아래 방향을 권장합니다.
+
+- 공식 계약은 `Firebase 중심`으로 명확히 선언
+- `게스트 로그인`도 Firebase 기반 로그인으로 설명
+- `localStorage`는 보조 저장으로 제한
+- `repositories`는 현재 실사용 경계가 아니라는 점을 문서에 명시
+- 완전 오프라인 localStorage 슬롯 모드는 별도 기능 프로젝트로 분리
+
+이 방향을 택하면 문서, 코드, 테스트 전략을 한 방향으로 정렬하기 쉽습니다.
+
+## 실행 방법
+
+실행은 프론트엔드 앱 디렉토리에서 합니다.
+
+```bash
 cd digimon-tamagotchi-frontend
-
-# 패키지 설치
 npm install
-
-# 실행
 npm start
+```
 
+현재 프로젝트는 `start`/`build` 시 `NODE_OPTIONS=--openssl-legacy-provider`를 사용합니다.
 
-📊 디지몬 데이터 관리
-파일	역할
-/src/data/digimonStartNumber.js	디지몬별 시작 번호 관리
-/src/data/digimonAnimations.js	애니메이션 상대 번호 관리
-디지몬 추가 시 → 이 두 파일만 수정하면 쉽게 추가 가능!
+## 기술 스택
 
-💡 향후 개발 예정
-로그인 시스템
-여러 디지몬 관리
-스탯 강화, 진화 시스템
-배틀 기능git add README.md
+- React 18
+- Firebase Auth / Firestore
+- React Router DOM
+- Tailwind CSS
+- Create React App
+
+## 지금 가장 중요한 구조 포인트
+
+- 엔트리 흐름은 `App.jsx -> Login -> SelectScreen -> Game`
+- 메인 오케스트레이션은 `Game.jsx`
+- 상태 중심은 `useGameState`
+- 저장 중심은 `useGameData`
+- 시간 기반 상태 변화는 `lazy update`가 핵심 패턴
+- 다만 문서와 실제 런타임 계약 사이에는 아직 정리해야 할 차이가 있음
+
+## 이번 주에 문서를 정리하려면
+
+가장 작은 안전한 순서는 아래와 같습니다.
+
+1. 이 README에서 현재 계약을 선언
+2. [CURRENT_AUTH_STORAGE_CONTRACT.md](./docs/CURRENT_AUTH_STORAGE_CONTRACT.md)에 상세 근거를 정리
+3. [repositories/README.md](./digimon-tamagotchi-frontend/src/repositories/README.md)에서 repository 문서를 현실화
+4. [CURRENT_PROJECT_STRUCTURE_ANALYSIS.md](./docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md)에 구조 관점 요약 반영
+5. [REFACTORING_LOG.md](./docs/REFACTORING_LOG.md)에 변경 근거 기록

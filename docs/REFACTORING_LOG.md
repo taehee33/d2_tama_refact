@@ -4,6 +4,65 @@
 
 ---
 
+## [2026-03-29] 로그아웃 시 Ably detached runtime error 방지
+
+### 작업 유형
+- 🐛 버그 수정
+
+### 목적 및 영향
+- **목적:** 로그아웃 시 `Channel operation failed as channel state is detached` 런타임 에러가 터지는 문제를 줄이기.
+- **범위:** 사용자 동작 변화 없음, 저장 데이터 영향 없음, Firebase 영향 없음, Ably 연결 lifecycle 정리.
+- **내용:** `App.jsx`에서 로그아웃 상태일 때 `AblyContextProvider`에 이전 테이머명을 넘기지 않도록 변경했다. 동시에 `AblyContext.jsx`에서 `tamerName`이 없을 때 guest client를 새로 만들지 않고 Ably를 비활성화하도록 조정했다. 이로써 로그아웃 시 `ChatRoom/ChannelProvider` 언마운트와 Ably client 재생성/채널 detach가 충돌하던 경로를 완화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/contexts/AblyContext.jsx`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] 로그인/상태 표시 UI 문구를 현재 인증 계약에 맞게 정리
+
+### 작업 유형
+- ✨ UI 문구 수정
+- 📝 문서 갱신
+
+### 목적 및 영향
+- **목적:** 로그인 화면과 게임 화면에 남아 있던 오래된 저장소/로그인 표현을 현재 운영 계약과 맞추기.
+- **범위:** 사용자 동작 변화 없음, 저장 데이터 영향 없음, Firebase 영향 없음, localStorage 영향 없음.
+- **내용:** `Login.jsx`에서 익명 로그인 버튼 문구를 `게스트로 시작`으로 바꾸고, 안내 문구를 `Google 로그인은 여러 기기에서 이어서 플레이하기 쉬움`, `게스트 로그인은 로그아웃/기기 변경 시 이어서 플레이가 어려울 수 있음`으로 수정. `Game.jsx`에서는 `localStorage 모드` 상태 표시를 `Firebase 미설정`으로 변경해, 현재 공식 계약인 `Firebase-first` 구조와 맞추었다. 관련 계약 문서에서도 더 이상 stale하지 않은 설명으로 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`
+- `docs/REFACTORING_LOG.md`
+
+---
+
+## [2026-03-29] 인증/저장 계약 기준 문서 정비
+
+### 작업 유형
+- 📝 문서 갱신 (저장소 계약, 로그인 정책, repositories 현재 상태 설명 정리)
+
+### 목적 및 영향
+- **목적:** 현재 코드 구조와 문서 사이에서 가장 혼동이 큰 영역인 `로그인 방식`, `Firestore/localStorage 역할`, `repositories 실사용 여부`를 기준 문서에 맞춰 다시 정리.
+- **내용:** 루트 `README.md`를 현재 운영 계약 중심으로 전면 재작성하고, `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`를 새로 추가해 "게스트 로그인도 Firebase 기반인가", "슬롯은 어디에 저장되는가", "localStorage는 지금 무엇에 써도 되는가", "repositories는 현재 어떤 의미인가", "Firebase + Oracle Cloud를 같이 쓸 경우 구조가 어떻게 달라질 수 있는가"를 자세히 설명. 또한 `docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`에 현재 운영 계약 요약을 추가하고, `docs/STRUCTURE_ANALYSIS.md`는 상세 문서로 안내하는 요약 문서로 정리했으며, `src/repositories/README.md`는 과거 localStorage 중심 설명 대신 현재 실사용 여부를 기준으로 다시 작성.
+- **문서 계약 관찰:**
+  - 현재 운영 계약을 가장 정확하게 설명하는 문장은 `로그인 필수 + 게스트 로그인 허용 + 슬롯 저장은 Firestore + localStorage는 보조 저장`이다.
+  - 게스트 로그인은 현재 구현상 Firebase Auth의 익명 로그인이지, 완전한 비로그인 localStorage 모드가 아니다.
+  - repositories 폴더는 남아 있지만 현재 메인 런타임 저장 경계로 설명하면 오해가 생긴다.
+
+### 영향받은 파일
+- `README.md`
+- `docs/CURRENT_AUTH_STORAGE_CONTRACT.md` (신규)
+- `docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`
+- `docs/STRUCTURE_ANALYSIS.md`
+- `digimon-tamagotchi-frontend/src/repositories/README.md`
+- `docs/REFACTORING_LOG.md`
+
+---
+
 ## [2026-03-29] Codex 다중 관점 종합 분석 문서 추가
 
 ### 작업 유형

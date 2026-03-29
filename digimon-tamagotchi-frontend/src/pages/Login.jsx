@@ -184,7 +184,7 @@ function Login() {
                 ) : (
                   <>
                     <span>👤</span>
-                    <span>익명으로 로그인</span>
+                    <span>게스트로 시작</span>
                   </>
                 )}
               </button>
@@ -194,8 +194,8 @@ function Login() {
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
               <p className="font-semibold mb-1">💡 로그인 방법 안내</p>
               <ul className="list-disc list-inside space-y-1">
-                <li><strong>Google 로그인:</strong> 계정 정보가 저장되어 다른 기기에서도 사용 가능</li>
-                <li><strong>익명 로그인:</strong> 빠르게 시작하지만 데이터는 이 기기에만 저장</li>
+                <li><strong>Google 로그인:</strong> 같은 Google 계정으로 로그인하면 여러 기기에서 이어서 플레이하기 쉽습니다.</li>
+                <li><strong>게스트 로그인(익명):</strong> 빠르게 시작할 수 있지만, 익명 계정은 로그아웃하거나 기기를 바꾸면 이어서 플레이하기 어려울 수 있습니다.</li>
               </ul>
             </div>
           </>
