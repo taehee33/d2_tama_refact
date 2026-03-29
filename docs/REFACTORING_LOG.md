@@ -10,11 +10,12 @@
 - ✨ 기능 추가
 - 🎞️ 애니메이션 렌더링 확장
 - 🧪 순수 데이터 테스트 추가
+- 🐛 idle 타임라인 리셋 안정화
 
 ### 목적 및 영향
 - **목적:** 외부 스프라이트 편집기에서 추출한 `F:1~32` idle 이동 시퀀스를 현재 `baseSprite + offset` 구조에 맞춰 실제 게임 Canvas에 붙이기.
 - **범위:** 일반 디지몬의 `idle` 상태에서만 이동/반전 타임라인이 적용되며, 먹이주기/거절/수면/부상/사망/냉장고 애니메이션 경로는 기존 동작을 유지한다. 디지타마와 사망 폼은 기존 고정/단순 idle 렌더링을 계속 사용한다.
-- **내용:** `src/data/idleMotionTimeline.js`에 `idle_1 -> 0`, `idle_2 -> 1`, `attack_2 -> 7` 매핑과 `F:1~32` 타임라인 상수를 추가하고, `resolveIdleMotionTimeline(baseSprite)` 헬퍼로 현재 스프라이트 번호 체계에 맞게 해석하도록 했다. `Game.jsx`에서는 선택된 디지몬의 `baseSprite` 기준으로 idle 타임라인을 계산해 `GameScreen -> Canvas`로 전달한다. `Canvas.jsx`는 idle 상태에서 타임라인의 `spriteNumber/x/y/flip`을 직접 적용하도록 확장해, 기존 중앙 고정 렌더 대신 이동형 idle 모션을 그릴 수 있게 했다. 또한 순수 데이터 테스트를 추가해 slot offset과 baseSprite 해석 결과를 고정했다.
+- **내용:** `src/data/idleMotionTimeline.js`에 `idle_1 -> 0`, `idle_2 -> 1`, `attack_2 -> 7` 매핑과 `F:1~32` 타임라인 상수를 추가하고, `resolveIdleMotionTimeline(baseSprite)` 헬퍼로 현재 스프라이트 번호 체계에 맞게 해석하도록 했다. `Game.jsx`에서는 선택된 디지몬의 `baseSprite` 기준으로 idle 타임라인을 계산해 `GameScreen -> Canvas`로 전달한다. `Canvas.jsx`는 idle 상태에서 타임라인의 `spriteNumber/x/y/flip`을 직접 적용하도록 확장해, 기존 중앙 고정 렌더 대신 이동형 idle 모션을 그릴 수 있게 했다. 추가로 `Canvas` effect 의존성을 배열 identity가 아닌 문자열 key 기준으로 안정화해, `Game.jsx`의 1초 UI 타이머 리렌더 때문에 idle 애니메이션이 매초 `F:1` 근처로 리셋되던 현상을 줄였다. idle 타임라인의 `F` 진행은 `requestAnimationFrame` 횟수 대신 실제 경과 시간 기준으로 바꿔, 주사율과 무관하게 정확히 `0.7초`마다 다음 `F`로 넘어가도록 조정했다. 또한 순수 데이터 테스트를 추가해 slot offset과 baseSprite 해석 결과를 고정했다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/components/Canvas.jsx`

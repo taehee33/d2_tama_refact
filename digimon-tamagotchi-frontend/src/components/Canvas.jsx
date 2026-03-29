@@ -10,6 +10,7 @@ const fridgeSprites= ["/images/552.png", "/images/553.png", "/images/554.png", "
 const DIGIMON_WIDTH_RATIO = 0.4;
 const DIGIMON_HEIGHT_RATIO = 0.4;
 const IDLE_MOTION_COORDINATE_GRID = 80;
+const IDLE_MOTION_STEP_MS = 700;
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -134,6 +135,10 @@ const Canvas = ({
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
   const animationID= useRef(null);
+  const idleFramesKey = idleFrames.join("|");
+  const eatFramesKey = eatFrames.join("|");
+  const foodRejectFramesKey = foodRejectFrames.join("|");
+  const foodSpritesKey = foodSprites.join("|");
 
   useEffect(()=>{
     const initImages = () => {
@@ -243,10 +248,10 @@ const Canvas = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[
     width,height,
-    idleFrames,idleMotionTimeline,eatFrames,foodRejectFrames,
+    idleFramesKey,idleMotionTimeline,eatFramesKey,foodRejectFramesKey,
     digimonImageBase,
     currentAnimation,showFood,feedStep,
-    foodSizeScale,foodSprites,developerMode,
+    foodSizeScale,foodSpritesKey,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
     sleepStatus,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
   ]);
@@ -254,14 +259,23 @@ const Canvas = ({
   function startAnimation(ctx, frames){
     let frame=0;
     const speed=25;
+    let animationStartedAt = null;
 
-    function animate(){
+    function animate(timestamp){
+      const nowTimestamp = typeof timestamp === "number" ? timestamp : performance.now();
+      if(animationStartedAt === null){
+        animationStartedAt = nowTimestamp;
+      }
+
       ctx.clearRect(0,0,width,height);
 
       // 디지몬
       if(frames.length>0){
-        const motionStep = currentAnimation === "idle" && idleMotionTimeline.length > 0
-          ? idleMotionTimeline[Math.floor(frame / speed) % idleMotionTimeline.length]
+        const motionStepIndex = currentAnimation === "idle" && idleMotionTimeline.length > 0
+          ? Math.floor((nowTimestamp - animationStartedAt) / IDLE_MOTION_STEP_MS) % idleMotionTimeline.length
+          : null;
+        const motionStep = motionStepIndex !== null
+          ? idleMotionTimeline[motionStepIndex]
           : null;
 
         // 거절 애니메이션일 때는 feedStep으로 좌우 번갈아가게
