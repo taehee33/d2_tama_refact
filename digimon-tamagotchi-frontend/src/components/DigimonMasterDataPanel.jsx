@@ -92,10 +92,81 @@ function SpritePreview({ src, alt }) {
     <img
       src={src}
       alt={alt}
-      className="h-12 w-12 object-contain"
+      className="h-16 w-16 object-contain"
       style={{ imageRendering: "pixelated" }}
       onError={() => setFailed(true)}
     />
+  );
+}
+
+function getDigimonSpriteSrcFromDraft(draftLike) {
+  const spriteId = draftLike?.sprite;
+  if (spriteId === "" || spriteId === null || spriteId === undefined) {
+    return null;
+  }
+
+  return `${draftLike?.spriteBasePath || "/images"}/${spriteId}.png`;
+}
+
+function getAttackSpriteSrc(spriteId) {
+  if (spriteId === "" || spriteId === null || spriteId === undefined) {
+    return null;
+  }
+
+  return `/images/${spriteId}.png`;
+}
+
+function SmallSpritePreview({ src, alt }) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
+  if (!src || failed) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded border border-slate-700 bg-slate-900 text-[9px] text-slate-500">
+        N/A
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-10 w-10 object-contain"
+      style={{ imageRendering: "pixelated" }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function CurrentSpritePreview({ fieldKey, currentDraft }) {
+  return (
+    <div className="mb-3 rounded-lg border border-slate-700 bg-slate-950/70 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+        현재 미리보기
+      </p>
+      <div className="flex items-center justify-center gap-6">
+        <div className="flex flex-col items-center gap-2">
+          <SpritePreview
+            src={getDigimonSpriteSrcFromDraft(currentDraft)}
+            alt="current digimon sprite"
+          />
+          <span className="text-xs text-slate-400">본체</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <SpritePreview
+            src={getAttackSpriteSrc(currentDraft?.[fieldKey])}
+            alt="current attack sprite"
+          />
+          <span className="text-xs text-slate-400">
+            {fieldKey === "altAttackSprite" ? "대체 공격" : "공격"}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -139,6 +210,8 @@ function FieldCompareCard({
 }) {
   const isChanged = baseDraft?.[fieldKey] !== currentDraft?.[fieldKey];
   const isEditing = currentDraft?.[fieldKey] !== draft?.[fieldKey];
+  const showSpriteCompare =
+    fieldKey === "attackSprite" || fieldKey === "altAttackSprite";
 
   return (
     <div
@@ -165,6 +238,13 @@ function FieldCompareCard({
           )}
         </div>
       </div>
+
+      {showSpriteCompare && (
+        <CurrentSpritePreview
+          fieldKey={fieldKey}
+          currentDraft={currentDraft}
+        />
+      )}
 
       <TextInput
         value={draft?.[fieldKey] ?? ""}
@@ -314,6 +394,9 @@ export default function DigimonMasterDataPanel() {
   }, [selectedDigimonId, selectedVersion, masterDataRevision]);
 
   const comparison = useMemo(() => {
+    const revisionKey = masterDataRevision;
+    void revisionKey;
+
     if (!selectedDigimonId) {
       return null;
     }
@@ -583,7 +666,7 @@ export default function DigimonMasterDataPanel() {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(420px,1fr)]">
+        <div className="mt-4 space-y-4">
           <div className="overflow-hidden rounded-2xl border border-slate-700">
             <div className="border-b border-slate-700 bg-slate-900 p-3">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -593,7 +676,7 @@ export default function DigimonMasterDataPanel() {
                   placeholder="ID, 이름, 단계 검색"
                 />
                 <div className="text-xs text-slate-400">
-                  기본과 다른 필드 수가 많은 행일수록 우측 비교 카드에서 강조됩니다.
+                  참고 표와 같은 흐름으로 항목을 다시 배치했습니다. 가로 스크롤로 전체 값을 확인할 수 있습니다.
                 </div>
               </div>
             </div>
@@ -604,17 +687,31 @@ export default function DigimonMasterDataPanel() {
               </div>
             ) : (
               <div className="max-h-[70vh] overflow-auto">
-                <table className="min-w-full border-collapse text-sm">
+                <table className="min-w-[2600px] border-collapse text-sm">
                   <thead className="sticky top-0 z-10 bg-slate-900 text-[11px] uppercase tracking-[0.16em] text-slate-400">
                     <tr>
                       <th className="px-3 py-3 text-left">Edit</th>
-                      <th className="px-3 py-3 text-left">ID</th>
+                      <th className="px-3 py-3 text-left">No.</th>
                       <th className="px-3 py-3 text-left">Sprite</th>
-                      <th className="px-3 py-3 text-left">이름</th>
-                      <th className="px-3 py-3 text-left">단계</th>
-                      <th className="px-3 py-3 text-right">Sleep</th>
-                      <th className="px-3 py-3 text-right">Wake</th>
+                      <th className="px-3 py-3 text-left">AtkSprite</th>
+                      <th className="px-3 py-3 text-left">AltAtkSprite</th>
+                      <th className="px-3 py-3 text-right">SpriteID</th>
+                      <th className="px-3 py-3 text-left">Stage</th>
+                      <th className="px-3 py-3 text-right">MaxStamina</th>
+                      <th className="px-3 py-3 text-right">MinWeight</th>
+                      <th className="px-3 py-3 text-right">EvoTime</th>
+                      <th className="px-3 py-3 text-right">SleepHour</th>
+                      <th className="px-3 py-3 text-right">SleepMin</th>
+                      <th className="px-3 py-3 text-right">WakeHour</th>
+                      <th className="px-3 py-3 text-right">WakeMin</th>
+                      <th className="px-3 py-3 text-right">HungerTimer</th>
+                      <th className="px-3 py-3 text-right">StrengthDecayTimer</th>
+                      <th className="px-3 py-3 text-right">PoopTimer</th>
+                      <th className="px-3 py-3 text-right">HealAmount</th>
+                      <th className="px-3 py-3 text-left">Attribute</th>
                       <th className="px-3 py-3 text-right">Power</th>
+                      <th className="px-3 py-3 text-right">AttackSprite</th>
+                      <th className="px-3 py-3 text-right">AltAttackSprite</th>
                       <th className="px-3 py-3 text-right">변경</th>
                     </tr>
                   </thead>
@@ -643,38 +740,92 @@ export default function DigimonMasterDataPanel() {
                               {isSelected ? "선택됨" : "편집"}
                             </button>
                           </td>
-                          <td className="px-3 py-2 font-mono text-xs text-slate-300">{row.id}</td>
                           <td className="px-3 py-2">
-                            <SpritePreview src={row.spriteSrc} alt={`${row.name} sprite`} />
+                            <span className="font-mono text-base text-slate-200">
+                              {row.displayId}
+                            </span>
                           </td>
                           <td className="px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span>{row.name}</span>
+                            <SmallSpritePreview src={row.spriteSrc} alt={`${row.name} sprite`} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <SmallSpritePreview
+                              src={row.attackSpriteSrc}
+                              alt={`${row.name} attack sprite`}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <SmallSpritePreview
+                              src={row.altAttackSpriteSrc}
+                              alt={`${row.name} alt attack sprite`}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-base">{row.sprite}</td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {row.stage || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-base">
+                            {row.maxEnergy}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-base">
+                            {row.minWeight}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.timeToEvolveMinutes}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.sleepHour === "" ? 0 : row.sleepHour}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.sleepMin === "" ? 0 : row.sleepMin}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.wakeHour === "" ? 0 : row.wakeHour}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.wakeMin === "" ? 0 : row.wakeMin}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.hungerCycle}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.strengthCycle}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.poopCycle}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.healDoses}
+                          </td>
+                          <td className="px-3 py-2 text-slate-300">
+                            {row.type || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-base">
+                            {row.basePower}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.attackSprite}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-xs">
+                            {row.altAttackSprite}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex flex-col items-end gap-1">
                               {hasOverride && (
                                 <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                                  OVERRIDE
+                                  OVR
                                 </span>
                               )}
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                  row.changedFieldCount > 0
+                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    : "bg-slate-800 text-slate-400"
+                                }`}
+                              >
+                                {row.changedFieldCount}개
+                              </span>
                             </div>
-                          </td>
-                          <td className="px-3 py-2 text-slate-300">{row.stage}</td>
-                          <td className="px-3 py-2 text-right font-mono text-xs">
-                            {row.sleepTime || "미설정"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono text-xs">
-                            {row.wakeTime || "미설정"}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">{row.basePower}</td>
-                          <td className="px-3 py-2 text-right">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                row.changedFieldCount > 0
-                                  ? "bg-emerald-500/15 text-emerald-300"
-                                  : "bg-slate-800 text-slate-400"
-                              }`}
-                            >
-                              {row.changedFieldCount}개
-                            </span>
                           </td>
                         </tr>
                       );
@@ -759,30 +910,19 @@ export default function DigimonMasterDataPanel() {
               <>
                 {draft && baseDraft && currentDraft ? (
                   <>
-                    <div className="grid grid-cols-3 gap-3 rounded-2xl border border-slate-700 bg-slate-950/50 p-3">
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">기본</p>
-                        <SpritePreview
-                          src={`${baseDraft.spriteBasePath || "/images"}/${baseDraft.sprite}.png`}
-                          alt="base sprite"
-                        />
-                        <p className="text-xs text-slate-300">{baseDraft.name}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">현재</p>
+                    <div className="rounded-2xl border border-slate-700 bg-slate-950/50 p-4">
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                        현재 적용 중인 본체 스프라이트
+                      </p>
+                      <div className="mt-3 flex flex-col items-center justify-center gap-3">
                         <SpritePreview
                           src={`${currentDraft.spriteBasePath || "/images"}/${currentDraft.sprite}.png`}
                           alt="current sprite"
                         />
-                        <p className="text-xs text-slate-300">{currentDraft.name}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs uppercase tracking-[0.18em] text-slate-400">편집중</p>
-                        <SpritePreview
-                          src={`${draft.spriteBasePath || "/images"}/${draft.sprite}.png`}
-                          alt="draft sprite"
-                        />
-                        <p className="text-xs text-slate-300">{draft.name}</p>
+                        <div className="text-center">
+                          <p className="text-lg font-semibold text-white">{currentDraft.name}</p>
+                          <p className="text-sm text-slate-400">{currentDraft.stage}</p>
+                        </div>
                       </div>
                     </div>
 

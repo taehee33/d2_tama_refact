@@ -226,7 +226,40 @@ export function MasterDataProvider({ children }) {
     });
 
     await batch.commit();
-    return loadMasterData();
+
+    try {
+      return await loadMasterData();
+    } catch (reloadError) {
+      const optimisticMeta = {
+        activeSnapshotId: snapshotRef.id,
+        updatedAt: new Date(),
+        updatedBy: actor,
+        latestActionType: actionType,
+        latestActionLabel: formatSnapshotAction(actionType),
+        latestNote: note || null,
+        changeSummary,
+      };
+      const optimisticSnapshot = {
+        id: snapshotRef.id,
+        actionType,
+        note: note || null,
+        versionLabel,
+        targetDigimonId,
+        restoredFromSnapshotId,
+        createdAt: new Date(),
+        createdBy: actor,
+        changeSummary,
+        beforeOverrides,
+        afterOverrides: normalizedAfter,
+      };
+
+      applyLoadedState(normalizedAfter, optimisticMeta, [
+        optimisticSnapshot,
+        ...masterDataSnapshots.filter((snapshot) => snapshot.id !== snapshotRef.id),
+      ].slice(0, SNAPSHOT_LIMIT));
+      setMasterDataError(reloadError);
+      return normalizedAfter;
+    }
   };
 
   const saveDigimonOverride = async (

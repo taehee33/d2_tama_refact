@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
 import { translateStage } from "../utils/stageTranslator";
 import DigimonMasterDataModal from "./DigimonMasterDataModal";
 
@@ -29,8 +28,6 @@ const SettingsModal = ({
   digimonStats,
   slotVersion,
   }) => {
-  const { currentUser } = useAuth();
-  
   // PWA 설치 관련
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);

@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-03-29] Idle 이동 타임라인을 Canvas 렌더링 경로에 연결
+
+### 작업 유형
+- ✨ 기능 추가
+- 🎞️ 애니메이션 렌더링 확장
+- 🧪 순수 데이터 테스트 추가
+
+### 목적 및 영향
+- **목적:** 외부 스프라이트 편집기에서 추출한 `F:1~32` idle 이동 시퀀스를 현재 `baseSprite + offset` 구조에 맞춰 실제 게임 Canvas에 붙이기.
+- **범위:** 일반 디지몬의 `idle` 상태에서만 이동/반전 타임라인이 적용되며, 먹이주기/거절/수면/부상/사망/냉장고 애니메이션 경로는 기존 동작을 유지한다. 디지타마와 사망 폼은 기존 고정/단순 idle 렌더링을 계속 사용한다.
+- **내용:** `src/data/idleMotionTimeline.js`에 `idle_1 -> 0`, `idle_2 -> 1`, `attack_2 -> 7` 매핑과 `F:1~32` 타임라인 상수를 추가하고, `resolveIdleMotionTimeline(baseSprite)` 헬퍼로 현재 스프라이트 번호 체계에 맞게 해석하도록 했다. `Game.jsx`에서는 선택된 디지몬의 `baseSprite` 기준으로 idle 타임라인을 계산해 `GameScreen -> Canvas`로 전달한다. `Canvas.jsx`는 idle 상태에서 타임라인의 `spriteNumber/x/y/flip`을 직접 적용하도록 확장해, 기존 중앙 고정 렌더 대신 이동형 idle 모션을 그릴 수 있게 했다. 또한 순수 데이터 테스트를 추가해 slot offset과 baseSprite 해석 결과를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/data/idleMotionTimeline.js` (신규)
+- `digimon-tamagotchi-frontend/src/data/idleMotionTimeline.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 기존 `digimonAnimations.js`의 offset 기반 프레임 정의를 버리지 않고, idle 이동 타임라인만 별도 데이터 계층으로 분리해 현재 sprite sheet 체계와 자연스럽게 결합했다.
+- 외부 편집기의 좌표계는 `Canvas` 내부에서 80 기준 가상 스테이지로 환산해 현재 반응형 Canvas 크기에 맞게 적용했다.
+
+---
+
 ## [2026-03-29] 디지몬 마스터 데이터 관리자 탭 및 런타임 오버라이드 계층 추가
 
 ### 작업 유형

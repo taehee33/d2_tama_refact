@@ -30,6 +30,7 @@ import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
 
 import digimonAnimations from "../data/digimonAnimations";
+import { resolveIdleMotionTimeline } from "../data/idleMotionTimeline";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
@@ -1207,6 +1208,16 @@ async function setSelectedDigimonAndSave(name) {
   const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
   // v2 디지몬은 Ver2_Mod_Kor, v1은 /images
   const digimonImageBase = digimonData?.spriteBasePath || "/images";
+  const idleMotionTimeline = useMemo(() => {
+    const safeBaseSprite = Number(baseSprite);
+    const isDigitama = selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2";
+
+    if (!Number.isFinite(safeBaseSprite) || isDigitama || DEATH_FORM_IDS.includes(selectedDigimon)) {
+      return [];
+    }
+
+    return resolveIdleMotionTimeline(safeBaseSprite);
+  }, [baseSprite, selectedDigimon]);
   
   if (DEATH_FORM_IDS.includes(selectedDigimon)) {
     // 사망 폼(오하카다몬)은 고정 스프라이트만 사용 (애니메이션 없음)
@@ -1944,6 +1955,7 @@ async function setSelectedDigimonAndSave(name) {
         backgroundNumber={backgroundNumber}
         currentAnimation={currentAnimation}
         idleFrames={idleFrames}
+        idleMotionTimeline={idleMotionTimeline}
         eatFrames={eatFramesArr}
         foodRejectFrames={rejectFramesArr}
         digimonImageBase={digimonImageBase}

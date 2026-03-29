@@ -529,22 +529,48 @@ export function getMasterRowComparison(digimonId, versionLabel = "Ver.1") {
 
 export function buildMasterTableRows(versionLabel = "Ver.1") {
   const dataMap = getCurrentMasterDataMap(versionLabel);
+  const stageCodeMap = {
+    "Baby I": 0,
+    "Baby II": 1,
+    Child: 2,
+    Adult: 3,
+    Perfect: 4,
+    Ultimate: 5,
+    "Super Ultimate": 6,
+    Digitama: -1,
+    Ohakadamon: 99,
+  };
+  const attributeCodeMap = {
+    Free: 0,
+    Data: 1,
+    Virus: 2,
+    Vaccine: 3,
+  };
 
   return Object.entries(dataMap).map(([digimonId, digimon], index) => {
     const { changedFieldKeys } = getMasterRowComparison(digimonId, versionLabel);
     const wakeTime = getDigimonWakeTime(digimon);
+    const sleepParts = splitTimeString(digimon?.stats?.sleepTime);
+    const wakeParts = splitTimeString(wakeTime);
+    const altAttackSprite =
+      digimon?.stats?.altAttackSprite ?? DEFAULT_ALT_ATTACK_SPRITE;
 
     return {
       order: index,
       id: digimonId,
+      displayId: index,
       name: digimon?.name || digimonId,
       stage: digimon?.stage || "",
+      stageCode: stageCodeMap[digimon?.stage] ?? -1,
       sprite: digimon?.sprite ?? 0,
       spriteSrc: getDigimonSpriteSrc(digimon),
       attackSprite: digimon?.stats?.attackSprite ?? digimon?.sprite ?? 0,
       attackSpriteSrc: getDigimonAttackSpriteSrc(digimon),
-      altAttackSprite:
-        digimon?.stats?.altAttackSprite ?? DEFAULT_ALT_ATTACK_SPRITE,
+      altAttackSprite,
+      altAttackSpriteSrc:
+        altAttackSprite === DEFAULT_ALT_ATTACK_SPRITE
+          ? null
+          : `/images/${altAttackSprite}.png`,
       hungerCycle: digimon?.stats?.hungerCycle ?? 0,
       strengthCycle: digimon?.stats?.strengthCycle ?? 0,
       poopCycle: digimon?.stats?.poopCycle ?? 0,
@@ -554,10 +580,18 @@ export function buildMasterTableRows(versionLabel = "Ver.1") {
       healDoses: digimon?.stats?.healDoses ?? 0,
       basePower: digimon?.stats?.basePower ?? 0,
       type: digimon?.stats?.type || "",
+      attributeCode: attributeCodeMap[digimon?.stats?.type] ?? 0,
       sleepTime: normalizeTimeString(digimon?.stats?.sleepTime) || "",
+      sleepHour: sleepParts.hour || "",
+      sleepMin: sleepParts.minute || "",
       wakeTime: wakeTime || "",
+      wakeHour: wakeParts.hour || "",
+      wakeMin: wakeParts.minute || "",
       timeToEvolveSeconds:
         digimon?.evolutionCriteria?.timeToEvolveSeconds ?? 0,
+      timeToEvolveMinutes: Math.floor(
+        (digimon?.evolutionCriteria?.timeToEvolveSeconds ?? 0) / 60
+      ),
       changedFieldCount: changedFieldKeys.length,
     };
   });
