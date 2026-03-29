@@ -8,13 +8,18 @@ import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
 import { calculateInjuryChance } from "../logic/battle/calculator";
 import { doc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db } from "../firebase";
+import {
+  isTimeWithinSleepSchedule,
+  normalizeSleepSchedule,
+  shiftSleepScheduleByHours,
+} from "../utils/sleepUtils";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
  */
 function getSleepSchedule(digimonData, name, digimonStats = null) {
   const data = digimonData[name] || {};
-  const baseSchedule = data.sleepSchedule || { start: 22, end: 6 };
+  const baseSchedule = normalizeSleepSchedule(data.sleepSchedule || { start: 22, end: 6 });
   
   // 야행성 모드 확인
   const isNocturnal = digimonStats?.isNocturnal || false;
@@ -22,10 +27,7 @@ function getSleepSchedule(digimonData, name, digimonStats = null) {
   if (!isNocturnal) return baseSchedule;
   
   // 야행성 모드: 시작 시간과 종료 시간을 3시간 뒤로 미룸 (24시간제 계산)
-  return {
-    start: (baseSchedule.start + 3) % 24,
-    end: (baseSchedule.end + 3) % 24
-  };
+  return shiftSleepScheduleByHours(baseSchedule, 3);
 }
 
 /** 배틀 로그 최대 보관 개수 */
@@ -46,14 +48,7 @@ function appendBattleLog(prevBattleLogs, entry) {
  * 현재 시간이 수면 스케줄 내에 있는지 확인
  */
 function isWithinSleepSchedule(schedule, nowDate = new Date()) {
-  const hour = nowDate.getHours();
-  const { start, end } = schedule || { start: 22, end: 6 };
-  if (start === end) return false;
-  if (start < end) {
-    return hour >= start && hour < end;
-  }
-  // 자정 넘김
-  return hour >= start || hour < end;
+  return isTimeWithinSleepSchedule(schedule || { start: 22, end: 6 }, nowDate);
 }
 
 /**
@@ -1110,4 +1105,3 @@ export function useGameActions({
     cleanCycle,
   };
 }
-

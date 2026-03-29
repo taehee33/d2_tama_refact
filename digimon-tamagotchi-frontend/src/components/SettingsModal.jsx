@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { translateStage } from "../utils/stageTranslator";
+import DigimonMasterDataModal from "./DigimonMasterDataModal";
 
 const SettingsModal = ({
   onClose,
@@ -36,6 +37,7 @@ const SettingsModal = ({
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
+  const [showMasterDataModal, setShowMasterDataModal] = useState(false);
   
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
@@ -235,8 +237,9 @@ const SettingsModal = ({
   };
 
   return (
-    <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-96 flex flex-col max-h-[90vh]" modal-mobile>
+    <>
+      <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
+        <div className="bg-white rounded-lg shadow-lg w-96 flex flex-col max-h-[90vh]" modal-mobile>
         {/* 헤더 */}
         <div className="p-6 pb-4 border-b border-gray-200">
           <h2 className="text-xl">Settings</h2>
@@ -338,6 +341,19 @@ const SettingsModal = ({
                   </select>
                 </div>
               )}
+
+              <div className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMasterDataModal(true)}
+                  className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  디지몬 마스터 데이터
+                </button>
+                <p className="mt-1 text-xs text-gray-500">
+                  전역 Firestore 기준으로 종족 기본값, 스냅샷, 기본 복원, 가져오기를 관리합니다.
+                </p>
+              </div>
             </div>
           )}
 
@@ -476,8 +492,13 @@ const SettingsModal = ({
             Save
           </button>
         </div>
+        </div>
       </div>
-    </div>
+
+      {showMasterDataModal && (
+        <DigimonMasterDataModal onClose={() => setShowMasterDataModal(false)} />
+      )}
+    </>
   );
 };
 

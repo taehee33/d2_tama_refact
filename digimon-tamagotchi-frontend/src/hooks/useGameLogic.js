@@ -1,6 +1,8 @@
 // src/hooks/useGameLogic.js
 // 수면 상태 계산 유틸리티 및 진화 조건 체크 유틸리티
 
+import { isTimeWithinSleepSchedule, normalizeSleepSchedule } from "../utils/sleepUtils";
+
 /**
  * Firestore Timestamp를 안전하게 변환하는 유틸 함수
  * @param {any} val - 변환할 값 (number, Date, Firestore Timestamp, string 등)
@@ -30,18 +32,11 @@ function ensureTimestamp(val) {
  * @returns {'AWAKE'|'TIRED'|'SLEEPING'}
  */
 export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, napUntil = null, now = new Date() }) {
-  const hour = now.getHours();
-  const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
+  const normalizedSleepSchedule = normalizeSleepSchedule(sleepSchedule || { start: 22, end: 6 });
   const nowMs = now.getTime();
 
   const wakeOverride = wakeUntil ? new Date(wakeUntil).getTime() > nowMs : false;
-
-  const isSleepTime = (() => {
-    if (start === end) return false;
-    if (start < end) return hour >= start && hour < end;
-    // 자정 넘김 케이스 (예: 22시~08시)
-    return hour >= start || hour < end;
-  })();
+  const isSleepTime = isTimeWithinSleepSchedule(normalizedSleepSchedule, now);
 
   const isNapTime = napUntil ? napUntil > nowMs : false; // 낮잠 시간 체크
 
@@ -584,13 +579,10 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
     callStatus.sleep.startedAt = null;
   } else {
     // 잠들지 않았을 때만 수면 호출 체크
-    const hour = now.getHours();
-    const { start = 22, end = 6 } = sleepSchedule || { start: 22, end: 6 };
-    const isSleepTime = (() => {
-      if (start === end) return false;
-      if (start < end) return hour >= start && hour < end;
-      return hour >= start || hour < end;
-    })();
+    const isSleepTime = isTimeWithinSleepSchedule(
+      normalizeSleepSchedule(sleepSchedule || { start: 22, end: 6 }),
+      now
+    );
 
     if (isSleepTime && isLightsOn && !callStatus.sleep.isActive) {
       callStatus.sleep.isActive = true;
@@ -752,5 +744,3 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
   // 변경되었을 때만 새 객체 반환, 아니면 기존 객체 그대로 반환 (리액트 최적화)
   return hasChanged ? updatedStats : stats;
 }
-
-

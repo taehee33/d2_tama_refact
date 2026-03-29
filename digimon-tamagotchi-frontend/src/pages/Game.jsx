@@ -400,6 +400,7 @@ function Game(){
       "maxEnergy",
       "basePower",
       "attackSprite",
+      "altAttackSprite",
       "type",
       "timeToEvolveSeconds",
     ].some((key) => previousSnapshot[key] !== currentSnapshot[key]);
@@ -421,6 +422,7 @@ function Game(){
       maxEnergy: currentSnapshot.maxEnergy,
       power: currentSnapshot.basePower,
       attackSprite: currentSnapshot.attackSprite,
+      altAttackSprite: currentSnapshot.altAttackSprite,
       type: currentSnapshot.type,
       hungerCountdown: syncRemainingByElapsed(
         previousSnapshot.hungerTimer * 60,

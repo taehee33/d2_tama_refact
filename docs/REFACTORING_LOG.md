@@ -1503,3 +1503,31 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 진화 직후에는 `timeToEvolveSeconds`와 내부 스탯이 다음 단계 기준으로 저장되는데, 새로고침 후 루트 `selectedDigimon`만 이전 디지몬으로 돌아가는 불일치가 재현되었다.
 - 일반 진화 경로가 `setDigimonStatsAndSave()`와 `setSelectedDigimonAndSave()`를 분리 호출하고 있었고, `saveStats()`가 오래된 `selectedDigimon` 상태를 다시 Firestore 루트에 쓰는 구조라 이후 저장 타이밍에 따라 롤백될 수 있었다.
 - 재현 확인 과정에서 `MasterDataContext`가 기대하는 캐시 read/write export가 누락되어 개발 서버 재컴파일이 막혀 있었고, 같은 검증 라운드에서 최소한의 캐시 유틸을 함께 보강해 로컬 확인이 가능하도록 맞췄다.
+
+# 2026-03-29
+
+## 수면 스케줄 공용화 및 배포 빌드 복구
+
+### 변경 내용
+- `sleepUtils`에 수면 스케줄 정규화, 시간대 포함 판정, 시간 이동, 다음 수면/기상 시점 계산을 공용 유틸로 정리했다.
+- `useGameLogic`, `useGameActions`, `useGameHandlers`가 각자 들고 있던 수면 판정 로직을 공용 유틸 기반으로 맞췄다.
+- `adapter.js`가 구조화된 디지몬 데이터에서 `sleepSchedule`, `maxEnergy`, `attackSprite`, `type` 같은 런타임 호환 필드를 더 완전하게 만들어 주도록 보강했다.
+- 마스터 데이터 편집 패널을 설정 화면에서도 별도 모달로 열 수 있게 연결하고, 관련 UI 구성을 정리했다.
+- 직전 배포 커밋에서 `normalizeSleepSchedule` import가 먼저 올라가고 실제 export가 빠져 빌드가 실패했던 문제를, 남아 있던 로컬 변경을 정리해 추가 커밋하는 방식으로 복구했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/utils/sleepUtils.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/data/v1/adapter.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonMasterDataPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonMasterDataModal.jsx`
+
+### 근거
+- Vercel 배포 로그에서 `normalizeSleepSchedule is not exported from ../../utils/sleepUtils` 에러가 재현되었고, 로컬 워크트리에는 관련 수면 유틸/호출부 변경이 아직 미커밋 상태로 남아 있었다.
+- 로컬 `npm run build` 기준으로는 이 변경 묶음이 적용된 상태에서 빌드가 정상 통과했기 때문에, 배포 실패의 직접 원인은 코드 자체보다 커밋 누락에 가까웠다.
+- 수면 규칙은 시간 기반 상태와 케어미스 판정에 직접 연결되므로, 중복된 구현을 유지하기보다 공용 유틸로 합치는 쪽이 이후 버그 추적과 테스트 추가에 유리했다.

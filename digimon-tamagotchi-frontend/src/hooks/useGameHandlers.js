@@ -4,6 +4,11 @@
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { resetCallStatus, addActivityLog } from "./useGameLogic";
+import {
+  isTimeWithinSleepSchedule,
+  normalizeSleepSchedule,
+  shiftSleepScheduleByHours,
+} from "../utils/sleepUtils";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
@@ -14,7 +19,7 @@ import { resetCallStatus, addActivityLog } from "./useGameLogic";
  */
 export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => {
   const data = digimonDataVer1[name] || {};
-  const baseSchedule = data.sleepSchedule || { start: 22, end: 6 };
+  const baseSchedule = normalizeSleepSchedule(data.sleepSchedule || { start: 22, end: 6 });
   
   // 야행성 모드 확인
   const isNocturnal = digimonStats?.isNocturnal || false;
@@ -22,10 +27,7 @@ export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => 
   if (!isNocturnal) return baseSchedule;
   
   // 야행성 모드: 시작 시간과 종료 시간을 3시간 뒤로 미룸 (24시간제 계산)
-  return {
-    start: (baseSchedule.start + 3) % 24,
-    end: (baseSchedule.end + 3) % 24
-  };
+  return shiftSleepScheduleByHours(baseSchedule, 3);
 };
 
 /**
@@ -35,14 +37,7 @@ export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => 
  * @returns {boolean}
  */
 export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
-  const hour = nowDate.getHours();
-  const { start, end } = schedule;
-  if (start === end) return false;
-  if (start < end) {
-    return hour >= start && hour < end;
-  }
-  // 자정 넘김
-  return hour >= start || hour < end;
+  return isTimeWithinSleepSchedule(schedule, nowDate);
 };
 
 /**
@@ -351,4 +346,3 @@ export function useGameHandlers({
     handleLogout,
   };
 }
-
