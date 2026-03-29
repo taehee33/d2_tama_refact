@@ -216,6 +216,12 @@ export function useGameData({
     });
     
     // 새로운 시작일 때는 newStats의 사망 관련 필드를 확실히 보존
+    const effectiveSelectedDigimon =
+      newStats.selectedDigimon ||
+      digimonStats?.selectedDigimon ||
+      selectedDigimon ||
+      null;
+
     const finalStats = {
       ...mergedStats,
       ...newStats, // newStats의 모든 필드를 최종적으로 덮어씀
@@ -251,7 +257,11 @@ export function useGameData({
       console.log("[saveStats] proteinCount 필드 제거됨:", proteinCount);
     }
 
-    setDigimonStats(statsWithoutProteinCount);
+    const statsForState = effectiveSelectedDigimon
+      ? { ...statsWithoutProteinCount, selectedDigimon: effectiveSelectedDigimon }
+      : statsWithoutProteinCount;
+
+    setDigimonStats(statsForState);
 
     // Firebase 로그인 필수
     if (slotId && currentUser && isFirebaseAvailable) {
@@ -259,22 +269,30 @@ export function useGameData({
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         // 루트 전용 필드는 digimonStats에 중복 저장하지 않음 (isLightsOn, wakeUntil, lastSavedAt)
         // activityLogs·battleLogs는 서브컬렉션에만 저장하므로 슬롯 문서에서는 제외
-        const { isLightsOn: _dropl, wakeUntil: _dropw, lastSavedAt: _dropt, activityLogs: _dropLogs, battleLogs: _dropBattleLogs, ...digimonStatsOnly } = statsWithoutProteinCount;
+        const {
+          isLightsOn: _dropl,
+          wakeUntil: _dropw,
+          lastSavedAt: _dropt,
+          activityLogs: _dropLogs,
+          battleLogs: _dropBattleLogs,
+          selectedDigimon: _dropSelectedDigimon,
+          ...digimonStatsOnly
+        } = statsForState;
         const updateData = {
           digimonStats: cleanObject(digimonStatsOnly),
           isLightsOn,
           wakeUntil,
-          lastSavedAt: statsWithoutProteinCount.lastSavedAt,
+          lastSavedAt: statsForState.lastSavedAt,
           updatedAt: now,
         };
         
         // digimonDisplayName·selectedDigimon: 로드 완료 후에만 저장. 한글명 또는 ID만 (버전 안 붙임)
-        if (!isLoadingSlot && selectedDigimon) {
-          const displayNameFromData = evolutionDataForSlot?.[selectedDigimon]?.name;
-          const baseDisplayName = displayNameFromData || selectedDigimon;
+        if (!isLoadingSlot && effectiveSelectedDigimon) {
+          const displayNameFromData = evolutionDataForSlot?.[effectiveSelectedDigimon]?.name;
+          const baseDisplayName = displayNameFromData || effectiveSelectedDigimon;
           const digimonDisplayName = (digimonNickname && digimonNickname.trim()) ? `${digimonNickname.trim()}(${baseDisplayName})` : baseDisplayName;
           updateData.digimonDisplayName = digimonDisplayName;
-          updateData.selectedDigimon = selectedDigimon;
+          updateData.selectedDigimon = effectiveSelectedDigimon;
         }
         
         // 배경화면 설정 저장 (backgroundSettings가 전달된 경우)
@@ -527,7 +545,7 @@ export function useGameData({
             const ns = initializeStats(savedName, {}, dataMap);
             ns.birthTime = Date.now();
             setSelectedDigimon(savedName);
-            setDigimonStats(ns);
+            setDigimonStats({ ...ns, selectedDigimon: savedName });
           } else {
             // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
             const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || savedStats.lastSavedAt || new Date();
@@ -577,7 +595,7 @@ export function useGameData({
             }
             
             setSelectedDigimon(savedName);
-            setDigimonStats(savedStats);
+            setDigimonStats({ ...savedStats, selectedDigimon: savedName });
             
             // deathReason 복원
             if (savedStats.deathReason) {
@@ -698,4 +716,3 @@ export function useGameData({
     error,
   };
 }
-

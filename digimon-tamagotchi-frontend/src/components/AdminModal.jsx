@@ -4,9 +4,10 @@
 import React, { useEffect, useState } from "react";
 import { collection, doc, getDocs, updateDoc, setDoc, deleteDoc, query, orderBy, limit, where } from "firebase/firestore";
 import { db } from "../firebase";
+import DigimonMasterDataPanel from "./DigimonMasterDataPanel";
 
 const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onConfigUpdated }) => {
-  const [activeTab, setActiveTab] = useState("season"); // season | archive
+  const [activeTab, setActiveTab] = useState("season"); // season | archive | master
   const [localSeasonId, setLocalSeasonId] = useState(currentSeasonId || 1);
   const [localSeasonName, setLocalSeasonName] = useState(seasonName || `Season ${currentSeasonId || 1}`);
   const [localSeasonDuration, setLocalSeasonDuration] = useState(seasonDuration || "");
@@ -179,9 +180,9 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" style={{ zIndex: 80 }}>
-      <div className="bg-white p-6 rounded-lg shadow-xl max-w-3xl w-full m-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white p-6 rounded-lg shadow-xl max-w-7xl w-full m-4 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Arena Admin</h2>
+          <h2 className="text-2xl font-bold">관리자 도구</h2>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
@@ -199,7 +200,7 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
                 : "text-gray-600 hover:text-gray-800"
             }`}
           >
-            Current Season
+            시즌 설정
           </button>
           <button
             onClick={() => setActiveTab("archive")}
@@ -209,7 +210,17 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
                 : "text-gray-600 hover:text-gray-800"
             }`}
           >
-            History
+            아카이브
+          </button>
+          <button
+            onClick={() => setActiveTab("master")}
+            className={`px-4 py-2 font-bold transition-colors ${
+              activeTab === "master"
+                ? "border-b-2 border-blue-500 text-blue-600"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            디지몬 마스터
           </button>
         </div>
 
@@ -289,10 +300,11 @@ const AdminModal = ({ onClose, currentSeasonId, seasonName, seasonDuration, onCo
             )}
           </div>
         )}
+
+        {activeTab === "master" && <DigimonMasterDataPanel />}
       </div>
     </div>
   );
 };
 
 export default AdminModal;
-

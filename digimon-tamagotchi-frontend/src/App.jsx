@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/react";
 import ReactGA from "react-ga4";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
+import { MasterDataProvider, useMasterData } from "./contexts/MasterDataContext";
 import { ChannelProvider } from "ably/react";
 import ChatRoom from "./components/ChatRoom";
 import { getTamerName } from "./utils/tamerNameUtils";
@@ -57,6 +58,7 @@ function ChatRoomWrapper() {
 // Ably 및 ChatRoom을 포함한 내부 컴포넌트
 function AppContent() {
   const { currentUser } = useAuth();
+  const { isMasterDataReady } = useMasterData();
   const [tamerName, setTamerName] = useState("");
 
   // 테이머명 로드
@@ -76,6 +78,16 @@ function AppContent() {
     };
     loadTamerName();
   }, [currentUser]);
+
+  if (!isMasterDataReady) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="rounded-xl border border-slate-700 bg-slate-900 px-6 py-5 text-center text-sm text-slate-200 shadow-lg">
+          디지몬 마스터 데이터를 불러오는 중...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -157,7 +169,9 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppContent />
+      <MasterDataProvider>
+        <AppContent />
+      </MasterDataProvider>
       {/* Vercel Analytics */}
       <Analytics />
     </AuthProvider>

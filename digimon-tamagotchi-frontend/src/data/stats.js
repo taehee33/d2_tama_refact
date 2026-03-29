@@ -61,7 +61,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   }
   
   merged.weight = oldStats.weight !== undefined ? oldStats.weight : merged.weight;
-  merged.lifespanSeconds= oldStats.lifespanSeconds || merged.lifespanSeconds;
+  merged.lifespanSeconds = Number.isFinite(oldStats.lifespanSeconds)
+    ? oldStats.lifespanSeconds
+    : (Number.isFinite(merged.lifespanSeconds) ? merged.lifespanSeconds : 0);
 
   // ★ strength, effort는 진화 시 리셋 (resetStats에서 0으로 설정됨)
   // merged.strength, merged.effort는 defaultStats에서 가져온 기본값 사용 (보통 0)
@@ -158,7 +160,10 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   if(stats.isDead) return stats;
 
   const s= { ...stats };
-  s.lifespanSeconds += deltaSec;
+  const currentLifespan = typeof s.lifespanSeconds === 'number' && !Number.isNaN(s.lifespanSeconds)
+    ? s.lifespanSeconds
+    : 0;
+  s.lifespanSeconds = currentLifespan + deltaSec;
   // undefined면 NaN 방지 및 디지타마 초기값 누락 대비 (0으로 간주해 감소만 적용)
   const currentTimeToEvolve = typeof s.timeToEvolveSeconds === 'number' && !Number.isNaN(s.timeToEvolveSeconds) ? s.timeToEvolveSeconds : 0;
   s.timeToEvolveSeconds = Math.max(0, currentTimeToEvolve - deltaSec);
@@ -456,7 +461,10 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
   
   // updateLifespan을 경과 시간만큼 호출
   // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
-  updatedStats.lifespanSeconds += elapsedSeconds;
+  const currentLifespan = typeof updatedStats.lifespanSeconds === 'number' && !Number.isNaN(updatedStats.lifespanSeconds)
+    ? updatedStats.lifespanSeconds
+    : 0;
+  updatedStats.lifespanSeconds = currentLifespan + elapsedSeconds;
   // undefined/NaN 방지 — 구 저장 데이터에 timeToEvolveSeconds 없을 수 있음
   const currentTte = typeof updatedStats.timeToEvolveSeconds === 'number' && !Number.isNaN(updatedStats.timeToEvolveSeconds) ? updatedStats.timeToEvolveSeconds : 0;
   updatedStats.timeToEvolveSeconds = Math.max(0, currentTte - elapsedSeconds);

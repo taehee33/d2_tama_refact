@@ -272,7 +272,7 @@ export function useEvolution({
     const newDigimonName = newDigimonData.name || newName;
     const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `Evolution: Evolved to ${newDigimonName}!`);
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+    const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: newName };
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);
     
@@ -363,7 +363,7 @@ export function useEvolution({
         "EVOLUTION",
         `조그레스 진화(로컬): ${newDigimonName}!`
       );
-      const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+      const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
 
       const now = new Date();
       const slotARef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
@@ -626,7 +626,7 @@ export function useEvolution({
     const resultName = newDigimonData.name || guestTargetId;
     const existingLogs = Array.isArray(guestStats.activityLogs) ? guestStats.activityLogs : [];
     const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${resultName}!`);
-    const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+    const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: guestTargetId };
     const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
 
     try {
@@ -768,7 +768,7 @@ export function useEvolution({
       const newDigimonName = newDigimonData.name || targetId;
       const existingLogs = currentStats.activityLogs || activityLogs || [];
       const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${newDigimonName}!`);
-      const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+      const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
       const now = new Date();
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
@@ -888,7 +888,7 @@ export function useEvolution({
       const newDigimonName = newDigimonData.name || targetId;
       const existingLogs = Array.isArray(currentStats.activityLogs) ? currentStats.activityLogs : [];
       const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${newDigimonName}!`);
-      const nxWithLogs = { ...nx, activityLogs: updatedLogs };
+      const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
       const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
       const now = new Date();
       await updateDoc(slotRef, {
@@ -969,4 +969,3 @@ export function useEvolution({
     proceedJogressOnlineAsHostForRoom,
   };
 }
-

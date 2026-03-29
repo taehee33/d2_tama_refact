@@ -246,8 +246,9 @@ function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp }) {
 
 // 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
-  const d = Math.floor(sec / 86400);
-  const r = sec % 86400;
+  const safeSec = typeof sec === 'number' && Number.isFinite(sec) ? sec : 0;
+  const d = Math.floor(safeSec / 86400);
+  const r = safeSec % 86400;
   const h = Math.floor(r / 3600);
   const m = Math.floor((r % 3600) / 60);
   const s = r % 60;
@@ -256,8 +257,9 @@ function formatTime(sec=0){
 
 // 진화까지 남은 시간 포맷 (일/시간/분/초)
 function formatTimeToEvolve(sec=0){
-  const d = Math.floor(sec / 86400);
-  const r = sec % 86400;
+  const safeSec = typeof sec === 'number' && Number.isFinite(sec) ? sec : 0;
+  const d = Math.floor(safeSec / 86400);
+  const r = safeSec % 86400;
   const h = Math.floor(r / 3600);
   const m = Math.floor((r % 3600) / 60);
   const s = r % 60;

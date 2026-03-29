@@ -96,7 +96,7 @@ export function useDeath({
       `Reincarnation: Transformed to ${ohaka} (death form)`
     );
     if (appendLogToSubcollection) await appendLogToSubcollection(reincarnationLogs[reincarnationLogs.length - 1]).catch(() => {});
-    const nxWithLogs = { ...nx, activityLogs: reincarnationLogs };
+    const nxWithLogs = { ...nx, activityLogs: reincarnationLogs, selectedDigimon: ohaka };
     
     // ✅ 도감 업데이트: 사망 전 디지몬 기록 (계정별 통합, 버전별 관리)
     if (selectedDigimon && selectedDigimon !== "Digitama" && selectedDigimon !== "DigitamaV2") {
@@ -197,6 +197,5 @@ export function useDeath({
     checkDeathCondition,
   };
 }
-
 
 

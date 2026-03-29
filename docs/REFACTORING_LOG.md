@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-03-29] 디지몬 마스터 데이터 관리자 탭 및 런타임 오버라이드 계층 추가
+
+### 작업 유형
+- ✨ 기능 추가
+- 🛠️ 데이터 관리 도구 추가
+- 🧪 테스트 정리
+
+### 목적 및 영향
+- **목적:** 스크린샷 형태의 디지몬 종 데이터 표/편집 화면을 시스템 안에서 직접 열고 수정할 수 있게 만들기.
+- **범위:** 개발자 모드에서 `관리자 도구 > 디지몬 마스터` 탭으로 접근 가능. 변경값은 Firestore `game_settings/digimon_master_data` 문서와 브라우저 캐시에 저장되며, 현재 게임 세션의 디지몬 데이터에도 즉시 반영된다.
+- **내용:** `MasterDataContext`와 `masterDataUtils`를 추가해 정적 `digimonDataVer1`, `digimonDataVer2` 객체에 오버라이드 값을 덮어쓰는 전역 계층을 만들었다. `AdminModal`에는 검색 가능한 다크 테이블 형태의 `DigimonMasterDataPanel`을 추가해 종별 스프라이트, 공격 스프라이트, 진화 시간, 배고픔/힘/배변 주기, 치료 횟수, 체중, 에너지, 파워, 수면 시간, 속성을 직접 수정할 수 있게 했다. `Game.jsx`에서는 오버라이드 변경 시 현재 선택된 디지몬의 species-derived stats를 동기화해 플레이 중인 개체에도 바로 반영되도록 보정했다. 또한 오래된 CRA 기본 테스트를 현재 구조에 맞는 smoke test로 교체했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonMasterDataPanel.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/utils/masterDataUtils.js` (신규)
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 정적 데이터 파일을 직접 수정하는 대신 런타임 오버라이드 계층을 두어, 기존 코드의 direct import 패턴을 대규모로 뜯지 않고도 전역 반영이 가능하게 했다.
+- `adaptedV1`, `adaptedV2`는 모듈 상수 대신 런타임 재계산으로 바꿔 오버라이드 값이 lazy update/진화/전투 로직에도 반영되도록 연결했다.
+
+---
+
 ## [2026-03-29] 로그아웃 시 Ably detached runtime error 방지
 
 ### 작업 유형
@@ -1437,3 +1465,41 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ### 비고
 
 - 애플리케이션 코드는 수정하지 않았고 분석 문서만 추가했다.
+# 2026-03-29
+
+## Lifespan NaN 방어 수정
+
+### 변경 내용
+- `lifespanSeconds`가 `undefined`/`NaN`일 때 `NaN` 전파가 발생하지 않도록 초기화/실시간/lazy update 경로에 숫자 보정을 추가했다.
+- 디버그 패널의 `Lifespan`, `Time to Evolve` 표시 포맷터에도 안전 장치를 넣어 화면에 `NaN`이 직접 노출되지 않게 했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/stats.js`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+
+### 근거
+- 새 슬롯 진입 직후 디버그 패널에서 `Lifespan: NaN`이 재현되었고, `lifespanSeconds`를 숫자로 가정하고 바로 누적하는 경로가 존재했다.
+- 시간 기반 규칙 전체를 흔드는 증상이므로 다른 규칙 조사 전에 먼저 안전하게 막는 쪽이 우선순위가 높았다.
+
+# 2026-03-29
+
+## 진화 후 새로고침 시 표시 디지몬 롤백 방어
+
+### 변경 내용
+- `saveStats()`가 루트 `selectedDigimon`을 오래된 Hook 클로저 값으로 다시 쓰지 않도록, `newStats.selectedDigimon`을 우선 사용하는 저장 경로를 추가했다.
+- 메모리 상태(`digimonStats`)에도 현재 디지몬 ID를 함께 유지하고, Firestore의 `digimonStats` 중첩 객체에는 중복 저장하지 않도록 분리했다.
+- 일반 진화, 조그레스 진화, 사망 폼 전환, 새 시작 시 생성되는 새 스탯 객체에 `selectedDigimon`을 함께 실어 저장/새로고침 후 단계 불일치가 생기지 않도록 맞췄다.
+- 슬롯 로드 시에도 `digimonStats.selectedDigimon`을 현재 루트 선택값과 동기화하도록 보강했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/utils/masterDataUtils.js`
+
+### 근거
+- 진화 직후에는 `timeToEvolveSeconds`와 내부 스탯이 다음 단계 기준으로 저장되는데, 새로고침 후 루트 `selectedDigimon`만 이전 디지몬으로 돌아가는 불일치가 재현되었다.
+- 일반 진화 경로가 `setDigimonStatsAndSave()`와 `setSelectedDigimonAndSave()`를 분리 호출하고 있었고, `saveStats()`가 오래된 `selectedDigimon` 상태를 다시 Firestore 루트에 쓰는 구조라 이후 저장 타이밍에 따라 롤백될 수 있었다.
+- 재현 확인 과정에서 `MasterDataContext`가 기대하는 캐시 read/write export가 누락되어 개발 서버 재컴파일이 막혀 있었고, 같은 검증 라운드에서 최소한의 캐시 유틸을 함께 보강해 로컬 확인이 가능하도록 맞췄다.

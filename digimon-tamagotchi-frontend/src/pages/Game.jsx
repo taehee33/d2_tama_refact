@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { db } from "../firebase";
 import { updateDoc, doc, onSnapshot } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
+import { useMasterData } from "../contexts/MasterDataContext";
 
 import ControlPanel from "../components/ControlPanel";
 import GameModals from "../components/GameModals";
@@ -40,6 +41,7 @@ import { quests } from "../data/v1/quests";
 import { checkEvolution } from "../logic/evolution/checker";
 import { handleHungerTick } from "../logic/stats/hunger";
 import { handleStrengthTick } from "../logic/stats/strength";
+import { getMasterDataSnapshotForSync } from "../utils/masterDataUtils";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -76,9 +78,6 @@ function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt
   return Math.max(0, totalElapsed - frozenDuration);
 }
 
-// v1·v2 병합하지 않고 버전별로 각각 사용
-const adaptedV1 = adaptDataMapToOldFormat(newDigimonDataVer1);
-const adaptedV2 = adaptDataMapToOldFormat(digimonDataVer2);
 const DEFAULT_SEASON_ID = 1;
 
 const ver1DigimonList = [
@@ -97,9 +96,41 @@ const DEATH_FORM_IDS = ["Ohakadamon1", "Ohakadamon2", "Ohakadamon1V2", "Ohakadam
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
 
+function syncRemainingByElapsed(previousTotal, nextTotal, currentRemaining) {
+  const safeNextTotal = Math.max(0, Number(nextTotal) || 0);
+
+  if (safeNextTotal === 0) {
+    return 0;
+  }
+
+  const safeCurrentRemaining = Number.isFinite(currentRemaining)
+    ? currentRemaining
+    : safeNextTotal;
+  const safePreviousTotal = Math.max(0, Number(previousTotal) || 0);
+
+  if (safePreviousTotal === 0) {
+    return safeNextTotal;
+  }
+
+  const elapsed = Math.max(0, safePreviousTotal - safeCurrentRemaining);
+  return Math.max(0, Math.min(safeNextTotal, safeNextTotal - elapsed));
+}
+
 function Game(){
   const { slotId } = useParams();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
+  const { masterDataRevision } = useMasterData();
+
+  const adaptedV1 = useMemo(() => {
+    const revisionKey = masterDataRevision;
+    void revisionKey;
+    return adaptDataMapToOldFormat(newDigimonDataVer1);
+  }, [masterDataRevision]);
+  const adaptedV2 = useMemo(() => {
+    const revisionKey = masterDataRevision;
+    void revisionKey;
+    return adaptDataMapToOldFormat(digimonDataVer2);
+  }, [masterDataRevision]);
   
   // 모바일 감지
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -291,6 +322,7 @@ function Game(){
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);
   // 온라인 조그레스: 현재 슬롯의 jogressStatus (canEvolve 시 진화 버튼 노출)
   const [slotJogressStatus, setSlotJogressStatus] = useState(null);
+  const masterDataSyncSnapshotRef = useRef(null);
 
   // useGameData 훅 호출 (데이터 저장/로딩 로직)
   const {
@@ -334,6 +366,102 @@ function Game(){
     isLoadingSlot,
     evolutionDataForSlot,
   });
+
+  useEffect(() => {
+    if (!selectedDigimon || !digimonStats || isLoadingSlot) {
+      return;
+    }
+
+    const versionLabel = slotVersion === "Ver.2" ? "Ver.2" : "Ver.1";
+    const currentSnapshot = getMasterDataSnapshotForSync(versionLabel, selectedDigimon);
+
+    if (!currentSnapshot) {
+      return;
+    }
+
+    const previousSnapshot = masterDataSyncSnapshotRef.current;
+
+    if (
+      !previousSnapshot ||
+      previousSnapshot.digimonId !== currentSnapshot.digimonId ||
+      previousSnapshot.versionLabel !== currentSnapshot.versionLabel
+    ) {
+      masterDataSyncSnapshotRef.current = currentSnapshot;
+      return;
+    }
+
+    const speciesChanged = [
+      "sprite",
+      "hungerTimer",
+      "strengthTimer",
+      "poopTimer",
+      "maxOverfeed",
+      "minWeight",
+      "maxEnergy",
+      "basePower",
+      "attackSprite",
+      "type",
+      "timeToEvolveSeconds",
+    ].some((key) => previousSnapshot[key] !== currentSnapshot[key]);
+
+    if (!speciesChanged) {
+      masterDataSyncSnapshotRef.current = currentSnapshot;
+      return;
+    }
+
+    const syncedStats = {
+      ...digimonStats,
+      sprite: currentSnapshot.sprite,
+      hungerTimer: currentSnapshot.hungerTimer,
+      strengthTimer: currentSnapshot.strengthTimer,
+      poopTimer: currentSnapshot.poopTimer,
+      maxOverfeed: currentSnapshot.maxOverfeed,
+      minWeight: currentSnapshot.minWeight,
+      maxStamina: currentSnapshot.maxEnergy,
+      maxEnergy: currentSnapshot.maxEnergy,
+      power: currentSnapshot.basePower,
+      attackSprite: currentSnapshot.attackSprite,
+      type: currentSnapshot.type,
+      hungerCountdown: syncRemainingByElapsed(
+        previousSnapshot.hungerTimer * 60,
+        currentSnapshot.hungerTimer * 60,
+        digimonStats.hungerCountdown
+      ),
+      strengthCountdown: syncRemainingByElapsed(
+        previousSnapshot.strengthTimer * 60,
+        currentSnapshot.strengthTimer * 60,
+        digimonStats.strengthCountdown
+      ),
+      poopCountdown: syncRemainingByElapsed(
+        previousSnapshot.poopTimer * 60,
+        currentSnapshot.poopTimer * 60,
+        digimonStats.poopCountdown
+      ),
+      timeToEvolveSeconds: syncRemainingByElapsed(
+        previousSnapshot.timeToEvolveSeconds,
+        currentSnapshot.timeToEvolveSeconds,
+        digimonStats.timeToEvolveSeconds
+      ),
+    };
+
+    masterDataSyncSnapshotRef.current = currentSnapshot;
+
+    if (setDigimonStatsAndSave) {
+      void setDigimonStatsAndSave(syncedStats, activityLogs);
+      return;
+    }
+
+    setDigimonStats(syncedStats);
+  }, [
+    activityLogs,
+    digimonStats,
+    isLoadingSlot,
+    selectedDigimon,
+    setDigimonStats,
+    setDigimonStatsAndSave,
+    slotVersion,
+    masterDataRevision,
+  ]);
 
   const meatSprites= ["/images/526.png","/images/527.png","/images/528.png","/images/529.png"];
   const proteinSprites= ["/images/530.png","/images/531.png","/images/532.png"];
@@ -1245,7 +1373,7 @@ async function setSelectedDigimonAndSave(name) {
         `New start: Reborn as ${initialDigimonId}`
       );
       if (appendLogToSubcollection) appendLogToSubcollection(newStartLogs[newStartLogs.length - 1]).catch(() => {});
-      const nsWithLogs = { ...ns, activityLogs: newStartLogs };
+      const nsWithLogs = { ...ns, activityLogs: newStartLogs, selectedDigimon: initialDigimonId };
       setSelectedDigimon(initialDigimonId);
       setDigimonStats(nsWithLogs);
       await setDigimonStatsAndSave(nsWithLogs, newStartLogs);
