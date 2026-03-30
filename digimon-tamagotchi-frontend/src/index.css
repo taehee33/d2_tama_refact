@@ -1145,7 +1145,6 @@ code {
 }
 
 .service-hero__content,
-.service-hero__panel,
 .service-card,
 .service-slot-card,
 .service-empty-state,
@@ -1192,6 +1191,10 @@ code {
 
 .service-hero__panel {
   display: flex;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .service-card {
