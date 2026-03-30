@@ -1,6 +1,8 @@
 import React from "react";
 
-function PlayChatButton({ controlsId, isOpen, unreadCount, onClick }) {
+function PlayChatButton({ controlsId, isOpen, unreadCount, presenceCount, onClick }) {
+  const buttonLabel = isOpen ? "채팅 닫기" : "채팅";
+
   return (
     <button
       type="button"
@@ -9,12 +11,13 @@ function PlayChatButton({ controlsId, isOpen, unreadCount, onClick }) {
       aria-expanded={isOpen}
       aria-controls={controlsId}
       aria-haspopup="dialog"
-      aria-label={isOpen ? "채팅 닫기" : "채팅 열기"}
+      aria-label={buttonLabel}
     >
       <span className="play-chat-fab__icon" aria-hidden="true">
         💬
       </span>
-      <span className="play-chat-fab__label">{isOpen ? "채팅 닫기" : "로비 채팅"}</span>
+      <span className="play-chat-fab__label">{buttonLabel}</span>
+      <span className="play-chat-fab__presence">{`${presenceCount}명`}</span>
       {unreadCount > 0 ? (
         <span className="play-chat-fab__badge">
           {unreadCount > 99 ? "99+" : unreadCount}

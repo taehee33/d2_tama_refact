@@ -1,11 +1,12 @@
 // src/utils/userSettingsUtils.js
-// 사용자별 설정 (Discord 웹훅, 알림 수신 여부) - Firestore users/{uid} 저장
+// 사용자별 설정 (Discord 웹훅, 알림 수신 여부, 사이트 테마) - Firestore users/{uid} 저장
 
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 /** Discord 웹훅 URL 허용 도메인 (discord.com, discordapp.com) */
 const DISCORD_WEBHOOK_PREFIXES = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/"];
+const SITE_THEMES = new Set(["default", "notebook"]);
 
 /**
  * URL이 유효한 Discord 웹훅 URL인지 검사
@@ -20,13 +21,27 @@ export function isValidDiscordWebhookUrl(url) {
 }
 
 /**
- * 사용자 설정 가져오기 (Discord 웹훅 URL, 알림 수신 여부)
+ * 사이트 테마 값을 정규화
+ * @param {string|null|undefined} themeId - 정규화할 테마 ID
+ * @returns {"default"|"notebook"|null}
+ */
+export function normalizeSiteTheme(themeId) {
+  if (typeof themeId !== "string") {
+    return null;
+  }
+
+  const trimmed = themeId.trim();
+  return SITE_THEMES.has(trimmed) ? trimmed : null;
+}
+
+/**
+ * 사용자 설정 가져오기 (Discord 웹훅 URL, 알림 수신 여부, 사이트 테마)
  * @param {string} uid - 사용자 ID
- * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean }>}
+ * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean, siteTheme: "default"|"notebook"|null }>}
  */
 export async function getUserSettings(uid) {
   if (!uid) {
-    return { discordWebhookUrl: null, isNotificationEnabled: false };
+    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
   }
   try {
     const userRef = doc(db, "users", uid);
@@ -36,24 +51,26 @@ export async function getUserSettings(uid) {
       return {
         discordWebhookUrl: data.discordWebhookUrl ?? null,
         isNotificationEnabled: data.isNotificationEnabled === true,
+        siteTheme: normalizeSiteTheme(data.siteTheme),
       };
     }
-    return { discordWebhookUrl: null, isNotificationEnabled: false };
+    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
   } catch (error) {
     console.error("사용자 설정 로드 오류:", error);
-    return { discordWebhookUrl: null, isNotificationEnabled: false };
+    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
   }
 }
 
 /**
- * Discord 웹훅 URL·알림 수신 여부 저장
+ * Discord 웹훅 URL·알림 수신 여부·사이트 테마 저장
  * @param {string} uid - 사용자 ID
  * @param {Object} options
  * @param {string|null} [options.discordWebhookUrl] - Discord 웹훅 URL (빈 문자열이면 null로 저장)
  * @param {boolean} [options.isNotificationEnabled] - 알림 수신 여부
+ * @param {"default"|"notebook"} [options.siteTheme] - 사이트 테마
  * @returns {Promise<void>}
  */
-export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled }) {
+export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled, siteTheme }) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
   const userRef = doc(db, "users", uid);
   const updates = { updatedAt: new Date() };
@@ -66,6 +83,13 @@ export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationE
   }
   if (isNotificationEnabled !== undefined) {
     updates.isNotificationEnabled = Boolean(isNotificationEnabled);
+  }
+  if (siteTheme !== undefined) {
+    const normalizedTheme = normalizeSiteTheme(siteTheme);
+    if (!normalizedTheme) {
+      throw new Error("사이트 테마는 기본 또는 노트북만 선택할 수 있습니다.");
+    }
+    updates.siteTheme = normalizedTheme;
   }
   await updateDoc(userRef, updates);
 }

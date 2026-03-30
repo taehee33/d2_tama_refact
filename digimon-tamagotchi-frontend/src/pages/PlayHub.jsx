@@ -347,7 +347,7 @@ function PlayHub() {
                 </Link>
                 <Link className="service-action-card" to="/community">
                   <strong>커뮤니티</strong>
-                  <span>실시간 로비 채팅과 자랑 게시판 구성을 확인합니다.</span>
+                  <span>실시간 채팅과 자랑 게시판 구성을 확인합니다.</span>
                 </Link>
               </div>
             </div>

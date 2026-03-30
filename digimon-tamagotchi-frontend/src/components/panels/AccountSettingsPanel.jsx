@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
+import { SITE_THEME_OPTIONS, useTheme } from "../../contexts/ThemeContext";
 import { emitTamerProfileRefresh } from "../../hooks/useTamerProfile";
 import {
   checkNicknameAvailability,
@@ -56,6 +57,7 @@ function AccountSettingsPanel({
   refreshProfile,
 }) {
   const { currentUser } = useAuth();
+  const { themeId, setTheme, isThemeLoading } = useTheme();
   const [loading, setLoading] = useState(true);
   const [tamerName, setTamerName] = useState(parentTamerName || "");
   const [tamerNameInput, setTamerNameInput] = useState(parentTamerName || "");
@@ -68,6 +70,8 @@ function AccountSettingsPanel({
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
   const [discordSettingsLoading, setDiscordSettingsLoading] = useState(false);
   const [discordSettingsMessage, setDiscordSettingsMessage] = useState("");
+  const [themeSaving, setThemeSaving] = useState(false);
+  const [themeMessage, setThemeMessage] = useState("");
 
   useEffect(() => {
     if (!parentTamerName || tamerName) {
@@ -241,6 +245,24 @@ function AccountSettingsPanel({
     }
   };
 
+  const handleThemeChange = async (nextThemeId) => {
+    if (nextThemeId === themeId) {
+      return;
+    }
+
+    setThemeSaving(true);
+    setThemeMessage("");
+
+    try {
+      await setTheme(nextThemeId);
+      setThemeMessage("화면 테마가 저장되었습니다.");
+    } catch (error) {
+      setThemeMessage(error.message || "테마 저장 중 오류가 발생했습니다.");
+    } finally {
+      setThemeSaving(false);
+    }
+  };
+
   if (!currentUser) {
     return (
       <div className="service-alert">
@@ -332,6 +354,42 @@ function AccountSettingsPanel({
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="service-inline-panel">
+        <div className="service-field">
+          <span>화면 테마</span>
+          <p className="service-muted">
+            서비스 홈, 가이드, 마이, 커뮤니티 같은 일반 페이지 분위기를 바꿉니다.
+            노트북 쇼케이스 화면은 별도로 유지됩니다.
+          </p>
+        </div>
+
+        <div className="service-theme-switcher service-theme-switcher--wide" role="group" aria-label="화면 테마 선택">
+          <span className="service-theme-switcher__label">선택</span>
+          {SITE_THEME_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`service-theme-switcher__option${
+                themeId === option.id ? " service-theme-switcher__option--active" : ""
+              }`}
+              onClick={() => handleThemeChange(option.id)}
+              disabled={themeSaving || isThemeLoading}
+              aria-pressed={themeId === option.id}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {themeMessage ? (
+          <p className={getMessageClassName(themeMessage)}>{themeMessage}</p>
+        ) : (
+          <p className="service-muted">
+            선택 즉시 적용되고 다음 접속에도 같은 분위기로 유지됩니다.
+          </p>
+        )}
       </div>
 
       <div className="service-inline-panel">

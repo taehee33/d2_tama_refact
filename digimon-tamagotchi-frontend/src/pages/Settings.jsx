@@ -40,7 +40,7 @@ function Settings() {
         <div className="service-hero__content">
           <p className="service-section-label">설정</p>
           <h1>{displayTamerName}님의 계정 설정</h1>
-          <p>테이머명, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다.</p>
+          <p>테이머명, 화면 테마, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다.</p>
           <div className="service-inline-actions">
             <span className="service-badge">{`슬롯 ${slots.length} / ${maxSlots}`}</span>
             <Link className="service-text-link" to="/me">

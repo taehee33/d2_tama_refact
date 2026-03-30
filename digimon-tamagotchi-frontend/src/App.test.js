@@ -48,6 +48,16 @@ jest.mock("./contexts/AuthContext", () => ({
   useAuth: () => mockAuthState,
 }));
 
+jest.mock("./contexts/ThemeContext", () => ({
+  ThemeProvider: ({ children }) => <div>{children}</div>,
+  useTheme: () => ({
+    themeId: "default",
+    resolvedTheme: "default",
+    isThemeLoading: false,
+    setTheme: jest.fn(),
+  }),
+}));
+
 jest.mock("./contexts/AblyContext", () => ({
   AblyContextProvider: ({ children, renderChatRoom }) => (
     <div>
@@ -87,6 +97,7 @@ jest.mock("./pages/Login", () => () => <div>로그인 화면</div>);
 jest.mock("./pages/PlayHub", () => () => <div>플레이 허브 화면</div>);
 jest.mock("./pages/Game", () => () => <div>게임 화면</div>);
 jest.mock("./pages/PlayFull", () => () => <div>몰입형 플레이 화면</div>);
+jest.mock("./pages/NotebookLanding", () => () => <div>노트북 랜딩 화면</div>);
 jest.mock("./pages/Guide", () => () => <div>가이드 화면</div>);
 jest.mock("./pages/Community", () => () => <div>커뮤니티 화면</div>);
 jest.mock("./pages/Me", () => () => <div>마이 화면</div>);
@@ -120,4 +131,23 @@ test("/play에서 로그인 상태면 채팅 드로어 런처가 준비된다", 
   render(<App />);
 
   expect(screen.getByText("플레이 채팅 드로어")).toBeInTheDocument();
+});
+
+test("/guide에서도 로그인 상태면 채팅 드로어 런처가 준비된다", () => {
+  mockLocation.pathname = "/guide";
+  mockAuthState.currentUser = { uid: "tester" };
+
+  render(<App />);
+
+  expect(screen.getByText("플레이 채팅 드로어")).toBeInTheDocument();
+});
+
+test("/community에서도 인라인 채팅 대신 채팅 드로어 런처가 준비된다", () => {
+  mockLocation.pathname = "/community";
+  mockAuthState.currentUser = { uid: "tester" };
+
+  render(<App />);
+
+  expect(screen.getByText("플레이 채팅 드로어")).toBeInTheDocument();
+  expect(screen.queryByText("채팅방")).not.toBeInTheDocument();
 });

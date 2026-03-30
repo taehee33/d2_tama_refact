@@ -13,8 +13,8 @@ import ReactGA from "react-ga4";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
 import { MasterDataProvider, useMasterData } from "./contexts/MasterDataContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { ChannelProvider } from "ably/react";
-import ChatRoom from "./components/ChatRoom";
 import PlayChatDrawer from "./components/chat/PlayChatDrawer";
 import RequireAuth from "./components/layout/RequireAuth";
 import ServiceLayout from "./components/layout/ServiceLayout";
@@ -27,6 +27,7 @@ import Login from "./pages/Login";
 import Game from "./pages/Game";
 import Me from "./pages/Me";
 import News from "./pages/News";
+import NotebookLanding from "./pages/NotebookLanding";
 import PlayFull from "./pages/PlayFull";
 import PlayHub from "./pages/PlayHub";
 import SelectScreen from "./pages/SelectScreen";
@@ -58,58 +59,21 @@ function PageViewTracker() {
 }
 
 // ChatRoom을 렌더링하는 컴포넌트 (AblyProvider 내부에서만 사용)
-function ChatUnavailableNotice({ hasKey, hasTamerName }) {
-  return (
-    <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
-      <div className="text-center text-gray-500 text-sm space-y-2">
-        {!hasKey ? (
-          <div>
-            <p className="text-red-600 font-semibold">⚠️ Ably API Key가 설정되지 않았습니다.</p>
-            <p className="text-xs mt-1">REACT_APP_ABLY_KEY 환경 변수를 확인해주세요.</p>
-          </div>
-        ) : !hasTamerName ? (
-          <div>
-            <p className="text-yellow-600 font-semibold">⚠️ 테이머명이 없습니다.</p>
-            <p className="text-xs mt-1">로그인 후 실시간 채팅 기능을 사용할 수 있습니다.</p>
-          </div>
-        ) : (
-          <div>
-            <div className="animate-pulse">🔄</div>
-            <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
-            <p className="text-xs mt-1">잠시만 기다려주세요...</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ChatRoomWrapper({ clientReady, hasKey, hasTamerName }) {
+function ChatRoomWrapper({ clientReady }) {
   const location = useLocation();
   const { currentUser } = useAuth();
-  const isCommunityRoute = location.pathname.startsWith("/community");
-  const isPlayHubRoute = location.pathname === "/play";
+  const isNotebookRoute = location.pathname === "/notebook";
+  const isAuthRoute = location.pathname.startsWith("/auth");
+  const shouldShowLobbyDrawer =
+    !isNotebookRoute &&
+    !isAuthRoute &&
+    !location.pathname.endsWith("/full");
 
-  if (
-    !currentUser ||
-    location.pathname.endsWith("/full")
-  ) {
+  if (!currentUser || location.pathname.endsWith("/full")) {
     return null;
   }
 
-  if (isCommunityRoute) {
-    if (!clientReady) {
-      return <ChatUnavailableNotice hasKey={hasKey} hasTamerName={hasTamerName} />;
-    }
-
-    return (
-      <ChannelProvider channelName={CHANNEL_NAME}>
-        <ChatRoom variant="community" />
-      </ChannelProvider>
-    );
-  }
-
-  if (isPlayHubRoute) {
+  if (shouldShowLobbyDrawer) {
     if (!clientReady) {
       return null;
     }
@@ -150,6 +114,7 @@ function AppContent() {
         <Routes>
           <Route element={<ServiceLayout />}>
             <Route path="/" element={<Home />} />
+            <Route path="/notebook" element={<NotebookLanding />} />
             <Route path="/guide" element={<Guide />} />
             <Route path="/community" element={<Community />} />
             <Route path="/news" element={<News />} />
@@ -242,9 +207,11 @@ function App() {
 
   return (
     <AuthProvider>
-      <MasterDataProvider>
-        <AppContent />
-      </MasterDataProvider>
+      <ThemeProvider>
+        <MasterDataProvider>
+          <AppContent />
+        </MasterDataProvider>
+      </ThemeProvider>
       {/* Vercel Analytics */}
       <Analytics />
     </AuthProvider>

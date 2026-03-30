@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import OnlineUsersCount from "../OnlineUsersCount";
+import NotebookTopBar from "../home/NotebookTopBar";
 
 const links = [
   { to: "/", label: "홈" },
@@ -14,7 +14,11 @@ const links = [
 function TopNavigation() {
   const { currentUser } = useAuth();
   const location = useLocation();
-  const showPresence = currentUser && location.pathname.startsWith("/community");
+  const isNotebookRoute = location.pathname === "/notebook";
+
+  if (isNotebookRoute) {
+    return <NotebookTopBar />;
+  }
 
   return (
     <header className="service-topnav">
@@ -46,14 +50,17 @@ function TopNavigation() {
               마이
             </NavLink>
           )}
+          <NavLink
+            to="/notebook"
+            className={({ isActive }) =>
+              `service-nav__link${isActive ? " service-nav__link--active" : ""}`
+            }
+          >
+            노트북
+          </NavLink>
         </nav>
 
         <div className="service-topnav__actions">
-          {showPresence && (
-            <div className="service-topnav__presence">
-              <OnlineUsersCount />
-            </div>
-          )}
           <Link className="service-topnav__cta" to={currentUser ? "/play" : "/auth"}>
             {currentUser ? "내 디지몬 보기" : "로그인"}
           </Link>

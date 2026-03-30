@@ -64,6 +64,7 @@ function PlayChatDrawer() {
         controlsId={drawerId}
         isOpen={isChatOpen}
         unreadCount={unreadCount}
+        presenceCount={presenceCount || 0}
         onClick={toggleDrawer}
       />
 

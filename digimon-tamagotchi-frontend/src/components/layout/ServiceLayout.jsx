@@ -1,14 +1,26 @@
 import React from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
+import { useTheme } from "../../contexts/ThemeContext";
 import MobileTabBar from "./MobileTabBar";
 import TopNavigation from "./TopNavigation";
 
 function ServiceLayout() {
+  const location = useLocation();
+  const { resolvedTheme } = useTheme();
+  const isNotebookRoute = location.pathname === "/notebook";
+  const shellClassName = isNotebookRoute
+    ? "service-shell service-shell--notebook"
+    : `service-shell service-shell--theme-${resolvedTheme}`;
+
   return (
-    <div className="service-shell">
+    <div className={shellClassName}>
       <div className="service-shell__backdrop" aria-hidden="true" />
       <TopNavigation />
-      <main className="service-shell__main">
+      <main
+        className={`service-shell__main${
+          isNotebookRoute ? " service-shell__main--notebook" : ""
+        }`}
+      >
         <Outlet />
       </main>
       <MobileTabBar />

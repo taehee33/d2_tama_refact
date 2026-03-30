@@ -1,6 +1,10 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import {
+  SITE_THEME_OPTIONS,
+  useTheme,
+} from "../contexts/ThemeContext";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
 import { getSlotDisplayName, getSlotStageLabel } from "../utils/slotViewUtils";
@@ -12,6 +16,7 @@ import {
 function Home() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { themeId, isThemeLoading, setTheme } = useTheme();
   const { displayTamerName, achievements, maxSlots } = useTamerProfile();
   const { slots, loading, recentSlot } = useUserSlots({ maxSlots });
 
@@ -30,10 +35,30 @@ function Home() {
               <Link className="service-button service-button--primary" to="/auth">
                 로그인하고 시작하기
               </Link>
-              <Link className="service-button service-button--ghost" to="/guide">
-                가이드 보기
+              <Link className="service-button service-button--ghost" to="/notebook">
+                노트북 열기
               </Link>
             </div>
+            <div className="service-theme-switcher" role="group" aria-label="서비스 테마 선택">
+              <span className="service-theme-switcher__label">테마</span>
+              {SITE_THEME_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`service-theme-switcher__option${
+                    themeId === option.id ? " service-theme-switcher__option--active" : ""
+                  }`}
+                  onClick={() => setTheme(option.id)}
+                  disabled={isThemeLoading}
+                  aria-pressed={themeId === option.id}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="service-theme-switcher__hint">
+              비로그인 상태에서도 서비스 톤을 미리 바꿔볼 수 있습니다.
+            </p>
           </div>
 
           <div className="service-hero__panel">
@@ -136,6 +161,10 @@ function Home() {
             <Link className="service-action-card" to="/play">
               <strong>플레이 허브</strong>
               <span>슬롯 정리, 새 디지몬 시작, 몰입형 화면 이동</span>
+            </Link>
+            <Link className="service-action-card" to="/notebook">
+              <strong>노트북</strong>
+              <span>한솔의 노트북과 파일섬 랜딩 화면으로 이동</span>
             </Link>
             <Link className="service-action-card" to="/me">
               <strong>마이</strong>

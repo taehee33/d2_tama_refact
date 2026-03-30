@@ -36,10 +36,10 @@ function Community() {
 
         <div className="service-card service-card--soft">
           <p className="service-section-label">현재 상태</p>
-          <h2>실시간 기능은 다음 단계</h2>
+          <h2>실시간 채팅은 바로 사용 가능</h2>
           <p className="service-muted">
-            현재는 카테고리 구조와 운영 원칙을 먼저 정리했습니다. 실제 게시글 데이터와
-            조그레스 모집 흐름은 다음 라운드에서 연결하는 편이 안전합니다.
+            우하단 채팅 버튼으로 실시간 대화를 열 수 있습니다. 게시글 데이터와
+            조그레스 모집 흐름은 다음 라운드에서 이어서 연결하는 편이 안전합니다.
           </p>
         </div>
       </div>

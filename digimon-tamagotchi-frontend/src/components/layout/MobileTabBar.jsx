@@ -7,6 +7,7 @@ const tabs = [
   { to: "/play", label: "플레이", icon: "🕹️" },
   { to: "/community", label: "커뮤니티", icon: "💬" },
   { to: "/me", label: "마이", icon: "🧢", authOnly: true },
+  { to: "/notebook", label: "노트북", icon: "💻" },
 ];
 
 function MobileTabBar() {
