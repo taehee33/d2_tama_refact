@@ -417,22 +417,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       battleLog: false,
       encyclopedia: false,
       fridge: false,
-      train: false,
-      battleSelection: false,
-      battleScreen: false,
-      questSelection: false,
-      communication: false,
-      sparring: false,
-      arenaScreen: false,
-      heal: false,
-      call: false,
-      interaction: false,
-      diet: false,
-      detox: false,
-      food: false,
-      poopCleanAnimation: false,
-      healAnimation: false,
-      callToast: false,
     });
   };
   
@@ -591,5 +575,4 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     },
   };
 }
-
 

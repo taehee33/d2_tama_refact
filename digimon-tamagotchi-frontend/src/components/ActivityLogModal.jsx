@@ -46,7 +46,6 @@ const ACTIVITY_TABS = [
 function getActivityCategoryLabel(log) {
   if (!log) return "기타";
   const t = log.type;
-  const text = (log.text || "").trim();
   if (t === "FEED") return "음식";
   if (isSleepLog(log)) return "수면";
   if (isCareMistakeLog(log)) return "케어";

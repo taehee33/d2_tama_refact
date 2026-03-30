@@ -1,6 +1,6 @@
 // src/pages/Login.jsx
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -8,17 +8,19 @@ import { initializeTamerName } from "../utils/tamerNameUtils";
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signInWithGoogle, signInAnonymously, currentUser, isFirebaseAvailable } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState(null); // 'google', 'anonymous'
   const [error, setError] = useState(null);
+  const redirectTo = location.state?.from?.pathname || "/play";
 
-  // 이미 로그인되어 있으면 select 페이지로 이동
+  // 이미 로그인되어 있으면 플레이 허브로 이동
   useEffect(() => {
     if (currentUser) {
-      navigate("/select");
+      navigate(redirectTo, { replace: true });
     }
-  }, [currentUser, navigate]);
+  }, [currentUser, navigate, redirectTo]);
 
   // Firebase가 없으면 에러 표시
   useEffect(() => {
@@ -56,8 +58,8 @@ function Login() {
     const displayName = user.displayName || (isAnonymous ? `게스트_${user.uid.slice(0, 6)}` : null);
     await initializeTamerName(user.uid, displayName);
 
-    // 로그인 성공 후 SelectScreen으로 리디렉션
-    navigate("/select");
+    // 로그인 성공 후 플레이 허브로 리디렉션
+    navigate(redirectTo, { replace: true });
   };
 
   // Google 로그인 처리
@@ -118,23 +120,51 @@ function Login() {
 
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-        <h1 className="text-2xl font-bold mb-4 text-center">디지몬 다마고치</h1>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.92),_rgba(250,242,231,0.96)_45%,_rgba(235,247,243,0.96)_100%)] px-4 py-10">
+      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr,0.9fr]">
+        <section className="rounded-[40px] border border-white/80 bg-white/80 p-8 shadow-[0_24px_48px_rgba(15,23,42,0.08)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-400">
+            Auth
+          </p>
+          <h1 className="mt-3 text-4xl font-black leading-tight text-slate-900 sm:text-5xl">
+            디지몬 서비스 셸에 로그인
+          </h1>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
+            플레이 허브, 몰입형 플레이, 마이 허브를 같은 계정 흐름으로 이어서 사용할 수 있도록 로그인 구조를 정리했습니다.
+          </p>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-[28px] bg-[#f7f4ed] p-5">
+              <h2 className="text-lg font-black text-slate-900">플레이 허브</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                새 디지몬 생성, 이어하기, 슬롯 정리를 한 화면에서 처리합니다.
+              </p>
+            </div>
+            <div className="rounded-[28px] bg-[#edf7f4] p-5">
+              <h2 className="text-lg font-black text-slate-900">마이 허브</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                도감, 계정 설정, 최근 디지몬 흐름을 서비스처럼 탐색합니다.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-[36px] border border-white/80 bg-white/92 p-8 shadow-[0_24px_48px_rgba(15,23,42,0.08)]">
+          <h2 className="text-2xl font-black text-center text-slate-900">로그인 방법 선택</h2>
         
         {!isFirebaseAvailable ? (
-          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          <div className="mt-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-red-700">
             <p className="font-semibold">Firebase가 설정되지 않았습니다.</p>
             <p className="text-sm mt-1">Firebase 설정이 필요합니다. .env 파일에 Firebase 설정을 추가해주세요.</p>
           </div>
         ) : (
           <>
-            <p className="text-gray-600 mb-6 text-center">
-              로그인 방법을 선택하세요
+            <p className="mt-3 mb-6 text-center text-sm text-slate-600">
+              로그인 후에는 기본적으로 플레이 허브로 이동합니다.
             </p>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-red-700">
                 {error}
               </div>
             )}
@@ -144,7 +174,7 @@ function Login() {
               <button
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="w-full px-4 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-colors"
+                className="flex w-full items-center justify-center space-x-2 rounded-2xl bg-slate-900 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading && loadingType === 'google' ? (
                   <>
@@ -171,7 +201,7 @@ function Login() {
               <button
                 onClick={handleAnonymousLogin}
                 disabled={loading}
-                className="w-full px-4 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-colors"
+                className="flex w-full items-center justify-center space-x-2 rounded-2xl bg-[#0f766e] px-4 py-3 font-semibold text-white transition-colors hover:bg-[#115e59] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading && loadingType === 'anonymous' ? (
                   <>
@@ -191,15 +221,17 @@ function Login() {
 
             </div>
 
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              <p className="font-semibold mb-1">💡 로그인 방법 안내</p>
+            <div className="mt-4 rounded-3xl border border-yellow-200 bg-yellow-50 p-4 text-xs text-yellow-800">
+              <p className="mb-1 font-semibold">로그인 방법 안내</p>
               <ul className="list-disc list-inside space-y-1">
                 <li><strong>Google 로그인:</strong> 같은 Google 계정으로 로그인하면 여러 기기에서 이어서 플레이하기 쉽습니다.</li>
                 <li><strong>게스트 로그인(익명):</strong> 빠르게 시작할 수 있지만, 익명 계정은 로그아웃하거나 기기를 바꾸면 이어서 플레이하기 어려울 수 있습니다.</li>
+                <li><strong>현재 저장 계약:</strong> 슬롯 저장은 Firestore 기준이며, 완전 오프라인 localStorage 슬롯 모드는 현재 공식 지원하지 않습니다.</li>
               </ul>
             </div>
           </>
         )}
+        </section>
       </div>
     </div>
   );

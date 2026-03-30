@@ -45,6 +45,7 @@ export default function JogressRoomListModal({
   const [mySlots, setMySlots] = useState([]);
   const [myAllSlots, setMyAllSlots] = useState([]); // 추가 등록용 전체 슬롯
   const [showSlotPickerForAdd, setShowSlotPickerForAdd] = useState(false);
+  const selectedRoomId = selectedRoom?.id || null;
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState(null);
@@ -106,7 +107,7 @@ export default function JogressRoomListModal({
   }, [currentUser?.uid, refreshTrigger]);
 
   useEffect(() => {
-    if (!selectedRoom || !db || !currentUser?.uid) {
+    if (!selectedRoomId || !db || !currentUser?.uid) {
       setMySlots([]);
       return;
     }
@@ -132,11 +133,11 @@ export default function JogressRoomListModal({
     };
     load();
     return () => { cancelled = true; };
-  }, [selectedRoom?.id, currentUser?.uid]);
+  }, [currentUser?.uid, selectedRoomId]);
 
   // 추가 등록용: 내 슬롯 전체 로드 (방 목록 화면일 때)
   useEffect(() => {
-    if (selectedRoom || !db || !currentUser?.uid) {
+    if (selectedRoomId || !db || !currentUser?.uid) {
       setMyAllSlots([]);
       return;
     }
@@ -159,10 +160,9 @@ export default function JogressRoomListModal({
     };
     load();
     return () => { cancelled = true; };
-  }, [selectedRoom, currentUser?.uid, db, myRooms.length]);
+  }, [currentUser?.uid, myRooms.length, selectedRoomId]);
 
   const myWaitingRooms = myRooms.filter((r) => r.status === "waiting");
-  const availableSlotsForAdd = myAllSlots.filter((s) => !myWaitingRooms.some((r) => r.hostSlotId === s.id));
   const hostMap = selectedRoom?.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
   const getHostDigimonName = (room) => {
     const map = room.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
@@ -336,7 +336,6 @@ export default function JogressRoomListModal({
                         const displayName = (slot.digimonNickname && slot.digimonNickname.trim())
                           ? `${slot.digimonNickname.trim()}(${baseName})`
                           : baseName;
-                        const stage = translateStage(digimonData?.stage);
                         const power = digimonData?.stats?.basePower ?? 0;
                         const spritePath = digimonData.spriteBasePath || (slot.version === "Ver.2" ? V2_SPRITE_BASE : "/images");
                         const sprite = digimonData.sprite ?? 0;

@@ -9,6 +9,7 @@ import { initializeStats } from "../data/stats";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -503,7 +504,10 @@ export function useGameData({
             const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(100));
             const logsSnap = await getDocs(logsQuery);
             if (!logsSnap.empty) {
-              loadedActivityLogs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+              loadedActivityLogs = filterEntriesForSlotCreation(
+                logsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                slotData.createdAt
+              );
               setActivityLogs(loadedActivityLogs);
             } else {
               loadedActivityLogs = initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []);
@@ -523,7 +527,10 @@ export function useGameData({
             const battleLogsQuery = query(battleLogsRef, orderBy("timestamp", "desc"), limit(100));
             const battleLogsSnap = await getDocs(battleLogsQuery);
             if (!battleLogsSnap.empty) {
-              loadedBattleLogs = battleLogsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+              loadedBattleLogs = filterEntriesForSlotCreation(
+                battleLogsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                slotData.createdAt
+              );
             }
           } catch (_e) {
             // fallback: 문서 내 battleLogs 유지

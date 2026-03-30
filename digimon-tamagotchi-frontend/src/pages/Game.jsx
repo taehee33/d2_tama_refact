@@ -21,13 +21,12 @@ import { useGameHandlers, getSleepSchedule, isWithinSleepSchedule } from "../hoo
 import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
-import { getTamerName } from "../utils/tamerNameUtils";
-import { getAchievementsAndMaxSlots, ACHIEVEMENT_VER1_MASTER, ACHIEVEMENT_VER2_MASTER } from "../utils/userProfileUtils";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
+import { useTamerProfile } from "../hooks/useTamerProfile";
 
 import digimonAnimations from "../data/digimonAnimations";
 import { resolveIdleMotionTimeline } from "../data/idleMotionTimeline";
@@ -117,7 +116,7 @@ function syncRemainingByElapsed(previousTotal, nextTotal, currentRemaining) {
   return Math.max(0, Math.min(safeNextTotal, safeNextTotal - elapsed));
 }
 
-function Game(){
+function Game({ immersive = false }){
   const { slotId } = useParams();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
   const { masterDataRevision } = useMasterData();
@@ -160,55 +159,21 @@ function Game(){
 
   const navigate= useNavigate();
   const location = useLocation();
+  const isImmersive = immersive || location.pathname.endsWith("/full");
   
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   
   // 계정 설정 모달 상태
   const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
-  
-  // 테이머명 상태
-  const [tamerName, setTamerName] = useState("");
-  // 도감 마스터 칭호 (테이머명 옆 👑 표시용)
-  const [achievements, setAchievements] = useState([]);
+  const { tamerName, setTamerName, hasVer1Master, hasVer2Master, refreshProfile } = useTamerProfile();
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
     if (!isFirebaseAvailable || !currentUser) {
-      navigate("/");
+      navigate("/auth");
     }
   }, [isFirebaseAvailable, currentUser, navigate]);
-
-  // 테이머명 로드
-  useEffect(() => {
-    const loadTamerName = async () => {
-      if (currentUser) {
-        try {
-          const name = await getTamerName(currentUser.uid, currentUser.displayName);
-          setTamerName(name);
-        } catch (error) {
-          console.error("테이머명 로드 오류:", error);
-          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "익명의 테이머");
-        }
-      }
-    };
-    loadTamerName();
-  }, [currentUser]);
-
-  // 도감 마스터 칭호 로드 (테이머명 옆 👑 표시용)
-  useEffect(() => {
-    const loadAchievements = async () => {
-      if (currentUser?.uid) {
-        try {
-          const { achievements: list } = await getAchievementsAndMaxSlots(currentUser.uid);
-          setAchievements(list || []);
-        } catch (e) {
-          console.error("칭호 로드 오류:", e);
-        }
-      }
-    };
-    loadAchievements();
-  }, [currentUser?.uid]);
 
   // useGameState에서 가져온 값들을 구조 분해 할당으로 사용
   const {
@@ -231,7 +196,6 @@ function Game(){
     currentQuestArea,
     setCurrentQuestArea,
     setCurrentQuestRound,
-    currentQuestVersion,
     setCurrentQuestVersion,
     clearedQuestIndex,
     setClearedQuestIndex,
@@ -1489,7 +1453,7 @@ async function setSelectedDigimonAndSave(name) {
       setMyJogressRoomId(null);
     });
     return () => unsub();
-  }, [currentUser?.uid, myJogressRoomId, applyHostJogressStatusFromRoom]);
+  }, [currentUser?.uid, myJogressRoomId, applyHostJogressStatusFromRoom, setMyJogressRoomId]);
 
   // 온라인 조그레스: 현재 슬롯이 대기 중인 방(roomId) 구독 → paired 시 해당 슬롯에 canEvolve 반영 (모달에서 방 생성 시 myJogressRoomId 미설정 대비)
   useEffect(() => {
@@ -1684,22 +1648,49 @@ async function setSelectedDigimonAndSave(name) {
 
   return (
     <>
-      {/* 모바일: 통합된 상단 네비게이션 바 */}
-      {isMobile ? (
+      {isImmersive ? (
+        <div className="fixed left-4 right-4 top-4 z-50 flex items-center justify-between">
+          <div className="rounded-full bg-black/75 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur">
+            몰입형 플레이
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate(`/play/${slotId}`)}
+              className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm"
+            >
+              기본 화면
+            </button>
+            <button
+              onClick={() => navigate("/play")}
+              className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm"
+            >
+              플레이 허브
+            </button>
+          </div>
+        </div>
+      ) : isMobile ? (
         <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
           <div className="flex items-center justify-between px-3 py-2">
-            {/* 왼쪽: Select 버튼 */}
+            {/* 왼쪽: 플레이 허브 버튼 */}
             <button 
-              onClick={() => navigate("/select")} 
+              onClick={() => navigate("/play")} 
               className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm pixel-art-button flex items-center gap-1"
             >
-              <span>← select</span>
+              <span>← 허브</span>
             </button>
 
-            {/* 오른쪽: 접속자 수 + Settings + 프로필 */}
+            {/* 오른쪽: 접속자 수 + 전체 화면 + Settings + 프로필 */}
             <div className="flex items-center gap-2">
               {/* 접속 중인 테이머 수 */}
               <OnlineUsersCount />
+
+              <button
+                onClick={() => navigate(`/play/${slotId}/full`)}
+                className="px-2 py-1.5 bg-slate-900 text-white rounded pixel-art-button"
+                title="몰입형 플레이"
+              >
+                ⛶
+              </button>
               
               {/* Settings 버튼 */}
               <button
@@ -1730,10 +1721,10 @@ async function setSelectedDigimonAndSave(name) {
                     )}
                     <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate flex items-center gap-1 flex-wrap">
                       <span className="truncate">{tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                      {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                      {hasVer1Master && (
                         <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
                       )}
-                      {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                      {hasVer2Master && (
                         <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
                       )}
                     </span>
@@ -1751,10 +1742,10 @@ async function setSelectedDigimonAndSave(name) {
                         <div className="px-3 py-2 border-b border-gray-200">
                           <p className="text-xs font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
                             <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                            {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                            {hasVer1Master && (
                               <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
                             )}
-                            {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                            {hasVer2Master && (
                               <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
                             )}
                           </p>
@@ -1782,10 +1773,10 @@ async function setSelectedDigimonAndSave(name) {
           {isFirebaseAvailable && currentUser && (
             <div className="px-3 py-1.5 border-t border-gray-100 flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-              {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+              {hasVer1Master && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
               )}
-              {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+              {hasVer2Master && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
               )}
             </div>
@@ -1794,13 +1785,19 @@ async function setSelectedDigimonAndSave(name) {
       ) : (
         <>
           {/* 데스크톱: 기존 레이아웃 */}
-          {/* 왼쪽 상단 UI 컨테이너 (Select 버튼) */}
-          <div className="fixed top-4 left-4 z-50">
-            <button 
-              onClick={()=> navigate("/select")} 
+          {/* 왼쪽 상단 UI 컨테이너 */}
+          <div className="fixed top-4 left-4 z-50 flex items-center gap-2">
+            <button
+              onClick={()=> navigate("/play")}
               className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
             >
-              ← select
+              ← 플레이 허브
+            </button>
+            <button
+              onClick={() => navigate(`/play/${slotId}/full`)}
+              className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
+            >
+              몰입형 플레이
             </button>
           </div>
 
@@ -1837,10 +1834,10 @@ async function setSelectedDigimonAndSave(name) {
                   )}
                   <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
                     <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                    {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                    {hasVer1Master && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
                     )}
-                    {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                    {hasVer2Master && (
                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
                     )}
                   </span>
@@ -1858,10 +1855,10 @@ async function setSelectedDigimonAndSave(name) {
                       <div className="px-3 py-2 border-b border-gray-200">
                         <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
                           <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                          {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
+                          {hasVer1Master && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
                           )}
-                          {achievements.includes(ACHIEVEMENT_VER2_MASTER) && (
+                          {hasVer2Master && (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
                           )}
                         </p>
@@ -1890,7 +1887,7 @@ async function setSelectedDigimonAndSave(name) {
         </>
       )}
 
-      <div className={`text-center mb-1 ${isMobile ? "pt-20" : "pt-20"}`}>
+      <div className={`text-center mb-1 ${isImmersive ? "pt-8" : "pt-20"}`}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {(() => {
             const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
@@ -2095,11 +2092,15 @@ async function setSelectedDigimonAndSave(name) {
         />
       )}
       
-      {/* Google AdSense 광고 */}
-      <AdBanner />
-      
-      {/* 카카오 애드핏 광고 */}
-      <KakaoAd />
+      {!isImmersive ? (
+        <>
+          {/* Google AdSense 광고 */}
+          <AdBanner />
+          
+          {/* 카카오 애드핏 광고 */}
+          <KakaoAd />
+        </>
+      ) : null}
       
       {/* 실시간 채팅 및 접속자 목록 */}
       {/* ChatRoom은 App.jsx에서 전역으로 렌더링됨 */}
@@ -2111,6 +2112,7 @@ async function setSelectedDigimonAndSave(name) {
           onLogout={handleLogoutFromHook}
           tamerName={tamerName}
           setTamerName={setTamerName}
+          refreshProfile={refreshProfile}
         />
       )}
     </>

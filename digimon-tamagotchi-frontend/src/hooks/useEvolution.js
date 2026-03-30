@@ -1,7 +1,7 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
-import { writeBatch, doc, collection, addDoc, updateDoc, getDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore";
+import { writeBatch, doc, collection, addDoc, updateDoc, getDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
 import { getJogressResult } from "../logic/evolution/jogress";

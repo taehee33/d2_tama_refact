@@ -103,6 +103,19 @@ npm start
 
 현재 프로젝트는 `start`/`build` 시 `NODE_OPTIONS=--openssl-legacy-provider`를 사용합니다.
 
+## Firestore Rules 배포
+
+Firestore Rules 기준 파일은 루트의 [firestore.rules](./firestore.rules) 입니다.
+
+```bash
+npm install
+npm run firebase:login
+npm run firestore:deploy
+```
+
+이번 라운드 기준으로 공식 관리 경계는 `users/{uid}` 계열과 `metadata/nicknames`이며,
+공유 컬렉션(`jogress`, `arena`, `game_settings`)은 기능 호환을 위한 임시 auth 허용으로 남아 있습니다.
+
 ## 기술 스택
 
 - React 18
