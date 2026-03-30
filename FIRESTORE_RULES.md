@@ -1,112 +1,103 @@
 # Firestore 보안 규칙 설정 가이드
 
-## 🔴 현재 오류
+## 기준 파일
+
+이 저장소의 Firestore 규칙 기준 파일은 루트의 [firestore.rules](./firestore.rules) 입니다.  
+Firebase CLI를 사용하는 경우 루트의 [firebase.json](./firebase.json), [.firebaserc](./.firebaserc), [package.json](./package.json) 기준으로 다음 절차로 배포합니다.
+
+```bash
+npm install
+npm run firebase:login
+npm run firestore:deploy
 ```
-FirebaseError: Missing or insufficient permissions
-```
 
-이 오류는 Firestore 보안 규칙이 설정되지 않았거나 잘못 설정되었을 때 발생합니다.
+## 이번 라운드에서 공식 관리하는 경계
 
-## ✅ 해결 방법
+이번 규칙 파일에서 명시적으로 보장하는 핵심 경계는 아래입니다.
 
-### 1. Firebase Console 접속
-1. [Firebase Console](https://console.firebase.google.com/) 접속
-2. 프로젝트 **d2tamarefact** 선택
-3. 왼쪽 메뉴에서 **Firestore Database** 클릭
-4. **Rules** 탭 클릭
+- `users/{userId}`
+- `users/{userId}/slots/{slotId}`
+- `users/{userId}/slots/{slotId}/logs/{logId}`
+- `users/{userId}/slots/{slotId}/battleLogs/{logId}`
+- `metadata/nicknames`
 
-### 2. 보안 규칙 설정
+즉, 슬롯 문서뿐 아니라 삭제/로드 때 실제로 접근하는 `logs`, `battleLogs` 서브컬렉션까지 같은 소유자 규칙으로 묶습니다.
 
-현재 규칙을 다음으로 교체:
+## 현재 rules 파일 요약
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // users 컬렉션
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
-      // 인증된 사용자만 자신의 데이터에 접근
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      
-      // 서브컬렉션: slots
+      allow read, write: if isOwner(userId);
+
       match /slots/{slotId} {
-        // 인증된 사용자만 자신의 슬롯에 접근
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
+
+        match /logs/{logId} {
+          allow read, write: if isOwner(userId);
+        }
+
+        match /battleLogs/{logId} {
+          allow read, write: if isOwner(userId);
+        }
       }
     }
-    
-    // metadata 컬렉션 (테이머명 중복 검사용)
-    match /metadata/nicknames {
-      // 모든 인증된 사용자가 읽기 가능 (중복 검사용)
-      // 쓰기는 서버에서만 처리하거나, 사용자가 자신의 닉네임만 추가/제거 가능하도록 제한
-      allow read: if request.auth != null;
-      allow write: if request.auth != null; // 실제로는 서버에서만 쓰는 것이 안전하지만, 개발 편의를 위해 허용
+
+    match /metadata/{docId} {
+      allow read, write: if isSignedIn() && docId == "nicknames";
     }
   }
 }
 ```
 
-### 3. 규칙 게시
-1. **게시** 버튼 클릭
-2. 확인 대화상자에서 **게시** 클릭
-3. 몇 초 후 규칙이 적용됩니다
+## 공유 컬렉션에 대한 현재 처리
 
-## 🧪 개발용 임시 규칙 (테스트 전용)
+`jogress_rooms`, `jogress_logs`, `arena_entries`, `arena_battle_logs`, `game_settings`, `season_archives`는 아직 최종 보안 정책을 확정하지 않았습니다.
 
-⚠️ **주의**: 이 규칙은 개발/테스트용입니다. 프로덕션에서는 사용하지 마세요!
+그래서 이번 rules 파일에서는 이 경계를 완전히 잠그지 않고, **기능 회귀를 막기 위한 임시 호환성 허용**을 함께 둡니다.
 
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;  // 모든 접근 허용 (개발용)
-    }
-  }
-}
-```
+- 현재 정책: 인증 사용자면 접근 가능
+- 목적: 조그레스, 아레나, 관리자 기능이 갑자기 막히지 않도록 유지
+- 주의: 이 구간은 다음 라운드에서 컬렉션별 owner/host/admin 정책으로 다시 세분화해야 함
 
-## ✅ 규칙 적용 확인
+## 왜 이 변경이 필요한가
 
-1. 브라우저에서 페이지 새로고침 (F5)
-2. "새 다마고치 시작" 버튼 다시 클릭
-3. 콘솔에서 에러가 사라졌는지 확인
+이번 버전에서는 슬롯 삭제 시 슬롯 문서만이 아니라 아래 서브컬렉션에도 접근합니다.
 
-## 📋 규칙 설명
+- `users/{uid}/slots/slot{n}/logs`
+- `users/{uid}/slots/slot{n}/battleLogs`
 
-### 기본 구조
-- `users/{userId}`: 각 유저의 문서 (tamerName 포함)
-- `users/{userId}/slots/{slotId}`: 각 유저의 슬롯 서브컬렉션
-- `metadata/nicknames`: 사용 중인 테이머명 목록 (중복 검사용)
+기존 문서 예시처럼 `users/{uid}/slots/{slotId}`까지만 열어두면, 삭제 시 `Missing or insufficient permissions`가 발생할 수 있습니다.
 
-### 접근 조건
-- `request.auth != null`: 로그인된 사용자만
-- `request.auth.uid == userId`: 자신의 데이터만 접근 가능
+## 적용 순서
 
-### 보안
-- 다른 유저의 데이터에 접근 불가
-- 로그인하지 않은 사용자는 접근 불가
+1. 루트의 [firestore.rules](./firestore.rules) 내용을 확인합니다.
+2. Firebase Console 또는 루트 npm script로 규칙을 배포합니다.
+3. 로그인 후 `/play`에서 슬롯 생성/삭제를 다시 확인합니다.
 
-## 🐛 여전히 오류가 발생하는 경우
+## 빠른 점검 항목
 
-1. **규칙이 적용되었는지 확인**
-   - Firebase Console에서 Rules 탭 확인
-   - "게시됨" 상태인지 확인
+- 새 디지몬 생성이 정상 동작하는가
+- 디지몬 삭제 시 권한 오류가 사라졌는가
+- 슬롯 재생성 후 예전 로그가 다시 섞이지 않는가
+- 게스트 로그인과 Google 로그인 모두 슬롯 접근이 되는가
 
-2. **로그인 상태 확인**
-   - 브라우저 콘솔에서 `localStorage` 확인
-   - 또는 SelectScreen에서 프로필 사진이 보이는지 확인
+## 여전히 권한 오류가 나는 경우
 
-3. **캐시 클리어**
-   - 브라우저 하드 리프레시 (Ctrl+Shift+R 또는 Cmd+Shift+R)
-
-4. **서버 재시작**
-   ```bash
-   # 서버 중지 후
-   npm start
-   ```
-
-
+1. 실제 Firebase 프로젝트에 최신 `firestore.rules`가 배포되었는지 확인
+2. 로그인 상태인지 확인
+3. 브라우저 하드 리프레시 후 재시도
+4. 앱 레벨 fallback 덕분에 슬롯 삭제는 계속될 수 있으므로, 콘솔 경고와 실제 UI 결과를 함께 확인
 
 
 

@@ -14,23 +14,45 @@
 1. [Firebase Console](https://console.firebase.google.com/) 접속
 2. 프로젝트 `d2tamarefact` 선택
 3. **Firestore Database** → **Rules** 탭
-4. 다음 규칙 설정:
+4. 루트 [firestore.rules](./firestore.rules) 내용을 기준으로 규칙을 반영:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isOwner(userId);
+
       match /slots/{slotId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if isOwner(userId);
+      }
+
+      match /slots/{slotId}/logs/{logId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /slots/{slotId}/battleLogs/{logId} {
+        allow read, write: if isOwner(userId);
       }
     }
   }
 }
 ```
 
-5. **게시** 버튼 클릭
+5. **게시** 버튼 클릭 또는 루트 npm script로 아래 명령 실행:
+   ```bash
+   npm install
+   npm run firebase:login
+   npm run firestore:deploy
+   ```
 
 #### B. Firebase 초기화 오류
 **증상**: 콘솔에 "Firestore가 초기화되지 않았습니다" 에러
@@ -56,16 +78,12 @@ service cloud.firestore {
 2. Google 로그인 버튼 클릭
 3. 로그인 성공 후 다시 시도
 
-#### D. localStorage 모드로 전환
-Firebase 설정이 어려운 경우, localStorage 모드로 사용:
+#### D. localStorage 관련 혼동
+현재 공식 플레이 흐름은 Firebase Auth + Firestore 기준입니다.
 
-1. `.env` 파일에서:
-   ```env
-   REACT_APP_STORAGE_TYPE=localStorage
-   ```
-   또는 Firebase 설정을 주석 처리
-
-2. 서버 재시작
+- `localStorage`는 현재 공식 슬롯 저장 모드가 아닙니다.
+- 브라우저 UI 설정, 개발자 옵션, 일부 보조 값 저장 용도로 남아 있습니다.
+- Firebase 설정이 없으면 플레이 허브와 슬롯 기능은 정상 계약대로 동작하지 않습니다.
 
 ### 3. 디버깅 정보 확인
 
@@ -74,7 +92,7 @@ Firebase 설정이 어려운 경우, localStorage 모드로 사용:
 - `새 다마고치 시작 버튼 클릭`
 - `isFirebaseAvailable: true/false`
 - `currentUser: {...}` 또는 `null`
-- `Firestore 모드로 슬롯 생성 시도` 또는 `localStorage 모드로 슬롯 생성 시도`
+- `Firestore 모드로 슬롯 생성 시도`
 - 에러 메시지
 
 ### 4. 빠른 테스트
@@ -88,11 +106,9 @@ Firebase 설정이 어려운 경우, localStorage 모드로 사용:
 
 1. ✅ 서버 재시작 (환경변수 반영)
 2. ✅ Firebase Console에서 Authentication 활성화
-3. ✅ Firestore 보안 규칙 설정
+3. ✅ `firestore.rules` 기준으로 Firestore 보안 규칙 설정
 4. ✅ 브라우저 콘솔에서 에러 확인
 5. ✅ 로그인 상태 확인
-
-
 
 
 

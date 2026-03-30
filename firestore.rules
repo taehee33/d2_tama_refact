@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 공식 관리 경계: 사용자 문서와 슬롯/로그
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /slots/{slotId} {
+        allow read, write: if isOwner(userId);
+
+        match /logs/{logId} {
+          allow read, write: if isOwner(userId);
+        }
+
+        match /battleLogs/{logId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+    }
+
+    // 공식 관리 경계: 테이머명 중복 확인용 메타데이터
+    match /metadata/{docId} {
+      allow read, write: if isSignedIn() && docId == "nicknames";
+    }
+
+    // 임시 호환성 허용 구간
+    // 이 컬렉션들은 현재 앱이 사용 중이지만 보안 정책이 완전히 확정되지 않았습니다.
+    // 이번 라운드에서는 기능 회귀를 막기 위해 "인증 사용자 허용" 수준만 유지합니다.
+    match /jogress_rooms/{roomId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /jogress_logs/{logId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /arena_entries/{entryId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /arena_battle_logs/{logId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /season_archives/{archiveId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /game_settings/{docId} {
+      allow read, write: if isSignedIn();
+
+      match /{subPath=**} {
+        allow read, write: if isSignedIn();
+      }
+    }
+  }
+}

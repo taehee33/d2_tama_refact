@@ -1,17 +1,38 @@
 // src/App.jsx
-import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { Analytics } from "@vercel/analytics/react";
 import ReactGA from "react-ga4";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
 import { MasterDataProvider, useMasterData } from "./contexts/MasterDataContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
 import { ChannelProvider } from "ably/react";
-import ChatRoom from "./components/ChatRoom";
-import { getTamerName } from "./utils/tamerNameUtils";
+import PlayChatDrawer from "./components/chat/PlayChatDrawer";
+import RequireAuth from "./components/layout/RequireAuth";
+import ServiceLayout from "./components/layout/ServiceLayout";
+import { useTamerProfile } from "./hooks/useTamerProfile";
+import Collection from "./pages/Collection";
+import Community from "./pages/Community";
+import Guide from "./pages/Guide";
+import Home from "./pages/Home";
 import Login from "./pages/Login";
-import SelectScreen from "./pages/SelectScreen";
 import Game from "./pages/Game";
+import Me from "./pages/Me";
+import News from "./pages/News";
+import NotebookLanding from "./pages/NotebookLanding";
+import PlayFull from "./pages/PlayFull";
+import PlayHub from "./pages/PlayHub";
+import SelectScreen from "./pages/SelectScreen";
+import Settings from "./pages/Settings";
+import Support from "./pages/Support";
 
 const CHANNEL_NAME = 'tamer-lobby';
 
@@ -38,46 +59,40 @@ function PageViewTracker() {
 }
 
 // ChatRoom을 렌더링하는 컴포넌트 (AblyProvider 내부에서만 사용)
-function ChatRoomWrapper() {
+function ChatRoomWrapper({ clientReady }) {
   const location = useLocation();
   const { currentUser } = useAuth();
+  const isNotebookRoute = location.pathname === "/notebook";
+  const isAuthRoute = location.pathname.startsWith("/auth");
+  const shouldShowLobbyDrawer =
+    !isNotebookRoute &&
+    !isAuthRoute &&
+    !location.pathname.endsWith("/full");
 
-  // 로그인 페이지가 아닐 때만 ChatRoom 표시
-  if (!currentUser || location.pathname === '/') {
+  if (!currentUser || location.pathname.endsWith("/full")) {
     return null;
   }
 
-  // ChannelProvider로 감싸서 usePresence, useChannel 등이 작동하도록 함
-  return (
-    <ChannelProvider channelName={CHANNEL_NAME}>
-      <ChatRoom />
-    </ChannelProvider>
-  );
+  if (shouldShowLobbyDrawer) {
+    if (!clientReady) {
+      return null;
+    }
+
+    return (
+      <ChannelProvider channelName={CHANNEL_NAME}>
+        <PlayChatDrawer />
+      </ChannelProvider>
+    );
+  }
+
+  return null;
 }
 
 // Ably 및 ChatRoom을 포함한 내부 컴포넌트
 function AppContent() {
   const { currentUser } = useAuth();
   const { isMasterDataReady } = useMasterData();
-  const [tamerName, setTamerName] = useState("");
-
-  // 테이머명 로드
-  useEffect(() => {
-    const loadTamerName = async () => {
-      if (currentUser) {
-        try {
-          const name = await getTamerName(currentUser.uid, currentUser.displayName);
-          setTamerName(name);
-        } catch (error) {
-          console.error("테이머명 로드 오류:", error);
-          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "");
-        }
-      } else {
-        setTamerName("");
-      }
-    };
-    loadTamerName();
-  }, [currentUser]);
+  const { tamerName } = useTamerProfile();
 
   if (!isMasterDataReady) {
     return (
@@ -93,22 +108,45 @@ function AppContent() {
     <Router>
       <AblyContextProvider 
         tamerName={currentUser ? tamerName : null}
-        renderChatRoom={() => <ChatRoomWrapper />}
+        renderChatRoom={(chatState) => <ChatRoomWrapper {...chatState} />}
       >
         <PageViewTracker />
         <Routes>
-          {/* 로그인 페이지 */}
-          <Route path="/" element={<Login />} />
+          <Route element={<ServiceLayout />}>
+            <Route path="/" element={<Home />} />
+            <Route path="/notebook" element={<NotebookLanding />} />
+            <Route path="/guide" element={<Guide />} />
+            <Route path="/community" element={<Community />} />
+            <Route path="/news" element={<News />} />
+            <Route path="/support" element={<Support />} />
 
-          {/* 기종/버전/슬롯 선택 화면 */}
+            <Route element={<RequireAuth />}>
+              <Route path="/play" element={<PlayHub />} />
+              <Route path="/me" element={<Me />} />
+              <Route path="/me/collection" element={<Collection />} />
+              <Route path="/me/settings" element={<Settings />} />
+            </Route>
+          </Route>
+
+          <Route path="/auth" element={<Login />} />
+
+          <Route element={<RequireAuth />}>
+            <Route path="/play/:slotId" element={<Game />} />
+            <Route path="/play/:slotId/full" element={<PlayFull />} />
+          </Route>
+
           <Route path="/select" element={<SelectScreen />} />
-
-          {/* 게임 화면 (슬롯ID 기반) */}
-          <Route path="/game/:slotId" element={<Game />} />
+          <Route path="/game/:slotId" element={<LegacyGameRedirect />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AblyContextProvider>
     </Router>
   );
+}
+
+function LegacyGameRedirect() {
+  const { slotId } = useParams();
+  return <Navigate to={`/play/${slotId}`} replace />;
 }
 
 function App() {
@@ -169,9 +207,11 @@ function App() {
 
   return (
     <AuthProvider>
-      <MasterDataProvider>
-        <AppContent />
-      </MasterDataProvider>
+      <ThemeProvider>
+        <MasterDataProvider>
+          <AppContent />
+        </MasterDataProvider>
+      </ThemeProvider>
       {/* Vercel Analytics */}
       <Analytics />
     </AuthProvider>

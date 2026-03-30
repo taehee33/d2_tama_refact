@@ -1,5 +1,14 @@
 {
+  "name": "d2_tama_refact",
+  "private": true,
+  "scripts": {
+    "firebase:login": "firebase login",
+    "firestore:deploy": "firebase deploy --only firestore:rules"
+  },
   "dependencies": {
     "@vercel/analytics": "^1.6.1"
+  },
+  "devDependencies": {
+    "firebase-tools": "^13.0.0"
   }
 }

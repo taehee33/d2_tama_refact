@@ -1,7 +1,6 @@
 // src/hooks/useGameAnimations.js
 // Game.jsx의 애니메이션 사이클 로직을 분리한 Custom Hook
 
-import { db } from "../firebase";
 import { addActivityLog, resetCallStatus, hasDuplicateSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
@@ -336,5 +335,4 @@ export function useGameAnimations({
     startHealCycle,
   };
 }
-
 

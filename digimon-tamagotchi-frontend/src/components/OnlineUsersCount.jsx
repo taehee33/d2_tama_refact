@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePresenceContext } from '../contexts/AblyContext';
 import { getPresenceDisplayName } from '../utils/presenceUtils';
 
-const OnlineUsersCount = () => {
+const OnlineUsersCount = ({ showChatShortcut = true }) => {
   const { presenceData, presenceCount, unreadCount, clearUnreadCount } = usePresenceContext();
   const [showPopup, setShowPopup] = useState(false);
   const popupRef = useRef(null);
@@ -61,23 +61,23 @@ const OnlineUsersCount = () => {
 
   return (
     <div className="flex items-center gap-2">
-      {/* 채팅 아이콘 버튼 */}
-      <button
-        onClick={handleChatClick}
-        className="relative px-2 py-1.5 bg-blue-100 text-blue-800 border border-gray-800 rounded text-xs font-semibold hover:bg-blue-200 transition-colors cursor-pointer"
-        title="채팅으로 이동"
-      >
-        <span className="text-base">💬</span>
-        {/* 읽지 않은 메시지 알림 배지 */}
-        {unreadCount > 0 && (
-          <span
-            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold px-1"
-            style={{ lineHeight: '1' }}
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </button>
+      {showChatShortcut && (
+        <button
+          onClick={handleChatClick}
+          className="relative px-2 py-1.5 bg-blue-100 text-blue-800 border border-gray-800 rounded text-xs font-semibold hover:bg-blue-200 transition-colors cursor-pointer"
+          title="채팅으로 이동"
+        >
+          <span className="text-base">💬</span>
+          {unreadCount > 0 && (
+            <span
+              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center text-[10px] font-bold px-1"
+              style={{ lineHeight: '1' }}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* 접속자 수 버튼 */}
       <div className="relative">

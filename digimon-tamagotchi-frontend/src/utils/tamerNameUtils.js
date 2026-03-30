@@ -125,8 +125,6 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
     throw new Error("사용자 ID가 필요합니다.");
   }
 
-  const defaultName = authDisplayName || `Trainer_${uid.slice(0, 6)}`;
-
   // 1. 유저 정보에서 tamerName 제거 (기본값 사용)
   const userRef = doc(db, "users", uid);
   await updateDoc(userRef, {

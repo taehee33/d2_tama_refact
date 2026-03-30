@@ -403,29 +403,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           clearUnreadCount,
         }}>
           {children}
-          {renderChatRoom && (
-            <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
-              <div className="text-center text-gray-500 text-sm space-y-2">
-                {!hasKey ? (
-                  <div>
-                    <p className="text-red-600 font-semibold">⚠️ Ably API Key가 설정되지 않았습니다.</p>
-                    <p className="text-xs mt-1">REACT_APP_ABLY_KEY 환경 변수를 확인해주세요.</p>
-                  </div>
-                ) : !hasTamerName ? (
-                  <div>
-                    <p className="text-yellow-600 font-semibold">⚠️ 테이머명이 없습니다.</p>
-                    <p className="text-xs mt-1">로그인 후 실시간 채팅 기능을 사용할 수 있습니다.</p>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="animate-pulse">🔄</div>
-                    <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
-                    <p className="text-xs mt-1">잠시만 기다려주세요...</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {renderChatRoom ? renderChatRoom({ clientReady: false, hasKey, hasTamerName }) : null}
         </PresenceContext.Provider>
       </>
     );
@@ -447,7 +425,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           clearUnreadCount,
         }}>
           {children}
-          {renderChatRoom && renderChatRoom()}
+          {renderChatRoom ? renderChatRoom({ clientReady: true, hasKey: true, hasTamerName: true }) : null}
         </PresenceContext.Provider>
       </AblyContext.Provider>
     </AblyProvider>

@@ -34,7 +34,15 @@ const parseAblyData = (data) => {
 };
 
 // 연결 상태를 확인하고 연결 완료 후에만 ChatRoom을 렌더링하는 래퍼
-const ChatRoomWithConnectionCheck = () => {
+const getChatContainerClassName = (variant = 'community') => {
+  if (variant === 'drawer') {
+    return 'play-chat-panel';
+  }
+
+  return 'tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4';
+};
+
+const ChatRoomWithConnectionCheck = ({ variant = 'community' }) => {
   const ably = useAbly();
   const [connectionState, setConnectionState] = useState(null);
   const [connectionError, setConnectionError] = useState(null);
@@ -171,7 +179,7 @@ const ChatRoomWithConnectionCheck = () => {
     const stateInfo = getStateMessage();
 
     return (
-      <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
+      <div className={getChatContainerClassName(variant)}>
         <div className={`text-center text-sm space-y-2 ${stateInfo.isError ? 'text-red-600' : 'text-gray-500'}`}>
           <div className={stateInfo.isError ? '' : 'animate-pulse'}>{stateInfo.emoji}</div>
           <p className={`font-semibold ${stateInfo.isError ? 'text-red-600' : ''}`}>{stateInfo.title}</p>
@@ -190,10 +198,10 @@ const ChatRoomWithConnectionCheck = () => {
   }
 
   // 연결이 완료되면 ChatRoom 렌더링
-  return <ChatRoom />;
+  return <ChatRoom variant={variant} />;
 };
 
-const ChatRoom = () => {
+const ChatRoom = ({ variant = 'community' }) => {
   const { currentUser } = useAuth();
   const { isChatOpen, setIsChatOpen, unreadCount, setUnreadCount, clearUnreadCount } = usePresenceContext();
   const [messageText, setMessageText] = useState('');
@@ -207,10 +215,20 @@ const ChatRoom = () => {
   const processedMessageIdsRef = useRef(new Set()); // 중복 메시지 처리 방지
 
   const ably = useAbly();
+  const isDrawerVariant = variant === 'drawer';
   
   // ChatRoom이 실제로 화면에 보이는지 확인 (Intersection Observer 사용)
   useEffect(() => {
-    if (!chatContainerRef.current) return;
+    if (isDrawerVariant) {
+      isChatOpenRef.current = isChatOpen;
+      if (isChatOpen) {
+        clearUnreadCount();
+      }
+      return undefined;
+    }
+
+    const observedNode = chatContainerRef.current;
+    if (!observedNode) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -230,14 +248,12 @@ const ChatRoom = () => {
       }
     );
 
-    observer.observe(chatContainerRef.current);
+    observer.observe(observedNode);
 
     return () => {
-      if (chatContainerRef.current) {
-        observer.unobserve(chatContainerRef.current);
-      }
+      observer.unobserve(observedNode);
     };
-  }, [setIsChatOpen, clearUnreadCount]);
+  }, [clearUnreadCount, isChatOpen, isDrawerVariant, setIsChatOpen]);
 
   // unreadCount 디버깅
   useEffect(() => {
@@ -380,7 +396,7 @@ const ChatRoom = () => {
         }
       }
     };
-  }, [channel, ably]);
+  }, [ably, channel, setUnreadCount]);
 
   // 5. 초기 히스토리 로드 (Supabase, 48h / 200건)
   useEffect(() => {
@@ -528,7 +544,7 @@ const ChatRoom = () => {
   // Ably 클라이언트가 없으면 렌더링하지 않음 (모든 hooks 호출 후)
   if (!ably) {
     return (
-      <div className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
+      <div className={getChatContainerClassName(variant)}>
         <div className="text-center text-gray-500 text-sm space-y-2">
           <div className="animate-pulse">🔄</div>
           <p>Ably 연결 중... (실시간 채팅 기능을 초기화하는 중입니다)</p>
@@ -607,7 +623,7 @@ const ChatRoom = () => {
   };
 
   return (
-    <div ref={chatContainerRef} className="tamer-chat-container bg-gray-50 border-2 border-gray-300 rounded-lg p-4 mt-4">
+    <div ref={chatContainerRef} className={getChatContainerClassName(variant)}>
       {/* Presence 상태 컨트롤 */}
       <div className="presence-control mb-3 pb-3 border-b border-gray-300">
         <div className="flex items-center justify-between">

@@ -4,6 +4,265 @@
 
 ---
 
+## [2026-03-30] 채팅 버튼 라벨 단순화 및 접속 수 통합
+
+### 작업 유형
+- 💬 전역 채팅 진입 UI 정리
+- 🎛 상단 액션 중복 제거
+- 🧪 채팅 버튼 표시 테스트 추가
+
+### 목적 및 영향
+- **목적:** 우하단 플로팅 버튼의 이름을 `채팅`으로 단순화하고, 별도로 흩어져 있던 실시간 접속 수를 버튼 안으로 통합해 전역 실시간 진입점을 더 명확하게 만들기.
+- **범위:** 일반 서비스 셸의 전역 채팅 버튼과 상단 네비만 바뀌며, 드로어 내부 채팅 내용과 게임 화면 안의 별도 접속자 표시 UI는 그대로 유지한다.
+- **내용:** `PlayChatButton`에 `presenceCount`를 연결해 `채팅` 텍스트 오른쪽에 `N명`을 함께 표시하도록 바꿨다. 닫힘 상태 라벨은 `로비 채팅`에서 `채팅`으로 단순화했고, 상단 우측의 별도 초록 접속 수 pill은 제거해 전역 실시간 진입점을 플로팅 채팅 버튼 하나로 일원화했다. 서비스 페이지 안내 문구도 `로비 채팅`에서 `채팅` 기준으로 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 서비스 셸 기준 실시간 진입점은 우하단 플로팅 채팅 버튼 하나로 충분하므로, 상단 네비의 별도 접속 수 표시까지 유지하는 것보다 버튼 안에 접속 수를 통합하는 편이 정보 밀도와 UI 일관성 모두에 더 유리하다.
+
+---
+
+## [2026-03-30] 상단 네비 접속자 표시에서 채팅 바로가기 버튼 제거
+
+### 작업 유형
+- 🎛 상단 네비 액션 밀도 정리
+- 💬 채팅 진입점 역할 분리
+
+### 목적 및 영향
+- **목적:** 서비스 상단 네비에서 접속자 수 옆에 붙어 있던 별도 말풍선 버튼을 제거해 액션 영역을 단순화하고, 채팅 진입은 우하단 로비 채팅 드로어 버튼으로 일원화하기.
+- **범위:** 상단 네비의 접속자 표시만 바뀌고, 게임 화면 등 다른 `OnlineUsersCount` 사용처는 기존처럼 채팅 바로가기 버튼을 유지할 수 있다.
+- **내용:** `OnlineUsersCount`에 `showChatShortcut` 옵션을 추가해 채팅 바로가기 버튼 표시 여부를 제어할 수 있게 만들었다. `TopNavigation`에서는 이 값을 `false`로 넘겨 접속자 수 버튼만 보이도록 바꿨고, 기존 채팅 드로어와 접속자 팝업 동작은 그대로 유지했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/OnlineUsersCount.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 실시간 로비 채팅은 이미 전역 플로팅 드로어 버튼으로 접근할 수 있으므로, 상단 네비까지 같은 기능의 보조 버튼을 중복해서 두기보다 접속자 표시와 채팅 진입점을 분리하는 편이 정보 밀도와 시각적 우선순위 모두에 더 유리하다.
+
+---
+
+## [2026-03-30] 커뮤니티 채팅 UI를 플로팅 로비 드로어로 통일
+
+### 작업 유형
+- 💬 커뮤니티 채팅 진입 방식 통일
+- 🧪 커뮤니티 라우트 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 커뮤니티만 인라인 전체 채팅을 따로 쓰던 구조를 정리하고, 다른 서비스 페이지와 동일하게 플로팅 로비 채팅 드로어를 사용하도록 통일하기.
+- **범위:** 로그인 상태의 `/community`도 이제 `/home`, `/guide`, `/play`, `/me`와 같은 플로팅 로비 채팅 버튼을 사용한다. `/notebook`, `/auth`, `/play/:slotId/full`은 계속 제외된다.
+- **내용:** `App.jsx`의 `ChatRoomWrapper`에서 `/community` 전용 인라인 `ChatRoom` 렌더링 분기를 제거하고, 일반 서비스 경로 공통 로비 드로어 정책으로 통일했다. `Community.jsx`의 상태 안내 문구도 “실시간 기능은 다음 단계”에서 “실시간 로비 채팅은 바로 사용 가능”으로 바꿔 현재 동작과 맞췄다. `App.test.js`에는 `/community`에서도 인라인 채팅 대신 플로팅 채팅 드로어가 준비되는지 확인하는 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 로비 채팅은 특정 페이지 전용이 아니라 서비스 전역의 실시간 입구 역할이므로, 커뮤니티만 다른 UI를 유지하기보다 공통 드로어 인터랙션으로 맞추는 편이 사용성도 단순하고 유지보수도 쉽다.
+
+---
+
+## [2026-03-30] 로비 채팅 플로팅 런처 노출 경로 확대
+
+### 작업 유형
+- 💬 실시간 채팅 진입 범위 확장
+- 🧪 라우트 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** `/play` 허브에서만 보이던 로비 채팅 플로팅 버튼을 일반 서비스 페이지에서도 접근 가능하게 만들어, 홈이나 가이드, 마이페이지 같은 화면에서도 바로 실시간 로비로 들어갈 수 있게 하기.
+- **범위:** `/community`는 기존 인라인 전체 채팅을 유지하고, 로그인 상태의 일반 서비스 경로에서는 플로팅 채팅 드로어를 공통으로 노출한다. `/notebook`, `/auth`, 몰입형 전체화면(`/full`)은 계속 제외한다.
+- **내용:** `App.jsx`의 `ChatRoomWrapper` 조건을 `/play` 전용에서 공통 서비스 경로 기준으로 바꿨다. 이제 로그인 상태라면 `/community`를 제외한 일반 경로에서 `PlayChatDrawer`가 렌더링되고, `/community`는 기존처럼 인라인 채팅을 유지한다. 동시에 `App.test.js`에 `/guide` 같은 커뮤니티 외 경로에서도 채팅 드로어가 준비되는 스모크 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 로비 채팅은 플레이 허브 전용 기능이 아니라 사이트 전반의 실시간 로비라는 성격이 더 강하므로, 일반 서비스 페이지에서도 일관되게 접근 가능한 쪽이 사용자 경험과 정보 구조에 더 잘 맞는다.
+
+---
+
+## [2026-03-30] 서비스 셸 테마 선택 기능 도입
+
+### 작업 유형
+- ✨ 서비스 셸 테마 기능 추가
+- 🎨 `default / notebook` 테마 분리
+- 🧪 테마 저장/적용 테스트 추가
+
+### 목적 및 영향
+- **목적:** 전체 사이트를 한 번에 노트북 UI로 고정하지 않고, 사용자가 서비스 셸 분위기를 `기본` 또는 `노트북`으로 선택할 수 있게 만들기.
+- **범위:** `홈`, `가이드`, `마이`, `소식`, `커뮤니티`, `설정`, `플레이 허브` 같은 일반 서비스 페이지의 상단바/배경/카드/버튼 톤을 테마로 바꾸고, `/notebook`은 기존 쇼케이스 화면을 그대로 유지한다. 실제 게임 내부 UI와 몰입형 플레이는 이번 범위에서 제외한다.
+- **내용:** `ThemeProvider`를 추가해 `siteTheme`를 전역 상태로 관리하고, 로그인 사용자는 `users/{uid}` 문서의 `siteTheme` 필드, 비로그인 사용자는 `localStorage(siteTheme)`를 사용하도록 우선순위를 정리했다. `ServiceLayout`은 일반 서비스 라우트에 `service-shell--theme-default` 또는 `service-shell--theme-notebook` 클래스를 붙이고, `/notebook`은 기존 notebook 전용 셸 분기를 유지한다. `Home.jsx` 비로그인 화면에는 공개 테마 토글을 추가해 로그인 전에도 사이트 분위기를 미리 바꿔볼 수 있게 했고, `AccountSettingsPanel`에는 `화면 테마` 섹션을 추가해 로그인 사용자가 즉시 적용 + 저장 방식으로 테마를 바꿀 수 있게 했다. `userSettingsUtils`는 `siteTheme` 필드를 읽고 쓰도록 확장했고, `index.css`의 서비스 셸 계열 스타일은 CSS 토큰 기반으로 정리해 notebook 테마가 카드, 버튼, 배지, 상단 네비, 모바일 탭바에 일관되게 적용되도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/contexts/ThemeContext.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.js`
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.test.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.test.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- `/notebook`은 별도 콘셉트 랜딩으로 이미 역할이 명확하기 때문에, 전역 테마의 일부로 합치기보다 독립 쇼케이스로 유지하는 편이 구조적으로 더 깔끔하다.
+- 로그인 사용자와 게스트의 저장 경로가 다르기 때문에 `user settings > localStorage > default` 우선순위를 `ThemeProvider`에서 강제해 두는 것이 이후 배경/폰트/셸 확장에도 안전하다.
+
+---
+
+## [2026-03-30] `한솔의 노트북 / 파일섬` variant를 별도 랜딩 화면으로 추가
+
+### 작업 유형
+- ✨ 홈 랜딩 리디자인
+- 🧭 홈 전용 variant 구조 추가
+- 🧪 홈 상호작용 테스트 추가
+
+### 목적 및 영향
+- **목적:** `/` 홈을 일반 서비스 카드형 랜딩에서 벗어나, `한솔의 노트북` 바탕화면 안에서 `파일 섬 / 폴더 섬 / 추억` 아이콘을 열어 이동하는 세계관형 진입 화면으로 바꾸기.
+- **범위:** 기존 `/` 홈은 서비스 카드형 랜딩으로 유지하고, 새 notebook variant는 `/notebook` 라우트에 별도 화면으로 추가한다. `/play`, `/guide`, `/community`, `/me` 등 기존 서비스 페이지 구조는 그대로 둔다. `마지막 열차에서 안녕` 감성은 `추억` 패널 안의 짧은 메모 카드로만 반영하고, 디지바이스 셸 선택과 액정형 몰입 UI는 후속 `/play/:slotId/full` 작업으로 분리한다.
+- **내용:** `homeLandingVariants.js`에 `notebook_file_island_v1` 데이터를 추가하고, `NotebookLanding.jsx`를 variant config를 읽는 구조로 구현했다. 노트북 랜딩에는 검은 시스템 바 스타일의 `NotebookTopBar`, OS 아이콘 느낌의 `DesktopIcon`, faux-window 역할의 `LandingWindow`, 메모 카드용 `MemoryNotesPanel`을 도입했다. 비로그인 상태에서는 `파일 섬`에서 로그인과 가이드 CTA를 열고, 로그인 상태에서는 최근 디지몬 이어하기와 플레이 허브 진입을 보여 준다. `폴더 섬`은 가이드/마이/저장 방식 안내를, `추억`은 감성 카피와 메모 카드, 몰입형 UI 티저를 보여 주도록 정리했다. `ServiceLayout`과 `TopNavigation`은 `/notebook`에서만 전용 셸 분기를 타게 변경했고, `index.css`에는 CRT 노이즈, 노을 그라데이션, 아이콘 호버, mobile desktop 축약 레이아웃까지 포함한 notebook 전용 스타일을 추가했다. 동시에 `Home.jsx`는 기존 서비스 홈으로 복원했다. 또한 `NotebookLanding.test.js`를 추가해 비로그인 랜딩, `추억` 패널 전환, 로그인 후 최근 슬롯 이어하기 흐름을 검증했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/home/DesktopIcon.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/home/LandingWindow.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/home/MemoryNotesPanel.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/home/NotebookTopBar.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/data/homeLandingVariants.js` (신규)
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/NotebookLanding.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/pages/NotebookLanding.test.js` (신규)
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- notebook variant를 별도 라우트로 분리해 두면, 기본 홈을 안정적으로 유지하면서도 세계관형 랜딩을 계속 실험할 수 있다.
+- `NotebookLanding`을 정적 JSX 덩어리 대신 config 기반으로 두면, 이후 `파일섬`, `폴더섬`, `추억`, `디지바이스 셸` 같은 테마를 같은 구조 안에서 교체하거나 확장하기 쉬워진다.
+
+---
+
+## [2026-03-30] `/play` 플로팅 채팅 복구 및 Firestore Rules repo 관리 추가
+
+### 작업 유형
+- ✨ `/play` 실시간 채팅 UX 복구
+- 🔐 Firestore Rules 기준 파일 추가
+- 🧭 PlayHub 모바일 밀도 마무리
+
+### 목적 및 영향
+- **목적:** `/play`에서 커뮤니티 채팅을 완전히 없애지 않고, 서비스 셸과 충돌하지 않는 형태로 다시 노출하면서 Firestore 권한 경계도 저장소 기준 파일로 고정하기.
+- **범위:** `/community`는 기존 인라인 채팅을 유지하고, `/play`에서는 플로팅 버튼과 드로어로 채팅을 연다. Firestore Rules는 `users/{uid}`와 슬롯/로그 경계를 공식 기준으로 관리하며, 나머지 공유 컬렉션은 기능 회귀를 막기 위한 auth 기반 호환 허용으로 남긴다.
+- **내용:** `ChatRoom`에 `variant` 개념을 도입해 인라인/드로어 레이아웃을 공용화하고, `PlayChatButton`, `PlayChatDrawer`를 추가해 `/play`에 우하단 플로팅 채팅 진입점을 복구했다. `AblyContextProvider`는 더 이상 no-client 상태에서 고정 placeholder를 직접 렌더링하지 않고, route-aware wrapper가 `/community` 전용 안내 카드 또는 `/play`용 무노출 정책을 선택하게 바꿨다. 루트에 `firestore.rules`, `firebase.json`, `.firebaserc`를 추가하고, Firebase CLI용 npm script까지 포함해 실제 Rules 배포 절차를 저장소 기준으로 고정했다. `FIRESTORE_RULES.md`, `TROUBLESHOOTING.md`, `README.md`도 같은 절차로 맞췄고, `PlayHub` 카피와 하단 여백도 더 짧고 촘촘하게 다듬어 첫 화면에서 행동 우선 흐름을 강화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/contexts/AblyContext.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `firestore.rules` (신규)
+- `firebase.json` (신규)
+- `FIRESTORE_RULES.md`
+- `TROUBLESHOOTING.md`
+- `README.md`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- `/play`에서 채팅을 항상 인라인으로 붙이면 탭바, 광고, 빈 상태 카드와 경쟁이 심해지므로, unread 신호만 남기는 드로어형 보조 기능으로 분리했다.
+- `firestore.rules`는 현재 `users/slots/logs/battleLogs` 경계만을 공식 관리 대상으로 보고, `jogress`/`arena`/`game_settings`는 후속 라운드에서 별도 정책 확정을 전제로 auth-only 호환 규칙으로 유지한다.
+
+---
+
+## [2026-03-30] PlayHub 허브 UX 보강 및 서비스 콘텐츠 데이터 구조 추가
+
+### 작업 유형
+- ✨ 서비스 페이지 확장
+- 🧭 플레이 허브 UX 보강
+- 📝 현재 인증/저장 계약 노출 강화
+- 🐛 슬롯 삭제 권한 오류 완화
+
+### 목적 및 영향
+- **목적:** `/play` 허브를 단순 슬롯 목록보다 실제 서비스 허브처럼 다듬고, `News/Community/Support`를 데이터형 구조를 가진 페이지로 올리기.
+- **범위:** 실제 게임 저장 로직은 그대로 유지하고, 서비스 셸 영역의 정보 구조와 안내 문구를 보강한다. 오프라인 localStorage 슬롯 모드는 이번 라운드에서 복구하지 않고 Firebase 중심 계약을 더 분명히 드러낸다.
+- **내용:** `serviceContent.js`를 추가해 소식 카드, 커뮤니티 보드, 지원 FAQ/체크리스트를 정적 데이터 배열로 정리했다. `News`, `Community`, `Support`는 이 구조를 사용해 단순 placeholder 대신 확장 가능한 콘텐츠형 페이지로 바꿨다. `PlayHub`는 최근 디지몬 이어하기, 허브 운영 기준, 관련 페이지 이동을 강화하고 모바일에서 광고 스택을 숨기며, 슬롯이 없을 때는 저신호 설명 카드를 걷어내고 시작 CTA와 핵심 안내만 남기도록 정리했다. 서비스 셸 모바일 패딩도 줄여 첫 화면에서 콘텐츠가 더 빨리 보이게 맞췄다. `Login`에는 현재 저장 계약이 Firestore 중심이라는 안내를 명시적으로 추가했다. 또한 보호 라우트가 nested route의 `Outlet`을 반환하도록 바로잡아 `/play`가 빈 화면처럼 보이던 문제를 해결했다. 이어서 슬롯 삭제 시 `logs`/`battleLogs` 서브컬렉션 정리 권한이 없어도 슬롯 문서 삭제는 계속 진행하도록 완화하고, 새 슬롯 로드 시 현재 슬롯 생성 시각보다 오래된 로그를 걸러 이전 슬롯 잔여 로그가 다시 보이지 않도록 보정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js` (신규)
+- `digimon-tamagotchi-frontend/src/components/layout/RequireAuth.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/pages/News.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Support.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/utils/firestoreHelpers.js`
+- `digimon-tamagotchi-frontend/src/utils/slotLogUtils.js` (신규)
+- `digimon-tamagotchi-frontend/src/utils/slotLogUtils.test.js` (신규)
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 현재 코드 기준으로 슬롯 저장 공식 경계는 Firestore이고, localStorage는 UI/개발 설정 성격이 강하다. 그래서 반쯤 남은 dual-storage 인상을 줄이기보다, 서비스 UI에서 현재 계약을 더 명확히 보여 주는 쪽을 우선했다.
+- `News/Community/Support`는 아직 백엔드 컬렉션이 없으므로, 먼저 정적 배열 기반 데이터 구조를 고정해 두면 이후 Firestore/Supabase 등 실제 소스로 바꿀 때도 페이지 조립 방식을 크게 건드리지 않아도 된다.
+
+---
+
+## [2026-03-30] 계정 설정·도감·가이드 모달 본문을 공용 패널로 승격
+
+### 작업 유형
+- ♻️ 페이지/모달 공용화 리팩토링
+- ✨ 서비스 페이지 확장
+- 🧪 라우트 스모크 테스트 보강
+
+### 목적 및 영향
+- **목적:** `/me/settings`, `/me/collection`, `/guide`가 더 이상 "모달을 억지로 페이지에 올린 화면"이 아니라 실제 서비스 페이지로 동작하도록, 기존 모달 본문을 공용 패널로 분리했다.
+- **범위:** 게임 내부에서는 `AccountSettingsModal`, `EncyclopediaModal`, `DigimonInfoModal` 호출 계약을 그대로 유지하고, 서비스 라우트에서는 같은 본문을 페이지 카드 안에서 직접 렌더링한다. `News/Community/Support`는 이번 라운드에서 데이터 계층을 붙이지 않고 정적 페이지 상태를 유지한다.
+- **내용:** `AccountSettingsPanel`, `EncyclopediaPanel`, `DigimonGuidePanel`을 추가해 기존 모달 내부 상태와 본문 UI를 패널 컴포넌트로 옮겼다. 설정 패널은 테이머명 저장/기본값 복구 후 `window.location.reload()`를 제거하고, `useTamerProfile`의 전역 refresh 이벤트(`d2:tamer-profile-refresh`)를 통해 서비스 셸과 게임 화면의 테이머명 표시를 즉시 동기화하도록 바꿨다. `Settings`, `Collection`, `Guide` 페이지는 이제 모달을 직접 렌더링하지 않고 패널을 서비스 카드 안에 배치하며, `Settings`에는 페이지형 로그아웃 확인 흐름을 별도로 추가했다. `Me`의 빠른 메뉴 카피도 페이지형 동선에 맞게 조정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/AccountSettingsModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/EncyclopediaModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/components/panels/DigimonGuidePanel.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/hooks/useTamerProfile.js`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Collection.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Guide.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 모달과 페이지의 차이는 바깥 프레임과 닫기/뒤로 동선에만 두고, 실제 본문 로직은 패널에 집중시켰다. 이 구조면 이후 `Collection` 상세 확장이나 `Guide` 탭 재배치도 모달/페이지를 따로 수정하지 않아도 된다.
+- `useTamerProfile`는 Context가 아니라 각 호출 지점마다 독립 상태를 가지므로, 설정 저장 후 헤더와 게임 화면을 함께 갱신하려면 강제 새로고침 대신 브로드캐스트형 refresh 이벤트가 필요했다.
+
+---
+
 ## [2026-03-29] Idle 이동 타임라인을 Canvas 렌더링 경로에 연결
 
 ### 작업 유형
@@ -1414,6 +1673,53 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ---
 # 2026-03-29
 
+## 서비스 셸 라우팅 및 플레이 허브 구조 도입
+
+### 변경 내용
+- `App` 라우트를 서비스 셸 기준으로 재구성해 `/`, `/auth`, `/play`, `/play/:slotId`, `/play/:slotId/full`, `/me`, `/guide`, `/news`, `/community`, `/support` 흐름을 연결했다.
+- `ServiceLayout`, `TopNavigation`, `MobileTabBar`, `RequireAuth`를 추가해 홈/허브/마이/커뮤니티 페이지에 공통 셸을 적용했다.
+- `useTamerProfile`, `useUserSlots`, `PlayHub`, `SlotCard`, `NewDigimonModal`, `SlotOrderModal`을 추가해 기존 `SelectScreen`의 슬롯 관리 책임을 새 허브 구조로 옮겼다.
+- `SelectScreen`은 레거시 `/select` 리다이렉트 전용으로 축소했고, `/game/:slotId`도 새 `/play/:slotId` 흐름으로 리다이렉트되게 맞췄다.
+- `Game`에 몰입형 경로(`/play/:slotId/full`) 분기와 새 플레이 허브 네비게이션을 보강했다.
+- `Home`, `Me`, `Guide`, `Collection`, `Settings`, `News`, `Community`, `Support` 페이지를 추가해 서비스형 정보 구조를 확장했다.
+- `App.test.js`를 갱신해 홈, 보호 라우트, 레거시 리다이렉트 스모크 테스트를 추가했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/hooks/useTamerProfile.js`
+- `digimon-tamagotchi-frontend/src/hooks/useUserSlots.js`
+- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/RequireAuth.jsx`
+- `digimon-tamagotchi-frontend/src/components/play/SlotCard.jsx`
+- `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/play/SlotOrderModal.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+- `digimon-tamagotchi-frontend/src/pages/SelectScreen.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayFull.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Collection.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Guide.jsx`
+- `digimon-tamagotchi-frontend/src/pages/News.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Support.jsx`
+- `digimon-tamagotchi-frontend/src/utils/slotViewUtils.js`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 기존 구조는 `/`, `/select`, `/game/:slotId` 중심이라 서비스형 홈/허브/마이 흐름을 붙이기 어려웠고, `SelectScreen`이 슬롯 데이터/프로필/설정/UI를 모두 한 파일에 품고 있었다.
+- 이번 개편의 목적은 게임 코어를 전면 재작성하지 않고도 서비스 셸과 플레이 허브를 먼저 세워, 라우트 확장과 페이지 추가를 안전하게 진행할 수 있는 기반을 만드는 데 있었다.
+- 레거시 경로는 유지하되 새 구조로 자연스럽게 흘러가게 만들어 기존 북마크나 진입 습관을 깨지 않도록 했다.
+
+# 2026-03-29
+
 ## PR 리뷰 문서 추가
 
 - `codex analyze/digimon-tamagotchi-frontend-pr-review.md` 문서를 추가했다.
@@ -1548,6 +1854,85 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ### 근거
 - 데스크톱 게임 화면에서 위아래/좌우 스크롤바가 생겼다 사라졌다 하는 현상이 재현되었고, 게임 화면 내부의 떠다니는 이모지/토스트가 문서 전체 overflow를 만드는 구조였다.
 - 문제 원인이 페이지 레이아웃 전체보다는 게임 화면 절대 배치 연출과 문서 스크롤 폭의 흔들림에 가까워, 전역 overflow를 전부 막기보다 `GameScreen` 경계 클리핑과 루트 스크롤 거터 고정을 함께 적용하는 쪽이 더 안전했다.
+
+# 2026-03-30
+
+## PlayHub UX 보강 및 서비스 셸 정적 데이터 구조 추가
+
+### 변경 내용
+- `PlayHub`에 최근 이어하기 카드, 허브 운영 기준, 관련 페이지 이동 카드 구성을 보강하고 모바일에서는 광고 스택을 숨기도록 정리했다.
+- `News`, `Community`, `Support`를 단순 placeholder 문구 대신 로컬 구조화 데이터(`serviceShellContent`) 기반 페이지로 바꿨다.
+- 지원 페이지에 현재 인증/저장 계약을 반영해, 게스트 로그인도 Firebase 익명 계정 기반이며 localStorage 전용 오프라인 슬롯 모드는 현재 공식 계약이 아니라는 점을 명시했다.
+- 실시간 채팅 컨테이너를 서비스 셸 폭에 맞추고, 모바일 하단 탭과 겹치지 않도록 하단 여백과 채팅 박스 높이를 조정했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/pages/News.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Support.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceShellContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 플레이 허브는 라우트만 정리된 상태보다 `최근 이어하기`, `정렬 기준`, `관련 페이지 이동`이 함께 보일 때 실제 서비스 화면으로서 이해가 빨랐다.
+- `News/Community/Support`는 아직 백엔드 컬렉션이 없기 때문에, 우선 로컬 구조화 데이터로 페이지 모양과 필요한 필드 형태를 먼저 고정하는 편이 다음 단계 연결에 유리했다.
+- localStorage 오프라인 슬롯 모드는 현재 문서와 달리 런타임 계약에서 이미 빠져 있으므로, 이번 라운드에서는 무리하게 부활시키기보다 로그인 중심 구조를 명시적으로 드러내는 쪽이 더 안전했다.
+
+## 모달 본문 패널 분리 및 서비스 페이지 승격
+
+### 변경 내용
+- `계정 설정`, `도감`, `디지몬 가이드`의 실제 본문을 각각 `AccountSettingsPanel`, `EncyclopediaPanel`, `DigimonGuidePanel`로 분리했다.
+- 기존 `AccountSettingsModal`, `EncyclopediaModal`, `DigimonInfoModal`은 오버레이와 프레임만 담당하는 얇은 래퍼로 정리하고, 내부 본문은 공용 패널을 렌더링하도록 바꿨다.
+- `/me/settings`, `/me/collection`, `/guide` 페이지가 더 이상 “페이지 안에 모달”을 그대로 띄우지 않고, 서비스 페이지 안에서 공용 패널을 직접 렌더링하도록 바꿨다.
+- `AccountSettingsPanel`에서 테이머명 저장/기본값 복구 후 `window.location.reload()`를 제거하고, `useTamerProfile` 갱신 이벤트와 부모 상태 동기화로 즉시 반영되게 바꿨다.
+- `Me`의 빠른 메뉴 카피를 페이지형 동선에 맞게 다듬고, `App.test.js`에 가이드/도감/설정 페이지 스모크 기대값을 추가했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/components/AccountSettingsModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/EncyclopediaModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonInfoModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/DigimonGuidePanel.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useTamerProfile.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Collection.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Guide.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 1차 서비스 셸 라우팅 이후 `Collection`, `Settings`, `Guide`는 페이지 경로를 가졌지만 실제로는 모달 컴포넌트를 그대로 렌더링하고 있어서, 페이지 경험과 재사용 구조가 모두 어정쩡한 상태였다.
+- 게임 내 모달 동작은 유지하면서 서비스 페이지 품질을 올리려면, 모달을 없애기보다 “본문만 공용 패널로 분리”하는 쪽이 회귀 위험이 가장 낮았다.
+- 특히 계정 설정은 저장 후 전체 새로고침에 의존하고 있었기 때문에, 페이지 전환 이후에는 `useTamerProfile` 기준 갱신 이벤트와 부모 상태 동기화가 더 자연스러운 구조였다.
+
+# 2026-03-30
+
+## Home ↔ Notebook 전역 이동 동선 추가
+
+### 변경 내용
+- 상단 전역 네비에 `노트북` 항목을 추가해 `/`와 `/notebook`을 같은 레벨의 진입점처럼 오갈 수 있게 했다.
+- 모바일 하단 탭바를 5탭 구조로 확장하고 `노트북` 탭을 추가했다.
+- 비로그인 홈 히어로의 보조 CTA를 `노트북 열기`로 바꾸고, 로그인 홈 `빠른 이동` 카드에도 노트북 진입 카드를 추가했다.
+- 노트북 전용 상단 바에 `HOME:// RETURN` 링크를 추가하고, 하단 taskbar의 `HANSOL_NOTEBOOK` 라벨도 홈 복귀 링크로 연결했다.
+- 전역 링크 노출 이후에도 한 줄 레이아웃이 유지되도록 탑네비/탭바 폰트와 간격을 소폭 조정하고, 관련 테스트를 추가했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/home/NotebookTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/NotebookLanding.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 사용자는 기존 서비스 홈과 노트북 랜딩을 번갈아 보며 비교/조정하고 있었고, 양쪽을 매번 URL 입력이나 뒤로가기로 오가는 대신 전역 동선 안에서 바로 왕복하길 원했다.
+- 노트북 랜딩이 더 이상 숨겨진 실험 화면이 아니라 별도 콘셉트 랜딩으로 자리 잡았기 때문에, 데스크톱과 모바일 모두에서 명시적으로 접근 가능한 링크를 두는 편이 구조 이해와 반복 피드백에 유리했다.
 
 # 2026-03-29
 
