@@ -54,6 +54,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
             height={60}
             className="icon-button-mobile touch-button"
             label={menuLabel(menu)}
+            isMobile={true}
           />
         ))}
       </div>
@@ -82,6 +83,7 @@ const MenuIconButtons = ({ width, height, activeMenu, onMenuClick, isMobile = fa
                     width={60}
                     height={60}
                     label={menuLabel(menu)}
+                    isMobile={false}
                   />
                 ) : (
                   <div style={{ width: '60px', height: '60px' }}></div>

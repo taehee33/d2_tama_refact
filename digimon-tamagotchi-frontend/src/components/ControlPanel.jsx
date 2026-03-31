@@ -34,7 +34,7 @@ const ControlPanel = ({
       <div className={isMobile ? "w-full stats-panel-mobile" : ""}>
         <StatsPanel stats={stats} sleepStatus={sleepStatus} isMobile={isMobile} />
       </div>
-      <div className={isMobile ? "w-full menu-icon-buttons-mobile" : ""}>
+      <div className={isMobile ? "w-full" : ""}>
         <MenuIconButtons
           width={width}
           height={height}
@@ -49,4 +49,3 @@ const ControlPanel = ({
 };
 
 export default ControlPanel;
-

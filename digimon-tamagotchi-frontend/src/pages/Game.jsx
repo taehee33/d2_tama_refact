@@ -6,12 +6,19 @@ import { useAuth } from "../contexts/AuthContext";
 import { useMasterData } from "../contexts/MasterDataContext";
 
 import ControlPanel from "../components/ControlPanel";
+import GameHeaderMeta from "../components/GameHeaderMeta";
 import GameModals from "../components/GameModals";
 import GameScreen from "../components/GameScreen";
 import StatusHearts from "../components/StatusHearts";
 import DigimonStatusBadges from "../components/DigimonStatusBadges";
 
-import { getSleepStatus, checkCalls, checkCallTimeouts, addActivityLog } from "../hooks/useGameLogic";
+import {
+  getSleepStatus,
+  checkCalls,
+  checkCallTimeouts,
+  addActivityLog,
+  applyTiredCareMistake,
+} from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
 import { useGameActions } from "../hooks/useGameActions";
@@ -26,6 +33,7 @@ import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
+import ImmersiveGameTopBar from "../components/layout/ImmersiveGameTopBar";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 
 import digimonAnimations from "../data/digimonAnimations";
@@ -160,6 +168,14 @@ function Game({ immersive = false }){
   const navigate= useNavigate();
   const location = useLocation();
   const isImmersive = immersive || location.pathname.endsWith("/full");
+  const gameHeaderClassName = [
+    "game-page-header",
+    isImmersive ? "game-page-header--immersive" : "game-page-header--default",
+    !isImmersive && isMobile ? "game-page-header--default-mobile" : "",
+    isImmersive && isMobile ? "game-page-header--immersive-mobile" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -642,38 +658,15 @@ function Game({ immersive = false }){
           setDailySleepMistake(false);
         }
 
-        // TIRED 상태 케어미스 처리 (하루 1회 제한)
-        // currentSleepStatus는 위에서 이미 계산됨
-        if (currentSleepStatus === "TIRED") {
-          if (!updatedStats.tiredStartAt) {
-            updatedStats.tiredStartAt = nowMs;
-            updatedStats.tiredCounted = false;
-          } else {
-            const elapsed = nowMs - updatedStats.tiredStartAt;
-            const threshold = developerMode ? 60 * 1000 : 30 * 60 * 1000; // 테스트 모드는 1분, 기본 30분
-            // dailySleepMistake 체크 추가: 하루 1회만 증가
-            if (!updatedStats.tiredCounted && 
-                elapsed >= threshold && 
-                !dailySleepMistake && 
-                !updatedStats.dailySleepMistake) {
-              updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-              updatedStats.tiredCounted = true;
-              updatedStats.dailySleepMistake = true;
-              updatedStats.sleepMistakeDate = todayStartMs; // 해당일 0시 ms로 기록 (비교·저장 통일)
-              setDailySleepMistake(true);
-              // Activity Log 추가
-              const currentLogs = updatedStats.activityLogs || [];
-              updatedStats.activityLogs = addActivityLog(
-                currentLogs,
-                "CAREMISTAKE",
-                "케어미스(사유: 수면 시간에 불 켜둔 채 30분 경과 - 피곤 방치)"
-              );
-            }
-          }
-        } else {
-          // TIRED 상태가 아니면 리셋
-          updatedStats.tiredStartAt = null;
-          updatedStats.tiredCounted = false;
+        updatedStats = applyTiredCareMistake(updatedStats, {
+          currentSleepStatus,
+          now: nowDate,
+          developerMode,
+          dailySleepMistake,
+          todayStartMs,
+        });
+        if (updatedStats.dailySleepMistake !== dailySleepMistake) {
+          setDailySleepMistake(Boolean(updatedStats.dailySleepMistake));
         }
 
         // sleepLightOnStart는 UI 표시용으로만 사용 (케어미스 로직은 TIRED 상태 케어미스로 통합)
@@ -879,7 +872,9 @@ function Game({ immersive = false }){
         // 메모리 상태만 업데이트 (Firestore 쓰기 없음)
         updatedStats.isLightsOn = isLightsOn;
         updatedStats.wakeUntil = wakeUntil;
-        updatedStats.dailySleepMistake = dailySleepMistake;
+        if (typeof updatedStats.dailySleepMistake !== "boolean") {
+          updatedStats.dailySleepMistake = dailySleepMistake;
+        }
         // 호출 활성화·데드라인·케어미스·부상 발생 시 DB 저장 → 새로고침 없이 이력 유지
         const zeroAtChanged = (updatedStats.lastHungerZeroAt && updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt) ||
           (updatedStats.lastStrengthZeroAt && updatedStats.lastStrengthZeroAt !== prevStats.lastStrengthZeroAt);
@@ -1646,28 +1641,23 @@ async function setSelectedDigimonAndSave(name) {
     return null;
   }
 
+  const currentTimeText = customTime.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
   return (
     <>
       {isImmersive ? (
-        <div className="fixed left-4 right-4 top-4 z-50 flex items-center justify-between">
-          <div className="rounded-full bg-black/75 px-4 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur">
-            몰입형 플레이
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => navigate(`/play/${slotId}`)}
-              className="rounded-full bg-white/90 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm"
-            >
-              기본 화면
-            </button>
-            <button
-              onClick={() => navigate("/play")}
-              className="rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm"
-            >
-              플레이 허브
-            </button>
-          </div>
-        </div>
+        <ImmersiveGameTopBar
+          isMobile={isMobile}
+          onOpenBaseView={() => navigate(`/play/${slotId}`)}
+          onOpenPlayHub={() => navigate("/play")}
+        />
       ) : isMobile ? (
         <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
           <div className="flex items-center justify-between px-3 py-2">
@@ -1887,7 +1877,7 @@ async function setSelectedDigimonAndSave(name) {
         </>
       )}
 
-      <div className={`text-center mb-1 ${isImmersive ? "pt-8" : "pt-20"}`}>
+      <div className={gameHeaderClassName}>
         <h2 className="text-base font-bold">
           슬롯 {slotId} - {(() => {
             const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
@@ -1901,18 +1891,13 @@ async function setSelectedDigimonAndSave(name) {
             <span className="ml-2 text-blue-600">🧊 냉장고</span>
           )}
         </h2>
-        <p className="text-xs text-gray-600">슬롯 이름: {slotName} | 생성일: {formatSlotCreatedAt(slotCreatedAt)}</p>
-        <p className="text-xs text-gray-600">기종: {slotDevice} / 버전: {slotVersion}</p>
-        <p className="text-sm font-semibold text-blue-600 mt-1">
-          현재 시간: {customTime.toLocaleString('ko-KR', { 
-            year: 'numeric', 
-            month: '2-digit', 
-            day: '2-digit', 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit' 
-          })}
-        </p>
+        <GameHeaderMeta
+          slotName={slotName}
+          slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
+          slotDevice={slotDevice}
+          slotVersion={slotVersion}
+          currentTimeText={currentTimeText}
+        />
         {/* 상태 하트 표시 (시계 아래) */}
         <div className="mt-2 flex flex-col items-center gap-2">
           <StatusHearts

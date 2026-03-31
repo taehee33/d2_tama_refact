@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-03-31] 수면 케어미스 중복/드리프트 보정
+
+### 작업 유형
+- 🛠 `TIRED 30분`과 `Sleep Call 60분`의 중복 케어미스 경로 정리
+- 🔒 `dailySleepMistake` stale state 덮어쓰기 방지
+- 🧪 수면 케어미스 재활성화/타임아웃 경계 테스트 보강
+
+### 목적 및 영향
+- **목적:** 수면 시간 동안 불을 켜둔 상태에서 `TIRED` 케어미스와 `Sleep Call` 케어미스가 같은 밤에 중복으로 올라가거나, `dailySleepMistake`가 같은 틱 마지막에 stale state로 덮어써져 다시 풀리는 드리프트를 막기.
+- **범위:** 실시간 타이머 경로와 수면 호출 로직만 조정하며, hunger/strength call과 lazy update 저장 규칙은 유지한다.
+- **내용:**
+  - `useGameLogic.js`에 `applyTiredCareMistake()`를 추가해 `TIRED 30분` 케어미스를 한 곳에서 처리하도록 정리했다.
+  - `TIRED` 케어미스가 이미 발생한 날에는 `checkCalls()`가 `sleep call`을 다시 활성화하지 않도록 막았다.
+  - 남아 있던 `sleep call`이 있더라도 `dailySleepMistake === true`이면 `checkCallTimeouts()`가 추가 케어미스 없이 호출만 정리하도록 조정했다.
+  - `Game.jsx`의 1초 틱에서 `updatedStats.dailySleepMistake = dailySleepMistake`로 다시 덮어쓰던 경로를 제거하고, `updatedStats` 값이 실제 기준이 되도록 바꿨다.
+  - `StatsPopup.jsx`에는 "오늘 수면 케어미스는 이미 처리됨" 안내를 추가해, 수면 호출 타임아웃이 더 이상 케어미스를 만들지 않는 상태를 UI에서도 드러내도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `npm test -- --runInBand --watchAll=false src/hooks/useGameLogic.test.js src/data/stats.test.js`
+- `npm run build`
+
+### 아키텍처 메모
+- 수면 케어미스는 여전히 `TIRED 30분`과 `Sleep Call 60분`이라는 두 개념이 UI/문서에 남아 있지만, 실제 카운트는 하루 1회의 `TIRED` 경로가 기준이 되도록 정리했다.
+- 다음 라운드에서는 `StatsPopup`의 수면 관련 안내 문구와 내부 규칙 설명 문서를 이 기준에 맞춰 한 번 더 정리하는 것이 좋다.
+
+---
+
 ## [2026-03-31] `applyLazyUpdate` 1차 회귀 테스트 추가
 
 ### 작업 유형
@@ -2077,6 +2111,68 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 사용자 요구사항은 `설정` 안의 전용 진입, Firestore 성공 시에만 반영, 저장 이력/되돌리기/기본값 복원을 명확히 제공하는 쪽이었다.
 - `wake hour/min`은 단순 표기만으로는 의미가 없어 실제 수면 판정과 기상 에너지 회복 로직까지 같은 기준으로 맞춰야 했고, 그래서 공용 수면 유틸과 런타임 어댑터를 함께 정리했다.
 
+# 2026-03-31
+
+## 모바일 몰입형 상단 바 겹침 보정
+
+### 변경 내용
+- `Game`의 몰입형(`/play/:slotId/full`) 상단 버튼 묶음을 `ImmersiveGameTopBar`로 분리해 모바일 전용 레이아웃과 데스크톱 레이아웃을 분기했다.
+- 모바일 몰입형 상단 바에 safe-area 상단 여백, 반투명 배경, 하단 경계선, 그림자를 추가해 게임 정보 영역과 시각적으로 구분되게 맞췄다.
+- 슬롯 제목/메타 영역은 기존 `pt-8` 하드코딩 대신 `game-page-header` 계열 클래스를 사용하도록 바꿔, 모바일 몰입형일 때 상단 바 높이만큼 본문 시작 위치를 충분히 확보했다.
+- `ImmersiveGameTopBar.test.jsx`를 추가해 모바일 전용 상단 바가 버튼과 이동 핸들러를 정상 렌더링하는지 고정했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveGameTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 몰입형 화면에서 상단 바가 `fixed`로 떠 있는 반면, 모바일 본문 헤더는 낮은 상단 패딩만 사용하고 있어 `슬롯 n - 디지몬명` 제목이 버튼 영역과 겹치는 현상이 재현되었다.
+- 이 문제는 단순 경계선 추가만으로는 해결되지 않고, 모바일 몰입형 상단 바 높이와 iPhone safe-area를 반영한 본문 오프셋이 함께 필요했다.
+- 데스크톱 몰입형과 일반 게임 화면 동작은 유지해야 했기 때문에, 모바일 몰입형 분기만 국소적으로 분리하는 쪽이 가장 안전한 수정 범위였다.
+
+# 2026-03-31
+
+## 모바일 아이콘 메뉴 세로 밀도 압축
+
+### 변경 내용
+- `ControlPanel`의 모바일 메뉴 래퍼가 내부 메뉴 그리드와 같은 `menu-icon-buttons-mobile` 클래스를 중복으로 쓰던 구조를 정리해, 바깥 래퍼에 의한 추가 패딩/그리드 간섭을 제거했다.
+- `IconButton`에 모바일 분기를 명시적으로 전달하고, 모바일에서는 `box-sizing: border-box` 기준의 실제 높이와 패딩을 사용하도록 바꿔 아이콘 버튼 외곽 높이가 의도보다 커지지 않게 맞췄다.
+- 모바일 아이콘 메뉴의 세로 밀도를 위해 `control-panel-mobile` 간격, `menu-icon-buttons-mobile` gap, 내부 세로 padding, 모바일 버튼 padding을 한 단계씩 줄였다.
+- `IconButton.test.jsx`를 추가해 모바일 아이콘 버튼이 컴팩트한 높이와 `border-box` 기준을 유지하는지 고정했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/components/ControlPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/IconButton.jsx`
+- `digimon-tamagotchi-frontend/src/components/MenuIconButtons.jsx`
+- `digimon-tamagotchi-frontend/src/components/IconButton.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 아이콘 그리드는 이미 4열 고정이라 좌우 정렬은 안정적이었지만, 모바일에서 버튼 자체가 `content-box`처럼 커지고 외곽 래퍼까지 같은 그리드 클래스를 공유하면서 실제 세로 점유가 과하게 넓어져 있었다.
+- 12 Pro와 14 Pro 차이는 기기 자체보다 브라우저 UI 노출과 상단 콘텐츠 높이 영향이 더 커 보였기 때문에, 레이아웃 구조를 바꾸기보다 세로 밀도만 소폭 압축하는 쪽이 더 안전했다.
+- 터치 영역은 44px 이상을 유지하면서도 `스탯`, `식사`, `교감`, `호출`, `추가기능`까지 더 빨리 한눈에 들어오도록 하는 것이 이번 조정의 핵심이었다.
+
+# 2026-03-31
+
+## 기본 화면 모바일 헤더 제목 가림 보정
+
+### 변경 내용
+- `Game`의 기본 화면 모바일 경로에 `game-page-header--default-mobile` 클래스를 별도로 붙여, 일반 모바일 상단 바 높이를 본문 헤더 spacing에 반영하도록 분리했다.
+- 모바일 기본 화면 헤더는 `safe-area-inset-top`을 포함한 더 큰 상단 패딩을 사용하도록 조정해 `슬롯 n - 디지몬명` 제목이 2단 고정 상단 바 아래에서 시작되게 맞췄다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 일반 모바일 기본 화면은 상단 고정 바 안에 버튼 행과 `테이머/칭호` 행이 함께 들어가는데, 본문 헤더는 기존 `80px` 기준만 사용하고 있어 `슬롯 1 - 깜몬` 제목이 상단 바 아래에 일부 가려지는 현상이 재현되었다.
+- 몰입형 화면과 기본 화면의 상단 바 높이가 다르기 때문에, 기본 화면 모바일에만 별도 오프셋을 주는 쪽이 가장 작은 수정 범위였다.
+
 ## [2026-03-31] 서비스 상단 CTA를 테이머명 계정 드롭다운으로 전환
 
 ### 작업 유형
@@ -2086,11 +2182,9 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ### 목적 및 영향
 - **목적:** 상단 우측의 `내 디지몬 보기` CTA를 사용자의 테이머명으로 바꾸고, 클릭했을 때 바로 `계정설정`과 `로그아웃` 메뉴가 아래로 열리도록 만들어 계정 관련 동선을 더 짧게 만들기.
 - **범위:** 일반 서비스 셸의 `TopNavigation`만 바뀌며, 플레이 링크 자체는 기존 네비 탭에서 계속 접근할 수 있다. 노트북 전용 상단 바와 게임 내부 상단 UI는 이번 변경 범위에 포함되지 않는다.
-- **내용:** `App.jsx`에서 현재 테이머명을 `ServiceLayout -> TopNavigation`으로 전달하고, 로그인 상태에서는 pill 링크 대신 계정 드롭다운 버튼을 렌더링하게 바꿨다. 버튼 클릭 시 아래에 `계정설정`, `로그아웃` 메뉴가 열리고, 메뉴는 바깥 영역 클릭, 라우트 변경, `Escape` 입력 시 닫히도록 정리했다. `계정설정`은 `/me/settings`, `로그아웃`은 기존 auth context의 `logout()` 후 `/auth` 이동으로 연결했다. 관련 테스트도 새 헤더 계약에 맞게 갱신했다.
+- **내용:** `TopNavigation`이 `useTamerProfile()`에서 가져온 표시용 테이머명을 우선 사용하도록 연결하고, 로그인 상태에서는 pill 링크 대신 계정 드롭다운 버튼을 렌더링하게 바꿨다. 버튼 클릭 시 아래에 `계정설정`, `로그아웃` 메뉴가 열리고, 메뉴는 바깥 영역 클릭, 라우트 변경, `Escape` 입력 시 닫히도록 정리했다. `계정설정`은 `/me/settings`, `로그아웃`은 기존 auth context의 `logout()` 후 `/auth` 이동으로 연결했다. 관련 테스트도 새 헤더 계약에 맞게 갱신했다.
 
 ### 영향받은 파일
-- `digimon-tamagotchi-frontend/src/App.jsx`
-- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.jsx`
 - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
 - `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
@@ -2098,3 +2192,26 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 
 ### 아키텍처 메모
 - 플레이 진입 CTA와 계정 관리 CTA는 성격이 다르기 때문에, 상단 우측의 단일 버튼이 `내 디지몬 보기`로 남아 있으면 설정/로그아웃 접근이 한 단계 더 깊어지는 문제가 있었다.
+- 서비스 셸 전역에서 이미 `useTamerProfile`을 기준으로 사용자 표시명을 맞추고 있으므로, 상단 계정 버튼도 같은 테이머명 소스를 우선 사용하도록 맞추는 편이 일관성과 기대 동작 모두에 더 적합하다.
+
+# 2026-03-31
+
+## 게임 헤더 메타 정보 접기/펼치기 추가
+
+### 변경 내용
+- `Game` 헤더의 `슬롯 이름`, `기종`, `현재 시간` 3줄을 `GameHeaderMeta` 컴포넌트로 분리하고, 제목 아래에서만 접기/펼치기 할 수 있도록 정리했다.
+- 헤더 메타 정보는 전역 UI 선호값인 `game_header_info_collapsed` 키를 통해 `localStorage`에 저장되며, 기본값은 모든 환경에서 접힘 상태로 시작하도록 맞췄다.
+- `GameHeaderMeta.test.jsx`를 추가해 기본 접힘 상태, 토글 동작, 새로고침 이후에도 마지막 상태가 유지되는 흐름을 고정했다.
+- 상태 하트와 상태 배지는 기존 위치를 유지해 메타 정보 접힘 여부와 무관하게 계속 보이도록 유지했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameHeaderMeta.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameHeaderMeta.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 모바일과 기본 화면 모두에서 헤더 메타 정보가 늘 펼쳐져 있으면 상단 정보 밀도가 높아져 게임 화면 진입 직후 핵심 영역이 아래로 밀리는 문제가 있었다.
+- 사용자가 자주 보는 정보는 슬롯 제목과 상태 영역이므로, 접기 대상은 제목 아래의 메타 3줄로만 제한하고 나머지 HUD는 항상 유지하는 편이 정보 위계를 더 명확하게 만든다.
+- 마지막 접힘 상태를 전역 UI 선호값으로 저장하면 슬롯을 바꾸거나 새로고침해도 사용자가 다시 매번 접을 필요가 없어 반복 조작을 줄일 수 있다.
