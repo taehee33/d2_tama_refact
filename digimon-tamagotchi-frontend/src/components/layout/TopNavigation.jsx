@@ -3,14 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import NotebookTopBar from "../home/NotebookTopBar";
 
-const links = [
-  { to: "/", label: "홈" },
-  { to: "/play", label: "플레이" },
-  { to: "/guide", label: "가이드" },
-  { to: "/community", label: "커뮤니티" },
-  { to: "/news", label: "소식" },
-];
-
 function getDisplayTamerName(currentUser, tamerName) {
   return (
     tamerName ||
@@ -25,6 +17,14 @@ function TopNavigation({ tamerName = "" }) {
   const location = useLocation();
   const navigate = useNavigate();
   const isNotebookRoute = location.pathname === "/notebook";
+  const homePath = currentUser ? "/" : "/landing";
+  const links = [
+    { to: homePath, label: "홈" },
+    { to: "/play", label: "플레이" },
+    { to: "/guide", label: "가이드" },
+    { to: "/community", label: "커뮤니티" },
+    { to: "/news", label: "소식" },
+  ];
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
@@ -96,7 +96,7 @@ function TopNavigation({ tamerName = "" }) {
   return (
     <header className="service-topnav">
       <div className="service-topnav__inner">
-        <Link className="service-brand" to="/">
+        <Link className="service-brand" to={homePath}>
           <span className="service-brand__eyebrow">D2 TAMAGOTCHI</span>
           <span className="service-brand__title">디지몬 키우기</span>
         </Link>
@@ -106,6 +106,7 @@ function TopNavigation({ tamerName = "" }) {
             <NavLink
               key={link.to}
               to={link.to}
+              end={link.to === homePath}
               className={({ isActive }) =>
                 `service-nav__link${isActive ? " service-nav__link--active" : ""}`
               }
@@ -131,6 +132,16 @@ function TopNavigation({ tamerName = "" }) {
           >
             노트북
           </NavLink>
+          {currentUser ? (
+            <NavLink
+              to="/landing"
+              className={({ isActive }) =>
+                `service-nav__link${isActive ? " service-nav__link--active" : ""}`
+              }
+            >
+              둘러보기
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="service-topnav__actions">

@@ -1,10 +1,6 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import {
-  SITE_THEME_OPTIONS,
-  useTheme,
-} from "../contexts/ThemeContext";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
 import { getSlotDisplayName, getSlotStageLabel } from "../utils/slotViewUtils";
@@ -16,84 +12,11 @@ import {
 function Home() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { themeId, isThemeLoading, setTheme } = useTheme();
   const { displayTamerName, achievements, maxSlots } = useTamerProfile();
   const { slots, loading, recentSlot } = useUserSlots({ maxSlots });
 
   if (!currentUser) {
-    return (
-      <section className="service-page">
-        <div className="service-hero">
-          <div className="service-hero__content">
-            <p className="service-section-label">메인 비주얼</p>
-            <h1>디지타마에서 시작해 나만의 디지몬을 키워 보세요.</h1>
-            <p>
-              홈에서 시작해 플레이 허브로 들어가고, 이어서 실제 게임 화면으로 연결되는
-              서비스 구조를 준비했습니다.
-            </p>
-            <div className="service-inline-actions">
-              <Link className="service-button service-button--primary" to="/auth">
-                로그인하고 시작하기
-              </Link>
-              <Link className="service-button service-button--ghost" to="/notebook">
-                노트북 열기
-              </Link>
-            </div>
-            <div className="service-theme-switcher" role="group" aria-label="서비스 테마 선택">
-              <span className="service-theme-switcher__label">테마</span>
-              {SITE_THEME_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={`service-theme-switcher__option${
-                    themeId === option.id ? " service-theme-switcher__option--active" : ""
-                  }`}
-                  onClick={() => setTheme(option.id)}
-                  disabled={isThemeLoading}
-                  aria-pressed={themeId === option.id}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <p className="service-theme-switcher__hint">
-              비로그인 상태에서도 서비스 톤을 미리 바꿔볼 수 있습니다.
-            </p>
-          </div>
-
-          <div className="service-hero__panel">
-            <div className="service-card service-card--warm">
-              <p className="service-section-label">대표 디지몬/디지타마 영역</p>
-              <h2>따뜻한 시작, 선명한 플레이</h2>
-              <p>
-                소개 페이지가 아니라 실제 플레이로 자연스럽게 이어지는 구조를 목표로
-                하고 있습니다.
-              </p>
-              <div className="service-chip-row">
-                <span className="service-badge">홈</span>
-                <span className="service-badge">플레이 허브</span>
-                <span className="service-badge">실제 게임</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="service-action-grid">
-          <div className="service-action-card">
-            <strong>모바일 몰입형 플레이</strong>
-            <span>슬롯별 전체화면 경로로 더 집중해서 키울 수 있습니다.</span>
-          </div>
-          <div className="service-action-card">
-            <strong>버전별 성장 루트</strong>
-            <span>Ver.1과 Ver.2를 같은 허브 안에서 나눠 관리합니다.</span>
-          </div>
-          <div className="service-action-card">
-            <strong>도감과 가이드 확장</strong>
-            <span>플레이 중 찾은 정보를 서비스 페이지로 확장해 갑니다.</span>
-          </div>
-        </div>
-      </section>
-    );
+    return null;
   }
 
   return (

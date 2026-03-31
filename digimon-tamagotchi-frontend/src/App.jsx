@@ -23,6 +23,7 @@ import Collection from "./pages/Collection";
 import Community from "./pages/Community";
 import Guide from "./pages/Guide";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Game from "./pages/Game";
 import Me from "./pages/Me";
@@ -113,7 +114,8 @@ function AppContent() {
         <PageViewTracker />
         <Routes>
           <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<RootEntry />} />
+            <Route path="/landing" element={<LandingEntry />} />
             <Route path="/notebook" element={<NotebookLanding />} />
             <Route path="/guide" element={<Guide />} />
             <Route path="/community" element={<Community />} />
@@ -142,6 +144,20 @@ function AppContent() {
       </AblyContextProvider>
     </Router>
   );
+}
+
+export function RootEntry() {
+  const { currentUser } = useAuth();
+
+  if (!currentUser) {
+    return <Navigate to="/landing" replace />;
+  }
+
+  return <Home />;
+}
+
+export function LandingEntry() {
+  return <Landing />;
 }
 
 function LegacyGameRedirect() {

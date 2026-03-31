@@ -4,6 +4,50 @@
 
 ---
 
+## [2026-04-01] 테이머명 중복 확인을 `nickname_index` 문서 인덱스로 전환
+
+### 작업 유형
+- 🗂 `metadata/nicknames` 단일 문서 의존 제거
+- ✍️ 테이머명 입력 공백 정규화 규칙 도입
+- 🔒 닉네임 인덱스 전용 Firestore 보안 규칙 추가
+- 🧰 감사 / 백필 스크립트 추가
+- 🧪 테이머명 유틸 / 계정 설정 패널 테스트 보강
+
+### 목적 및 영향
+- **목적:** 전역 단일 문서 병목을 없애고, 테이머명 변경을 사용자 문서와 닉네임 인덱스 문서가 함께 갱신되는 원자적 흐름으로 바꾸기.
+- **범위:** 테이머명 중복 확인, 저장/초기화, Firestore 보안 규칙, 닉네임 인덱스 마이그레이션 스크립트와 관련 테스트/문서를 함께 갱신한다.
+- **내용:**
+  - `src/utils/tamerNameUtils.js`를 `nickname_index/{normalizedKey}` 기반 구조로 재작성하고, `trim + 연속 공백 1칸 축약 + 영문 소문자화` 규칙을 공통 유틸로 고정했다.
+  - `checkNicknameAvailability()`는 전체 목록을 읽지 않고 단일 인덱스 문서만 조회하도록 바꾸고, 공백 자동 정규화가 일어나면 안내 문구와 정규화 결과를 함께 반환하도록 확장했다.
+  - `updateTamerName()`과 `resetToDefaultTamerName()`은 Firestore transaction으로 바꿔 `users/{uid}.tamerName`과 `nickname_index`를 한 번에 반영하도록 정리했다.
+  - `AccountSettingsPanel.jsx`는 중복 확인/저장 시 정규화된 테이머명으로 입력창을 즉시 맞추고, `연속된 공백은 1칸으로 자동 변경됩니다.` 안내를 성공 문구와 함께 보여주도록 보강했다.
+  - 루트 `scripts/`에 `nickname:audit`, `nickname:backfill` 스크립트를 추가해 `users/{uid}.tamerName`을 진실 소스로 충돌 감사와 인덱스 백필을 수행할 수 있게 했다.
+  - `firestore.rules`, `README.md`, `FIRESTORE_RULES.md`를 새 경계 `nickname_index/{normalizedKey}` 기준으로 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
+- `firestore.rules`
+- `scripts/nicknameIndexShared.js` (신규)
+- `scripts/auditNicknameIndex.js` (신규)
+- `scripts/backfillNicknameIndex.js` (신규)
+- `package.json`
+- `README.md`
+- `FIRESTORE_RULES.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx`
+
+### 아키텍처 메모
+- 앞으로 테이머명 중복 판정은 `users/{uid}.tamerName`과 별개로 `nickname_index/{normalizedKey}` 문서를 통해 이뤄진다.
+- 표시용 닉네임과 중복 판정 키를 모두 공백 정규화 규칙에 맞춰 저장하므로, `A B`와 `A  B`는 같은 이름으로 간주된다.
+- 레거시 `metadata/nicknames` 문서는 즉시 삭제하지 않고, 마이그레이션 완료 후 미사용 상태로 남겨 둔다.
+
+---
+
 ## [2026-03-31] 수면 규칙을 `경고`와 `실제 수면 방해`로 재정의
 
 ### 작업 유형
@@ -2270,3 +2314,95 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 기존 `/`는 비로그인 홈과 로그인 홈이 한 파일 안에서 섞여 있어 첫 화면을 확장할수록 개인화 홈까지 같이 복잡해지는 구조였다.
 - 전용 `/landing`을 두면 퍼블릭 메시지와 로그인 후 홈의 책임이 분리되어, 랜딩은 감성과 전환에 집중하고 `Home`은 플레이 허브/최근 슬롯 중심의 개인화 홈으로 유지하기 쉽다.
 - 비로그인 상태의 홈 링크가 그대로 `/`를 가리키면 랜딩에서 활성 상태와 실제 도착 경로가 어긋나므로, 퍼블릭 네비게이션은 `/landing`을 직접 가리키는 편이 더 자연스럽다.
+
+## [2026-04-01] 랜딩 재진입 허용과 노트북 상단 메뉴 보강
+
+### 작업 유형
+- 🧭 로그인 상태 랜딩 재진입 허용
+- 📚 노트북 상단 빠른 메뉴 추가
+
+### 목적 및 영향
+- **목적:** 로그인 이후에도 랜딩을 다시 볼 수 있게 하고, 노트북 상단 바 오른쪽에서 `랜딩`, `가이드`, `커뮤니티`, `소식`으로 바로 이동할 수 있게 만들기.
+- **범위:** `/landing` 진입 가드, 랜딩 CTA 문구, 일반 서비스 상단 네비의 `랜딩` 메뉴, 노트북 상단 바 메뉴와 모바일 배치가 함께 조정된다.
+- **내용:** `LandingEntry`의 로그인 리다이렉트를 제거해 로그인 상태에서도 `/landing`을 그대로 열 수 있게 바꿨다. 랜딩 페이지는 로그인 상태일 때 `플레이 허브 열기`, `내 홈으로 돌아가기` CTA를 보여주도록 정리했고, 일반 서비스 상단 네비에는 로그인 사용자에게만 `랜딩` 메뉴를 추가했다. 노트북 상단 바에는 `랜딩`, `가이드`, `커뮤니티`, `소식` 빠른 메뉴를 추가하고, 모바일에서는 가로 스크롤 가능한 한 줄 메뉴로 노출되게 조정했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Landing.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Landing.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/home/NotebookTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 랜딩이 공개 소개 페이지 역할을 한다면 로그인 이후에도 다시 돌아와 공개 탐색 링크를 사용하는 흐름이 자연스럽다.
+- 노트북 경로는 일반 서비스 헤더를 쓰지 않기 때문에, `노트북 오른쪽 메뉴` 요청을 반영하려면 노트북 전용 상단 바에 직접 빠른 메뉴를 넣는 편이 가장 일관된다.
+
+## [2026-04-01] `랜딩` UI 이름을 `둘러보기`로 정리
+
+### 작업 유형
+- ✏️ 퍼블릭 탐색 페이지 네이밍 정리
+
+### 목적 및 영향
+- **목적:** 로그인 이후에도 다시 열 수 있는 `/landing` 페이지의 성격이 더 잘 드러나도록, 사용자에게 보이는 이름을 `랜딩` 대신 `둘러보기`로 바꾸기.
+- **범위:** 경로(`/landing`)는 유지하고, 메뉴/페이지 표기와 관련 테스트만 `둘러보기` 기준으로 조정한다.
+- **내용:** 일반 서비스 상단 네비, 노트북 상단 빠른 메뉴, 둘러보기 페이지 내부 레이블과 안내 문구를 `둘러보기`로 통일했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/home/NotebookTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Landing.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Landing.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- `/landing`은 구현용 이름이지만, 실제 사용자 입장에서는 이 페이지가 서비스와 공개 콘텐츠를 먼저 보는 `둘러보기` 허브에 가깝다.
+- 로그인 이후에도 다시 들어올 수 있는 페이지라면 기능 중심 이름인 `둘러보기`가 더 자연스럽다.
+
+## [2026-04-01] Supabase 기반 커뮤니티 `내 디지몬 자랑` MVP 구현
+
+### 작업 유형
+- ✨ 커뮤니티 실데이터 MVP 추가
+- 🧱 Vercel API + Supabase 서버 브리지 도입
+- 🧪 커뮤니티 UI/API 테스트 보강
+
+### 목적 및 영향
+- **목적:** `/community`를 플레이스홀더에서 실제로 글 작성과 댓글이 가능한 1차 커뮤니티 피드로 올리고, 커뮤니티 데이터는 Supabase로 분리하되 슬롯 원본 데이터는 계속 Firestore에서 읽도록 구조를 확정하기.
+- **범위:** Vercel API 라우트, Firebase Admin 인증 검증, Supabase CRUD 헬퍼, 커뮤니티 공개/로그인 2모드 UI, 슬롯 스냅샷 미리보기, 샘플 공개 글, SQL 스키마 문서와 테스트가 함께 포함된다.
+- **내용:** 로그인 사용자는 `내 디지몬 자랑` 보드에서 자신의 슬롯을 골라 글을 만들고 댓글을 남길 수 있게 바꿨다. 게시글 생성 시 클라이언트는 `slotId`, `title`, `body`만 보내고, 서버가 Firebase ID 토큰을 검증한 뒤 `users/{uid}/slots/{slotId}`를 다시 읽어 스냅샷을 만든다. 실제 게시글/댓글 저장은 Supabase `community_posts`, `community_post_comments` 테이블로 처리하고, 비로그인 상태의 `/community`는 샘플 공개 글만 보여주도록 분리했다. `진화 노트`, `조그레스 모집` 카드는 아직 안내 카드 상태로 유지한다.
+
+### 영향 파일
+- `package.json`
+- `package-lock.json`
+- `api/_lib/http.js`
+- `api/_lib/community.js`
+- `api/_lib/firebaseAdmin.js`
+- `api/_lib/supabaseAdmin.js`
+- `api/_lib/communityStore.js`
+- `api/_lib/communityHandlers.js`
+- `api/_lib/community.test.js`
+- `api/_lib/communityHandlers.test.js`
+- `api/community/showcase/posts/index.js`
+- `api/community/showcase/posts/[postId].js`
+- `api/community/showcase/posts/[postId]/comments/index.js`
+- `api/community/showcase/comments/[commentId].js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/SUPABASE_COMMUNITY_SCHEMA.sql`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 커뮤니티는 게시글/댓글 조회와 정렬이 많아질수록 Firestore 단독 운용보다 Postgres 계열이 장기적으로 관리하기 쉬우므로, 커뮤니티만 Supabase 축으로 분리하는 편이 확장성 면에서 유리하다.
+- 반대로 게임 상태와 슬롯은 이미 Firestore `users/{uid}/slots/{slotId}`를 source of truth로 사용하고 있으므로, 게시 시점 스냅샷도 서버에서 Firestore를 다시 읽어 생성해야 클라이언트 조작을 막고 데이터 일관성을 유지할 수 있다.
+- 실제 유저 커뮤니티를 공개 읽기로 바로 열기보다, 1차에서는 비로그인 사용자에게 샘플 공개 글만 보여주고 실데이터는 로그인 후에만 보이게 두는 편이 운영 리스크와 어뷰징 대응 면에서 더 안전하다.

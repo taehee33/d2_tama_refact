@@ -1,11 +1,11 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import Home from "./Home";
 
 const mockNavigate = jest.fn();
 const mockSetTheme = jest.fn();
 const mockAuthState = {
-  currentUser: null,
+  currentUser: { uid: "tester" },
 };
 const mockThemeState = {
   themeId: "default",
@@ -58,7 +58,7 @@ describe("Home 테마 진입점", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     mockSetTheme.mockReset();
-    mockAuthState.currentUser = null;
+    mockAuthState.currentUser = { uid: "tester" };
     mockThemeState.themeId = "default";
     mockThemeState.isThemeLoading = false;
     mockUseTamerProfile.mockReturnValue({
@@ -75,18 +75,21 @@ describe("Home 테마 진입점", () => {
     mockGetSlotStageLabel.mockReturnValue("유아기");
   });
 
-  test("비로그인 홈에서는 공개 테마 토글이 보인다", () => {
+  test("로그인 홈에서는 최근 슬롯 이어하기 카드가 보인다", () => {
+    mockUseUserSlots.mockReturnValue({
+      slots: [{ id: 1 }],
+      loading: false,
+      recentSlot: { id: 1 },
+    });
+
     render(<Home />);
 
-    expect(screen.getByRole("group", { name: "서비스 테마 선택" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "노트북" }));
-
-    expect(mockSetTheme).toHaveBeenCalledWith("notebook");
+    expect(screen.getByRole("heading", { name: "한솔님, 오늘도 디지몬이 기다리고 있습니다." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "몰입형 화면" })).toBeInTheDocument();
   });
 
-  test("로그인 홈에서는 공개 테마 토글 대신 노트북 빠른 이동 카드가 보인다", () => {
-    mockAuthState.currentUser = { uid: "tester" };
+  test("로그인 홈에서는 공개 테마 토글 대신 빠른 이동 카드가 보인다", () => {
     mockUseUserSlots.mockReturnValue({
       slots: [{ id: 1 }],
       loading: false,

@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import App from "./App";
+import App, { LandingEntry, RootEntry } from "./App";
 
 const mockLocation = { pathname: "/", search: "" };
 const mockAuthState = {
@@ -93,6 +93,7 @@ jest.mock("./components/layout/RequireAuth", () => ({
 jest.mock("./components/ChatRoom", () => () => <div>채팅방</div>);
 jest.mock("./components/chat/PlayChatDrawer", () => () => <div>플레이 채팅 드로어</div>);
 jest.mock("./pages/Home", () => () => <div>홈 화면</div>);
+jest.mock("./pages/Landing", () => () => <div>랜딩 화면</div>);
 jest.mock("./pages/Login", () => () => <div>로그인 화면</div>);
 jest.mock("./pages/PlayHub", () => () => <div>플레이 허브 화면</div>);
 jest.mock("./pages/Game", () => () => <div>게임 화면</div>);
@@ -116,12 +117,35 @@ beforeEach(() => {
 
 test("앱 라우트 셸이 깨지지 않고 렌더링된다", () => {
   render(<App />);
+  expect(screen.getByText("랜딩 화면")).toBeInTheDocument();
   expect(screen.getByText("로그인 화면")).toBeInTheDocument();
   expect(screen.getByText("가이드 화면")).toBeInTheDocument();
   expect(screen.getByText("도감 화면")).toBeInTheDocument();
   expect(screen.getByText("설정 화면")).toBeInTheDocument();
   expect(screen.getByText("redirect:/play")).toBeInTheDocument();
   expect(screen.getByText("redirect:/play/1")).toBeInTheDocument();
+});
+
+test("비로그인 사용자가 루트 엔트리에 들어오면 랜딩으로 이동한다", () => {
+  render(<RootEntry />);
+
+  expect(screen.getByText("redirect:/landing")).toBeInTheDocument();
+});
+
+test("로그인 사용자가 루트 엔트리에 들어오면 홈을 본다", () => {
+  mockAuthState.currentUser = { uid: "tester" };
+
+  render(<RootEntry />);
+
+  expect(screen.getByText("홈 화면")).toBeInTheDocument();
+});
+
+test("로그인 사용자가 랜딩 경로에 직접 들어와도 랜딩을 볼 수 있다", () => {
+  mockAuthState.currentUser = { uid: "tester" };
+
+  render(<LandingEntry />);
+
+  expect(screen.getByText("랜딩 화면")).toBeInTheDocument();
 });
 
 test("/play에서 로그인 상태면 채팅 드로어 런처가 준비된다", () => {

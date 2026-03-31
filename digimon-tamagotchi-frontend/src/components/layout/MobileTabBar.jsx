@@ -2,16 +2,16 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
-const tabs = [
-  { to: "/", label: "홈", icon: "🏠" },
-  { to: "/play", label: "플레이", icon: "🕹️" },
-  { to: "/community", label: "커뮤니티", icon: "💬" },
-  { to: "/me", label: "마이", icon: "🧢", authOnly: true },
-  { to: "/notebook", label: "노트북", icon: "💻" },
-];
-
 function MobileTabBar() {
   const { currentUser } = useAuth();
+  const homePath = currentUser ? "/" : "/landing";
+  const tabs = [
+    { to: homePath, label: "홈", icon: "🏠", end: true },
+    { to: "/play", label: "플레이", icon: "🕹️" },
+    { to: "/community", label: "커뮤니티", icon: "💬" },
+    { to: "/me", label: "마이", icon: "🧢", authOnly: true },
+    { to: "/notebook", label: "노트북", icon: "💻" },
+  ];
 
   return (
     <nav className="service-tabbar">
@@ -21,6 +21,7 @@ function MobileTabBar() {
           <NavLink
             key={tab.to}
             to={tab.to}
+            end={tab.end}
             className={({ isActive }) =>
               `service-tabbar__item${isActive ? " service-tabbar__item--active" : ""}`
             }
