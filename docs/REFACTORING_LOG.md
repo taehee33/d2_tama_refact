@@ -4,6 +4,51 @@
 
 ---
 
+## [2026-03-31] `applyLazyUpdate` 1차 회귀 테스트 추가
+
+### 작업 유형
+- 🧪 시간 기반 스탯 로직 characterization 테스트 추가
+- ⏱ hunger/strength call 복원 및 타임아웃 경계 검증
+- 😴 sleep call / 수면 방해 중복 경계 테스트 추가
+- 🧬 진화 조건 순수 로직 테스트 추가
+- ☠️ 사망 조건 임계값 characterization 테스트 추가
+- ⚔️ 배틀 계산 / 명중률 순수 로직 테스트 추가
+
+### 목적 및 영향
+- **목적:** 최근 `Lifespan NaN`, 진화 후 새로고침 상태 불일치, call/deadline 정합성 문제를 연달아 수정한 뒤, 가장 회귀 위험이 큰 `applyLazyUpdate()` 경로를 자동 테스트로 먼저 고정하기.
+- **범위:** `src/data/stats.js`의 lazy update 로직에 대해 단위 테스트를 추가하며, 실제 게임 UI/저장 흐름은 바꾸지 않는다.
+- **내용:** `src/data/stats.test.js`를 추가해 다음 케이스를 검증하도록 했다.
+  - 마지막 저장 시각이 없을 때 현재 시각만 기록하는지
+  - 일반 시간 경과 시 수명/진화시간과 hunger/strength call 상태를 함께 재구성하는지
+  - 수면 시간은 hunger/strength/poop countdown에서 제외하는지
+  - 냉장고에 넣은 이후 시간은 경과 계산에서 제외하는지
+  - 새로고침 시 `lastHungerZeroAt`, `lastStrengthZeroAt`를 기준으로 hunger/strength call을 복원하는지
+  - hunger/strength call 10분 초과 시 케어미스를 1회만 올리고 호출을 닫는지
+  - `src/hooks/useGameLogic.test.js`를 추가해 수면 시간 + 불 켜짐 상태에서 `TIRED`, `sleep call`이 시작되는지, 실제로 잠든 상태에서는 `sleep call`이 비활성화되는지, `sleep call` 60분 초과 시 케어미스가 1회만 오르는지, `수면 방해` 로그가 15분 이내 중복 감지되는지 검증했다.
+  - `src/logic/evolution/checker.test.js`를 추가해 진화 시간 미충족(`NOT_READY`), 단일 조건 그룹, OR 조건 그룹, 자동 진화, 조건 미충족 상세 정보, `findEvolutionTarget` 레거시 호환 동작을 검증했다.
+  - `src/data/stats.test.js`에 굶주림 12시간, 힘 12시간, 부상 15회, 부상 방치 6시간 사망 임계값 테스트를 추가해 `applyLazyUpdate()`가 사망 이유를 올바르게 설정하는지 검증했다.
+  - `src/logic/battle/hitrate.test.js`, `src/logic/battle/calculator.test.js`를 추가해 속성 상성, 파워 계산 cap, 히트레이트 클램핑, 결정적 전투 시뮬레이션, 부상 확률 cap을 검증했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/stats.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/logic/evolution/checker.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/logic/battle/hitrate.test.js` (신규)
+- `digimon-tamagotchi-frontend/src/logic/battle/calculator.test.js` (신규)
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `npm test -- --runInBand --watchAll=false src/data/stats.test.js`
+- `npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js`
+- `npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js src/logic/evolution/checker.test.js`
+- `npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
+
+### 아키텍처 메모
+- 이 테스트는 `codex analyze`에서 우선순위가 가장 높게 지목된 시간 기반 규칙 세이프티넷의 첫 단계다.
+- 다음 라운드는 동일한 축에서 `실제 케어미스 중복/드리프트 수정`, `App smoke test 보강`, `Game.jsx 조립 책임 분리 전 characterization 확장` 순으로 확장하는 것이 가장 안전하다.
+
+---
+
 ## [2026-03-30] 채팅 버튼 라벨 단순화 및 접속 수 통합
 
 ### 작업 유형
