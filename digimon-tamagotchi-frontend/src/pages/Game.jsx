@@ -17,7 +17,6 @@ import {
   checkCalls,
   checkCallTimeouts,
   addActivityLog,
-  applyTiredCareMistake,
 } from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
@@ -656,17 +655,6 @@ function Game({ immersive = false }){
           updatedStats.sleepMistakeDate = todayStartMs;
           updatedStats.dailySleepMistake = false;
           setDailySleepMistake(false);
-        }
-
-        updatedStats = applyTiredCareMistake(updatedStats, {
-          currentSleepStatus,
-          now: nowDate,
-          developerMode,
-          dailySleepMistake,
-          todayStartMs,
-        });
-        if (updatedStats.dailySleepMistake !== dailySleepMistake) {
-          setDailySleepMistake(Boolean(updatedStats.dailySleepMistake));
         }
 
         // sleepLightOnStart는 UI 표시용으로만 사용 (케어미스 로직은 TIRED 상태 케어미스로 통합)
