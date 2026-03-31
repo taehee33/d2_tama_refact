@@ -3,10 +3,17 @@
   "private": true,
   "scripts": {
     "firebase:login": "firebase login",
-    "firestore:deploy": "firebase deploy --only firestore:rules"
+    "firestore:deploy": "firebase deploy --only firestore:rules",
+    "nickname:audit": "node scripts/auditNicknameIndex.js",
+    "nickname:backfill": "node scripts/backfillNicknameIndex.js",
+    "nickname:verify": "node scripts/verifyNicknameIndex.js",
+    "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
+    "test:community-api": "node --test tests/community-lib.test.js"
   },
   "dependencies": {
-    "@vercel/analytics": "^1.6.1"
+    "@supabase/supabase-js": "^2.101.0",
+    "@vercel/analytics": "^1.6.1",
+    "firebase-admin": "^13.7.0"
   },
   "devDependencies": {
     "firebase-tools": "^13.0.0"

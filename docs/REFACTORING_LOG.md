@@ -4,6 +4,63 @@
 
 ---
 
+## [2026-04-01] Supabase 기반 커뮤니티 1차 MVP 연결
+
+### 작업 유형
+- 🌐 Supabase `community_posts` / `community_post_comments` 스키마 추가
+- 🔐 Firebase Auth 검증 + Vercel API 브리지 추가
+- 📝 `/community` 공개 샘플 피드 / 로그인 실사용 피드 분기 구현
+- 💬 게시글 상세, 댓글 작성/수정/삭제 1차 흐름 연결
+- 🧪 커뮤니티 스냅샷/페이지 테스트와 Node API 헬퍼 테스트 추가
+
+### 목적 및 영향
+- **목적:** 게임/슬롯 원본 데이터는 Firestore에 유지하면서, 커뮤니티는 장기적으로 Supabase 축으로 분리할 수 있는 1차 MVP를 실제 동작 상태로 올리기.
+- **범위:** `/community` 페이지, Supabase용 SQL 스키마, Firebase Admin + Supabase service role 기반 Vercel API, 게시글/댓글 CRUD, 공개 샘플 데이터와 테스트를 함께 정리했다.
+- **내용:**
+  - 루트에 `api/community/showcase/...` 서버리스 엔드포인트를 추가하고, 모든 실제 커뮤니티 요청이 Firebase ID 토큰 검증 뒤 Supabase service role로만 처리되도록 구성했다.
+  - 게시글 작성 시 클라이언트가 스냅샷을 보내지 못하도록 막고, 서버가 Firestore `users/{uid}/slots/{slotId}`를 직접 읽어 `slotName`, `digimonDisplayName`, `stageLabel`, `weight`, `careMistakes`, `totalBattles`, `winRate` 등을 자동 스냅샷으로 생성하도록 했다.
+  - `/community`는 비로그인 상태에서 `communityShowcaseSamples`만 보여 주고, 로그인 상태에서는 실제 피드/작성 패널/상세 패널/댓글 흐름을 열도록 분리했다.
+  - `CommunityPostComposer`, `CommunityPostCard`, `communityApi`, `communitySnapshotUtils`를 정리해 슬롯 선택 기반 자동 미리보기와 실제 API 연동을 붙였다.
+  - `supabase/migrations/20260401_community_showcase.sql`을 추가해 `community_posts`, `community_post_comments`, 인덱스, cascade delete, RLS 활성화까지 초기 스키마를 문서화했다.
+  - `communitySnapshotUtils.test.js`, `Community.test.jsx`, `tests/community-lib.test.js`를 추가해 공개/로그인 분기, 슬롯 미리보기 스냅샷, 서버 헬퍼의 슬롯/검증 로직을 고정했다.
+
+### 영향받은 파일
+- `package.json`
+- `package-lock.json`
+- `api/_lib/http.js`
+- `api/_lib/auth.js`
+- `api/_lib/firebaseAdmin.js`
+- `api/_lib/supabaseAdmin.js`
+- `api/_lib/community.js`
+- `api/community/showcase/posts/index.js`
+- `api/community/showcase/posts/[postId].js`
+- `api/community/showcase/posts/[postId]/comments/index.js`
+- `api/community/showcase/comments/[commentId].js`
+- `supabase/migrations/20260401_community_showcase.sql`
+- `tests/community-lib.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.test.js`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `npm run test:community-api`
+- `CI=true npm test -- --watchAll=false --runInBand src/pages/Community.test.jsx src/utils/communitySnapshotUtils.test.js`
+- `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 실제 사용자 커뮤니티 글은 로그인 상태에서만 읽고 쓰며, 공개 라우트에서는 로컬 샘플 데이터만 노출한다.
+- Supabase는 커뮤니티 저장소로만 사용하고, 슬롯/프로필/게임 상태의 source of truth는 계속 Firestore다.
+- 현재 구현은 `내 디지몬 자랑(showcase)` 보드만 실사용하며, `진화 노트`와 `조그레스 모집`은 같은 구조를 재사용할 수 있게 카드/상태만 먼저 유지한다.
+
+---
+
 ## [2026-04-01] 테이머명 중복 확인을 `nickname_index` 문서 인덱스로 전환
 
 ### 작업 유형
@@ -11,6 +68,7 @@
 - ✍️ 테이머명 입력 공백 정규화 규칙 도입
 - 🔒 닉네임 인덱스 전용 Firestore 보안 규칙 추가
 - 🧰 감사 / 백필 스크립트 추가
+- ✅ 운영 검증 / 정리 스크립트 추가
 - 🧪 테이머명 유틸 / 계정 설정 패널 테스트 보강
 
 ### 목적 및 영향
@@ -21,7 +79,10 @@
   - `checkNicknameAvailability()`는 전체 목록을 읽지 않고 단일 인덱스 문서만 조회하도록 바꾸고, 공백 자동 정규화가 일어나면 안내 문구와 정규화 결과를 함께 반환하도록 확장했다.
   - `updateTamerName()`과 `resetToDefaultTamerName()`은 Firestore transaction으로 바꿔 `users/{uid}.tamerName`과 `nickname_index`를 한 번에 반영하도록 정리했다.
   - `AccountSettingsPanel.jsx`는 중복 확인/저장 시 정규화된 테이머명으로 입력창을 즉시 맞추고, `연속된 공백은 1칸으로 자동 변경됩니다.` 안내를 성공 문구와 함께 보여주도록 보강했다.
-  - 루트 `scripts/`에 `nickname:audit`, `nickname:backfill` 스크립트를 추가해 `users/{uid}.tamerName`을 진실 소스로 충돌 감사와 인덱스 백필을 수행할 수 있게 했다.
+  - 루트 `scripts/`에 `nickname:audit`, `nickname:backfill`, `nickname:verify` 스크립트를 추가해 `users/{uid}.tamerName`을 진실 소스로 충돌 감사, 인덱스 백필, 운영 검증을 수행할 수 있게 했다.
+  - `nickname:backfill`은 이제 `nickname_index`만 채우지 않고, 공백 정규화가 필요한 기존 `users/{uid}.tamerName`도 함께 정리하며, 더 이상 사용되지 않는 `nickname_index` 문서는 정리한다.
+  - 운영 스크립트는 `.firebaserc`의 기본 프로젝트 ID를 자동으로 읽도록 보강해, 별도 `FIREBASE_PROJECT_ID` 환경변수가 없어도 같은 Firebase 프로젝트를 기준으로 동작하게 했다.
+  - 운영 스크립트는 `~/.config/firebase/d2tamarefact-adminsdk.json` 같은 표준 서비스 계정 경로도 자동 탐색하도록 보강해, 이후에는 해당 위치에 키 파일만 두면 별도 환경변수 없이 실행할 수 있게 했다.
   - `firestore.rules`, `README.md`, `FIRESTORE_RULES.md`를 새 경계 `nickname_index/{normalizedKey}` 기준으로 갱신했다.
 
 ### 영향받은 파일
@@ -33,18 +94,22 @@
 - `scripts/nicknameIndexShared.js` (신규)
 - `scripts/auditNicknameIndex.js` (신규)
 - `scripts/backfillNicknameIndex.js` (신규)
+- `scripts/verifyNicknameIndex.js` (신규)
 - `package.json`
+- `tests/nickname-index-migration.test.js` (신규)
 - `README.md`
 - `FIRESTORE_RULES.md`
 - `docs/REFACTORING_LOG.md`
 
 ### 검증
 - `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx`
+- `node --test tests/nickname-index-migration.test.js`
 
 ### 아키텍처 메모
 - 앞으로 테이머명 중복 판정은 `users/{uid}.tamerName`과 별개로 `nickname_index/{normalizedKey}` 문서를 통해 이뤄진다.
 - 표시용 닉네임과 중복 판정 키를 모두 공백 정규화 규칙에 맞춰 저장하므로, `A B`와 `A  B`는 같은 이름으로 간주된다.
 - 레거시 `metadata/nicknames` 문서는 즉시 삭제하지 않고, 마이그레이션 완료 후 미사용 상태로 남겨 둔다.
+- 운영 전환은 `rules 배포 -> nickname:audit -> nickname:backfill -> nickname:verify` 순서를 기준으로 진행한다.
 
 ---
 
