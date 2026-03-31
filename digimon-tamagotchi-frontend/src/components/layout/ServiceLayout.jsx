@@ -4,7 +4,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import MobileTabBar from "./MobileTabBar";
 import TopNavigation from "./TopNavigation";
 
-function ServiceLayout() {
+function ServiceLayout({ tamerName = "" }) {
   const location = useLocation();
   const { resolvedTheme } = useTheme();
   const isNotebookRoute = location.pathname === "/notebook";
@@ -15,7 +15,7 @@ function ServiceLayout() {
   return (
     <div className={shellClassName}>
       <div className="service-shell__backdrop" aria-hidden="true" />
-      <TopNavigation />
+      <TopNavigation tamerName={tamerName} />
       <main
         className={`service-shell__main${
           isNotebookRoute ? " service-shell__main--notebook" : ""

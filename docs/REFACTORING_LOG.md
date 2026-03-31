@@ -2076,3 +2076,25 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 기존 구현은 아레나 리더보드 탭 안에 진입점이 숨겨져 있었고, 로컬 캐시를 먼저 반영한 뒤 Firestore를 쓰는 구조라 전역 관리자 기능으로서 동작 범위가 불명확했다.
 - 사용자 요구사항은 `설정` 안의 전용 진입, Firestore 성공 시에만 반영, 저장 이력/되돌리기/기본값 복원을 명확히 제공하는 쪽이었다.
 - `wake hour/min`은 단순 표기만으로는 의미가 없어 실제 수면 판정과 기상 에너지 회복 로직까지 같은 기준으로 맞춰야 했고, 그래서 공용 수면 유틸과 런타임 어댑터를 함께 정리했다.
+
+## [2026-03-31] 서비스 상단 CTA를 테이머명 계정 드롭다운으로 전환
+
+### 작업 유형
+- ✨ 서비스 헤더 계정 접근 UX 개선
+- 🧪 상단 네비 드롭다운 테스트 보강
+
+### 목적 및 영향
+- **목적:** 상단 우측의 `내 디지몬 보기` CTA를 사용자의 테이머명으로 바꾸고, 클릭했을 때 바로 `계정설정`과 `로그아웃` 메뉴가 아래로 열리도록 만들어 계정 관련 동선을 더 짧게 만들기.
+- **범위:** 일반 서비스 셸의 `TopNavigation`만 바뀌며, 플레이 링크 자체는 기존 네비 탭에서 계속 접근할 수 있다. 노트북 전용 상단 바와 게임 내부 상단 UI는 이번 변경 범위에 포함되지 않는다.
+- **내용:** `App.jsx`에서 현재 테이머명을 `ServiceLayout -> TopNavigation`으로 전달하고, 로그인 상태에서는 pill 링크 대신 계정 드롭다운 버튼을 렌더링하게 바꿨다. 버튼 클릭 시 아래에 `계정설정`, `로그아웃` 메뉴가 열리고, 메뉴는 바깥 영역 클릭, 라우트 변경, `Escape` 입력 시 닫히도록 정리했다. `계정설정`은 `/me/settings`, `로그아웃`은 기존 auth context의 `logout()` 후 `/auth` 이동으로 연결했다. 관련 테스트도 새 헤더 계약에 맞게 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ServiceLayout.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- 플레이 진입 CTA와 계정 관리 CTA는 성격이 다르기 때문에, 상단 우측의 단일 버튼이 `내 디지몬 보기`로 남아 있으면 설정/로그아웃 접근이 한 단계 더 깊어지는 문제가 있었다.

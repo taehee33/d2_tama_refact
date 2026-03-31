@@ -112,7 +112,7 @@ function AppContent() {
       >
         <PageViewTracker />
         <Routes>
-          <Route element={<ServiceLayout />}>
+          <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
             <Route path="/" element={<Home />} />
             <Route path="/notebook" element={<NotebookLanding />} />
             <Route path="/guide" element={<Guide />} />

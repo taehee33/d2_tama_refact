@@ -1072,6 +1072,10 @@ code {
   gap: 0.6rem;
 }
 
+.service-topnav__account {
+  position: relative;
+}
+
 .service-topnav__presence {
   display: none;
 }
@@ -1087,6 +1091,88 @@ code {
   text-decoration: none;
   font-size: 0.92rem;
   font-weight: 700;
+}
+
+.service-topnav__cta--account {
+  border: 0;
+  cursor: pointer;
+  gap: 0.45rem;
+  font: inherit;
+}
+
+.service-topnav__cta--open {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--button-primary-text) 18%, transparent),
+    0 18px 28px rgba(15, 23, 42, 0.16);
+}
+
+.service-topnav__account-name {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-topnav__account-caret {
+  font-size: 0.75rem;
+  opacity: 0.88;
+}
+
+.service-topnav__menu {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 2;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 11rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 1.2rem;
+  background: var(--nav-surface);
+  box-shadow: var(--nav-shadow);
+  backdrop-filter: blur(16px);
+}
+
+.service-topnav__menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0.72rem 0.85rem;
+  border: 0;
+  border-radius: 0.95rem;
+  background: transparent;
+  color: var(--nav-link-color);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.service-topnav__menu-item:hover,
+.service-topnav__menu-item:focus-visible {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+  outline: none;
+}
+
+.service-topnav__menu-item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.service-topnav__menu-item--danger {
+  color: #b45309;
+}
+
+.service-topnav__menu-error {
+  margin: 0;
+  padding: 0.2rem 0.2rem 0;
+  color: #b91c1c;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .service-tabbar {
