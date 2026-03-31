@@ -1,7 +1,7 @@
 // src/hooks/useGameActions.js
 // Game.jsx의 비즈니스 로직을 분리한 Custom Hook
 
-import { resetCallStatus, hasDuplicateSleepDisturbanceLog } from "./useGameLogic";
+import { resetCallStatus, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { feedProtein, willRefuseProtein } from "../logic/food/protein";
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
@@ -273,18 +273,14 @@ export function useGameActions({
       let statsAfterWake = currentStats;
       if (nowSleeping) {
         if (hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now())) {
-          statsAfterWake = currentStats; // 15분 창 내 중복 수면 방해 방지
+          statsAfterWake = currentStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
         } else {
           statsAfterWake = wakeForInteraction(currentStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
           setDigimonStats((prevStats) => {
             // 레이스 컨디션 방지: 동일 액션이 연달아 호출되면 prev에 이미 로그가 있을 수 있음
             if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
             const actionType = type === "meat" ? "고기" : "프로틴";
-            const newLog = {
-              type: "CARE_MISTAKE",
-              text: `수면 방해(사유: 먹이 주기 - ${actionType}): 10분 동안 깨어있음`,
-              timestamp: Date.now(),
-            };
+            const newLog = createSleepDisturbanceLog(`먹이 주기 - ${actionType}`);
             const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
             if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
             const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
@@ -439,16 +435,12 @@ export function useGameActions({
     let statsAfterWake = updatedStats;
     if (nowSleeping) {
       if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
-        statsAfterWake = updatedStats; // 15분 창 내 중복 수면 방해 방지
+        statsAfterWake = updatedStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
       } else {
         statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
-          const newLog = {
-            type: "CARE_MISTAKE",
-            text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
-            timestamp: Date.now(),
-          };
+          const newLog = createSleepDisturbanceLog("훈련");
           const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
@@ -936,17 +928,13 @@ export function useGameActions({
     let statsAfterWake = updatedStats;
     if (nowSleeping) {
       if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
-        statsAfterWake = updatedStats; // 15분 창 내 중복 수면 방해 방지
+        statsAfterWake = updatedStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
       } else {
         statsAfterWake = wakeForInteraction(updatedStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
-          const newLog = {
-            type: "CARE_MISTAKE",
-            text: `수면 방해(사유: 배틀 - ${battleTypeText}): 10분 동안 깨어있음`,
-            timestamp: Date.now(),
-          };
+          const newLog = createSleepDisturbanceLog(`배틀 - ${battleTypeText}`);
           const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };

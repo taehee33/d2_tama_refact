@@ -21,6 +21,34 @@ function ensureTimestamp(val) {
 }
 
 /**
+ * 수면 방해 로그 여부를 판별한다.
+ * 신규 타입(SLEEP_DISTURBANCE)과 기존 CARE_MISTAKE 기반 로그를 모두 인식한다.
+ * @param {Object} log
+ * @returns {boolean}
+ */
+export function isSleepDisturbanceLog(log) {
+  if (!log) return false;
+  if (log.type === 'SLEEP_DISTURBANCE') return true;
+  const text = (log.text || '').trim();
+  if (!text.includes('수면 방해')) return false;
+  return log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE';
+}
+
+/**
+ * 수면 방해 로그 객체를 생성한다.
+ * @param {string} reason
+ * @param {number} [timestampMs]
+ * @returns {{type: string, text: string, timestamp: number}}
+ */
+export function createSleepDisturbanceLog(reason, timestampMs = Date.now()) {
+  return {
+    type: 'SLEEP_DISTURBANCE',
+    text: `수면 방해(사유: ${reason}): 10분 동안 깨어있음`,
+    timestamp: timestampMs,
+  };
+}
+
+/**
  * 수면 상태를 계산한다.
  * @param {Object} params
  * @param {{start:number,end:number}} params.sleepSchedule - 수면 스케줄 (시 단위)
@@ -402,16 +430,15 @@ function hasDuplicateCareMistakeLog(logs, type, text, timestampMs, windowMs = 15
   });
 }
 
-/** 수면 방해 로그 중복 여부: "수면 방해" 로그가 기준 시각 ±15분 안에 있으면 true (케어미스와 동일한 중복 방지) */
-export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windowMs = 15 * 60 * 1000) {
+/** 수면 방해 로그 중복 여부: 같은 강제 기상 사건(기본 10분) 안에 이미 기록된 수면 방해 로그가 있으면 true */
+export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windowMs = 10 * 60 * 1000) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
   if (!logs.length) return false;
   const t = timestampMs !== undefined ? timestampMs : Date.now();
   const minT = t - windowMs;
   const maxT = t + windowMs;
   return logs.some((log) => {
-    if (log.type !== 'CARE_MISTAKE' && log.type !== 'CAREMISTAKE') return false;
-    if (!log.text || !log.text.includes('수면 방해')) return false;
+    if (!isSleepDisturbanceLog(log)) return false;
     const logT = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
     if (logT == null) return false;
     return logT >= minT && logT <= maxT;
@@ -631,7 +658,8 @@ export function resetCallStatus(stats, callType) {
 }
 
 /**
- * 호출 타임아웃을 체크하고 careMistakes를 증가시킨다.
+ * 호출 타임아웃을 체크한다.
+ * 배고픔/힘 호출은 careMistakes를 증가시키지만, Sleep Call은 경고 전용으로 유지한다.
  * @param {Object} stats - 현재 디지몬 스탯
  * @param {Date} now - 현재 시간
  * @returns {Object} 업데이트된 스탯
@@ -728,17 +756,12 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
     }
   }
 
-  // Sleep 호출 타임아웃 체크 (sleep은 isLogged 미사용, 기존 동작 유지)
+  // Sleep 호출은 경고 전용 상태로 유지한다.
+  // 수면 시간에 불을 켜둔 상태가 계속되면 callStatus.sleep은 checkCalls가 유지하고,
+  // 더 이상 careMistakes를 올리거나 호출을 강제로 닫지 않는다.
   const sleepStartedAt = ensureTimestamp(callStatus.sleep.startedAt);
-  if (sleepStartedAt) {
-    const elapsed = nowMs - sleepStartedAt;
-    if (elapsed > SLEEP_CALL_TIMEOUT) {
-      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-      callStatus.sleep.isActive = false;
-      callStatus.sleep.startedAt = null;
-      hasChanged = true;
-      console.log("🔥 실시간 Sleep 케어미스 발생! careMistakes:", updatedStats.careMistakes);
-    }
+  if (sleepStartedAt && nowMs - sleepStartedAt > SLEEP_CALL_TIMEOUT) {
+    return hasChanged ? updatedStats : stats;
   }
 
   // 변경되었을 때만 새 객체 반환, 아니면 기존 객체 그대로 반환 (리액트 최적화)

@@ -501,7 +501,7 @@ function DigimonGuidePanel({
           <li>• <strong>배고픔/힘 0:</strong> 12시간 방치하면 사망합니다</li>
           <li>• <strong>똥 8개:</strong> 즉시 부상 발생 + 8시간이후 추가 부상 발생</li>
           <li>• <strong>부상 15회:</strong> 사망합니다</li>
-          <li>• <strong>수면 방해:</strong> 수면 중 불을 켜두면 케어 미스가 증가합니다</li>
+          <li>• <strong>수면 방해:</strong> 실제로 자는 중 액션으로 깨우면 수면 방해 횟수가 증가합니다</li>
         </ul>
       </div>
     </div>
@@ -549,7 +549,7 @@ function DigimonGuidePanel({
         <ul className="space-y-2 break-words text-sm text-white">
           <li>• <strong>Hunger Call:</strong> 배고픔이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
           <li>• <strong>Strength Call:</strong> 힘이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
-          <li>• <strong>Sleep Call:</strong> 수면 시간에 불이 켜져 있으면 호출 시작. 60분 무시 시 케어 미스 +1</li>
+          <li>• <strong>Sleep Call:</strong> 수면 시간에 불이 켜져 있으면 경고 호출이 시작됩니다. 불을 끄거나 잠들면 해제됩니다</li>
           <li>• <strong>호출 아이콘(📣):</strong> 호출이 활성화되면 표시됩니다</li>
         </ul>
       </div>
@@ -559,7 +559,7 @@ function DigimonGuidePanel({
         <ul className="space-y-2 break-words text-sm text-white">
           <li>• <strong>수면 시간:</strong> 각 디지몬마다 정해진 수면 시간이 있습니다</li>
           <li>• <strong>불 끄기:</strong> 수면 시간에는 불을 꺼야 합니다</li>
-          <li>• <strong>수면 방해:</strong> 수면 중 불을 켜두면 30분 후 케어 미스 +1</li>
+          <li>• <strong>수면 방해:</strong> 실제로 잠든 상태에서 먹이/훈련/배틀/치료 등으로 깨우면 수면 방해 횟수가 +1 됩니다</li>
           <li>• <strong>빠른 잠들기:</strong> 수면 시간에 불을 꺼주면, 수면 방해로 깨어있어도 10초 후 자동으로 잠듭니다</li>
         </ul>
       </div>

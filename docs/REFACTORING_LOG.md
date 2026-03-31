@@ -4,37 +4,45 @@
 
 ---
 
-## [2026-03-31] 수면 케어미스 중복/드리프트 보정
+## [2026-03-31] 수면 규칙을 `경고`와 `실제 수면 방해`로 재정의
 
 ### 작업 유형
-- 🛠 `TIRED 30분`과 `Sleep Call 60분`의 중복 케어미스 경로 정리
-- 🔒 `dailySleepMistake` stale state 덮어쓰기 방지
-- 🧪 수면 케어미스 재활성화/타임아웃 경계 테스트 보강
+- 🛠 `Sleep Call`과 `TIRED`를 경고 전용 상태로 축소
+- 🌙 자는 중 강제 깨움만 `sleepDisturbances`로 집계하도록 정리
+- 🧪 강제 깨움 / 수면 호출 경계 테스트 보강
 
 ### 목적 및 영향
-- **목적:** 수면 시간 동안 불을 켜둔 상태에서 `TIRED` 케어미스와 `Sleep Call` 케어미스가 같은 밤에 중복으로 올라가거나, `dailySleepMistake`가 같은 틱 마지막에 stale state로 덮어써져 다시 풀리는 드리프트를 막기.
-- **범위:** 실시간 타이머 경로와 수면 호출 로직만 조정하며, hunger/strength call과 lazy update 저장 규칙은 유지한다.
+- **목적:** 수면 규칙의 의미를 명확히 분리하기. 앞으로는 `자는 중 액션으로 실제로 깨운 사건`만 수면 방해로 집계하고, `TIRED`와 `Sleep Call`은 경고 상태로만 유지한다.
+- **범위:** 수면 방해 로그 타입, `Sleep Call` 타임아웃 동작, 관련 UI/가이드 문구와 테스트를 함께 조정하며, hunger/strength call과 lazy update 저장 규칙은 유지한다.
 - **내용:**
-  - `useGameLogic.js`에 `applyTiredCareMistake()`를 추가해 `TIRED 30분` 케어미스를 한 곳에서 처리하도록 정리했다.
-  - `TIRED` 케어미스가 이미 발생한 날에는 `checkCalls()`가 `sleep call`을 다시 활성화하지 않도록 막았다.
-  - 남아 있던 `sleep call`이 있더라도 `dailySleepMistake === true`이면 `checkCallTimeouts()`가 추가 케어미스 없이 호출만 정리하도록 조정했다.
-  - `Game.jsx`의 1초 틱에서 `updatedStats.dailySleepMistake = dailySleepMistake`로 다시 덮어쓰던 경로를 제거하고, `updatedStats` 값이 실제 기준이 되도록 바꿨다.
-  - `StatsPopup.jsx`에는 "오늘 수면 케어미스는 이미 처리됨" 안내를 추가해, 수면 호출 타임아웃이 더 이상 케어미스를 만들지 않는 상태를 UI에서도 드러내도록 맞췄다.
+  - `useGameLogic.js`에 수면 방해 공용 판별/로그 헬퍼를 추가하고, `hasDuplicateSleepDisturbanceLog()`를 `SLEEP_DISTURBANCE` 기준으로 재정의했다.
+  - `checkCallTimeouts()`에서 `Sleep Call 60분`이 더 이상 `careMistakes`를 올리지 않도록 바꾸고, 경고 상태는 조건이 해제될 때까지 유지되도록 정리했다.
+  - `useGameActions.js`, `useGameAnimations.js`, `GameModals.jsx`의 자는 중 액션 로그를 `CARE_MISTAKE`가 아닌 `SLEEP_DISTURBANCE` 전용 로그로 통일했다.
+  - `StatsPopup.jsx`, `ActivityLogModal.jsx`, `DigimonGuidePanel.jsx`의 표시/설명 문구를 새 규칙에 맞게 정리했다.
+  - `useGameActions.test.js`를 추가하고 `useGameLogic.test.js`를 갱신해, 자는 중 액션은 `sleepDisturbances +1`과 `wakeUntil`만 발생하고 `careMistakes`는 변하지 않는다는 규칙을 테스트로 고정했다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
 - `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `digimon-tamagotchi-frontend/src/components/ActivityLogModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
 - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
 - `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/DigimonGuidePanel.jsx`
 - `docs/REFACTORING_LOG.md`
 
 ### 검증
-- `npm test -- --runInBand --watchAll=false src/hooks/useGameLogic.test.js src/data/stats.test.js`
+- `npm test -- --runInBand --watchAll=false src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/data/stats.test.js`
 - `npm run build`
 
 ### 아키텍처 메모
-- 수면 케어미스는 여전히 `TIRED 30분`과 `Sleep Call 60분`이라는 두 개념이 UI/문서에 남아 있지만, 실제 카운트는 하루 1회의 `TIRED` 경로가 기준이 되도록 정리했다.
-- 다음 라운드에서는 `StatsPopup`의 수면 관련 안내 문구와 내부 규칙 설명 문서를 이 기준에 맞춰 한 번 더 정리하는 것이 좋다.
+- 수면 관련 카운터는 이제 명확히 분리된다.
+  - `careMistakes`: 배고픔/힘 호출 무시, 괴롭히기 등 일반 케어미스
+  - `sleepDisturbances`: 자는 중 강제로 깨운 실제 사건 수
+- `dailySleepMistake`, `sleepMistakeDate`, `tiredCounted` 같은 이전 일일 수면 케어미스 필드는 저장 호환성 때문에 남겨두되, 더 이상 실제 수면 방해 판정 기준으로 사용하지 않는다.
 
 ---
 
@@ -2233,3 +2241,32 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ### 근거
 - 수면 케어 로직 자체는 아직 별도 WIP 변경으로만 존재하고 있었는데, 그 일부 참조만 먼저 `main`에 들어가면서 빌드 단계에서 import error가 발생했다.
 - 미완성 기능 전체를 급히 함께 올리는 것보다, `main`에서 그 참조만 제거해 배포를 정상화하는 쪽이 더 안전하다.
+
+## [2026-03-31] 비로그인 랜딩/히어로 페이지 추가
+
+### 작업 유형
+- ✨ 퍼블릭 첫 진입 UX 신설
+- 🧭 라우팅/내비게이션 진입 경로 정리
+
+### 목적 및 영향
+- **목적:** 로그인 전에도 서비스 첫인상과 주요 흐름을 보여줄 수 있는 전용 랜딩/히어로 페이지를 추가하고, 퍼블릭 진입 동선을 `랜딩 → 로그인/노트북/가이드` 흐름으로 정리하기.
+- **범위:** 새 `/landing` 공개 경로, 비로그인 루트 리다이렉트, 상단/모바일 홈 링크 타겟 조정, 기존 `Home`의 역할을 로그인 홈 중심으로 단순화하는 변경이 포함된다.
+- **내용:** `Landing` 페이지를 추가해 감성 + 전환 혼합형 히어로, 공개 탐색 카드, 로그인 후 기능 소개, 하단 재전환 CTA를 구성했다. `/`는 비로그인 시 `/landing`으로, 로그인 시 기존 `Home`으로 분기되도록 변경했고, 비로그인 상태의 브랜드/홈 링크와 모바일 홈 탭은 `/landing`을 가리키도록 맞췄다. 공개 테마 전환 기능도 `Home`에서 `Landing`으로 옮겨 비로그인 상태에서 계속 사용할 수 있게 유지했다.
+
+### 영향 파일
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Landing.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Home.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Landing.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 근거
+- 기존 `/`는 비로그인 홈과 로그인 홈이 한 파일 안에서 섞여 있어 첫 화면을 확장할수록 개인화 홈까지 같이 복잡해지는 구조였다.
+- 전용 `/landing`을 두면 퍼블릭 메시지와 로그인 후 홈의 책임이 분리되어, 랜딩은 감성과 전환에 집중하고 `Home`은 플레이 허브/최근 슬롯 중심의 개인화 홈으로 유지하기 쉽다.
+- 비로그인 상태의 홈 링크가 그대로 `/`를 가리키면 랜딩에서 활성 상태와 실제 도착 경로가 어긋나므로, 퍼블릭 네비게이션은 `/landing`을 직접 가리키는 편이 더 자연스럽다.

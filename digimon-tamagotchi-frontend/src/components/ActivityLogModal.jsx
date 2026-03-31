@@ -3,21 +3,23 @@
 
 import React, { useState, useMemo } from "react";
 import { formatTimestamp } from "../utils/dateUtils";
+import { isSleepDisturbanceLog } from "../hooks/useGameLogic";
 
-/** 수면 관련 로그: 잠듦/깨어남, 수면 방해, 수면 케어미스, 불 켜짐/꺼짐 */
+/** 수면 관련 로그: 잠듦/깨어남, 수면 방해, 불 켜짐/꺼짐 */
 function isSleepLog(log) {
   if (!log) return false;
   const t = log.type;
-  const text = (log.text || "").trim();
   if (t === "SLEEP_START" || t === "SLEEP_END") return true;
-  if (t === "CARE_MISTAKE" && (text.includes("수면 방해") || text.includes("수면 케어미스"))) return true;
+  if (isSleepDisturbanceLog(log)) return true;
+  const text = (log.text || "").trim();
   if (t === "ACTION" && text.includes("Lights")) return true;
   return false;
 }
 
-/** 케어미스 로그만: 배고픔/힘/수면 케어미스, 괴롭히기, Tired 등 (텍스트 또는 type 기준) */
+/** 케어미스 로그만: 배고픔/힘 호출, 괴롭히기 등 */
 function isCareMistakeLog(log) {
   if (!log) return false;
+  if (isSleepDisturbanceLog(log)) return false;
   if (log.type === "CAREMISTAKE") return true;
   if (log.type === "CARE_MISTAKE") {
     const text = (log.text || "").trim();

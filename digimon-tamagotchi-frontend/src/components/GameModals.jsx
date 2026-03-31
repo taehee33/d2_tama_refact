@@ -38,7 +38,7 @@ import JogressModeSelectModal from "./JogressModeSelectModal";
 import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
 import JogressOnlineSelectModal from "./JogressOnlineSelectModal";
 import JogressRoomListModal from "./JogressRoomListModal";
-import { addActivityLog, hasDuplicateSleepDisturbanceLog } from "../hooks/useGameLogic";
+import { addActivityLog, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
 
@@ -97,7 +97,7 @@ export default function GameModals({
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     
     if (nowSleeping && setWakeUntil && setDigimonStatsAndSave) {
-      // 동일 15분 창 내 수면 방해 로그가 있으면 중복 추가·증가 방지 (케어미스와 동일)
+      // 동일 강제 기상 창 내 수면 방해 로그가 있으면 중복 추가·증가 방지
       if (hasDuplicateSleepDisturbanceLog(updatedLogs || [], Date.now())) {
         return { updatedStats, updatedLogs, sleepDisturbed: false };
       }
@@ -105,11 +105,7 @@ export default function GameModals({
       setWakeUntil(until);
       
       // 수면방해 로그 추가
-      const sleepDisturbanceLog = {
-        type: "CARE_MISTAKE",
-        text: `수면 방해(사유: 교감 - ${actionType}): 10분 동안 깨어있음`,
-        timestamp: Date.now(),
-      };
+      const sleepDisturbanceLog = createSleepDisturbanceLog(`교감 - ${actionType}`);
       const logsWithDisturbance = [sleepDisturbanceLog, ...updatedLogs].slice(0, 50);
       
       const statsWithDisturbance = {
@@ -939,4 +935,3 @@ export default function GameModals({
     </>
   );
 }
-

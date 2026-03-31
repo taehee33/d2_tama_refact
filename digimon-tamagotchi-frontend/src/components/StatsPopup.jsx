@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
-import { addActivityLog } from "../hooks/useGameLogic";
+import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -13,10 +13,7 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp, currentStageSt
   
   // 수면 방해 관련 로그 필터링 + 현재 진화 단계 시작 시점 이후만 표시
   const sleepDisturbanceLogs = (activityLogs || []).filter(log => {
-    if (log.type === 'CARE_MISTAKE' && log.text) {
-      return log.text.includes('수면 방해');
-    }
-    return false;
+    return isSleepDisturbanceLog(log);
   }).filter(log => {
     const logMs = ensureTimestamp(log.timestamp);
     if (logMs == null) return false;
@@ -84,12 +81,11 @@ function CareMistakeHistory({ activityLogs, formatTimestamp, currentStageStarted
   
   // 케어미스 관련 로그 필터링 (수면 방해 제외) + 현재 진화 단계 시작 시점 이후만 표시
   const careMistakeLogs = (activityLogs || []).filter(log => {
+    if (isSleepDisturbanceLog(log)) {
+      return false;
+    }
     // CARE_MISTAKE 또는 CAREMISTAKE 타입
     if (log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE') {
-      // 수면 방해가 아닌 케어미스만 필터링
-      if (log.text && log.text.includes('수면 방해')) {
-        return false; // 수면 방해는 제외
-      }
       return true;
     }
     return false;
@@ -947,27 +943,10 @@ export default function StatsPopup({
             const remainingMs = wakeUntil - currentTime;
             const remainingMinutes = Math.floor(remainingMs / 60000);
             const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-            
-            // TIRED 상태일 때 케어미스까지 남은 시간 계산
-            let careMistakeRemaining = null;
-            if (sleepStatus === 'TIRED' && stats.tiredStartAt && !stats.tiredCounted && !stats.dailySleepMistake) {
-              const tiredElapsed = currentTime - stats.tiredStartAt;
-              const thresholdMs = 30 * 60 * 1000; // 30분
-              const careMistakeRemainingMs = thresholdMs - tiredElapsed;
-              if (careMistakeRemainingMs > 0) {
-                careMistakeRemaining = {
-                  minutes: Math.floor(careMistakeRemainingMs / 60000),
-                  seconds: Math.floor((careMistakeRemainingMs % 60000) / 1000)
-                };
-              }
-            }
-            
             return (
               <li className="text-orange-600 font-semibold">
                 수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 후 다시 잠들 예정
-                {careMistakeRemaining && (
-                  <span className="text-yellow-600 ml-2">(케어미스까지 {careMistakeRemaining.minutes}분 {careMistakeRemaining.seconds}초 남음)</span>
-                )}
+                <span className="text-yellow-600 ml-2">(강제로 깨운 횟수로만 수면 방해가 집계됩니다)</span>
               </li>
             );
           })()}
@@ -1092,7 +1071,7 @@ export default function StatsPopup({
                 수면 방해 횟수: {sleepDisturbances || 0}회
                 <span
                   className="text-gray-500 text-xs ml-1"
-                  title="현재 진화 단계가 시작된 이후의 수면 방해만 집계됩니다."
+                  title="실제로 잠든 상태에서 강제로 깨운 횟수만 집계됩니다. 현재 진화 단계 시작 이후의 이력 기준입니다."
                 >
                   (진화 구간 기준)
                 </span>
@@ -1328,14 +1307,14 @@ export default function StatsPopup({
                   const seconds = Math.floor((remaining % 60000) / 1000);
                   return (
                     <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (60분 초과 시 케어미스 +1)
+                      ⚠️ 활성화됨 - 경고 유지 시간: {minutes}분 {seconds}초 남음 (케어미스는 증가하지 않음)
                       <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
                     </div>
                   );
                 } else {
                   return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ❌ 타임아웃! 케어미스 발생
+                    <div className="text-yellow-600 font-semibold ml-2">
+                      ⚠️ 경고 유지 중 - 불을 끄거나 실제로 잠들면 해제됩니다
                     </div>
                   );
                 }
@@ -1370,7 +1349,7 @@ export default function StatsPopup({
           </li>
           <li>Training Count: {trainings || 0}</li>
           <li>Overfeeds: {overfeeds || 0}</li>
-          <li title="현재 진화 단계가 시작된 이후의 수면 방해만 집계됩니다.">Sleep Disturbances: {sleepDisturbances || 0} (진화 구간 기준)</li>
+          <li title="실제로 잠든 상태에서 강제로 깨운 횟수만 집계됩니다.">Sleep Disturbances: {sleepDisturbances || 0} (진화 구간 기준)</li>
           <li className="mt-2 pt-1 border-t">
             <strong>배틀 기록 (현재 디지몬):</strong>
           </li>

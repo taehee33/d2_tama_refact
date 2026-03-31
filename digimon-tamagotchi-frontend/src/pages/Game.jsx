@@ -645,7 +645,7 @@ function Game({ immersive = false }){
         updatedStats.tiredStartAt = prevStats.tiredStartAt || null;
         updatedStats.tiredCounted = prevStats.tiredCounted || false;
 
-        // 일자 변경 시 일일 수면 케어 미스 리셋 (해당일 0시 ms로 저장 → 비교·정렬 효율)
+        // 구 저장 데이터 호환용 일일 수면 필드 리셋
         const todayStartMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate()).getTime();
         const storedSleepMistake = updatedStats.sleepMistakeDate;
         const isNewDay = typeof storedSleepMistake === "number"
@@ -657,7 +657,7 @@ function Game({ immersive = false }){
           setDailySleepMistake(false);
         }
 
-        // sleepLightOnStart는 UI 표시용으로만 사용 (케어미스 로직은 TIRED 상태 케어미스로 통합)
+        // sleepLightOnStart는 UI 표시용으로만 사용
         if (sleepingNow && isLightsOn) {
           // UI 표시를 위해 sleepLightOnStart 업데이트 (케어미스 로직은 제거)
           if (!updatedStats.sleepLightOnStart) {
@@ -1383,7 +1383,7 @@ async function setSelectedDigimonAndSave(name) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digimonStats, selectedDigimon, developerMode, ignoreEvolutionTime, customTime, isLoadingSlot]);
 
-  // 수면 상태 계산 (TIRED 케어미스는 타이머 useEffect에서 처리)
+  // 수면 상태 계산 (TIRED/Sleep Call은 경고 상태로만 유지)
   useEffect(() => {
     const timer = setInterval(() => {
       const status = getSleepStatus({

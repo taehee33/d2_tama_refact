@@ -1,7 +1,7 @@
 // src/hooks/useGameAnimations.js
 // Game.jsx의 애니메이션 사이클 로직을 분리한 Custom Hook
 
-import { addActivityLog, resetCallStatus, hasDuplicateSleepDisturbanceLog } from "./useGameLogic";
+import { addActivityLog, resetCallStatus, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule, isWithinSleepSchedule } from "./useGameHandlers";
@@ -194,9 +194,9 @@ export function useGameAnimations({
       // Activity Log 추가 (중복 시 수면 방해 로그/카운트 없이 청소 로그만)
       const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
       const logText = applySleepDisturbanceLog
-        ? "수면 방해(사유: 화장실 청소): 10분 동안 깨어있음"
+        ? createSleepDisturbanceLog("화장실 청소").text
         : `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
-      const logType = applySleepDisturbanceLog ? "CARE_MISTAKE" : "CLEAN";
+      const logType = applySleepDisturbanceLog ? "SLEEP_DISTURBANCE" : "CLEAN";
       
       setDigimonStats(updatedStats);
       setActivityLogs((prevLogs) => {
@@ -260,8 +260,8 @@ export function useGameAnimations({
     }
     
     const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
-    const logType = applySleepDisturbanceLog ? "CARE_MISTAKE" : "HEAL";
-    const logText = applySleepDisturbanceLog ? "수면 방해(사유: 치료): 10분 동안 깨어있음" : treatmentMessage;
+    const logType = applySleepDisturbanceLog ? "SLEEP_DISTURBANCE" : "HEAL";
+    const logText = applySleepDisturbanceLog ? createSleepDisturbanceLog("치료").text : treatmentMessage;
     
     // 필요 치료 횟수 충족 시 완전 회복
     if (newHealedDoses >= requiredDoses) {
@@ -335,4 +335,3 @@ export function useGameAnimations({
     startHealCycle,
   };
 }
-
