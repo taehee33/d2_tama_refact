@@ -201,7 +201,7 @@ const ChatRoomWithConnectionCheck = ({ variant = 'community' }) => {
   return <ChatRoom variant={variant} />;
 };
 
-const ChatRoom = ({ variant = 'community' }) => {
+export const ChatRoom = ({ variant = 'community' }) => {
   const { currentUser } = useAuth();
   const { isChatOpen, setIsChatOpen, unreadCount, setUnreadCount, clearUnreadCount } = usePresenceContext();
   const [messageText, setMessageText] = useState('');
@@ -216,6 +216,12 @@ const ChatRoom = ({ variant = 'community' }) => {
 
   const ably = useAbly();
   const isDrawerVariant = variant === 'drawer';
+  const chatContainerClassName = [
+    getChatContainerClassName(variant),
+    isDrawerVariant ? 'play-chat-panel--drawer' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   
   // ChatRoom이 실제로 화면에 보이는지 확인 (Intersection Observer 사용)
   useEffect(() => {
@@ -622,109 +628,155 @@ const ChatRoom = ({ variant = 'community' }) => {
     }
   };
 
-  return (
-    <div ref={chatContainerRef} className={getChatContainerClassName(variant)}>
-      {/* Presence 상태 컨트롤 */}
-      <div className="presence-control mb-3 pb-3 border-b border-gray-300">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-600">내 상태:</span>
-            <select
-              value={presenceStatus}
-              onChange={(e) => updatePresenceStatus(e.target.value)}
-              className="px-2 py-1 text-xs border border-gray-300 rounded bg-white"
-            >
-              <option value="online">🟢 온라인</option>
-              <option value="away">🟡 자리비움</option>
-              <option value="offline">⚫ 오프라인</option>
-            </select>
-          </div>
-          <span className="text-xs text-gray-500">
-            접속자: {presenceData?.length || 0}명
-          </span>
+  const presenceControl = (
+    <div className="presence-control play-chat-panel__presence mb-3 pb-3 border-b border-gray-300">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-gray-600">내 상태:</span>
+          <select
+            value={presenceStatus}
+            onChange={(e) => updatePresenceStatus(e.target.value)}
+            className="px-2 py-1 text-xs border border-gray-300 rounded bg-white"
+          >
+            <option value="online">🟢 온라인</option>
+            <option value="away">🟡 자리비움</option>
+            <option value="offline">⚫ 오프라인</option>
+          </select>
         </div>
+        <span className="text-xs text-gray-500">
+          접속자: {presenceData?.length || 0}명
+        </span>
       </div>
+    </div>
+  );
 
-      {/* 온라인 테이머 목록 */}
-      <div className="online-list mb-4">
-        <h4 className="text-sm font-bold text-gray-700 mb-2">
-          🟢 접속 중인 테이머 ({presenceData?.length || 0})
-        </h4>
-        <div className="flex flex-wrap gap-2">
-          {presenceData && presenceData.length > 0 ? (
-            presenceData.map((member, idx) => {
-              const memberStatus = member.data?.status || 'online';
-              const statusEmoji = memberStatus === 'online' ? '🟢' : memberStatus === 'away' ? '🟡' : '⚫';
-              const statusColor = memberStatus === 'online' 
-                ? 'bg-green-100 text-green-800' 
-                : memberStatus === 'away' 
-                ? 'bg-yellow-100 text-yellow-800' 
-                : 'bg-gray-100 text-gray-800';
-              const displayName = getPresenceDisplayName(member, presenceData);
-              const uniqueKey = `${member.clientId || 'unknown'}_${member.connectionId || member.timestamp || idx}_${idx}`;
-              
-              return (
-                <span
-                  key={uniqueKey}
-                  className={`px-2 py-1 ${statusColor} rounded text-xs font-semibold flex items-center gap-1`}
-                  title={`상태: ${memberStatus === 'online' ? '온라인' : memberStatus === 'away' ? '자리비움' : '오프라인'}`}
-                >
-                  <span>{statusEmoji}</span>
-                  <span>{displayName}</span>
-                </span>
-              );
-            })
-          ) : (
-            <span className="text-xs text-gray-500">접속 중인 테이머가 없습니다.</span>
-          )}
-        </div>
-      </div>
+  const onlineList = (
+    <div className="online-list play-chat-panel__online-list mb-4">
+      <h4 className="text-sm font-bold text-gray-700 mb-2">
+        🟢 접속 중인 테이머 ({presenceData?.length || 0})
+      </h4>
+      <div className="flex flex-wrap gap-2">
+        {presenceData && presenceData.length > 0 ? (
+          presenceData.map((member, idx) => {
+            const memberStatus = member.data?.status || 'online';
+            const statusEmoji = memberStatus === 'online' ? '🟢' : memberStatus === 'away' ? '🟡' : '⚫';
+            const statusColor = memberStatus === 'online'
+              ? 'bg-green-100 text-green-800'
+              : memberStatus === 'away'
+              ? 'bg-yellow-100 text-yellow-800'
+              : 'bg-gray-100 text-gray-800';
+            const displayName = getPresenceDisplayName(member, presenceData);
+            const uniqueKey = `${member.clientId || 'unknown'}_${member.connectionId || member.timestamp || idx}_${idx}`;
 
-      {/* 채팅창 */}
-      <div className="chat-box bg-white border border-gray-300 rounded p-3 mb-3" 
-           style={{ height: '200px', overflowY: 'auto' }}
-           ref={chatBoxRef}>
-        {isLoadingHistory ? (
-          <div className="text-center text-gray-400 text-sm py-8">
-            <div className="animate-pulse">📜</div>
-            <p className="mt-2">채팅 히스토리 로드 중... (48시간)</p>
-          </div>
-        ) : chatLog.length === 0 ? (
-          <div className="text-center text-gray-400 text-sm py-8">
-            채팅 메시지가 없습니다. 첫 메시지를 보내보세요!
-          </div>
-        ) : (
-          chatLog.map((msg) => {
-            const namePart = formatDeviceSuffix(msg.deviceHint, msg.deviceIndex);
             return (
-              <div key={msg.id} className="mb-2 text-sm">
-                <span className="font-bold text-blue-600">{msg.user}{namePart}:</span>{' '}
-                <span className="text-gray-700">{msg.text}</span>
-                <span className="text-xs text-gray-400 ml-2">{msg.time}</span>
-              </div>
+              <span
+                key={uniqueKey}
+                className={`px-2 py-1 ${statusColor} rounded text-xs font-semibold flex items-center gap-1`}
+                title={`상태: ${memberStatus === 'online' ? '온라인' : memberStatus === 'away' ? '자리비움' : '오프라인'}`}
+              >
+                <span>{statusEmoji}</span>
+                <span>{displayName}</span>
+              </span>
             );
           })
+        ) : (
+          <span className="text-xs text-gray-500">접속 중인 테이머가 없습니다.</span>
         )}
       </div>
+    </div>
+  );
 
-      {/* 메시지 입력 */}
-      <div className="flex gap-2">
+  const chatBox = (
+    <div
+      className="chat-box play-chat-panel__messages bg-white border border-gray-300 rounded p-3 mb-3"
+      style={isDrawerVariant ? { overflowY: 'scroll' } : { height: '200px', overflowY: 'scroll' }}
+      ref={chatBoxRef}
+    >
+      {isLoadingHistory ? (
+        <div className="text-center text-gray-400 text-sm py-8">
+          <div className="animate-pulse">📜</div>
+          <p className="mt-2">채팅 히스토리 로드 중... (48시간)</p>
+        </div>
+      ) : chatLog.length === 0 ? (
+        <div className="text-center text-gray-400 text-sm py-8">
+          채팅 메시지가 없습니다. 첫 메시지를 보내보세요!
+        </div>
+      ) : (
+        chatLog.map((msg) => {
+          const namePart = formatDeviceSuffix(msg.deviceHint, msg.deviceIndex);
+          return (
+            <div key={msg.id} className="mb-2 text-sm">
+              <span className="font-bold text-blue-600">{msg.user}{namePart}:</span>{' '}
+              <span className="text-gray-700">{msg.text}</span>
+              <span className="text-xs text-gray-400 ml-2">{msg.time}</span>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  const composer = isDrawerVariant ? (
+    <div className="play-chat-panel__composer-shell">
+      <div className="play-chat-panel__composer-grid">
         <input
           type="text"
           value={messageText}
           onChange={(e) => setMessageText(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="메시지를 입력하세요..(enter로 전송, 메세지는 200개 까지 48시간 후에 사라집니다.)"
-          className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+          className="play-chat-panel__composer-input px-3 py-2 border border-gray-300 rounded text-sm"
         />
         <button
           onClick={sendChat}
           disabled={!messageText.trim()}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+          className="play-chat-panel__composer-submit px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
         >
           전송
         </button>
       </div>
+    </div>
+  ) : (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={messageText}
+        onChange={(e) => setMessageText(e.target.value)}
+        onKeyPress={handleKeyPress}
+        placeholder="메시지를 입력하세요..(enter로 전송, 메세지는 200개 까지 48시간 후에 사라집니다.)"
+        className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
+      />
+      <button
+        onClick={sendChat}
+        disabled={!messageText.trim()}
+        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-semibold transition-colors"
+      >
+        전송
+      </button>
+    </div>
+  );
+
+  if (isDrawerVariant) {
+    return (
+      <div ref={chatContainerRef} className={chatContainerClassName}>
+        <div className="play-chat-panel__scroll play-chat-panel__scroll--drawer">
+          {presenceControl}
+          {onlineList}
+          {chatBox}
+        </div>
+        <div className="play-chat-panel__composer play-chat-panel__composer--sticky">
+          {composer}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={chatContainerRef} className={chatContainerClassName}>
+      {presenceControl}
+      {onlineList}
+      {chatBox}
+      {composer}
     </div>
   );
 };

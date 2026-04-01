@@ -2601,3 +2601,21 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
 - `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
 - `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`
+
+### 모바일 플레이 채팅 드로어 상단 압축 및 하단 입력 구획 분리
+
+- `PlayChatDrawer`의 헤더를 제목 중심 구조로 정리하고, 헤더 아래 별도 줄로 보이던 `접속 n명` 배지는 제거했다.
+- `닫기` 버튼은 다시 헤더 우측으로 올리되 `실시간 로비` 라벨이 아니라 `테이머 채팅` 제목 줄과 같은 선상에 오도록 정렬했다.
+- 드로어 본문은 `play-chat-drawer__content` 단일 영역으로 단순화했고, `ChatRoom`의 drawer variant는 기존 `scroll + composer` 구조를 유지하면서 하단 입력부를 `composer-shell`과 `composer-grid`로 감싸 고정 구획처럼 보이게 유지했다.
+- 모바일 CSS에서는 헤더/본문 여백을 다시 맞추고, 상단 접속자 배지 제거 이후에도 하단 입력창과 메시지 영역 우선순위가 유지되도록 정리했다.
+- `접속 중인 테이머` 목록과 채팅 메시지 박스 오른쪽에는 실제 scrollbar 스타일과 별도 고정 track 시각 신호를 추가해서, 모바일 WebKit에서도 스크롤 가능한 영역이라는 점이 더 직관적으로 보이게 했다.
+- `PlayChatDrawer` 렌더 테스트는 상단 접속자 배지가 더 이상 보이지 않고 `닫기` 버튼이 헤더 안에 있는 구조로 갱신했고, `ChatRoom` 테스트는 하단 입력 shell/grid 구조가 scroll 영역 밖에 유지되는지 계속 검증한다.
+- 후속 조정으로 헤더 아래 별도 줄에 있던 `접속 n명` 배지는 제거하고, `닫기` 버튼은 다시 `테이머 채팅` 제목 줄 우측으로 올려 헤더를 더 단순하게 정리했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.jsx`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`

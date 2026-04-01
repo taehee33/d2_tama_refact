@@ -86,25 +86,23 @@ function PlayChatDrawer() {
         aria-hidden={!isChatOpen}
       >
         <div className="play-chat-drawer__header">
-          <div>
+          <div className="play-chat-drawer__title">
             <p className="service-section-label">실시간 로비</p>
             <h3 id={drawerTitleId}>테이머 채팅</h3>
           </div>
-
-          <div className="play-chat-drawer__meta">
-            <span className="service-badge service-badge--cool">{`접속 ${presenceCount || 0}명`}</span>
-            <button
-              type="button"
-              className="service-button service-button--ghost"
-              onClick={() => setIsChatOpen(false)}
-            >
-              닫기
-            </button>
-          </div>
+          <button
+            type="button"
+            className="service-button service-button--ghost play-chat-drawer__close"
+            onClick={() => setIsChatOpen(false)}
+          >
+            닫기
+          </button>
         </div>
 
         <div className="play-chat-drawer__body">
-          <ChatRoom variant="drawer" />
+          <div className="play-chat-drawer__content">
+            <ChatRoom variant="drawer" />
+          </div>
         </div>
       </aside>
     </>
