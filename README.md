@@ -113,8 +113,31 @@ npm run firebase:login
 npm run firestore:deploy
 ```
 
-이번 라운드 기준으로 공식 관리 경계는 `users/{uid}` 계열과 `metadata/nicknames`이며,
+이번 라운드 기준으로 공식 관리 경계는 `users/{uid}` 계열과 `nickname_index/{normalizedKey}`이며,
 공유 컬렉션(`jogress`, `arena`, `game_settings`)은 기능 호환을 위한 임시 auth 허용으로 남아 있습니다.
+
+## 닉네임 인덱스 감사 / 백필
+
+테이머명 중복 확인은 더 이상 `metadata/nicknames` 단일 문서를 쓰지 않고, `nickname_index/{normalizedKey}` 문서를 사용합니다.
+
+마이그레이션은 아래 순서로 진행합니다.
+
+```bash
+npm run nickname:audit
+npm run nickname:backfill
+npm run nickname:verify
+npm run nickname:cleanup
+```
+
+- `nickname:audit`: `users/{uid}.tamerName`을 기준으로 공백 축약 + 영문 소문자화 규칙 충돌을 검사합니다.
+- `nickname:backfill`: 감사 결과에 충돌이 없을 때만 `nickname_index`를 생성하고, 공백 정규화가 필요한 `users/{uid}.tamerName`도 함께 정리합니다. 더 이상 사용되지 않는 `nickname_index` 문서는 이 단계에서 제거합니다.
+- `nickname:verify`: `users/{uid}.tamerName`과 `nickname_index`가 완전히 일치하는지 검증합니다.
+- `nickname:cleanup`: `nickname:verify`가 통과한 뒤 레거시 `metadata/nicknames` 문서를 삭제합니다.
+- 세 스크립트는 `.firebaserc`의 기본 프로젝트 ID를 자동으로 사용하며, 실제 Firestore Admin 접근을 위해서는 `FIREBASE_SERVICE_ACCOUNT_PATH` 또는 `FIREBASE_SERVICE_ACCOUNT_JSON` 환경변수, 혹은 Application Default Credentials가 필요합니다.
+- 별도 환경변수를 쓰지 않을 경우 기본 자격증명 경로로 아래 파일도 자동 탐색합니다.
+  - `~/.config/firebase/d2tamarefact-adminsdk.json`
+  - `~/.config/firebase/d2tamarefact-service-account.json`
+  - `~/.config/firebase/service-account.json`
 
 ## 기술 스택
 

@@ -1,123 +1,252 @@
 // src/utils/tamerNameUtils.js
 // 테이머명(닉네임) 관리 유틸리티 함수
 
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { arrayUnion, arrayRemove } from "firebase/firestore";
+import { doc, getDoc, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
+const NICKNAME_INDEX_COLLECTION = "nickname_index";
+const NORMALIZED_SPACE_NOTICE = "연속된 공백은 1칸으로 자동 변경됩니다.";
+
 /**
- * 사용 중인 닉네임 목록 가져오기
- * @returns {Promise<Array<string>>} 사용 중인 닉네임 배열
+ * 닉네임 입력값 정규화
+ * @param {string} raw - 원본 입력값
+ * @returns {string} 앞뒤 공백 제거 + 연속 공백 1칸 축약 결과
  */
-export async function getUsedNicknames() {
-  try {
-    const nickRef = doc(db, "metadata", "nicknames");
-    const nickSnap = await getDoc(nickRef);
-    
-    if (nickSnap.exists()) {
-      return nickSnap.data().list || [];
-    }
-    
-    // 문서가 없으면 초기화
-    await setDoc(nickRef, { list: [] });
-    return [];
-  } catch (error) {
-    console.error("닉네임 목록 가져오기 오류:", error);
-    return [];
+export function normalizeNicknameInput(raw) {
+  if (typeof raw !== "string") {
+    return "";
   }
+
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * 닉네임 인덱스 키 생성
+ * @param {string} raw - 원본 입력값
+ * @returns {string} 정규화 후 영문 소문자 키
+ */
+export function toNicknameKey(raw) {
+  return normalizeNicknameInput(raw).toLowerCase();
+}
+
+/**
+ * 공백 자동 정규화 여부
+ * @param {string} raw - 원본 입력값
+ * @returns {boolean}
+ */
+export function hasCollapsedSpaces(raw) {
+  if (typeof raw !== "string") {
+    return false;
+  }
+
+  return normalizeNicknameInput(raw) !== raw.trim();
+}
+
+/**
+ * 공백 자동 정규화 안내를 메시지에 덧붙이기
+ * @param {string} message - 기본 메시지
+ * @param {boolean} didNormalizeSpaces - 공백 축약 여부
+ * @returns {string}
+ */
+export function withNormalizationNotice(message, didNormalizeSpaces) {
+  if (!didNormalizeSpaces) {
+    return message;
+  }
+
+  return `${NORMALIZED_SPACE_NOTICE} ${message}`;
+}
+
+function buildAvailabilityResult({
+  status,
+  isAvailable,
+  message,
+  normalizedNickname,
+  didNormalizeSpaces,
+}) {
+  return {
+    status,
+    isAvailable,
+    message: withNormalizationNotice(message, didNormalizeSpaces),
+    normalizedNickname,
+    normalizedKey: toNicknameKey(normalizedNickname),
+    didNormalizeSpaces,
+  };
 }
 
 /**
  * 닉네임 중복 검사
  * @param {string} nickname - 검사할 닉네임
- * @param {string} currentNickname - 현재 사용 중인 닉네임 (자신의 닉네임은 제외)
- * @returns {Promise<{isAvailable: boolean, message: string}>}
+ * @param {string|null} currentUid - 현재 로그인한 사용자 UID
+ * @returns {Promise<{status: string, isAvailable: boolean, message: string, normalizedNickname: string, normalizedKey: string, didNormalizeSpaces: boolean}>}
  */
-export async function checkNicknameAvailability(nickname, currentNickname = null) {
+export async function checkNicknameAvailability(nickname, currentUid = null) {
   if (!nickname || nickname.trim() === "") {
-    return { isAvailable: false, message: "테이머명을 입력해주세요." };
+    return buildAvailabilityResult({
+      status: "invalid",
+      isAvailable: false,
+      message: "테이머명을 입력해주세요.",
+      normalizedNickname: "",
+      didNormalizeSpaces: false,
+    });
   }
 
-  const trimmedNickname = nickname.trim();
-  
-  // 길이 검사
-  if (trimmedNickname.length < 2) {
-    return { isAvailable: false, message: "테이머명은 2자 이상이어야 합니다." };
-  }
-  
-  if (trimmedNickname.length > 20) {
-    return { isAvailable: false, message: "테이머명은 20자 이하여야 합니다." };
+  const normalizedNickname = normalizeNicknameInput(nickname);
+  const didNormalizeSpaces = hasCollapsedSpaces(nickname);
+
+  if (normalizedNickname.length < 2) {
+    return buildAvailabilityResult({
+      status: "invalid",
+      isAvailable: false,
+      message: "테이머명은 2자 이상이어야 합니다.",
+      normalizedNickname,
+      didNormalizeSpaces,
+    });
   }
 
-  // 특수문자 검사 (한글, 영문, 숫자, 공백만 허용)
-  const validPattern = /^[가-힣a-zA-Z0-9\s]+$/;
-  if (!validPattern.test(trimmedNickname)) {
-    return { isAvailable: false, message: "테이머명은 한글, 영문, 숫자, 공백만 사용할 수 있습니다." };
+  if (normalizedNickname.length > 20) {
+    return buildAvailabilityResult({
+      status: "invalid",
+      isAvailable: false,
+      message: "테이머명은 20자 이하여야 합니다.",
+      normalizedNickname,
+      didNormalizeSpaces,
+    });
   }
 
-  // 중복 검사
-  const usedNames = await getUsedNicknames();
-  
-  // 자신의 현재 닉네임은 제외
-  const filteredNames = currentNickname 
-    ? usedNames.filter(name => name !== currentNickname)
-    : usedNames;
-  
-  if (filteredNames.includes(trimmedNickname)) {
-    return { isAvailable: false, message: "이미 사용 중인 테이머명입니다." };
+  const validPattern = /^[가-힣a-zA-Z0-9 ]+$/;
+  if (!validPattern.test(normalizedNickname)) {
+    return buildAvailabilityResult({
+      status: "invalid",
+      isAvailable: false,
+      message: "테이머명은 한글, 영문, 숫자, 공백만 사용할 수 있습니다.",
+      normalizedNickname,
+      didNormalizeSpaces,
+    });
   }
 
-  return { isAvailable: true, message: "사용 가능한 테이머명입니다." };
+  const nicknameKey = toNicknameKey(normalizedNickname);
+  const nicknameRef = doc(db, NICKNAME_INDEX_COLLECTION, nicknameKey);
+  const nicknameSnap = await getDoc(nicknameRef);
+
+  if (nicknameSnap.exists()) {
+    const nicknameData = nicknameSnap.data();
+    if (nicknameData.uid === currentUid) {
+      return buildAvailabilityResult({
+        status: "current-user",
+        isAvailable: true,
+        message: "현재 사용 중인 테이머명입니다.",
+        normalizedNickname,
+        didNormalizeSpaces,
+      });
+    }
+
+    if (nicknameData.uid !== currentUid) {
+      return buildAvailabilityResult({
+        status: "taken",
+        isAvailable: false,
+        message: "이미 사용 중인 테이머명입니다.",
+        normalizedNickname,
+        didNormalizeSpaces,
+      });
+    }
+  }
+
+  return buildAvailabilityResult({
+    status: "available",
+    isAvailable: true,
+    message: "사용 가능한 테이머명입니다.",
+    normalizedNickname,
+    didNormalizeSpaces,
+  });
 }
 
 /**
  * 테이머명 업데이트 (중복 검사 포함)
  * @param {string} uid - 사용자 ID
  * @param {string} newNickname - 새로운 닉네임
- * @param {string} oldNickname - 기존 닉네임 (있으면 목록에서 제거)
- * @returns {Promise<void>}
+ * @param {string|null} oldNickname - 기존 닉네임
+ * @returns {Promise<{normalizedNickname: string, normalizedKey: string, didNormalizeSpaces: boolean}>}
  */
 export async function updateTamerName(uid, newNickname, oldNickname = null) {
   if (!uid) {
     throw new Error("사용자 ID가 필요합니다.");
   }
 
-  const trimmedNickname = newNickname.trim();
-  
-  // 중복 검사
-  const availability = await checkNicknameAvailability(trimmedNickname, oldNickname);
+  const availability = await checkNicknameAvailability(newNickname, uid);
   if (!availability.isAvailable) {
     throw new Error(availability.message);
   }
 
-  // 1. 유저 정보 업데이트
+  const normalizedNickname = availability.normalizedNickname;
+  const normalizedKey = availability.normalizedKey;
+
   const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, {
-    tamerName: trimmedNickname,
-    updatedAt: new Date(),
+  const nicknameRef = doc(db, NICKNAME_INDEX_COLLECTION, normalizedKey);
+
+  await runTransaction(db, async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    if (!userSnap.exists()) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
+    }
+
+    const nicknameSnap = await transaction.get(nicknameRef);
+    if (nicknameSnap.exists() && nicknameSnap.data().uid !== uid) {
+      throw new Error("이미 사용 중인 테이머명입니다.");
+    }
+
+    const storedNickname = userSnap.data()?.tamerName;
+    const previousNickname =
+      typeof storedNickname === "string" && storedNickname.trim() !== ""
+        ? storedNickname
+        : oldNickname;
+    const previousKey = previousNickname ? toNicknameKey(previousNickname) : null;
+    const previousNicknameRef =
+      previousKey && previousKey !== normalizedKey
+        ? doc(db, NICKNAME_INDEX_COLLECTION, previousKey)
+        : null;
+    const previousNicknameSnap = previousNicknameRef
+      ? await transaction.get(previousNicknameRef)
+      : null;
+
+    const now = new Date();
+    transaction.update(userRef, {
+      tamerName: normalizedNickname,
+      updatedAt: now,
+    });
+
+    transaction.set(
+      nicknameRef,
+      {
+        uid,
+        nickname: normalizedNickname,
+        normalizedKey,
+        createdAt: nicknameSnap.exists() ? nicknameSnap.data().createdAt ?? now : now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+
+    if (
+      previousNicknameRef &&
+      previousNicknameSnap?.exists() &&
+      previousNicknameSnap.data().uid === uid
+    ) {
+      transaction.delete(previousNicknameRef);
+    }
   });
 
-  // 2. 닉네임 목록 업데이트
-  const nickRef = doc(db, "metadata", "nicknames");
-  
-  // 기존 닉네임이 있으면 목록에서 제거
-  if (oldNickname && oldNickname !== trimmedNickname) {
-    await updateDoc(nickRef, {
-      list: arrayRemove(oldNickname),
-    });
-  }
-  
-  // 새 닉네임을 목록에 추가
-  await updateDoc(nickRef, {
-    list: arrayUnion(trimmedNickname),
-  });
+  return {
+    normalizedNickname,
+    normalizedKey,
+    didNormalizeSpaces: availability.didNormalizeSpaces,
+  };
 }
 
 /**
  * 기본값으로 되돌리기 (Firebase Auth의 displayName 사용)
  * @param {string} uid - 사용자 ID
  * @param {string} authDisplayName - Firebase Auth의 displayName
- * @param {string} currentNickname - 현재 커스텀 닉네임 (목록에서 제거)
+ * @param {string|null} currentNickname - 현재 커스텀 닉네임
  * @returns {Promise<void>}
  */
 export async function resetToDefaultTamerName(uid, authDisplayName, currentNickname = null) {
@@ -125,20 +254,38 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
     throw new Error("사용자 ID가 필요합니다.");
   }
 
-  // 1. 유저 정보에서 tamerName 제거 (기본값 사용)
-  const userRef = doc(db, "users", uid);
-  await updateDoc(userRef, {
-    tamerName: null, // null로 설정하면 displayName 사용
-    updatedAt: new Date(),
-  });
+  void authDisplayName;
 
-  // 2. 기존 커스텀 닉네임이 있으면 목록에서 제거
-  if (currentNickname) {
-    const nickRef = doc(db, "metadata", "nicknames");
-    await updateDoc(nickRef, {
-      list: arrayRemove(currentNickname),
+  const userRef = doc(db, "users", uid);
+
+  await runTransaction(db, async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    if (!userSnap.exists()) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
+    }
+
+    const storedNickname = userSnap.data()?.tamerName;
+    const nicknameToReset =
+      typeof storedNickname === "string" && storedNickname.trim() !== ""
+        ? storedNickname
+        : currentNickname;
+    const currentKey = nicknameToReset ? toNicknameKey(nicknameToReset) : null;
+    const currentNicknameRef = currentKey
+      ? doc(db, NICKNAME_INDEX_COLLECTION, currentKey)
+      : null;
+    const currentNicknameSnap = currentNicknameRef
+      ? await transaction.get(currentNicknameRef)
+      : null;
+
+    transaction.update(userRef, {
+      tamerName: null,
+      updatedAt: new Date(),
     });
-  }
+
+    if (currentNicknameRef && currentNicknameSnap?.exists() && currentNicknameSnap.data().uid === uid) {
+      transaction.delete(currentNicknameRef);
+    }
+  });
 }
 
 /**
@@ -155,14 +302,12 @@ export async function getTamerName(uid, authDisplayName) {
   try {
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
-    
+
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      // tamerName이 있으면 사용, 없으면 displayName 사용
       return userData.tamerName || userData.displayName || authDisplayName || `Trainer_${uid.slice(0, 6)}`;
     }
-    
-    // 문서가 없으면 기본값 반환
+
     return authDisplayName || `Trainer_${uid.slice(0, 6)}`;
   } catch (error) {
     console.error("테이머명 가져오기 오류:", error);
@@ -184,29 +329,24 @@ export async function initializeTamerName(uid, displayName) {
   try {
     const userRef = doc(db, "users", uid);
     const userSnap = await getDoc(userRef);
-    
+
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      
-      // 이미 tamerName이 설정되어 있으면 그대로 사용
       if (userData.tamerName) {
         return userData.tamerName;
       }
-      
-      // tamerName이 없으면 displayName을 기본값으로 설정 (하지만 목록에는 추가하지 않음)
-      // 기본값은 목록에 추가하지 않음 (커스텀 닉네임만 목록에 추가)
+
       return userData.displayName || displayName || `Trainer_${uid.slice(0, 6)}`;
     }
-    
-    // 문서가 없으면 생성 (tamerName은 null로 두고 displayName만 저장)
+
     await setDoc(userRef, {
-      email: null, // Login.jsx에서 이미 저장하므로 여기서는 생략
-      displayName: displayName,
-      tamerName: null, // null이면 displayName 사용
+      email: null,
+      displayName,
+      tamerName: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    
+
     return displayName || `Trainer_${uid.slice(0, 6)}`;
   } catch (error) {
     console.error("테이머명 초기화 오류:", error);

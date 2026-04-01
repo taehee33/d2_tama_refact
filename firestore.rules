@@ -26,9 +26,17 @@ service cloud.firestore {
       }
     }
 
-    // 공식 관리 경계: 테이머명 중복 확인용 메타데이터
-    match /metadata/{docId} {
-      allow read, write: if isSignedIn() && docId == "nicknames";
+    // 공식 관리 경계: 테이머명 중복 확인용 인덱스
+    match /nickname_index/{normalizedKey} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.normalizedKey == normalizedKey;
+      allow update: if isSignedIn() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.normalizedKey == normalizedKey;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     // 임시 호환성 허용 구간

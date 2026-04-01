@@ -7,6 +7,7 @@
     "nickname:audit": "node scripts/auditNicknameIndex.js",
     "nickname:backfill": "node scripts/backfillNicknameIndex.js",
     "nickname:verify": "node scripts/verifyNicknameIndex.js",
+    "nickname:cleanup": "node scripts/cleanupLegacyNicknameMetadata.js",
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
     "test:community-api": "node --test tests/community-lib.test.js"
   },

@@ -4,6 +4,109 @@
 
 ---
 
+## [2026-04-01] 테이머명 self-match 중복 확인 UX 정리
+
+### 작업 유형
+- 🧭 테이머명 중복 확인 상태 분리
+- 🚫 동일 이름 no-op 저장 차단
+- 🧪 self-match / 중복 확인 UI 테스트 보강
+
+### 목적 및 영향
+- **목적:** 현재 사용 중인 테이머명을 다시 입력했을 때 `사용 가능`으로 보여 혼란을 주던 흐름을 `현재 사용 중인 테이머명입니다.` 안내로 분리하고, 변경 없는 저장으로 Firestore write가 발생하지 않게 정리한다.
+- **범위:** `nickname_index` 기반 중복 확인 결과 타입, 계정 설정 패널의 메시지/버튼 상태, 관련 유닛 테스트와 UI 테스트를 함께 갱신한다.
+- **내용:**
+  - `checkNicknameAvailability()`가 이제 `available`, `current-user`, `taken` 상태를 구분해서 반환하고, 현재 로그인 사용자의 기존 테이머명과 일치하는 경우에는 `현재 사용 중인 테이머명입니다.`를 반환하도록 바꿨다.
+  - 계정 설정 패널은 정규화된 입력값이 현재 테이머명과 같으면 저장 버튼을 비활성화하고, 저장 핸들러에서도 동일 가드로 no-op 저장을 막도록 정리했다.
+  - `A B`와 `A  B`처럼 공백만 다른 입력도 정규화 후 self-match로 처리해, 중복 확인 메시지와 저장 가능 여부가 일관되게 맞도록 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 다른 사용자 이름에 대한 중복 판정 source of truth는 계속 `nickname_index/{normalizedKey}`다.
+- 현재 사용자의 기존 이름은 오류가 아니라 self-match 안내 상태로 분리하고, 저장은 no-op로 취급한다.
+
+---
+
+## [2026-04-01] 모바일 로비 채팅 입력창 가시성 복구
+
+### 작업 유형
+- 📱 모바일 채팅 드로어 레이아웃 조정
+- 💬 입력창 고정 composer 구조 추가
+- 🧪 drawer variant 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 모바일에서 로비 채팅 드로어를 열었을 때 입력창이 화면 아래로 잘려 메시지를 입력할 수 없던 문제를 해결한다.
+- **범위:** 전역 로비 채팅 drawer variant의 내부 레이아웃과 모바일 CSS만 조정하며, 커뮤니티/일반 채팅 화면 구조는 유지한다.
+- **내용:**
+  - `ChatRoom`의 drawer variant에서 접속 상태/온라인 목록/메시지 영역을 스크롤 영역으로 묶고, 입력줄은 별도 composer 영역으로 분리해 하단에 항상 남도록 정리했다.
+  - 모바일 `play-chat-drawer`를 기존보다 낮고 크게 보이는 바텀시트 형태로 조정하고, `dvh + safe-area + flex` 조합으로 키보드가 올라와도 입력줄이 보이도록 맞췄다.
+  - 온라인 목록 높이를 제한해 접속자 수가 많아져도 입력줄이 밀려나지 않도록 했고, drawer variant 전용 테스트를 추가해 composer가 스크롤 영역 바깥에 렌더되는지 고정했다.
+  - 추가로 모바일 브라우저 하단 툴바와 겹쳐 입력창 하단이 살짝 잘리는 현상을 줄이기 위해, drawer의 `bottom` 최소값을 올리고 `max-height`를 함께 줄여 바텀시트 전체를 조금 위로 이동시켰다.
+  - 접속자 수가 늘어나도 입력칸이 다시 밀려나지 않도록 drawer variant를 `상단 스크롤 영역 + 하단 sticky composer` 구조로 강화하고, 모바일 bottom clearance를 더 높였다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.jsx`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.test.jsx` (신규)
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/components/ChatRoom.test.jsx src/components/chat/PlayChatButton.test.jsx`
+
+### 아키텍처 메모
+- drawer variant는 입력창을 패널 하단의 고정 영역으로 유지하고, 스크롤은 상단 정보/메시지 영역만 담당한다.
+- 별도 viewport 계산 JS 없이 CSS 레이아웃만으로 모바일 키보드와 세이프에어리어 대응을 우선 처리한다.
+
+---
+
+## [2026-04-01] 테이머명 저장 트랜잭션 핫픽스 및 레거시 닉네임 정리 단계 추가
+
+### 작업 유형
+- 🚑 Firestore transaction read/write 순서 핫픽스
+- ⚠️ 저장 성공 후 후속 동기화 경고 분리
+- 🧹 레거시 `metadata/nicknames` 정리 스크립트 추가
+- 🧪 저장/복구 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 테이머명 저장 시 `Firestore transactions require all reads to be executed before all writes.` 오류를 제거하고, 저장은 성공했는데 후속 새로고침만 늦는 경우를 저장 실패로 오인하지 않게 분리한다.
+- **범위:** `nickname_index` 기반 테이머명 저장/복구 로직, 계정 설정 패널 메시지, 운영 닉네임 정리 스크립트와 관련 테스트/문서를 함께 갱신한다.
+- **내용:**
+  - `tamerNameUtils.js`의 `updateTamerName()`과 `resetToDefaultTamerName()`이 transaction 안에서 모든 `get`을 먼저 수행한 뒤 `update/set/delete`를 실행하도록 순서를 고쳤다.
+  - 저장 시에는 실제 사용자 문서의 현재 `tamerName`을 우선 기준으로 이전 인덱스를 계산해, 화면에 들고 있던 예전 값이 어긋나 있어도 잘못된 인덱스 삭제를 줄이도록 보강했다.
+  - `AccountSettingsPanel.jsx`는 저장 단계와 후속 `refreshProfile()` 동기화 단계를 분리해, 저장은 성공했지만 새로고침이 늦는 경우 `프로필 새로고침이 늦을 수 있습니다.` 경고로만 표시하도록 정리했다.
+  - `scripts/cleanupLegacyNicknameMetadata.js`와 `nickname:cleanup` 스크립트를 추가해, `nickname:verify` 통과 후 레거시 `metadata/nicknames` 문서를 안전하게 삭제할 수 있게 했다.
+  - `tamerNameUtils.test.js`, `AccountSettingsPanel.test.jsx`를 보강해 transaction의 read-before-write 순서와 저장 후 경고 흐름을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
+- `scripts/backfillNicknameIndex.js`
+- `scripts/cleanupLegacyNicknameMetadata.js` (신규)
+- `package.json`
+- `README.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx`
+- `node --test tests/nickname-index-migration.test.js`
+
+### 아키텍처 메모
+- 런타임의 테이머명 중복 판정 source of truth는 계속 `nickname_index/{normalizedKey}`다.
+- 운영 정리는 `nickname:audit -> nickname:backfill -> nickname:verify -> nickname:cleanup` 순서를 기준으로 진행한다.
+
+---
+
 ## [2026-04-01] Supabase 기반 커뮤니티 1차 MVP 연결
 
 ### 작업 유형

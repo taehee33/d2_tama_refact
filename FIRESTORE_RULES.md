@@ -19,7 +19,7 @@ npm run firestore:deploy
 - `users/{userId}/slots/{slotId}`
 - `users/{userId}/slots/{slotId}/logs/{logId}`
 - `users/{userId}/slots/{slotId}/battleLogs/{logId}`
-- `metadata/nicknames`
+- `nickname_index/{normalizedKey}`
 
 즉, 슬롯 문서뿐 아니라 삭제/로드 때 실제로 접근하는 `logs`, `battleLogs` 서브컬렉션까지 같은 소유자 규칙으로 묶습니다.
 
@@ -53,12 +53,22 @@ service cloud.firestore {
       }
     }
 
-    match /metadata/{docId} {
-      allow read, write: if isSignedIn() && docId == "nicknames";
+    match /nickname_index/{normalizedKey} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.normalizedKey == normalizedKey;
+      allow update: if isSignedIn() &&
+        resource.data.uid == request.auth.uid &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.normalizedKey == normalizedKey;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
   }
 }
 ```
+
+`nickname_index`는 각 닉네임 키를 문서 ID로 사용하므로, 기존 `metadata/nicknames`처럼 단일 문서에 배열을 몰아넣지 않습니다. 클라이언트는 읽기 시 아무 문서나 조회할 수 있지만, 쓰기/삭제는 `uid == request.auth.uid`인 자기 문서에만 허용됩니다.
 
 ## 공유 컬렉션에 대한 현재 처리
 
@@ -98,8 +108,6 @@ service cloud.firestore {
 2. 로그인 상태인지 확인
 3. 브라우저 하드 리프레시 후 재시도
 4. 앱 레벨 fallback 덕분에 슬롯 삭제는 계속될 수 있으므로, 콘솔 경고와 실제 UI 결과를 함께 확인
-
-
 
 
 

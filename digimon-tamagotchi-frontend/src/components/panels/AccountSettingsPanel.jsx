@@ -5,8 +5,11 @@ import { emitTamerProfileRefresh } from "../../hooks/useTamerProfile";
 import {
   checkNicknameAvailability,
   getTamerName,
+  hasCollapsedSpaces,
+  normalizeNicknameInput,
   resetToDefaultTamerName,
   updateTamerName,
+  withNormalizationNotice,
 } from "../../utils/tamerNameUtils";
 import {
   getUserSettings,
@@ -32,6 +35,10 @@ function getDefaultTamerName(currentUser) {
 function getMessageClassName(message) {
   if (!message) {
     return "service-muted";
+  }
+
+  if (message.includes("늦을 수 있습니다")) {
+    return "text-sm font-semibold text-amber-600";
   }
 
   if (
@@ -141,11 +148,22 @@ function AccountSettingsPanel({
       setTamerNameParent(nextTamerName);
     }
 
+    let refreshError = null;
+
     if (typeof refreshProfile === "function") {
-      await refreshProfile();
+      try {
+        await refreshProfile();
+      } catch (error) {
+        refreshError = error;
+        console.error("테이머 프로필 새로고침 오류:", error);
+      }
     }
 
     emitTamerProfileRefresh({ uid: currentUser?.uid });
+
+    if (refreshError) {
+      throw refreshError;
+    }
   };
 
   const handleCheckAvailability = async () => {
@@ -158,7 +176,10 @@ function AccountSettingsPanel({
     setTamerNameMessage("");
 
     try {
-      const result = await checkNicknameAvailability(tamerNameInput.trim(), tamerName);
+      const result = await checkNicknameAvailability(tamerNameInput, currentUser?.uid || null);
+      if (result.didNormalizeSpaces) {
+        setTamerNameInput(result.normalizedNickname);
+      }
       setTamerNameMessage(result.message);
     } catch (error) {
       setTamerNameMessage(`오류: ${error.message}`);
@@ -172,16 +193,40 @@ function AccountSettingsPanel({
       return;
     }
 
+    const normalizedCurrentTamerName = normalizeNicknameInput(tamerName);
+    const normalizedNextTamerName = normalizeNicknameInput(tamerNameInput);
+    const isNoOpNickname =
+      Boolean(normalizedNextTamerName) && normalizedNextTamerName === normalizedCurrentTamerName;
+
+    if (isNoOpNickname) {
+      if (tamerNameInput !== normalizedNextTamerName) {
+        setTamerNameInput(normalizedNextTamerName);
+      }
+
+      setTamerNameMessage(
+        withNormalizationNotice("현재 사용 중인 테이머명입니다.", hasCollapsedSpaces(tamerNameInput))
+      );
+      return;
+    }
+
     setTamerNameLoading(true);
     setTamerNameMessage("");
 
     try {
-      const nextTamerName = tamerNameInput.trim();
-      await updateTamerName(currentUser.uid, nextTamerName, tamerName);
+      const result = await updateTamerName(currentUser.uid, tamerNameInput, tamerName);
+      const nextTamerName = result.normalizedNickname;
       setTamerName(nextTamerName);
       setTamerNameInput(nextTamerName);
-      await syncProfileState(nextTamerName);
-      setTamerNameMessage("테이머명이 저장되었습니다.");
+      const savedMessage = result.didNormalizeSpaces
+        ? "연속된 공백은 1칸으로 자동 변경됩니다. 테이머명이 저장되었습니다."
+        : "테이머명이 저장되었습니다.";
+
+      try {
+        await syncProfileState(nextTamerName);
+        setTamerNameMessage(savedMessage);
+      } catch (error) {
+        setTamerNameMessage(`${savedMessage} 프로필 새로고침이 늦을 수 있습니다.`);
+      }
     } catch (error) {
       setTamerNameMessage(`오류: ${error.message}`);
     } finally {
@@ -207,8 +252,12 @@ function AccountSettingsPanel({
       const defaultName = getDefaultTamerName(currentUser);
       setTamerName(defaultName);
       setTamerNameInput(defaultName);
-      await syncProfileState(defaultName);
-      setTamerNameMessage("기본값으로 복구되었습니다.");
+      try {
+        await syncProfileState(defaultName);
+        setTamerNameMessage("기본값으로 복구되었습니다.");
+      } catch (error) {
+        setTamerNameMessage("기본값으로 복구되었습니다. 프로필 새로고침이 늦을 수 있습니다.");
+      }
     } catch (error) {
       setTamerNameMessage(`오류: ${error.message}`);
     } finally {
@@ -262,6 +311,11 @@ function AccountSettingsPanel({
       setThemeSaving(false);
     }
   };
+
+  const normalizedInputValue = normalizeNicknameInput(tamerNameInput);
+  const normalizedCurrentTamerName = normalizeNicknameInput(tamerName);
+  const isSameAsCurrentTamerName =
+    Boolean(normalizedInputValue) && normalizedInputValue === normalizedCurrentTamerName;
 
   if (!currentUser) {
     return (
@@ -318,8 +372,8 @@ function AccountSettingsPanel({
             onClick={handleSaveTamerName}
             disabled={
               tamerNameLoading ||
-              !tamerNameInput.trim() ||
-              tamerNameInput.trim() === tamerName
+              !normalizedInputValue ||
+              isSameAsCurrentTamerName
             }
             className="service-button service-button--primary"
           >
