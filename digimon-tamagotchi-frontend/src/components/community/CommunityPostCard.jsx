@@ -19,17 +19,13 @@ function CommunityPostCard({
         <span className={`service-badge ${isSample ? "service-badge--cool" : "service-badge--accent"}`}>
           {isSample ? "샘플 공개" : "내 디지몬 자랑"}
         </span>
+        <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
         <span className="community-post-card__timestamp">{formatTimestamp(post.createdAt, "short")}</span>
       </div>
 
       <CommunitySnapshotScene snapshot={snapshot} variant="card" />
 
       <div className="community-post-card__header">
-        <div>
-          <h3>{post.title}</h3>
-          <p className="service-muted">{post.authorTamerName}</p>
-        </div>
-
         {canManage ? (
           <div className="community-inline-actions">
             <button type="button" className="service-text-link" onClick={onEdit}>
@@ -42,7 +38,19 @@ function CommunityPostCard({
         ) : null}
       </div>
 
-      {post.body ? <p className="community-post-card__body">{post.body}</p> : null}
+      <div className="community-post-card__content">
+        <section className="community-post-card__section community-post-card__section--title" aria-label="게시글 제목">
+          <span className="community-post-card__section-label">제목</span>
+          <h3 className="community-post-card__section-value community-post-card__section-value--title">
+            {post.title}
+          </h3>
+        </section>
+
+        <section className="community-post-card__section community-post-card__section--body" aria-label="게시글 내용">
+          <span className="community-post-card__section-label">내용</span>
+          <p className="community-post-card__body">{post.body || "작성된 내용이 없습니다."}</p>
+        </section>
+      </div>
 
       <div className="community-snapshot-chip-list">
         <span className="community-snapshot-chip">{snapshot.stageLabel || "단계 미상"}</span>

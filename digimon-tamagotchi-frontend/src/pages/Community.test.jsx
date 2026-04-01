@@ -180,6 +180,9 @@ describe("Community", () => {
       expect(screen.getByText("서버에서 불러온 글")).toBeInTheDocument();
     });
 
+    expect(screen.getAllByText("제목").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("내용").length).toBeGreaterThan(0);
+
     fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
     expect(screen.getByRole("dialog", { name: "내 디지몬 자랑" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "닫기" })).toBeInTheDocument();
@@ -192,6 +195,9 @@ describe("Community", () => {
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "서버에서 불러온 글" })).toBeInTheDocument();
     });
+
+    expect(screen.getAllByText("제목").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("내용").length).toBeGreaterThan(1);
 
     expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(
       mockAuthState.currentUser,

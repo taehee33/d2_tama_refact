@@ -54,21 +54,35 @@ function CommunityPostDetailDialog({
           <div className="community-detail-summary">
             <div className="community-post-card__meta">
               <span className="service-badge service-badge--accent">내 디지몬 자랑</span>
+              <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
               <span className="community-post-card__timestamp">
                 {formatTimestamp(post.createdAt, "long")}
               </span>
             </div>
 
             <div className="community-post-card__header">
-              <div>
-                <h3>{post.title}</h3>
-                <p className="service-muted">{post.authorTamerName}</p>
+              <div className="community-post-card__content">
+                <section
+                  className="community-post-card__section community-post-card__section--title"
+                  aria-label="게시글 제목"
+                >
+                  <span className="community-post-card__section-label">제목</span>
+                  <h3 className="community-post-card__section-value community-post-card__section-value--title">
+                    {post.title}
+                  </h3>
+                </section>
+
+                <section
+                  className="community-post-card__section community-post-card__section--body"
+                  aria-label="게시글 내용"
+                >
+                  <span className="community-post-card__section-label">내용</span>
+                  <p className="community-post-card__body">
+                    {post.body || "작성된 코멘트가 없습니다."}
+                  </p>
+                </section>
               </div>
             </div>
-
-            <p className="community-post-card__body">
-              {post.body || "작성된 코멘트가 없습니다."}
-            </p>
 
             <div className="community-snapshot-chip-list">
               <span className="community-snapshot-chip">{post.snapshot?.slotName || "슬롯"}</span>
