@@ -1,6 +1,6 @@
 "use strict";
 
-const { getFirebaseAdminAuth } = require("./firebaseAdmin");
+const { verifyFirebaseIdToken } = require("./firebaseAdmin");
 const { createCommunityError } = require("./community");
 const { getBearerToken } = require("./http");
 
@@ -12,7 +12,7 @@ async function verifyRequestUser(req) {
   }
 
   try {
-    return await getFirebaseAdminAuth().verifyIdToken(token);
+    return await verifyFirebaseIdToken(token);
   } catch (error) {
     throw createCommunityError(401, "로그인 인증이 만료되었거나 올바르지 않습니다.");
   }

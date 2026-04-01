@@ -2,7 +2,6 @@
 
 const { verifyRequestUser } = require("../../../../../_lib/auth");
 const { createCommunityComment } = require("../../../../../_lib/community");
-const { getFirebaseAdminDb } = require("../../../../../_lib/firebaseAdmin");
 const {
   allowMethods,
   handleApiError,
@@ -23,7 +22,6 @@ module.exports = async function handler(req, res) {
     const input = await parseJsonBody(req);
     const result = await createCommunityComment({
       supabase: getSupabaseAdmin(),
-      db: getFirebaseAdminDb(),
       uid: decodedToken.uid,
       decodedToken,
       postId,

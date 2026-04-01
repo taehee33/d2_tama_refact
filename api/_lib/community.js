@@ -1,5 +1,7 @@
 "use strict";
 
+const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
+
 const BOARD_ID = "showcase";
 const POSTS_TABLE = "community_posts";
 const COMMENTS_TABLE = "community_post_comments";
@@ -211,9 +213,8 @@ function mapPostRow(row) {
   };
 }
 
-async function resolveAuthorTamerName(db, uid, decodedToken) {
-  const userDoc = await db.doc(`users/${uid}`).get();
-  const userData = userDoc.exists ? userDoc.data() || {} : {};
+async function resolveAuthorTamerName(uid, decodedToken) {
+  const userData = (await fetchUserProfile(uid, decodedToken.idToken)) || {};
   const emailPrefix = decodedToken?.email ? decodedToken.email.split("@")[0] : "";
 
   return (
@@ -225,14 +226,14 @@ async function resolveAuthorTamerName(db, uid, decodedToken) {
   );
 }
 
-async function loadUserSlotSnapshot(db, uid, slotId) {
-  const slotDoc = await db.doc(`users/${uid}/slots/slot${slotId}`).get();
+async function loadUserSlotSnapshot(uid, slotId, decodedToken) {
+  const slotData = await fetchUserSlot(uid, slotId, decodedToken.idToken);
 
-  if (!slotDoc.exists) {
+  if (!slotData) {
     throw createCommunityError(404, "선택한 슬롯을 찾을 수 없습니다.");
   }
 
-  return buildCommunitySnapshot(slotDoc.data() || {}, slotId);
+  return buildCommunitySnapshot(slotData, slotId);
 }
 
 async function recalculateCommentCount(supabase, postId) {
@@ -313,11 +314,11 @@ async function getCommunityPostDetail({ supabase, postId }) {
   };
 }
 
-async function createCommunityPost({ supabase, db, uid, decodedToken, input }) {
+async function createCommunityPost({ supabase, uid, decodedToken, input }) {
   const { slotId, title, body } = validatePostInput(input);
   const [authorTamerName, snapshot] = await Promise.all([
-    resolveAuthorTamerName(db, uid, decodedToken),
-    loadUserSlotSnapshot(db, uid, slotId),
+    resolveAuthorTamerName(uid, decodedToken),
+    loadUserSlotSnapshot(uid, slotId, decodedToken),
   ]);
 
   const { data, error } = await supabase
@@ -393,10 +394,10 @@ async function deleteCommunityPost({ supabase, uid, postId }) {
   };
 }
 
-async function createCommunityComment({ supabase, db, uid, decodedToken, postId, input }) {
+async function createCommunityComment({ supabase, uid, decodedToken, postId, input }) {
   await getPostRowOrThrow(supabase, postId);
   const { body } = validateCommentInput(input);
-  const authorTamerName = await resolveAuthorTamerName(db, uid, decodedToken);
+  const authorTamerName = await resolveAuthorTamerName(uid, decodedToken);
 
   const { data, error } = await supabase
     .from(COMMENTS_TABLE)

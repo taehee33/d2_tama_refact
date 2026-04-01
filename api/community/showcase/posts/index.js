@@ -5,7 +5,6 @@ const {
   createCommunityPost,
   listCommunityPosts,
 } = require("../../../_lib/community");
-const { getFirebaseAdminDb } = require("../../../_lib/firebaseAdmin");
 const {
   allowMethods,
   handleApiError,
@@ -31,7 +30,6 @@ module.exports = async function handler(req, res) {
     const input = await parseJsonBody(req);
     const post = await createCommunityPost({
       supabase,
-      db: getFirebaseAdminDb(),
       uid: decodedToken.uid,
       decodedToken,
       input,
