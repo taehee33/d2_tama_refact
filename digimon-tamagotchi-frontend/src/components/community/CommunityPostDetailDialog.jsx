@@ -54,7 +54,10 @@ function CommunityPostDetailDialog({
             <div className="community-post-card__meta">
               <div className="community-post-card__meta-primary">
                 <span className="service-badge service-badge--accent">내 디지몬 자랑</span>
-                <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
+                <span className="community-meta-box community-meta-box--author">
+                  <span className="community-meta-box__label">작성자</span>
+                  <strong className="community-meta-box__value">{post.authorTamerName}</strong>
+                </span>
               </div>
 
               <div className="community-post-card__meta-secondary">

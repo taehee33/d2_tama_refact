@@ -2672,3 +2672,19 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/api/_lib/community.js`
 - `tests/community-lib.test.js`
 - `docs/REFACTORING_LOG.md`
+
+### 커뮤니티 카드 메타 구획 강조 및 디지몬 스탯 기본 접힘 추가
+
+- 커뮤니티 카드와 상세 모달의 `작성자` 표시를 별도 메타 박스로 감싸, 배지와 섞이지 않고 독립된 정보 블록처럼 읽히도록 정리했다.
+- 작성자 본인에게만 보이는 `수정`, `삭제`는 시간 아래에 별도 관리 박스로 배치해 메타 흐름을 유지하면서도 조작 영역이 분명하게 보이게 만들었다.
+- `디지몬 스탯`은 새 `CommunityPostStatsPanel` 컴포넌트로 분리하고, 카드와 상세 모두에서 기본값을 접힘 상태로 고정했다.
+- 접힌 상태에서는 `단계 · 버전 · 승률` 요약만 먼저 보여주고, `스탯 펼치기`를 누르면 기종, 슬롯, 체중, 댓글 수까지 박스형 그리드로 펼쳐지도록 구성했다.
+- 관련 테스트를 추가해 스탯 패널이 기본 접힘 상태로 렌더되고, 버튼으로 정상적으로 펼치고 다시 접을 수 있는 흐름을 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostStatsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostStatsPanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`

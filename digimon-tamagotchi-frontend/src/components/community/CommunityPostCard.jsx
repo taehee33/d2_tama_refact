@@ -23,7 +23,10 @@ function CommunityPostCard({
           >
             {isSample ? "샘플 공개" : "내 디지몬 자랑"}
           </span>
-          <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
+          <span className="community-meta-box community-meta-box--author">
+            <span className="community-meta-box__label">작성자</span>
+            <strong className="community-meta-box__value">{post.authorTamerName}</strong>
+          </span>
         </div>
 
         <div className="community-post-card__meta-secondary">
@@ -31,13 +34,16 @@ function CommunityPostCard({
             {formatTimestamp(post.createdAt, "short")}
           </span>
           {canManage ? (
-            <div className="community-inline-actions community-inline-actions--stacked">
+            <div className="community-meta-box community-meta-box--actions">
+              <span className="community-meta-box__label">관리</span>
+              <div className="community-inline-actions community-inline-actions--stacked">
               <button type="button" className="service-text-link" onClick={onEdit}>
                 수정
               </button>
               <button type="button" className="service-text-link" onClick={onDelete}>
                 삭제
               </button>
+              </div>
             </div>
           ) : null}
         </div>

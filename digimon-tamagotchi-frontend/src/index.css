@@ -285,6 +285,41 @@
   gap: 0.2rem;
 }
 
+.community-meta-box {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  width: fit-content;
+  padding: 0.58rem 0.78rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(27, 44, 50, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(243, 248, 246, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.community-meta-box--author {
+  min-width: 7rem;
+}
+
+.community-meta-box--actions {
+  align-items: stretch;
+  min-width: 6.25rem;
+}
+
+.community-meta-box__label {
+  color: rgba(15, 23, 42, 0.48);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.community-meta-box__value {
+  color: var(--service-ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .community-post-card__header {
   justify-content: space-between;
 }
@@ -299,12 +334,6 @@
 .community-post-card__header h3 {
   font-size: 1.32rem;
   line-height: 1.2;
-}
-
-.community-post-card__author {
-  color: rgba(15, 23, 42, 0.58);
-  font-size: 0.86rem;
-  font-weight: 700;
 }
 
 .community-post-card__timestamp {
@@ -343,7 +372,39 @@
 
 .community-stats-panel__header {
   display: flex;
-  justify-content: flex-start;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.community-stats-panel__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.community-stats-panel__summary {
+  color: rgba(15, 23, 42, 0.58);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.community-stats-panel__toggle {
+  border: 1px solid rgba(46, 122, 96, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(18, 91, 69, 0.94);
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 0.48rem 0.82rem;
+  cursor: pointer;
+}
+
+.community-stats-panel__toggle:hover,
+.community-stats-panel__toggle:focus-visible {
+  border-color: rgba(46, 122, 96, 0.28);
+  background: rgba(232, 247, 240, 0.94);
 }
 
 .community-stats-grid {
@@ -832,6 +893,16 @@
 
   .community-inline-actions--stacked {
     align-items: flex-start;
+  }
+
+  .community-meta-box,
+  .community-meta-box--author,
+  .community-meta-box--actions {
+    width: 100%;
+  }
+
+  .community-stats-panel__header {
+    flex-direction: column;
   }
 
   .community-stats-grid {
