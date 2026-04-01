@@ -103,6 +103,10 @@ npm start
 
 현재 프로젝트는 `start`/`build` 시 `NODE_OPTIONS=--openssl-legacy-provider`를 사용합니다.
 
+커뮤니티 API(`/api/community/...`)까지 함께 확인하려면 `npm start` 단독 실행만으로는 부족할 수 있습니다.
+로컬에서 커뮤니티 글 작성/댓글까지 테스트할 때는 `vercel dev`를 사용하거나,
+프론트 `.env`에 `REACT_APP_COMMUNITY_API_BASE_URL`로 실제 API origin을 지정해야 합니다.
+
 ## Firestore Rules 배포
 
 Firestore Rules 기준 파일은 루트의 [firestore.rules](./firestore.rules) 입니다.

@@ -2619,3 +2619,56 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/components/ChatRoom.test.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
 - `docs/REFACTORING_LOG.md`
+
+### 커뮤니티 작성 모달 액션 위치 재정렬 및 Firestore 재조회 실패 폴백 추가
+
+- 커뮤니티 작성 모달의 상단 오른쪽 `닫기` 버튼을 다시 복원하고, 제출 액션은 하단 오른쪽 `자랑 글 올리기` 단일 버튼으로 정리했다.
+- `createShowcasePost` 요청은 기존 `slotId`, `title`, `body`에 더해 현재 작성 미리보기 스냅샷도 함께 보내도록 확장했다.
+- 프론트 커뮤니티 API 유틸은 실패 응답에서 `error.message`, 문자열 `error`, 일반 `message`, HTML 404 fallback까지 순서대로 해석해서 실제 원인 메시지를 더 잘 보여주도록 수정했다.
+- 서버 `createCommunityPost`는 여전히 Firestore 슬롯 재조회를 우선 사용하지만, 이 단계가 실패하면 클라이언트 preview snapshot을 허용 필드만 정규화해 `community_posts.snapshot`에 저장하는 폴백을 추가했다.
+- 테이머명도 Firestore 프로필 재조회 실패 시 토큰의 이름/이메일 prefix 기반 이름으로 폴백해, 작성 자체가 불필요하게 막히지 않도록 했다.
+- 로컬 개발 메모로 `npm start` 단독 실행만으로는 `/api/community/...`가 연결되지 않을 수 있으므로 `vercel dev` 또는 `REACT_APP_COMMUNITY_API_BASE_URL` 설정이 필요하다는 점을 README에 명시했다.
+- 관련 테스트를 보강해 preview snapshot 전송, 비정형 에러 메시지 파싱, 서버 재조회 성공/실패 폴백, 잘못된 snapshot 거부 시나리오를 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/community/CommunityDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.test.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `api/_lib/community.js`
+- `digimon-tamagotchi-frontend/api/_lib/community.js`
+- `tests/community-lib.test.js`
+- `README.md`
+- `docs/REFACTORING_LOG.md`
+
+### 커뮤니티 자랑 보드를 피드형 화면과 자동 스냅샷 카드 중심으로 재설계
+
+- `/community`를 소개 카드와 고정 상세 패널 중심 구조에서 벗어나, 상단 피드 헤더와 보드 탭, 단일 피드 리스트, 모달형 작성/상세 흐름으로 다시 정리했다.
+- `자랑하기`는 상시 노출 폼 대신 모달/모바일 풀시트 구조로 바꾸고, 슬롯 선택 시 현재 상태를 기준으로 한 대표 장면 카드 미리보기가 즉시 갱신되도록 구성했다.
+- 게시글 카드는 텍스트 칩 묶음 위주에서 벗어나 배경, 디지몬 스프라이트, 조명/수면/부상/배변 상태를 보여주는 `CommunitySnapshotScene` 중심 카드로 전환했다.
+- 게시글 상세도 별도 우측 패널 대신 모달로 열리게 바꾸고, 큰 스냅샷 장면, 본문, 요약 정보, 댓글 흐름을 한 컨텍스트 안에서 보게 만들었다.
+- 비로그인 상태에서는 같은 카드 UI로 샘플 피드를 둘러볼 수 있게 두고, 댓글 영역은 읽기 전용 안내로 바꿔 실제 운영 피드와 공개 미리보기의 톤을 맞췄다.
+- 클라이언트 커뮤니티 미리보기 유틸과 서버 커뮤니티 스냅샷 생성 로직이 같은 시각 필드(`spriteBasePath`, `spriteNumber`, `backgroundNumber`, `isLightsOn`, `sleepStatus`, `poopCount`, `isFrozen`, `isDead`, `isInjured`, `recordedAt`)를 사용하도록 정리했다.
+- 커뮤니티 전용 테스트를 추가해 스냅샷 시각 해석, 장면 렌더링, 공개/로그인 피드 분기, 작성 모달과 상세 모달 흐름을 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.test.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.test.js`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `api/_lib/community.js`
+- `digimon-tamagotchi-frontend/api/_lib/community.js`
+- `tests/community-lib.test.js`
+- `docs/REFACTORING_LOG.md`

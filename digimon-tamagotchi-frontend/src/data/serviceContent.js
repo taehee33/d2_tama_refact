@@ -26,7 +26,7 @@ export const newsHighlights = [
 ];
 
 export const newsRoadmap = [
-  "커뮤니티 게시판 및 자랑 피드 실제 데이터 연결",
+  "커뮤니티 자랑 피드와 자동 스냅샷 카드 연결",
   "운영 공지와 패치 노트 전용 컬렉션 설계",
   "지원 페이지 FAQ와 문의 경로 고도화",
 ];
@@ -35,19 +35,19 @@ export const communityBoards = [
   {
     id: "showcase",
     title: "내 디지몬 자랑",
-    description: "성장 기록, 대표 장면, 오늘의 상태 화면을 올리는 메인 피드",
-    status: "로그인 베타",
+    description: "대표 장면과 성장 로그를 올리는 메인 피드",
+    status: "피드형",
   },
   {
     id: "evolution-notes",
     title: "진화 노트",
-    description: "케어 미스, 훈련, 배틀 수와 진화 결과를 기록하는 데이터형 게시판",
+    description: "케어 미스와 진화 결과를 기록하는 데이터형 게시판",
     status: "기획 정리 중",
   },
   {
     id: "jogress",
     title: "조그레스 모집",
-    description: "온라인 파트너 모집과 방 생성 규칙을 연결하는 실시간 모집 보드",
+    description: "온라인 파트너 모집과 방 생성 규칙을 연결하는 실시간 보드",
     status: "실시간 연동 예정",
   },
 ];
@@ -63,6 +63,7 @@ export const communityShowcaseSamples = [
     snapshot: {
       slotName: "슬롯2",
       digimonDisplayName: "가루몬",
+      selectedDigimon: "Garurumon",
       stageLabel: "성숙기",
       version: "Ver.1",
       device: "Digital Monster Color 25th",
@@ -71,6 +72,16 @@ export const communityShowcaseSamples = [
       totalBattles: 10,
       totalBattlesWon: 7,
       winRate: 70,
+      visual: {
+        backgroundNumber: 162,
+        isLightsOn: true,
+        sleepStatus: "AWAKE",
+        poopCount: 1,
+        isFrozen: false,
+        isDead: false,
+        isInjured: false,
+        recordedAt: "2026-03-31T20:15:00.000Z",
+      },
     },
   },
   {
@@ -83,6 +94,7 @@ export const communityShowcaseSamples = [
     snapshot: {
       slotName: "슬롯1",
       digimonDisplayName: "코로몬",
+      selectedDigimon: "Koromon",
       stageLabel: "유년기 II",
       version: "Ver.2",
       device: "Digital Monster Color 25th",
@@ -91,6 +103,16 @@ export const communityShowcaseSamples = [
       totalBattles: 3,
       totalBattlesWon: 2,
       winRate: 67,
+      visual: {
+        backgroundNumber: 163,
+        isLightsOn: false,
+        sleepStatus: "SLEEPING",
+        poopCount: 0,
+        isFrozen: false,
+        isDead: false,
+        isInjured: false,
+        recordedAt: "2026-03-30T08:42:00.000Z",
+      },
     },
   },
   {
@@ -103,6 +125,7 @@ export const communityShowcaseSamples = [
     snapshot: {
       slotName: "슬롯4",
       digimonDisplayName: "가브몬",
+      selectedDigimon: "Gabumon",
       stageLabel: "성숙기",
       version: "Ver.1",
       device: "Digital Monster Color 25th",
@@ -111,14 +134,24 @@ export const communityShowcaseSamples = [
       totalBattles: 6,
       totalBattlesWon: 5,
       winRate: 83,
+      visual: {
+        backgroundNumber: 168,
+        isLightsOn: true,
+        sleepStatus: "TIRED",
+        poopCount: 6,
+        isFrozen: false,
+        isDead: false,
+        isInjured: false,
+        recordedAt: "2026-04-01T03:05:00.000Z",
+      },
     },
   },
 ];
 
 export const communityGuidelines = [
-  "스크린샷과 진화 기록은 슬롯 정보가 보이도록 함께 올리기",
-  "조그레스 모집 글은 버전, 목표 진화, 가능한 시간대를 함께 적기",
-  "배틀 결과와 케어 조건은 가능한 한 숫자 기준으로 적기",
+  "대표 장면은 슬롯명과 디지몬 이름이 함께 보이게 올리기",
+  "자랑 글에는 오늘 상태나 다음 목표를 한 줄 더 적기",
+  "조그레스 모집은 버전과 가능한 시간대를 함께 남기기",
 ];
 
 export const supportFaqs = [

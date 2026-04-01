@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mockAuthState = {
   currentUser: null,
@@ -63,6 +63,7 @@ describe("Community", () => {
     mockAuthState.currentUser = null;
     mockSlotsState.slots = [];
     mockSlotsState.loading = false;
+
     Object.values(communityApi).forEach((mockFn) => {
       if (typeof mockFn?.mockReset === "function") {
         mockFn.mockReset();
@@ -70,15 +71,16 @@ describe("Community", () => {
     });
   });
 
-  it("비로그인 상태에서는 샘플 피드만 보여 준다", () => {
+  it("비로그인 상태에서는 샘플 피드와 로그인 CTA를 보여 준다", () => {
     render(<Community />);
 
-    expect(screen.getByText("로그인 전에는 샘플 글만 볼 수 있습니다")).toBeInTheDocument();
+    expect(screen.getByText("내 디지몬 자랑 피드")).toBeInTheDocument();
     expect(screen.getByText("오늘은 배틀 승률 70%를 넘겼어요")).toBeInTheDocument();
-    expect(screen.queryByText("내 슬롯에서 글 만들기")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "로그인하고 자랑하기" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "자랑하기" })).not.toBeInTheDocument();
   });
 
-  it("로그인 상태에서는 실제 피드와 작성 패널을 보여 준다", async () => {
+  it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
       getIdToken: jest.fn().mockResolvedValue("token-123"),
@@ -92,10 +94,14 @@ describe("Community", () => {
         version: "Ver.1",
         device: "Digital Monster Color 25th",
         digimonStats: {
+          evolutionStage: "Child",
           weight: 12,
           careMistakes: 0,
           totalBattles: 4,
           totalBattlesWon: 3,
+          poopCount: 0,
+          isLightsOn: true,
+          sleepStatus: "AWAKE",
         },
       },
     ];
@@ -103,6 +109,7 @@ describe("Community", () => {
     communityApi.listShowcasePosts.mockResolvedValue([
       {
         id: "post-1",
+        slotId: "1",
         title: "서버에서 불러온 글",
         body: "실제 커뮤니티 글입니다.",
         authorUid: "user-1",
@@ -114,15 +121,28 @@ describe("Community", () => {
           digimonDisplayName: "코로몬",
           stageLabel: "성장기",
           version: "Ver.1",
+          device: "Digital Monster Color 25th",
           weight: 12,
           careMistakes: 0,
           winRate: 75,
+          visual: {
+            backgroundNumber: 162,
+            spriteBasePath: "/images",
+            spriteNumber: 6,
+            isLightsOn: true,
+            sleepStatus: "AWAKE",
+            poopCount: 0,
+            isFrozen: false,
+            isDead: false,
+            isInjured: false,
+          },
         },
       },
     ]);
     communityApi.getShowcasePostDetail.mockResolvedValue({
       post: {
         id: "post-1",
+        slotId: "1",
         title: "서버에서 불러온 글",
         body: "실제 커뮤니티 글입니다.",
         authorUid: "user-1",
@@ -134,9 +154,21 @@ describe("Community", () => {
           digimonDisplayName: "코로몬",
           stageLabel: "성장기",
           version: "Ver.1",
+          device: "Digital Monster Color 25th",
           weight: 12,
           careMistakes: 0,
           winRate: 75,
+          visual: {
+            backgroundNumber: 162,
+            spriteBasePath: "/images",
+            spriteNumber: 6,
+            isLightsOn: true,
+            sleepStatus: "AWAKE",
+            poopCount: 0,
+            isFrozen: false,
+            isDead: false,
+            isInjured: false,
+          },
         },
       },
       comments: [],
@@ -147,7 +179,95 @@ describe("Community", () => {
     await waitFor(() => {
       expect(screen.getByText("서버에서 불러온 글")).toBeInTheDocument();
     });
-    expect(screen.getByText("내 슬롯에서 글 만들기")).toBeInTheDocument();
-    expect(screen.getByText("게시글 상세")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
+    expect(screen.getByRole("dialog", { name: "내 디지몬 자랑" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "닫기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "자랑 글 올리기" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "댓글 1개 보기" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "서버에서 불러온 글" })).toBeInTheDocument();
+    });
+
+    expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(
+      mockAuthState.currentUser,
+      "post-1"
+    );
+  });
+
+  it("글 작성 시 현재 미리보기 스냅샷을 함께 전송한다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockSlotsState.slots = [
+      {
+        id: 2,
+        slotName: "슬롯2",
+        digimonDisplayName: "푸니몬",
+        selectedDigimon: "Punimon",
+        version: "Ver.2",
+        device: "Digital Monster Color 25th",
+        backgroundSettings: {
+          selectedId: "forest",
+          mode: "auto",
+        },
+        digimonStats: {
+          evolutionStage: "Baby1",
+          weight: 5,
+          careMistakes: 0,
+          totalBattles: 0,
+          totalBattlesWon: 0,
+          poopCount: 0,
+          isLightsOn: true,
+          sleepStatus: "AWAKE",
+        },
+      },
+    ];
+
+    communityApi.listShowcasePosts.mockResolvedValue([]);
+    communityApi.createShowcasePost.mockResolvedValue({
+      id: "post-2",
+    });
+
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
+
+    fireEvent.change(screen.getByLabelText("제목"), {
+      target: { value: "히히히" },
+    });
+    fireEvent.change(screen.getByLabelText("짧은 코멘트"), {
+      target: { value: "키킥" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "자랑 글 올리기" }));
+
+    await waitFor(() => {
+      expect(communityApi.createShowcasePost).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        expect.objectContaining({
+          slotId: "2",
+          title: "히히히",
+          body: "키킥",
+          snapshot: expect.objectContaining({
+            slotId: "2",
+            slotName: "슬롯2",
+            selectedDigimon: "Punimon",
+            digimonDisplayName: "푸니몬",
+            version: "Ver.2",
+            visual: expect.objectContaining({
+              backgroundNumber: expect.any(Number),
+              spriteBasePath: expect.any(String),
+              spriteNumber: expect.any(Number),
+            }),
+          }),
+        })
+      );
+    });
   });
 });
