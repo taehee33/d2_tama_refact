@@ -182,6 +182,7 @@ describe("Community", () => {
 
     expect(screen.getAllByText("제목").length).toBeGreaterThan(0);
     expect(screen.getAllByText("내용").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("디지몬 스탯").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
     expect(screen.getByRole("dialog", { name: "내 디지몬 자랑" })).toBeInTheDocument();
@@ -198,6 +199,7 @@ describe("Community", () => {
 
     expect(screen.getAllByText("제목").length).toBeGreaterThan(1);
     expect(screen.getAllByText("내용").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("디지몬 스탯").length).toBeGreaterThan(1);
 
     expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(
       mockAuthState.currentUser,

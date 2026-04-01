@@ -1,6 +1,7 @@
 import React from "react";
 import { formatTimestamp } from "../../utils/dateUtils";
 import CommunityDialog from "./CommunityDialog";
+import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
 import CommunitySnapshotScene from "./CommunitySnapshotScene";
 
 function CommunityPostDetailDialog({
@@ -49,50 +50,47 @@ function CommunityPostDetailDialog({
 
       {post ? (
         <div className="community-panel-stack">
-          <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
-
           <div className="community-detail-summary">
             <div className="community-post-card__meta">
-              <span className="service-badge service-badge--accent">내 디지몬 자랑</span>
-              <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
-              <span className="community-post-card__timestamp">
-                {formatTimestamp(post.createdAt, "long")}
-              </span>
-            </div>
+              <div className="community-post-card__meta-primary">
+                <span className="service-badge service-badge--accent">내 디지몬 자랑</span>
+                <span className="community-post-card__author">작성자 {post.authorTamerName}</span>
+              </div>
 
-            <div className="community-post-card__header">
-              <div className="community-post-card__content">
-                <section
-                  className="community-post-card__section community-post-card__section--title"
-                  aria-label="게시글 제목"
-                >
-                  <span className="community-post-card__section-label">제목</span>
-                  <h3 className="community-post-card__section-value community-post-card__section-value--title">
-                    {post.title}
-                  </h3>
-                </section>
-
-                <section
-                  className="community-post-card__section community-post-card__section--body"
-                  aria-label="게시글 내용"
-                >
-                  <span className="community-post-card__section-label">내용</span>
-                  <p className="community-post-card__body">
-                    {post.body || "작성된 코멘트가 없습니다."}
-                  </p>
-                </section>
+              <div className="community-post-card__meta-secondary">
+                <span className="community-post-card__timestamp">
+                  {formatTimestamp(post.createdAt, "long")}
+                </span>
               </div>
             </div>
 
-            <div className="community-snapshot-chip-list">
-              <span className="community-snapshot-chip">{post.snapshot?.slotName || "슬롯"}</span>
-              <span className="community-snapshot-chip">
-                {post.snapshot?.stageLabel || "단계 미상"}
-              </span>
-              <span className="community-snapshot-chip">{post.snapshot?.device || "기종 미상"}</span>
-              <span className="community-snapshot-chip">
-                승률 {post.snapshot?.winRate ?? 0}%
-              </span>
+            <div className="community-post-card__content">
+              <section
+                className="community-post-card__section community-post-card__section--title"
+                aria-label="게시글 제목"
+              >
+                <span className="community-post-card__section-label">제목</span>
+                <h3 className="community-post-card__section-value community-post-card__section-value--title">
+                  {post.title}
+                </h3>
+              </section>
+
+              <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
+
+              <CommunityPostStatsPanel
+                snapshot={post.snapshot}
+                commentCount={post.commentCount ?? comments.length}
+              />
+
+              <section
+                className="community-post-card__section community-post-card__section--body"
+                aria-label="게시글 내용"
+              >
+                <span className="community-post-card__section-label">내용</span>
+                <p className="community-post-card__body">
+                  {post.body || "작성된 코멘트가 없습니다."}
+                </p>
+              </section>
             </div>
           </div>
 
