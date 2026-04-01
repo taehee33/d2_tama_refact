@@ -2471,3 +2471,30 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 커뮤니티는 게시글/댓글 조회와 정렬이 많아질수록 Firestore 단독 운용보다 Postgres 계열이 장기적으로 관리하기 쉬우므로, 커뮤니티만 Supabase 축으로 분리하는 편이 확장성 면에서 유리하다.
 - 반대로 게임 상태와 슬롯은 이미 Firestore `users/{uid}/slots/{slotId}`를 source of truth로 사용하고 있으므로, 게시 시점 스냅샷도 서버에서 Firestore를 다시 읽어 생성해야 클라이언트 조작을 막고 데이터 일관성을 유지할 수 있다.
 - 실제 유저 커뮤니티를 공개 읽기로 바로 열기보다, 1차에서는 비로그인 사용자에게 샘플 공개 글만 보여주고 실데이터는 로그인 후에만 보이게 두는 편이 운영 리스크와 어뷰징 대응 면에서 더 안전하다.
+## 2026-04-01
+
+### 게임 데스크톱 상단 툴바를 문서 흐름으로 옮겨 헤더 중앙 가림 문제 수정
+
+- 데스크톱 기본 게임 화면에서 `플레이 허브 / 몰입형 플레이`와 `접속자 수 / 설정 / 프로필` 묶음이 `fixed`로 헤더를 덮고 있던 구조를 제거했다.
+- 상단 컨트롤을 `Game.jsx` 본문 상단의 전용 데스크톱 툴바로 재배치해서, 슬롯 제목·생성일·기종/버전·현재 시간이 다시 화면 중앙에서 안정적으로 보이게 맞췄다.
+- `.game-page-header--default`의 상단 패딩을 고정 버튼 회피용 값에서 일반 문서 흐름에 맞는 값으로 줄이고, 새 `.game-page-toolbar` 스타일을 추가했다.
+- 추가 확인 결과, 위 정렬 규칙이 `@media (max-width: 768px)` 안에 잘못 들어가 있어서 데스크톱에서 적용되지 않고 있었다. 관련 `game-page-*`와 `game-header-meta*` 규칙을 전역 스타일로 옮겨 실제 데스크톱 화면에도 적용되도록 바로잡았다.
+- 모바일 상단바와 몰입형 플레이 상단바는 그대로 유지해서 화면별 동작은 건드리지 않았다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 조명 상태 저장 경로 단일화 및 즉시 새로고침 복원 버그 수정
+
+- `useGameData.saveStats()`가 루트 전용 필드(`isLightsOn`, `wakeUntil`, `dailySleepMistake`)를 저장할 때 훅 클로저 상태 대신 `newStats`의 최신값을 우선 사용하도록 수정했다.
+- `useGameHandlers.handleToggleLights()`에서 `updatedStats.isLightsOn = next`를 명시적으로 포함시키고, 별도의 Firestore 직접 `updateDoc()`를 제거해 저장 경로를 `saveStats()` 한 곳으로 통일했다.
+- 이로써 `불 끄기 -> 즉시 새로고침` 시 루트 `slot.isLightsOn`이 예전 값으로 덮여 복원되지 않던 레이스를 막았다.
+- `useGameData` 루트 필드 해석 테스트와 `useGameHandlers` 조명 토글 회귀 테스트를 추가했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`

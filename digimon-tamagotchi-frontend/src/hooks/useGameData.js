@@ -63,6 +63,27 @@ function cleanObject(obj) {
 }
 
 /**
+ * 슬롯 루트 전용 상태 필드 해석
+ * newStats에 최신 값이 들어오면 그 값을 우선 사용하고, 없으면 현재 훅 상태를 fallback으로 사용합니다.
+ *
+ * @param {Object} newStats
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }} currentRootState
+ * @returns {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }}
+ */
+export function resolveRootSlotFields(newStats = {}, currentRootState = {}) {
+  return {
+    isLightsOn:
+      newStats.isLightsOn !== undefined ? newStats.isLightsOn : currentRootState.isLightsOn,
+    wakeUntil:
+      newStats.wakeUntil !== undefined ? newStats.wakeUntil : (currentRootState.wakeUntil ?? null),
+    dailySleepMistake:
+      typeof newStats.dailySleepMistake === "boolean"
+        ? newStats.dailySleepMistake
+        : Boolean(currentRootState.dailySleepMistake),
+  };
+}
+
+/**
  * useGameData Hook
  * 데이터 저장/로딩 로직을 담당하는 Custom Hook
  * 
@@ -222,6 +243,11 @@ export function useGameData({
       digimonStats?.selectedDigimon ||
       selectedDigimon ||
       null;
+    const rootSlotFields = resolveRootSlotFields(newStats, {
+      isLightsOn,
+      wakeUntil,
+      dailySleepMistake,
+    });
 
     const finalStats = {
       ...mergedStats,
@@ -238,9 +264,7 @@ export function useGameData({
         lastMaxPoopTime: null,
       } : {}),
       activityLogs: finalLogs, // activityLogs를 finalStats에 포함
-      isLightsOn,
-      wakeUntil,
-      dailySleepMistake,
+      ...rootSlotFields,
       lastSavedAt: now,
     };
     
@@ -281,8 +305,7 @@ export function useGameData({
         } = statsForState;
         const updateData = {
           digimonStats: cleanObject(digimonStatsOnly),
-          isLightsOn,
-          wakeUntil,
+          ...rootSlotFields,
           lastSavedAt: statsForState.lastSavedAt,
           updatedAt: now,
         };

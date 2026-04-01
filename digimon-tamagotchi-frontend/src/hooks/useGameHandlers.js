@@ -1,8 +1,6 @@
 // src/hooks/useGameHandlers.js
 // Game.jsx의 이벤트 핸들러와 인증 로직을 분리한 Custom Hook
 
-import { doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
 import { resetCallStatus, addActivityLog } from "./useGameLogic";
 import {
   isTimeWithinSleepSchedule,
@@ -39,6 +37,50 @@ export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => 
 export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
   return isTimeWithinSleepSchedule(schedule, nowDate);
 };
+
+/**
+ * 조명 토글 후 저장할 스탯 계산
+ * @param {Object} params
+ * @param {Object} params.digimonStats
+ * @param {boolean} params.next
+ * @param {string} params.selectedDigimon
+ * @param {Object} params.digimonDataVer1
+ * @param {number} [params.nowMs]
+ * @param {Date} [params.nowDate]
+ * @returns {Object}
+ */
+export function buildToggledLightsStats({
+  digimonStats,
+  next,
+  selectedDigimon,
+  digimonDataVer1,
+  nowMs = Date.now(),
+  nowDate = new Date(),
+}) {
+  let updatedStats = {
+    ...digimonStats,
+    isLightsOn: next,
+  };
+
+  if (!next) {
+    updatedStats = resetCallStatus(updatedStats, "sleep");
+    updatedStats.fastSleepStart = nowMs;
+
+    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats);
+    const isSleepTime = isWithinSleepSchedule(schedule, nowDate);
+
+    if (!isSleepTime) {
+      updatedStats.napUntil = nowMs + (15 * 1000) + (3 * 60 * 60 * 1000);
+    } else {
+      updatedStats.napUntil = null;
+    }
+  } else {
+    updatedStats.fastSleepStart = null;
+    updatedStats.napUntil = null;
+  }
+
+  return updatedStats;
+}
 
 /**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트 (현재 사용되지 않음)
@@ -268,32 +310,12 @@ export function useGameHandlers({
   const handleToggleLights = async () => {
     const next = !isLightsOn;
     setIsLightsOn(next);
-    // 호출 해제: 불이 꺼지면 sleep 호출 리셋
-    let updatedStats = { ...digimonStats };
-    if (!next) {
-      updatedStats = resetCallStatus(updatedStats, 'sleep');
-      // 불을 껐을 때 빠른 잠들기 시작 시점 기록 (수면 방해 중이든 아니든)
-      updatedStats.fastSleepStart = Date.now();
-      
-      // 디버깅: 콘솔에 출력
-      console.log('[handleToggleLights] fastSleepStart 설정:', updatedStats.fastSleepStart);
-      
-      // 수면 시간이 아니면 낮잠 예약
-      const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats);
-      const isSleepTime = isWithinSleepSchedule(schedule, new Date());
-      
-      if (!isSleepTime) {
-        // 낮잠 예약: 15초 대기 후 3시간
-        // 실제 낮잠 시작은 15초 후이므로, 그 시점부터 3시간
-        updatedStats.napUntil = Date.now() + (15 * 1000) + (3 * 60 * 60 * 1000);
-      } else {
-        updatedStats.napUntil = null; // 정규 수면 시간에는 낮잠 없음
-      }
-    } else {
-      // 불을 켜면 빠른 잠들기 시점 및 낮잠 리셋
-      updatedStats.fastSleepStart = null;
-      updatedStats.napUntil = null; // 불 켜면 낮잠 종료
-    }
+    const updatedStats = buildToggledLightsStats({
+      digimonStats,
+      next,
+      selectedDigimon,
+      digimonDataVer1,
+    });
     
     const currentLogs = updatedStats.activityLogs || [];
     const logText = next ? "Lights: ON" : "Lights: OFF";
@@ -301,24 +323,6 @@ export function useGameHandlers({
     updatedStats.activityLogs = updatedLogs;
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
-    
-    // 디버깅: 저장 후 확인
-    console.log('[handleToggleLights] 저장 후 fastSleepStart:', updatedStats.fastSleepStart);
-    
-    // isLightsOn 상태를 명시적으로 저장 (Firestore)
-    // setIsLightsOn은 비동기이므로, saveStats가 이전 값을 사용할 수 있음
-    // 따라서 별도로 isLightsOn을 저장해야 함
-    if (slotId && currentUser) {
-      try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await updateDoc(slotRef, {
-          isLightsOn: next,
-          updatedAt: new Date(),
-        });
-      } catch (error) {
-        console.error("조명 상태 저장 오류 (Firestore):", error);
-      }
-    }
   };
 
   /**

@@ -1760,162 +1760,161 @@ async function setSelectedDigimonAndSave(name) {
             </div>
           )}
         </div>
-      ) : (
-        <>
-          {/* 데스크톱: 기존 레이아웃 */}
-          {/* 왼쪽 상단 UI 컨테이너 */}
-          <div className="fixed top-4 left-4 z-50 flex items-center gap-2">
-            <button
-              onClick={()=> navigate("/play")}
-              className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-            >
-              ← 플레이 허브
-            </button>
-            <button
-              onClick={() => navigate(`/play/${slotId}/full`)}
-              className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
-            >
-              몰입형 플레이
-            </button>
-          </div>
+      ) : null}
 
-          {/* 우측 상단 UI 컨테이너 (접속자 수 + Settings + 프로필) */}
-          <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
-            {/* 접속 중인 테이머 수 */}
-            <OnlineUsersCount />
-            
-            {/* Settings 버튼 */}
-            <button
-              onClick={() => toggleModal('settings', true)}
-              className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-              title="설정"
-            >
-              ⚙️
-            </button>
-            {/* 프로필 UI - 드롭다운 메뉴 */}
-            {isFirebaseAvailable && currentUser ? (
-              <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
-                >
-                  {currentUser.photoURL ? (
-                    <img
-                      src={currentUser.photoURL}
-                      alt="프로필"
-                      className="w-8 h-8 rounded-full"
-                    />
-                  ) : (
-                    <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
-                      {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
+      <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>
+        {!isImmersive && !isMobile && (
+          <div className="game-page-toolbar">
+            <div className="game-page-toolbar__actions">
+              <button
+                onClick={() => navigate("/play")}
+                className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+              >
+                ← 플레이 허브
+              </button>
+              <button
+                onClick={() => navigate(`/play/${slotId}/full`)}
+                className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
+              >
+                몰입형 플레이
+              </button>
+            </div>
+
+            <div className="game-page-toolbar__utilities">
+              <OnlineUsersCount />
+
+              <button
+                onClick={() => toggleModal('settings', true)}
+                className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+                title="설정"
+              >
+                ⚙️
+              </button>
+
+              {isFirebaseAvailable && currentUser ? (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProfileMenu(!showProfileMenu)}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
+                  >
+                    {currentUser.photoURL ? (
+                      <img
+                        src={currentUser.photoURL}
+                        alt="프로필"
+                        className="w-8 h-8 rounded-full"
+                      />
+                    ) : (
+                      <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
+                        {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
+                      </span>
+                    )}
+                    <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
+                      <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
+                      {hasVer1Master && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
+                      )}
+                      {hasVer2Master && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
+                      )}
                     </span>
-                  )}
-                  <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
-                    <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                    {hasVer1Master && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
-                    )}
-                    {hasVer2Master && (
-                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
-                    )}
-                  </span>
-                  <span className="text-xs text-gray-500">▼</span>
-                </button>
-                
-                {/* 드롭다운 메뉴 */}
-                {showProfileMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowProfileMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
-                      <div className="px-3 py-2 border-b border-gray-200">
-                        <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
-                          <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                          {hasVer1Master && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
-                          )}
-                          {hasVer2Master && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {currentUser.email}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setShowProfileMenu(false);
-                          setShowAccountSettingsModal(true);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
-                      >
-                        계정 설정/로그아웃
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : null}
-            {!isFirebaseAvailable && (
-              <span className="text-sm text-gray-500">Firebase 미설정</span>
-            )}
-          </div>
-        </>
-      )}
+                    <span className="text-xs text-gray-500">▼</span>
+                  </button>
 
-      <div className={gameHeaderClassName}>
-        <h2 className="text-base font-bold">
-          슬롯 {slotId} - {(() => {
-            const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
-            const baseName = digimonName; // 한글명 또는 ID만 (버전 안 붙임)
-            if (digimonNickname && digimonNickname.trim()) {
-              return `${digimonNickname}(${baseName})`;
-            }
-            return baseName;
-          })()}
-          {digimonStats.isFrozen && (
-            <span className="ml-2 text-blue-600">🧊 냉장고</span>
-          )}
-        </h2>
-        <GameHeaderMeta
-          slotName={slotName}
-          slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
-          slotDevice={slotDevice}
-          slotVersion={slotVersion}
-          currentTimeText={currentTimeText}
-        />
-        {/* 상태 하트 표시 (시계 아래) */}
-        <div className="mt-2 flex flex-col items-center gap-2">
-          <StatusHearts
-            fullness={digimonStats.fullness || 0}
-            strength={digimonStats.strength || 0}
-            maxOverfeed={digimonStats.maxOverfeed || 0}
-            proteinOverdose={digimonStats.proteinOverdose || 0}
-            showLabels={true}
-            size="sm"
-            position="inline"
-            isFrozen={digimonStats.isFrozen || false}
+                  {showProfileMenu && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowProfileMenu(false)}
+                      />
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
+                        <div className="px-3 py-2 border-b border-gray-200">
+                          <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
+                            <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                            {hasVer1Master && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
+                            )}
+                            {hasVer2Master && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {currentUser.email}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowProfileMenu(false);
+                            setShowAccountSettingsModal(true);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
+                        >
+                          계정 설정/로그아웃
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
+
+              {!isFirebaseAvailable && (
+                <span className="text-sm text-gray-500">Firebase 미설정</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className={gameHeaderClassName}>
+          <h2 className="text-base font-bold">
+            슬롯 {slotId} - {(() => {
+              const digimonName = evolutionDataForSlot[selectedDigimon]?.name || selectedDigimon;
+              const baseName = digimonName; // 한글명 또는 ID만 (버전 안 붙임)
+              if (digimonNickname && digimonNickname.trim()) {
+                return `${digimonNickname}(${baseName})`;
+              }
+              return baseName;
+            })()}
+            {digimonStats.isFrozen && (
+              <span className="ml-2 text-blue-600">🧊 냉장고</span>
+            )}
+          </h2>
+          <GameHeaderMeta
+            slotName={slotName}
+            slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
+            slotDevice={slotDevice}
+            slotVersion={slotVersion}
+            currentTimeText={currentTimeText}
           />
-          {/* 디지몬 상태 배지 표시 */}
-          <DigimonStatusBadges
-            digimonStats={digimonStats}
-            sleepStatus={sleepStatus}
-            isDead={digimonStats.isDead}
-            currentAnimation={currentAnimation}
-            feedType={feedType}
-            canEvolve={isEvoEnabled}
-            sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataForSlot, digimonStats)}
-            wakeUntil={wakeUntil}
-            sleepLightOnStart={digimonStats.sleepLightOnStart || null}
-            deathReason={deathReason}
-            onOpenStatusDetail={(messages) => {
-              // 상태 상세 모달을 열기 위해 임시로 상태 저장
-              setStatusDetailMessages(messages);
-              toggleModal('statusDetail', true);
-            }}
-          />
+          {/* 상태 하트 표시 (시계 아래) */}
+          <div className="mt-2 flex flex-col items-center gap-2">
+            <StatusHearts
+              fullness={digimonStats.fullness || 0}
+              strength={digimonStats.strength || 0}
+              maxOverfeed={digimonStats.maxOverfeed || 0}
+              proteinOverdose={digimonStats.proteinOverdose || 0}
+              showLabels={true}
+              size="sm"
+              position="inline"
+              isFrozen={digimonStats.isFrozen || false}
+            />
+            {/* 디지몬 상태 배지 표시 */}
+            <DigimonStatusBadges
+              digimonStats={digimonStats}
+              sleepStatus={sleepStatus}
+              isDead={digimonStats.isDead}
+              currentAnimation={currentAnimation}
+              feedType={feedType}
+              canEvolve={isEvoEnabled}
+              sleepSchedule={getSleepSchedule(selectedDigimon, digimonDataForSlot, digimonStats)}
+              wakeUntil={wakeUntil}
+              sleepLightOnStart={digimonStats.sleepLightOnStart || null}
+              deathReason={deathReason}
+              onOpenStatusDetail={(messages) => {
+                // 상태 상세 모달을 열기 위해 임시로 상태 저장
+                setStatusDetailMessages(messages);
+                toggleModal('statusDetail', true);
+              }}
+            />
+          </div>
         </div>
       </div>
       <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
