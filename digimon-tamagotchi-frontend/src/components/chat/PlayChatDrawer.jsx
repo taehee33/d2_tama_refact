@@ -10,15 +10,8 @@ function PlayChatDrawer() {
     isChatOpen,
     setIsChatOpen,
     unreadCount,
-    clearUnreadCount,
     presenceCount,
   } = usePresenceContext();
-
-  useEffect(() => {
-    if (isChatOpen) {
-      clearUnreadCount();
-    }
-  }, [clearUnreadCount, isChatOpen]);
 
   useEffect(() => {
     return () => {

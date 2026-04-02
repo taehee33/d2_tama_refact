@@ -4,8 +4,10 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import * as Ably from 'ably';
 import { AblyProvider } from 'ably/react';
+import { isChatCursorNewer, normalizeChatCursor } from '../utils/chatUnreadUtils';
 
 const AblyContext = createContext(null);
+const LAST_READ_STORAGE_PREFIX = 'tamer-lobby:last-read:';
 
 export const useAblyContext = () => {
   const context = useContext(AblyContext);
@@ -18,6 +20,8 @@ const PresenceContext = createContext({
   presenceCount: 0,
   unreadCount: 0,
   setUnreadCount: () => {},
+  lastReadCursor: null,
+  markChatRead: () => {},
   isChatOpen: false,
   setIsChatOpen: () => {},
   clearUnreadCount: () => {},
@@ -31,6 +35,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   const [ablyClient, setAblyClient] = useState(null);
   const [presenceData, setPresenceData] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [lastReadCursor, setLastReadCursor] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const clientRef = useRef(null);
   const cleanupTimeoutRef = useRef(null);
@@ -48,6 +53,58 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     }
     return null;
   }, [tamerName]);
+  const lastReadStorageKey = useMemo(() => {
+    if (!clientId) {
+      return null;
+    }
+
+    return `${LAST_READ_STORAGE_PREFIX}${clientId}`;
+  }, [clientId]);
+
+  useEffect(() => {
+    if (!clientId || !lastReadStorageKey) {
+      setLastReadCursor(null);
+      setUnreadCount(0);
+      return;
+    }
+
+    try {
+      const raw =
+        typeof window !== 'undefined' && window.localStorage
+          ? window.localStorage.getItem(lastReadStorageKey)
+          : null;
+      const parsed = raw ? JSON.parse(raw) : null;
+      setLastReadCursor(normalizeChatCursor(parsed));
+    } catch (error) {
+      console.warn('채팅 읽음 커서 로드 실패:', error);
+      setLastReadCursor(null);
+    }
+
+    setUnreadCount(0);
+  }, [clientId, lastReadStorageKey]);
+
+  const markChatRead = (cursor) => {
+    const normalizedCursor = normalizeChatCursor(cursor);
+    if (!normalizedCursor) {
+      return;
+    }
+
+    setLastReadCursor((currentCursor) => {
+      if (!isChatCursorNewer(normalizedCursor, currentCursor)) {
+        return currentCursor;
+      }
+
+      if (lastReadStorageKey && typeof window !== 'undefined' && window.localStorage) {
+        try {
+          window.localStorage.setItem(lastReadStorageKey, JSON.stringify(normalizedCursor));
+        } catch (error) {
+          console.warn('채팅 읽음 커서 저장 실패:', error);
+        }
+      }
+
+      return normalizedCursor;
+    });
+  };
 
   useEffect(() => {
     const ablyKey = process.env.REACT_APP_ABLY_KEY;
@@ -69,6 +126,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
       setAblyClient(null);
       setPresenceData([]);
       setUnreadCount(0);
+      setLastReadCursor(null);
       setIsChatOpen(false);
       return;
     }
@@ -398,6 +456,8 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           presenceCount: presenceData.length,
           unreadCount,
           setUnreadCount,
+          lastReadCursor,
+          markChatRead,
           isChatOpen,
           setIsChatOpen,
           clearUnreadCount,
@@ -420,6 +480,8 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           presenceCount: presenceData.length,
           unreadCount,
           setUnreadCount,
+          lastReadCursor,
+          markChatRead,
           isChatOpen,
           setIsChatOpen,
           clearUnreadCount,

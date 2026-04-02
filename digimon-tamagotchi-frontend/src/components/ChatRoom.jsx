@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from '../supabase';
 import { getDeviceHint, getPresenceDisplayName, getDeviceIndex, formatDeviceSuffix } from '../utils/presenceUtils';
 import { formatTimestamp } from '../utils/dateUtils';
 import { usePresenceContext } from '../contexts/AblyContext';
+import { getLatestReadableCursor, getUnreadChatCount } from '../utils/chatUnreadUtils';
 
 const CHANNEL_NAME = 'tamer-lobby';
 const MAX_MESSAGES = 200; // 최신 200개 메시지 유지 (48시간 내)
@@ -203,11 +204,21 @@ const ChatRoomWithConnectionCheck = ({ variant = 'community' }) => {
 
 export const ChatRoom = ({ variant = 'community' }) => {
   const { currentUser } = useAuth();
-  const { isChatOpen, setIsChatOpen, unreadCount, setUnreadCount, clearUnreadCount } = usePresenceContext();
+  const {
+    isChatOpen,
+    setIsChatOpen,
+    unreadCount,
+    setUnreadCount,
+    lastReadCursor,
+    markChatRead,
+  } = usePresenceContext();
   const [messageText, setMessageText] = useState('');
   const [chatLog, setChatLog] = useState([]);
   const [presenceStatus, setPresenceStatus] = useState('online'); // online, away, offline
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
+  );
   const chatBoxRef = useRef(null);
   const chatContainerRef = useRef(null);
   const historyLoadedRef = useRef(false); // 히스토리 로드 여부 추적
@@ -227,9 +238,6 @@ export const ChatRoom = ({ variant = 'community' }) => {
   useEffect(() => {
     if (isDrawerVariant) {
       isChatOpenRef.current = isChatOpen;
-      if (isChatOpen) {
-        clearUnreadCount();
-      }
       return undefined;
     }
 
@@ -242,11 +250,6 @@ export const ChatRoom = ({ variant = 'community' }) => {
         console.log('📱 ChatRoom 가시성 변경:', isVisible ? '보임' : '숨김');
         isChatOpenRef.current = isVisible; // ref 업데이트
         setIsChatOpen(isVisible);
-        // 채팅창이 보이면 읽지 않은 메시지 수 초기화
-        if (isVisible) {
-          console.log('✅ 채팅창이 보임 - 알림 초기화');
-          clearUnreadCount();
-        }
       },
       {
         threshold: 0.1, // 10% 이상 보이면 "열려있다"고 간주
@@ -259,7 +262,22 @@ export const ChatRoom = ({ variant = 'community' }) => {
     return () => {
       observer.unobserve(observedNode);
     };
-  }, [clearUnreadCount, isChatOpen, isDrawerVariant, setIsChatOpen]);
+  }, [isChatOpen, isDrawerVariant, setIsChatOpen]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') {
+      return undefined;
+    }
+
+    const handleVisibilityChange = () => {
+      setIsDocumentVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // unreadCount 디버깅
   useEffect(() => {
@@ -328,20 +346,6 @@ export const ChatRoom = ({ variant = 'community' }) => {
         processedMessageIdsRef.current.delete(firstId);
       }
 
-      // 채팅창이 닫혀있을 때만 읽지 않은 메시지 수 증가
-      // 자신이 보낸 메시지는 제외 (clientId 비교)
-      const isOwnMessage = user === (ably?.auth?.clientId || 'Unknown');
-      // ref를 사용하여 최신 isChatOpen 상태 확인 (클로저 문제 해결)
-      if (!isChatOpenRef.current && !isOwnMessage) {
-        setUnreadCount((prev) => {
-          const newCount = prev + 1;
-          console.log('🔔 새 메시지 수신 - 알림 카운트:', prev, '→', newCount, '| isChatOpen:', isChatOpenRef.current, '| isOwnMessage:', isOwnMessage);
-          return newCount;
-        });
-      } else {
-        console.log('🔔 새 메시지 수신 - 알림 카운트 증가 안함 | isChatOpen:', isChatOpenRef.current, '| isOwnMessage:', isOwnMessage);
-      }
-
       setChatLog((prev) => {
         if (prev.some(m => m.id === messageId)) return prev;
         const newMessage = {
@@ -402,7 +406,7 @@ export const ChatRoom = ({ variant = 'community' }) => {
         }
       }
     };
-  }, [ably, channel, setUnreadCount]);
+  }, [ably, channel]);
 
   // 5. 초기 히스토리 로드 (Supabase, 48h / 200건)
   useEffect(() => {
@@ -494,6 +498,40 @@ export const ChatRoom = ({ variant = 'community' }) => {
       chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
     }
   }, [chatLog]);
+
+  useEffect(() => {
+    const ownClientId = ably?.auth?.clientId || null;
+    const nextUnreadCount = getUnreadChatCount(chatLog, lastReadCursor, ownClientId);
+    setUnreadCount((currentCount) =>
+      currentCount === nextUnreadCount ? currentCount : nextUnreadCount
+    );
+  }, [ably, chatLog, lastReadCursor, setUnreadCount]);
+
+  useEffect(() => {
+    if (isLoadingHistory || lastReadCursor) {
+      return;
+    }
+
+    const latestCursor = getLatestReadableCursor(chatLog);
+    if (!latestCursor) {
+      return;
+    }
+
+    markChatRead(latestCursor);
+  }, [chatLog, isLoadingHistory, lastReadCursor, markChatRead]);
+
+  useEffect(() => {
+    if (isLoadingHistory || !isChatOpen || !isDocumentVisible) {
+      return;
+    }
+
+    const latestCursor = getLatestReadableCursor(chatLog);
+    if (!latestCursor) {
+      return;
+    }
+
+    markChatRead(latestCursor);
+  }, [chatLog, isChatOpen, isDocumentVisible, isLoadingHistory, markChatRead]);
 
   // Presence 데이터 변경 감지 및 디버깅
   useEffect(() => {

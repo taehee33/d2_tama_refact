@@ -4,6 +4,41 @@
 
 ---
 
+## [2026-04-01] Supabase log archive API를 배포 루트로 정렬
+
+### 작업 유형
+- 🚚 Vercel 배포 루트 기준 API 경로 정렬
+- 📦 log archive 서버 핸들러 배포 트리 추가
+- 📘 Supabase archive 운영 적용 순서 문서화
+
+### 목적 및 영향
+- **목적:** `digimon-tamagotchi-frontend`를 Vercel `rootDirectory`로 쓰는 현재 배포 구조에서, 새 `/api/logs/*` archive 엔드포인트가 실제 Preview/Prod 배포 결과물에 포함되도록 맞춘다.
+- **범위:** log archive API와 공용 `_lib`를 프론트엔드 배포 트리 아래로 추가하고, Supabase SQL 적용/Preview/Prod 검증 순서를 README에 문서화한다.
+- **내용:**
+  - `digimon-tamagotchi-frontend/api/_lib/logArchives.js`, `logArchiveHandlers.js`를 추가해 Supabase archive 입력 검증과 권한 검사를 기존 community API와 같은 배포 루트에서 처리하도록 맞췄다.
+  - `digimon-tamagotchi-frontend/api/logs/arena-battles/archive.js`, `[archiveId]/replay.js`, `jogress/archive.js`를 추가해 아레나 archive 저장, replay 조회, 조그레스 archive 저장 경로가 실제 Vercel 함수로 배포되도록 정렬했다.
+  - `README.md`에 `20260402_log_archives.sql` 수동 적용, Preview 후 Prod 배포, 필수 환경변수와 dual-write 단계 범위를 함께 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/logArchives.js` (신규)
+- `digimon-tamagotchi-frontend/api/_lib/logArchiveHandlers.js` (신규)
+- `digimon-tamagotchi-frontend/api/logs/arena-battles/archive.js` (신규)
+- `digimon-tamagotchi-frontend/api/logs/arena-battles/[archiveId]/replay.js` (신규)
+- `digimon-tamagotchi-frontend/api/logs/jogress/archive.js` (신규)
+- `README.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/logArchiveHandlers.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/logArchiveApi.test.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- Vercel `rootDirectory`를 바꾸지 않고, 새 archive API를 `digimon-tamagotchi-frontend/api` 아래로 맞추는 것을 기본 배포 경계로 유지한다.
+- 이번 배포는 archive 추가와 replay 연결까지만 포함하며, Firestore slimming 단계는 다음 라운드로 분리한다.
+
+---
+
 ## [2026-04-01] 테이머명 self-match 중복 확인 UX 정리
 
 ### 작업 유형
@@ -2576,6 +2611,52 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 실제 유저 커뮤니티를 공개 읽기로 바로 열기보다, 1차에서는 비로그인 사용자에게 샘플 공개 글만 보여주고 실데이터는 로그인 후에만 보이게 두는 편이 운영 리스크와 어뷰징 대응 면에서 더 안전하다.
 ## 2026-04-01
 
+### Firestore 활동 로그 저장 정책 축소로 반복 write 1차 절감
+
+- `useGameData.appendLogToSubcollection()`에 Firestore 영구 저장 정책을 추가해, 반복성 높은 일반 액션 로그는 더 이상 `logs` 서브컬렉션에 쓰지 않도록 정리했다.
+- 이번 1차 절감에서는 `FEED`, `TRAIN`, `CLEAN`, `ACTION`, `DIET`, `REST`, `DETOX`, `PLAY_OR_SNACK`처럼 사용자가 자주 발생시키는 일반 활동 로그를 세션 메모리에서만 유지하고, `CALL`, `CAREMISTAKE`, `SLEEP_DISTURBANCE`, `POOP`, `HEAL`, `EVOLUTION`, `DEATH`, `FRIDGE` 등 핵심 이력만 Firestore에 남기도록 고정했다.
+- 이로써 슬롯 상태 저장 write는 유지하되, 활동 로그 서브컬렉션 addDoc 빈도를 가장 잦은 일반 상호작용 구간에서 바로 줄일 수 있게 됐다.
+- 정책은 별도 순수 유틸로 분리해 테스트 가능하게 만들었고, 이후 2차 단계에서 `arena_battle_logs`·`jogress_logs`의 Supabase 이관 여부를 같은 기준으로 확장할 수 있게 했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아레나/조그레스 로그 Supabase archive 2차 이관 경로 추가
+
+- `arena_battle_logs`와 `jogress_logs`를 한 번에 떼어내지 않고, 먼저 `Supabase archive`로 병행 저장하는 2차 이관 경로를 추가했다.
+- 프론트에는 `logArchiveApi`를 추가해 `Firebase ID 토큰 -> Vercel API` 경로로 아카이브를 기록하고 조회하게 했고, 아레나 배틀 저장 시 `archiveId`를 클라이언트에서 먼저 만들어 Firestore 요약 로그와 Supabase 상세 로그가 같은 키를 공유하게 맞췄다.
+- 아레나 배틀은 아직 검증 단계라 Firestore `arena_battle_logs.logs`를 유지하면서 Supabase에도 `replayLogs`를 같이 저장하는 dual-write로 두었고, `ArenaScreen`의 다시보기는 `archiveId`가 있으면 API를 우선 조회하고 실패 시 기존 Firestore 상세 로그로 fallback 하도록 바꿨다.
+- 조그레스는 읽는 UI가 없으므로 `jogress_logs`도 `archiveId`를 공유해 Firestore + Supabase dual-write를 붙였고, 이후 검증이 끝나면 Firestore 쓰기를 끊을 수 있게 helper로 경로를 묶었다.
+- 서버 쪽은 기존 커뮤니티 패턴을 재사용해 `Firebase 인증 -> Vercel API -> Supabase service-role` 구조의 로그 archive 핸들러와 SQL migration을 추가했다.
+- 추가 확인 결과, Vercel `rootDirectory`가 `digimon-tamagotchi-frontend`라서 새 `/api/logs/*` 엔드포인트가 루트 `api/`에만 있으면 실제 배포에 포함되지 않을 수 있었다. 이를 막기 위해 배포용 source-of-truth를 `digimon-tamagotchi-frontend/api/logs/...`와 `digimon-tamagotchi-frontend/api/_lib/logArchive*.js`로 편입시키고, 루트 `api/` 경로는 테스트 호환용 shim으로 정리했다.
+- 후속 운영 점검에서 POST 엔드포인트 두 개가 `_lib` 상대 경로를 한 단계 더 잘못 올라가고 있던 문제를 발견해 `../../_lib/logArchiveHandlers`로 수정했고, 배포 루트 기준 entrypoint가 실제로 `require()` 가능한지 확인하는 Node 테스트도 추가했다.
+- SQL 적용과 Preview/Prod 검증 순서는 별도 운영 문서 `docs/SUPABASE_LOG_ARCHIVE_ROLLOUT.md`로 정리해, 실제 롤아웃 시 `배포 경로 정합성 -> SQL 수동 적용 -> Preview 스모크 -> Prod 반영` 순서를 그대로 따를 수 있게 맞췄다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/utils/logArchiveApi.js`
+- `digimon-tamagotchi-frontend/src/utils/logArchiveApi.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/api/_lib/logArchives.js`
+- `digimon-tamagotchi-frontend/api/_lib/logArchiveHandlers.js`
+- `digimon-tamagotchi-frontend/api/logs/arena-battles/archive.js`
+- `digimon-tamagotchi-frontend/api/logs/arena-battles/[archiveId]/replay.js`
+- `digimon-tamagotchi-frontend/api/logs/jogress/archive.js`
+- `api/_lib/logArchives.js`
+- `api/_lib/logArchiveHandlers.js`
+- `api/_lib/logArchiveHandlers.test.js`
+- `api/logs/arena-battles/archive.js`
+- `api/logs/arena-battles/[archiveId]/replay.js`
+- `api/logs/jogress/archive.js`
+- `supabase/migrations/20260402_log_archives.sql`
+- `tests/log-archive-entrypoints.test.js`
+- `docs/SUPABASE_LOG_ARCHIVE_ROLLOUT.md`
+- `docs/REFACTORING_LOG.md`
+
 ### 게임 데스크톱 상단 툴바를 문서 흐름으로 옮겨 헤더 중앙 가림 문제 수정
 
 - 데스크톱 기본 게임 화면에서 `플레이 허브 / 몰입형 플레이`와 `접속자 수 / 설정 / 프로필` 묶음이 `fixed`로 헤더를 덮고 있던 구조를 제거했다.
@@ -2618,6 +2699,29 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/components/ChatRoom.jsx`
 - `digimon-tamagotchi-frontend/src/components/ChatRoom.test.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+## 2026-04-02
+
+### 플레이 채팅 미읽음 수를 마지막 읽은 메시지 기준으로 전환
+
+- `unreadCount` 를 `채팅창이 닫혀 있을 때 새 메시지마다 +1` 하던 방식에서, `lastReadCursor` 와 현재 `chatLog` 를 비교해 파생 계산하는 방식으로 바꿨다.
+- 읽음 기준점은 사용자별 `localStorage` (`tamer-lobby:last-read:${clientId}`) 에 `{ messageId, timestamp }` 형태로 저장해서, 같은 브라우저에서는 새로고침 후에도 미읽음 상태를 복원하도록 맞췄다.
+- `ChatRoom` 은 히스토리 로드 후 첫 방문이면 최신 메시지를 읽은 기준점으로 초기화하고, 채팅 UI가 실제로 보이며 문서가 visible 인 상태에서 최신 메시지 커서를 `markChatRead()` 로 갱신하도록 정리했다.
+- `PlayChatDrawer` 는 열림 상태라는 이유만으로 unread 를 지우지 않게 바꿨고, `OnlineUsersCount` 팝업 역시 열어도 unread 를 초기화하지 않게 수정했다.
+- `OnlineUsersCount` 의 채팅 바로가기 버튼은 inline chat 컨테이너가 없을 때 drawer 를 직접 열도록 바꿔, 미읽음 뱃지가 보이는 경로와 실제 읽음 처리 경로가 어긋나지 않게 했다.
+- unread 계산 helper 와 관련 단위 테스트를 추가했고, `ChatRoom`/`PlayChatDrawer`/`OnlineUsersCount` 테스트도 새 읽음 기준에 맞게 갱신했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/contexts/AblyContext.jsx`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.jsx`
+- `digimon-tamagotchi-frontend/src/components/ChatRoom.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/OnlineUsersCount.jsx`
+- `digimon-tamagotchi-frontend/src/components/OnlineUsersCount.test.jsx`
+- `digimon-tamagotchi-frontend/src/utils/chatUnreadUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/chatUnreadUtils.test.js`
 - `docs/REFACTORING_LOG.md`
 
 ### 커뮤니티 작성 모달 액션 위치 재정렬 및 Firestore 재조회 실패 폴백 추가

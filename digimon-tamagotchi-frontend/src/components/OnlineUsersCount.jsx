@@ -6,7 +6,7 @@ import { usePresenceContext } from '../contexts/AblyContext';
 import { getPresenceDisplayName } from '../utils/presenceUtils';
 
 const OnlineUsersCount = ({ showChatShortcut = true }) => {
-  const { presenceData, presenceCount, unreadCount, clearUnreadCount } = usePresenceContext();
+  const { presenceData, presenceCount, unreadCount, setIsChatOpen } = usePresenceContext();
   const [showPopup, setShowPopup] = useState(false);
   const popupRef = useRef(null);
   const buttonRef = useRef(null);
@@ -40,10 +40,6 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
   const handleClick = () => {
     const newShowPopup = !showPopup;
     setShowPopup(newShowPopup);
-    // 팝업을 열면 읽지 않은 메시지 수 초기화
-    if (newShowPopup && unreadCount > 0) {
-      clearUnreadCount();
-    }
   };
 
   // 채팅 아이콘 클릭 시 채팅창으로 스크롤
@@ -52,11 +48,12 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
     const chatContainer = document.querySelector('.tamer-chat-container');
     if (chatContainer) {
       chatContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      // 스크롤 애니메이션 후 Intersection Observer가 감지할 수 있도록 약간의 지연 후 알림 초기화
-      setTimeout(() => {
-        clearUnreadCount();
-      }, 500);
+      setShowPopup(false);
+      return;
     }
+
+    setShowPopup(false);
+    setIsChatOpen(true);
   };
 
   return (

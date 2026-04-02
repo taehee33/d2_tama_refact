@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { ChatRoom } from "./ChatRoom";
 
 const mockUseAuth = jest.fn();
@@ -58,6 +58,13 @@ jest.mock("../utils/dateUtils", () => ({
 }));
 
 describe("ChatRoom", () => {
+  const getLatestMessageHandler = () => {
+    const subscribeCalls = mockChannel.subscribe.mock.calls.filter(
+      ([eventName]) => eventName === "chat-message"
+    );
+    return subscribeCalls.at(-1)?.[1];
+  };
+
   const setPresenceMembers = (members) => {
     mockUsePresenceListener.mockReturnValue({
       presenceData: members,
@@ -78,7 +85,8 @@ describe("ChatRoom", () => {
       setIsChatOpen: jest.fn(),
       unreadCount: 0,
       setUnreadCount: jest.fn(),
-      clearUnreadCount: jest.fn(),
+      lastReadCursor: { messageId: "seed", timestamp: 1000 },
+      markChatRead: jest.fn(),
     });
 
     mockUsePresence.mockReturnValue({
@@ -149,5 +157,67 @@ describe("ChatRoom", () => {
     expect(scrollArea).not.toContainElement(input);
     expect(screen.getByText(/접속 중인 테이머 \(7\)/)).toBeInTheDocument();
     expect(badges).toHaveLength(7);
+  });
+
+  test("drawer 가 닫혀 있으면 마지막 읽은 커서 이후 타인 메시지 수로 unread 를 계산한다", () => {
+    const setUnreadCount = jest.fn();
+    mockUsePresenceContext.mockReturnValue({
+      isChatOpen: false,
+      setIsChatOpen: jest.fn(),
+      unreadCount: 0,
+      setUnreadCount,
+      lastReadCursor: { messageId: "seed", timestamp: 1000 },
+      markChatRead: jest.fn(),
+    });
+
+    render(<ChatRoom variant="drawer" />);
+
+    const messageHandler = getLatestMessageHandler();
+
+    act(() => {
+      messageHandler({
+        name: "chat-message",
+        id: "msg-2",
+        data: { text: "새 메시지", clientTempId: "msg-2" },
+        timestamp: 2000,
+        clientId: "한태희",
+      });
+    });
+
+    const unreadUpdater = setUnreadCount.mock.calls.at(-1)?.[0];
+
+    expect(typeof unreadUpdater).toBe("function");
+    expect(unreadUpdater(0)).toBe(1);
+  });
+
+  test("drawer 가 열려 있으면 최신 메시지 커서로 읽음 마킹을 수행한다", () => {
+    const markChatRead = jest.fn();
+    mockUsePresenceContext.mockReturnValue({
+      isChatOpen: true,
+      setIsChatOpen: jest.fn(),
+      unreadCount: 0,
+      setUnreadCount: jest.fn(),
+      lastReadCursor: null,
+      markChatRead,
+    });
+
+    render(<ChatRoom variant="drawer" />);
+
+    const messageHandler = getLatestMessageHandler();
+
+    act(() => {
+      messageHandler({
+        name: "chat-message",
+        id: "msg-3",
+        data: { text: "읽을 메시지", clientTempId: "msg-3" },
+        timestamp: 3000,
+        clientId: "한태희",
+      });
+    });
+
+    expect(markChatRead).toHaveBeenCalledWith({
+      messageId: "msg-3",
+      timestamp: 3000,
+    });
   });
 });

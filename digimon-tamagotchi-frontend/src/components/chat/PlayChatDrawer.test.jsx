@@ -18,7 +18,6 @@ jest.mock("./PlayChatButton", () => () => <div data-testid="play-chat-button">ì±
 
 describe("PlayChatDrawer", () => {
   const setIsChatOpen = jest.fn();
-  const clearUnreadCount = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -27,7 +26,6 @@ describe("PlayChatDrawer", () => {
       isChatOpen: true,
       setIsChatOpen,
       unreadCount: 2,
-      clearUnreadCount,
       presenceCount: 5,
     });
   });
@@ -58,6 +56,5 @@ describe("PlayChatDrawer", () => {
     fireEvent.click(closeButton);
 
     expect(setIsChatOpen).toHaveBeenCalledWith(false);
-    expect(clearUnreadCount).toHaveBeenCalled();
   });
 });
