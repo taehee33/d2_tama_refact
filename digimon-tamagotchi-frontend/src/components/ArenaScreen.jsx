@@ -22,11 +22,16 @@ import { digimonDataVer2, V2_SPRITE_BASE } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
 import { translateStage } from "../utils/stageTranslator";
 import { getTamerName } from "../utils/tamerNameUtils";
+import { getArenaBattleReplay } from "../utils/logArchiveApi";
 import "../styles/Battle.css";
 
 const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
+
+export function hasBattleReplayArchive(log) {
+  return Boolean(log?.archiveId);
+}
 
 export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname }) {
   // 배경 스크롤 방지
@@ -65,6 +70,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [selectedBattleLog, setSelectedBattleLog] = useState(null);
   const [showBattleLogReview, setShowBattleLogReview] = useState(false);
+  const [battleReplayLoading, setBattleReplayLoading] = useState(false);
+  const [battleReplayError, setBattleReplayError] = useState("");
   const [leaderboardEntries, setLeaderboardEntries] = useState([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   // leaderboardMode: 'current' | 'all' | 'past'
@@ -170,6 +177,59 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentUser, isFirebaseAvailable, leaderboardMode, selectedArchiveId]);
+
+  const closeBattleLogReview = () => {
+    setShowBattleLogReview(false);
+    setSelectedBattleLog(null);
+    setBattleReplayLoading(false);
+    setBattleReplayError("");
+  };
+
+  const openBattleLogReview = async (log) => {
+    const hasArchiveReplay = hasBattleReplayArchive(log);
+
+    if (!hasArchiveReplay) {
+      return;
+    }
+
+    setSelectedBattleLog({
+      ...log,
+      logs: [],
+    });
+    setBattleReplayError("");
+    setShowBattleLogReview(true);
+
+    if (!currentUser) {
+      return;
+    }
+
+    setBattleReplayLoading(true);
+
+    try {
+      const archive = await getArenaBattleReplay(currentUser, log.archiveId);
+      const replayLogs = Array.isArray(archive?.replayLogs) ? archive.replayLogs : [];
+
+      if (!replayLogs.length) {
+        setBattleReplayError("상세 다시보기를 불러오지 못했습니다.");
+      }
+
+      setSelectedBattleLog((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          logs: replayLogs,
+        };
+      });
+    } catch (error) {
+      console.warn("[ArenaScreen] 배틀 로그 다시보기 로드 실패:", error);
+      setBattleReplayError(error?.message || "상세 다시보기를 불러오지 못했습니다.");
+    } finally {
+      setBattleReplayLoading(false);
+    }
+  };
 
   // 시즌 설정 로드
   const loadArenaConfig = async () => {
@@ -1270,18 +1330,19 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                     }
                   }
 
+                  const hasReplay = hasBattleReplayArchive(log);
+
                   return (
                     <div
                       key={log.id}
-                      className={`p-4 rounded-lg border-2 ${log.logs && log.logs.length > 0 ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${
+                      className={`p-4 rounded-lg border-2 ${hasReplay ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${
                         isWin
                           ? 'bg-green-50 border-green-300'
                           : 'bg-red-50 border-red-300'
                       }`}
                       onClick={() => {
-                        if (log.logs && log.logs.length > 0) {
-                          setSelectedBattleLog(log);
-                          setShowBattleLogReview(true);
+                        if (hasReplay) {
+                          void openBattleLogReview(log);
                         }
                       }}
                     >
@@ -1304,7 +1365,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                               {dateTime}
                             </p>
                           )}
-                          {log.logs && log.logs.length > 0 && (
+                          {hasReplay && (
                             <p className="text-xs text-blue-600 mt-2 font-semibold">
                               📖 배틀 로그 다시보기
                             </p>
@@ -1540,7 +1601,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
           <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">배틀 로그 리뷰</h3>
-              {selectedBattleLog.logs && selectedBattleLog.logs.length > 0 ? (
+              {battleReplayError && (
+                <p className="mb-4 text-sm text-red-600">
+                  {battleReplayError}
+                </p>
+              )}
+              {battleReplayLoading ? (
+                <p className="text-gray-600 mb-4">상세 로그를 불러오는 중...</p>
+              ) : selectedBattleLog.logs && selectedBattleLog.logs.length > 0 ? (
                 <div className="bg-gray-100 p-4 rounded max-h-96 overflow-y-auto mb-4">
                   {selectedBattleLog.logs.map((logEntry, idx) => {
                     const logClass = logEntry.attacker === "user" 
@@ -1568,10 +1636,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                 <p className="text-gray-600 mb-4">배틀 로그가 저장되지 않았습니다.</p>
               )}
               <button
-                onClick={() => {
-                  setShowBattleLogReview(false);
-                  setSelectedBattleLog(null);
-                }}
+                onClick={closeBattleLogReview}
                 className="w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
               >
                 닫기
@@ -1665,4 +1730,3 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     </div>
   );
 }
-

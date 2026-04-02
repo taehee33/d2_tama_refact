@@ -6,8 +6,9 @@ import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { feedProtein, willRefuseProtein } from "../logic/food/protein";
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
 import { calculateInjuryChance } from "../logic/battle/calculator";
-import { doc, updateDoc, collection, addDoc, serverTimestamp, increment } from "firebase/firestore";
+import { doc, updateDoc, collection, serverTimestamp, increment, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { archiveArenaBattleLog, createLogArchiveId } from "../utils/logArchiveApi";
 import {
   isTimeWithinSleepSchedule,
   normalizeSleepSchedule,
@@ -42,6 +43,70 @@ const MAX_BATTLE_LOGS = 100;
 function appendBattleLog(prevBattleLogs, entry) {
   const list = Array.isArray(prevBattleLogs) ? prevBattleLogs : [];
   return [{ ...entry, timestamp: entry.timestamp || Date.now() }, ...list].slice(0, MAX_BATTLE_LOGS);
+}
+
+export function buildArenaBattleArchiveWrite({
+  archiveId,
+  currentUser,
+  slotId,
+  slotName,
+  arenaChallenger,
+  enemyEntryId,
+  myArenaEntryId,
+  battleResult,
+  currentSeasonId,
+  userDigimonName,
+  enemyDigimonName,
+}) {
+  const attackerName = currentUser.displayName || slotName || `슬롯${slotId}`;
+  const defenderName = arenaChallenger.tamerName || arenaChallenger.trainerName || "Unknown";
+  const replayLogs = Array.isArray(battleResult.logs) ? battleResult.logs : [];
+  const winnerUid = battleResult.win ? currentUser.uid : arenaChallenger.userId;
+  const logSummary = battleResult.win
+    ? `${attackerName}'s ${userDigimonName} defeated ${defenderName}'s ${enemyDigimonName}`
+    : `${defenderName}'s ${enemyDigimonName} defeated ${attackerName}'s ${userDigimonName}`;
+
+  return {
+    replayLogs,
+    firestoreLogData: {
+      archiveId,
+      attackerId: currentUser.uid,
+      attackerName,
+      attackerDigimonName: userDigimonName,
+      defenderId: arenaChallenger.userId,
+      defenderName,
+      defenderDigimonName: enemyDigimonName,
+      defenderEntryId: enemyEntryId,
+      myEntryId: myArenaEntryId,
+      winnerId: winnerUid,
+      timestamp: serverTimestamp(),
+      logSummary,
+    },
+    archivePayload: {
+      id: archiveId,
+      userUid: currentUser.uid,
+      attackerUid: currentUser.uid,
+      attackerName,
+      attackerDigimonName: userDigimonName,
+      defenderUid: arenaChallenger.userId,
+      defenderName,
+      defenderDigimonName: enemyDigimonName,
+      myEntryId: myArenaEntryId,
+      defenderEntryId: enemyEntryId,
+      winnerUid,
+      summary: logSummary,
+      replayLogs,
+      payload: {
+        slotId,
+        currentSeasonId,
+        battleType: "arena",
+        result: {
+          win: Boolean(battleResult.win),
+          logs: replayLogs,
+        },
+      },
+    },
+  };
 }
 
 /**
@@ -764,28 +829,32 @@ export function useGameActions({
 
         const userDigimonName = selectedDigimon || "Unknown";
         const enemyDigimonName = arenaChallenger.digimonSnapshot?.digimonName || "Unknown";
-        const logSummary = battleResult.win
-          ? `${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName} defeated ${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName}`
-          : `${arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown'}'s ${enemyDigimonName} defeated ${currentUser.displayName || slotName || `슬롯${slotId}`}'s ${userDigimonName}`;
+        const archiveId = createLogArchiveId("arena");
+        const {
+          firestoreLogData,
+          archivePayload,
+        } = buildArenaBattleArchiveWrite({
+          archiveId,
+          currentUser,
+          slotId,
+          slotName,
+          arenaChallenger,
+          enemyEntryId,
+          myArenaEntryId,
+          battleResult,
+          currentSeasonId,
+          userDigimonName,
+          enemyDigimonName,
+        });
 
-        const battleLogData = {
-          attackerId: currentUser.uid,
-          attackerName: currentUser.displayName || slotName || `슬롯${slotId}`,
-          attackerDigimonName: userDigimonName, // 공격자의 디지몬 이름
-          defenderId: arenaChallenger.userId,
-          defenderName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
-          defenderDigimonName: enemyDigimonName, // 방어자의 디지몬 이름
-          defenderEntryId: enemyEntryId,
-          myEntryId: myArenaEntryId,
-          winnerId: battleResult.win ? currentUser.uid : arenaChallenger.userId,
-          timestamp: serverTimestamp(),
-          logSummary: logSummary,
-          logs: battleResult.logs || [], // 배틀 상세 로그 저장 (다시보기용)
-        };
+        const battleLogRef = doc(collection(db, 'arena_battle_logs'), archiveId);
+        await setDoc(battleLogRef, firestoreLogData);
+        console.log("✅ DB Update Success: 배틀 로그 저장 완료, ID:", archiveId);
 
-        const battleLogsRef = collection(db, 'arena_battle_logs');
-        const logDocRef = await addDoc(battleLogsRef, battleLogData);
-        console.log("✅ DB Update Success: 배틀 로그 저장 완료, ID:", logDocRef.id);
+        archiveArenaBattleLog(currentUser, archivePayload).catch((archiveError) => {
+          console.warn("[handleBattleComplete] arena archive 저장 실패:", archiveError);
+        });
+
         console.log("✅ 배틀 결과가 성공적으로 저장되었습니다!");
       } catch (error) {
         console.error("❌ DB Update Failed:", error);

@@ -143,6 +143,45 @@ npm run nickname:cleanup
   - `~/.config/firebase/d2tamarefact-service-account.json`
   - `~/.config/firebase/service-account.json`
 
+## Supabase Log Archive 적용 순서
+
+아레나 배틀 상세 다시보기와 조그레스 이력 archive는 Supabase로 병행 저장합니다.
+
+- 현재 배포 루트는 `digimon-tamagotchi-frontend` 이므로, Vercel에 실릴 API는 `digimon-tamagotchi-frontend/api/...` 아래에 있어야 합니다.
+- 2026-04-02 기준으로 Preview/Prod archive API 검증과 Firestore slimming 2단계까지 반영됐습니다.
+- 현재 구조는 다음과 같습니다.
+  - `jogress_logs`: Firestore write 제거, Supabase archive만 사용
+  - `arena_battle_logs`: Firestore에는 요약 필드만 저장
+  - 아레나 상세 replay: Supabase archive만 사용
+  - `archiveId`가 없는 과거 Firestore-only 로그는 상세 replay를 제공하지 않습니다.
+
+운영 적용 순서는 아래를 기준으로 합니다.
+
+```bash
+1. digimon-tamagotchi-frontend/api/logs/... 경로가 배포 루트에 포함됐는지 확인
+2. Supabase SQL Editor에서 supabase/migrations/20260402_log_archives.sql 실행
+3. Preview 배포
+4. Preview에서 archive POST / replay GET / Supabase row 생성 스모크 테스트
+5. Prod 배포
+```
+
+필수 서버 환경변수:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `REACT_APP_FIREBASE_PROJECT_ID`
+- `REACT_APP_FIREBASE_API_KEY`
+
+프론트 환경변수:
+
+- `REACT_APP_COMMUNITY_API_BASE_URL`
+  - 프론트와 API가 같은 Vercel 프로젝트면 비워도 됩니다.
+- 기존 채팅 유지용:
+  - `REACT_APP_SUPABASE_URL`
+  - `REACT_APP_SUPABASE_ANON_KEY`
+
+`SUPABASE_SERVICE_ROLE_KEY`는 서버 전용입니다. `REACT_APP_*`로 노출하면 안 됩니다.
+
 ## 기술 스택
 
 - React 18

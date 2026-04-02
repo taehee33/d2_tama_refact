@@ -8,6 +8,7 @@ import { getJogressResult } from "../logic/evolution/jogress";
 import { initializeStats } from "../data/stats";
 import { addActivityLog } from "./useGameLogic";
 import { updateEncyclopedia } from "./useEncyclopedia";
+import { archiveJogressLog, createLogArchiveId } from "../utils/logArchiveApi";
 
 /** 맵 키 또는 entry.id로 한글 이름 조회 (슬롯에 id가 저장된 경우 대비) */
 function getDigimonDisplayName(maps, digimonId) {
@@ -21,6 +22,22 @@ function getDigimonDisplayName(maps, digimonId) {
     if (entry?.name) return entry.name;
   }
   return digimonId;
+}
+
+export async function persistJogressLogWithArchive({
+  currentUser,
+  archivePayload,
+  warningLabel,
+}) {
+  const archiveId = createLogArchiveId("jogress");
+
+  await archiveJogressLog(currentUser, {
+    id: archiveId,
+    ...archivePayload,
+  }).catch((archiveErr) => {
+    console.warn(`${warningLabel} Supabase archive 저장 실패:`, archiveErr);
+    return null;
+  });
 }
 
 /**
@@ -419,11 +436,11 @@ export function useEvolution({
       if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
       if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
 
-      // 조그레스 성공 로그: Firestore jogress_logs 컬렉션 (로컬 = 동일 유저 호스트/게스트)
       const tamerDisplay = tamerName || currentUser?.displayName || null;
-      try {
-        const logsRef = collection(db, "jogress_logs");
-        await addDoc(logsRef, {
+      await persistJogressLogWithArchive({
+        currentUser,
+        warningLabel: "[proceedJogressLocal]",
+        archivePayload: {
           hostUid: currentUser.uid,
           hostTamerName: tamerDisplay,
           hostSlotId: slotId,
@@ -437,11 +454,14 @@ export function useEvolution({
           targetId,
           targetName: newDigimonName,
           isOnline: false,
-          createdAt: serverTimestamp(),
-        });
-      } catch (logErr) {
-        console.warn("[proceedJogressLocal] jogress_logs 저장 실패:", logErr);
-      }
+          payload: {
+            mode: "local",
+            resultName: resultDisplayName,
+            hostSlotLabel,
+            guestSlotLabel,
+          },
+        },
+      });
 
       if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
       if (setEvolutionStage) setEvolutionStage("complete");
@@ -806,9 +826,10 @@ export function useEvolution({
       };
       if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
       const tamerDisplay = tamerName || currentUser?.displayName || null;
-      try {
-        const logsRef = collection(db, "jogress_logs");
-        await addDoc(logsRef, {
+      await persistJogressLogWithArchive({
+        currentUser,
+        warningLabel: "[proceedJogressOnlineAsHost]",
+        archivePayload: {
           hostUid: currentUser.uid,
           hostTamerName: tamerDisplay,
           hostSlotId: slotId,
@@ -822,11 +843,15 @@ export function useEvolution({
           targetId,
           targetName: newDigimonName,
           isOnline: true,
-          createdAt: serverTimestamp(),
-        });
-      } catch (logErr) {
-        console.warn("[proceedJogressOnlineAsHost] jogress_logs 저장 실패:", logErr);
-      }
+          payload: {
+            mode: "online-host",
+            resultName: resultDisplayName,
+            hostSlotLabel,
+            guestSlotLabel,
+            roomId: roomData.id || null,
+          },
+        },
+      });
       if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
       if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
       if (setEvolutionStage) setEvolutionStage("complete");
@@ -913,9 +938,10 @@ export function useEvolution({
       if (appendLogToSubcollection && isCurrentSlot && updatedLogs[updatedLogs.length - 1]) {
         await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       }
-      try {
-        const logsRef = collection(db, "jogress_logs");
-        await addDoc(logsRef, {
+      await persistJogressLogWithArchive({
+        currentUser,
+        warningLabel: "[proceedJogressOnlineAsHostForRoom]",
+        archivePayload: {
           hostUid: currentUser.uid,
           hostTamerName: tamerName || currentUser?.displayName || null,
           hostSlotId: hostSlotId,
@@ -929,11 +955,13 @@ export function useEvolution({
           targetId,
           targetName: newDigimonName,
           isOnline: true,
-          createdAt: serverTimestamp(),
-        });
-      } catch (logErr) {
-        console.warn("[proceedJogressOnlineAsHostForRoom] jogress_logs 저장 실패:", logErr);
-      }
+          payload: {
+            mode: "online-room",
+            resultName: resultDisplayName,
+            roomId: room.id,
+          },
+        },
+      });
       if (isCurrentSlot && setDigimonStatsAndSave && setSelectedDigimonAndSave) {
         await setDigimonStatsAndSave(nxWithLogs, updatedLogs).catch(() => {});
         await setSelectedDigimonAndSave(targetId).catch(() => {});

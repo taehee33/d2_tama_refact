@@ -10,6 +10,7 @@ import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
+import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -695,7 +696,9 @@ export function useGameData({
    */
   const appendLogToSubcollection = useCallback(
     async (logEntry) => {
-      if (!slotId || !currentUser || !isFirebaseAvailable || !logEntry?.type) return;
+      if (!slotId || !currentUser || !isFirebaseAvailable || !shouldPersistActivityLog(logEntry)) {
+        return;
+      }
       try {
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         const logsRef = collection(slotRef, "logs");
