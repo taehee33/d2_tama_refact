@@ -1,13 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommunityPostCard from "../components/community/CommunityPostCard";
 import CommunityPostComposer from "../components/community/CommunityPostComposer";
 import CommunityPostDetailDialog from "../components/community/CommunityPostDetailDialog";
 import { useAuth } from "../contexts/AuthContext";
 import {
   communityBoards,
+  communityDiscordChannels,
+  communityDiscordChecklist,
+  communityDiscordInvite,
+  communityFreeBoardTips,
+  communityFreeBoardTopics,
   communityGuidelines,
   communityShowcaseSamples,
+  getCommunityBoardHref,
+  resolveCommunityBoardId,
+  supportChecklist,
+  supportFaqs,
+  supportStatusCards,
 } from "../data/serviceContent";
 import useUserSlots from "../hooks/useUserSlots";
 import { useTamerProfile } from "../hooks/useTamerProfile";
@@ -28,10 +38,15 @@ function getErrorMessage(error, fallbackMessage) {
 }
 
 function Community() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { displayTamerName, maxSlots } = useTamerProfile();
   const { slots, loading: slotsLoading } = useUserSlots({ maxSlots });
 
+  const [activeBoardId, setActiveBoardId] = useState(() =>
+    resolveCommunityBoardId(location.search)
+  );
   const [posts, setPosts] = useState([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState("");
@@ -91,6 +106,69 @@ function Community() {
       : null;
 
   const feedPosts = currentUser ? posts : communityShowcaseSamples;
+  const isShowcaseBoard = activeBoardId === "showcase";
+
+  const handleSelectBoard = useCallback(
+    (boardId) => {
+      const nextBoardId = resolveCommunityBoardId(`board=${boardId}`);
+
+      setActiveBoardId(nextBoardId);
+      navigate(getCommunityBoardHref(nextBoardId));
+    },
+    [navigate]
+  );
+
+  const activeBoardCopy = useMemo(() => {
+    switch (activeBoardId) {
+      case "free":
+        return {
+          title: "자유게시판",
+          description:
+            "플레이 근황, 공략 메모, 소소한 질문을 가볍게 나누는 잡담형 보드입니다. 자랑게시판과 운영 문의 보드 사이에서 일상 대화를 맡도록 분리했습니다.",
+          chips: [
+            "플레이 잡담 환영",
+            "짧은 질문 중심",
+            `추천 주제 ${communityFreeBoardTopics.length}개`,
+          ],
+        };
+      case "support":
+        return {
+          title: "버그제보 / QnA",
+          description:
+            "버그 재현에 필요한 체크리스트와 자주 묻는 질문을 한 화면에 모았습니다. 저장 문제나 화면 오류처럼 확인이 필요한 이슈를 먼저 정리하는 보드입니다.",
+          chips: [
+            `FAQ ${supportFaqs.length}개`,
+            `체크리스트 ${supportChecklist.length}개`,
+            "지원 흐름 정리",
+          ],
+        };
+      case "discord":
+        return {
+          title: "디스코드 커뮤니티",
+          description:
+            "실시간으로 질문을 주고받고 스냅샷을 공유할 수 있도록, 입장 링크와 권장 채널 흐름을 한곳에 모았습니다.",
+          chips: [
+            "실시간 대화",
+            `권장 채널 ${communityDiscordChannels.length}개`,
+            "초대 링크 제공",
+          ],
+        };
+      case "showcase":
+      default:
+        return {
+          title: "내 디지몬 자랑 피드",
+          description:
+            "서비스 소개 카드가 아니라, 대표 장면과 성장 로그가 바로 보이는 피드로 다시 묶었습니다. 자랑하기를 누르면 현재 슬롯 상태를 바탕으로 스냅샷 카드가 자동으로 생성됩니다.",
+          chips: [
+            "대표 장면 자동 생성",
+            "댓글 중심 상세 보기",
+            currentUser
+              ? `실제 피드 ${posts.length}개`
+              : `샘플 피드 ${communityShowcaseSamples.length}개`,
+          ],
+        };
+    }
+  }, [activeBoardId, currentUser, posts.length]);
 
   const refreshPosts = useCallback(async () => {
     if (!currentUser) {
@@ -147,14 +225,24 @@ function Community() {
   );
 
   useEffect(() => {
+    const nextBoardId = resolveCommunityBoardId(location.search);
+
+    setActiveBoardId((prev) => (prev === nextBoardId ? prev : nextBoardId));
+  }, [location.search]);
+
+  useEffect(() => {
     if (!selectedSlotId && slots.length > 0) {
       setSelectedSlotId(String(slots[0].id));
     }
   }, [selectedSlotId, slots]);
 
   useEffect(() => {
+    if (!isShowcaseBoard) {
+      return;
+    }
+
     refreshPosts();
-  }, [refreshPosts]);
+  }, [isShowcaseBoard, refreshPosts]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -181,12 +269,12 @@ function Community() {
   }, [currentUser, posts, selectedPostId]);
 
   useEffect(() => {
-    if (!currentUser || !selectedPostId) {
+    if (!currentUser || !selectedPostId || !isShowcaseBoard) {
       return;
     }
 
     refreshPostDetail(selectedPostId);
-  }, [currentUser, selectedPostId, refreshPostDetail]);
+  }, [currentUser, isShowcaseBoard, selectedPostId, refreshPostDetail]);
 
   const resetComposer = useCallback(() => {
     setEditingPostId("");
@@ -216,6 +304,15 @@ function Community() {
     setEditingCommentBody("");
     setCommentActionId("");
   }, []);
+
+  useEffect(() => {
+    if (activeBoardId === "showcase") {
+      return;
+    }
+
+    handleCloseComposer();
+    handleCloseDetail();
+  }, [activeBoardId, handleCloseComposer, handleCloseDetail]);
 
   const handleSubmitPost = useCallback(
     async (event) => {
@@ -359,7 +456,11 @@ function Community() {
 
   const handleDeleteComment = useCallback(
     async (commentId) => {
-      if (!currentUser || !postDetail?.post?.id || !window.confirm("이 댓글을 삭제할까요?")) {
+      if (
+        !currentUser ||
+        !postDetail?.post?.id ||
+        !window.confirm("이 댓글을 삭제할까요?")
+      ) {
         return;
       }
 
@@ -387,73 +488,102 @@ function Community() {
     [currentUser, editingCommentId, postDetail, refreshPostDetail, refreshPosts]
   );
 
-  return (
-    <section className="community-page">
-      <header className="community-hero">
-        <div className="community-hero__content">
-          <p className="service-section-label">커뮤니티</p>
-          <h1>내 디지몬 자랑 피드</h1>
-          <p className="community-hero__description">
-            서비스 소개 카드가 아니라, 대표 장면과 성장 로그가 바로 보이는 피드로 다시
-            묶었습니다. 자랑하기를 누르면 현재 슬롯 상태를 바탕으로 스냅샷 카드가 자동으로
-            생성됩니다.
-          </p>
-          <div className="community-hero__chips">
-            <span className="community-hero__chip">대표 장면 자동 생성</span>
-            <span className="community-hero__chip">댓글 중심 상세 보기</span>
-            <span className="community-hero__chip">
-              {currentUser ? `실제 피드 ${posts.length}개` : `샘플 피드 ${communityShowcaseSamples.length}개`}
-            </span>
-          </div>
-        </div>
+  const renderHeroActions = () => {
+    if (activeBoardId === "free") {
+      return (
+        <>
+          <button
+            type="button"
+            className="service-button service-button--primary"
+            onClick={() => handleSelectBoard("showcase")}
+          >
+            자랑게시판 보기
+          </button>
+          <button
+            type="button"
+            className="service-button service-button--ghost"
+            onClick={() => handleSelectBoard("support")}
+          >
+            버그제보 / QnA 보기
+          </button>
+        </>
+      );
+    }
 
-        <div className="community-hero__actions">
-          {currentUser ? (
-            <>
-              <button
-                type="button"
-                className="service-button service-button--primary"
-                onClick={handleOpenComposer}
-              >
-                자랑하기
-              </button>
-              <Link to="/guide" className="service-button service-button--ghost">
-                기록 가이드 보기
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link to="/auth" className="service-button service-button--primary">
-                로그인하고 자랑하기
-              </Link>
-              <Link to="/guide" className="service-button service-button--ghost">
-                운영 가이드 보기
-              </Link>
-            </>
-          )}
-        </div>
-      </header>
+    if (activeBoardId === "support") {
+      return (
+        <>
+          <button
+            type="button"
+            className="service-button service-button--primary"
+            onClick={() => handleSelectBoard("discord")}
+          >
+            디스코드 보기
+          </button>
+          <button
+            type="button"
+            className="service-button service-button--ghost"
+            onClick={() => handleSelectBoard("showcase")}
+          >
+            자랑게시판 보기
+          </button>
+        </>
+      );
+    }
 
-      <div className="community-board-tabs" role="tablist" aria-label="커뮤니티 보드">
-        {boardCards.map((board) => {
-          const isShowcase = board.id === "showcase";
-          return (
-            <button
-              key={board.id}
-              type="button"
-              role="tab"
-              aria-selected={isShowcase}
-              disabled={!isShowcase}
-              className={`community-board-tab${isShowcase ? " community-board-tab--active" : ""}`}
-            >
-              <span className="community-board-tab__status">{board.status}</span>
-              <strong>{board.title}</strong>
-              <span>{board.description}</span>
-            </button>
-          );
-        })}
-      </div>
+    if (activeBoardId === "discord") {
+      return (
+        <>
+          <a
+            href={communityDiscordInvite.url}
+            target="_blank"
+            rel="noreferrer"
+            className="service-button service-button--primary"
+          >
+            디스코드 바로가기
+          </a>
+          <button
+            type="button"
+            className="service-button service-button--ghost"
+            onClick={() => handleSelectBoard("support")}
+          >
+            버그제보 / QnA 보기
+          </button>
+        </>
+      );
+    }
 
+    if (currentUser) {
+      return (
+        <>
+          <button
+            type="button"
+            className="service-button service-button--primary"
+            onClick={handleOpenComposer}
+          >
+            자랑하기
+          </button>
+          <Link to="/guide" className="service-button service-button--ghost">
+            기록 가이드 보기
+          </Link>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Link to="/auth" className="service-button service-button--primary">
+          로그인하고 자랑하기
+        </Link>
+        <Link to="/guide" className="service-button service-button--ghost">
+          운영 가이드 보기
+        </Link>
+      </>
+    );
+  };
+
+  const renderShowcaseBoard = () => (
+    <div className="community-panel-stack">
       <div className="community-feed-shell">
         <div className="community-feed-toolbar">
           <div>
@@ -538,7 +668,7 @@ function Community() {
         <summary>운영 가이드와 게시 팁 보기</summary>
         <div className="community-guideline-panel__body">
           <p className="service-muted">
-            이번 보드는 소개 페이지보다 피드 탐색을 우선합니다. 대신 게시 전에 필요한 팁은
+            자랑게시판은 소개 카드보다 피드 탐색을 우선합니다. 대신 게시 전에 필요한 팁은
             접어서 정리해 두었습니다.
           </p>
           <ul className="community-guideline-list">
@@ -548,8 +678,292 @@ function Community() {
           </ul>
         </div>
       </details>
+    </div>
+  );
 
-      {currentUser ? (
+  const renderFreeBoard = () => (
+    <div className="community-panel-stack">
+      <div className="community-feed-shell">
+        <div className="community-feed-toolbar">
+          <div>
+            <p className="service-section-label">자유게시판</p>
+            <h2>플레이 근황과 소소한 질문을 가볍게 나누는 공간</h2>
+            <p className="service-muted">
+              자유게시판은 일상 대화와 짧은 메모가 빠르게 오가는 보드로 두고, 자랑용
+              기록과 운영 문의는 다른 보드로 분리해 흐름을 명확하게 유지합니다.
+            </p>
+          </div>
+
+          <div className="community-feed-toolbar__aside">
+            <span className="service-badge service-badge--accent">
+              추천 주제 {communityFreeBoardTopics.length}개
+            </span>
+            <span className="service-badge service-badge--cool">가벼운 대화 보드</span>
+          </div>
+        </div>
+
+        <div className="service-action-grid">
+          {communityFreeBoardTopics.map((topic) => (
+            <article
+              key={topic.id}
+              className="service-inline-panel community-board-info-card"
+            >
+              <p className="service-section-label">{topic.badge}</p>
+              <strong>{topic.title}</strong>
+              <span className="service-muted">{topic.description}</span>
+            </article>
+          ))}
+        </div>
+
+        <div className="community-public-note">
+          <strong>대표 장면과 성장 로그가 중심인 글은 자랑게시판으로 분리해 두었습니다.</strong>
+          <span>
+            자유게시판은 공략 잡담, 오늘 플레이 근황, 짧은 질문처럼 빠르게 주고받는 대화
+            흐름에 맞춰 운영합니다.
+          </span>
+        </div>
+      </div>
+
+      <details className="community-guideline-panel">
+        <summary>자유게시판 운영 메모 보기</summary>
+        <div className="community-guideline-panel__body">
+          <p className="service-muted">
+            대화형 보드는 읽는 속도가 중요해서, 질문과 근황이 한눈에 구분되도록 운영 기준을
+            먼저 정리해 둡니다.
+          </p>
+          <ul className="community-guideline-list">
+            {communityFreeBoardTips.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </details>
+    </div>
+  );
+
+  const renderSupportBoard = () => (
+    <div className="community-panel-stack">
+      <div className="community-feed-shell">
+        <div className="community-feed-toolbar">
+          <div>
+            <p className="service-section-label">버그제보 / QnA</p>
+            <h2>재현 정보와 자주 묻는 질문을 한 번에 보기</h2>
+            <p className="service-muted">
+              오류 제보에 필요한 핵심 정보와 운영 FAQ를 같은 보드에 모아 두면, 질문과
+              답변이 흩어지지 않고 다시 찾기 쉬워집니다.
+            </p>
+          </div>
+
+          <div className="community-feed-toolbar__aside">
+            <span className="service-badge service-badge--accent">
+              상태 카드 {supportStatusCards.length}개
+            </span>
+            <span className="service-badge service-badge--cool">
+              FAQ {supportFaqs.length}개
+            </span>
+          </div>
+        </div>
+
+        <div className="service-action-grid">
+          {supportStatusCards.map((item) => (
+            <article
+              key={item.id}
+              className="service-action-card community-board-info-card"
+            >
+              <strong>{item.title}</strong>
+              <span className="service-muted">{item.description}</span>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="service-two-column">
+        <div className="community-feed-shell">
+          <div className="community-feed-toolbar">
+            <div>
+              <p className="service-section-label">자주 묻는 질문</p>
+              <h2>FAQ</h2>
+            </div>
+          </div>
+
+          <div className="community-panel-stack">
+            {supportFaqs.map((faq) => (
+              <div
+                key={faq.id}
+                className="service-inline-panel community-board-info-card"
+              >
+                <strong>{faq.question}</strong>
+                <p className="service-muted">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="community-feed-shell">
+          <div className="community-feed-toolbar">
+            <div>
+              <p className="service-section-label">버그 제보 체크리스트</p>
+              <h2>함께 남기면 좋은 정보</h2>
+            </div>
+          </div>
+
+          <ul className="service-list">
+            {supportChecklist.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+
+          <div className="community-public-note">
+            <strong>빠른 확인이 필요한 이슈는 디스코드 채널과 함께 운영해도 좋습니다.</strong>
+            <span>
+              긴 설명이 필요한 질문은 이 보드 기준으로 정리하고, 실시간 확인은 디스코드
+              보드에서 안내하는 채널로 이어서 연결할 수 있습니다.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDiscordBoard = () => (
+    <div className="community-panel-stack">
+      <div className="community-feed-shell">
+        <div className="community-feed-toolbar">
+          <div>
+            <p className="service-section-label">디스코드 접속 정보</p>
+            <h2>실시간 질문과 스냅샷 공유를 위한 입구</h2>
+            <p className="service-muted">
+              링크만 던져 두지 않고, 입장 후 먼저 볼 채널과 자주 쓰는 흐름까지 같이 안내해
+              두면 커뮤니티 진입이 더 매끄럽습니다.
+            </p>
+          </div>
+
+          <div className="community-feed-toolbar__aside">
+            <span className="service-badge service-badge--accent">
+              권장 채널 {communityDiscordChannels.length}개
+            </span>
+            <span className="service-badge service-badge--cool">초대 링크 제공</span>
+          </div>
+        </div>
+
+        <div className="community-public-note">
+          <strong>{communityDiscordInvite.label}</strong>
+          <span>{communityDiscordInvite.description}</span>
+          <a
+            href={communityDiscordInvite.url}
+            target="_blank"
+            rel="noreferrer"
+            className="service-button service-button--primary"
+          >
+            디스코드 참여하기
+          </a>
+          <a
+            href={communityDiscordInvite.url}
+            target="_blank"
+            rel="noreferrer"
+            className="service-text-link"
+          >
+            {communityDiscordInvite.url}
+          </a>
+        </div>
+
+        <div className="service-action-grid">
+          {communityDiscordChannels.map((channel) => (
+            <article
+              key={channel.id}
+              className="service-action-card community-board-info-card"
+            >
+              <strong>{channel.title}</strong>
+              <span className="service-muted">{channel.description}</span>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <details className="community-guideline-panel">
+        <summary>디스코드 채널 이용 흐름 보기</summary>
+        <div className="community-guideline-panel__body">
+          <p className="service-muted">
+            디스코드는 실시간 응답이 강점이라, 먼저 볼 채널과 제보 형식을 짧게 고정해 두는
+            편이 운영 효율이 좋습니다.
+          </p>
+          <ul className="community-guideline-list">
+            {communityDiscordChecklist.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </details>
+    </div>
+  );
+
+  const renderActiveBoard = () => {
+    switch (activeBoardId) {
+      case "free":
+        return renderFreeBoard();
+      case "support":
+        return renderSupportBoard();
+      case "discord":
+        return renderDiscordBoard();
+      case "showcase":
+      default:
+        return renderShowcaseBoard();
+    }
+  };
+
+  return (
+    <section className="community-page">
+      <div className="community-board-tabs" role="tablist" aria-label="커뮤니티 보드">
+        {boardCards.map((board) => {
+          const isActive = board.id === activeBoardId;
+
+          return (
+            <button
+            key={board.id}
+            id={`community-board-tab-${board.id}`}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            aria-controls={`community-board-panel-${board.id}`}
+            tabIndex={isActive ? 0 : -1}
+            onClick={() => handleSelectBoard(board.id)}
+            className={`community-board-tab${isActive ? " community-board-tab--active" : ""}`}
+          >
+              <span className="community-board-tab__status">{board.status}</span>
+              <strong>{board.title}</strong>
+              <span>{board.description}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <header className="community-hero">
+        <div className="community-hero__content">
+          <p className="service-section-label">커뮤니티</p>
+          <h1>{activeBoardCopy.title}</h1>
+          <p className="community-hero__description">{activeBoardCopy.description}</p>
+          <div className="community-hero__chips">
+            {activeBoardCopy.chips.map((chip) => (
+              <span key={chip} className="community-hero__chip">
+                {chip}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="community-hero__actions">{renderHeroActions()}</div>
+      </header>
+
+      <div
+        id={`community-board-panel-${activeBoardId}`}
+        role="tabpanel"
+        aria-labelledby={`community-board-tab-${activeBoardId}`}
+        className="community-board-panel"
+      >
+        {renderActiveBoard()}
+      </div>
+
+      {currentUser && isShowcaseBoard ? (
         <CommunityPostComposer
           open={isComposerOpen}
           displayTamerName={displayTamerName}
@@ -569,33 +983,35 @@ function Community() {
         />
       ) : null}
 
-      <CommunityPostDetailDialog
-        open={Boolean(currentUser ? selectedPostId : selectedSamplePost)}
-        postDetail={detailData}
-        detailLoading={currentUser ? detailLoading : false}
-        detailError={detailError}
-        currentUser={currentUser}
-        commentDraft={commentDraft}
-        commentLoading={commentLoading}
-        commentError={commentError}
-        editingCommentId={editingCommentId}
-        editingCommentBody={editingCommentBody}
-        commentActionId={commentActionId}
-        onClose={handleCloseDetail}
-        onCommentDraftChange={setCommentDraft}
-        onCreateComment={handleCreateComment}
-        onStartEditComment={(comment) => {
-          setEditingCommentId(comment.id);
-          setEditingCommentBody(comment.body);
-        }}
-        onEditingCommentBodyChange={setEditingCommentBody}
-        onCancelEditComment={() => {
-          setEditingCommentId("");
-          setEditingCommentBody("");
-        }}
-        onSaveCommentEdit={handleSaveCommentEdit}
-        onDeleteComment={handleDeleteComment}
-      />
+      {isShowcaseBoard ? (
+        <CommunityPostDetailDialog
+          open={Boolean(currentUser ? selectedPostId : selectedSamplePost)}
+          postDetail={detailData}
+          detailLoading={currentUser ? detailLoading : false}
+          detailError={detailError}
+          currentUser={currentUser}
+          commentDraft={commentDraft}
+          commentLoading={commentLoading}
+          commentError={commentError}
+          editingCommentId={editingCommentId}
+          editingCommentBody={editingCommentBody}
+          commentActionId={commentActionId}
+          onClose={handleCloseDetail}
+          onCommentDraftChange={setCommentDraft}
+          onCreateComment={handleCreateComment}
+          onStartEditComment={(comment) => {
+            setEditingCommentId(comment.id);
+            setEditingCommentBody(comment.body);
+          }}
+          onEditingCommentBodyChange={setEditingCommentBody}
+          onCancelEditComment={() => {
+            setEditingCommentId("");
+            setEditingCommentBody("");
+          }}
+          onSaveCommentEdit={handleSaveCommentEdit}
+          onDeleteComment={handleDeleteComment}
+        />
+      ) : null}
     </section>
   );
 }

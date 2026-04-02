@@ -33,22 +33,72 @@ export const newsRoadmap = [
 
 export const communityBoards = [
   {
+    id: "free",
+    title: "자유게시판",
+    description: "플레이 근황, 공략 잡담, 짧은 질문을 나누는 대화형 보드",
+    status: "오픈 안내",
+  },
+  {
     id: "showcase",
-    title: "내 디지몬 자랑",
+    title: "자랑게시판",
     description: "대표 장면과 성장 로그를 올리는 메인 피드",
     status: "피드형",
   },
   {
-    id: "evolution-notes",
-    title: "진화 노트",
-    description: "케어 미스와 진화 결과를 기록하는 데이터형 게시판",
-    status: "기획 정리 중",
+    id: "support",
+    title: "버그제보 / QnA",
+    description: "버그 재현 정보와 FAQ를 함께 모아 보는 지원 보드",
+    status: "바로 이용 가능",
   },
   {
-    id: "jogress",
-    title: "조그레스 모집",
-    description: "온라인 파트너 모집과 방 생성 규칙을 연결하는 실시간 보드",
-    status: "실시간 연동 예정",
+    id: "discord",
+    title: "디스코드",
+    description: "실시간 채널 안내와 커뮤니티 접속 정보를 모은 보드",
+    status: "실시간 안내",
+  },
+];
+
+export const defaultCommunityBoardId = "showcase";
+export const communityBoardIds = communityBoards.map((board) => board.id);
+const communityBoardIdSet = new Set(communityBoardIds);
+
+export function resolveCommunityBoardId(search = "") {
+  const boardId = new URLSearchParams(search).get("board");
+
+  return communityBoardIdSet.has(boardId)
+    ? boardId
+    : defaultCommunityBoardId;
+}
+
+export function getCommunityBoardHref(boardId = defaultCommunityBoardId) {
+  const resolvedBoardId = communityBoardIdSet.has(boardId)
+    ? boardId
+    : defaultCommunityBoardId;
+
+  return `/community?board=${resolvedBoardId}`;
+}
+
+export const communityFreeBoardTopics = [
+  {
+    id: "daily-log",
+    badge: "근황 공유",
+    title: "오늘 플레이 로그",
+    description:
+      "배틀 결과, 수면 루틴, 훈련 기록처럼 짧게 남기고 싶은 근황을 가볍게 나누는 주제입니다.",
+  },
+  {
+    id: "care-tip",
+    badge: "공략 잡담",
+    title: "케어 팁과 루틴 메모",
+    description:
+      "먹이 간격, 호출 대응, 실수 줄인 방법처럼 바로 따라 해 볼 수 있는 운영 팁을 모읍니다.",
+  },
+  {
+    id: "small-question",
+    badge: "짧은 질문",
+    title: "소소한 QnA",
+    description:
+      "지금 디지몬 상태가 괜찮은지, 다음 목표를 뭘로 잡을지처럼 가벼운 질문을 편하게 주고받습니다.",
   },
 ];
 
@@ -151,7 +201,49 @@ export const communityShowcaseSamples = [
 export const communityGuidelines = [
   "대표 장면은 슬롯명과 디지몬 이름이 함께 보이게 올리기",
   "자랑 글에는 오늘 상태나 다음 목표를 한 줄 더 적기",
-  "조그레스 모집은 버전과 가능한 시간대를 함께 남기기",
+  "댓글에는 훈련 루틴이나 배틀 결과를 덧붙여 흐름 이어가기",
+];
+
+export const communityFreeBoardTips = [
+  "자유게시판은 짧은 플레이 근황과 공략 잡담을 빠르게 주고받는 공간으로 사용합니다.",
+  "자랑용 대표 장면과 성장 로그는 자랑게시판에 남기면 흐름이 더 잘 정리됩니다.",
+  "운영 문의, 오류 제보, 저장 문제는 버그제보 / QnA 보드로 분리해서 남겨 주세요.",
+];
+
+export const communityDiscordInvite = {
+  label: "디지몬 키우기 디스코드 입장",
+  url: "https://discord.gg/BWXFtSCnGt",
+  description:
+    "실시간으로 질문을 주고받거나, 스냅샷을 바로 공유하고 싶다면 디스코드 채널에서 이어서 대화할 수 있습니다.",
+};
+
+export const communityDiscordChannels = [
+  {
+    id: "notice",
+    title: "공지 확인",
+    description: "업데이트 공지, 이용 규칙, 최근 변경사항을 먼저 확인하는 진입 흐름입니다.",
+  },
+  {
+    id: "showoff",
+    title: "자랑 스냅샷",
+    description: "대표 장면과 성장 로그를 실시간으로 공유할 때 먼저 둘러보면 좋은 영역입니다.",
+  },
+  {
+    id: "support",
+    title: "버그제보 / QnA",
+    description: "재현 순서, 오류 메시지, 질문 답변을 빠르게 연결해 확인하는 지원 흐름입니다.",
+  },
+  {
+    id: "free-talk",
+    title: "자유잡담",
+    description: "플레이 근황, 공략 메모, 소소한 질문을 편하게 주고받는 대화 용도입니다.",
+  },
+];
+
+export const communityDiscordChecklist = [
+  "입장 후 먼저 공지와 운영 규칙을 확인해 주세요.",
+  "버그 제보는 슬롯 번호, 버전, 마지막 행동, 재현 순서를 함께 남기면 확인이 빨라집니다.",
+  "자랑 스냅샷과 자유잡담은 채널 성격에 맞춰 분리해서 올리면 기록을 다시 찾기 쉽습니다.",
 ];
 
 export const supportFaqs = [

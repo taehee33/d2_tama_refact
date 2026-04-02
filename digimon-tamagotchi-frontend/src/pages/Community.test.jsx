@@ -15,6 +15,12 @@ const mockSlotsState = {
   loading: false,
 };
 
+const mockNavigate = jest.fn();
+const mockLocation = {
+  pathname: "/community",
+  search: "",
+};
+
 jest.mock(
   "react-router-dom",
   () => ({
@@ -23,6 +29,8 @@ jest.mock(
         {children}
       </a>
     ),
+    useLocation: () => mockLocation,
+    useNavigate: () => mockNavigate,
   }),
   { virtual: true }
 );
@@ -63,6 +71,9 @@ describe("Community", () => {
     mockAuthState.currentUser = null;
     mockSlotsState.slots = [];
     mockSlotsState.loading = false;
+    mockNavigate.mockReset();
+    mockLocation.pathname = "/community";
+    mockLocation.search = "";
 
     Object.values(communityApi).forEach((mockFn) => {
       if (typeof mockFn?.mockReset === "function") {
@@ -78,6 +89,65 @@ describe("Community", () => {
     expect(screen.getByText("오늘은 배틀 승률 70%를 넘겼어요")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 자랑하기" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "자랑하기" })).not.toBeInTheDocument();
+  });
+
+  it("게시판 탭을 전환하면 자유게시판, 버그제보/QnA, 디스코드 패널을 각각 보여 준다", () => {
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /자유게시판/i }));
+    expect(screen.getByRole("tab", { name: /자유게시판/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /자랑게시판/i })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("heading", { name: "자유게시판" })).toBeInTheDocument();
+    expect(screen.getByText("오늘 플레이 로그")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
+    expect(screen.getByRole("tab", { name: /버그제보/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "버그제보 / QnA" })).toBeInTheDocument();
+    expect(screen.getByText("로그인 없이 플레이할 수 있나요?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /디스코드/i }));
+    expect(screen.getByRole("tab", { name: /디스코드/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "디스코드 커뮤니티" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "디스코드 참여하기" })).toBeInTheDocument();
+    expect(screen.getByText("공지 확인")).toBeInTheDocument();
+  });
+
+  it("URL query의 board 값으로 초기 게시판을 선택하고 잘못된 값은 자랑게시판으로 되돌린다", () => {
+    const { rerender } = render(<Community />);
+
+    mockLocation.search = "?board=free";
+    rerender(<Community />);
+    expect(screen.getByRole("tab", { name: /자유게시판/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "자유게시판" })).toBeInTheDocument();
+
+    mockLocation.search = "?board=discord";
+    rerender(<Community />);
+    expect(screen.getByRole("tab", { name: /디스코드/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "디스코드 커뮤니티" })).toBeInTheDocument();
+
+    mockLocation.search = "?board=unknown";
+    rerender(<Community />);
+    expect(screen.getByRole("tab", { name: /자랑게시판/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "내 디지몬 자랑 피드" })).toBeInTheDocument();
+  });
+
+  it("페이지 안에서 게시판을 바꾸면 URL query와 선택 상태를 같이 갱신한다", () => {
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
+
+    expect(mockNavigate).toHaveBeenCalledWith("/community?board=support");
+    expect(screen.getByRole("tab", { name: /버그제보/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "버그제보 / QnA" })).toBeInTheDocument();
+  });
+
+  it("게시판 종류 목록이 선택된 게시판 설명보다 먼저 나온다", () => {
+    render(<Community />);
+
+    const tablist = screen.getByRole("tablist", { name: "커뮤니티 보드" });
+    const heroHeading = screen.getByRole("heading", { name: "내 디지몬 자랑 피드" });
+
+    expect(tablist.compareDocumentPosition(heroHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {

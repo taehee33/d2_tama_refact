@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  communityBoards,
+  getCommunityBoardHref,
+  resolveCommunityBoardId,
+} from "../../data/serviceContent";
 import NotebookTopBar from "../home/NotebookTopBar";
 
 function getDisplayTamerName(currentUser, tamerName) {
@@ -17,24 +22,29 @@ function TopNavigation({ tamerName = "" }) {
   const location = useLocation();
   const navigate = useNavigate();
   const isNotebookRoute = location.pathname === "/notebook";
+  const isCommunityRoute = location.pathname === "/community";
+  const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const homePath = currentUser ? "/" : "/landing";
   const links = [
     { to: homePath, label: "홈" },
     { to: "/play", label: "플레이" },
     { to: "/guide", label: "가이드" },
-    { to: "/community", label: "커뮤니티" },
+    { id: "community", label: "커뮤니티" },
     { to: "/news", label: "소식" },
   ];
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
   const accountMenuRef = useRef(null);
+  const communityMenuRef = useRef(null);
   const displayTamerName = getDisplayTamerName(currentUser, tamerName);
 
   useEffect(() => {
     setIsAccountMenuOpen(false);
+    setIsCommunityMenuOpen(false);
     setMenuError("");
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     if (!isAccountMenuOpen) {
@@ -64,9 +74,48 @@ function TopNavigation({ tamerName = "" }) {
     };
   }, [isAccountMenuOpen]);
 
+  useEffect(() => {
+    if (!isCommunityMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!communityMenuRef.current?.contains(event.target)) {
+        setIsCommunityMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsCommunityMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCommunityMenuOpen]);
+
   const handleAccountMenuToggle = () => {
     setMenuError("");
+    setIsCommunityMenuOpen(false);
     setIsAccountMenuOpen((prev) => !prev);
+  };
+
+  const handleCommunityMenuToggle = () => {
+    setMenuError("");
+    setIsAccountMenuOpen(false);
+    setIsCommunityMenuOpen((prev) => !prev);
+  };
+
+  const handleCloseCommunityMenu = () => {
+    setIsCommunityMenuOpen(false);
   };
 
   const handleSettingsClick = () => {
@@ -103,16 +152,66 @@ function TopNavigation({ tamerName = "" }) {
 
         <nav className="service-nav">
           {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === homePath}
-              className={({ isActive }) =>
-                `service-nav__link${isActive ? " service-nav__link--active" : ""}`
-              }
-            >
-              {link.label}
-            </NavLink>
+            link.id === "community" ? (
+              <div
+                key={link.id}
+                className="service-nav__item service-nav__item--menu"
+                ref={communityMenuRef}
+              >
+                <button
+                  type="button"
+                  className={`service-nav__link service-nav__link--button${
+                    isCommunityRoute ? " service-nav__link--active" : ""
+                  }${isCommunityMenuOpen ? " service-nav__link--open" : ""}`}
+                  onClick={handleCommunityMenuToggle}
+                  aria-haspopup="menu"
+                  aria-expanded={isCommunityMenuOpen}
+                  aria-label="커뮤니티"
+                >
+                  {link.label}
+                </button>
+
+                {isCommunityMenuOpen ? (
+                  <div
+                    className="service-nav__dropdown"
+                    role="menu"
+                    aria-label="커뮤니티 게시판 메뉴"
+                  >
+                    {communityBoards.map((board) => {
+                      const isActiveBoard =
+                        isCommunityRoute && board.id === activeCommunityBoardId;
+
+                      return (
+                        <Link
+                          key={board.id}
+                          to={getCommunityBoardHref(board.id)}
+                          className={`service-nav__dropdown-link${
+                            isActiveBoard
+                              ? " service-nav__dropdown-link--active"
+                              : ""
+                          }`}
+                          onClick={handleCloseCommunityMenu}
+                        >
+                          <strong>{board.title}</strong>
+                          <span>{board.status}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                end={link.to === homePath}
+                className={({ isActive }) =>
+                  `service-nav__link${isActive ? " service-nav__link--active" : ""}`
+                }
+              >
+                {link.label}
+              </NavLink>
+            )
           ))}
           {currentUser && (
             <NavLink

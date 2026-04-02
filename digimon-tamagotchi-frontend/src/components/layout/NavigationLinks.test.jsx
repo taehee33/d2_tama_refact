@@ -11,6 +11,7 @@ const mockAuthState = {
 const mockNavigate = jest.fn();
 const mockLocation = {
   pathname: "/",
+  search: "",
 };
 
 jest.mock("react-router-dom", () => ({
@@ -46,6 +47,7 @@ describe("홈과 노트북 전역 이동 링크", () => {
     mockAuthState.logout.mockResolvedValue(undefined);
     mockNavigate.mockReset();
     mockLocation.pathname = "/";
+    mockLocation.search = "";
   });
 
   test("탑네비에 노트북 링크가 보인다", () => {
@@ -85,6 +87,73 @@ describe("홈과 노트북 전역 이동 링크", () => {
     expect(screen.getByRole("link", { name: "HOME:// RETURN" })).toHaveAttribute(
       "href",
       "/"
+    );
+  });
+
+  test("탑네비에서 커뮤니티를 누르면 게시판 드롭다운 4개와 올바른 href가 보인다", () => {
+    render(<TopNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+
+    expect(screen.getByRole("link", { name: /^자유게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=free"
+    );
+    expect(screen.getByRole("link", { name: /^자랑게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=showcase"
+    );
+    expect(screen.getByRole("link", { name: /버그제보\s*\/\s*QnA/ })).toHaveAttribute(
+      "href",
+      "/community?board=support"
+    );
+    expect(screen.getByRole("link", { name: /^디스코드/ })).toHaveAttribute(
+      "href",
+      "/community?board=discord"
+    );
+  });
+
+  test("커뮤니티 드롭다운은 바깥 클릭과 Escape, 라우트 변경에서 닫힌다", () => {
+    const { rerender } = render(<TopNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    expect(screen.getByRole("link", { name: /^자유게시판/ })).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("link", { name: /^자유게시판/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("link", { name: /^자유게시판/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    mockLocation.pathname = "/guide";
+    rerender(<TopNavigation />);
+    expect(screen.queryByRole("link", { name: /^자유게시판/ })).not.toBeInTheDocument();
+  });
+
+  test("노트북 경로에서도 커뮤니티 드롭다운 항목이 보인다", () => {
+    mockLocation.pathname = "/notebook";
+
+    render(<TopNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+
+    expect(screen.getByRole("link", { name: /^자유게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=free"
+    );
+    expect(screen.getByRole("link", { name: /^자랑게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=showcase"
+    );
+    expect(screen.getByRole("link", { name: /버그제보\s*\/\s*QnA/ })).toHaveAttribute(
+      "href",
+      "/community?board=support"
+    );
+    expect(screen.getByRole("link", { name: /^디스코드/ })).toHaveAttribute(
+      "href",
+      "/community?board=discord"
     );
   });
 

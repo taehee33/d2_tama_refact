@@ -2792,3 +2792,101 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/components/community/CommunityPostStatsPanel.test.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
 - `docs/REFACTORING_LOG.md`
+
+### 커뮤니티 탭을 자유게시판·자랑게시판·버그제보/QnA·디스코드 4개 보드로 분리
+
+- 기존 `/community`는 사실상 자랑게시판 단일 흐름이었고 다른 보드는 비활성 카드였는데, 이번에 실제 `tab` 상태를 도입해 4개 보드를 직접 전환할 수 있게 정리했다.
+- 자랑게시판은 기존 스냅샷 피드, 작성 모달, 상세/댓글 흐름을 그대로 유지하고, 보드별 헤더 문구와 CTA만 현재 탭에 맞게 바뀌도록 분리했다.
+- 자유게시판은 플레이 근황, 공략 잡담, 짧은 질문을 위한 추천 주제와 운영 메모를 먼저 보여 주는 정보형 보드로 추가했다.
+- 버그제보 / QnA는 기존 지원 페이지에 흩어져 있던 상태 카드, FAQ, 버그 제보 체크리스트를 커뮤니티 안에서도 바로 볼 수 있게 묶었다.
+- 디스코드 보드는 초대 링크와 `공지 확인`, `자랑 스냅샷`, `버그제보 / QnA`, `자유잡담` 같은 용도형 안내를 한 화면에서 확인할 수 있도록 추가했다.
+- 추가로 커뮤니티 진입 직후 게시판 종류 목록이 먼저 보이도록 순서를 바꿔, 선택 가능한 보드 목록이 설명 카드보다 위에 먼저 나타나게 정리했다.
+- 현재 선택된 게시판 카드는 민트 톤 배경, 더 강한 보더/그림자, 텍스트 대비를 적용해 비선택 카드와 바로 구별되도록 강조했다.
+- 탭 전환 테스트를 보강해 자유게시판, 버그제보 / QnA, 디스코드 보드가 각각 다른 콘텐츠를 렌더하는지 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+**검증**
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runTestsByPath src/pages/Community.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 상단 `커뮤니티` 메뉴를 게시판 드롭다운 진입점으로 연결
+
+- 일반 서비스 상단 메뉴와 노트북 상단 메뉴의 `커뮤니티`를 단일 링크 대신 드롭다운 트리거로 바꿔, `자유게시판`, `자랑게시판`, `버그제보 / QnA`, `디스코드` 4개 보드에 바로 진입할 수 있게 했다.
+- 드롭다운은 클릭 토글 방식으로 열리고, 바깥 클릭, `Esc`, 라우트 이동 시 자동으로 닫히도록 정리해 상단 계정 메뉴와 상호작용이 충돌하지 않게 분리했다.
+- 커뮤니티 페이지는 이제 `?board=free|showcase|support|discord` query를 읽어 초기 보드를 결정하고, 페이지 안에서 보드를 바꿀 때도 같은 query 형식으로 URL을 함께 갱신하도록 맞췄다.
+- 잘못된 `board` 값이나 query가 없는 직접 진입은 기존처럼 `showcase`를 기본값으로 삼아, 예전 `/community` 링크도 깨지지 않게 유지했다.
+- 상단 드롭다운과 커뮤니티 본문이 같은 보드 해석 규칙을 쓰도록 공용 helper를 `serviceContent`에 두고, 테스트도 네비게이션 드롭다운과 커뮤니티 query 동기화까지 함께 검증하도록 보강했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/home/NotebookTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 배고픔/힘 10분 호출과 12시간 사망 카운터의 기준 시각을 분리해 정합성 복구
+
+- `lastHungerZeroAt`, `lastStrengthZeroAt`를 이제 배고픔/힘 0 상태의 단일 기준 시각으로 취급하고, `callStatus.hunger/strength`는 그 위에 얹힌 10분 케어 호출 UI 상태로만 다루도록 정리했다.
+- 실시간 호출 타임아웃과 lazy update 타임아웃 모두에서, 10분이 지나면 케어미스를 1회 올리고 호출을 닫되 `last*ZeroAt`는 stat이 여전히 0인 동안 유지하도록 바꿨다.
+- 그 결과 상단 호출 배지와 하단 `0 상태 12시간 지속` 카운터가 더 이상 서로 다른 사건을 가리키지 않게 되었고, 새로고침 후에도 사망 카운터가 끊기지 않는다.
+- 이미 10분 호출이 처리된 0 구간은 `isLogged`를 기준으로 다시 열리지 않도록 해서, 같은 0 구간에서 케어미스가 중복으로 쌓이거나 상단 호출이 다시 살아나는 드리프트를 막았다.
+- `StatsPopup` 상단 호출 안내는 `10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중` 문구를 보여주게 바꿔, 호출 종료와 사망 카운터 지속을 화면에서도 구분해 이해할 수 있게 했다.
+- `Game.jsx`의 저장 트리거는 `last*ZeroAt`가 설정될 때뿐 아니라 null로 회복될 때도 저장되도록 바꿔, 회복 직후 새로고침 시 오래된 zeroAt가 남는 문제를 방지했다.
+- 관련 테스트를 보강해 실시간 timeout, 새로고침 복원, 이미 처리된 0 구간 재열림 방지까지 모두 회귀 테스트로 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+**검증**
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
+- `cd digimon-tamagotchi-frontend && npm run build`
+
+### Supabase archive 운영 스모크 완료 후 조그레스 Firestore 제거 및 아레나 summary-only 전환
+
+- Preview는 `SUPABASE_SERVICE_ROLE_KEY`를 runtime env로 주입한 별도 배포를 만들고, `vercel curl`로 보호 배포를 우회해 아레나 archive 저장, replay 조회, 조그레스 archive 저장, Supabase row 생성을 모두 확인했다.
+- Production도 최신 archive API 배포를 다시 반영한 뒤 같은 스모크를 수행해 운영 도메인에서 archive POST / replay GET / Supabase row 생성이 정상 동작하는 것을 확인했다.
+- `useEvolution`의 조그레스 이력 저장은 이제 Firestore `jogress_logs`를 더 이상 쓰지 않고 Supabase archive만 사용한다. archive 저장 실패는 기존처럼 경고만 남기고 게임 진행을 막지 않는다.
+- `useGameActions`는 아레나 배틀 로그 저장 구조를 요약/상세로 분리해, Firestore `arena_battle_logs`에는 `archiveId`와 목록용 summary 필드만 남기고 상세 `logs[]`는 Supabase archive payload에만 저장하도록 바꿨다.
+- `ArenaScreen`은 더 이상 Firestore `logs[]`를 fallback으로 사용하지 않고 `archiveId`가 있는 로그만 다시보기 대상으로 취급한다. archive replay 조회 실패 시에는 기존 Firestore 로그를 대신 보여주지 않고 `상세 다시보기를 불러오지 못했습니다.` 안내로 degrade 한다.
+- 회귀 테스트를 추가해 조그레스 archive-only 동작, 아레나 summary-only 저장 구조, `archiveId` 기준 다시보기 판단을 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.test.jsx`
+- `docs/SUPABASE_LOG_ARCHIVE_ROLLOUT.md`
+- `README.md`
+- `docs/REFACTORING_LOG.md`
+
+**검증**
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/hooks/useGameActions.test.js src/hooks/useEvolution.test.js src/components/ArenaScreen.test.jsx src/utils/logArchiveApi.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+- Preview archive 스모크:
+  - `POST /api/logs/arena-battles/archive`
+  - `GET /api/logs/arena-battles/:archiveId/replay`
+  - `POST /api/logs/jogress/archive`
+  - `arena_battle_log_archives`, `jogress_log_archives` row 생성 확인
+- Production archive 스모크:
+  - `POST /api/logs/arena-battles/archive`
+  - `GET /api/logs/arena-battles/:archiveId/replay`
+  - `POST /api/logs/jogress/archive`
+  - `arena_battle_log_archives`, `jogress_log_archives` row 생성 확인
