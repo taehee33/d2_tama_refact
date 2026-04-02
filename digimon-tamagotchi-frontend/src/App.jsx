@@ -18,12 +18,12 @@ import { ChannelProvider } from "ably/react";
 import PlayChatDrawer from "./components/chat/PlayChatDrawer";
 import RequireAuth from "./components/layout/RequireAuth";
 import ServiceLayout from "./components/layout/ServiceLayout";
+import LandingShell from "./components/landing/LandingShell";
 import { useTamerProfile } from "./hooks/useTamerProfile";
 import Collection from "./pages/Collection";
 import Community from "./pages/Community";
 import Guide from "./pages/Guide";
 import Home from "./pages/Home";
-import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Game from "./pages/Game";
 import Me from "./pages/Me";
@@ -115,7 +115,6 @@ function AppContent() {
         <Routes>
           <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
             <Route path="/" element={<RootEntry />} />
-            <Route path="/landing" element={<LandingEntry />} />
             <Route path="/notebook" element={<NotebookLanding />} />
             <Route path="/guide" element={<Guide />} />
             <Route path="/community" element={<Community />} />
@@ -130,6 +129,7 @@ function AppContent() {
             </Route>
           </Route>
 
+          <Route path="/landing" element={<LandingEntry />} />
           <Route path="/auth" element={<Login />} />
 
           <Route element={<RequireAuth />}>
@@ -157,7 +157,7 @@ export function RootEntry() {
 }
 
 export function LandingEntry() {
-  return <Landing />;
+  return <LandingShell />;
 }
 
 function LegacyGameRedirect() {

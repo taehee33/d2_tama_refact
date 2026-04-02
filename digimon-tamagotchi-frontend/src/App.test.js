@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import App, { LandingEntry, RootEntry } from "./App";
 
 const mockLocation = { pathname: "/", search: "" };
@@ -26,6 +26,17 @@ jest.mock("react-router-dom", () => ({
       {children}
     </a>
   ),
+  NavLink: ({ children, to, className, ...props }) => {
+    const isActive = mockLocation.pathname === to;
+    const resolvedClassName =
+      typeof className === "function" ? className({ isActive }) : className;
+
+    return (
+      <a href={to} className={resolvedClassName} {...props}>
+        {children}
+      </a>
+    );
+  },
   useLocation: () => mockLocation,
   useParams: () => ({ slotId: "1" }),
 }), { virtual: true });
@@ -82,7 +93,12 @@ jest.mock("./hooks/useTamerProfile", () => ({
 
 jest.mock("./components/layout/ServiceLayout", () => ({
   __esModule: true,
-  default: ({ children }) => <div>{children}</div>,
+  default: ({ children }) => <div data-testid="service-layout">{children}</div>,
+}));
+
+jest.mock("./components/landing/LandingShell", () => ({
+  __esModule: true,
+  default: () => <div data-testid="landing-shell">랜딩 화면</div>,
 }));
 
 jest.mock("./components/layout/RequireAuth", () => ({
@@ -124,6 +140,13 @@ test("앱 라우트 셸이 깨지지 않고 렌더링된다", () => {
   expect(screen.getByText("설정 화면")).toBeInTheDocument();
   expect(screen.getByText("redirect:/play")).toBeInTheDocument();
   expect(screen.getByText("redirect:/play/1")).toBeInTheDocument();
+});
+
+test("/landing은 공통 ServiceLayout 밖의 전용 셸로 분리된다", () => {
+  render(<App />);
+
+  expect(screen.getByTestId("landing-shell")).toBeInTheDocument();
+  expect(within(screen.getByTestId("service-layout")).queryByTestId("landing-shell")).toBeNull();
 });
 
 test("비로그인 사용자가 루트 엔트리에 들어오면 랜딩으로 이동한다", () => {
