@@ -155,7 +155,7 @@ describe("applyLazyUpdate", () => {
     expect(result.careMistakes).toBe(0);
   });
 
-  test("hunger call 10분 초과는 케어미스를 한 번 올리고 호출을 닫는다", () => {
+  test("hunger call 10분 초과는 케어미스를 한 번 올리고 호출을 닫되 zeroAt는 유지한다", () => {
     const hungerZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
 
     const result = applyLazyUpdate(
@@ -174,7 +174,8 @@ describe("applyLazyUpdate", () => {
     expect(result.careMistakes).toBe(1);
     expect(result.callStatus.hunger.isActive).toBe(false);
     expect(result.callStatus.hunger.startedAt).toBeNull();
-    expect(result.lastHungerZeroAt).toBeNull();
+    expect(result.callStatus.hunger.isLogged).toBe(true);
+    expect(result.lastHungerZeroAt).toBe(hungerZeroAt);
     expect(result.hungerMistakeDeadline).toBeNull();
     expect(result.activityLogs).toEqual(
       expect.arrayContaining([
@@ -184,6 +185,30 @@ describe("applyLazyUpdate", () => {
         }),
       ])
     );
+  });
+
+  test("hunger call이 이미 처리된 0 구간은 새로고침 후에도 다시 열리지 않는다", () => {
+    const hungerZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 0,
+        lastHungerZeroAt: hungerZeroAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: true },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.callStatus.hunger.isActive).toBe(false);
+    expect(result.callStatus.hunger.startedAt).toBeNull();
+    expect(result.callStatus.hunger.isLogged).toBe(true);
+    expect(result.lastHungerZeroAt).toBe(hungerZeroAt);
+    expect(result.careMistakes).toBe(0);
+    expect(result.hungerMistakeDeadline).toBeNull();
   });
 
   test("reload 시 lastStrengthZeroAt를 기준으로 strength call을 복원한다", () => {
@@ -209,7 +234,7 @@ describe("applyLazyUpdate", () => {
     expect(result.careMistakes).toBe(0);
   });
 
-  test("strength call 10분 초과는 케어미스를 한 번 올리고 호출을 닫는다", () => {
+  test("strength call 10분 초과는 케어미스를 한 번 올리고 호출을 닫되 zeroAt는 유지한다", () => {
     const strengthZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
 
     const result = applyLazyUpdate(
@@ -228,7 +253,8 @@ describe("applyLazyUpdate", () => {
     expect(result.careMistakes).toBe(1);
     expect(result.callStatus.strength.isActive).toBe(false);
     expect(result.callStatus.strength.startedAt).toBeNull();
-    expect(result.lastStrengthZeroAt).toBeNull();
+    expect(result.callStatus.strength.isLogged).toBe(true);
+    expect(result.lastStrengthZeroAt).toBe(strengthZeroAt);
     expect(result.strengthMistakeDeadline).toBeNull();
     expect(result.activityLogs).toEqual(
       expect.arrayContaining([
@@ -238,6 +264,30 @@ describe("applyLazyUpdate", () => {
         }),
       ])
     );
+  });
+
+  test("strength call이 이미 처리된 0 구간은 새로고침 후에도 다시 열리지 않는다", () => {
+    const strengthZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        strength: 0,
+        lastStrengthZeroAt: strengthZeroAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: true },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.callStatus.strength.isActive).toBe(false);
+    expect(result.callStatus.strength.startedAt).toBeNull();
+    expect(result.callStatus.strength.isLogged).toBe(true);
+    expect(result.lastStrengthZeroAt).toBe(strengthZeroAt);
+    expect(result.careMistakes).toBe(0);
+    expect(result.strengthMistakeDeadline).toBeNull();
   });
 
   test("배고픔 0이 12시간 이상 지속되면 굶주림 사망 처리한다", () => {

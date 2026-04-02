@@ -1198,7 +1198,11 @@ export default function StatsPopup({
                     ❌ 타임아웃! 케어미스 발생
                   </div>
                 );
-              })() : (
+              })() : lastHungerZeroAt ? (
+                <div className="text-amber-600 font-semibold ml-2">
+                  ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
+                </div>
+              ) : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               )
             ) : (
@@ -1269,7 +1273,11 @@ export default function StatsPopup({
                     ❌ 타임아웃! 케어미스 발생
                   </div>
                 );
-              })() : (
+              })() : lastStrengthZeroAt ? (
+                <div className="text-amber-600 font-semibold ml-2">
+                  ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
+                </div>
+              ) : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               )
             ) : (

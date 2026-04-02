@@ -864,8 +864,8 @@ function Game({ immersive = false }){
           updatedStats.dailySleepMistake = dailySleepMistake;
         }
         // 호출 활성화·데드라인·케어미스·부상 발생 시 DB 저장 → 새로고침 없이 이력 유지
-        const zeroAtChanged = (updatedStats.lastHungerZeroAt && updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt) ||
-          (updatedStats.lastStrengthZeroAt && updatedStats.lastStrengthZeroAt !== prevStats.lastStrengthZeroAt);
+        const zeroAtChanged = updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt ||
+          updatedStats.lastStrengthZeroAt !== prevStats.lastStrengthZeroAt;
         const deadlineChanged = (updatedStats.hungerMistakeDeadline !== prevStats.hungerMistakeDeadline) ||
           (updatedStats.strengthMistakeDeadline !== prevStats.strengthMistakeDeadline);
         const careMistakeJustIncreased = (updatedStats.careMistakes || 0) > (prevStats.careMistakes || 0);

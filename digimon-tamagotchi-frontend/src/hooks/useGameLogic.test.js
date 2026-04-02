@@ -122,3 +122,111 @@ describe("useGameLogic sleep-related warning rules", () => {
     ).toBe(false);
   });
 });
+
+describe("useGameLogic hunger/strength call consistency", () => {
+  test("배고픔 호출 타임아웃 후에도 lastHungerZeroAt는 유지된다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 0, 0);
+
+    const result = checkCallTimeouts(
+      createBaseStats({
+        fullness: 0,
+        lastHungerZeroAt: startedAt,
+        callStatus: {
+          hunger: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      now,
+      false
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.callStatus.hunger.isActive).toBe(false);
+    expect(result.callStatus.hunger.startedAt).toBeNull();
+    expect(result.callStatus.hunger.isLogged).toBe(true);
+    expect(result.lastHungerZeroAt).toBe(startedAt);
+    expect(result.hungerMistakeDeadline).toBeNull();
+  });
+
+  test("힘 호출 타임아웃 후에도 lastStrengthZeroAt는 유지된다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 0, 0);
+
+    const result = checkCallTimeouts(
+      createBaseStats({
+        strength: 0,
+        lastStrengthZeroAt: startedAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          strength: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      now,
+      false
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.callStatus.strength.isActive).toBe(false);
+    expect(result.callStatus.strength.startedAt).toBeNull();
+    expect(result.callStatus.strength.isLogged).toBe(true);
+    expect(result.lastStrengthZeroAt).toBe(startedAt);
+    expect(result.strengthMistakeDeadline).toBeNull();
+  });
+
+  test("이미 처리된 배고픔 0 구간은 호출이 다시 열리지 않는다", () => {
+    const zeroAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 1, 0);
+
+    const result = checkCalls(
+      createBaseStats({
+        fullness: 0,
+        lastHungerZeroAt: zeroAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: true },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      true,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      now,
+      false
+    );
+
+    expect(result.callStatus.hunger.isActive).toBe(false);
+    expect(result.callStatus.hunger.startedAt).toBeNull();
+    expect(result.callStatus.hunger.isLogged).toBe(true);
+    expect(result.lastHungerZeroAt).toBe(zeroAt);
+    expect(result.hungerMistakeDeadline).toBeNull();
+  });
+
+  test("이미 처리된 힘 0 구간은 호출이 다시 열리지 않는다", () => {
+    const zeroAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 1, 0);
+
+    const result = checkCalls(
+      createBaseStats({
+        strength: 0,
+        lastStrengthZeroAt: zeroAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: true },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      true,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      now,
+      false
+    );
+
+    expect(result.callStatus.strength.isActive).toBe(false);
+    expect(result.callStatus.strength.startedAt).toBeNull();
+    expect(result.callStatus.strength.isLogged).toBe(true);
+    expect(result.lastStrengthZeroAt).toBe(zeroAt);
+    expect(result.strengthMistakeDeadline).toBeNull();
+  });
+});

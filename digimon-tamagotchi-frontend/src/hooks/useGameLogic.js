@@ -517,38 +517,44 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
 
   // Hunger 호출 트리거
   if (updatedStats.fullness === 0) {
-    // startedAt이 없거나 유효하지 않으면: 기존 lastHungerZeroAt(절대 시각)이 있으면 복원, 없으면 지금 시작 — 값 있으면 now로 덮어쓰지 않음
     const existingStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
     const existingHungerZeroAt = ensureTimestamp(updatedStats.lastHungerZeroAt);
-    if (!existingStartedAt) {
+    const alreadyHandled = callStatus.hunger.isLogged === true;
+
+    if (alreadyHandled) {
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      callStatus.hunger.sleepStartAt = null;
+      updatedStats.hungerMistakeDeadline = null;
+    } else if (existingHungerZeroAt && !existingStartedAt) {
       callStatus.hunger.isActive = true;
-      callStatus.hunger.isLogged = false; // 새 호출 시작 시 반드시 초기화 — 안 하면 이전 타임아웃의 true가 남아 새 케어미스가 안 올라감
-      const startTime = existingHungerZeroAt || now.getTime();
-      callStatus.hunger.startedAt = startTime;
+      callStatus.hunger.isLogged = false;
+      callStatus.hunger.startedAt = existingHungerZeroAt;
       callStatus.hunger.sleepStartAt = isActuallySleeping ? now.getTime() : null;
-      if (!existingHungerZeroAt) updatedStats.lastHungerZeroAt = now.getTime();
-      else updatedStats.lastHungerZeroAt = existingHungerZeroAt;
-      // 데드라인: 값이 없을 때만 기록 (DB 저장되어 새로고침 후에도 유지)
-      if (!updatedStats.hungerMistakeDeadline && updatedStats.lastHungerZeroAt) {
-        const startMs = ensureTimestamp(updatedStats.lastHungerZeroAt);
-        if (startMs) updatedStats.hungerMistakeDeadline = startMs + HUNGER_CALL_TIMEOUT_MS;
+      if (!updatedStats.hungerMistakeDeadline) {
+        updatedStats.hungerMistakeDeadline = existingHungerZeroAt + HUNGER_CALL_TIMEOUT_MS;
       }
-    } else {
-      // startedAt이 있으면 isActive를 true로 설정 (복원) — DB에서 불러온 경우 포함
+    } else if (existingHungerZeroAt && existingStartedAt) {
       callStatus.hunger.isActive = true;
       callStatus.hunger.startedAt = existingStartedAt;
-      // DB에 isLogged: true로 남아 있던 '망령' 보정: 아직 10분이 안 지났으면 판정 대기 상태이므로 무조건 false
       const hungerElapsed = now.getTime() - existingStartedAt;
       if (hungerElapsed < HUNGER_CALL_TIMEOUT_MS) {
         callStatus.hunger.isLogged = false;
       }
-      // 수면 상태 변경 추적
       const existingSleepStartAt = ensureTimestamp(callStatus.hunger.sleepStartAt);
       if (isActuallySleeping && !existingSleepStartAt) {
         callStatus.hunger.sleepStartAt = now.getTime();
       } else if (!isActuallySleeping && existingSleepStartAt) {
         callStatus.hunger.sleepStartAt = null;
       }
+      if (!updatedStats.hungerMistakeDeadline) {
+        updatedStats.hungerMistakeDeadline = existingHungerZeroAt + HUNGER_CALL_TIMEOUT_MS;
+      }
+    } else {
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      callStatus.hunger.sleepStartAt = null;
+      updatedStats.hungerMistakeDeadline = null;
     }
   } else {
     callStatus.hunger.isActive = false;
@@ -563,19 +569,22 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
   if (updatedStats.strength === 0) {
     const existingStartedAt = ensureTimestamp(callStatus.strength.startedAt);
     const existingStrengthZeroAt = ensureTimestamp(updatedStats.lastStrengthZeroAt);
-    if (!existingStartedAt) {
+    const alreadyHandled = callStatus.strength.isLogged === true;
+
+    if (alreadyHandled) {
+      callStatus.strength.isActive = false;
+      callStatus.strength.startedAt = null;
+      callStatus.strength.sleepStartAt = null;
+      updatedStats.strengthMistakeDeadline = null;
+    } else if (existingStrengthZeroAt && !existingStartedAt) {
       callStatus.strength.isActive = true;
-      callStatus.strength.isLogged = false; // 새 호출 시작 시 반드시 초기화
-      const startTime = existingStrengthZeroAt || now.getTime();
-      callStatus.strength.startedAt = startTime;
+      callStatus.strength.isLogged = false;
+      callStatus.strength.startedAt = existingStrengthZeroAt;
       callStatus.strength.sleepStartAt = isActuallySleeping ? now.getTime() : null;
-      if (!existingStrengthZeroAt) updatedStats.lastStrengthZeroAt = now.getTime();
-      else updatedStats.lastStrengthZeroAt = existingStrengthZeroAt;
-      if (!updatedStats.strengthMistakeDeadline && updatedStats.lastStrengthZeroAt) {
-        const startMs = ensureTimestamp(updatedStats.lastStrengthZeroAt);
-        if (startMs) updatedStats.strengthMistakeDeadline = startMs + STRENGTH_CALL_TIMEOUT_MS;
+      if (!updatedStats.strengthMistakeDeadline) {
+        updatedStats.strengthMistakeDeadline = existingStrengthZeroAt + STRENGTH_CALL_TIMEOUT_MS;
       }
-    } else {
+    } else if (existingStrengthZeroAt && existingStartedAt) {
       callStatus.strength.isActive = true;
       callStatus.strength.startedAt = existingStartedAt;
       const strengthElapsed = now.getTime() - existingStartedAt;
@@ -588,6 +597,14 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       } else if (!isActuallySleeping && existingSleepStartAt) {
         callStatus.strength.sleepStartAt = null;
       }
+      if (!updatedStats.strengthMistakeDeadline) {
+        updatedStats.strengthMistakeDeadline = existingStrengthZeroAt + STRENGTH_CALL_TIMEOUT_MS;
+      }
+    } else {
+      callStatus.strength.isActive = false;
+      callStatus.strength.startedAt = null;
+      callStatus.strength.sleepStartAt = null;
+      updatedStats.strengthMistakeDeadline = null;
     }
   } else {
     callStatus.strength.isActive = false;
@@ -719,8 +736,8 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
       updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
       callStatus.hunger.isActive = false;
       callStatus.hunger.startedAt = null;
+      callStatus.hunger.sleepStartAt = null;
       callStatus.hunger.isLogged = true; // 로그 한 번만 남기도록
-      updatedStats.lastHungerZeroAt = null;
       updatedStats.hungerMistakeDeadline = null;
       hasChanged = true;
       console.log("🔥 실시간 Hunger 케어미스 발생! careMistakes:", updatedStats.careMistakes);
@@ -728,7 +745,7 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
       // 이미 로그됨: 상태만 정리 (카운트/로그 중복 없음)
       callStatus.hunger.isActive = false;
       callStatus.hunger.startedAt = null;
-      updatedStats.lastHungerZeroAt = null;
+      callStatus.hunger.sleepStartAt = null;
       updatedStats.hungerMistakeDeadline = null;
       hasChanged = true;
     }
@@ -742,15 +759,15 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
       updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
       callStatus.strength.isActive = false;
       callStatus.strength.startedAt = null;
+      callStatus.strength.sleepStartAt = null;
       callStatus.strength.isLogged = true;
-      updatedStats.lastStrengthZeroAt = null;
       updatedStats.strengthMistakeDeadline = null;
       hasChanged = true;
       console.log("🔥 실시간 Strength 케어미스 발생! careMistakes:", updatedStats.careMistakes);
     } else if (elapsed > STRENGTH_CALL_TIMEOUT && alreadyLogged) {
       callStatus.strength.isActive = false;
       callStatus.strength.startedAt = null;
-      updatedStats.lastStrengthZeroAt = null;
+      callStatus.strength.sleepStartAt = null;
       updatedStats.strengthMistakeDeadline = null;
       hasChanged = true;
     }

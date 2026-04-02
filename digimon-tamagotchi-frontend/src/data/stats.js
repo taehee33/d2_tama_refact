@@ -735,89 +735,85 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // Hunger 호출 처리
   if (updatedStats.fullness === 0) {
-    // startedAt이 없으면 lastHungerZeroAt(DB 절대 기준점)를 기반으로 복원 — 값이 있으면 now로 덮어쓰지 않음
-    if (!callStatus.hunger.startedAt && updatedStats.lastHungerZeroAt) {
-      const hungerZeroTime = ensureTimestamp(updatedStats.lastHungerZeroAt);
-      if (hungerZeroTime) {
+    const hungerZeroTime = ensureTimestamp(updatedStats.lastHungerZeroAt);
+    const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+    const alreadyLogged = callStatus.hunger.isLogged === true;
+
+    if (hungerZeroTime && alreadyLogged) {
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      updatedStats.hungerMistakeDeadline = null;
+    } else if (hungerZeroTime) {
+      if (!hungerStartedAt) {
         callStatus.hunger.isActive = true;
         callStatus.hunger.startedAt = hungerZeroTime;
-      }
-    } else if (callStatus.hunger.startedAt) {
-      callStatus.hunger.isActive = true;
-    }
-    // 값이 없을 때만 딱 한 번 기록: DB에 lastHungerZeroAt가 있으면 절대 now로 덮어쓰지 않음
-    if (!updatedStats.lastHungerZeroAt) {
-      const fromStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
-      updatedStats.lastHungerZeroAt = fromStartedAt || now.getTime();
-      callStatus.hunger.isActive = true;
-      callStatus.hunger.startedAt = updatedStats.lastHungerZeroAt;
-    }
-    // 데드라인도 값이 없을 때만 설정 (birthTime처럼 절대 기준점으로 DB 저장)
-    if (!updatedStats.hungerMistakeDeadline && updatedStats.lastHungerZeroAt) {
-      const startMs = ensureTimestamp(updatedStats.lastHungerZeroAt);
-      if (startMs) updatedStats.hungerMistakeDeadline = startMs + HUNGER_CALL_TIMEOUT;
-    }
-
-    // 타임아웃 체크 (오프라인 수면 시간 고려)
-    const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
-    // DB isLogged 망령 보정: 아직 10분 미만이면 판정 대기 상태이므로 false
-    if (hungerStartedAt) {
-      const hungerElapsed = now.getTime() - hungerStartedAt;
-      if (hungerElapsed < HUNGER_CALL_TIMEOUT) callStatus.hunger.isLogged = false;
-    }
-    if (hungerStartedAt && sleepSchedule) {
-      // 호출 시작 시점부터 지금까지의 수면 시간 계산
-      const sleepDuringCall = calculateSleepSecondsInRange(hungerStartedAt, now.getTime(), sleepSchedule);
-      const totalElapsedMs = now.getTime() - hungerStartedAt;
-      const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
-      
-      if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
-        const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
-        const alreadyLogged = callStatus.hunger.isLogged === true;
-        if (!alreadyLogged &&
-            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
-            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
-          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-          updatedStats.activityLogs = pushBackdatedActivityLog(
-            updatedStats.activityLogs,
-            'CAREMISTAKE',
-            '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
-            timeoutOccurredAt
-          );
-          callStatus.hunger.isLogged = true;
-        }
-        callStatus.hunger.isActive = false;
-        callStatus.hunger.startedAt = null;
-        updatedStats.lastHungerZeroAt = null;
-        updatedStats.hungerMistakeDeadline = null;
       } else {
-        // 아직 타임아웃 전: 수면 시간만큼 startedAt을 뒤로 밀어서 보존 (UI 경과 시간 계산용)
-        // 단, 절대 시각이 '현재'를 넘어가면 안 됨 → T_rem = max(0, deadline - now) 일관성 유지
-        const pushedStart = hungerStartedAt + (sleepDuringCall * 1000);
-        callStatus.hunger.startedAt = Math.min(now.getTime(), pushedStart);
+        callStatus.hunger.isActive = true;
       }
-    } else if (hungerStartedAt) {
-      const elapsed = now.getTime() - hungerStartedAt;
-      if (elapsed > HUNGER_CALL_TIMEOUT) {
-        const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
-        const alreadyLogged = callStatus.hunger.isLogged === true;
-        if (!alreadyLogged &&
-            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
-            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
-          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-          updatedStats.activityLogs = pushBackdatedActivityLog(
-            updatedStats.activityLogs,
-            'CAREMISTAKE',
-            '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
-            timeoutOccurredAt
-          );
-          callStatus.hunger.isLogged = true;
+
+      if (!updatedStats.hungerMistakeDeadline) {
+        updatedStats.hungerMistakeDeadline = hungerZeroTime + HUNGER_CALL_TIMEOUT;
+      }
+
+      const activeStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
+      if (activeStartedAt) {
+        const elapsed = now.getTime() - activeStartedAt;
+        if (elapsed < HUNGER_CALL_TIMEOUT) {
+          callStatus.hunger.isLogged = false;
         }
-        callStatus.hunger.isActive = false;
-        callStatus.hunger.startedAt = null;
-        updatedStats.lastHungerZeroAt = null;
-        updatedStats.hungerMistakeDeadline = null;
       }
+
+      if (activeStartedAt && sleepSchedule) {
+        const sleepDuringCall = calculateSleepSecondsInRange(activeStartedAt, now.getTime(), sleepSchedule);
+        const totalElapsedMs = now.getTime() - activeStartedAt;
+        const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+
+        if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
+          const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
+          if (!alreadyLogged &&
+              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
+              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'CAREMISTAKE',
+              '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+              timeoutOccurredAt
+            );
+            callStatus.hunger.isLogged = true;
+          }
+          callStatus.hunger.isActive = false;
+          callStatus.hunger.startedAt = null;
+          updatedStats.hungerMistakeDeadline = null;
+        } else {
+          const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
+          callStatus.hunger.startedAt = Math.min(now.getTime(), pushedStart);
+        }
+      } else if (activeStartedAt) {
+        const elapsed = now.getTime() - activeStartedAt;
+        if (elapsed > HUNGER_CALL_TIMEOUT) {
+          const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
+          if (!alreadyLogged &&
+              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
+              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'CAREMISTAKE',
+              '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+              timeoutOccurredAt
+            );
+            callStatus.hunger.isLogged = true;
+          }
+          callStatus.hunger.isActive = false;
+          callStatus.hunger.startedAt = null;
+          updatedStats.hungerMistakeDeadline = null;
+        }
+      }
+    } else {
+      callStatus.hunger.isActive = false;
+      callStatus.hunger.startedAt = null;
+      updatedStats.hungerMistakeDeadline = null;
     }
   } else {
     callStatus.hunger.isActive = false;
@@ -829,85 +825,85 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // Strength 호출 처리
   if (updatedStats.strength === 0) {
-    // startedAt이 없으면 lastStrengthZeroAt(DB 절대 기준점)를 기반으로 복원 — 값이 있으면 now로 덮어쓰지 않음
-    if (!callStatus.strength.startedAt && updatedStats.lastStrengthZeroAt) {
-      const strengthZeroTime = ensureTimestamp(updatedStats.lastStrengthZeroAt);
-      if (strengthZeroTime) {
+    const strengthZeroTime = ensureTimestamp(updatedStats.lastStrengthZeroAt);
+    const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
+    const alreadyLogged = callStatus.strength.isLogged === true;
+
+    if (strengthZeroTime && alreadyLogged) {
+      callStatus.strength.isActive = false;
+      callStatus.strength.startedAt = null;
+      updatedStats.strengthMistakeDeadline = null;
+    } else if (strengthZeroTime) {
+      if (!strengthStartedAt) {
         callStatus.strength.isActive = true;
         callStatus.strength.startedAt = strengthZeroTime;
-      }
-    } else if (callStatus.strength.startedAt) {
-      callStatus.strength.isActive = true;
-    }
-    // 값이 없을 때만 딱 한 번 기록
-    if (!updatedStats.lastStrengthZeroAt) {
-      const fromStartedAt = ensureTimestamp(callStatus.strength.startedAt);
-      updatedStats.lastStrengthZeroAt = fromStartedAt || now.getTime();
-      callStatus.strength.isActive = true;
-      callStatus.strength.startedAt = updatedStats.lastStrengthZeroAt;
-    }
-    if (!updatedStats.strengthMistakeDeadline && updatedStats.lastStrengthZeroAt) {
-      const startMs = ensureTimestamp(updatedStats.lastStrengthZeroAt);
-      if (startMs) updatedStats.strengthMistakeDeadline = startMs + STRENGTH_CALL_TIMEOUT;
-    }
-
-    // 타임아웃 체크 (오프라인 수면 시간 고려)
-    const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
-    if (strengthStartedAt) {
-      const strengthElapsed = now.getTime() - strengthStartedAt;
-      if (strengthElapsed < STRENGTH_CALL_TIMEOUT) callStatus.strength.isLogged = false;
-    }
-    if (strengthStartedAt && sleepSchedule) {
-      // 호출 시작 시점부터 지금까지의 수면 시간 계산
-      const sleepDuringCall = calculateSleepSecondsInRange(strengthStartedAt, now.getTime(), sleepSchedule);
-      const totalElapsedMs = now.getTime() - strengthStartedAt;
-      const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
-      
-      if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
-        const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
-        const alreadyLogged = callStatus.strength.isLogged === true;
-        if (!alreadyLogged &&
-            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
-            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
-          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-          updatedStats.activityLogs = pushBackdatedActivityLog(
-            updatedStats.activityLogs,
-            'CAREMISTAKE',
-            '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
-            timeoutOccurredAt
-          );
-          callStatus.strength.isLogged = true;
-        }
-        callStatus.strength.isActive = false;
-        callStatus.strength.startedAt = null;
-        updatedStats.lastStrengthZeroAt = null;
-        updatedStats.strengthMistakeDeadline = null;
       } else {
-        const pushedStart = strengthStartedAt + (sleepDuringCall * 1000);
-        callStatus.strength.startedAt = Math.min(now.getTime(), pushedStart);
+        callStatus.strength.isActive = true;
       }
-    } else if (strengthStartedAt) {
-      const elapsed = now.getTime() - strengthStartedAt;
-      if (elapsed > STRENGTH_CALL_TIMEOUT) {
-        const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
-        const alreadyLogged = callStatus.strength.isLogged === true;
-        if (!alreadyLogged &&
-            !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
-            !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
-          updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-          updatedStats.activityLogs = pushBackdatedActivityLog(
-            updatedStats.activityLogs,
-            'CAREMISTAKE',
-            '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
-            timeoutOccurredAt
-          );
-          callStatus.strength.isLogged = true;
+
+      if (!updatedStats.strengthMistakeDeadline) {
+        updatedStats.strengthMistakeDeadline = strengthZeroTime + STRENGTH_CALL_TIMEOUT;
+      }
+
+      const activeStartedAt = ensureTimestamp(callStatus.strength.startedAt);
+      if (activeStartedAt) {
+        const strengthElapsed = now.getTime() - activeStartedAt;
+        if (strengthElapsed < STRENGTH_CALL_TIMEOUT) {
+          callStatus.strength.isLogged = false;
         }
-        callStatus.strength.isActive = false;
-        callStatus.strength.startedAt = null;
-        updatedStats.lastStrengthZeroAt = null;
-        updatedStats.strengthMistakeDeadline = null;
       }
+
+      if (activeStartedAt && sleepSchedule) {
+        const sleepDuringCall = calculateSleepSecondsInRange(activeStartedAt, now.getTime(), sleepSchedule);
+        const totalElapsedMs = now.getTime() - activeStartedAt;
+        const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+
+        if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
+          const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
+          if (!alreadyLogged &&
+              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
+              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'CAREMISTAKE',
+              '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+              timeoutOccurredAt
+            );
+            callStatus.strength.isLogged = true;
+          }
+          callStatus.strength.isActive = false;
+          callStatus.strength.startedAt = null;
+          updatedStats.strengthMistakeDeadline = null;
+        } else {
+          const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
+          callStatus.strength.startedAt = Math.min(now.getTime(), pushedStart);
+        }
+      } else if (activeStartedAt) {
+        const elapsed = now.getTime() - activeStartedAt;
+        if (elapsed > STRENGTH_CALL_TIMEOUT) {
+          const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
+          if (!alreadyLogged &&
+              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
+              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'CAREMISTAKE',
+              '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+              timeoutOccurredAt
+            );
+            callStatus.strength.isLogged = true;
+          }
+          callStatus.strength.isActive = false;
+          callStatus.strength.startedAt = null;
+          updatedStats.strengthMistakeDeadline = null;
+        }
+      }
+    } else {
+      callStatus.strength.isActive = false;
+      callStatus.strength.startedAt = null;
+      updatedStats.strengthMistakeDeadline = null;
     }
   } else {
     callStatus.strength.isActive = false;
