@@ -173,7 +173,7 @@ describe("Community", () => {
     ).toBeInTheDocument();
   });
 
-  it("자랑게시판 목록 카드는 라벨과 구역으로 정보를 분리해 보여 준다", async () => {
+  it("자랑게시판 목록 카드는 제목, 내용, 댓글과 오른쪽 썸네일 정보를 분리해 보여 준다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
       getIdToken: jest.fn().mockResolvedValue("token-123"),
@@ -251,14 +251,19 @@ describe("Community", () => {
     const postCard = screen.getByText("바다 산책 뿔몬").closest("article");
 
     expect(postCard).not.toBeNull();
-    expect(screen.getByText("제목 :")).toBeInTheDocument();
-    expect(screen.getByText("작성자 :")).toBeInTheDocument();
-    expect(screen.getByText("댓글 :")).toBeInTheDocument();
-    expect(screen.getByText("디지몬 :")).toBeInTheDocument();
-    expect(screen.getByText("단계 :")).toBeInTheDocument();
-    expect(screen.getByText("슬롯 :")).toBeInTheDocument();
-    expect(screen.getByText("대표 장면")).toBeInTheDocument();
+    expect(within(postCard).getByText("제목 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("내용 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("디지몬 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("단계 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("대표 장면")).toBeInTheDocument();
+    expect(within(postCard).queryByText("슬롯 :")).not.toBeInTheDocument();
+    expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
+    expect(within(postCard).getByText("0개")).toBeInTheDocument();
+    expect(within(postCard).getByText("뿔몬")).toBeInTheDocument();
+    expect(within(postCard).getByText("유년기 II · Ver.2")).toBeInTheDocument();
     expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
+    expect(within(postCard).getByText(/작성자 : 히히히/)).toBeInTheDocument();
   });
 
   it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
@@ -367,11 +372,15 @@ describe("Community", () => {
     expect(within(postCard).getByText("관리")).toBeInTheDocument();
     expect(within(postCard).getByRole("button", { name: "수정" })).toBeInTheDocument();
     expect(within(postCard).getByRole("button", { name: "삭제" })).toBeInTheDocument();
+    expect(within(postCard).getByText(/작성자 : 한솔/)).toBeInTheDocument();
+    expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
     expect(within(postCard).getByText("코로몬")).toBeInTheDocument();
     expect(within(postCard).getByText("성장기 · Ver.1")).toBeInTheDocument();
+    expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
     expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
     expect(within(postCard).getByText("1개")).toBeInTheDocument();
-    expect(screen.queryByText("내용")).not.toBeInTheDocument();
+    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
+    expect(screen.queryAllByText("내용").length).toBe(0);
     expect(screen.queryByText("디지몬 스탯")).not.toBeInTheDocument();
     expect(screen.queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
 
@@ -390,7 +399,7 @@ describe("Community", () => {
 
     expect(screen.getByText("내용")).toBeInTheDocument();
     expect(screen.getByText("디지몬 스탯")).toBeInTheDocument();
-    expect(screen.getAllByText("슬롯1").length).toBeGreaterThan(1);
+    expect(screen.getByText("슬롯1")).toBeInTheDocument();
     expect(screen.getByText("Digital Monster Color 25th")).toBeInTheDocument();
     expect(screen.queryByText("불 꺼줘!")).not.toBeInTheDocument();
 
