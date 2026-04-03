@@ -4,6 +4,76 @@
 
 ---
 
+## [2026-04-04] 사망 판정 공통화와 recovery/cleanup 경계 테스트 추가
+
+### 작업 유형
+- ☠️ 시간 기반 사망 판정 공통 evaluator 도입
+- 🧹 회복/청소/치료 경계 동작 공통 helper 정리
+- 🧪 사망/회복 경계 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 배고픔/힘 0, 부상 방치, 부상 과다 사망 판정을 하나의 계약으로 묶어 실시간 틱, lazy update, 슬롯 로드 경로가 같은 기준을 보게 한다.
+- **범위:** `src/data/stats.js`, `useDeath`, `useGameData`, `Game`의 사망 판정과 `poop 청소`, `치료`, `0 -> 회복 -> 다시 0` 경계 동작을 함께 정리한다.
+- **내용:**
+  - `src/logic/stats/death.js`에 `evaluateDeathConditions(stats, nowMs)`를 추가하고 `STARVATION`, `EXHAUSTION`, `INJURY OVERLOAD`, `INJURY NEGLECT`의 threshold와 reason 문자열을 한 곳으로 모았다.
+  - 냉장고 제외 helper를 공통 evaluator에서 사용하도록 맞춰, 시간 기반 사망 판정이 실시간/로드/lazy update 경로에서 같은 계산을 쓰게 정리했다.
+  - `clearPoopOverflowState`, `clearActiveInjuryState`를 추가해 똥 청소는 poop overflow 시간 필드만 정리하고, 치료는 active injury만 해제하며 누적 `injuries`는 유지하도록 계약을 분리했다.
+  - `stats.test.js`와 `death.test.js`에 굶주림/탈진/부상 방치/부상 과다, 회복 후 zero 재시작, 청소/치료 경계 케이스를 추가해 회귀를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/logic/stats/death.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/death.test.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/logic/stats/death.test.js src/data/stats.test.js src/hooks/useGameLogic.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
+- `cd digimon-tamagotchi-frontend && npm run build`
+
+### 아키텍처 메모
+- 이번 라운드에서는 `src/data/stats.js`를 계속 canonical engine으로 유지하고, 사망 판정 기준만 공통 evaluator로 묶었다.
+- `src/logic/stats/stats.js` 중복 엔진 정리는 후속 리팩터링 과제로 남긴다.
+
+---
+
+## [2026-04-04] 커뮤니티 자랑 목록 카드 라벨과 구역 구분 강화
+
+### 작업 유형
+- 🏷 자랑게시판 목록 카드 필드 라벨 강화
+- 🎨 목록 카드 정보 구역 시각 분리
+- 🧪 카드 정보 라벨 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 자랑게시판 목록 카드에서 제목, 작성자, 댓글, 디지몬 정보가 한눈에 무엇인지 바로 읽히도록 라벨과 구역 구분을 강화한다.
+- **범위:** 목록 카드 UI와 스타일, 관련 페이지 테스트를 함께 갱신한다.
+- **내용:**
+  - `CommunityPostCard.jsx`에서 목록 카드의 주요 정보를 `제목 :`, `작성자 :`, `댓글 :`, `디지몬 :`, `단계 :`, `슬롯 :` 형태의 명시적 라벨로 바꿨다.
+  - 제목 블록, 메타 블록, 디지몬 정보 블록, 슬롯 블록을 각각 별도 박스와 배경 톤으로 분리해 시선이 섞이지 않도록 정리했다.
+  - 오른쪽 스크린샷에는 `대표 장면` 라벨을 추가해 썸네일 역할이 더 분명하게 보이도록 맞췄다.
+  - 작성자 본인에게만 보이는 `수정/삭제`는 카드 오른쪽 상단의 별도 `관리` 박스로 분리하고, 액션 버튼도 독립된 pill 버튼으로 보여 식별성을 높였다.
+  - `Community.test.jsx`에 라벨/구역 분리 렌더를 검증하는 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runTestsByPath src/pages/Community.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 상세 정보는 계속 상세 모달에서 확인하고, 목록 카드는 “무슨 정보인지 즉시 구분되는 요약형 카드” 역할에 집중한다.
+
+---
+
 ## [2026-04-04] 커뮤니티 상단을 칩형 보드 선택과 컴팩트 헤더로 축소
 
 ### 작업 유형
@@ -506,6 +576,26 @@
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/App.jsx`
 - `digimon-tamagotchi-frontend/src/App.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 화면 테마 노트북 라벨을 한솔이의 노트북으로 바꾸고 로그아웃 액션에 출구 이모티콘 추가
+
+- 화면 테마 선택 라벨의 `노트북`을 `한솔이의 노트북`으로 바꿔, 설정 패널과 테이머 화면 요약 카드에서 더 서비스 톤에 맞는 이름으로 보이게 정리했다.
+- 저장 유효성 검사 문구도 같은 기준으로 맞춰, 잘못된 테마 값 안내에서 `기본 또는 한솔이의 노트북`으로 표시되도록 수정했다.
+- 로그아웃 주요 액션은 `🚪 로그아웃` 기준으로 맞췄다. 설정 페이지 섹션 제목과 확인 버튼, 상단 계정 메뉴, 레거시 계정 설정 모달에서 같은 표현을 사용한다.
+- 관련 테스트의 버튼/메뉴 이름도 새 라벨 기준으로 갱신했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/contexts/ThemeContext.jsx`
+- `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.js`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/AccountSettingsModal.jsx`
+- `digimon-tamagotchi-frontend/src/contexts/ThemeContext.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
 - `docs/REFACTORING_LOG.md`
 
 ### 아키텍처 메모
@@ -3003,3 +3093,44 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/data/stats.test.js`
 - `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
 - `cd digimon-tamagotchi-frontend && npm run build`
+
+### 마이 화면을 프로필·수집 허브형으로 재구성하고 최근 슬롯 기준을 분리
+
+- `Me.jsx`를 프로필·수집 허브형으로 재구성해, 본문 큰 카드의 `계정 설정`을 제거하고 히어로 오른쪽 `환경 요약` 카드로 분리했다.
+- 마이 본문 1순위 섹션은 `도감 진행도`로 바꾸고, Ver.1/Ver.2별 발견 수·남은 수·마스터 달성 여부를 한눈에 보이는 요약 카드로 노출했다.
+- `최근 육성 중인 디지몬`은 대표 슬롯 1개와 보조 슬롯 1~2개 구조로 낮춰, 이전의 동등한 리스트보다 집중도가 높게 보이도록 정리했다.
+- `useUserSlots`는 이제 `slots`의 표시 순서와 별개로 `recentSlots`/`recentSlot`을 제공하며, 최근성 기준은 `lastSavedAt || updatedAt || createdAt` 순으로 계산한다.
+- 수집 현황은 새 `useEncyclopediaSummary` 훅과 `encyclopediaSummary` 유틸에서 계산하도록 분리해, 마이 화면이 전체 `EncyclopediaPanel` 없이도 가벼운 요약만 사용할 수 있게 만들었다.
+- `바로가기`는 `도감`, `진화 가이드`, `플레이 허브` 3개만 남기고, 저빈도 설정 동선을 더 이상 본문 핵심 카드로 강조하지 않도록 조정했다.
+- 관련 단위 테스트를 추가해 최근 슬롯 정렬 기준, 도감 요약 계산, 마이 화면의 새 섹션 구성을 회귀 테스트로 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.test.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useUserSlots.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopediaSummary.js`
+- `digimon-tamagotchi-frontend/src/utils/slotRecency.js`
+- `digimon-tamagotchi-frontend/src/utils/slotRecency.test.js`
+- `digimon-tamagotchi-frontend/src/utils/encyclopediaSummary.js`
+- `digimon-tamagotchi-frontend/src/utils/encyclopediaSummary.test.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 마이 라벨을 테이머로 정리하고 마스터 완료 문구에 왕관 추가
+
+- 주요 사용자 노출 라벨의 `마이`를 `테이머`로 정리해, 상단 네비게이션, 모바일 탭, 홈/플레이 허브 바로가기, 설정/도감 복귀 링크, 로그인 소개 문구가 같은 명칭을 쓰도록 맞췄다.
+- 테이머 화면의 도감 진행 카드에서 완료 상태 문구는 `👑 마스터 달성`으로 바꿔, 달성 여부가 카드 안에서 더 바로 읽히도록 조정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Collection.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/App.test.js`
+- `docs/REFACTORING_LOG.md`

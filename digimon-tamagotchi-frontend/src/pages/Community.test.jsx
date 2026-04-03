@@ -173,6 +173,94 @@ describe("Community", () => {
     ).toBeInTheDocument();
   });
 
+  it("자랑게시판 목록 카드는 라벨과 구역으로 정보를 분리해 보여 준다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockSlotsState.slots = [];
+
+    communityApi.listShowcasePosts.mockResolvedValue([
+      {
+        id: "post-1",
+        slotId: "1",
+        title: "바다 산책 뿔몬",
+        body: "실제 커뮤니티 글입니다.",
+        authorUid: "user-1",
+        authorTamerName: "히히히",
+        commentCount: 0,
+        createdAt: "2026-04-01T00:00:00.000Z",
+        snapshot: {
+          slotName: "슬롯1",
+          digimonDisplayName: "뿔몬",
+          stageLabel: "유년기 II",
+          version: "Ver.2",
+          device: "Digital Monster Color 25th",
+          visual: {
+            backgroundNumber: 162,
+            spriteBasePath: "/images",
+            spriteNumber: 6,
+            isLightsOn: true,
+            sleepStatus: "AWAKE",
+            poopCount: 0,
+            isFrozen: false,
+            isDead: false,
+            isInjured: false,
+          },
+        },
+      },
+    ]);
+    communityApi.getShowcasePostDetail.mockResolvedValue({
+      post: {
+        id: "post-1",
+        slotId: "1",
+        title: "바다 산책 뿔몬",
+        body: "실제 커뮤니티 글입니다.",
+        authorUid: "user-1",
+        authorTamerName: "히히히",
+        commentCount: 0,
+        createdAt: "2026-04-01T00:00:00.000Z",
+        snapshot: {
+          slotName: "슬롯1",
+          digimonDisplayName: "뿔몬",
+          stageLabel: "유년기 II",
+          version: "Ver.2",
+          device: "Digital Monster Color 25th",
+          visual: {
+            backgroundNumber: 162,
+            spriteBasePath: "/images",
+            spriteNumber: 6,
+            isLightsOn: true,
+            sleepStatus: "AWAKE",
+            poopCount: 0,
+            isFrozen: false,
+            isDead: false,
+            isInjured: false,
+          },
+        },
+      },
+      comments: [],
+    });
+
+    render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("바다 산책 뿔몬")).toBeInTheDocument();
+    });
+
+    const postCard = screen.getByText("바다 산책 뿔몬").closest("article");
+
+    expect(postCard).not.toBeNull();
+    expect(screen.getByText("제목 :")).toBeInTheDocument();
+    expect(screen.getByText("작성자 :")).toBeInTheDocument();
+    expect(screen.getByText("댓글 :")).toBeInTheDocument();
+    expect(screen.getByText("디지몬 :")).toBeInTheDocument();
+    expect(screen.getByText("단계 :")).toBeInTheDocument();
+    expect(screen.getByText("슬롯 :")).toBeInTheDocument();
+    expect(screen.getByText("대표 장면")).toBeInTheDocument();
+    expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
+  });
+
   it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
@@ -273,9 +361,16 @@ describe("Community", () => {
       expect(screen.getByText("서버에서 불러온 글")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("코로몬")).toBeInTheDocument();
-    expect(screen.getByText("성장기 · Ver.1")).toBeInTheDocument();
-    expect(screen.getByText("댓글 1개")).toBeInTheDocument();
+    const postCard = screen.getByText("서버에서 불러온 글").closest("article");
+
+    expect(postCard).not.toBeNull();
+    expect(within(postCard).getByText("관리")).toBeInTheDocument();
+    expect(within(postCard).getByRole("button", { name: "수정" })).toBeInTheDocument();
+    expect(within(postCard).getByRole("button", { name: "삭제" })).toBeInTheDocument();
+    expect(within(postCard).getByText("코로몬")).toBeInTheDocument();
+    expect(within(postCard).getByText("성장기 · Ver.1")).toBeInTheDocument();
+    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("1개")).toBeInTheDocument();
     expect(screen.queryByText("내용")).not.toBeInTheDocument();
     expect(screen.queryByText("디지몬 스탯")).not.toBeInTheDocument();
     expect(screen.queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
