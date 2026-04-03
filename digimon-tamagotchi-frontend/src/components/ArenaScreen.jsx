@@ -33,6 +33,24 @@ export function hasBattleReplayArchive(log) {
   return Boolean(log?.archiveId);
 }
 
+export function getBattleReplayUiState(log) {
+  if (hasBattleReplayArchive(log)) {
+    return {
+      status: "available",
+      hasReplay: true,
+      badge: null,
+      description: "📖 배틀 로그 다시보기",
+    };
+  }
+
+  return {
+    status: "legacy",
+    hasReplay: false,
+    badge: "구버전 로그",
+    description: "이 기록은 이전 저장 방식으로 생성되어 상세 다시보기를 지원하지 않습니다.",
+  };
+}
+
 export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname }) {
   // 배경 스크롤 방지
   useEffect(() => {
@@ -1330,11 +1348,14 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                     }
                   }
 
-                  const hasReplay = hasBattleReplayArchive(log);
+                  const replayUi = getBattleReplayUiState(log);
+                  const hasReplay = replayUi.hasReplay;
 
                   return (
                     <div
                       key={log.id}
+                      data-testid={`battle-log-card-${log.id}`}
+                      aria-disabled={!hasReplay}
                       className={`p-4 rounded-lg border-2 ${hasReplay ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${
                         isWin
                           ? 'bg-green-50 border-green-300'
@@ -1365,11 +1386,16 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                               {dateTime}
                             </p>
                           )}
-                          {hasReplay && (
-                            <p className="text-xs text-blue-600 mt-2 font-semibold">
-                              📖 배틀 로그 다시보기
+                          <div className="mt-2 flex flex-col items-start gap-1">
+                            {replayUi.badge && (
+                              <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-semibold text-gray-600">
+                                {replayUi.badge}
+                              </span>
+                            )}
+                            <p className={`text-xs ${hasReplay ? 'font-semibold text-blue-600' : 'text-gray-500'}`}>
+                              {replayUi.description}
                             </p>
-                          )}
+                          </div>
                         </div>
                         <div className="ml-4">
                           <span

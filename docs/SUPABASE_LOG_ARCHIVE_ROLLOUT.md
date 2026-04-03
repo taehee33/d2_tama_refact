@@ -20,6 +20,7 @@
   - 아레나 다시보기는 Supabase archive만 읽고, Firestore `logs[]` fallback은 제거 완료
 - 주의
   - `archiveId`가 없는 과거 Firestore-only 아레나 로그는 더 이상 상세 다시보기를 제공하지 않는다.
+  - 아레나 로그 목록에서는 이런 과거 기록을 `구버전 로그`로 명시하고, `이 기록은 이전 저장 방식으로 생성되어 상세 다시보기를 지원하지 않습니다.` 안내를 함께 노출한다.
 
 ## 0. 배포 경로 정합성
 
@@ -136,6 +137,5 @@ Prod 검증 결과:
 
 ## 남은 작업
 
-- 과거 `archiveId` 없는 Firestore-only 아레나 로그를 계속 노출할지, UI에서 별도 구분할지 결정
 - `arena_battle_logs` / `jogress_logs`의 오래된 Firestore 문서를 정리할 운영 정책 수립
 - archive 실패율과 replay 404를 운영 로그로 모니터링
