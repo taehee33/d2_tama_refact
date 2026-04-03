@@ -45,7 +45,8 @@ export const defaultStats = {
   
   // 똥 관련
   poopCount: 0,               // 똥 개수 (최대 8)
-  lastMaxPoopTime: null,      // 똥 8개가 된 시간
+  poopReachedMaxAt: null,     // 처음 똥이 8개가 된 시간
+  lastPoopPenaltyAt: null,    // 추가 부상 8시간 주기의 기준 시간
   
   // 사망 관련
   isDead: false,              // 사망 여부
@@ -79,4 +80,3 @@ export const defaultStats = {
   frozenAt: null,     // 냉장고에 넣은 시간 (timestamp)
   takeOutAt: null,    // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
 };
-

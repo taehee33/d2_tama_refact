@@ -18,6 +18,8 @@ function createBaseStats(overrides = {}) {
     poopTimer: 5,
     poopCountdown: 300,
     poopCount: 0,
+    poopReachedMaxAt: null,
+    lastPoopPenaltyAt: null,
     lastMaxPoopTime: null,
     callStatus: {
       hunger: { isActive: false, startedAt: null, isLogged: false },
@@ -290,6 +292,82 @@ describe("applyLazyUpdate", () => {
     expect(result.strengthMistakeDeadline).toBeNull();
   });
 
+  test("poopCount가 7에서 8이 되면 즉시 부상과 새 시간 필드를 설정하고 케어미스는 올리지 않는다", () => {
+    const result = applyLazyUpdate(
+      createBaseStats({
+        poopCount: 7,
+        poopCountdown: 60,
+        poopTimer: 5,
+      }),
+      Date.parse("2026-03-31T11:59:00.000Z")
+    );
+
+    expect(result.poopCount).toBe(8);
+    expect(result.isInjured).toBe(true);
+    expect(result.injuries).toBe(1);
+    expect(result.poopReachedMaxAt).toBe(Date.parse(NOW_ISO));
+    expect(result.lastPoopPenaltyAt).toBe(Date.parse(NOW_ISO));
+    expect(result.injuredAt).toBe(Date.parse(NOW_ISO));
+    expect(result.careMistakes).toBe(0);
+  });
+
+  test("poop 8개를 8시간 이상 방치하면 추가 부상만 발생하고 케어미스는 증가하지 않는다", () => {
+    const poopReachedMaxAt = Date.parse("2026-03-31T04:00:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        poopCount: 8,
+        poopCountdown: 300,
+        poopReachedMaxAt,
+        lastPoopPenaltyAt: poopReachedMaxAt,
+        isInjured: true,
+        injuredAt: poopReachedMaxAt,
+        injuries: 1,
+      }),
+      Date.parse("2026-03-31T03:54:00.000Z")
+    );
+
+    expect(result.poopCount).toBe(8);
+    expect(result.injuries).toBe(2);
+    expect(result.careMistakes).toBe(0);
+    expect(result.poopReachedMaxAt).toBe(poopReachedMaxAt);
+    expect(result.lastPoopPenaltyAt).toBe(Date.parse(NOW_ISO));
+    expect(result.injuredAt).toBe(Date.parse(NOW_ISO));
+    expect(result.injuryReason).toBe("poop");
+  });
+
+  test("poopCount가 8 미만이면 legacy lastMaxPoopTime은 새 필드로 유지하지 않는다", () => {
+    const result = applyLazyUpdate(
+      createBaseStats({
+        poopCount: 2,
+        lastMaxPoopTime: Date.parse("2026-03-31T05:00:00.000Z"),
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.poopReachedMaxAt).toBeNull();
+    expect(result.lastPoopPenaltyAt).toBeNull();
+    expect(result.lastMaxPoopTime).toBeUndefined();
+  });
+
+  test("기존 저장 데이터의 lastMaxPoopTime은 poopCount가 8일 때 새 필드로 마이그레이션된다", () => {
+    const legacyTime = Date.parse("2026-03-31T05:00:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        poopCount: 8,
+        lastMaxPoopTime: legacyTime,
+        poopReachedMaxAt: null,
+        lastPoopPenaltyAt: null,
+      }),
+      Date.parse("2026-03-31T11:59:59.000Z")
+    );
+
+    expect(result.poopReachedMaxAt).toBe(legacyTime);
+    expect(result.lastPoopPenaltyAt).toBe(legacyTime);
+    expect(result.lastMaxPoopTime).toBeUndefined();
+  });
+
   test("배고픔 0이 12시간 이상 지속되면 굶주림 사망 처리한다", () => {
     const result = applyLazyUpdate(
       createBaseStats({
@@ -339,5 +417,20 @@ describe("applyLazyUpdate", () => {
 
     expect(result.isDead).toBe(true);
     expect(result.deathReason).toBe("INJURY NEGLECT (부상 방치: 6시간)");
+  });
+
+  test("부상 방치 6시간 사망은 냉장고에 넣어둔 시간을 제외한다", () => {
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isInjured: true,
+        injuredAt: Date.parse("2026-03-31T05:30:00.000Z"),
+        frozenAt: Date.parse("2026-03-31T06:00:00.000Z"),
+        takeOutAt: Date.parse("2026-03-31T10:00:00.000Z"),
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.isDead).toBe(false);
+    expect(result.deathReason).toBeUndefined();
   });
 });

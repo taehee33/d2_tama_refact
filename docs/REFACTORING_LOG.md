@@ -4,6 +4,70 @@
 
 ---
 
+## [2026-04-04] 커뮤니티 상단을 칩형 보드 선택과 컴팩트 헤더로 축소
+
+### 작업 유형
+- 🎛 커뮤니티 보드 선택 UI를 카드형에서 칩형 탭으로 축소
+- 🪶 선택 보드 hero를 컴팩트 헤더로 재구성
+- ↔️ 보드별 CTA를 상단 hero에서 각 콘텐츠 툴바로 이동
+- 🧪 커뮤니티 상단 레이아웃 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 커뮤니티 페이지 상단에서 보드 선택 카드와 대형 설명 hero가 차지하던 공간을 줄여, 게시판 본문이 더 빨리 보이도록 정리한다.
+- **범위:** `/community` 상단 탭/헤더 레이아웃, 보드별 툴바 액션 배치, 관련 CSS와 페이지 테스트를 함께 갱신한다.
+- **내용:**
+  - `Community.jsx`의 4개 보드 선택 UI를 긴 설명이 들어간 카드형 그리드 대신 제목 중심의 둥근 칩형 탭으로 바꿨다.
+  - 선택된 보드 소개 영역은 `커뮤니티 + 상태 + 제목 + 짧은 설명 + 핵심 칩`만 남기는 컴팩트 헤더로 줄이고, 기존 대형 hero 액션 버튼은 제거했다.
+  - `자랑하기`, `로그인하고 자랑하기`, 보드 간 이동 버튼, 디스코드 바로가기 같은 CTA는 각 보드 `community-feed-toolbar__aside`로 이동해 상단 높이를 더 낮췄다.
+  - 디스코드 보드의 초대 버튼은 툴바 CTA로 통합하고, 본문 공개 노트에는 텍스트 링크만 남겨 중복을 줄였다.
+  - `Community.test.jsx`에 칩형 탭 구조와 CTA 위치 이동 검증을 추가해 상단 레이아웃 회귀를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runTestsByPath src/pages/Community.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 보드 전환 로직과 `/community?board=` URL 계약은 그대로 유지하고, 상단 레이아웃만 정보 밀도 위주로 재구성한다.
+- 상단 CTA는 hero에서 분리하고 각 보드의 실제 콘텐츠 툴바에 배치해, 이후 보드별 액션이 늘어나도 보드 내부 맥락에서 관리할 수 있게 유지한다.
+
+---
+
+## [2026-04-04] 과거 아레나 로그를 `구버전 로그`로 명시
+
+### 작업 유형
+- 🧭 아레나 배틀 로그 UX 보강
+- 🧪 구버전/신규 replay 상태 테스트 추가
+- 📘 archive 롤아웃 문서 정책 반영
+
+### 목적 및 영향
+- **목적:** `archiveId`가 없는 과거 Firestore-only 아레나 로그가 지금 구조에서는 다시보기를 지원하지 않는다는 점을 사용자에게 명확히 보여 주기.
+- **범위:** 아레나 배틀 로그 목록 카드의 상태 문구와 클릭 가능 여부를 정리하고, 관련 테스트와 운영 문서를 함께 갱신한다.
+- **내용:**
+  - `ArenaScreen`에 replay 상태 헬퍼를 추가해 `archiveId`가 있는 신규 로그와 `archiveId`가 없는 과거 로그를 명확히 구분하도록 정리했다.
+  - 과거 로그 카드에는 `구버전 로그` 배지와 `이 기록은 이전 저장 방식으로 생성되어 상세 다시보기를 지원하지 않습니다.` 안내를 표시하고, hover/pointer 및 다시보기 클릭 동작은 제거했다.
+  - 신규 로그는 기존처럼 `📖 배틀 로그 다시보기` 문구와 클릭 동작을 유지한다.
+  - 테스트를 보강해 `archiveId` 유무에 따른 UI 상태와, 구버전 로그 클릭 시 모달이 열리지 않는 흐름을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.test.jsx`
+- `docs/SUPABASE_LOG_ARCHIVE_ROLLOUT.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/components/ArenaScreen.test.jsx`
+
+### 아키텍처 메모
+- `archiveId`가 없는 아레나 로그는 과거 Firestore-only 로그로 보고, 목록만 유지하며 상세 다시보기는 지원하지 않는다.
+
+---
+
 ## [2026-04-01] Supabase log archive API를 배포 루트로 정렬
 
 ### 작업 유형
@@ -2857,6 +2921,25 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/data/stats.test.js src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
 - `cd digimon-tamagotchi-frontend && npm run build`
 
+### 커뮤니티 자랑게시판을 일반 게시판형 목록으로 압축하고 스크린샷 정보 오버레이 제거
+
+- 자랑게시판 목록 카드를 소개형 카드에서 일반 게시판형 리스트로 바꿔, 제목·작성자·작성일·디지몬 요약·댓글 수만 먼저 읽히고 본문과 스탯은 상세에서만 보이도록 분리했다.
+- 목록 썸네일은 오른쪽 작은 스크린샷으로 줄이고, `상세 보기` 버튼과 댓글 개수만 남겨 피드 스캔 속도를 높였다.
+- `CommunitySnapshotScene`은 이제 `card`와 `detail` 변형에서 화면 위 캡션과 상태 배지를 렌더하지 않고, 작성 모달 미리보기(`composer`)에서만 오버레이를 유지한다.
+- 상세 모달은 `메타 → 큰 스크린샷 → 디지몬 정보 요약 → 본문 → 스탯 → 댓글` 순서로 재배치해, 스크린샷을 가리지 않으면서도 필요한 정보는 모두 아래에서 확인하게 정리했다.
+- 스냅샷 아래 정보는 공용 `CommunitySnapshotSummary` 컴포넌트로 분리해 카드와 상세가 같은 디지몬 이름·단계·버전 기준을 쓰고, 상세에서는 기종·배경·상태 칩까지 함께 보여주도록 맞췄다.
+- 관련 테스트를 보강해 목록에서 본문/스탯이 숨겨지고, 상세에서만 정보가 보이며, 오버레이가 `composer`에만 남는 흐름을 회귀 테스트로 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotSummary.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
 ### Supabase archive 운영 스모크 완료 후 조그레스 Firestore 제거 및 아레나 summary-only 전환
 
 - Preview는 `SUPABASE_SERVICE_ROLE_KEY`를 runtime env로 주입한 별도 배포를 만들고, `vercel curl`로 보호 배포를 우회해 아레나 archive 저장, replay 조회, 조그레스 archive 저장, Supabase row 생성을 모두 확인했다.
@@ -2890,3 +2973,33 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `GET /api/logs/arena-battles/:archiveId/replay`
   - `POST /api/logs/jogress/archive`
   - `arena_battle_log_archives`, `jogress_log_archives` row 생성 확인
+
+### 똥/부상/사망 카운터 계약을 분리해 poop 과부하와 부상 방치 판정을 정합화
+
+- `poopCount >= 8` 상태를 위한 시간 필드를 `poopReachedMaxAt`와 `lastPoopPenaltyAt`로 분리해, “처음 8개가 된 시각”과 “다음 8시간 추가 부상 기준 시각”을 더 이상 같은 필드에 섞지 않도록 정리했다.
+- `src/data/stats.js`를 poop/injury/death의 canonical engine으로 고정하고, `poopCount 7 -> 8` 전환 시 즉시 부상 1회를 발생시키며 `poopReachedMaxAt`와 `lastPoopPenaltyAt`를 같은 시각으로 세팅하도록 맞췄다.
+- `poopCount >= 8` 상태에서 8시간이 추가로 지나면 이제 `injuries`만 증가시키고 `careMistakes`는 올리지 않게 바꿨다. 추가 부상 발생 시 `injuredAt`와 `lastPoopPenaltyAt`는 현재 시각으로 갱신된다.
+- 기존 저장 데이터의 `lastMaxPoopTime`는 읽기 시에만 새 필드로 마이그레이션하고, `poopCount < 8`이면 stale 값이 남지 않도록 즉시 null 처리한다. 이후 저장은 새 필드만 사용한다.
+- `부상 방치 6시간 사망`은 `src/data/stats.js`, `src/hooks/useGameData.js`, `src/hooks/useDeath.js`, `src/pages/Game.jsx` 전부에서 냉장고 시간을 제외하는 공통 helper 기준으로 맞췄다.
+- `StatsPopup`과 `StatsPanel`은 이제 `PoopReachedMaxAt`와 `LastPoopPenaltyAt`를 분리해 보여주며, “즉시 부상 발생 시간”과 “다음 추가 부상까지”를 서로 다른 기준 시각으로 표시한다.
+- 관련 테스트를 추가해 8개 도달 즉시 부상, 8시간 추가 부상, legacy 필드 마이그레이션, 냉장고 시간 제외 부상 방치 판정을 회귀 테스트로 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/data/v1/defaultStats.js`
+- `digimon-tamagotchi-frontend/src/utils/fridgeTime.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPanel.jsx`
+- `docs/REFACTORING_LOG.md`
+
+**검증**
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/data/stats.test.js`
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand --watchAll=false src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/logic/evolution/checker.test.js src/logic/battle/hitrate.test.js src/logic/battle/calculator.test.js`
+- `cd digimon-tamagotchi-frontend && npm run build`

@@ -645,7 +645,8 @@ export function useGameActions({
         const updatedStats = {
           ...prevStats,
           poopCount: 0,
-          lastMaxPoopTime: null,
+          poopReachedMaxAt: null,
+          lastPoopPenaltyAt: null,
           // 똥 청소 시 부상 상태는 해제하지 않음 (치료제로만 회복 가능)
           // isInjured는 그대로 유지
           lastSavedAt: now

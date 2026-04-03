@@ -343,7 +343,9 @@ export default function StatsPopup({
     strength, effort, winRate,
     energy,
     poopCount=0,
-    lastMaxPoopTime,
+    poopReachedMaxAt: rawPoopReachedMaxAt=null,
+    lastPoopPenaltyAt: rawLastPoopPenaltyAt=null,
+    lastMaxPoopTime: legacyLastMaxPoopTime=null,
     lastHungerZeroAt=null,
     lastStrengthZeroAt=null,
     hungerMistakeDeadline=null,
@@ -375,6 +377,9 @@ export default function StatsPopup({
     takeOutAt=null,
   } = stats || {};
 
+  const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
+  const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
+
   // devMode에서 select로 변경
   function handleChange(field, e){
     if(!onChangeStats) return;
@@ -392,11 +397,15 @@ export default function StatsPopup({
 
     const newStats = { ...stats, [field]: val };
 
-    // ★ 여기서 poopCount가 8 이상이 되는 순간, lastMaxPoopTime이 없으면 기록
+    // poopCount가 8 이상이 되는 순간 즉시 부상 시각과 다음 추가 부상 기준 시각을 함께 세팅
     if(field === "poopCount") {
-      // 이전 값이 8 미만이고, 새 값이 8 이상이며 lastMaxPoopTime이 없으면 세팅
-      if(oldPoopCount < 8 && val >= 8 && !newStats.lastMaxPoopTime) {
-        newStats.lastMaxPoopTime = Date.now();
+      if(oldPoopCount < 8 && val >= 8 && !newStats.poopReachedMaxAt) {
+        const now = Date.now();
+        newStats.poopReachedMaxAt = now;
+        newStats.lastPoopPenaltyAt = now;
+      } else if (val < 8) {
+        newStats.poopReachedMaxAt = null;
+        newStats.lastPoopPenaltyAt = null;
       }
     }
     
@@ -602,8 +611,8 @@ export default function StatsPopup({
           <li>Training: {trainings}회</li>
 
           <li>PoopCount: {poopCount}</li>
-          {/* ★ lastMaxPoopTime 표시 */}
-          <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
+          <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
+          <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
           
           {/* 부상 관련 필드 */}
           <li className="mt-2 pt-2 border-t border-gray-300">--- 부상 관련 필드 ---</li>
@@ -1395,7 +1404,8 @@ export default function StatsPopup({
           <li>StrengthTimer: {strengthTimer || 0} min (남은 시간: {formatCountdown(strengthCountdown)}) {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
           <li>PoopTimer: {poopTimer || 0} min (남은 시간: {formatCountdown(poopCountdown)}) {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
           <li>PoopCount: {poopCount}/8 {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>LastMaxPoopTime: {formatTimestamp(lastMaxPoopTime)}</li>
+          <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
+          <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
           <li>Lifespan: {formatTime(lifespanSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
           <li>Time to Evolve: {formatTimeToEvolve(timeToEvolveSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
         </ul>
@@ -1645,8 +1655,9 @@ export default function StatsPopup({
 
           {/* 똥 가득참 부상 발생 시간 카운터 - 조건 충족 시 배고픔/힘처럼 진하게 표시 */}
           {(() => {
-            const pooFullTime = ensureTimestamp(lastMaxPoopTime);
-            const isActive = poopCount >= 8 && pooFullTime;
+            const poopReachedTime = ensureTimestamp(poopReachedMaxAt);
+            const poopPenaltyTime = ensureTimestamp(lastPoopPenaltyAt) || poopReachedTime;
+            const isActive = poopCount >= 8 && poopReachedTime;
             
             return (
               <li className={`border-l-4 pl-2 p-2 rounded ${isActive ? 'border-amber-600 bg-amber-50' : 'border-gray-300 bg-gray-50 opacity-60'}`}>
@@ -1657,11 +1668,13 @@ export default function StatsPopup({
                   {isActive ? (
                     <>
                       <div className={isActive ? 'text-amber-700' : 'text-gray-600'}>
-                        즉시 부상 발생 시간: <span className="font-mono">{formatTimestamp(pooFullTime)}</span>
+                        즉시 부상 발생 시간: <span className="font-mono">{formatTimestamp(poopReachedTime)}</span>
                       </div>
                       {(() => {
+                        if (!poopPenaltyTime) return null;
+
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(pooFullTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = getElapsedTimeExcludingFridge(poopPenaltyTime, nowMs, frozenAt, takeOutAt);
                         const elapsed = Math.max(0, Math.floor(elapsedMs / 1000));
                         const threshold = 28800; // 8시간 = 28800초
                         const nextInjuryIn = Math.max(0, threshold - (elapsed % threshold));

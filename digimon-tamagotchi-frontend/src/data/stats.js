@@ -1,16 +1,35 @@
 // src/data/stats.js
 import { defaultStats } from "./defaultStatsFile";
 import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
+import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
 
-/** 냉장고 구간을 제외한 경과 시간(ms). data/stats 내 applyLazyUpdate 8시간 부상/케어미스 판정용 */
-function getElapsedTimeExcludingFridge(startTime, endTime, frozenAt = null, takeOutAt = null) {
-  if (!frozenAt) return endTime - startTime;
-  const frozenMs = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
-  const takeOutMs = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
-  if (frozenMs < startTime || frozenMs >= endTime) return endTime - startTime;
-  const frozenDuration = takeOutMs - frozenMs;
-  return Math.max(0, (endTime - startTime) - frozenDuration);
-} 
+function migrateLegacyPoopTimers(target, fallbackTime = null) {
+  if ((target.poopCount || 0) < 8) {
+    target.poopReachedMaxAt = null;
+    target.lastPoopPenaltyAt = null;
+    delete target.lastMaxPoopTime;
+    return;
+  }
+
+  const fallbackMs = toTimestamp(fallbackTime);
+  const legacyMaxTime = toTimestamp(target.lastMaxPoopTime);
+  const existingReachedMaxAt = toTimestamp(target.poopReachedMaxAt);
+  const existingPenaltyAt = toTimestamp(target.lastPoopPenaltyAt);
+  const reachedMaxAt = existingReachedMaxAt ?? legacyMaxTime ?? existingPenaltyAt ?? fallbackMs;
+  const penaltyAt = existingPenaltyAt ?? legacyMaxTime ?? reachedMaxAt;
+
+  target.poopReachedMaxAt = reachedMaxAt ?? null;
+  target.lastPoopPenaltyAt = penaltyAt ?? null;
+  delete target.lastMaxPoopTime;
+}
+
+function applyPoopInjury(target, timestampMs, count = 1) {
+  target.isInjured = true;
+  target.injuredAt = timestampMs;
+  target.injuries = (target.injuries || 0) + count;
+  target.healedDosesCurrent = 0;
+  target.injuryReason = "poop";
+}
 
 export function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
@@ -52,7 +71,8 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.strength = 0;
     // 새로운 시작: 똥 초기화
     merged.poopCount = 0;
-    merged.lastMaxPoopTime = null;
+    merged.poopReachedMaxAt = null;
+    merged.lastPoopPenaltyAt = null;
   } else {
     merged.age = oldStats.age || merged.age;
     merged.birthTime = oldStats.birthTime || Date.now();
@@ -141,7 +161,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.poopCountdown = maxValidCountdown;
   }
 
-  merged.lastMaxPoopTime = oldStats.lastMaxPoopTime || null;
+  migrateLegacyPoopTimers(merged, null);
 
   // 야행성 모드 (진화 시 유지)
   merged.isNocturnal = oldStats.isNocturnal !== undefined ? oldStats.isNocturnal : false;
@@ -152,6 +172,8 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   } else {
     merged.evolutionStageStartedAt = Date.now();
   }
+
+  delete merged.lastMaxPoopTime;
 
   return merged;
 }
@@ -189,32 +211,32 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
         s.poopCount++;
         s.poopCountdown = s.poopTimer*60;
 
-        // ★ 8이 딱 되었으면 그 순간 lastMaxPoopTime 기록 + 즉시 부상 적용
-        if(s.poopCount === 8 && !s.lastMaxPoopTime){
-          s.lastMaxPoopTime = Date.now();
-          if(!s.isInjured){
-            s.isInjured = true;
-            s.injuredAt = Date.now();
-            s.injuries = (s.injuries || 0) + 1;
-            s.healedDosesCurrent = 0;
-            s.injuryReason = 'poop';
-          }
+        if (s.poopCount === 8 && !s.poopReachedMaxAt) {
+          const reachedMaxAt = Date.now();
+          s.poopReachedMaxAt = reachedMaxAt;
+          s.lastPoopPenaltyAt = reachedMaxAt;
+          applyPoopInjury(s, reachedMaxAt);
         }
       } else {
-        // 이미 8 이상
-        if(!s.lastMaxPoopTime){
-          // 아직 기록 안된 경우
-          s.lastMaxPoopTime = Date.now();
+        if (!s.poopReachedMaxAt) {
+          const reachedMaxAt = Date.now();
+          s.poopReachedMaxAt = reachedMaxAt;
+          s.lastPoopPenaltyAt = reachedMaxAt;
+          applyPoopInjury(s, reachedMaxAt);
+        } else if (!s.lastPoopPenaltyAt) {
+          s.lastPoopPenaltyAt = s.poopReachedMaxAt;
         } else {
-          // 기록되어 있고, 8시간(28800초) 지났다면 추가 부상 + 케어미스
-          const e = (Date.now() - s.lastMaxPoopTime)/1000;
-          if(e >= 28800){
-            s.careMistakes++;
-            s.injuries = (s.injuries || 0) + 1;
-            s.injuredAt = Date.now();
-            s.isInjured = true;
-            s.healedDosesCurrent = 0;
-            s.lastMaxPoopTime = Date.now(); // 다시 리셋
+          const elapsedSincePenalty = getElapsedTimeExcludingFridge(
+            s.lastPoopPenaltyAt,
+            Date.now(),
+            s.frozenAt,
+            s.takeOutAt
+          ) / 1000;
+          const periods = Math.floor(elapsedSincePenalty / 28800);
+          if (periods >= 1) {
+            const penaltyTime = Date.now();
+            applyPoopInjury(s, penaltyTime, periods);
+            s.lastPoopPenaltyAt = penaltyTime;
           }
         }
         s.poopCountdown = s.poopTimer*60;
@@ -222,6 +244,10 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
     }
   }
 
+  if ((s.poopCount || 0) < 8) {
+    s.poopReachedMaxAt = null;
+    s.lastPoopPenaltyAt = null;
+  }
 
   return s;
 }
@@ -303,15 +329,7 @@ export function updateAgeWithLazyUpdate(stats, lastSaved, now) {
  * @returns {number|null} - timestamp (milliseconds) 또는 null
  */
 function ensureTimestamp(val) {
-  if (!val) return null;
-  if (typeof val === 'number') return val;
-  // Firestore Timestamp 객체 처리
-  if (val && typeof val === 'object' && 'seconds' in val) {
-    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
-  }
-  // Date 객체나 문자열 처리
-  const date = new Date(val);
-  return isNaN(date.getTime()) ? null : date.getTime();
+  return toTimestamp(val);
 }
 
 /**
@@ -451,6 +469,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
+  migrateLegacyPoopTimers(updatedStats);
   
   // birthTime이 없으면 현재 시간으로 설정
   if (!updatedStats.birthTime) {
@@ -552,108 +571,67 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     }
     
     while (updatedStats.poopCountdown <= 0) {
+      const poopEventTime = now.getTime() + (updatedStats.poopCountdown * 1000);
+
       if (updatedStats.poopCount < 8) {
         updatedStats.poopCount++;
+
+        if (updatedStats.poopCount === 8 && !updatedStats.poopReachedMaxAt) {
+          const timeToMax = poopEventTime;
+          updatedStats.poopReachedMaxAt = timeToMax;
+          updatedStats.lastPoopPenaltyAt = timeToMax;
+          applyPoopInjury(updatedStats, timeToMax);
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'POOP',
+              'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+              timeToMax
+            );
+          }
+        }
         updatedStats.poopCountdown += updatedStats.poopTimer * 60;
-        
-        // 8개가 되면 lastMaxPoopTime 기록 + 즉시 부상 적용 (같은 턴에서). !isInjured로 소급 분기와 이중 적용 방지
-        if (updatedStats.poopCount === 8 && !updatedStats.lastMaxPoopTime) {
-          const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
-          updatedStats.lastMaxPoopTime = timeToMax;
-          if (!updatedStats.isInjured) {
-            updatedStats.isInjured = true;
-            updatedStats.injuredAt = timeToMax;
-            updatedStats.injuries = (updatedStats.injuries || 0) + 1;
-            updatedStats.healedDosesCurrent = 0;
-            updatedStats.injuryReason = 'poop';
-            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
+      } else {
+        migrateLegacyPoopTimers(updatedStats, poopEventTime);
+
+        if (updatedStats.poopReachedMaxAt && !updatedStats.isInjured) {
+          applyPoopInjury(updatedStats, updatedStats.poopReachedMaxAt);
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', updatedStats.poopReachedMaxAt, 'Too much poop')) {
+            updatedStats.activityLogs = pushBackdatedActivityLog(
+              updatedStats.activityLogs,
+              'POOP',
+              'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+              updatedStats.poopReachedMaxAt
+            );
+          }
+        }
+
+        const penaltyAnchor = ensureTimestamp(updatedStats.lastPoopPenaltyAt) ?? ensureTimestamp(updatedStats.poopReachedMaxAt);
+        if (penaltyAnchor) {
+          const elapsedSincePenaltyMs = getElapsedTimeExcludingFridge(
+            penaltyAnchor,
+            now.getTime(),
+            updatedStats.frozenAt,
+            updatedStats.takeOutAt
+          );
+          const periods = Math.floor((elapsedSincePenaltyMs / 1000) / 28800);
+          if (periods >= 1) {
+            const nowMs = now.getTime();
+            applyPoopInjury(updatedStats, nowMs, periods);
+            updatedStats.lastPoopPenaltyAt = nowMs;
+            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과')) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'POOP',
-                'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
-                timeToMax
+                `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 [과거 재구성]`,
+                nowMs
               );
             }
           }
         }
-        } else {
-          // 이미 8개 이상
-          if (!updatedStats.lastMaxPoopTime) {
-            const timeToMax = lastSaved.getTime() + (elapsedSeconds - updatedStats.poopCountdown) * 1000;
-            updatedStats.lastMaxPoopTime = timeToMax;
-            // 똥 8개 부상 (로드 시 poop 8인데 lastMaxPoopTime 없을 때). !isInjured로 즉시 분기와 이중 적용 방지
-            if (!updatedStats.isInjured) {
-              updatedStats.isInjured = true;
-              updatedStats.injuredAt = timeToMax;
-              updatedStats.injuries = (updatedStats.injuries || 0) + 1;
-              updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
-              updatedStats.injuryReason = 'poop'; // 부상 원인 저장
-              if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
-                updatedStats.activityLogs = pushBackdatedActivityLog(
-                  updatedStats.activityLogs,
-                  'POOP',
-                  'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
-                  timeToMax
-                );
-              }
-            }
-          } else {
-            // 이미 8개였고, lastMaxPoopTime만 있고 isInjured 미설정(과거 세이드) 시 소급. !isInjured로 즉시/위 분기와 이중 적용 방지
-            if (updatedStats.poopCount >= 8 && !updatedStats.isInjured) {
-              const backdatedInjuryTime =
-                typeof updatedStats.lastMaxPoopTime === 'number'
-                  ? updatedStats.lastMaxPoopTime
-                  : updatedStats.lastMaxPoopTime
-                    ? new Date(updatedStats.lastMaxPoopTime).getTime()
-                    : lastSaved.getTime();
-              updatedStats.isInjured = true;
-              updatedStats.injuredAt = backdatedInjuryTime;
-              updatedStats.injuries = (updatedStats.injuries || 0) + 1;
-              updatedStats.healedDosesCurrent = 0; // 치료제 횟수 리셋
-              updatedStats.injuryReason = 'poop'; // 부상 원인 저장
-              if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', backdatedInjuryTime, 'Too much poop')) {
-                updatedStats.activityLogs = pushBackdatedActivityLog(
-                  updatedStats.activityLogs,
-                  'POOP',
-                  'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
-                  backdatedInjuryTime
-                );
-              }
-            }
-            // 8시간마다 추가 부상 + 케어미스 (냉장고 시간 제외 경과로 판정)
-            const lastMaxTime = typeof updatedStats.lastMaxPoopTime === 'number'
-              ? updatedStats.lastMaxPoopTime
-              : updatedStats.lastMaxPoopTime ? new Date(updatedStats.lastMaxPoopTime).getTime() : 0;
-            if (lastMaxTime > 0) {
-              const elapsedSinceMaxMs = getElapsedTimeExcludingFridge(
-                lastMaxTime,
-                now.getTime(),
-                updatedStats.frozenAt,
-                updatedStats.takeOutAt
-              );
-              const elapsedSinceMaxSec = elapsedSinceMaxMs / 1000;
-              const periods = Math.floor(elapsedSinceMaxSec / 28800); // 8시간 = 28800초
-              if (periods >= 1) {
-                const nowMs = now.getTime();
-                updatedStats.careMistakes = (updatedStats.careMistakes || 0) + periods;
-                updatedStats.injuries = (updatedStats.injuries || 0) + periods;
-                updatedStats.injuredAt = nowMs;
-                updatedStats.isInjured = true;
-                updatedStats.healedDosesCurrent = 0;
-                updatedStats.lastMaxPoopTime = nowMs;
-                if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과')) {
-                  updatedStats.activityLogs = pushBackdatedActivityLog(
-                    updatedStats.activityLogs,
-                    'POOP',
-                    `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 + 케어미스 [과거 재구성]`,
-                    nowMs
-                  );
-                }
-              }
-            }
-          }
-          updatedStats.poopCountdown += updatedStats.poopTimer * 60;
-        }
+
+        updatedStats.poopCountdown += updatedStats.poopTimer * 60;
+      }
     }
   }
 
@@ -702,10 +680,13 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
     // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
     if (updatedStats.isInjured && updatedStats.injuredAt) {
-      const injuredTime = typeof updatedStats.injuredAt === 'number'
-        ? updatedStats.injuredAt
-        : new Date(updatedStats.injuredAt).getTime();
-      const elapsedSinceInjury = now.getTime() - injuredTime;
+      const injuredTime = ensureTimestamp(updatedStats.injuredAt);
+      const elapsedSinceInjury = getElapsedTimeExcludingFridge(
+        injuredTime,
+        now.getTime(),
+        updatedStats.frozenAt,
+        updatedStats.takeOutAt
+      );
       
       if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
         console.log("[applyLazyUpdate] 부상 방치 사망 체크:", { elapsedSinceInjury });
@@ -922,6 +903,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 마지막 저장 시간 업데이트
   updatedStats.lastSavedAt = now;
+  delete updatedStats.lastMaxPoopTime;
 
   return updatedStats;
 }

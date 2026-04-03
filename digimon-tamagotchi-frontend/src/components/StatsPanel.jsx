@@ -205,7 +205,11 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
             <p>StrengthTimer: {stats.strengthTimer || 0} min (남은 시간: {formatCountdown(stats.strengthCountdown || 0)})</p>
             <p>PoopTimer: {stats.poopTimer || 0} min (남은 시간: {formatCountdown(stats.poopCountdown || 0)})</p>
             <p>PoopCount: {stats.poopCount || 0}/8</p>
-            <p>LastMaxPoopTime: {formatTimestamp(stats.lastMaxPoopTime)}</p>
+            <p>PoopReachedMaxAt: {formatTimestamp(stats.poopReachedMaxAt)}</p>
+            <p>LastPoopPenaltyAt: {formatTimestamp(stats.lastPoopPenaltyAt)}</p>
+            <p>injuredAt: {formatTimestamp(stats.injuredAt)}</p>
+            <p>injuries: {stats.injuries || 0}</p>
+            <p>deathReason: {stats.deathReason || "N/A"}</p>
             <p>Lifespan: {formatTime(stats.lifespanSeconds || 0)}</p>
             <p>Time to Evolve: {formatTimeToEvolve(stats.timeToEvolveSeconds || 0)}</p>
           </div>

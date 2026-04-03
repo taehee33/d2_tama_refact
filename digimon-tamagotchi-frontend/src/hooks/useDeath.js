@@ -4,41 +4,7 @@
 import { initializeStats } from "../data/stats";
 import { updateEncyclopedia } from "./useEncyclopedia";
 import { addActivityLog } from "./useGameLogic";
-
-/**
- * 냉장고 시간을 제외한 경과 시간 계산
- * @param {number} startTime - 시작 시간 (timestamp)
- * @param {number} endTime - 종료 시간 (timestamp, 기본값: 현재 시간)
- * @param {number|null} frozenAt - 냉장고에 넣은 시간 (timestamp)
- * @param {number|null} takeOutAt - 냉장고에서 꺼낸 시간 (timestamp)
- * @returns {number} 냉장고 시간을 제외한 경과 시간 (밀리초)
- */
-function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt = null, takeOutAt = null) {
-  if (!frozenAt) {
-    // 냉장고에 넣은 적이 없으면 일반 경과 시간 반환
-    return endTime - startTime;
-  }
-  
-  const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
-  const takeOutTime = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
-  
-  // 냉장고에 넣은 시간이 시작 시간보다 이전이면 무시
-  if (frozenTime < startTime) {
-    return endTime - startTime;
-  }
-  
-  // 냉장고에 넣은 시간이 종료 시간보다 이후면 무시
-  if (frozenTime >= endTime) {
-    return endTime - startTime;
-  }
-  
-  // 냉장고에 넣은 시간부터 꺼낸 시간(또는 현재)까지의 시간을 제외
-  const frozenDuration = takeOutTime - frozenTime;
-  const totalElapsed = endTime - startTime;
-  
-  // 냉장고 시간을 제외한 경과 시간 반환
-  return Math.max(0, totalElapsed - frozenDuration);
-}
+import { getElapsedTimeExcludingFridge } from "../utils/fridgeTime";
 
 /**
  * useDeath Hook
@@ -197,5 +163,4 @@ export function useDeath({
     checkDeathCondition,
   };
 }
-
 

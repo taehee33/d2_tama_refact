@@ -49,41 +49,7 @@ import { checkEvolution } from "../logic/evolution/checker";
 import { handleHungerTick } from "../logic/stats/hunger";
 import { handleStrengthTick } from "../logic/stats/strength";
 import { getMasterDataSnapshotForSync } from "../utils/masterDataUtils";
-
-/**
- * 냉장고 시간을 제외한 경과 시간 계산
- * @param {number} startTime - 시작 시간 (timestamp)
- * @param {number} endTime - 종료 시간 (timestamp, 기본값: 현재 시간)
- * @param {number|null} frozenAt - 냉장고에 넣은 시간 (timestamp)
- * @param {number|null} takeOutAt - 냉장고에서 꺼낸 시간 (timestamp)
- * @returns {number} 냉장고 시간을 제외한 경과 시간 (밀리초)
- */
-function getElapsedTimeExcludingFridge(startTime, endTime = Date.now(), frozenAt = null, takeOutAt = null) {
-  if (!frozenAt) {
-    // 냉장고에 넣은 적이 없으면 일반 경과 시간 반환
-    return endTime - startTime;
-  }
-  
-  const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
-  const takeOutTime = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
-  
-  // 냉장고에 넣은 시간이 시작 시간보다 이전이면 무시
-  if (frozenTime < startTime) {
-    return endTime - startTime;
-  }
-  
-  // 냉장고에 넣은 시간이 종료 시간보다 이후면 무시
-  if (frozenTime >= endTime) {
-    return endTime - startTime;
-  }
-  
-  // 냉장고에 넣은 시간부터 꺼낸 시간(또는 현재)까지의 시간을 제외
-  const frozenDuration = takeOutTime - frozenTime;
-  const totalElapsed = endTime - startTime;
-  
-  // 냉장고 시간을 제외한 경과 시간 반환
-  return Math.max(0, totalElapsed - frozenDuration);
-}
+import { getElapsedTimeExcludingFridge } from "../utils/fridgeTime";
 
 const DEFAULT_SEASON_ID = 1;
 
@@ -827,9 +793,9 @@ function Game({ immersive = false }){
         if ((updatedStats.poopCount || 0) > oldPoopCount) {
           const newPoopCount = updatedStats.poopCount || 0;
           let logText = `Pooped (Total: ${oldPoopCount}→${newPoopCount})`;
-          // 똥 8개 부상: applyLazyUpdate와 동일 시각(lastMaxPoopTime) 사용 → 한 경로만 로그 쌓임
-          const poopInjuryTs = (newPoopCount === 8 && updatedStats.isInjured && updatedStats.lastMaxPoopTime)
-            ? (typeof updatedStats.lastMaxPoopTime === 'number' ? updatedStats.lastMaxPoopTime : new Date(updatedStats.lastMaxPoopTime).getTime())
+          // 똥 8개 부상: 최초 8개 도달 시각을 즉시 부상 시각으로 사용
+          const poopInjuryTs = (newPoopCount === 8 && updatedStats.isInjured && updatedStats.poopReachedMaxAt)
+            ? (typeof updatedStats.poopReachedMaxAt === 'number' ? updatedStats.poopReachedMaxAt : new Date(updatedStats.poopReachedMaxAt).getTime())
             : undefined;
           if (newPoopCount === 8 && updatedStats.isInjured) {
             logText += " - Injury: Too much poop (8 piles)";
@@ -1276,7 +1242,8 @@ async function setSelectedDigimonAndSave(name) {
         isInjured: false,
         // 새로운 시작: 똥 초기화
         poopCount: 0,
-        lastMaxPoopTime: null,
+        poopReachedMaxAt: null,
+        lastPoopPenaltyAt: null,
       };
       
       if (isPerfectStage) {
@@ -1310,7 +1277,8 @@ async function setSelectedDigimonAndSave(name) {
       ns.isInjured = false;
       ns.injuries = 0;
       ns.poopCount = 0;
-      ns.lastMaxPoopTime = null;
+      ns.poopReachedMaxAt = null;
+      ns.lastPoopPenaltyAt = null;
 
       console.log("[resetDigimon] 최종 초기화된 스탯:", {
         evolutionStage: ns.evolutionStage,
