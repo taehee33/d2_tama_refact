@@ -124,7 +124,7 @@ function Community() {
         return {
           title: "자유게시판",
           description:
-            "플레이 근황, 공략 메모, 소소한 질문을 가볍게 나누는 잡담형 보드입니다. 자랑게시판과 운영 문의 보드 사이에서 일상 대화를 맡도록 분리했습니다.",
+            "플레이 근황, 공략 메모, 짧은 질문을 편하게 나누는 대화형 보드입니다.",
           chips: [
             "플레이 잡담 환영",
             "짧은 질문 중심",
@@ -135,7 +135,7 @@ function Community() {
         return {
           title: "버그제보 / QnA",
           description:
-            "버그 재현에 필요한 체크리스트와 자주 묻는 질문을 한 화면에 모았습니다. 저장 문제나 화면 오류처럼 확인이 필요한 이슈를 먼저 정리하는 보드입니다.",
+            "버그 제보 체크리스트와 FAQ를 한 화면에 모아 빠르게 확인하는 지원 보드입니다.",
           chips: [
             `FAQ ${supportFaqs.length}개`,
             `체크리스트 ${supportChecklist.length}개`,
@@ -146,7 +146,7 @@ function Community() {
         return {
           title: "디스코드 커뮤니티",
           description:
-            "실시간으로 질문을 주고받고 스냅샷을 공유할 수 있도록, 입장 링크와 권장 채널 흐름을 한곳에 모았습니다.",
+            "실시간 질문, 스냅샷 공유, 채널 입장 링크를 함께 안내하는 커뮤니티 입구입니다.",
           chips: [
             "실시간 대화",
             `권장 채널 ${communityDiscordChannels.length}개`,
@@ -158,7 +158,7 @@ function Community() {
         return {
           title: "내 디지몬 자랑 피드",
           description:
-            "서비스 소개 카드가 아니라, 대표 장면과 성장 로그가 바로 보이는 피드로 다시 묶었습니다. 자랑하기를 누르면 현재 슬롯 상태를 바탕으로 스냅샷 카드가 자동으로 생성됩니다.",
+            "대표 장면과 성장 로그를 바로 둘러보고, 현재 슬롯 상태로 스냅샷 글을 남기는 메인 피드입니다.",
           chips: [
             "대표 장면 자동 생성",
             "댓글 중심 상세 보기",
@@ -169,6 +169,12 @@ function Community() {
         };
     }
   }, [activeBoardId, currentUser, posts.length]);
+
+  const activeBoardMeta = useMemo(
+    () =>
+      boardCards.find((board) => board.id === activeBoardId) || boardCards[0] || null,
+    [activeBoardId, boardCards]
+  );
 
   const refreshPosts = useCallback(async () => {
     if (!currentUser) {
@@ -488,8 +494,8 @@ function Community() {
     [currentUser, editingCommentId, postDetail, refreshPostDetail, refreshPosts]
   );
 
-  const renderHeroActions = () => {
-    if (activeBoardId === "free") {
+  const renderBoardToolbarActions = (boardId) => {
+    if (boardId === "free") {
       return (
         <>
           <button
@@ -510,7 +516,7 @@ function Community() {
       );
     }
 
-    if (activeBoardId === "support") {
+    if (boardId === "support") {
       return (
         <>
           <button
@@ -531,7 +537,7 @@ function Community() {
       );
     }
 
-    if (activeBoardId === "discord") {
+    if (boardId === "discord") {
       return (
         <>
           <a
@@ -599,14 +605,19 @@ function Community() {
           </div>
 
           <div className="community-feed-toolbar__aside">
-            <span className="service-badge service-badge--accent">
-              {feedPosts.length}개 글
-            </span>
-            {currentUser ? (
-              <span className="service-badge service-badge--cool">
-                {displayTamerName || "테이머"}
+            <div className="community-feed-toolbar__badges">
+              <span className="service-badge service-badge--accent">
+                {feedPosts.length}개 글
               </span>
-            ) : null}
+              {currentUser ? (
+                <span className="service-badge service-badge--cool">
+                  {displayTamerName || "테이머"}
+                </span>
+              ) : null}
+            </div>
+            <div className="community-feed-toolbar__actions">
+              {renderBoardToolbarActions("showcase")}
+            </div>
           </div>
         </div>
 
@@ -695,10 +706,17 @@ function Community() {
           </div>
 
           <div className="community-feed-toolbar__aside">
-            <span className="service-badge service-badge--accent">
-              추천 주제 {communityFreeBoardTopics.length}개
-            </span>
-            <span className="service-badge service-badge--cool">가벼운 대화 보드</span>
+            <div className="community-feed-toolbar__badges">
+              <span className="service-badge service-badge--accent">
+                추천 주제 {communityFreeBoardTopics.length}개
+              </span>
+              <span className="service-badge service-badge--cool">
+                가벼운 대화 보드
+              </span>
+            </div>
+            <div className="community-feed-toolbar__actions">
+              {renderBoardToolbarActions("free")}
+            </div>
           </div>
         </div>
 
@@ -755,12 +773,17 @@ function Community() {
           </div>
 
           <div className="community-feed-toolbar__aside">
-            <span className="service-badge service-badge--accent">
-              상태 카드 {supportStatusCards.length}개
-            </span>
-            <span className="service-badge service-badge--cool">
-              FAQ {supportFaqs.length}개
-            </span>
+            <div className="community-feed-toolbar__badges">
+              <span className="service-badge service-badge--accent">
+                상태 카드 {supportStatusCards.length}개
+              </span>
+              <span className="service-badge service-badge--cool">
+                FAQ {supportFaqs.length}개
+              </span>
+            </div>
+            <div className="community-feed-toolbar__actions">
+              {renderBoardToolbarActions("support")}
+            </div>
           </div>
         </div>
 
@@ -839,24 +862,23 @@ function Community() {
           </div>
 
           <div className="community-feed-toolbar__aside">
-            <span className="service-badge service-badge--accent">
-              권장 채널 {communityDiscordChannels.length}개
-            </span>
-            <span className="service-badge service-badge--cool">초대 링크 제공</span>
+            <div className="community-feed-toolbar__badges">
+              <span className="service-badge service-badge--accent">
+                권장 채널 {communityDiscordChannels.length}개
+              </span>
+              <span className="service-badge service-badge--cool">
+                초대 링크 제공
+              </span>
+            </div>
+            <div className="community-feed-toolbar__actions">
+              {renderBoardToolbarActions("discord")}
+            </div>
           </div>
         </div>
 
         <div className="community-public-note">
           <strong>{communityDiscordInvite.label}</strong>
           <span>{communityDiscordInvite.description}</span>
-          <a
-            href={communityDiscordInvite.url}
-            target="_blank"
-            rel="noreferrer"
-            className="service-button service-button--primary"
-          >
-            디스코드 참여하기
-          </a>
           <a
             href={communityDiscordInvite.url}
             target="_blank"
@@ -919,19 +941,17 @@ function Community() {
 
           return (
             <button
-            key={board.id}
-            id={`community-board-tab-${board.id}`}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            aria-controls={`community-board-panel-${board.id}`}
-            tabIndex={isActive ? 0 : -1}
-            onClick={() => handleSelectBoard(board.id)}
-            className={`community-board-tab${isActive ? " community-board-tab--active" : ""}`}
-          >
-              <span className="community-board-tab__status">{board.status}</span>
-              <strong>{board.title}</strong>
-              <span>{board.description}</span>
+              key={board.id}
+              id={`community-board-tab-${board.id}`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`community-board-panel-${board.id}`}
+              tabIndex={isActive ? 0 : -1}
+              onClick={() => handleSelectBoard(board.id)}
+              className={`community-board-tab${isActive ? " community-board-tab--active" : ""}`}
+            >
+              <span className="community-board-tab__label">{board.title}</span>
             </button>
           );
         })}
@@ -939,7 +959,12 @@ function Community() {
 
       <header className="community-hero">
         <div className="community-hero__content">
-          <p className="service-section-label">커뮤니티</p>
+          <div className="community-hero__eyebrow">
+            <p className="service-section-label">커뮤니티</p>
+            {activeBoardMeta ? (
+              <span className="community-hero__status">{activeBoardMeta.status}</span>
+            ) : null}
+          </div>
           <h1>{activeBoardCopy.title}</h1>
           <p className="community-hero__description">{activeBoardCopy.description}</p>
           <div className="community-hero__chips">
@@ -950,8 +975,6 @@ function Community() {
             ))}
           </div>
         </div>
-
-        <div className="community-hero__actions">{renderHeroActions()}</div>
       </header>
 
       <div

@@ -18,6 +18,7 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
   }
 
   const poopCount = Math.min(Math.max(visual.poopCount || 0, 0), 8);
+  const showOverlay = variant === "composer";
   const sceneBadges = [];
 
   if (visual.isFrozen) {
@@ -70,7 +71,7 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
         />
       </div>
 
-      {sceneBadges.length ? (
+      {showOverlay && sceneBadges.length ? (
         <div className="community-scene__badge-row">
           {sceneBadges.map((badge) => (
             <span
@@ -83,13 +84,15 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
         </div>
       ) : null}
 
-      <div className="community-scene__caption">
-        <strong>{snapshot?.digimonDisplayName || "디지몬"}</strong>
-        <span>
-          {snapshot?.stageLabel || "단계 미상"} · {snapshot?.version || "Ver.1"}
-        </span>
-        <span>{snapshot?.slotName || "슬롯"}</span>
-      </div>
+      {showOverlay ? (
+        <div className="community-scene__caption">
+          <strong>{snapshot?.digimonDisplayName || "디지몬"}</strong>
+          <span>
+            {snapshot?.stageLabel || "단계 미상"} · {snapshot?.version || "Ver.1"}
+          </span>
+          <span>{snapshot?.slotName || "슬롯"}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

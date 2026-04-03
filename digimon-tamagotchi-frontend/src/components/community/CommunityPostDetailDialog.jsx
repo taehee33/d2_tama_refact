@@ -3,6 +3,7 @@ import { formatTimestamp } from "../../utils/dateUtils";
 import CommunityDialog from "./CommunityDialog";
 import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
 import CommunitySnapshotScene from "./CommunitySnapshotScene";
+import CommunitySnapshotSummary from "./CommunitySnapshotSummary";
 
 function CommunityPostDetailDialog({
   open,
@@ -67,7 +68,7 @@ function CommunityPostDetailDialog({
               </div>
             </div>
 
-            <div className="community-post-card__content">
+            <div className="community-detail-summary__body">
               <section
                 className="community-post-card__section community-post-card__section--title"
                 aria-label="게시글 제목"
@@ -80,10 +81,7 @@ function CommunityPostDetailDialog({
 
               <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
 
-              <CommunityPostStatsPanel
-                snapshot={post.snapshot}
-                commentCount={post.commentCount ?? comments.length}
-              />
+              <CommunitySnapshotSummary snapshot={post.snapshot} variant="detail" />
 
               <section
                 className="community-post-card__section community-post-card__section--body"
@@ -94,6 +92,11 @@ function CommunityPostDetailDialog({
                   {post.body || "작성된 코멘트가 없습니다."}
                 </p>
               </section>
+
+              <CommunityPostStatsPanel
+                snapshot={post.snapshot}
+                commentCount={post.commentCount ?? comments.length}
+              />
             </div>
           </div>
 

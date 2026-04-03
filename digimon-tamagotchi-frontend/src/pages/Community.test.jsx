@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mockAuthState = {
   currentUser: null,
@@ -108,7 +108,7 @@ describe("Community", () => {
     fireEvent.click(screen.getByRole("tab", { name: /디스코드/i }));
     expect(screen.getByRole("tab", { name: /디스코드/i })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "디스코드 커뮤니티" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "디스코드 참여하기" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "디스코드 바로가기" })).toBeInTheDocument();
     expect(screen.getByText("공지 확인")).toBeInTheDocument();
   });
 
@@ -148,6 +148,29 @@ describe("Community", () => {
     const heroHeading = screen.getByRole("heading", { name: "내 디지몬 자랑 피드" });
 
     expect(tablist.compareDocumentPosition(heroHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("게시판 선택 UI는 칩형 탭으로 제목만 보여 주고 CTA는 툴바로 이동한다", () => {
+    const { container } = render(<Community />);
+
+    const tablist = screen.getByRole("tablist", { name: "커뮤니티 보드" });
+    const hero = container.querySelector(".community-hero");
+    const toolbarAside = container.querySelector(".community-feed-toolbar__aside");
+
+    expect(within(tablist).getByRole("tab", { name: "자랑게시판" })).toBeInTheDocument();
+    expect(
+      within(tablist).queryByText("대표 장면과 성장 로그를 올리는 메인 피드")
+    ).not.toBeInTheDocument();
+    expect(within(tablist).queryByText("샘플 공개 중")).not.toBeInTheDocument();
+
+    expect(hero).not.toBeNull();
+    expect(toolbarAside).not.toBeNull();
+    expect(
+      within(hero).queryByRole("link", { name: "로그인하고 자랑하기" })
+    ).not.toBeInTheDocument();
+    expect(
+      within(toolbarAside).getByRole("link", { name: "로그인하고 자랑하기" })
+    ).toBeInTheDocument();
   });
 
   it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
@@ -250,9 +273,12 @@ describe("Community", () => {
       expect(screen.getByText("서버에서 불러온 글")).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText("제목").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("내용").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("디지몬 스탯").length).toBeGreaterThan(0);
+    expect(screen.getByText("코로몬")).toBeInTheDocument();
+    expect(screen.getByText("성장기 · Ver.1")).toBeInTheDocument();
+    expect(screen.getByText("댓글 1개")).toBeInTheDocument();
+    expect(screen.queryByText("내용")).not.toBeInTheDocument();
+    expect(screen.queryByText("디지몬 스탯")).not.toBeInTheDocument();
+    expect(screen.queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
     expect(screen.getByRole("dialog", { name: "내 디지몬 자랑" })).toBeInTheDocument();
@@ -261,15 +287,17 @@ describe("Community", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "댓글 1개 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "상세 보기" }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "서버에서 불러온 글" })).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText("제목").length).toBeGreaterThan(1);
-    expect(screen.getAllByText("내용").length).toBeGreaterThan(1);
-    expect(screen.getAllByText("디지몬 스탯").length).toBeGreaterThan(1);
+    expect(screen.getByText("내용")).toBeInTheDocument();
+    expect(screen.getByText("디지몬 스탯")).toBeInTheDocument();
+    expect(screen.getAllByText("슬롯1").length).toBeGreaterThan(1);
+    expect(screen.getByText("Digital Monster Color 25th")).toBeInTheDocument();
+    expect(screen.queryByText("불 꺼줘!")).not.toBeInTheDocument();
 
     expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(
       mockAuthState.currentUser,
