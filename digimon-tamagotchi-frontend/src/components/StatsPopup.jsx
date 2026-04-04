@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
+import { getDisplayCareMistakeEntries } from "../logic/stats/careMistakeLedger";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -74,33 +75,17 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp, currentStageSt
 
 /**
  * 케어미스 발생 이력 아코디언 컴포넌트
- * currentStageStartedAt: 현재 진화 단계 시작 시각(ms). 이 시점 이후 로그만 표시해 카운터와 일치시킴.
+ * stats.careMistakeLedger를 우선 사용하고, 없으면 activityLogs 기반으로 현재 단계 ledger를 재구성합니다.
  */
-function CareMistakeHistory({ activityLogs, formatTimestamp, currentStageStartedAt }) {
+function CareMistakeHistory({ stats, activityLogs, formatTimestamp }) {
   const [isOpen, setIsOpen] = useState(false);
-  
-  // 케어미스 관련 로그 필터링 (수면 방해 제외) + 현재 진화 단계 시작 시점 이후만 표시
-  const careMistakeLogs = (activityLogs || []).filter(log => {
-    if (isSleepDisturbanceLog(log)) {
-      return false;
-    }
-    // CARE_MISTAKE 또는 CAREMISTAKE 타입
-    if (log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE') {
-      return true;
-    }
-    return false;
-  }).filter(log => {
-    // 방법 B: 현재 진화 단계 시작 시점 이후 로그만 표시 (카운터와 일치)
-    const logMs = ensureTimestamp(log.timestamp);
-    if (logMs == null) return false;
-    if (currentStageStartedAt == null || currentStageStartedAt === undefined) return true; // 구 데이터 호환: 없으면 전체 표시
-    return logMs >= currentStageStartedAt;
-  }).sort((a, b) => {
-    // 최신순 정렬
-    const timestampA = ensureTimestamp(a.timestamp);
-    const timestampB = ensureTimestamp(b.timestamp);
-    return (timestampB || 0) - (timestampA || 0);
-  });
+
+  const { entries: careMistakeEntries } = getDisplayCareMistakeEntries(
+    stats || {},
+    activityLogs || [],
+    { currentStageStartedAt: stats?.evolutionStageStartedAt ?? null }
+  );
+  const sortedEntries = [...careMistakeEntries].sort((a, b) => (b.occurredAt || 0) - (a.occurredAt || 0));
   
   return (
     <div className="mt-2 border-t pt-2">
@@ -109,7 +94,7 @@ function CareMistakeHistory({ activityLogs, formatTimestamp, currentStageStarted
         className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
       >
         <span className="text-sm font-semibold text-gray-700">
-          케어미스 발생 이력 ({careMistakeLogs.length}건)
+          케어미스 발생 이력 ({sortedEntries.length}건)
         </span>
         <span className="text-gray-500 text-xs">
           {isOpen ? '▲ 접기' : '▼ 펼치기'}
@@ -118,24 +103,25 @@ function CareMistakeHistory({ activityLogs, formatTimestamp, currentStageStarted
       
       {isOpen && (
         <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
-          {careMistakeLogs.length === 0 ? (
+          {sortedEntries.length === 0 ? (
             <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
               케어미스 발생 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
             </div>
           ) : (
-            careMistakeLogs.map((log, index) => {
-              const timestamp = ensureTimestamp(log.timestamp);
+            sortedEntries.map((entry, index) => {
+              const timestamp = ensureTimestamp(entry.occurredAt);
               const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
+              const isSyncEntry = entry.source === "sync";
               
               return (
                 <div
                   key={index}
-                  className="text-xs p-2 bg-orange-50 border border-orange-200 rounded"
+                  className={`text-xs p-2 border rounded ${isSyncEntry ? "bg-yellow-50 border-yellow-200" : "bg-orange-50 border-orange-200"}`}
                 >
-                  <div className="font-semibold text-orange-700">
-                    {log.text || '케어미스 발생'}
+                  <div className={`font-semibold ${isSyncEntry ? "text-yellow-700" : "text-orange-700"}`}>
+                    {entry.text || '케어미스 발생'}
                   </div>
-                  <div className="text-orange-600 mt-1">
+                  <div className={`${isSyncEntry ? "text-yellow-700" : "text-orange-600"} mt-1`}>
                     {formattedTime}
                   </div>
                 </div>
@@ -1350,9 +1336,9 @@ export default function StatsPopup({
         
         {/* 케어미스 발생 이력 (현재 진화 단계 시작 시점 이후만 표시 → Care Mistakes 카운터와 일치) */}
         <CareMistakeHistory 
+          stats={stats}
           activityLogs={displayActivityLogs} 
           formatTimestamp={formatTimestamp}
-          currentStageStartedAt={stats?.evolutionStageStartedAt ?? null}
         />
       </div>
 

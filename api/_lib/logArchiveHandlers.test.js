@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  LOG_ARCHIVE_MONITOR_TABLE,
   createArenaBattleArchivePostHandler,
   createArenaBattleReplayGetHandler,
   createJogressArchivePostHandler,
@@ -39,9 +40,10 @@ function createMockRes() {
   };
 }
 
-function createSupabaseMock({ upsertRow = null, selectRow = null } = {}) {
+function createSupabaseMock({ upsertRow = null, selectRow = null, monitorInsertError = null } = {}) {
   const state = {
     fromTables: [],
+    monitorInsertCalls: [],
     upsertCalls: [],
     selectCalls: [],
   };
@@ -50,6 +52,12 @@ function createSupabaseMock({ upsertRow = null, selectRow = null } = {}) {
     from(table) {
       state.fromTables.push(table);
       return {
+        insert(record) {
+          state.monitorInsertCalls.push({ table, record });
+          return Promise.resolve({
+            error: monitorInsertError,
+          });
+        },
         upsert(record, options) {
           state.upsertCalls.push({ table, record, options });
           return {
@@ -127,6 +135,10 @@ test("arena archive post stores required fields and returns minimal payload", as
   assert.equal(state.upsertCalls[0].record.user_uid, "user-1");
   assert.equal(state.upsertCalls[0].record.attacker_name, "테이머1");
   assert.equal(state.upsertCalls[0].record.replay_logs.length, 2);
+  assert.equal(state.monitorInsertCalls[0].table, LOG_ARCHIVE_MONITOR_TABLE);
+  assert.equal(state.monitorInsertCalls[0].record.source, "arena_archive_post");
+  assert.equal(state.monitorInsertCalls[0].record.outcome, "success");
+  assert.equal(state.monitorInsertCalls[0].record.status_code, 201);
   assert.deepEqual(res.body, {
     archive: {
       id: "arena-archive-1",
@@ -212,6 +224,32 @@ test("arena replay get rejects unrelated user", async () => {
   assert.equal(res.body.error, "배틀 다시보기를 조회할 권한이 없습니다.");
 });
 
+test("arena replay get records not_found monitoring event", async () => {
+  const { supabase, state } = createSupabaseMock({
+    selectRow: null,
+  });
+  const handler = createArenaBattleReplayGetHandler({
+    verifyRequestUser: async () => ({ uid: "user-2" }),
+    getSupabaseAdminClient: () => supabase,
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+      query: { archiveId: "missing-archive" },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 404);
+  assert.equal(state.monitorInsertCalls[0].table, LOG_ARCHIVE_MONITOR_TABLE);
+  assert.equal(state.monitorInsertCalls[0].record.source, "arena_replay_get");
+  assert.equal(state.monitorInsertCalls[0].record.outcome, "not_found");
+  assert.equal(state.monitorInsertCalls[0].record.archive_id, "missing-archive");
+});
+
 test("jogress archive post stores payload and returns archive id", async () => {
   const { supabase, state } = createSupabaseMock();
   const handler = createJogressArchivePostHandler({
@@ -256,7 +294,39 @@ test("jogress archive post stores payload and returns archive id", async () => {
   assert.equal(state.upsertCalls[0].record.guest_slot_id, "7");
   assert.equal(state.upsertCalls[0].record.host_slot_version, "Ver.1");
   assert.equal(state.upsertCalls[0].record.is_online, true);
+  assert.equal(state.monitorInsertCalls[0].record.source, "jogress_archive_post");
+  assert.equal(state.monitorInsertCalls[0].record.outcome, "success");
   assert.deepEqual(res.body, { archive: { id: "jogress-archive-1" } });
+});
+
+test("monitoring insert failure does not change archive success response", async () => {
+  const { supabase, state } = createSupabaseMock({
+    monitorInsertError: { message: "monitor insert failed" },
+  });
+  const handler = createArenaBattleArchivePostHandler({
+    verifyRequestUser: async () => ({ uid: "user-1" }),
+    getSupabaseAdminClient: () => supabase,
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+      body: {
+        id: "arena-archive-monitor-fail",
+        userUid: "user-1",
+        attackerUid: "user-1",
+        replayLogs: [],
+        payload: {},
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(state.upsertCalls[0].record.id, "arena-archive-monitor-fail");
+  assert.equal(state.monitorInsertCalls[0].record.source, "arena_archive_post");
 });
 
 test("record builders map rows back to response payloads", () => {

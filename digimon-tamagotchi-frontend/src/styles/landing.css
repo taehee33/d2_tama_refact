@@ -210,8 +210,76 @@
 .landing-topbar__actions {
   display: flex;
   align-items: center;
+  gap: 0.65rem;
   position: relative;
   z-index: 1;
+}
+
+.landing-topbar__mobile-menu {
+  position: relative;
+  display: none;
+}
+
+.landing-topbar__mobile-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.2rem;
+  padding: 0 1rem;
+  border: 1px solid rgba(135, 242, 154, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(247, 242, 234, 0.76);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.landing-topbar__mobile-trigger--open {
+  border-color: rgba(135, 242, 154, 0.22);
+  color: #f3f7ef;
+  background:
+    linear-gradient(180deg, rgba(19, 28, 34, 0.88), rgba(9, 13, 19, 0.92));
+}
+
+.landing-topbar__mobile-panel {
+  position: absolute;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  z-index: 4;
+  display: grid;
+  gap: 0.35rem;
+  min-width: 11rem;
+  padding: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(180deg, rgba(13, 17, 25, 0.98), rgba(8, 11, 16, 0.95));
+  box-shadow:
+    0 18px 48px rgba(4, 7, 11, 0.48),
+    0 0 24px rgba(93, 183, 255, 0.08);
+  backdrop-filter: blur(24px);
+}
+
+.landing-topbar__mobile-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.82rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: 0.95rem;
+  color: rgba(247, 242, 234, 0.72);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.landing-topbar__mobile-link--active {
+  border-color: rgba(135, 242, 154, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #f3f7ef;
 }
 
 .landing-topbar__account {
@@ -1311,6 +1379,10 @@
     display: none;
   }
 
+  .landing-topbar__mobile-menu {
+    display: block;
+  }
+
   .landing-topbar__account {
     min-height: 3.15rem;
     padding: 0 1.15rem;
@@ -1361,6 +1433,12 @@
     min-height: 3rem;
     padding: 0 1rem;
     font-size: 0.9rem;
+  }
+
+  .landing-topbar__mobile-trigger {
+    min-height: 3rem;
+    padding: 0 0.95rem;
+    font-size: 0.86rem;
   }
 
   .landing-hero__title,

@@ -1,8 +1,10 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ArenaScreen, {
+  getLeaderboardStats,
   getBattleReplayUiState,
   hasBattleReplayArchive,
+  normalizeArenaLeaderboardEntry,
 } from "./ArenaScreen";
 
 const mockUseAuth = jest.fn();
@@ -56,6 +58,7 @@ function createMockTimestamp(isoString) {
 
 function queueArenaScreenLoad(logDocs) {
   mockGetDocs
+    .mockResolvedValueOnce({ docs: [] })
     .mockResolvedValueOnce({ docs: [] })
     .mockResolvedValueOnce({ docs: [] })
     .mockResolvedValueOnce({ docs: [] })
@@ -118,6 +121,18 @@ describe("ArenaScreen replay 상태", () => {
       description: "이 기록은 이전 저장 방식으로 생성되어 상세 다시보기를 지원하지 않습니다.",
     });
     expect(hasBattleReplayArchive(null)).toBe(false);
+  });
+
+  test("archiveStatus가 failed이면 다시보기를 숨기고 실패 배지를 표시한다", () => {
+    expect(hasBattleReplayArchive({ archiveId: "arena_2", archiveStatus: "failed" })).toBe(false);
+    expect(
+      getBattleReplayUiState({ archiveId: "arena_2", archiveStatus: "failed" })
+    ).toEqual({
+      status: "failed",
+      hasReplay: false,
+      badge: "보관 실패",
+      description: "상세 다시보기를 저장하지 못해 요약 로그만 확인할 수 있습니다.",
+    });
   });
 
   test("archiveId 없는 로그는 구버전 안내를 표시하고 클릭해도 다시보기 모달이 열리지 않는다", async () => {
@@ -185,5 +200,70 @@ describe("ArenaScreen replay 상태", () => {
         "arena_archive_1"
       )
     );
+  });
+});
+
+describe("ArenaScreen 리더보드 DTO 정규화", () => {
+  test("과거 시즌의 평탄한 archive 엔트리를 현재 DTO로 정규화한다", () => {
+    const normalizedEntry = normalizeArenaLeaderboardEntry(
+      {
+        id: "season_1_user_1",
+        tamerName: "테스터",
+        digimonName: "Agumon",
+        seasonWins: 9,
+        seasonLosses: 2,
+        wins: 14,
+        losses: 4,
+      },
+      2
+    );
+
+    expect(normalizedEntry).toMatchObject({
+      id: "season_1_user_1",
+      tamerName: "테스터",
+      digimonSnapshot: {
+        digimonId: "Agumon",
+        digimonName: "Agumon",
+      },
+      record: {
+        wins: 14,
+        losses: 4,
+        seasonWins: 9,
+        seasonLosses: 2,
+        seasonId: 2,
+      },
+    });
+  });
+
+  test("현재 시즌과 전체 누적 모드가 서로 다른 record 필드를 사용한다", () => {
+    const entry = normalizeArenaLeaderboardEntry({
+      tamerName: "테스터",
+      digimonSnapshot: {
+        digimonName: "Agumon",
+      },
+      record: {
+        wins: 20,
+        losses: 10,
+        seasonWins: 3,
+        seasonLosses: 1,
+        seasonId: 5,
+      },
+    });
+
+    expect(getLeaderboardStats(entry, "current")).toMatchObject({
+      wins: 3,
+      losses: 1,
+      winRate: 75,
+    });
+    expect(getLeaderboardStats(entry, "past")).toMatchObject({
+      wins: 3,
+      losses: 1,
+      winRate: 75,
+    });
+    expect(getLeaderboardStats(entry, "all")).toMatchObject({
+      wins: 20,
+      losses: 10,
+      winRate: 67,
+    });
   });
 });

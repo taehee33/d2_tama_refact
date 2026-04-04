@@ -1,4 +1,5 @@
 import {
+  addActivityLog,
   checkCalls,
   checkCallTimeouts,
   getSleepStatus,
@@ -11,6 +12,7 @@ function createBaseStats(overrides = {}) {
     fullness: 2,
     strength: 2,
     careMistakes: 0,
+    careMistakeLedger: [],
     lastHungerZeroAt: null,
     lastStrengthZeroAt: null,
     hungerMistakeDeadline: null,
@@ -228,5 +230,52 @@ describe("useGameLogic hunger/strength call consistency", () => {
     expect(result.callStatus.strength.isLogged).toBe(true);
     expect(result.lastStrengthZeroAt).toBe(zeroAt);
     expect(result.strengthMistakeDeadline).toBeNull();
+  });
+
+  test("같은 틱에 배고픔/힘 호출이 함께 만료되면 ledger에도 2건이 남는다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 1, 0);
+
+    const result = checkCallTimeouts(
+      createBaseStats({
+        fullness: 0,
+        strength: 0,
+        lastHungerZeroAt: startedAt,
+        lastStrengthZeroAt: startedAt,
+        callStatus: {
+          hunger: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+          strength: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      now,
+      false
+    );
+
+    expect(result.careMistakes).toBe(2);
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reasonKey: "hunger_call", resolvedAt: null }),
+        expect.objectContaining({ reasonKey: "strength_call", resolvedAt: null }),
+      ])
+    );
+  });
+
+  test("15분 이내라도 서로 다른 사유의 케어미스 로그는 각각 남는다", () => {
+    const baseTime = new Date(2026, 2, 31, 12, 0, 0).getTime();
+    const logsWithHunger = addActivityLog(
+      [],
+      "CAREMISTAKE",
+      "케어미스(사유: 배고픔 콜 10분 무시): 0 → 1",
+      baseTime
+    );
+    const finalLogs = addActivityLog(
+      logsWithHunger,
+      "CAREMISTAKE",
+      "케어미스(사유: 힘 콜 10분 무시): 1 → 2",
+      baseTime + 5 * 60 * 1000
+    );
+
+    expect(finalLogs).toHaveLength(2);
   });
 });

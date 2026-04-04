@@ -6,11 +6,13 @@ import { doc, getDoc, updateDoc, deleteField, collection, addDoc, query, orderBy
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
 import { initializeStats } from "../data/stats";
+import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
+import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 
 /**
@@ -236,6 +238,7 @@ export function useGameData({
       ...rootSlotFields,
       lastSavedAt: now,
     };
+    const repairedFinalStats = repairCareMistakeLedger(finalStats, finalLogs).nextStats;
     
     console.log("[saveStats] finalStats:", {
       isNewStart,
@@ -246,7 +249,7 @@ export function useGameData({
     });
 
     // proteinCount 필드 제거 (strength로 통합됨)
-    const { proteinCount, lastMaxPoopTime, ...statsWithoutProteinCount } = finalStats;
+    const { proteinCount, lastMaxPoopTime, ...statsWithoutProteinCount } = repairedFinalStats;
     if (proteinCount !== undefined) {
       console.log("[saveStats] proteinCount 필드 제거됨:", proteinCount);
     }
@@ -371,7 +374,10 @@ export function useGameData({
         const slotData = slotSnap.data();
         const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
         const prevLogs = Array.isArray(digimonStats.activityLogs) ? digimonStats.activityLogs : [];
-        const updated = applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy);
+        const updated = repairCareMistakeLedger(
+          applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy),
+          digimonStats.activityLogs || []
+        ).nextStats;
 
         // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
         const nextLogs = Array.isArray(updated.activityLogs) ? updated.activityLogs : [];
@@ -467,7 +473,7 @@ export function useGameData({
           const slotRefForLogs = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
           try {
             const logsRef = collection(slotRefForLogs, "logs");
-            const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(100));
+            const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(MAX_ACTIVITY_LOGS));
             const logsSnap = await getDocs(logsQuery);
             if (!logsSnap.empty) {
               loadedActivityLogs = filterEntriesForSlotCreation(
@@ -542,7 +548,10 @@ export function useGameData({
             }
             
             const prevLogCount = (savedStats.activityLogs || []).length;
-            savedStats = applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy);
+          savedStats = repairCareMistakeLedger(
+            applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy),
+            savedStats.activityLogs || []
+          ).nextStats;
             // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
             const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
             newLogs.forEach((log) => {

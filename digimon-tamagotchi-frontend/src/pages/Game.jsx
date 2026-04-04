@@ -18,6 +18,10 @@ import {
   checkCallTimeouts,
   addActivityLog,
 } from "../hooks/useGameLogic";
+import {
+  initializeCareMistakeLedger,
+  repairCareMistakeLedger,
+} from "../logic/stats/careMistakeLedger";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
 import { useGameActions } from "../hooks/useGameActions";
@@ -518,7 +522,7 @@ function Game({ immersive = false }){
   //    (1초마다 저장 시 1시간 접속만으로 3,600회 쓰기 발생 → 비용·한도 소모)
   const lastUpdateTimeRef = useRef(Date.now());
   const prevSleepingRef = useRef(null);
-  /** 틱에서 "같은 케어미스 이벤트" 로그를 한 번만 넣기 위한 키 집합 (부상은 poopCount>oldPoopCount가 한 틱만 true라 중복 없음) */
+  /** stale state로 같은 케어미스 이벤트가 다시 들어와도 한 번만 처리하기 위한 이벤트 ID 집합 */
   const lastAddedCareMistakeKeysRef = useRef(new Set());
 
   useEffect(()=>{
@@ -711,45 +715,44 @@ function Game({ immersive = false }){
             return updated;
           });
         }
-        const oldCareMistakes = prevStats.careMistakes || 0;
+        const repairedPrevStats = repairCareMistakeLedger(prevStats, prevStats.activityLogs || []).nextStats;
+        const oldCareMistakes = repairedPrevStats.careMistakes || 0;
+        const previousLedger = initializeCareMistakeLedger(repairedPrevStats.careMistakeLedger);
         updatedStats = checkCallTimeouts(updatedStats, new Date(), isActuallySleeping);
-        // 케어미스 로그: 동일 이벤트(timeoutOccurredAt+타입)는 ref로 1회만 추가 (틱이 연속으로 stale prevStats로 들어와도 중복 방지)
-        if ((updatedStats.careMistakes || 0) > oldCareMistakes) {
-          const newCareMistakes = updatedStats.careMistakes || 0;
-          let logText = '';
-          let timeoutOccurredAt = null;
-          let callType = 'other';
-          const CALL_TIMEOUT_MS = 10 * 60 * 1000;
-          if (oldCallStatus?.hunger?.isActive && !updatedStats.callStatus?.hunger?.isActive) {
-            callType = 'hunger';
-            logText = `케어미스(사유: 배고픔 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-            const t = oldCallStatus?.hunger?.startedAt;
-            const startedAtMs = t == null ? null : (typeof t === 'number' ? t : (t?.seconds != null ? t.seconds * 1000 : null));
-            timeoutOccurredAt = startedAtMs != null ? startedAtMs + CALL_TIMEOUT_MS : Date.now();
-          } else if (oldCallStatus?.strength?.isActive && !updatedStats.callStatus?.strength?.isActive) {
-            callType = 'strength';
-            logText = `케어미스(사유: 힘 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-            const t = oldCallStatus?.strength?.startedAt;
-            const startedAtMs = t == null ? null : (typeof t === 'number' ? t : (t?.seconds != null ? t.seconds * 1000 : null));
-            timeoutOccurredAt = startedAtMs != null ? startedAtMs + CALL_TIMEOUT_MS : Date.now();
-          } else if (oldCallStatus?.sleep?.isActive && !updatedStats.callStatus?.sleep?.isActive) {
-            callType = 'sleep';
-            logText = `케어미스(사유: 수면 콜 10분 무시): ${oldCareMistakes} → ${newCareMistakes}`;
-            timeoutOccurredAt = Date.now();
-          } else {
-            logText = `케어미스(사유: 호출 타임아웃): ${oldCareMistakes} → ${newCareMistakes}`;
-            timeoutOccurredAt = Date.now();
+        let nextLedger = initializeCareMistakeLedger(updatedStats.careMistakeLedger);
+        const previousLedgerIds = new Set(previousLedger.map((entry) => entry.id));
+        const duplicateEventIds = [];
+        const newCareMistakeEntries = nextLedger.filter((entry) => !previousLedgerIds.has(entry.id)).filter((entry) => {
+          if (!entry?.id) return false;
+          if (lastAddedCareMistakeKeysRef.current.has(entry.id)) {
+            duplicateEventIds.push(entry.id);
+            return false;
           }
-          const eventKey = `${timeoutOccurredAt}-${callType}`;
-          const alreadyAdded = lastAddedCareMistakeKeysRef.current.has(eventKey);
-          if (logText && !alreadyAdded) {
-            lastAddedCareMistakeKeysRef.current.add(eventKey);
-            const currentLogs = updatedStats.activityLogs || prevStats.activityLogs || [];
-            const newLogs = addActivityLog(currentLogs, "CAREMISTAKE", logText, timeoutOccurredAt);
-            setActivityLogs(newLogs);
-            if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
-            updatedStats = { ...updatedStats, activityLogs: newLogs };
-          }
+          lastAddedCareMistakeKeysRef.current.add(entry.id);
+          return true;
+        });
+        if (duplicateEventIds.length > 0) {
+          nextLedger = nextLedger.filter((entry) => !duplicateEventIds.includes(entry.id));
+          updatedStats = {
+            ...updatedStats,
+            careMistakes: Math.max(oldCareMistakes + newCareMistakeEntries.length, (updatedStats.careMistakes || 0) - duplicateEventIds.length),
+            careMistakeLedger: nextLedger,
+          };
+        }
+        if (newCareMistakeEntries.length > 0) {
+          const orderedEntries = [...newCareMistakeEntries].sort((a, b) => (a.occurredAt || 0) - (b.occurredAt || 0));
+          let currentLogs = updatedStats.activityLogs || prevStats.activityLogs || [];
+          orderedEntries.forEach((entry) => {
+            const newLogs = addActivityLog(currentLogs, "CAREMISTAKE", entry.text, entry.occurredAt);
+            const appendedLog = newLogs[newLogs.length - 1];
+            const wasAdded = newLogs.length > currentLogs.length;
+            currentLogs = newLogs;
+            if (wasAdded && appendLogToSubcollection && appendedLog) {
+              appendLogToSubcollection(appendedLog).catch(() => {});
+            }
+          });
+          setActivityLogs(currentLogs);
+          updatedStats = { ...updatedStats, activityLogs: currentLogs };
         }
         const oldPoopCount = prevStats.poopCount || 0;
         if ((updatedStats.poopCount || 0) > oldPoopCount) {

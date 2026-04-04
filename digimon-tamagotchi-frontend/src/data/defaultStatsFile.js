@@ -11,6 +11,7 @@ export const defaultStats = {
     effort: 0,
     fullness: 0,
     careMistakes: 0,
+    careMistakeLedger: [],
   
     lifespanSeconds: 0,
     timeToEvolveSeconds: 0,

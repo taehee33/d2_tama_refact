@@ -15,7 +15,7 @@
 ```
 
 - **생성 방식**: `useGameLogic.addActivityLog(currentLogs, type, text)` 또는 수동 `{ type, text, timestamp: Date.now() }`.
-- **보관 개수**: `useGameLogic`은 최대 **100개**, `useGameActions` 등 수동 추가 시 **50개**로 slice — 코드베이스 내 불일치 존재.
+- **보관 개수**: 현재 `activityLogs`는 공용 상수 기준으로 최대 **100개**를 유지합니다. `useGameLogic`, `useGameActions`, `GameModals`, 서브컬렉션 로드 쿼리가 모두 같은 값을 사용합니다.
 
 ---
 
@@ -56,15 +56,15 @@
 
 | 파일 | 역할 |
 |------|------|
-| **useGameLogic.js** | `addActivityLog()`, `initializeActivityLogs()` — 최대 100개 유지 |
-| **useGameData.js** | 저장 시 `finalStats.activityLogs`를 `digimonStats`에 포함해 Firestore에 기록. 로드 시 `savedStats.activityLogs \|\| slotData.activityLogs` 사용 |
+| **useGameLogic.js** | `addActivityLog()`, `initializeActivityLogs()` — 공용 상수 기준 최대 100개 유지 |
+| **useGameData.js** | 슬롯 문서 저장 시 `activityLogs`는 제외하고, 로드 시 `logs` 서브컬렉션을 `limit(100)`으로 우선 조회한 뒤 fallback으로 `savedStats.activityLogs \|\| slotData.activityLogs` 사용 |
 | **Game.jsx** | 1초 타이머: CALL, SLEEP_START, SLEEP_END, CAREMISTAKE, CARE_MISTAKE, POOP, DEATH |
-| **useGameActions.js** | FEED, CARE_MISTAKE, TRAIN, CLEAN, BATTLE — 수동 `newLog` + `slice(0, 50)` |
+| **useGameActions.js** | FEED, CARE_MISTAKE, TRAIN, CLEAN, BATTLE — 수동 `newLog` 추가 후 공용 상수 기준 최대 100개 유지 |
 | **useGameAnimations.js** | FEED, CLEAN, CARE_MISTAKE, HEAL — addActivityLog 사용 |
 | **useGameHandlers.js** | ACTION (조명 등) |
 | **useEvolution.js** | EVOLUTION |
 | **useFridge.js** | FRIDGE |
-| **GameModals.jsx** | DIET, REST, DETOX, PLAY_OR_SNACK, CAREMISTAKE |
+| **GameModals.jsx** | DIET, REST, DETOX, PLAY_OR_SNACK, CAREMISTAKE — 수면 방해 보조 로그도 공용 상수 기준 최대 100개 유지 |
 | **StatsPopup.jsx** | ACTION (수동 입력 로그) |
 
 ---
@@ -134,7 +134,7 @@
 
 1. **useGameData.js**
    - **saveStats**: Firestore에 보낼 `digimonStats`에서 `activityLogs` 제거 (이미 루트 중복 제거했던 것처럼).
-   - **loadSlot**: `digimonStats` 로드 후 `logs` 서브컬렉션에서 최근 100(또는 50)개 쿼리해 `setActivityLogs`에 넣기. 기존 필드 fallback 유지: `savedStats.activityLogs || slotData.activityLogs` (마이그레이션 기간).
+   - **loadSlot**: `digimonStats` 로드 후 `logs` 서브컬렉션에서 최근 100개를 쿼리해 `setActivityLogs`에 넣기. 기존 필드 fallback 유지: `savedStats.activityLogs || slotData.activityLogs` (마이그레이션 기간).
    - **새 함수**: `appendLogToSubcollection(slotId, logEntry)` — `collection(doc(db, 'users', uid, 'slots', 'slot'+slotId), 'logs')` 에 `addDoc` (type, text, timestamp).
 
 2. **로그를 추가하는 모든 호출부**
@@ -163,7 +163,7 @@
    - 이전 후 슬롯 문서에서 `activityLogs` 필드 제거 (필요 시).
 
 3. **상수 통일**  
-   - 최대 로그 개수 100 vs 50 통일. 서브컬렉션 조회 시 `limit(100)` 등으로 동일하게 맞추면 됨.
+   - 현재 최대 활동 로그 개수는 100으로 통일되어 있습니다. 서브컬렉션 조회와 수동 append 경로가 같은 기준을 사용합니다.
 
 ---
 

@@ -4,6 +4,68 @@
 
 ---
 
+## [2026-04-04] 일반 모바일 헤더 비율을 랜딩 헤더와 같은 구조 리듬으로 보정
+
+### 작업 유형
+- 📱 일반 서비스 헤더 모바일 비율 조정
+- ✍️ 브랜드 텍스트 줄바꿈 방지
+- 🧪 헤더 회귀 검증
+
+### 목적 및 영향
+- **목적:** 모바일에서 일반 서비스 헤더의 `디지몬 키우기`가 두 줄로 내려가던 문제를 해결하고, 랜딩 헤더와 같은 배치 리듬으로 보이게 정렬한다.
+- **범위:** 일반 헤더의 모바일 전용 CSS만 보강하며, 밝은 테마와 기존 링크 구조는 유지한다.
+- **내용:**
+  - `src/index.css`에 일반 헤더의 `max-width: 900px / 720px` 규칙을 추가해, pill 내부 패딩·아이콘 크기·브랜드 gap·버튼 높이를 랜딩 헤더 모바일 비율과 맞췄다.
+  - `service-brand__copy`, `service-brand__eyebrow`, `service-brand__title`에는 모바일 한 줄 우선 + 말줄임 규칙을 넣어 `디지몬 키우기`가 줄바꿈 대신 한 줄로 유지되게 했다.
+  - `더보기`와 계정 버튼도 모바일에서 랜딩 헤더와 유사한 높이와 폭 비율을 갖도록 다시 조정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand --watchAll=false src/components/layout/NavigationLinks.test.jsx src/components/landing/LandingShell.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 조정은 테마를 통일하는 작업이 아니라, 모바일에서의 여백·비율·줄바꿈 정책만 랜딩 헤더와 맞추는 작업으로 제한했다.
+- 브랜드 텍스트는 두 줄 허용보다 한 줄 우선 + 말줄임이 모바일 헤더 안정성에 더 적합하므로, 기본 정책을 그쪽으로 고정했다.
+
+## [2026-04-04] 모바일 소개/노트북 진입을 상단 더보기 메뉴로 재구성
+
+### 작업 유형
+- 📱 모바일 하단 탭 축소
+- 🍔 일반/랜딩 헤더 모바일 오버플로우 메뉴 추가
+- 🧪 모바일 내비게이션 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 모바일에서는 하단 탭을 핵심 행동 중심으로 유지하고, `소개`와 `노트북`은 상단 `더보기` 메뉴로 이동시켜 탐색 밀도를 줄인다.
+- **범위:** `MobileTabBar`, 일반 `TopNavigation`, 랜딩 `LandingTopBar`, 공용 헤더 메뉴 정의와 관련 테스트를 함께 조정한다.
+- **내용:**
+  - `src/data/headerNavigation.js`에 모바일 하단 탭/서비스 오버플로우/랜딩 오버플로우 메뉴 헬퍼를 추가했다.
+  - `src/components/layout/MobileTabBar.jsx`는 `홈 / 플레이 / 커뮤니티 / 테이머(설정)`만 남기고 `노트북`을 제거했다.
+  - `src/components/layout/TopNavigation.jsx`에는 모바일 `더보기` 패널을 추가해 `가이드 / 소식 / 노트북 / 소개`를 상단에서 열 수 있게 했다.
+  - `src/components/landing/LandingTopBar.jsx`에는 랜딩 전용 모바일 `더보기` 패널을 추가하고, 현재 페이지인 `소개`는 제외한 나머지 주요 링크를 노출하도록 맞췄다.
+  - 일반/랜딩 헤더 스타일과 관련 테스트를 함께 갱신해 모바일에서 새 탐색 흐름이 유지되도록 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/NavigationLinks.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/landing/LandingTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/landing/LandingShell.test.jsx`
+- `digimon-tamagotchi-frontend/src/data/headerNavigation.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `digimon-tamagotchi-frontend/src/styles/landing.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand --watchAll=false src/components/layout/NavigationLinks.test.jsx src/components/landing/LandingShell.test.jsx`
+
+### 아키텍처 메모
+- 모바일 하단 탭은 빈도 높은 행동만 남기고, 정보성 진입점은 헤더 오버플로우 메뉴로 이동시키는 편이 좁은 화면에서 더 안정적이다.
+- 랜딩과 일반 헤더는 시각 톤은 다르지만 모바일 탐색 패턴은 동일하게 맞춰, 페이지 전환 시 학습 비용이 커지지 않도록 했다.
+
 ## [2026-04-04] 사망 판정 공통화와 recovery/cleanup 경계 테스트 추가
 
 ### 작업 유형

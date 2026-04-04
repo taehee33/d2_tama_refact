@@ -27,6 +27,7 @@ function createBaseStats(overrides = {}) {
       sleep: { isActive: false, startedAt: null },
     },
     careMistakes: 0,
+    careMistakeLedger: [],
     injuries: 0,
     isInjured: false,
     injuredAt: null,
@@ -187,6 +188,58 @@ describe("applyLazyUpdate", () => {
         }),
       ])
     );
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "hunger_call",
+          source: "backfill",
+          text: expect.stringContaining("배고픔 콜 10분 무시"),
+          resolvedAt: null,
+        }),
+      ])
+    );
+  });
+
+  test("같은 배고픔 콜 타임아웃 이벤트가 이미 ledger에 있으면 applyLazyUpdate가 다시 올리지 않는다", () => {
+    const hungerZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
+    const timeoutOccurredAt = hungerZeroAt + 10 * 60 * 1000;
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 0,
+        careMistakes: 1,
+        lastHungerZeroAt: hungerZeroAt,
+        careMistakeLedger: [
+          {
+            id: `hunger_call:${timeoutOccurredAt}`,
+            occurredAt: timeoutOccurredAt,
+            reasonKey: "hunger_call",
+            text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+            source: "backfill",
+            resolvedAt: null,
+            resolvedBy: null,
+          },
+        ],
+        activityLogs: [
+          {
+            type: "CAREMISTAKE",
+            text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+            timestamp: timeoutOccurredAt,
+          },
+        ],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.activityLogs).toHaveLength(1);
+    expect(result.careMistakeLedger).toHaveLength(1);
+    expect(result.callStatus.hunger.isLogged).toBe(true);
   });
 
   test("hunger call이 이미 처리된 0 구간은 새로고침 후에도 다시 열리지 않는다", () => {

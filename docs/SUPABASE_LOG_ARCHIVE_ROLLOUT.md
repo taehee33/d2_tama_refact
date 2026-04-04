@@ -118,6 +118,19 @@ Prod 검증 결과:
 2. Supabase row 생성까지 확인했다.
 3. 이후 Firestore slimming 코드도 같은 production 배포에 반영할 수 있는 상태를 확보했다.
 
+## 5. Archive 관측 보강
+
+- Supabase에 `log_archive_monitor_events` 테이블을 추가해 archive 저장 성공/실패, replay 404/실패를 best-effort로 적재한다.
+- 관측 대상:
+  - `POST /api/logs/arena-battles/archive`
+  - `GET /api/logs/arena-battles/:archiveId/replay`
+  - `POST /api/logs/jogress/archive`
+- 서버는 Vercel 함수 로그에 `[archive-monitor]` 구조화 로그를 남기고, 같은 이벤트를 Supabase에 기록한다.
+- 운영자는 관리자 모달의 `로그 관측` 탭에서 최근 24시간 요약과 최신 이벤트 50건을 바로 확인할 수 있다.
+
+- 추가 수동 적용 SQL:
+  - `supabase/migrations/20260404_log_archive_monitoring.sql`
+
 ## 5. 롤백 기준
 
 ### SQL만 적용된 상태
@@ -138,4 +151,4 @@ Prod 검증 결과:
 ## 남은 작업
 
 - `arena_battle_logs` / `jogress_logs`의 오래된 Firestore 문서를 정리할 운영 정책 수립
-- archive 실패율과 replay 404를 운영 로그로 모니터링
+- 필요 시 archive 관측 탭에 필터나 pagination을 추가

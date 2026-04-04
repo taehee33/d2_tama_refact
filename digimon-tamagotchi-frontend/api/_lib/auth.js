@@ -18,6 +18,40 @@ async function verifyRequestUser(req) {
   }
 }
 
+function normalizeCommaSeparatedList(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isArenaAdmin(decodedToken) {
+  if (!decodedToken) {
+    return false;
+  }
+
+  const adminUids = normalizeCommaSeparatedList(process.env.ARENA_ADMIN_UIDS);
+  const adminEmails = normalizeCommaSeparatedList(process.env.ARENA_ADMIN_EMAILS);
+  const uid = typeof decodedToken.uid === "string" ? decodedToken.uid.trim().toLowerCase() : "";
+  const email = typeof decodedToken.email === "string" ? decodedToken.email.trim().toLowerCase() : "";
+
+  return adminUids.includes(uid) || (email ? adminEmails.includes(email) : false);
+}
+
+function assertArenaAdmin(decodedToken) {
+  if (!isArenaAdmin(decodedToken)) {
+    throw createCommunityError(403, "아레나 관리자 권한이 없습니다.");
+  }
+
+  return decodedToken;
+}
+
 module.exports = {
+  assertArenaAdmin,
+  isArenaAdmin,
   verifyRequestUser,
 };

@@ -2,6 +2,12 @@
 // 수면 상태 계산 유틸리티 및 진화 조건 체크 유틸리티
 
 import { isTimeWithinSleepSchedule, normalizeSleepSchedule } from "../utils/sleepUtils";
+import {
+  appendCareMistakeEntry,
+  getCareMistakeEventIdFromLog,
+  getCareMistakeReasonKeyFromText,
+} from "../logic/stats/careMistakeLedger";
+import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 
 /**
  * Firestore Timestamp를 안전하게 변환하는 유틸 함수
@@ -411,22 +417,14 @@ export function initializeActivityLogs(existingLogs = []) {
  * @param {number} [timestampMs] - 로그 시각(ms). 생략 시 Date.now() 사용. applyLazyUpdate와 동일 시각을 쓰면 중복 로그 방지됨.
  * @returns {Array} 업데이트된 로그 배열
  */
-/** 케어미스 로그 중복 여부: 동일 타입·동일 사유(배고픔/힘/수면) 로그가 기준 시각 ±15분 안에 있으면 true (실시간·과거 재구성 중복 방지) */
-function hasDuplicateCareMistakeLog(logs, type, text, timestampMs, windowMs = 15 * 60 * 1000) {
+/** 케어미스 로그 중복 여부: 같은 사유 + 같은 발생 시각의 동일 이벤트면 true */
+function hasDuplicateCareMistakeLog(logs, type, text, timestampMs) {
   if (type !== 'CAREMISTAKE' || !logs.length) return false;
-  const keyPhrases = ['배고픔 콜', '힘 콜', '수면'];
-  const hasKey = keyPhrases.some((phrase) => text && text.includes(phrase));
-  if (!hasKey) return false;
-  const t = timestampMs !== undefined ? timestampMs : Date.now();
-  const minT = t - windowMs;
-  const maxT = t + windowMs;
+  const ts = timestampMs !== undefined ? timestampMs : Date.now();
+  const nextEventId = `${getCareMistakeReasonKeyFromText(text || '')}:${ts}`;
   return logs.some((log) => {
     if (log.type !== type) return false;
-    const matchPhrase = keyPhrases.some((phrase) => log.text && log.text.includes(phrase));
-    if (!matchPhrase) return false;
-    const logT = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
-    if (logT == null) return false;
-    return logT >= minT && logT <= maxT;
+    return getCareMistakeEventIdFromLog(log) === nextEventId;
   });
 }
 
@@ -454,10 +452,9 @@ export function addActivityLog(currentLogs = [], type, text, timestampMs) {
   }
   const newLog = { type, text, timestamp: ts };
 
-  const maxLogs = 100;
   const updatedLogs = [...logs, newLog];
-  if (updatedLogs.length > maxLogs) {
-    return updatedLogs.slice(-maxLogs);
+  if (updatedLogs.length > MAX_ACTIVITY_LOGS) {
+    return updatedLogs.slice(-MAX_ACTIVITY_LOGS);
   }
   return updatedLogs;
 }
@@ -733,7 +730,15 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
     const elapsed = nowMs - hungerStartedAt;
     const alreadyLogged = callStatus.hunger.isLogged === true;
     if (elapsed > HUNGER_CALL_TIMEOUT && !alreadyLogged) {
-      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
+      const { nextStats } = appendCareMistakeEntry(updatedStats, {
+        occurredAt: timeoutOccurredAt,
+        reasonKey: "hunger_call",
+        text: `케어미스(사유: 배고픔 콜 10분 무시): ${(updatedStats.careMistakes || 0)} → ${(updatedStats.careMistakes || 0) + 1}`,
+        source: "realtime",
+      });
+      updatedStats.careMistakes = nextStats.careMistakes;
+      updatedStats.careMistakeLedger = nextStats.careMistakeLedger;
       callStatus.hunger.isActive = false;
       callStatus.hunger.startedAt = null;
       callStatus.hunger.sleepStartAt = null;
@@ -756,7 +761,15 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
     const elapsed = nowMs - strengthStartedAt;
     const alreadyLogged = callStatus.strength.isLogged === true;
     if (elapsed > STRENGTH_CALL_TIMEOUT && !alreadyLogged) {
-      updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
+      const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
+      const { nextStats } = appendCareMistakeEntry(updatedStats, {
+        occurredAt: timeoutOccurredAt,
+        reasonKey: "strength_call",
+        text: `케어미스(사유: 힘 콜 10분 무시): ${(updatedStats.careMistakes || 0)} → ${(updatedStats.careMistakes || 0) + 1}`,
+        source: "realtime",
+      });
+      updatedStats.careMistakes = nextStats.careMistakes;
+      updatedStats.careMistakeLedger = nextStats.careMistakeLedger;
       callStatus.strength.isActive = false;
       callStatus.strength.startedAt = null;
       callStatus.strength.sleepStartAt = null;

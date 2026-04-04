@@ -29,8 +29,110 @@ const MAX_ENTRIES = 3;
 const CURRENT_SEASON_ID = 1;
 const LEADERBOARD_LIMIT = 20;
 
+function normalizeArenaInteger(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeArenaString(value, fallback = "") {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+export function normalizeArenaLeaderboardEntry(entry = {}, fallbackSeasonId = CURRENT_SEASON_ID) {
+  const rawRecord = entry.record && typeof entry.record === "object" ? entry.record : {};
+  const rawSnapshot =
+    entry.digimonSnapshot && typeof entry.digimonSnapshot === "object"
+      ? entry.digimonSnapshot
+      : {};
+  const seasonId = normalizeArenaInteger(rawRecord.seasonId ?? entry.seasonId, fallbackSeasonId);
+  const wins = normalizeArenaInteger(rawRecord.wins ?? entry.wins, 0);
+  const losses = normalizeArenaInteger(rawRecord.losses ?? entry.losses, 0);
+
+  return {
+    ...entry,
+    id: entry.id || `${normalizeArenaString(entry.tamerName || entry.trainerName, "unknown")}-${seasonId}`,
+    tamerName: normalizeArenaString(entry.tamerName || entry.trainerName, "Unknown"),
+    digimonSnapshot: {
+      ...rawSnapshot,
+      digimonId: normalizeArenaString(
+        rawSnapshot.digimonId || rawSnapshot.digimonName || entry.digimonId || entry.digimonName,
+        "Unknown"
+      ),
+      digimonName: normalizeArenaString(rawSnapshot.digimonName || entry.digimonName, "Unknown"),
+      digimonNickname: normalizeArenaString(rawSnapshot.digimonNickname || entry.digimonNickname) || null,
+      slotId: rawSnapshot.slotId ?? entry.slotId ?? null,
+      stage: normalizeArenaString(rawSnapshot.stage || entry.stage, "Unknown"),
+      sprite: rawSnapshot.sprite ?? entry.sprite ?? 0,
+      spriteBasePath: rawSnapshot.spriteBasePath || null,
+      slotVersion: rawSnapshot.slotVersion || entry.slotVersion || "Ver.1",
+    },
+    record: {
+      wins,
+      losses,
+      seasonWins: normalizeArenaInteger(rawRecord.seasonWins ?? entry.seasonWins, 0),
+      seasonLosses: normalizeArenaInteger(rawRecord.seasonLosses ?? entry.seasonLosses, 0),
+      seasonId,
+    },
+  };
+}
+
+export function getLeaderboardStats(entry, mode = "all") {
+  const normalizedEntry = normalizeArenaLeaderboardEntry(entry);
+  const record = normalizedEntry.record || {};
+  const useSeasonRecord = mode === "current" || mode === "past";
+  const wins = useSeasonRecord ? record.seasonWins || 0 : record.wins || 0;
+  const losses = useSeasonRecord ? record.seasonLosses || 0 : record.losses || 0;
+  const total = wins + losses;
+  const winRate = total === 0 ? 0 : Math.round((wins / total) * 100);
+
+  return {
+    record,
+    wins,
+    losses,
+    total,
+    winRate,
+  };
+}
+
+export function sortArenaLeaderboardEntries(entries = [], mode = "all") {
+  return [...entries].sort((left, right) => {
+    const leftEntry = normalizeArenaLeaderboardEntry(left);
+    const rightEntry = normalizeArenaLeaderboardEntry(right);
+    const leftStats = getLeaderboardStats(leftEntry, mode);
+    const rightStats = getLeaderboardStats(rightEntry, mode);
+
+    if (rightStats.wins !== leftStats.wins) {
+      return rightStats.wins - leftStats.wins;
+    }
+
+    if (leftStats.losses !== rightStats.losses) {
+      return leftStats.losses - rightStats.losses;
+    }
+
+    const nameDiff = (leftEntry.tamerName || "Unknown").localeCompare(
+      rightEntry.tamerName || "Unknown",
+      "ko"
+    );
+    if (nameDiff !== 0) {
+      return nameDiff;
+    }
+
+    return (leftEntry.digimonSnapshot?.digimonName || "Unknown").localeCompare(
+      rightEntry.digimonSnapshot?.digimonName || "Unknown",
+      "ko"
+    );
+  });
+}
+
 export function hasBattleReplayArchive(log) {
-  return Boolean(log?.archiveId);
+  if (!log?.archiveId) {
+    return false;
+  }
+
+  const archiveStatus =
+    typeof log.archiveStatus === "string" ? log.archiveStatus.toLowerCase() : "";
+
+  return archiveStatus === "" || archiveStatus === "ready";
 }
 
 export function getBattleReplayUiState(log) {
@@ -43,6 +145,27 @@ export function getBattleReplayUiState(log) {
     };
   }
 
+  const archiveStatus =
+    typeof log?.archiveStatus === "string" ? log.archiveStatus.toLowerCase() : "";
+
+  if (log?.archiveId && archiveStatus === "pending") {
+    return {
+      status: "pending",
+      hasReplay: false,
+      badge: "보관 중",
+      description: "상세 다시보기를 아직 정리하는 중입니다. 잠시 후 다시 확인해 주세요.",
+    };
+  }
+
+  if (log?.archiveId && archiveStatus === "failed") {
+    return {
+      status: "failed",
+      hasReplay: false,
+      badge: "보관 실패",
+      description: "상세 다시보기를 저장하지 못해 요약 로그만 확인할 수 있습니다.",
+    };
+  }
+
   return {
     status: "legacy",
     hasReplay: false,
@@ -51,7 +174,19 @@ export function getBattleReplayUiState(log) {
   };
 }
 
-export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, currentSeasonId = CURRENT_SEASON_ID, isDevMode = false, onOpenAdmin, selectedDigimon, digimonStats, digimonNickname }) {
+export default function ArenaScreen({
+  onClose,
+  onStartBattle,
+  currentSlotId,
+  currentSeasonId = CURRENT_SEASON_ID,
+  seasonName = `Season ${currentSeasonId || CURRENT_SEASON_ID}`,
+  seasonDuration = "",
+  isDevMode = false,
+  onOpenAdmin,
+  selectedDigimon,
+  digimonStats,
+  digimonNickname,
+}) {
   // 배경 스크롤 방지
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -94,10 +229,9 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   // leaderboardMode: 'current' | 'all' | 'past'
   const [leaderboardMode, setLeaderboardMode] = useState('current');
-  const [seasonDurationText, setSeasonDurationText] = useState("");
-  const [seasonName, setSeasonName] = useState(`Season ${currentSeasonId}`);
   const [archivesList, setArchivesList] = useState([]);
   const [selectedArchiveId, setSelectedArchiveId] = useState("");
+  const [selectedArchiveMeta, setSelectedArchiveMeta] = useState(null);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [currentDigimonInfo, setCurrentDigimonInfo] = useState(null);
   const [showPowerDetails, setShowPowerDetails] = useState(false);
@@ -162,7 +296,6 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     if (isFirebaseAvailable && currentUser) {
       loadMyEntries();
       loadChallengers();
-      loadArenaConfig();
       loadArchivesList();
     } else {
       setLoading(false);
@@ -190,6 +323,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
           loadArchiveEntries(selectedArchiveId);
         }
       } else {
+        setSelectedArchiveMeta(null);
         loadLeaderboard(leaderboardMode);
       }
     }
@@ -249,22 +383,6 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     }
   };
 
-  // 시즌 설정 로드
-  const loadArenaConfig = async () => {
-    if (!isFirebaseAvailable || !currentUser) return;
-    try {
-      const configRef = doc(db, 'game_settings', 'arena_config');
-      const snap = await getDoc(configRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.seasonDuration) setSeasonDurationText(data.seasonDuration);
-        if (data.seasonName) setSeasonName(data.seasonName);
-      }
-    } catch (error) {
-      console.error("Arena 설정 로드 오류:", error);
-    }
-  };
-
   // 내 등록된 디지몬 목록 로드
   const loadMyEntries = async () => {
     if (!isFirebaseAvailable || !currentUser) return;
@@ -274,10 +392,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       const q = query(entriesRef, where('userId', '==', currentUser.uid));
       const querySnapshot = await getDocs(q);
       
-      const entries = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const entries = querySnapshot.docs.map((entryDoc) =>
+        normalizeArenaLeaderboardEntry({
+          id: entryDoc.id,
+          ...entryDoc.data(),
+        }, currentSeasonId || CURRENT_SEASON_ID)
+      );
       
       // createdAt 기준으로 정렬 (최신순)
       entries.sort((a, b) => {
@@ -308,10 +428,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       );
       const querySnapshot = await getDocs(q);
       
-      const challengersList = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const challengersList = querySnapshot.docs.map((entryDoc) =>
+        normalizeArenaLeaderboardEntry({
+          id: entryDoc.id,
+          ...entryDoc.data(),
+        }, currentSeasonId || CURRENT_SEASON_ID)
+      );
       
       setChallengers(challengersList);
     } catch (error) {
@@ -322,10 +444,12 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
         const allDocs = await getDocs(entriesRef);
         const challengersList = allDocs.docs
           .filter(doc => doc.data().userId !== currentUser.uid)
-          .map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
+          .map((entryDoc) =>
+            normalizeArenaLeaderboardEntry({
+              id: entryDoc.id,
+              ...entryDoc.data(),
+            }, currentSeasonId || CURRENT_SEASON_ID)
+          );
         setChallengers(challengersList);
       } catch (fallbackError) {
         console.error("챌린저 로드 fallback 오류:", fallbackError);
@@ -439,10 +563,18 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       }
 
       const querySnapshot = await getDocs(q);
-      const list = querySnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
+      const list = sortArenaLeaderboardEntries(
+        querySnapshot.docs.map((entryDoc) =>
+          normalizeArenaLeaderboardEntry(
+            {
+              id: entryDoc.id,
+              ...entryDoc.data(),
+            },
+            currentSeasonId || CURRENT_SEASON_ID
+          )
+        ),
+        modeType
+      );
       setLeaderboardEntries(list);
     } catch (error) {
       console.error("리더보드 로드 오류:", error);
@@ -460,7 +592,9 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       const colRef = collection(db, 'season_archives');
       const q = query(colRef, orderBy('seasonId', 'desc'));
       const snap = await getDocs(q);
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((archive) => archive.isDeleted !== true);
       setArchivesList(list);
     } catch (error) {
       console.error("아카이브 목록 로드 오류:", error);
@@ -478,9 +612,19 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
       const snap = await getDoc(arcRef);
       if (snap.exists()) {
         const data = snap.data();
-        const entries = data.entries || [];
+        const archiveSeasonId = normalizeArenaInteger(data.seasonId, currentSeasonId || CURRENT_SEASON_ID);
+        const entries = sortArenaLeaderboardEntries(
+          (data.entries || []).map((entry) => normalizeArenaLeaderboardEntry(entry, archiveSeasonId)),
+          'past'
+        );
+        setSelectedArchiveMeta({
+          seasonId: archiveSeasonId,
+          seasonName: data.seasonName || `Season ${archiveSeasonId}`,
+          seasonDuration: data.seasonDuration || "",
+        });
         setLeaderboardEntries(entries);
       } else {
+        setSelectedArchiveMeta(null);
         setLeaderboardEntries([]);
       }
     } catch (error) {
@@ -698,7 +842,13 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
         userId: currentUser.uid,
         tamerName: entryTamerName,
         digimonSnapshot: snapshot,
-        record: { wins: 0, losses: 0 },
+        record: {
+          wins: 0,
+          losses: 0,
+          seasonWins: 0,
+          seasonLosses: 0,
+          seasonId: Number(currentSeasonId) || CURRENT_SEASON_ID,
+        },
         createdAt: serverTimestamp(),
       };
       
@@ -776,7 +926,8 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
     
     if (!myEntryId) {
       console.warn("⚠️ 현재 슬롯과 매칭되는 아레나 엔트리를 찾을 수 없습니다!");
-      alert("⚠️ 경고: 현재 슬롯이 아레나에 등록되어 있지 않습니다.\n\n승패 기록이 저장되지 않을 수 있습니다. 아레나에 등록 후 배틀을 시작해주세요.");
+      alert("현재 슬롯이 아레나에 등록되어 있지 않습니다.\n\n현재 디지몬을 먼저 등록한 뒤 배틀을 시작해 주세요.");
+      return;
     }
     
     onStartBattle(challenger, myEntryId);
@@ -830,7 +981,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
 
   if (loading && myEntries.length === 0 && challengers.length === 0) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" modal-overlay-mobile>
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" data-modal-overlay-mobile="true">
         <div className="bg-white p-6 rounded-lg">
           <p>로딩 중...</p>
         </div>
@@ -1427,7 +1578,16 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               <div className="min-w-0">
                 <h3 className="text-lg sm:text-xl font-bold break-words">리더보드</h3>
                 <p className="text-xs text-gray-500 break-words">
-                  {seasonName} {seasonDurationText ? `(${seasonDurationText})` : ""}
+                  {(leaderboardMode === 'past'
+                    ? selectedArchiveMeta?.seasonName || "과거 시즌"
+                    : seasonName || `Season ${currentSeasonId}`)}{" "}
+                  {(leaderboardMode === 'past'
+                    ? selectedArchiveMeta?.seasonDuration
+                    : seasonDuration)
+                    ? `(${leaderboardMode === 'past'
+                        ? selectedArchiveMeta?.seasonDuration
+                        : seasonDuration})`
+                    : ""}
                 </p>
               </div>
               {isDevMode && (
@@ -1435,7 +1595,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                   onClick={onOpenAdmin}
                   className="px-2 sm:px-3 py-1 bg-gray-700 text-white rounded-lg text-xs sm:text-sm font-bold hover:bg-gray-800 transition-colors flex-shrink-0"
                 >
-                  ⚙️ Arena Admin
+                  ⚙️ 아레나 관리자
                 </button>
               )}
             </div>
@@ -1453,7 +1613,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                📅 Current
+                현재 시즌
               </button>
               <button
                 onClick={() => {
@@ -1466,7 +1626,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                🏆 All-Time
+                전체 누적
               </button>
               <button
                 onClick={() => setLeaderboardMode('past')}
@@ -1476,7 +1636,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                📚 Past
+                과거 시즌
               </button>
             </div>
 
@@ -1485,10 +1645,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                 {archiveLoading ? (
                   <p className="text-gray-600">과거 시즌 목록 로딩 중...</p>
                 ) : archivesList.length === 0 ? (
-                  <p className="text-gray-600">No archived seasons found</p>
+                  <p className="text-gray-600">보관된 시즌이 없습니다.</p>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-700">Select Season:</label>
+                    <label className="text-sm text-gray-700">시즌 선택:</label>
                     <select
                       className="border rounded px-3 py-2"
                       value={selectedArchiveId}
@@ -1514,13 +1674,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
               <div className="space-y-2 w-full overflow-x-hidden">
                 {leaderboardEntries.map((entry, idx) => {
                   const rank = idx + 1;
-                  const record = entry.record || { wins: 0, losses: 0, seasonWins: 0, seasonLosses: 0 };
-                  const wins = leaderboardMode === 'season' ? (record.seasonWins || 0) : (record.wins || 0);
-                  const losses = leaderboardMode === 'season' ? (record.seasonLosses || 0) : (record.losses || 0);
-                  const total = wins + losses;
-                  const winRate = total === 0 ? 0 : Math.round((wins / total) * 100);
-                  const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown';
-                  const digimonNickname = entry.digimonSnapshot?.digimonNickname;
+                  const normalizedEntry = normalizeArenaLeaderboardEntry(entry, currentSeasonId || CURRENT_SEASON_ID);
+                  const { wins, losses, winRate } = getLeaderboardStats(normalizedEntry, leaderboardMode);
+                  const digimonName = digimonDataVer1[normalizedEntry.digimonSnapshot?.digimonId || normalizedEntry.digimonSnapshot?.digimonName]?.name || normalizedEntry.digimonSnapshot?.digimonName || 'Unknown';
+                  const digimonNickname = normalizedEntry.digimonSnapshot?.digimonNickname;
                   const displayName = digimonNickname && digimonNickname.trim()
                     ? `${digimonNickname}(${digimonName})`
                     : digimonName;
@@ -1533,7 +1690,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
 
                   return (
                     <div
-                      key={entry.id}
+                      key={normalizedEntry.id}
                       className={`p-2 sm:p-3 border-2 rounded-lg flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 ${rankClass}`}
                     >
                       <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
@@ -1542,10 +1699,10 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-sm sm:text-base break-words">
-                            {entry.tamerName || entry.trainerName || 'Unknown'} - {displayName}
+                            {normalizedEntry.tamerName || normalizedEntry.trainerName || 'Unknown'} - {displayName}
                           </p>
                           <p className="text-xs text-gray-600">
-                            Wins: {wins} / Win Rate: {winRate}%
+                            {wins}승 {losses}패 · 승률 {winRate}%
                           </p>
                         </div>
                       </div>
@@ -1559,7 +1716,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
 
         {/* 슬롯 선택 모달 */}
         {showSlotSelection && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" data-modal-overlay-mobile="true">
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">등록할 슬롯 선택</h3>
               {availableSlots.length === 0 ? (
@@ -1624,7 +1781,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
 
         {/* 배틀 로그 다시보기 모달 */}
         {showBattleLogReview && selectedBattleLog && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" data-modal-overlay-mobile="true">
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">배틀 로그 리뷰</h3>
               {battleReplayError && (
@@ -1673,7 +1830,7 @@ export default function ArenaScreen({ onClose, onStartBattle, currentSlotId, cur
 
         {/* 상세 정보 모달 */}
         {showDetailModal && selectedEntry && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" modal-overlay-mobile>
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-60" data-modal-overlay-mobile="true">
             <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full m-4">
               <h3 className="text-xl font-bold mb-4">상세 정보</h3>
               <div className="flex justify-center mb-4">

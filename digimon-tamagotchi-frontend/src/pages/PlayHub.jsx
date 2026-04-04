@@ -347,7 +347,7 @@ function PlayHub() {
                 <span>조건표와 기본 시스템을 다시 확인합니다.</span>
                 </Link>
                 <Link className="service-action-card" to="/me">
-                  <strong>마이</strong>
+                  <strong>테이머(설정)</strong>
                   <span>도감, 계정 설정, 최근 디지몬 카드로 이동합니다.</span>
                 </Link>
               <Link className="service-action-card" to="/community">

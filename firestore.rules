@@ -9,6 +9,20 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isArenaEntryOwner() {
+      return isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    function isArenaEntryCreateValid() {
+      return isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.record.wins == 0 &&
+        request.resource.data.record.losses == 0 &&
+        request.resource.data.record.seasonWins == 0 &&
+        request.resource.data.record.seasonLosses == 0 &&
+        request.resource.data.record.seasonId is int;
+    }
+
     // 공식 관리 경계: 사용자 문서와 슬롯/로그
     match /users/{userId} {
       allow read, write: if isOwner(userId);
@@ -51,22 +65,34 @@ service cloud.firestore {
     }
 
     match /arena_entries/{entryId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isArenaEntryCreateValid();
+      allow update: if false;
+      allow delete: if isArenaEntryOwner();
     }
 
     match /arena_battle_logs/{logId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /season_archives/{archiveId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /game_settings/arena_config {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /game_settings/{docId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn();
+      allow write: if docId != "arena_config" && isSignedIn();
 
       match /{subPath=**} {
-        allow read, write: if isSignedIn();
+        allow read: if isSignedIn();
+        allow write: if docId != "arena_config" && isSignedIn();
       }
     }
   }

@@ -1,7 +1,9 @@
 // src/data/stats.js
 import { defaultStats } from "./defaultStatsFile";
+import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
 import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
+import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 
 function migrateLegacyPoopTimers(target, fallbackTime = null) {
@@ -119,6 +121,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.proteinOverdose = 0; // 단백질 과다 리셋
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
+  merged.careMistakeLedger = [];
   merged.injuries = 0; // 부상 횟수 리셋
   merged.isInjured = false; // 부상 상태 리셋
   merged.injuredAt = null; // 부상 시간 리셋
@@ -367,7 +370,7 @@ function ensureTimestamp(val) {
  * @param {number} maxLogs - 최대 유지 개수
  * @returns {Array} 업데이트된 로그 배열
  */
-function pushBackdatedActivityLog(activityLogs, type, text, timestampMs, maxLogs = 100) {
+function pushBackdatedActivityLog(activityLogs, type, text, timestampMs, maxLogs = MAX_ACTIVITY_LOGS) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
   const next = [...logs, { type, text, timestamp: timestampMs }];
   return next.length > maxLogs ? next.slice(-maxLogs) : next;
@@ -406,20 +409,6 @@ function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = 
     if (textContains && (!log.text || !log.text.includes(textContains))) return false;
     const logMs = logTimestampToMs(log);
     return logMs != null && logMs === targetMs;
-  });
-}
-
-/** 동일 타입·텍스트 패턴 로그가 기준 시각 ±windowMs 안에 있으면 true. applyLazyUpdate 연속 호출·과거 재구성 시 같은 케어미스 중복 방지 (15분 창) */
-function alreadyHasLogInWindow(activityLogs, type, timeMs, textContains, windowMs = 15 * 60 * 1000) {
-  const logs = Array.isArray(activityLogs) ? activityLogs : [];
-  const minT = timeMs - windowMs;
-  const maxT = timeMs + windowMs;
-  return logs.some((log) => {
-    if (log.type !== type) return false;
-    if (textContains && (!log.text || !log.text.includes(textContains))) return false;
-    const t = logTimestampToMs(log);
-    if (t == null) return false;
-    return t >= minT && t <= maxT;
   });
 }
 
@@ -735,16 +724,24 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
         if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
-          if (!alreadyLogged &&
-              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
-              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
-            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-            updatedStats.activityLogs = pushBackdatedActivityLog(
-              updatedStats.activityLogs,
-              'CAREMISTAKE',
-              '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
-              timeoutOccurredAt
-            );
+          if (!alreadyLogged) {
+            const result = appendCareMistakeEntry(updatedStats, {
+              occurredAt: timeoutOccurredAt,
+              reasonKey: "hunger_call",
+              text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+              source: "backfill",
+            });
+            updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
+            if (result.added &&
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+              updatedStats.activityLogs = pushBackdatedActivityLog(
+                updatedStats.activityLogs,
+                'CAREMISTAKE',
+                '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+                timeoutOccurredAt
+              );
+            }
             callStatus.hunger.isLogged = true;
           }
           callStatus.hunger.isActive = false;
@@ -758,16 +755,24 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
         const elapsed = now.getTime() - activeStartedAt;
         if (elapsed > HUNGER_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
-          if (!alreadyLogged &&
-              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜') &&
-              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
-            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-            updatedStats.activityLogs = pushBackdatedActivityLog(
-              updatedStats.activityLogs,
-              'CAREMISTAKE',
-              '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
-              timeoutOccurredAt
-            );
+          if (!alreadyLogged) {
+            const result = appendCareMistakeEntry(updatedStats, {
+              occurredAt: timeoutOccurredAt,
+              reasonKey: "hunger_call",
+              text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+              source: "backfill",
+            });
+            updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
+            if (result.added &&
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+              updatedStats.activityLogs = pushBackdatedActivityLog(
+                updatedStats.activityLogs,
+                'CAREMISTAKE',
+                '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+                timeoutOccurredAt
+              );
+            }
             callStatus.hunger.isLogged = true;
           }
           callStatus.hunger.isActive = false;
@@ -825,16 +830,24 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
         if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
-          if (!alreadyLogged &&
-              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
-              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
-            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-            updatedStats.activityLogs = pushBackdatedActivityLog(
-              updatedStats.activityLogs,
-              'CAREMISTAKE',
-              '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
-              timeoutOccurredAt
-            );
+          if (!alreadyLogged) {
+            const result = appendCareMistakeEntry(updatedStats, {
+              occurredAt: timeoutOccurredAt,
+              reasonKey: "strength_call",
+              text: "케어미스(사유: 힘 콜 10분 무시) [과거 재구성]",
+              source: "backfill",
+            });
+            updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
+            if (result.added &&
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+              updatedStats.activityLogs = pushBackdatedActivityLog(
+                updatedStats.activityLogs,
+                'CAREMISTAKE',
+                '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+                timeoutOccurredAt
+              );
+            }
             callStatus.strength.isLogged = true;
           }
           callStatus.strength.isActive = false;
@@ -848,16 +861,24 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
         const elapsed = now.getTime() - activeStartedAt;
         if (elapsed > STRENGTH_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
-          if (!alreadyLogged &&
-              !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜') &&
-              !alreadyHasLogInWindow(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
-            updatedStats.careMistakes = (updatedStats.careMistakes || 0) + 1;
-            updatedStats.activityLogs = pushBackdatedActivityLog(
-              updatedStats.activityLogs,
-              'CAREMISTAKE',
-              '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
-              timeoutOccurredAt
-            );
+          if (!alreadyLogged) {
+            const result = appendCareMistakeEntry(updatedStats, {
+              occurredAt: timeoutOccurredAt,
+              reasonKey: "strength_call",
+              text: "케어미스(사유: 힘 콜 10분 무시) [과거 재구성]",
+              source: "backfill",
+            });
+            updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
+            if (result.added &&
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+              updatedStats.activityLogs = pushBackdatedActivityLog(
+                updatedStats.activityLogs,
+                'CAREMISTAKE',
+                '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+                timeoutOccurredAt
+              );
+            }
             callStatus.strength.isLogged = true;
           }
           callStatus.strength.isActive = false;

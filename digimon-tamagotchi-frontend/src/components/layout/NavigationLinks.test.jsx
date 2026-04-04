@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import MobileTabBar from "./MobileTabBar";
 import TopNavigation from "./TopNavigation";
 
@@ -84,6 +84,31 @@ describe("홈과 노트북 전역 이동 링크", () => {
     expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
     expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
+  });
+
+  test("모바일 더보기 메뉴에는 가이드, 소식, 노트북, 소개 링크가 보인다", () => {
+    mockLocation.pathname = "/guide";
+    render(<TopNavigation />);
+
+    fireEvent.click(screen.getByRole("button", { name: "모바일 더보기 메뉴" }));
+
+    const menu = screen.getByRole("menu", { name: "모바일 더보기" });
+    expect(within(menu).getByRole("menuitem", { name: "가이드" })).toHaveAttribute(
+      "href",
+      "/guide"
+    );
+    expect(within(menu).getByRole("menuitem", { name: "소식" })).toHaveAttribute(
+      "href",
+      "/news"
+    );
+    expect(within(menu).getByRole("menuitem", { name: "노트북" })).toHaveAttribute(
+      "href",
+      "/notebook"
+    );
+    expect(within(menu).getByRole("menuitem", { name: "소개" })).toHaveAttribute(
+      "href",
+      "/landing"
+    );
   });
 
   test("노트북 경로에서는 소개 빠른 메뉴와 앱 아이콘, 홈 복귀 링크가 보인다", () => {
@@ -220,6 +245,8 @@ describe("홈과 노트북 전역 이동 링크", () => {
     const homeTab = screen.getByRole("link", { name: "홈" });
     expect(homeTab).toHaveAttribute("href", "/landing");
     expect(homeTab.className).toContain("service-tabbar__item--active");
+    expect(screen.queryByRole("link", { name: "노트북" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "소개" })).not.toBeInTheDocument();
   });
 
   test("로그인 모바일 탭바에는 테이머(설정) 탭이 보인다", () => {
@@ -231,5 +258,6 @@ describe("홈과 노트북 전역 이동 링크", () => {
       "href",
       "/me"
     );
+    expect(screen.queryByRole("link", { name: "노트북" })).not.toBeInTheDocument();
   });
 });

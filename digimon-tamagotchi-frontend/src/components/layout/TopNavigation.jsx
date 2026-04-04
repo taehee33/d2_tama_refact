@@ -8,6 +8,7 @@ import {
 } from "../../data/serviceContent";
 import {
   getPrimaryHeaderNavItems,
+  getMobileServiceOverflowItems,
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
 import NotebookTopBar from "../home/NotebookTopBar";
@@ -30,17 +31,21 @@ function TopNavigation({ tamerName = "" }) {
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const homePath = currentUser ? "/" : "/landing";
   const links = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
+  const mobileOverflowItems = getMobileServiceOverflowItems();
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
   const accountMenuRef = useRef(null);
   const communityMenuRef = useRef(null);
+  const mobileMenuRef = useRef(null);
   const displayTamerName = getDisplayTamerName(currentUser, tamerName);
 
   useEffect(() => {
     setIsAccountMenuOpen(false);
     setIsCommunityMenuOpen(false);
+    setIsMobileMenuOpen(false);
     setMenuError("");
   }, [location.pathname, location.search]);
 
@@ -100,20 +105,61 @@ function TopNavigation({ tamerName = "" }) {
     };
   }, [isCommunityMenuOpen]);
 
+  useEffect(() => {
+    if (!isMobileMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!mobileMenuRef.current?.contains(event.target)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   const handleAccountMenuToggle = () => {
     setMenuError("");
     setIsCommunityMenuOpen(false);
+    setIsMobileMenuOpen(false);
     setIsAccountMenuOpen((prev) => !prev);
   };
 
   const handleCommunityMenuToggle = () => {
     setMenuError("");
     setIsAccountMenuOpen(false);
+    setIsMobileMenuOpen(false);
     setIsCommunityMenuOpen((prev) => !prev);
   };
 
   const handleCloseCommunityMenu = () => {
     setIsCommunityMenuOpen(false);
+  };
+
+  const handleMobileMenuToggle = () => {
+    setMenuError("");
+    setIsAccountMenuOpen(false);
+    setIsCommunityMenuOpen(false);
+    setIsMobileMenuOpen((prev) => !prev);
+  };
+
+  const handleCloseMobileMenu = () => {
+    setIsMobileMenuOpen(false);
   };
 
   const handleSettingsClick = () => {
@@ -223,6 +269,46 @@ function TopNavigation({ tamerName = "" }) {
         </nav>
 
         <div className="service-topnav__actions">
+          <div className="service-topnav__mobile-menu" ref={mobileMenuRef}>
+            <button
+              type="button"
+              className={`service-topnav__mobile-trigger${
+                isMobileMenuOpen ? " service-topnav__mobile-trigger--open" : ""
+              }`}
+              onClick={handleMobileMenuToggle}
+              aria-haspopup="menu"
+              aria-expanded={isMobileMenuOpen}
+              aria-label="모바일 더보기 메뉴"
+            >
+              더보기
+            </button>
+
+            {isMobileMenuOpen ? (
+              <div
+                className="service-topnav__mobile-panel"
+                role="menu"
+                aria-label="모바일 더보기"
+              >
+                {mobileOverflowItems.map((item) => (
+                  <NavLink
+                    key={item.key}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `service-topnav__mobile-link${
+                        isActive ? " service-topnav__mobile-link--active" : ""
+                      }`
+                    }
+                    onClick={handleCloseMobileMenu}
+                    role="menuitem"
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           {currentUser ? (
             <div className="service-topnav__account" ref={accountMenuRef}>
               <button

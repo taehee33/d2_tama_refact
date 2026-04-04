@@ -14,8 +14,12 @@ const TAMER_NAV_ITEM = { key: "me", to: "/me", label: "테이머(설정)" };
 const NOTEBOOK_NAV_ITEM = { key: "notebook", to: "/notebook", label: "노트북" };
 const INTRO_NAV_ITEM = { key: "landing", to: "/landing", label: "소개", end: true };
 
+function cloneNavItems(items) {
+  return items.map((item) => ({ ...item }));
+}
+
 export function getPrimaryHeaderNavItems({ includeTamer = false } = {}) {
-  return [
+  return cloneNavItems([
     HOME_NAV_ITEM,
     PLAY_NAV_ITEM,
     GUIDE_NAV_ITEM,
@@ -24,11 +28,42 @@ export function getPrimaryHeaderNavItems({ includeTamer = false } = {}) {
     ...(includeTamer ? [TAMER_NAV_ITEM] : []),
     NOTEBOOK_NAV_ITEM,
     INTRO_NAV_ITEM,
-  ].map((item) => ({ ...item }));
+  ]);
 }
 
 export function getNotebookHeaderNavItems() {
-  return [INTRO_NAV_ITEM, GUIDE_NAV_ITEM, COMMUNITY_NAV_ITEM, NEWS_NAV_ITEM].map(
-    (item) => ({ ...item })
-  );
+  return cloneNavItems([INTRO_NAV_ITEM, GUIDE_NAV_ITEM, COMMUNITY_NAV_ITEM, NEWS_NAV_ITEM]);
+}
+
+export function getMobileBottomTabItems({
+  includeTamer = false,
+  homePath = "/landing",
+} = {}) {
+  return cloneNavItems([
+    { ...HOME_NAV_ITEM, to: homePath },
+    PLAY_NAV_ITEM,
+    COMMUNITY_NAV_ITEM,
+    ...(includeTamer ? [TAMER_NAV_ITEM] : []),
+  ]);
+}
+
+export function getMobileServiceOverflowItems() {
+  return cloneNavItems([
+    GUIDE_NAV_ITEM,
+    NEWS_NAV_ITEM,
+    NOTEBOOK_NAV_ITEM,
+    INTRO_NAV_ITEM,
+  ]);
+}
+
+export function getMobileLandingOverflowItems({ includeTamer = false } = {}) {
+  return cloneNavItems([
+    HOME_NAV_ITEM,
+    PLAY_NAV_ITEM,
+    GUIDE_NAV_ITEM,
+    COMMUNITY_NAV_ITEM,
+    NEWS_NAV_ITEM,
+    ...(includeTamer ? [TAMER_NAV_ITEM] : []),
+    NOTEBOOK_NAV_ITEM,
+  ]);
 }

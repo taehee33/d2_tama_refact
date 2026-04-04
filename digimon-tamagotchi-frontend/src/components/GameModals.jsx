@@ -38,9 +38,11 @@ import JogressModeSelectModal from "./JogressModeSelectModal";
 import JogressPartnerSlotModal from "./JogressPartnerSlotModal";
 import JogressOnlineSelectModal from "./JogressOnlineSelectModal";
 import JogressRoomListModal from "./JogressRoomListModal";
+import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
+import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 
 /**
  * GameModals 컴포넌트
@@ -106,7 +108,7 @@ export default function GameModals({
       
       // 수면방해 로그 추가
       const sleepDisturbanceLog = createSleepDisturbanceLog(`교감 - ${actionType}`);
-      const logsWithDisturbance = [sleepDisturbanceLog, ...updatedLogs].slice(0, 50);
+      const logsWithDisturbance = [sleepDisturbanceLog, ...updatedLogs].slice(0, MAX_ACTIVITY_LOGS);
       
       const statsWithDisturbance = {
         ...updatedStats,
@@ -475,14 +477,14 @@ export default function GameModals({
           currentCareMistakes={digimonStats?.careMistakes || 0}
           onComplete={async (result) => {
             if (result === "success") {
-              // 성공 시 Care Mistakes -1 (최소 0)
               const currentStats = digimonStats || {};
-              const newCareMistakes = Math.max(0, (currentStats.careMistakes || 0) - 1);
-              
-              let updatedStats = {
-                ...currentStats,
-                careMistakes: newCareMistakes,
-              };
+              const resolvedAt = Date.now();
+              const resolutionResult = resolveLatestCareMistakeEntry(currentStats, {
+                resolvedAt,
+                resolvedBy: "play_or_snack",
+              });
+              const updatedStats = resolutionResult.nextStats;
+              const newCareMistakes = updatedStats.careMistakes || 0;
               
               // Activity Log 추가
               const currentLogs = currentStats.activityLogs || activityLogs || [];
@@ -510,21 +512,24 @@ export default function GameModals({
           currentCareMistakes={digimonStats?.careMistakes || 0}
           onComplete={async (result) => {
             if (result === "success") {
-              // 성공 시 케어미스 +1
               const currentStats = digimonStats || {};
-              const newCareMistakes = (currentStats.careMistakes || 0) + 1;
-              
-              let updatedStats = {
-                ...currentStats,
-                careMistakes: newCareMistakes,
-              };
+              const occurredAt = Date.now();
+              const appendResult = appendCareMistakeEntry(currentStats, {
+                occurredAt,
+                reasonKey: "tease",
+                text: `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${(currentStats.careMistakes || 0) + 1}`,
+                source: "interaction",
+              });
+              const updatedStats = appendResult.nextStats;
+              const newCareMistakes = updatedStats.careMistakes || 0;
               
               // Activity Log 추가
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
                 "CAREMISTAKE",
-                `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${newCareMistakes}`
+                `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${newCareMistakes}`,
+                occurredAt
               );
               if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
               const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "괜히 괴롭히기");
@@ -545,6 +550,8 @@ export default function GameModals({
           onStartBattle={handleArenaBattleStart}
           currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
           currentSeasonId={currentSeasonId}
+          seasonName={seasonName}
+          seasonDuration={seasonDuration}
           isDevMode={developerMode}
           onOpenAdmin={() => toggleModal('admin', true)}
           selectedDigimon={selectedDigimon}

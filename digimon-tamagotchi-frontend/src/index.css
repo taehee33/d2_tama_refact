@@ -2955,6 +2955,101 @@ code {
   line-height: 1.5;
 }
 
+@media (max-width: 900px) {
+  .service-topnav {
+    padding: 0.75rem 0.625rem 0;
+  }
+
+  .service-topnav__inner {
+    gap: 0.9rem;
+    padding: 0.78rem 0.82rem 0.78rem 0.9rem;
+  }
+
+  .service-brand {
+    gap: 0.65rem;
+  }
+
+  .service-brand__mark {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .service-topnav__actions {
+    gap: 0.55rem;
+  }
+
+  .service-topnav__cta {
+    min-height: 3.15rem;
+    padding: 0 1.15rem;
+  }
+
+  .service-topnav__mobile-trigger {
+    min-height: 3.15rem;
+    min-width: 4.75rem;
+    padding: 0 1.05rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .service-topnav {
+    padding: 0.7rem 0.625rem 0;
+  }
+
+  .service-topnav__inner {
+    gap: 0.7rem;
+    padding: 0.7rem 0.78rem;
+  }
+
+  .service-brand {
+    gap: 0.6rem;
+  }
+
+  .service-brand__mark {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .service-brand__copy {
+    overflow: hidden;
+  }
+
+  .service-brand__eyebrow {
+    font-size: 0.66rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .service-brand__title {
+    font-size: 0.96rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+  }
+
+  .service-topnav__actions {
+    gap: 0.5rem;
+  }
+
+  .service-topnav__cta {
+    min-height: 3rem;
+    padding: 0 1rem;
+    font-size: 0.9rem;
+  }
+
+  .service-topnav__mobile-trigger {
+    min-height: 3rem;
+    min-width: 4.55rem;
+    padding: 0 0.95rem;
+    font-size: 0.86rem;
+  }
+
+  .service-topnav__account-name {
+    max-width: 4.4rem;
+  }
+}
+
 .service-tabbar {
   position: fixed;
   left: 1rem;

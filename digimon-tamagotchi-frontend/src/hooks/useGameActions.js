@@ -1,15 +1,15 @@
 // src/hooks/useGameActions.js
 // Game.jsx의 비즈니스 로직을 분리한 Custom Hook
 
+import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { resetCallStatus, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { feedProtein, willRefuseProtein } from "../logic/food/protein";
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
 import { calculateInjuryChance } from "../logic/battle/calculator";
-import { doc, updateDoc, collection, serverTimestamp, increment, setDoc } from "firebase/firestore";
+import { serverTimestamp } from "firebase/firestore";
 import { clearPoopOverflowState } from "../data/stats";
-import { db } from "../firebase";
-import { archiveArenaBattleLog, createLogArchiveId } from "../utils/logArchiveApi";
+import { completeArenaBattle } from "../utils/arenaApi";
 import {
   isTimeWithinSleepSchedule,
   normalizeSleepSchedule,
@@ -292,7 +292,7 @@ export function useGameActions({
             text: proteinOverdose >= 7 ? "Feed: Refused (Protein Overdose max reached: 7/7)" : "Feed: Refused",
             timestamp: Date.now(),
           };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -347,7 +347,7 @@ export function useGameActions({
             if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
             const actionType = type === "meat" ? "고기" : "프로틴";
             const newLog = createSleepDisturbanceLog(`먹이 주기 - ${actionType}`);
-            const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+            const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
             if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
             const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
             setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -445,7 +445,7 @@ export function useGameActions({
       }
       setDigimonStats((prevStats) => {
         const newLog = { type: "FEED", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -507,7 +507,7 @@ export function useGameActions({
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const newLog = createSleepDisturbanceLog("훈련");
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -531,7 +531,7 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 체중 부족). 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -553,7 +553,7 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 에너지 부족). 에너지: ${en}, 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -595,7 +595,7 @@ export function useGameActions({
         type: "TRAIN",
         timestamp: Date.now(),
       };
-      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, 100);
+      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
       if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
       const finalStatsWithLogs = { ...finalStats, activityLogs: updatedLogs };
       setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs).catch((error) => {
@@ -650,7 +650,7 @@ export function useGameActions({
         // 똥 청소 시 부상 상태는 자동으로 회복되지 않음
         
         const newLog = { type: "CLEAN", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
         setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
@@ -739,123 +739,27 @@ export function useGameActions({
       }
 
       try {
-        const challengerRef = doc(db, 'arena_entries', enemyEntryId);
-        
-        // 내 엔트리와 상대방 엔트리 모두 업데이트
-        const updatePromises = [];
-
-        if (battleResult.win) {
-          // 내가 승리: 내 엔트리 wins 증가, 상대방 losses 증가
-          if (myArenaEntryId) {
-            const myEntryRef = doc(db, 'arena_entries', myArenaEntryId);
-            updatePromises.push(
-              updateDoc(myEntryRef, {
-                'record.wins': increment(1),
-                'record.seasonWins': increment(1),
-                'record.seasonId': currentSeasonId,
-              }).then(() => {
-                console.log("✅ 내 엔트리 wins 업데이트 완료:", myArenaEntryId);
-              }).catch((error) => {
-                console.error("❌ 내 엔트리 wins 업데이트 실패:", error);
-                throw error;
-              })
-            );
-            console.log("📝 내 엔트리 wins 업데이트 예정:", myArenaEntryId);
-          } else {
-            console.warn("⚠️ myArenaEntryId가 없어 내 엔트리 업데이트를 건너뜁니다.");
-          }
-          
-          updatePromises.push(
-            updateDoc(challengerRef, {
-              'record.losses': increment(1),
-              'record.seasonLosses': increment(1),
-              'record.seasonId': currentSeasonId,
-            }).then(() => {
-              console.log("✅ 상대방 losses 업데이트 완료:", enemyEntryId);
-            }).catch((error) => {
-              console.error("❌ 상대방 losses 업데이트 실패:", error);
-              throw error;
-            })
-          );
-          console.log("📝 상대방 losses 업데이트 예정:", enemyEntryId);
-        } else {
-          // 내가 패배: 내 엔트리 losses 증가, 상대방 wins 증가
-          if (myArenaEntryId) {
-            const myEntryRef = doc(db, 'arena_entries', myArenaEntryId);
-            updatePromises.push(
-              updateDoc(myEntryRef, {
-                'record.losses': increment(1),
-                'record.seasonLosses': increment(1),
-                'record.seasonId': currentSeasonId,
-              }).then(() => {
-                console.log("✅ 내 엔트리 losses 업데이트 완료:", myArenaEntryId);
-              }).catch((error) => {
-                console.error("❌ 내 엔트리 losses 업데이트 실패:", error);
-                throw error;
-              })
-            );
-            console.log("📝 내 엔트리 losses 업데이트 예정:", myArenaEntryId);
-          } else {
-            console.warn("⚠️ myArenaEntryId가 없어 내 엔트리 업데이트를 건너뜁니다.");
-          }
-          
-          updatePromises.push(
-            updateDoc(challengerRef, {
-              'record.wins': increment(1),
-              'record.seasonWins': increment(1),
-              'record.seasonId': currentSeasonId,
-            }).then(() => {
-              console.log("✅ 상대방 wins 업데이트 완료:", enemyEntryId);
-            }).catch((error) => {
-              console.error("❌ 상대방 wins 업데이트 실패:", error);
-              throw error;
-            })
-          );
-          console.log("📝 상대방 wins 업데이트 예정:", enemyEntryId);
+        if (!myArenaEntryId) {
+          throw new Error("현재 슬롯의 아레나 등록 정보를 찾지 못해 승패를 저장할 수 없습니다.");
         }
-        
-        // 모든 업데이트를 병렬로 실행
-        await Promise.all(updatePromises);
-        console.log("✅ DB Update Success: 내 엔트리와 상대방 엔트리 모두 업데이트 완료");
-        
-        // 업데이트 후 잠시 대기 (Firestore 반영 시간)
-        await new Promise(resolve => setTimeout(resolve, 500));
 
-        const userDigimonName = selectedDigimon || "Unknown";
-        const enemyDigimonName = arenaChallenger.digimonSnapshot?.digimonName || "Unknown";
-        const archiveId = createLogArchiveId("arena");
-        const {
-          firestoreLogData,
-          archivePayload,
-        } = buildArenaBattleArchiveWrite({
-          archiveId,
-          currentUser,
-          slotId,
-          slotName,
-          arenaChallenger,
-          enemyEntryId,
-          myArenaEntryId,
-          battleResult,
-          currentSeasonId,
-          userDigimonName,
-          enemyDigimonName,
+        const remoteBattleResult = await completeArenaBattle(currentUser, {
+          myEntryId: myArenaEntryId,
+          defenderEntryId: enemyEntryId,
+          currentSeasonId: Number(currentSeasonId) || 0,
+          battleResult: {
+            win: Boolean(battleResult.win),
+            logs: Array.isArray(battleResult.logs) ? battleResult.logs : [],
+          },
         });
 
-        const battleLogRef = doc(collection(db, 'arena_battle_logs'), archiveId);
-        await setDoc(battleLogRef, firestoreLogData);
-        console.log("✅ DB Update Success: 배틀 로그 저장 완료, ID:", archiveId);
-
-        archiveArenaBattleLog(currentUser, archivePayload).catch((archiveError) => {
-          console.warn("[handleBattleComplete] arena archive 저장 실패:", archiveError);
-        });
-
-        console.log("✅ 배틀 결과가 성공적으로 저장되었습니다!");
+        console.log("✅ Arena battle result saved:", remoteBattleResult);
       } catch (error) {
         console.error("❌ DB Update Failed:", error);
         console.error("오류 상세:", {
-          code: error.code,
           message: error.message,
           challengerId: enemyEntryId,
+          myArenaEntryId,
         });
         alert(`❌ 배틀 결과 저장 실패:\n${error.message || error.code || "알 수 없는 오류"}`);
       }
@@ -998,7 +902,7 @@ export function useGameActions({
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
           const newLog = createSleepDisturbanceLog(`배틀 - ${battleTypeText}`);
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, 100);
+          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
           setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
