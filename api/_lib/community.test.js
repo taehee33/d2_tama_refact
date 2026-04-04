@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   buildCommunitySnapshot,
+  listCommunityPosts,
   resolveStageLabel,
   validateCommentPayload,
   validatePostPayload,
@@ -24,7 +25,11 @@ test("buildCommunitySnapshot generates normalized post snapshot", () => {
         totalBattlesWon: 6,
       },
     },
-    1
+    1,
+    {
+      recordedAt: "2026-04-01T12:00:00.000Z",
+      currentTime: "2026-04-01T12:00:00.000Z",
+    }
   );
 
   assert.deepEqual(snapshot, {
@@ -40,7 +45,153 @@ test("buildCommunitySnapshot generates normalized post snapshot", () => {
     totalBattles: 9,
     totalBattlesWon: 6,
     winRate: 67,
+    spriteBasePath: "/images",
+    spriteNumber: 0,
+    backgroundNumber: 162,
+    isLightsOn: true,
+    sleepStatus: "AWAKE",
+    poopCount: 0,
+    isFrozen: false,
+    isDead: false,
+    isInjured: false,
+    recordedAt: "2026-04-01T12:00:00.000Z",
   });
+});
+
+test("listCommunityPosts returns latest 3 preview comments per post", async () => {
+  const postRows = [
+    {
+      id: "post-1",
+      board_id: "showcase",
+      author_uid: "user-1",
+      author_tamer_name: "한솔",
+      slot_id: "1",
+      title: "첫 글",
+      body: "본문",
+      snapshot: { digimonDisplayName: "코로몬" },
+      comment_count: 4,
+      created_at: "2026-04-04T10:00:00.000Z",
+      updated_at: "2026-04-04T10:00:00.000Z",
+    },
+    {
+      id: "post-2",
+      board_id: "showcase",
+      author_uid: "user-2",
+      author_tamer_name: "루체",
+      slot_id: "2",
+      title: "둘째 글",
+      body: "둘째 본문",
+      snapshot: { digimonDisplayName: "아구몬" },
+      comment_count: 1,
+      created_at: "2026-04-03T10:00:00.000Z",
+      updated_at: "2026-04-03T10:00:00.000Z",
+    },
+  ];
+  const commentRows = [
+    {
+      id: "comment-4",
+      post_id: "post-1",
+      author_uid: "user-8",
+      author_tamer_name: "넷째",
+      body: "네번째 댓글",
+      created_at: "2026-04-04T14:00:00.000Z",
+      updated_at: "2026-04-04T14:00:00.000Z",
+    },
+    {
+      id: "comment-3",
+      post_id: "post-1",
+      author_uid: "user-7",
+      author_tamer_name: "셋째",
+      body: "세번째 댓글",
+      created_at: "2026-04-04T13:00:00.000Z",
+      updated_at: "2026-04-04T13:00:00.000Z",
+    },
+    {
+      id: "comment-2",
+      post_id: "post-1",
+      author_uid: "user-6",
+      author_tamer_name: "둘째",
+      body: "두번째 댓글",
+      created_at: "2026-04-04T12:00:00.000Z",
+      updated_at: "2026-04-04T12:00:00.000Z",
+    },
+    {
+      id: "comment-1",
+      post_id: "post-1",
+      author_uid: "user-5",
+      author_tamer_name: "첫째",
+      body: "첫번째 댓글",
+      created_at: "2026-04-04T11:00:00.000Z",
+      updated_at: "2026-04-04T11:00:00.000Z",
+    },
+    {
+      id: "comment-5",
+      post_id: "post-2",
+      author_uid: "user-9",
+      author_tamer_name: "손님",
+      body: "둘째 글 댓글",
+      created_at: "2026-04-03T11:00:00.000Z",
+      updated_at: "2026-04-03T11:00:00.000Z",
+    },
+  ];
+
+  const supabase = {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  order() {
+                    return {
+                      limit: async () => ({
+                        data: postRows,
+                        error: null,
+                      }),
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          select() {
+            return {
+              in() {
+                return {
+                  order: async () => ({
+                    data: commentRows,
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  const posts = await listCommunityPosts({ supabase });
+
+  assert.equal(posts[0].commentCount, 4);
+  assert.deepEqual(
+    posts[0].previewComments.map((comment) => comment.body),
+    ["네번째 댓글", "세번째 댓글", "두번째 댓글"]
+  );
+  assert.deepEqual(
+    posts[0].previewComments.map((comment) => comment.authorTamerName),
+    ["넷째", "셋째", "둘째"]
+  );
+  assert.equal(posts[1].previewComments.length, 1);
+  assert.equal(posts[1].previewComments[0].body, "둘째 글 댓글");
 });
 
 test("resolveStageLabel supports legacy stage aliases", () => {

@@ -87,6 +87,8 @@ describe("Community", () => {
 
     expect(screen.getByText("내 디지몬 자랑 피드")).toBeInTheDocument();
     expect(screen.getByText("오늘은 배틀 승률 70%를 넘겼어요")).toBeInTheDocument();
+    expect(screen.getByText("메탈가루루 팬 :")).toBeInTheDocument();
+    expect(screen.getByText("승률 70%면 루틴이 꽤 안정적이네요.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 자랑하기" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "자랑하기" })).not.toBeInTheDocument();
   });
@@ -189,6 +191,7 @@ describe("Community", () => {
         authorUid: "user-1",
         authorTamerName: "히히히",
         commentCount: 0,
+        previewComments: [],
         createdAt: "2026-04-01T00:00:00.000Z",
         snapshot: {
           slotName: "슬롯1",
@@ -219,6 +222,7 @@ describe("Community", () => {
         authorUid: "user-1",
         authorTamerName: "히히히",
         commentCount: 0,
+        previewComments: [],
         createdAt: "2026-04-01T00:00:00.000Z",
         snapshot: {
           slotName: "슬롯1",
@@ -260,6 +264,7 @@ describe("Community", () => {
     expect(within(postCard).queryByText("슬롯 :")).not.toBeInTheDocument();
     expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
     expect(within(postCard).getByText("0개")).toBeInTheDocument();
+    expect(within(postCard).getByText("아직 댓글이 없습니다.")).toBeInTheDocument();
     expect(within(postCard).getByText("뿔몬")).toBeInTheDocument();
     expect(within(postCard).getByText("유년기 II · Ver.2")).toBeInTheDocument();
     expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
@@ -300,7 +305,27 @@ describe("Community", () => {
         body: "실제 커뮤니티 글입니다.",
         authorUid: "user-1",
         authorTamerName: "한솔",
-        commentCount: 1,
+        commentCount: 4,
+        previewComments: [
+          {
+            id: "comment-4",
+            authorTamerName: "넷째",
+            body: "네번째 댓글",
+            createdAt: "2026-04-01T12:30:00.000Z",
+          },
+          {
+            id: "comment-3",
+            authorTamerName: "셋째",
+            body: "세번째 댓글",
+            createdAt: "2026-04-01T12:00:00.000Z",
+          },
+          {
+            id: "comment-2",
+            authorTamerName: "둘째",
+            body: "두번째 댓글",
+            createdAt: "2026-04-01T11:30:00.000Z",
+          },
+        ],
         createdAt: "2026-04-01T00:00:00.000Z",
         snapshot: {
           slotName: "슬롯1",
@@ -333,7 +358,7 @@ describe("Community", () => {
         body: "실제 커뮤니티 글입니다.",
         authorUid: "user-1",
         authorTamerName: "한솔",
-        commentCount: 1,
+        commentCount: 4,
         createdAt: "2026-04-01T00:00:00.000Z",
         snapshot: {
           slotName: "슬롯1",
@@ -357,7 +382,44 @@ describe("Community", () => {
           },
         },
       },
-      comments: [],
+      comments: [
+        {
+          id: "comment-1",
+          postId: "post-1",
+          authorUid: "user-2",
+          authorTamerName: "첫째",
+          body: "첫번째 댓글",
+          createdAt: "2026-04-01T11:00:00.000Z",
+          updatedAt: "2026-04-01T11:00:00.000Z",
+        },
+        {
+          id: "comment-2",
+          postId: "post-1",
+          authorUid: "user-3",
+          authorTamerName: "둘째",
+          body: "두번째 댓글",
+          createdAt: "2026-04-01T11:30:00.000Z",
+          updatedAt: "2026-04-01T11:30:00.000Z",
+        },
+        {
+          id: "comment-3",
+          postId: "post-1",
+          authorUid: "user-4",
+          authorTamerName: "셋째",
+          body: "세번째 댓글",
+          createdAt: "2026-04-01T12:00:00.000Z",
+          updatedAt: "2026-04-01T12:00:00.000Z",
+        },
+        {
+          id: "comment-4",
+          postId: "post-1",
+          authorUid: "user-5",
+          authorTamerName: "넷째",
+          body: "네번째 댓글",
+          createdAt: "2026-04-01T12:30:00.000Z",
+          updatedAt: "2026-04-01T12:30:00.000Z",
+        },
+      ],
     });
 
     render(<Community />);
@@ -378,8 +440,15 @@ describe("Community", () => {
     expect(within(postCard).getByText("성장기 · Ver.1")).toBeInTheDocument();
     expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
     expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("1개")).toBeInTheDocument();
-    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("4개")).toBeInTheDocument();
+    expect(within(postCard).getByText("넷째 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("네번째 댓글")).toBeInTheDocument();
+    expect(within(postCard).getByText("셋째 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("세번째 댓글")).toBeInTheDocument();
+    expect(within(postCard).getByText("둘째 :")).toBeInTheDocument();
+    expect(within(postCard).getByText("두번째 댓글")).toBeInTheDocument();
+    expect(within(postCard).queryByText("첫번째 댓글")).not.toBeInTheDocument();
+    expect(within(postCard).getByRole("button", { name: "더보기..." })).toBeInTheDocument();
     expect(screen.queryAllByText("내용").length).toBe(0);
     expect(screen.queryByText("디지몬 스탯")).not.toBeInTheDocument();
     expect(screen.queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
@@ -391,7 +460,7 @@ describe("Community", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "상세 보기" }));
+    fireEvent.click(within(postCard).getByRole("button", { name: "더보기..." }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "서버에서 불러온 글" })).toBeInTheDocument();
@@ -401,6 +470,7 @@ describe("Community", () => {
     expect(screen.getByText("디지몬 스탯")).toBeInTheDocument();
     expect(screen.getByText("슬롯1")).toBeInTheDocument();
     expect(screen.getByText("Digital Monster Color 25th")).toBeInTheDocument();
+    expect(screen.getByText("첫번째 댓글")).toBeInTheDocument();
     expect(screen.queryByText("불 꺼줘!")).not.toBeInTheDocument();
 
     expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(

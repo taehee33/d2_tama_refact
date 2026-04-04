@@ -16,6 +16,14 @@ function CommunityPostCard({
   const stageLabel = snapshot.stageLabel || "단계 미상";
   const version = snapshot.version || "Ver.1";
   const bodyPreview = post.body?.trim() || "아직 남긴 코멘트가 없습니다.";
+  const previewComments = Array.isArray(post.previewComments)
+    ? post.previewComments.slice(0, 3)
+    : [];
+  const parsedCommentCount = Number(post.commentCount);
+  const totalCommentCount = Number.isFinite(parsedCommentCount)
+    ? parsedCommentCount
+    : previewComments.length;
+  const hasMoreComments = totalCommentCount > previewComments.length;
 
   return (
     <article className={`community-post-card${isActive ? " community-post-card--active" : ""}`}>
@@ -75,8 +83,40 @@ function CommunityPostCard({
           <div className="community-post-card__fact-card community-post-card__fact-card--comment">
             <span className="community-post-card__fact-label">댓글 :</span>
             <strong className="community-post-card__fact-value">
-              {post.commentCount ?? 0}개
+              {totalCommentCount}개
             </strong>
+
+            {previewComments.length ? (
+              <ul className="community-post-card__comment-preview-list">
+                {previewComments.map((comment) => (
+                  <li
+                    key={comment.id || `${post.id}-preview-${comment.createdAt || comment.body}`}
+                    className="community-post-card__comment-preview-item"
+                  >
+                    <strong className="community-post-card__comment-preview-author">
+                      {comment.authorTamerName || "익명"} :
+                    </strong>
+                    <span className="community-post-card__comment-preview-body">
+                      {comment.body?.trim() || "내용 없음"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : totalCommentCount === 0 ? (
+              <span className="community-post-card__comment-empty">
+                아직 댓글이 없습니다.
+              </span>
+            ) : null}
+
+            {hasMoreComments && onOpen ? (
+              <button
+                type="button"
+                className="community-post-card__comment-more"
+                onClick={onOpen}
+              >
+                더보기...
+              </button>
+            ) : null}
           </div>
         </div>
 

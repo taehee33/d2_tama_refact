@@ -5,6 +5,7 @@ const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
 const BOARD_ID = "showcase";
 const POSTS_TABLE = "community_posts";
 const COMMENTS_TABLE = "community_post_comments";
+const PREVIEW_COMMENT_LIMIT = 3;
 const MAX_POST_TITLE_LENGTH = 80;
 const MAX_POST_BODY_LENGTH = 500;
 const MAX_COMMENT_LENGTH = 300;
@@ -334,6 +335,42 @@ function mapCommentRow(row) {
   };
 }
 
+function buildPreviewCommentsByPostId(rows = [], limit = PREVIEW_COMMENT_LIMIT) {
+  return rows.reduce((accumulator, row) => {
+    const postId = row.post_id;
+
+    if (!postId) {
+      return accumulator;
+    }
+
+    const nextComments = accumulator[postId] || [];
+    if (nextComments.length >= limit) {
+      return accumulator;
+    }
+
+    accumulator[postId] = [...nextComments, mapCommentRow(row)];
+    return accumulator;
+  }, {});
+}
+
+async function listPreviewCommentsByPostId(supabase, postIds = []) {
+  if (!Array.isArray(postIds) || postIds.length === 0) {
+    return {};
+  }
+
+  const { data, error } = await supabase
+    .from(COMMENTS_TABLE)
+    .select("*")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return buildPreviewCommentsByPostId(data || []);
+}
+
 function mapPostRow(row) {
   return {
     id: row.id,
@@ -539,7 +576,16 @@ async function listCommunityPosts({ supabase, limit = 24 }) {
     throw error;
   }
 
-  return (data || []).map(mapPostRow);
+  const rows = data || [];
+  const previewCommentsByPostId = await listPreviewCommentsByPostId(
+    supabase,
+    rows.map((row) => row.id)
+  );
+
+  return rows.map((row) => ({
+    ...mapPostRow(row),
+    previewComments: previewCommentsByPostId[row.id] || [],
+  }));
 }
 
 async function getCommunityPostDetail({ supabase, postId }) {

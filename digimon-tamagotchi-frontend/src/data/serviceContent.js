@@ -109,6 +109,20 @@ export const communityShowcaseSamples = [
     title: "오늘은 배틀 승률 70%를 넘겼어요",
     body: "훈련 12회 찍고 들어가니 체감이 확실하네요. 다음 목표는 케어 미스 줄이기입니다.",
     commentCount: 2,
+    previewComments: [
+      {
+        id: "sample-comment-1-2",
+        authorTamerName: "메탈가루루 팬",
+        body: "승률 70%면 루틴이 꽤 안정적이네요.",
+        createdAt: "2026-03-31T20:32:00.000Z",
+      },
+      {
+        id: "sample-comment-1-1",
+        authorTamerName: "배틀로그 수집가",
+        body: "훈련 12회에서 체감 온다는 말 공감합니다.",
+        createdAt: "2026-03-31T20:24:00.000Z",
+      },
+    ],
     createdAt: "2026-03-31T20:15:00.000Z",
     snapshot: {
       slotName: "슬롯2",
@@ -140,6 +154,14 @@ export const communityShowcaseSamples = [
     title: "수면 루틴 맞추니 상태 관리가 훨씬 편해졌습니다",
     body: "밤에는 꼭 불을 끄고, 아침에 바로 체크하니 실수가 많이 줄었어요.",
     commentCount: 1,
+    previewComments: [
+      {
+        id: "sample-comment-2-1",
+        authorTamerName: "유년기 관찰자",
+        body: "수면 루틴 맞추면 호출 관리도 확실히 편해지더라고요.",
+        createdAt: "2026-03-30T09:10:00.000Z",
+      },
+    ],
     createdAt: "2026-03-30T08:42:00.000Z",
     snapshot: {
       slotName: "슬롯1",
@@ -171,6 +193,7 @@ export const communityShowcaseSamples = [
     title: "상태 화면만 짧게 남기는 용도로도 좋아요",
     body: "오늘 하트 상태와 배틀 수만 빠르게 남기고 싶을 때 쓰는 예시입니다. 스크린샷 대신 숫자 기록만 남겨도 비교가 편합니다.",
     commentCount: 0,
+    previewComments: [],
     createdAt: "2026-04-01T03:05:00.000Z",
     snapshot: {
       slotName: "슬롯4",

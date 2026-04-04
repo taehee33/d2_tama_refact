@@ -48,6 +48,7 @@
 - 🏷 자랑게시판 목록 카드 필드 라벨 강화
 - 🎨 목록 카드 정보 구역 시각 분리
 - 🖼 오른쪽 대표 장면 썸네일 확대 및 메타 재배치
+- 💬 댓글 3개 미리보기와 더보기 흐름 추가
 - 🧪 카드 정보 라벨 회귀 테스트 추가
 
 ### 목적 및 영향
@@ -55,13 +56,17 @@
 - **범위:** 목록 카드 UI와 스타일, 관련 페이지 테스트를 함께 갱신한다.
 - **내용:**
   - `CommunityPostCard.jsx`에서 상단을 `배지 / 작성자·작성일 / 관리` 구조로 재배치해 작성 정보와 액션이 한 줄에서 명확히 읽히도록 정리했다.
-  - 왼쪽 본문은 `제목 :` 아래에 글 제목, 그 아래 `내용 :`, 마지막에 `댓글 :` 순서로 이어지는 일반 게시판형 흐름으로 맞췄다.
+  - 왼쪽 본문은 `제목 :` 아래에 글 제목, 그 아래 `내용 :`, 마지막에 `댓글 :` 순서로 이어지는 일반 게시판형 흐름으로 맞췄고, 본문 텍스트 대비와 카드 배경도 더 또렷하게 조정했다.
   - 오른쪽은 더 넓어진 `대표 장면` 썸네일과 그 아래 `디지몬 :`, `단계 :` 정보만 남기고, 슬롯 정보는 목록 카드에서 제거했다.
+  - 목록 응답에 `previewComments`를 추가해, 카드 안에서 최신 댓글 최대 3개를 `작성자 : 본문 한 줄` 형식으로 바로 보여주고 4개 이상은 `더보기...`로 기존 상세 모달을 열도록 연결했다.
   - 작성자 본인에게만 보이는 `수정/삭제`는 카드 오른쪽 상단의 별도 `관리` 박스로 분리하고, 액션 버튼도 독립된 pill 버튼으로 보여 식별성을 높였다.
   - `Community.test.jsx`에 라벨/구역 분리 렌더를 검증하는 테스트를 추가했다.
 
 ### 영향받은 파일
+- `api/_lib/community.js`
+- `api/_lib/community.test.js`
 - `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
 - `digimon-tamagotchi-frontend/src/index.css`
 - `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
 - `docs/REFACTORING_LOG.md`
@@ -71,7 +76,7 @@
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
 ### 아키텍처 메모
-- 상세 정보는 계속 상세 모달에서 확인하고, 목록 카드는 “왼쪽 텍스트 요약 + 오른쪽 대표 장면” 구조로 빠르게 훑는 피드 역할에 집중한다.
+- 상세 정보는 계속 상세 모달에서 확인하되, 목록 카드도 최신 댓글 흐름을 일부 보여주는 “요약 피드 + 빠른 대화 미리보기” 역할까지 맡도록 확장했다.
 
 ---
 

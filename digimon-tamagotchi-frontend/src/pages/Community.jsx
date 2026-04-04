@@ -450,14 +450,17 @@ function Community() {
         });
         setEditingCommentId("");
         setEditingCommentBody("");
-        await refreshPostDetail(postDetail.post.id);
+        await Promise.all([
+          refreshPosts(),
+          refreshPostDetail(postDetail.post.id),
+        ]);
       } catch (error) {
         setCommentError(getErrorMessage(error, "댓글을 수정하지 못했습니다."));
       } finally {
         setCommentActionId("");
       }
     },
-    [currentUser, editingCommentBody, postDetail, refreshPostDetail]
+    [currentUser, editingCommentBody, postDetail, refreshPostDetail, refreshPosts]
   );
 
   const handleDeleteComment = useCallback(
