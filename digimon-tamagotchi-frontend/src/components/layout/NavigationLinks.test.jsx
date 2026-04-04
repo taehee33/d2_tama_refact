@@ -51,42 +51,54 @@ describe("홈과 노트북 전역 이동 링크", () => {
   });
 
   test("탑네비에 노트북 링크가 보인다", () => {
-    render(<TopNavigation />);
+    const { container } = render(<TopNavigation />);
 
     expect(screen.getByRole("link", { name: "노트북" })).toHaveAttribute(
       "href",
       "/notebook"
     );
+    expect(container.querySelector(".service-brand__mark-image")).toHaveAttribute(
+      "src",
+      "/logo192_agumon.png"
+    );
   });
 
-  test("비로그인 상태에서는 홈 링크가 랜딩을 가리킨다", () => {
+  test("비로그인 상태에서는 홈 링크가 루트를 가리키고 소개 링크가 활성화된다", () => {
     mockLocation.pathname = "/landing";
 
     render(<TopNavigation />);
 
     const homeLink = screen.getByRole("link", { name: "홈" });
-    expect(homeLink).toHaveAttribute("href", "/landing");
-    expect(homeLink.className).toContain("service-nav__link--active");
+    expect(homeLink).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
+    expect(screen.getByRole("link", { name: "소개" }).className).toContain(
+      "service-nav__link--active"
+    );
   });
 
-  test("로그인 상태에서는 홈 링크가 기존 홈을 가리키고 둘러보기 링크가 보인다", () => {
+  test("로그인 상태에서는 홈 링크가 기존 홈을 가리키고 소개 링크와 테이머 메뉴가 보인다", () => {
     mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
 
     render(<TopNavigation tamerName="코로몬" />);
 
     expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/");
-    expect(screen.getByRole("link", { name: "둘러보기" })).toHaveAttribute("href", "/landing");
+    expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
+    expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
   });
 
-  test("노트북 경로에서는 둘러보기 빠른 메뉴와 홈 복귀 링크가 보인다", () => {
+  test("노트북 경로에서는 소개 빠른 메뉴와 앱 아이콘, 홈 복귀 링크가 보인다", () => {
     mockLocation.pathname = "/notebook";
-    render(<TopNavigation />);
+    const { container } = render(<TopNavigation />);
 
-    expect(screen.getByRole("link", { name: "둘러보기" })).toHaveAttribute("href", "/landing");
+    expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
     expect(screen.getByRole("link", { name: "가이드" })).toHaveAttribute("href", "/guide");
     expect(screen.getByRole("link", { name: "HOME:// RETURN" })).toHaveAttribute(
       "href",
       "/"
+    );
+    expect(container.querySelector(".notebook-topbar__brand-icon-image")).toHaveAttribute(
+      "src",
+      "/logo192_agumon.png"
     );
   });
 
@@ -179,9 +191,9 @@ describe("홈과 노트북 전역 이동 링크", () => {
 
     expect(await screen.findByRole("menu", { name: "계정 메뉴" })).toBeInTheDocument();
     expect(await screen.findByRole("menuitem", { name: "계정설정" })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitem", { name: "로그아웃" })).toBeInTheDocument();
+    expect(await screen.findByRole("menuitem", { name: "🚪 로그아웃" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "로그아웃" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "🚪 로그아웃" }));
     expect(mockAuthState.logout).toHaveBeenCalled();
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/auth");
@@ -208,5 +220,16 @@ describe("홈과 노트북 전역 이동 링크", () => {
     const homeTab = screen.getByRole("link", { name: "홈" });
     expect(homeTab).toHaveAttribute("href", "/landing");
     expect(homeTab.className).toContain("service-tabbar__item--active");
+  });
+
+  test("로그인 모바일 탭바에는 테이머(설정) 탭이 보인다", () => {
+    mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
+
+    render(<MobileTabBar />);
+
+    expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute(
+      "href",
+      "/me"
+    );
   });
 });

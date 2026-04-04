@@ -1,9 +1,12 @@
 export const landingHeroContent = {
   eyebrow: "DIGIMON MEMORY EXHIBITION",
-  title: ["그 시절,", "우리는 모두 선택받은 아이들이었다"],
+  title: ["그 시절,", "우리는 모두", "선택받은", "아이들이었다"],
   description:
     "어린 시절의 모험과 파트너 디지몬. 다시 시작되는 작은 모험이, 이제 당신의 손 안에서 천천히 깨어납니다.",
-  backgroundArtworkSrc: null,
+  backgroundArtworkSrc: "/images/landing/hero-memory-window.png",
+  backgroundArtworkAlt: "선택받은 아이들이 창밖으로 손을 흔드는 히어로 장면",
+  backgroundArtworkPosition: "center top",
+  backgroundArtworkSize: "cover",
   imageSrc: "/images/133.png",
   imageAlt: "빛을 머금은 디지타마 포스터 비주얼",
   posterMeta: "DIGITAMA / MEMORY SIGNAL / 1999",
@@ -15,11 +18,9 @@ export const landingIntroContent = {
   body: [
     "어린 시절 TV 화면 너머로만 보이던 세계.",
     "선택받은 아이들과 파트너 디지몬, 그리고 함께했던 성장의 기억.",
-    "이 랜딩은 그 감정을 다시 꺼내기 위한 조용한 입구입니다.",
   ],
-  caption: "Digimon Adventure / Memory / Connection",
-  bridgeNote:
-    "설명보다 장면이 먼저 도착하고, 스크롤이 깊어질수록 브랜드 페이지에서 디지털 월드로 분위기가 전환됩니다.",
+  caption: "",
+  bridgeNote: "",
 };
 
 export const landingEggStates = [
@@ -69,25 +70,53 @@ export const landingGrowthContent = {
     "처음 만난 파트너는 아직 작고 연약하지만, 그 작은 존재가 모험의 온도를 완전히 바꿉니다. 지금은 돌보고, 부르고, 함께 시간을 쌓는 순간입니다.",
   imageSrc: "/images/225.png",
   imageAlt: "첫 번째 파트너 코로몬",
-  nextTitle: "다음 진화 신호",
+  nextTitle: "다음 진화 디지몬",
   nextName: "아구몬",
   nextImageSrc: "/images/240.png",
   nextImageAlt: "다음 진화를 예고하는 아구몬",
   statusBars: [
-    { label: "동기화율", value: 82, tone: "blue" },
-    { label: "안정도", value: 91, tone: "green" },
-    { label: "유대", value: 76, tone: "blue" },
+    { label: "배고픔", value: 82, tone: "blue" },
+    { label: "힘", value: 91, tone: "green" },
+    { label: "훈련", value: 76, tone: "blue" },
   ],
   actions: ["FEED", "CALL", "TRAIN"],
 };
 
 export const landingMemorySceneContent = {
-  eyebrow: "MEMORY SCENE",
-  title: "그 여름의 디지털 월드",
-  description:
-    "한 장면만으로도 여름빛, 모험, 파트너의 온도가 돌아오는 구간입니다. 정보보다 감정이 먼저 닿도록 크게 펼쳐 둡니다.",
-  overlayQuote: "그 시절, 우리는 모두 선택받은 아이들이었다",
+  eyebrow: "",
+  title: "",
+  description: "",
+  overlayQuote: "1999년 그 여름, 디지털월드",
   backgroundArtworkSrc: null,
+  backgroundArtworkPosition: "center",
+  backgroundArtworkSize: "cover",
+  featuredArtworkSrc: null,
+  featuredArtworkAlt: "회상 장면을 채우는 대표 비주얼",
+  featuredArtworkCaption: "MEMORY CUT / YOUR ARTWORK",
+  featuredArtworkPosition: "center",
+  featuredArtworkItems: [
+    {
+      id: "memory-cut-01",
+      src: "/images/landing/memory-cut-01.png",
+      alt: "대표 장면 첫 번째 컷",
+      caption: "대표컷 01 / 여름의 시작",
+      position: "center",
+    },
+    {
+      id: "memory-cut-02",
+      src: "/images/landing/memory-cut-02.jpg",
+      alt: "대표 장면 두 번째 컷",
+      caption: "대표컷 02 / 함께한 모험",
+      position: "center",
+    },
+    {
+      id: "memory-cut-03",
+      src: "/images/landing/memory-cut-03.png",
+      alt: "대표 장면 세 번째 컷",
+      caption: "대표컷 03 / 다시 떠오르는 기억",
+      position: "center",
+    },
+  ],
   spriteBand: [
     {
       id: "botamon",
@@ -119,8 +148,9 @@ export const landingMemorySceneContent = {
 export const landingCtaContent = {
   eyebrow: "START ADVENTURE",
   title: "지금, 다시 모험을 시작하세요",
-  description:
-    "로그인해 당신의 디지몬을 깨우거나, 먼저 둘러보며 이 세계의 결을 천천히 확인해 보세요.",
+  description: "",
+  featuredImageSrc: "/images/landing/cta-device.webp",
+  featuredImageAlt: "손 위에 올려진 디지바이스 회상 장면",
   publicLinks: [
     { to: "/notebook", label: "노트북 둘러보기" },
     { to: "/support", label: "저장 방식 확인" },

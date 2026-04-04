@@ -6,13 +6,10 @@ import {
   getCommunityBoardHref,
   resolveCommunityBoardId,
 } from "../../data/serviceContent";
-
-const notebookMenuLinks = [
-  { to: "/landing", label: "둘러보기" },
-  { to: "/guide", label: "가이드" },
-  { id: "community", label: "커뮤니티" },
-  { to: "/news", label: "소식" },
-];
+import {
+  getNotebookHeaderNavItems,
+  HEADER_APP_ICON_SRC,
+} from "../../data/headerNavigation";
 
 function NotebookTopBar() {
   const location = useLocation();
@@ -21,6 +18,7 @@ function NotebookTopBar() {
   const communityMenuRef = useRef(null);
   const isCommunityRoute = location.pathname === "/community";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
+  const notebookMenuLinks = getNotebookHeaderNavItems();
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -88,8 +86,17 @@ function NotebookTopBar() {
   return (
     <header className="notebook-topbar notebook-topbar--v2">
       <div className="notebook-topbar__inner">
-        <Link className="notebook-topbar__title" to="/notebook">
-          {`${notebookFileIslandVariant.metaBarText}: OK`}
+        <Link className="notebook-topbar__brand" to="/notebook">
+          <span className="notebook-topbar__brand-icon" aria-hidden="true">
+            <img
+              className="notebook-topbar__brand-icon-image"
+              src={HEADER_APP_ICON_SRC}
+              alt=""
+            />
+          </span>
+          <span className="notebook-topbar__title">
+            {`${notebookFileIslandVariant.metaBarText}: OK`}
+          </span>
         </Link>
 
         <nav className="notebook-topbar__nav" aria-label="노트북 빠른 메뉴">

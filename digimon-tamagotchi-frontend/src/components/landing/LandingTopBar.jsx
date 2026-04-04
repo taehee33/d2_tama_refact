@@ -1,6 +1,10 @@
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  getPrimaryHeaderNavItems,
+  HEADER_APP_ICON_SRC,
+} from "../../data/headerNavigation";
 
 function getDisplayTamerName(currentUser) {
   return (
@@ -10,25 +14,23 @@ function getDisplayTamerName(currentUser) {
   );
 }
 
-const navItems = [
-  { to: "/play", label: "플레이" },
-  { to: "/guide", label: "가이드" },
-  { to: "/community", label: "커뮤니티" },
-  { to: "/news", label: "소식" },
-  { to: "/notebook", label: "노트북" },
-  { to: "/landing", label: "둘러보기", end: true },
-];
-
 export function LandingTopBar() {
   const { currentUser } = useAuth();
   const displayTamerName = getDisplayTamerName(currentUser);
+  const navItems = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
 
   return (
     <header className="landing-topbar">
       <div className="landing-topbar__inner">
         <div className="landing-topbar__surface">
           <Link className="landing-topbar__brand" to={currentUser ? "/" : "/landing"}>
-            <span className="landing-topbar__brand-mark" aria-hidden="true" />
+            <span className="landing-topbar__brand-mark" aria-hidden="true">
+              <img
+                className="landing-topbar__brand-mark-image"
+                src={HEADER_APP_ICON_SRC}
+                alt=""
+              />
+            </span>
             <span className="landing-topbar__brand-copy">
               <span className="landing-topbar__eyebrow">D2 TAMAGOTCHI</span>
               <span className="landing-topbar__title">디지몬 키우기</span>
@@ -37,12 +39,9 @@ export function LandingTopBar() {
 
           <nav className="landing-topbar__nav" aria-label="랜딩 주요 이동">
             <div className="landing-topbar__nav-group">
-              <Link className="landing-topbar__link" to="/">
-                홈
-              </Link>
               {navItems.map((item) => (
                 <NavLink
-                  key={item.to}
+                  key={item.key}
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>

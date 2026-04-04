@@ -6,6 +6,10 @@ import {
   getCommunityBoardHref,
   resolveCommunityBoardId,
 } from "../../data/serviceContent";
+import {
+  getPrimaryHeaderNavItems,
+  HEADER_APP_ICON_SRC,
+} from "../../data/headerNavigation";
 import NotebookTopBar from "../home/NotebookTopBar";
 
 function getDisplayTamerName(currentUser, tamerName) {
@@ -25,13 +29,7 @@ function TopNavigation({ tamerName = "" }) {
   const isCommunityRoute = location.pathname === "/community";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const homePath = currentUser ? "/" : "/landing";
-  const links = [
-    { to: homePath, label: "홈" },
-    { to: "/play", label: "플레이" },
-    { to: "/guide", label: "가이드" },
-    { id: "community", label: "커뮤니티" },
-    { to: "/news", label: "소식" },
-  ];
+  const links = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
@@ -146,8 +144,17 @@ function TopNavigation({ tamerName = "" }) {
     <header className="service-topnav">
       <div className="service-topnav__inner">
         <Link className="service-brand" to={homePath}>
-          <span className="service-brand__eyebrow">D2 TAMAGOTCHI</span>
-          <span className="service-brand__title">디지몬 키우기</span>
+          <span className="service-brand__mark" aria-hidden="true">
+            <img
+              className="service-brand__mark-image"
+              src={HEADER_APP_ICON_SRC}
+              alt=""
+            />
+          </span>
+          <span className="service-brand__copy">
+            <span className="service-brand__eyebrow">D2 TAMAGOTCHI</span>
+            <span className="service-brand__title">디지몬 키우기</span>
+          </span>
         </Link>
 
         <nav className="service-nav">
@@ -204,7 +211,7 @@ function TopNavigation({ tamerName = "" }) {
               <NavLink
                 key={link.to}
                 to={link.to}
-                end={link.to === homePath}
+                end={link.end}
                 className={({ isActive }) =>
                   `service-nav__link${isActive ? " service-nav__link--active" : ""}`
                 }
@@ -213,34 +220,6 @@ function TopNavigation({ tamerName = "" }) {
               </NavLink>
             )
           ))}
-          {currentUser && (
-            <NavLink
-              to="/me"
-              className={({ isActive }) =>
-                `service-nav__link${isActive ? " service-nav__link--active" : ""}`
-              }
-            >
-              마이
-            </NavLink>
-          )}
-          <NavLink
-            to="/notebook"
-            className={({ isActive }) =>
-              `service-nav__link${isActive ? " service-nav__link--active" : ""}`
-            }
-          >
-            노트북
-          </NavLink>
-          {currentUser ? (
-            <NavLink
-              to="/landing"
-              className={({ isActive }) =>
-                `service-nav__link${isActive ? " service-nav__link--active" : ""}`
-              }
-            >
-              둘러보기
-            </NavLink>
-          ) : null}
         </nav>
 
         <div className="service-topnav__actions">
@@ -279,7 +258,7 @@ function TopNavigation({ tamerName = "" }) {
                     disabled={isLogoutLoading}
                     role="menuitem"
                   >
-                    {isLogoutLoading ? "로그아웃 중..." : "로그아웃"}
+                    {isLogoutLoading ? "🚪 로그아웃 중..." : "🚪 로그아웃"}
                   </button>
                   {menuError ? (
                     <p className="service-topnav__menu-error" role="alert">

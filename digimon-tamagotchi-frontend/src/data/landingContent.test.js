@@ -13,9 +13,23 @@ describe("landingContent", () => {
     expect(landingGrowthContent.nextImageSrc).toBe("/images/240.png");
   });
 
-  test("대형 아트가 없어도 기본 스프라이트 모드로 렌더링할 수 있는 optional 필드를 가진다", () => {
-    expect(landingHeroContent.backgroundArtworkSrc).toBeNull();
+  test("주어진 히어로 배경과 중간 대표컷 3장을 랜딩 데이터에 연결한다", () => {
+    expect(landingHeroContent.backgroundArtworkSrc).toBe("/images/landing/hero-memory-window.png");
+    expect(landingHeroContent.backgroundArtworkAlt).toBe(
+      "선택받은 아이들이 창밖으로 손을 흔드는 히어로 장면"
+    );
+    expect(landingHeroContent.backgroundArtworkPosition).toBe("center top");
+    expect(landingHeroContent.backgroundArtworkSize).toBe("cover");
     expect(landingMemorySceneContent.backgroundArtworkSrc).toBeNull();
+    expect(landingMemorySceneContent.backgroundArtworkPosition).toBe("center");
+    expect(landingMemorySceneContent.backgroundArtworkSize).toBe("cover");
+    expect(landingMemorySceneContent.featuredArtworkSrc).toBeNull();
+    expect(landingMemorySceneContent.featuredArtworkItems).toHaveLength(3);
+    expect(landingMemorySceneContent.featuredArtworkItems.map((item) => item.src)).toEqual([
+      "/images/landing/memory-cut-01.png",
+      "/images/landing/memory-cut-02.jpg",
+      "/images/landing/memory-cut-03.png",
+    ]);
     expect(landingMemorySceneContent.overlayQuote).toBeTruthy();
   });
 });

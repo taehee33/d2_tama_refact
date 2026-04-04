@@ -2,7 +2,6 @@ import React from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Hero } from "../components/landing/Hero";
 import { Intro } from "../components/landing/Intro";
-import { EggScroll } from "../components/landing/EggScroll";
 import { Growth } from "../components/landing/Growth";
 import { Gallery } from "../components/landing/Gallery";
 import { CTA } from "../components/landing/CTA";
@@ -16,7 +15,6 @@ function Landing() {
     <main className="landing-page">
       <Hero />
       <Intro />
-      <EggScroll />
       <Growth />
       <Gallery />
       <CTA isLoggedIn={isLoggedIn} />

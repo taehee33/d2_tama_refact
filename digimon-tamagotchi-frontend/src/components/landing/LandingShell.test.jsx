@@ -42,12 +42,16 @@ describe("LandingShell", () => {
     const { container } = render(<LandingShell />);
 
     expect(container.querySelector(".landing-topbar__surface")).toBeInTheDocument();
+    expect(container.querySelector(".landing-topbar__brand-mark-image")).toHaveAttribute(
+      "src",
+      "/logo192_agumon.png"
+    );
     expect(screen.getByRole("navigation", { name: "랜딩 주요 이동" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /디지몬 키우기/i })).toHaveAttribute(
       "href",
       "/landing"
     );
-    expect(screen.getByRole("link", { name: "둘러보기" }).className).toContain(
+    expect(screen.getByRole("link", { name: "소개" }).className).toContain(
       "landing-topbar__link--active"
     );
     expect(
@@ -68,6 +72,7 @@ describe("LandingShell", () => {
     rerender(<LandingShell />);
 
     expect(screen.getByRole("link", { name: /디지몬 키우기/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
     expect(screen.getByRole("link", { name: "코로몬" })).toHaveAttribute("href", "/me");
   });
 });

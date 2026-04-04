@@ -2,8 +2,10 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { landingCtaContent } from "../../data/landingContent";
 import { SectionEyebrow } from "./ui/SectionEyebrow";
+import { ImageWithFallback } from "./figma/ImageWithFallback";
 
 export function CTA({ isLoggedIn }) {
+  const hasDescription = Boolean(landingCtaContent.description);
   const primaryAction = isLoggedIn
     ? { to: "/play", label: "플레이 허브 열기" }
     : { to: "/auth", label: "로그인하고 시작하기" };
@@ -14,13 +16,15 @@ export function CTA({ isLoggedIn }) {
 
   return (
     <section className="landing-section landing-cta-section" aria-labelledby="landing-cta-title">
-      <div className="landing-constrain">
-        <div className="landing-cta">
+      <div className="landing-cta">
+        <div className="landing-constrain landing-cta__copy-zone">
           <SectionEyebrow>{landingCtaContent.eyebrow}</SectionEyebrow>
           <h2 id="landing-cta-title" className="landing-section__title">
             {landingCtaContent.title}
           </h2>
-          <p className="landing-cta__description">{landingCtaContent.description}</p>
+          {hasDescription ? (
+            <p className="landing-cta__description">{landingCtaContent.description}</p>
+          ) : null}
 
           <div className="landing-cta__actions">
             <Link className="landing-button landing-button--primary" to={primaryAction.to}>
@@ -39,6 +43,19 @@ export function CTA({ isLoggedIn }) {
             ))}
           </div>
         </div>
+
+        {landingCtaContent.featuredImageSrc ? (
+          <div className="landing-cta__image-zone">
+            <div className="landing-cta__featured-image-wrap">
+              <ImageWithFallback
+                src={landingCtaContent.featuredImageSrc}
+                alt={landingCtaContent.featuredImageAlt}
+                className="landing-cta__featured-image"
+                loading="lazy"
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );

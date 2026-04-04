@@ -1,5 +1,232 @@
 # REFACTORING LOG
 
+## 2026-04-04
+
+### 케어미스 이력과 진화 카운터를 stage-local ledger로 동기화
+- `careMistakes`를 진화 판정의 공식 값으로 유지하면서, 현재 진화 구간 전용 `careMistakeLedger`를 추가해 스탯 팝업의 `케어미스 발생 이력`이 카운터와 같은 수를 보이도록 정비했습니다.
+- 실시간 호출 타임아웃, `applyLazyUpdate`의 `[과거 재구성]`, `괴롭히기`, `놀아주기/간식주기(-1)`를 공통 ledger helper로 묶어 케어미스 증감과 현재 구간 이력을 함께 갱신하게 했습니다.
+- 레거시 슬롯은 로드/표시 시 현재 단계의 care 로그를 바탕으로 ledger를 복원하고, 부족한 건수는 `[기록 동기화]` placeholder로 보정해 UI에서 즉시 카운터와 맞추도록 했습니다.
+
+### 영향받은 파일
+- `src/logic/stats/careMistakeLedger.js`
+- `src/logic/stats/careMistakeLedger.test.js`
+- `src/data/defaultStatsFile.js`
+- `src/data/stats.js`
+- `src/data/stats.test.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useGameLogic.js`
+- `src/hooks/useGameLogic.test.js`
+- `src/pages/Game.jsx`
+- `src/components/GameModals.jsx`
+- `src/components/StatsPopup.jsx`
+
+### 아키텍처 결정 근거
+- `activityLogs`는 100건 cap과 감사 로그 성격 때문에 현재 케어미스 카운터의 단일 기준으로 쓰기 어렵습니다. 그래서 공식 source of truth는 `careMistakes`로 유지하고, 현재 진화 구간의 유효 이력만 별도 ledger로 분리했습니다.
+- `과거 재구성`은 자동 시간 경과 이벤트 복구에만 유지하고, 레거시 데이터나 직접 수정으로 생긴 불일치는 ledger repair 단계에서 흡수하도록 역할을 분리했습니다.
+- `-1` 액션은 최신 미해소 케어미스를 resolve하는 정책으로 고정해, 현재 카운터와 화면 이력 수가 항상 같은 의미를 갖도록 맞췄습니다.
+
+### activityLogs 최대 보관 수를 100건으로 통일
+- `GameModals`의 수면 방해 보조 로그 경로만 `slice(0, 50)`을 사용하고 있어, 특정 상호작용 후 활동 로그가 50건으로 갑자기 줄어드는 예외가 있었습니다.
+- 활동 로그 최대 개수를 공용 상수로 분리하고 `useGameLogic`, `useGameActions`, `useGameData`, `data/stats`, `GameModals`가 모두 같은 `100` 기준을 쓰도록 정리했습니다.
+- 활동 로그 설계 문서도 현재 구현과 맞게 갱신해, 슬롯 로드 쿼리와 수동 로그 추가 경로가 동일한 한도를 사용한다는 점을 명확히 했습니다.
+
+### 영향받은 파일
+- `src/constants/activityLogs.js`
+- `src/components/GameModals.jsx`
+- `src/hooks/useGameActions.js`
+- `src/hooks/useGameLogic.js`
+- `src/hooks/useGameData.js`
+- `src/data/stats.js`
+- `docs/ACTIVITY_LOGS_AND_SUBCOLLECTION.md`
+
+### 아키텍처 결정 근거
+- `activityLogs`는 단순 표시 이력뿐 아니라 최근 중복 방지와 로드 직후 UI 복원에도 함께 쓰이므로, 액션별로 다른 최대 개수를 두면 예기치 않은 잘림과 디버깅 혼선을 만들 수 있습니다.
+- 최대 개수를 공용 상수로 분리하면 수동 append, lazy update, Firestore 서브컬렉션 로드가 모두 같은 기준을 공유해 이후 리팩터링에서 다시 `50/100`이 섞일 가능성을 줄일 수 있습니다.
+
+### 랜딩 히어로의 디지타마 포스터 복구와 카피 줄바꿈 조정
+- 풀블리드 대표 이미지를 유지하면서도, 우측 디지타마 포스터 비주얼을 다시 함께 노출하도록 히어로 레이아웃을 조정했습니다.
+- 메인 카피는 `그 시절, / 우리는 모두 / 선택받은 / 아이들이었다`의 4줄 전개로 바꿔 첫 화면의 전시 포스터 리듬을 더 분명하게 만들었습니다.
+- 관련 테스트도 갱신해 히어로 이미지와 디지타마 포스터가 동시에 렌더링되는지 확인했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Hero.jsx`
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
+
+### 랜딩의 보조 설명 문구 정리
+- Intro와 Memory Scene에서 사용자가 지우길 원한 보조 설명, 캡션, `SCENE CHANGE` 블록을 제거해 화면이 더 비주얼 중심으로 보이도록 정리했습니다.
+- 빈 문자열이 들어와도 빈 문단이나 빈 보조 영역이 남지 않도록 Intro와 Gallery 컴포넌트에 조건부 렌더링을 추가했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Gallery.jsx`
+- `src/components/landing/Intro.jsx`
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
+
+### 랜딩의 Egg Scroll 구간 제거
+- 랜딩 흐름에서 과하게 설명적으로 보이던 `EggScroll` 구간을 실제 `/landing` 조립 순서에서 제거했습니다.
+- 이제 랜딩은 `Hero / Intro / Growth / Gallery / CTA`의 5개 섹션으로 이어지고, 부화 HUD 연출은 더 이상 랜딩 화면에 노출되지 않습니다.
+
+### 추가 영향 파일
+- `src/pages/Landing.jsx`
+- `src/pages/Landing.test.jsx`
+
+### 대표컷 캡션 제거와 전체화면 뷰어 추가
+- Memory Scene 대표컷 카드 위에 보이던 `대표컷 ...` 캡션을 제거해 이미지 집중도를 높였습니다.
+- 대표컷 이미지를 누르면 전체화면 오버레이로 크게 볼 수 있도록 랜딩 전용 뷰어를 추가했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Gallery.jsx`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
+
+### 성장 섹션의 다음 진화 라벨 문구 조정
+- `다음 진화 신호` 문구를 사용자가 의도한 표현인 `다음 진화 디지몬`으로 변경했습니다.
+
+### 추가 영향 파일
+- `src/data/landingContent.js`
+
+### Memory Scene 메인 카피 문구 조정
+- 중간 Memory Scene의 큰 오버레이 카피를 `그 시절, 우리는 모두 선택받은 아이들이었다`에서 `그 여름의 디지털 월드`로 변경했습니다.
+
+### 추가 영향 파일
+- `src/data/landingContent.js`
+
+### Memory Scene 텍스트 레이어 제거
+- 사용자가 요청한 대로 Memory Scene의 `MEMORY SCENE` 아이브로와 `그 여름의 디지털 월드` 텍스트 레이어를 모두 제거했습니다.
+- 텍스트가 비어 있을 때도 섹션 접근성이 깨지지 않도록 Gallery 컴포넌트에 조건부 제목/라벨 처리를 추가했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Gallery.jsx`
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+
+### Memory Scene 카피 복구와 CTA 대표 이미지 추가
+- Memory Scene의 큰 오버레이 카피를 `1999년 그 여름, 디지털월드`로 다시 노출하도록 조정했습니다.
+- CTA 버튼 아래에는 사용자 제공 이미지를 랜딩 자산으로 추가해, 액션 버튼 아래에 회상 장면이 이어지도록 구성했습니다.
+
+### 추가 영향 파일
+- `public/images/landing/cta-device.webp`
+- `src/components/landing/CTA.jsx`
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
+
+### CTA 보조 설명 문구 제거
+- 사용자가 요청한 CTA 설명 문구를 제거하고, 빈 문자열일 때는 설명 문단 자체가 렌더링되지 않도록 CTA 컴포넌트를 정리했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/CTA.jsx`
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+
+### 랜딩 헤더 브랜드 마크를 앱 아이콘으로 교체
+- 랜딩 헤더 왼쪽의 검은 원형 장식 대신 실제 앱 아이콘인 `logo192_agumon.png`를 노출하도록 변경했습니다.
+- 브랜드 링크 접근성 이름은 유지하면서, 시각 마크만 실제 앱 자산으로 교체하고 관련 테스트를 추가했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/LandingShell.test.jsx`
+- `src/components/landing/LandingTopBar.jsx`
+- `src/styles/landing.css`
+
+### 게임 도감 모달의 가로 눌림 레이아웃 수정
+- 게임 내 `추가기능 > 도감` 모달이 공통 `battle-modal` 폭 제한을 같이 받아 좁아지던 문제를 분리해, 도감 전용 최대 폭을 안정적으로 유지하도록 조정했습니다.
+- 도감 카드 목록은 화면 전체 브레이크포인트 기준 `4열/5열` 고정 그리드 대신, 모달과 페이지의 실제 컨테이너 폭에 맞춰 자동으로 열 수를 계산하는 반응형 그리드로 변경했습니다.
+- 이 변경으로 데스크톱 해상도에서도 도감 카드가 좌우로 눌리거나 이름 줄바꿈이 과하게 발생하는 현상을 줄이고, 전체 페이지 도감 레이아웃도 같은 기준으로 정리했습니다.
+
+### 영향받은 파일
+- `src/components/EncyclopediaModal.jsx`
+- `src/components/panels/EncyclopediaPanel.jsx`
+
+### 아키텍처 결정 근거
+- `battle-modal`은 소형 배틀 계열 모달 폭을 전제로 쓰이고 있어, 도감처럼 넓은 정보형 모달까지 공유하면 레이아웃 충돌이 생깁니다. 따라서 도감 모달만 전용 폭 설정으로 분리해 다른 모달 동작을 건드리지 않도록 했습니다.
+- 도감 카드는 viewport 브레이크포인트보다 실제 렌더링 컨테이너 폭의 영향을 더 크게 받으므로, 컨테이너 기반 자동 배치가 모달/페이지 양쪽에서 더 안정적인 선택입니다.
+
+### 몰입형 플레이 복귀 버튼 위치를 왼쪽 흐름으로 정렬
+- 기본 게임 화면에서는 `몰입형 플레이` 진입 버튼이 왼쪽 액션 그룹에 있었는데, 몰입형 화면의 `기본 화면` 복귀 버튼은 오른쪽에 배치되어 흐름이 뒤집혀 보였습니다.
+- 몰입형 상단 바에서 이동 버튼 묶음을 먼저 렌더링하도록 순서를 조정해, `기본 화면`과 `플레이 허브` 버튼이 왼쪽에서 시작되도록 통일했습니다.
+- 데스크톱 상단 바 테스트도 추가해 복귀 버튼 묶음이 왼쪽에 유지되는지 확인할 수 있게 했습니다.
+
+### 추가 영향 파일
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+
+### 몰입형 상단 바 버튼 순서를 플레이 허브 → 기본 화면으로 재조정
+- 몰입형 화면에서 상단 이동 버튼 순서를 다시 정리해, `기본 화면` 버튼이 `플레이 허브` 오른쪽에 오도록 변경했습니다.
+- 모바일과 데스크톱 레이아웃 모두 같은 순서를 사용하도록 맞춰, 화면 크기에 따라 버튼 흐름이 달라지지 않게 했습니다.
+- 테스트도 새 버튼 순서 기준으로 갱신했습니다.
+
+### 플레이 허브 최근 이어하기 카드에 디지몬 썸네일 추가
+- `플레이 허브 > 최근 이어하기` 카드가 텍스트와 버튼만 보여 주던 상태에서, 현재 슬롯의 디지몬 스프라이트도 함께 노출하도록 개선했습니다.
+- 기존 슬롯 카드에서 사용하던 스프라이트 경로 헬퍼와 픽셀 렌더링 스타일을 재사용해 시각 톤을 맞췄고, 모바일에서는 세로 배치로 자연스럽게 접히도록 반응형 레이아웃을 보강했습니다.
+
+### 추가 영향 파일
+- `src/pages/PlayHub.jsx`
+- `src/index.css`
+
+### 슬롯 순서 정리 모달에 썸네일과 강조 이동 버튼 추가
+- `슬롯 순서 정리` 모달 각 항목에 정렬 순번과 실제 슬롯 번호를 분리해 보여 주고, 디지몬 스프라이트 썸네일을 함께 배치해 어떤 슬롯인지 즉시 구분할 수 있게 했습니다.
+- 위/아래 이동 버튼은 공통 ghost 버튼 대신 전용 원형 버튼으로 바꾸고, 위는 에메랄드 계열, 아래는 앰버 계열 배경색을 적용해 방향이 더 눈에 잘 들어오도록 조정했습니다.
+- 첫 항목의 위 버튼, 마지막 항목의 아래 버튼은 기존처럼 비활성 상태를 유지하되 시각적으로도 충분히 흐려지게 처리했습니다.
+
+### 추가 영향 파일
+- `src/components/play/SlotOrderModal.jsx`
+- `src/components/play/SlotOrderModal.test.jsx`
+- `src/index.css`
+
+### 슬롯 카드의 삭제 버튼 강조색과 액션 순서 조정
+- 플레이 허브 슬롯 카드에서 `삭제` 버튼을 빨강 계열 danger 스타일로 분리해 다른 보조 액션보다 더 눈에 띄게 조정했습니다.
+- 버튼 순서도 `삭제`를 왼쪽, `별명 변경`을 오른쪽으로 옮겨 요청한 흐름에 맞췄습니다.
+- 슬롯 카드 전용 테스트를 추가해 삭제 버튼의 스타일 클래스와 클릭 동작을 함께 확인할 수 있게 했습니다.
+
+### 추가 영향 파일
+- `src/components/play/SlotCard.jsx`
+- `src/components/play/SlotCard.test.jsx`
+- `src/index.css`
+
+### 플레이 허브의 허브 운영 기준 안내 카드 제거
+- 플레이 허브 하단의 `정렬과 보관 / 허브 운영 기준` 안내 카드를 제거해 화면을 더 간결하게 정리했습니다.
+- 남아 있는 `관련 페이지` 카드가 단독으로 자연스럽게 이어지도록 해당 구간의 래퍼 구조도 함께 단순화했습니다.
+- 플레이 허브 테스트에도 안내 카드가 더 이상 렌더링되지 않는지 확인하는 검증을 추가했습니다.
+
+### 추가 영향 파일
+- `src/pages/PlayHub.jsx`
+- `src/pages/PlayHub.test.jsx`
+
+### 아레나 어드민을 서버 권한으로 이관하고 리더보드/리플레이 모델을 통일
+- 관리자용 시즌 설정, 시즌 종료, 아카이브 삭제를 클라이언트 Firestore 직접 쓰기에서 서버 API로 이동해 권한 경계를 명확히 했습니다.
+- `developerMode`는 UI 노출용으로만 유지하고, 실제 관리자 판별은 인증 토큰과 서버 allowlist에서 수행하도록 분리했습니다.
+- 시즌 종료는 아카이브 생성, 다음 시즌 전환, `arena_entries` 시즌 전적 초기화를 한 번의 서버 commit 흐름으로 묶고, 중복 시즌 아카이브 생성을 차단하도록 정리했습니다.
+- 현재 시즌 / 전체 누적 / 과거 시즌 리더보드가 같은 DTO를 쓰도록 정규화하고, 기존 평탄한 archive 엔트리도 `record + digimonSnapshot` 구조로 읽을 수 있게 맞췄습니다.
+- 신규 아레나 등록 시 `record.seasonId`, `record.seasonWins`, `record.seasonLosses`를 즉시 저장해 첫 배틀 전에도 현재 시즌 리더보드에 `0승 0패`로 보이게 했습니다.
+- 배틀 완료는 서버에서 replay archive 업서트 성공 후 요약 로그를 기록하도록 바꿔 `archiveStatus`가 `ready`인 로그만 다시보기 CTA를 노출하게 강화했습니다.
+- 관리자 모달에는 시즌 종료 영향 범위 미리보기와 확인 문구 절차를 추가했고, 아카이브 삭제는 soft delete 기준으로 바꿨습니다.
+
+### 영향받은 파일
+- `src/components/AdminModal.jsx`
+- `src/components/AdminModal.test.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/components/ArenaScreen.test.jsx`
+- `src/hooks/useGameActions.js`
+- `src/utils/arenaApi.js`
+- `api/_lib/auth.js`
+- `api/_lib/firestoreAdmin.js`
+- `api/_lib/arenaHandlers.js`
+- `api/arena/admin/config.js`
+- `api/arena/admin/end-season.js`
+- `api/arena/admin/archives/[archiveId].js`
+- `api/arena/battles/complete.js`
+- `firestore.rules`
+- `api/_lib/arenaHandlers.test.js`
+- `tests/arena-entrypoints.test.js`
+
+### 아키텍처 결정 근거
+- 시즌 전환과 아카이브 관리처럼 운영 데이터 전체에 영향을 주는 기능은 클라이언트 직접 쓰기보다 서버 API로 옮겨야 권한 경계와 감사 가능성이 분명해집니다.
+- 리더보드는 현재 시즌, 전체 누적, 과거 시즌이 모두 같은 렌더 규칙을 공유해야 유지보수가 쉬우므로, live entry와 archive entry의 DTO를 하나로 맞췄습니다.
+- replay는 저장 성공 여부가 사용자 체감 품질에 직접 연결되기 때문에, archive 상태를 명시적으로 기록하고 확인된 로그만 다시보기 가능하게 하는 편이 운영 리스크를 줄입니다.
+
 ## 2026-04-03
 
 ### 랜딩 전용 헤더를 다크 글래스 톤으로 재정렬
@@ -15,6 +242,41 @@
 ### 아키텍처 결정 근거
 - 랜딩 헤더는 이미 공통 서비스 셸과 분리돼 있으므로, 랜딩 전용 컴포넌트와 스타일만 수정해 다른 페이지 헤더에 영향을 주지 않도록 했습니다.
 - 새 인터랙션이나 메뉴 구조 변경 없이 스타일 계층만 재설계해 기존 라우팅과 인증 동선을 그대로 유지했습니다.
+
+### Figma Make 분석 기반 이미지 삽입 슬롯 보강
+- Figma Make 링크에서 확인된 Hero / Intro / EggScroll / Growth / Gallery / CTA 구조를 현재 랜딩과 대조한 뒤, 사용자 이미지를 히어로 배경과 중간 회상 장면에 꽂을 수 있는 슬롯을 보강했습니다.
+- `landingHeroContent`에는 배경 이미지 위치와 크기 옵션을 추가했고, `landingMemorySceneContent`에는 배경 이미지 외에도 가운데 대표 컷을 넣을 수 있는 `featuredArtwork` 필드를 추가했습니다.
+- 중간 `Memory Scene`은 큰 이미지가 없을 때는 기존 스프라이트 밴드를 유지하고, 사용자가 이미지를 넣으면 자동으로 큰 프레임 컷으로 전환되도록 구성했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Hero.jsx`
+- `src/components/landing/Gallery.jsx`
+- `src/data/landingContent.js`
+- `src/data/landingContent.test.js`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
+
+### 랜딩 성장 섹션의 가상 지표를 실제 게임 용어로 정리
+- `동기화율 / 안정도 / 유대`처럼 현재 게임에 없는 표현을 제거하고, 성장 섹션의 상태 라벨을 `배고픔 / 힘 / 훈련`으로 교체했습니다.
+- 랜딩 테스트에도 기존 가상 지표가 더 이상 노출되지 않는지 확인하는 검증을 추가했습니다.
+
+### 추가 영향 파일
+- `src/data/landingContent.js`
+- `src/pages/Landing.test.jsx`
+
+### 사용자 제공 이미지를 히어로 배경과 중간 대표컷 3장으로 반영
+- 사용자 제공 4장의 이미지 중 1장은 히어로 배경으로 연결하고, 나머지 3장은 `Memory Scene`의 대표컷 카드 그리드로 전시형 배치에 맞게 반영했습니다.
+- 히어로 이미지는 오른쪽 포스터 카드가 아니라 섹션 배경으로 이동시켜 첫 화면의 분위기를 바로 전달하게 했고, 중간 구간은 단일 컷 대신 3장 카드 배열로 바꿔 장면성이 더 드러나게 조정했습니다.
+- 관련 테스트도 새 기본값에 맞게 갱신해, 기본 이미지 연결과 커스텀 이미지 교체 흐름이 모두 유지되는지 확인했습니다.
+
+### 추가 영향 파일
+- `public/images/landing/*`
+- `src/components/landing/Gallery.jsx`
+- `src/components/landing/Hero.jsx`
+- `src/data/landingContent.js`
+- `src/data/landingContent.test.js`
+- `src/pages/Landing.test.jsx`
+- `src/styles/landing.css`
 
 ## 2026-04-02
 
@@ -36,6 +298,28 @@
 - 스크롤 상태 계산은 `EggScroll` 내부에 하드코딩하지 않고 Hook으로 분리해 테스트 가능성과 유지보수성을 높였습니다.
 - 랜딩 전용 스타일은 `landing.css`로 분리해 이후 모바일 튜닝과 인터랙션 보강을 독립적으로 이어갈 수 있게 했습니다.
 
+## 2026-04-04
+
+### archive 실패 관측을 관리자 모달에서 바로 확인할 수 있게 보강
+- Supabase에 `log_archive_monitor_events` 테이블을 추가하고, 아레나 archive 저장/아레나 replay 조회/조그레스 archive 저장 API가 성공, 404, 권한 오류, 일반 실패를 best-effort로 기록하도록 확장했습니다.
+- 관리자 모달에 `로그 관측` 탭을 추가해 최근 24시간 요약 카드와 최신 이벤트 50건을 서버 관리자 API로 조회할 수 있게 했습니다.
+- 기존 사용자 플로우는 그대로 비차단으로 유지하고, 관측 insert 실패가 원래 archive 요청 성공/실패를 바꾸지 않도록 설계했습니다.
+
+### 영향받은 파일
+- `api/_lib/logArchiveHandlers.test.js`
+- `digimon-tamagotchi-frontend/api/_lib/logArchiveHandlers.js`
+- `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+- `digimon-tamagotchi-frontend/api/arena/admin/archive-monitoring.js`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+- `supabase/migrations/20260404_log_archive_monitoring.sql`
+- `docs/SUPABASE_LOG_ARCHIVE_ROLLOUT.md`
+
+### 아키텍처 결정 근거
+- archive 실패 관측은 사용자 기능보다 운영 확인이 목적이므로, 새 페이지 대신 기존 관리자 모달과 아레나 관리자 권한 체계를 재사용했습니다.
+- 외부 에러 수집 서비스를 추가하지 않고 `Vercel 로그 + Supabase event table` 조합으로 유지해 현재 서버리스 구조와 관리 복잡도를 크게 늘리지 않도록 했습니다.
+
 ### `/landing` 전용 풀블리드 전시형 레이아웃으로 확장
 - `/landing`을 공통 `ServiceLayout` 밖으로 분리하고, `LandingShell`과 `LandingTopBar`를 추가해 전용 헤더와 본문 구조를 구성했습니다.
 - Hero를 viewport 기준 풀블리드 스테이지로 재구성하고, 중간 `Gallery` 구간은 `Memory Scene` 역할의 대형 회상 장면으로 전환했습니다.
@@ -47,3 +331,77 @@
 - `src/components/landing/LandingShell.test.jsx`
 - `src/App.jsx`
 - `src/App.test.js`
+
+## 2026-04-04
+
+### 아레나 관리자 기능을 서버 API 권한 경계로 이동
+- `AdminModal`의 시즌 설정 저장, 시즌 종료, 아카이브 삭제를 브라우저의 Firestore 직접 쓰기에서 아레나 전용 API 호출로 전환했습니다.
+- 서버에서는 `ARENA_ADMIN_UIDS` / `ARENA_ADMIN_EMAILS` 기반 관리자 검증 뒤에만 `arena_config`, `season_archives`, 시즌 종료 배치 write를 수행하도록 정리했습니다.
+- 시즌 종료는 현재 시즌 검증, 아카이브 생성, 다음 시즌 설정 반영, 모든 엔트리의 시즌 전적 초기화를 한 번의 commit payload로 묶어 처리하도록 맞췄습니다.
+
+### 아레나 리더보드 / 로그 DTO를 하나로 정규화
+- `ArenaScreen`에 live entry와 archive entry를 같은 shape로 맞추는 정규화 함수를 추가해 현재 시즌, 전체 누적, 과거 시즌이 같은 렌더 경로를 사용하도록 정리했습니다.
+- 신규 등록 엔트리는 생성 시점부터 `record.seasonId`, `record.seasonWins`, `record.seasonLosses`를 함께 저장해 첫 전투 전에도 현재 시즌 리더보드에 정상 노출되게 했습니다.
+- 과거 시즌 아카이브는 최소 필드만 담는 snapshot으로 정리해 이전 평탄한 archive 데이터와 새 snapshot 데이터 둘 다 화면에서 읽을 수 있게 했습니다.
+
+### 아레나 배틀 로그 다시보기 신뢰도를 강화
+- `useGameActions`의 아레나 결과 저장은 클라이언트 Firestore 직접 update 대신 `/api/arena/battles/complete` 서버 API를 사용하도록 바꿨습니다.
+- 서버는 Supabase replay archive upsert가 성공한 뒤에만 Firestore summary log를 `archiveStatus: "ready"` 상태로 기록하도록 바꿔, 다시보기 CTA가 거짓 양성으로 뜨지 않게 했습니다.
+- 프론트에서는 `archiveId`뿐 아니라 `archiveStatus`까지 보고 다시보기 가능 여부를 판단하도록 조정했습니다.
+
+### 영향받은 파일
+- `api/_lib/arenaHandlers.js`
+- `api/_lib/arenaHandlers.test.js`
+- `tests/arena-entrypoints.test.js`
+- `firestore.rules`
+- `src/components/AdminModal.jsx`
+- `src/components/AdminModal.test.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/components/ArenaScreen.test.jsx`
+- `src/components/GameModals.jsx`
+- `src/hooks/useGameActions.js`
+- `src/utils/arenaApi.js`
+- `api/arena/admin/config.js`
+- `api/arena/admin/end-season.js`
+- `api/arena/admin/archives/[archiveId].js`
+- `api/arena/battles/complete.js`
+- `api/_lib/firestoreAdmin.js`
+- `api/_lib/auth.js`
+
+### 아키텍처 결정 근거
+- 아레나 시즌 종료와 전적 반영은 클라이언트 권한으로 두면 조작 가능성이 높아 서버 검증과 서버 write로 이동하는 편이 맞습니다.
+- 리더보드와 아카이브가 서로 다른 DTO를 쓰면 렌더 분기가 계속 늘어나므로, 정규화 계층을 하나 두고 화면은 같은 필드를 읽게 하는 구조가 유지보수에 유리합니다.
+- `game_settings` 전체를 막아 버리면 기존 마스터 데이터 편집 기능까지 함께 깨지므로, 이번 라운드에서는 `arena_config`와 아레나 컬렉션만 우선 서버 전용 경계로 분리했습니다.
+
+### Landing Memory Scene 공백 축소
+- `Memory Scene`의 with-artwork 레이아웃에서 `min-height`를 자동으로 낮추고, copy grid를 `align-content: start`로 바꿔 큰 문구와 대표컷 이미지가 연속해서 붙어 보이도록 정리했습니다.
+- 데스크톱과 모바일 모두 `padding`과 `gap`을 다시 잡아, `1999년 그 여름, 디지털월드` 문구 아래에서 카드가 곧바로 시작되는 전시형 배치를 유지하도록 맞췄습니다.
+- 대표컷이 문구와 겹쳐 보이지 않도록, 대표컷 그리드의 상단 여백을 데스크톱에서는 크게 다시 확보하고 모바일은 별도 축약값으로 조정했습니다.
+- 대표컷 아래 바닥 여백도 추가로 확장해, 다음 섹션으로 넘어가기 전 여운이 남는 전시형 구역 높이를 확보했습니다.
+- 큰 문구 위쪽 여백도 대표컷 아래 바닥 여백과 같은 기준으로 맞춰, 회상 구간의 상하 여백 밸런스를 통일했습니다.
+
+### CTA를 풀블리드 엔딩 씬으로 전환
+- CTA 구간의 중앙 카드 구조를 풀고, 상단 `copy zone`과 하단 `featured image zone`으로 분리해 마지막 장면처럼 화면을 크게 쓰는 레이아웃으로 전환했습니다.
+- 버튼과 보조 링크는 제목 아래에 유지하고, 디바이스 이미지는 기존 720px 카드 제한을 해제해 거의 viewport 폭에 가깝게 크게 보여주도록 확장했습니다.
+- 모바일에서는 CTA 높이를 자동으로 줄이되, 버튼과 이미지가 겹치지 않도록 별도 여백과 이미지 높이를 다시 조정했습니다.
+
+### 추가 영향 파일
+- `src/components/landing/CTA.jsx`
+- `src/styles/landing.css`
+
+### 헤더 메뉴/브랜드 일관성 정리
+- 랜딩, 일반 서비스, 노트북 전용 헤더가 각각 다른 메뉴 라벨을 쓰던 상태를 공용 헤더 메뉴 정의로 정리하고, `/landing` 라벨은 모두 `소개`로 통일했습니다.
+- 랜딩 헤더는 로그인 시 일반 헤더와 동일하게 `테이머(설정)`을 노출하도록 맞췄고, 일반 서비스 헤더와 노트북 전용 헤더에는 앱 아이콘을 브랜드 영역에 추가했습니다.
+- 노트북 전용 헤더는 기존 레트로 정보바 레이아웃을 유지하되, 소개 라벨과 브랜드 마크만 공용 기준을 재사용하도록 정리했습니다.
+
+### 추가 영향 파일
+- `src/data/headerNavigation.js`
+- `src/components/layout/TopNavigation.jsx`
+- `src/components/home/NotebookTopBar.jsx`
+- `src/components/landing/LandingTopBar.jsx`
+- `src/components/layout/NavigationLinks.test.jsx`
+- `src/components/landing/LandingShell.test.jsx`
+- `src/index.css`
+
+### 추가 영향 파일
+- `src/styles/landing.css`
