@@ -23,4 +23,18 @@ describe("ImmersiveGameTopBar", () => {
     expect(onOpenBaseView).toHaveBeenCalledTimes(1);
     expect(onOpenPlayHub).toHaveBeenCalledTimes(1);
   });
+
+  test("데스크톱에서는 플레이 허브 오른쪽에 기본 화면 버튼이 온다", () => {
+    render(
+      <ImmersiveGameTopBar
+        onOpenBaseView={() => {}}
+        onOpenPlayHub={() => {}}
+      />
+    );
+
+    const navButtons = screen.getAllByRole("button");
+
+    expect(navButtons[0]).toHaveTextContent("플레이 허브");
+    expect(navButtons[1]).toHaveTextContent("기본 화면");
+  });
 });

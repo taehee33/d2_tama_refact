@@ -7,12 +7,22 @@ export default function EncyclopediaModal({
   developerMode = false,
   encyclopediaShowQuestionMark = true,
 }) {
+  const modalStyle = {
+    width: "90%",
+    minWidth: "300px",
+    maxWidth: "1200px",
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
       style={{ padding: "20px" }}
     >
-      <div className="battle-modal flex max-h-[90vh] w-[90%] max-w-[1200px] flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+      <div
+        data-testid="encyclopedia-modal"
+        className="flex max-h-[90vh] flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        style={modalStyle}
+      >
         <div className="flex items-center justify-between border-b border-gray-300 p-4">
           <h2 className="text-2xl font-bold">도감</h2>
           <button

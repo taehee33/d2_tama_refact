@@ -11,6 +11,8 @@ import { translateStage } from "../../utils/stageTranslator";
 import EncyclopediaDetailModal from "../EncyclopediaDetailModal";
 import "../../styles/Battle.css";
 
+const ENCYCLOPEDIA_GRID_TEMPLATE = "repeat(auto-fit, minmax(8rem, 1fr))";
+
 function getEncyclopediaEntry(versionData, digimonKey) {
   return (
     versionData[digimonKey] ||
@@ -219,7 +221,11 @@ function EncyclopediaPanel({
       </div>
 
       <div className="rounded-[1.5rem] border border-slate-200 bg-white/70 p-4">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-5">
+        <div
+          data-testid="encyclopedia-grid"
+          className="grid gap-3"
+          style={{ gridTemplateColumns: ENCYCLOPEDIA_GRID_TEMPLATE }}
+        >
           {digimonList.map((digimon) => {
             const digimonKey = digimon.listKey || digimon.id || digimon.name;
             const discoveredData = getEncyclopediaEntry(versionData, digimonKey);

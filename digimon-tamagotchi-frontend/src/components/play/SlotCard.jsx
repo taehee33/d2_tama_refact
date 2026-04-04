@@ -51,17 +51,17 @@ function SlotCard({
         <div className="service-inline-actions">
           <button
             type="button"
-            className="service-button service-button--ghost"
-            onClick={onToggleNickname}
+            className="service-button service-button--danger"
+            onClick={onDelete}
           >
-            별명 변경
+            삭제
           </button>
           <button
             type="button"
             className="service-button service-button--ghost"
-            onClick={onDelete}
+            onClick={onToggleNickname}
           >
-            삭제
+            별명 변경
           </button>
         </div>
 

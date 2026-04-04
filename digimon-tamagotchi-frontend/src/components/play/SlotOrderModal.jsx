@@ -1,6 +1,6 @@
 import React from "react";
 import { formatSlotCreatedAt } from "../../utils/dateUtils";
-import { getSlotDisplayName } from "../../utils/slotViewUtils";
+import { getSlotDisplayName, getSlotSpriteSrc } from "../../utils/slotViewUtils";
 
 function SlotOrderModal({
   open,
@@ -42,27 +42,44 @@ function SlotOrderModal({
                 highlightedSlotId === slot.id ? " service-order-item--highlighted" : ""
               }`}
             >
-              <div>
-                <p className="service-order-item__index">{index + 1}</p>
-                <h4>{getSlotDisplayName(slot)}</h4>
-                <p className="service-muted">
-                  생성일 {formatSlotCreatedAt(slot.createdAt)} · {slot.device} / {slot.version}
-                </p>
+              <div className="service-order-item__main">
+                <div className="service-order-item__identity">
+                  <p className="service-order-item__index">정렬 {index + 1}</p>
+                  <div className="service-order-item__sprite-shell">
+                    <img
+                      src={getSlotSpriteSrc(slot)}
+                      alt={`${getSlotDisplayName(slot)} 썸네일`}
+                      className="service-order-item__sprite"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <div className="service-order-item__copy">
+                    <div className="service-order-item__title-row">
+                      <h4>{getSlotDisplayName(slot)}</h4>
+                      <span className="service-order-item__slot-badge">{`슬롯 ${slot.id}`}</span>
+                    </div>
+                    <p className="service-muted">
+                      생성일 {formatSlotCreatedAt(slot.createdAt)} · {slot.device} / {slot.version}
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="service-order-item__actions">
                 <button
                   type="button"
-                  className="service-button service-button--ghost"
+                  className="service-order-action service-order-action--up"
                   onClick={() => onMoveUp(index)}
                   disabled={index === 0}
+                  aria-label={`슬롯 ${slot.id}을 위로 이동`}
                 >
                   ↑
                 </button>
                 <button
                   type="button"
-                  className="service-button service-button--ghost"
+                  className="service-order-action service-order-action--down"
                   onClick={() => onMoveDown(index)}
                   disabled={index === orderedSlots.length - 1}
+                  aria-label={`슬롯 ${slot.id}을 아래로 이동`}
                 >
                   ↓
                 </button>

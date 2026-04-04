@@ -7,7 +7,11 @@ import SlotCard from "../components/play/SlotCard";
 import SlotOrderModal from "../components/play/SlotOrderModal";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
-import { getSlotDisplayName, getSlotStageLabel } from "../utils/slotViewUtils";
+import {
+  getSlotDisplayName,
+  getSlotSpriteSrc,
+  getSlotStageLabel,
+} from "../utils/slotViewUtils";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -195,23 +199,35 @@ function PlayHub() {
               </>
             ) : recentSlot ? (
               <>
-                <h2>{getSlotDisplayName(recentSlot)}</h2>
-                <p>{getSlotStageLabel(recentSlot)} 단계부터 바로 이어서 플레이할 수 있습니다.</p>
-                <div className="service-inline-actions">
-                  <button
-                    type="button"
-                    className="service-button service-button--primary"
-                    onClick={() => navigate(`/play/${recentSlot.id}`)}
-                  >
-                    이어하기
-                  </button>
-                  <button
-                    type="button"
-                    className="service-button service-button--ghost"
-                    onClick={() => navigate(`/play/${recentSlot.id}/full`)}
-                  >
-                    몰입형 화면
-                  </button>
+                <div className="service-recent-slot">
+                  <div className="service-slot-card__media service-recent-slot__media">
+                    <img
+                      src={getSlotSpriteSrc(recentSlot)}
+                      alt={`${getSlotDisplayName(recentSlot)} 썸네일`}
+                      className="service-slot-card__sprite"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <div className="service-recent-slot__body">
+                    <h2>{getSlotDisplayName(recentSlot)}</h2>
+                    <p>{getSlotStageLabel(recentSlot)} 단계부터 바로 이어서 플레이할 수 있습니다.</p>
+                    <div className="service-inline-actions">
+                      <button
+                        type="button"
+                        className="service-button service-button--primary"
+                        onClick={() => navigate(`/play/${recentSlot.id}`)}
+                      >
+                        이어하기
+                      </button>
+                      <button
+                        type="button"
+                        className="service-button service-button--ghost"
+                        onClick={() => navigate(`/play/${recentSlot.id}/full`)}
+                      >
+                        몰입형 화면
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (
@@ -322,34 +338,22 @@ function PlayHub() {
 
       {hasSlots ? (
         <>
-          <div className="service-two-column">
-            <div className="service-card">
-              <p className="service-section-label">정렬과 보관</p>
-              <h2>허브 운영 기준</h2>
-              <ul className="service-list">
-                <li>슬롯 정렬은 허브 전용 모달에서 바꾸고 Firestore에 저장합니다.</li>
-                <li>디지몬 별명은 카드 안에서 바로 바꿀 수 있고 조그레스 방 정보에도 동기화됩니다.</li>
-                <li>계정 기준 저장 구조라서 다른 기기에서도 같은 로그인으로 이어서 플레이할 수 있습니다.</li>
-              </ul>
-            </div>
-
-            <div className="service-card service-card--soft">
-              <p className="service-section-label">다음 이동</p>
-              <h2>관련 페이지</h2>
-              <div className="service-action-grid">
-                <Link className="service-action-card" to="/guide">
-                  <strong>진화 가이드</strong>
-                  <span>조건표와 기본 시스템을 다시 확인합니다.</span>
+          <div className="service-card service-card--soft">
+            <p className="service-section-label">다음 이동</p>
+            <h2>관련 페이지</h2>
+            <div className="service-action-grid">
+              <Link className="service-action-card" to="/guide">
+                <strong>진화 가이드</strong>
+                <span>조건표와 기본 시스템을 다시 확인합니다.</span>
                 </Link>
                 <Link className="service-action-card" to="/me">
-                  <strong>테이머(설정)</strong>
+                  <strong>마이</strong>
                   <span>도감, 계정 설정, 최근 디지몬 카드로 이동합니다.</span>
                 </Link>
-                <Link className="service-action-card" to="/community">
-                  <strong>커뮤니티</strong>
-                  <span>실시간 채팅과 자랑 게시판 구성을 확인합니다.</span>
-                </Link>
-              </div>
+              <Link className="service-action-card" to="/community">
+                <strong>커뮤니티</strong>
+                <span>실시간 채팅과 자랑 게시판 구성을 확인합니다.</span>
+              </Link>
             </div>
           </div>
 
