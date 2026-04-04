@@ -121,35 +121,8 @@ function Login() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.92),_rgba(250,242,231,0.96)_45%,_rgba(235,247,243,0.96)_100%)] px-4 py-10">
-      <div className="mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-8 lg:grid-cols-[1.1fr,0.9fr]">
-        <section className="rounded-[40px] border border-white/80 bg-white/80 p-8 shadow-[0_24px_48px_rgba(15,23,42,0.08)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.32em] text-slate-400">
-            Auth
-          </p>
-          <h1 className="mt-3 text-4xl font-black leading-tight text-slate-900 sm:text-5xl">
-            디지몬 서비스 셸에 로그인
-          </h1>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
-            플레이 허브, 몰입형 플레이, 테이머 허브를 같은 계정 흐름으로 이어서 사용할 수 있도록 로그인 구조를 정리했습니다.
-          </p>
-
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[28px] bg-[#f7f4ed] p-5">
-              <h2 className="text-lg font-black text-slate-900">플레이 허브</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                새 디지몬 생성, 이어하기, 슬롯 정리를 한 화면에서 처리합니다.
-              </p>
-            </div>
-            <div className="rounded-[28px] bg-[#edf7f4] p-5">
-              <h2 className="text-lg font-black text-slate-900">테이머 허브</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                도감, 계정 설정, 최근 디지몬 흐름을 서비스처럼 탐색합니다.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[36px] border border-white/80 bg-white/92 p-8 shadow-[0_24px_48px_rgba(15,23,42,0.08)]">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-3xl items-center justify-center">
+        <section className="w-full rounded-[36px] border border-white/80 bg-white/92 p-8 shadow-[0_24px_48px_rgba(15,23,42,0.08)] sm:p-10">
           <h2 className="text-2xl font-black text-center text-slate-900">로그인 방법 선택</h2>
         
         {!isFirebaseAvailable ? (
