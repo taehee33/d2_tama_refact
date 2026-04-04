@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-04-04] 랜딩 모바일 헤더의 더보기를 홈 링크로 단순화
+
+### 작업 유형
+- 📱 랜딩 모바일 헤더 단순화
+- 🔗 로그인 상태별 홈 링크 분기 정리
+- 🧪 랜딩 헤더 회귀 테스트 갱신
+
+### 목적 및 영향
+- **목적:** 소개 페이지 모바일 헤더 가운데 `더보기`를 제거하고, 더 직접적인 `홈` 링크로 바꿔 랜딩 첫 화면의 구조를 단순화한다.
+- **범위:** `LandingTopBar`와 랜딩 헤더 스타일, 관련 테스트와 로그 문서만 조정한다.
+- **내용:**
+  - `src/components/landing/LandingTopBar.jsx`에서 모바일 오버플로우 메뉴 상태와 패널 렌더링을 제거했다.
+  - 가운데 pill은 모바일 전용 `홈` 링크로 교체하고, 로그인 시 `/`, 비로그인 시 `/auth`로 이동하도록 분기했다.
+  - `src/styles/landing.css`에서는 기존 모바일 메뉴 스타일을 제거하고, 같은 비율의 `홈` 링크 스타일로 정리했다.
+  - `src/components/landing/LandingShell.test.jsx`는 새 `홈` 링크 동작 기준으로 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/landing/LandingTopBar.jsx`
+- `digimon-tamagotchi-frontend/src/components/landing/LandingShell.test.jsx`
+- `digimon-tamagotchi-frontend/src/styles/landing.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand --watchAll=false src/components/layout/NavigationLinks.test.jsx src/components/landing/LandingShell.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 랜딩 모바일에서는 메뉴를 더 노출하는 것보다, 사용자가 다음 행동으로 바로 이동할 수 있는 단일 홈 링크가 더 단순한 흐름을 만든다.
+- 일반 서비스 헤더의 모바일 `더보기` 구조는 유지하고, 소개 페이지 모바일 헤더만 별도 단순화해 역할 차이를 분명히 했다.
+
 ## [2026-04-04] 일반 모바일 헤더 비율을 랜딩 헤더와 같은 구조 리듬으로 보정
 
 ### 작업 유형

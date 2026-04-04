@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import React from "react";
+import { Link, NavLink } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   getPrimaryHeaderNavItems,
-  getMobileLandingOverflowItems,
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
 
@@ -17,46 +16,9 @@ function getDisplayTamerName(currentUser) {
 
 export function LandingTopBar() {
   const { currentUser } = useAuth();
-  const location = useLocation();
   const displayTamerName = getDisplayTamerName(currentUser);
   const navItems = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
-  const mobileMenuItems = getMobileLandingOverflowItems({
-    includeTamer: Boolean(currentUser),
-  });
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const mobileMenuRef = useRef(null);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!isMobileMenuOpen) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event) => {
-      if (!mobileMenuRef.current?.contains(event.target)) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMobileMenuOpen]);
+  const mobileHomePath = currentUser ? "/" : "/auth";
 
   return (
     <header className="landing-topbar">
@@ -94,45 +56,13 @@ export function LandingTopBar() {
           </nav>
 
           <div className="landing-topbar__actions">
-            <div className="landing-topbar__mobile-menu" ref={mobileMenuRef}>
-              <button
-                type="button"
-                className={`landing-topbar__mobile-trigger${
-                  isMobileMenuOpen ? " landing-topbar__mobile-trigger--open" : ""
-                }`}
-                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-                aria-haspopup="menu"
-                aria-expanded={isMobileMenuOpen}
-                aria-label="랜딩 모바일 더보기 메뉴"
-              >
-                더보기
-              </button>
-
-              {isMobileMenuOpen ? (
-                <div
-                  className="landing-topbar__mobile-panel"
-                  role="menu"
-                  aria-label="랜딩 모바일 더보기"
-                >
-                  {mobileMenuItems.map((item) => (
-                    <NavLink
-                      key={item.key}
-                      to={item.to}
-                      end={item.end}
-                      className={({ isActive }) =>
-                        `landing-topbar__mobile-link${
-                          isActive ? " landing-topbar__mobile-link--active" : ""
-                        }`
-                      }
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      role="menuitem"
-                    >
-                      {item.label}
-                    </NavLink>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+            <Link
+              className="landing-topbar__mobile-home"
+              to={mobileHomePath}
+              aria-label="랜딩 모바일 홈"
+            >
+              홈
+            </Link>
 
             {currentUser ? (
               <Link className="landing-topbar__account" to="/me">

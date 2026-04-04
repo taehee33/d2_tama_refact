@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import LandingShell from "./LandingShell";
 
 const mockAuthState = {
@@ -25,10 +25,6 @@ jest.mock(
         </a>
       );
     },
-    useLocation: () => ({
-      pathname: "/landing",
-      search: "",
-    }),
   }),
   { virtual: true }
 );
@@ -80,24 +76,24 @@ describe("LandingShell", () => {
     expect(screen.getByRole("link", { name: "코로몬" })).toHaveAttribute("href", "/me");
   });
 
-  test("랜딩 모바일 더보기 메뉴에는 노트북 링크와 주요 이동이 보인다", () => {
+  test("랜딩 모바일 헤더 가운데 홈 링크는 비로그인 시 로그인으로 이동한다", () => {
     render(<LandingShell />);
 
-    fireEvent.click(screen.getByRole("button", { name: "랜딩 모바일 더보기 메뉴" }));
+    expect(screen.getByRole("link", { name: "랜딩 모바일 홈" })).toHaveAttribute(
+      "href",
+      "/auth"
+    );
+    expect(screen.queryByRole("button", { name: "랜딩 모바일 더보기 메뉴" })).not.toBeInTheDocument();
+  });
 
-    const menu = screen.getByRole("menu", { name: "랜딩 모바일 더보기" });
-    expect(within(menu).getByRole("menuitem", { name: "홈" })).toHaveAttribute(
+  test("랜딩 모바일 헤더 가운데 홈 링크는 로그인 시 홈으로 이동한다", () => {
+    mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
+
+    render(<LandingShell />);
+
+    expect(screen.getByRole("link", { name: "랜딩 모바일 홈" })).toHaveAttribute(
       "href",
       "/"
     );
-    expect(within(menu).getByRole("menuitem", { name: "플레이" })).toHaveAttribute(
-      "href",
-      "/play"
-    );
-    expect(within(menu).getByRole("menuitem", { name: "노트북" })).toHaveAttribute(
-      "href",
-      "/notebook"
-    );
-    expect(within(menu).queryByRole("menuitem", { name: "소개" })).not.toBeInTheDocument();
   });
 });
