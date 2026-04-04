@@ -129,7 +129,10 @@ function AppContent() {
             </Route>
           </Route>
 
-          <Route path="/landing" element={<LandingEntry />} />
+          <Route
+            path="/landing"
+            element={<LandingEntry tamerName={currentUser ? tamerName : ""} />}
+          />
           <Route path="/auth" element={<Login />} />
 
           <Route element={<RequireAuth />}>
@@ -156,8 +159,8 @@ export function RootEntry() {
   return <Home />;
 }
 
-export function LandingEntry() {
-  return <LandingShell />;
+export function LandingEntry({ tamerName = "" }) {
+  return <LandingShell tamerName={tamerName} />;
 }
 
 function LegacyGameRedirect() {

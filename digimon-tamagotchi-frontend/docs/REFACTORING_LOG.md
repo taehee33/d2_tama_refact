@@ -1,5 +1,32 @@
 # REFACTORING LOG
 
+## 2026-04-05
+
+### 소개 페이지 계정 드롭다운 잘림 수정
+- 소개 페이지 헤더의 계정 메뉴가 실제로는 열리지만, 헤더 surface의 `overflow: hidden` 때문에 아래로 잘리던 문제를 수정했습니다.
+- 랜딩 헤더 surface의 overflow를 열어 계정설정/로그아웃 드롭다운이 모바일에서도 정상적으로 보이게 정리했습니다.
+
+### 영향받은 파일
+- `src/styles/landing.css`
+
+### 소개 페이지 헤더의 닉네임/계정 메뉴를 일반 헤더와 공용화
+- 소개 페이지 헤더가 저장된 테이머 닉네임을 보지 않고 `displayName`만 쓰던 문제를 정리하고, `App -> LandingShell -> LandingTopBar`로 `tamerName`을 전달하도록 연결했습니다.
+- 일반 헤더와 소개 헤더가 같은 표시 이름 우선순위와 같은 계정 메뉴 동작을 쓰도록 `useHeaderAccountMenu` 공용 훅을 추가했습니다.
+- 이제 소개 페이지에서도 이름 pill을 누르면 일반 페이지와 동일하게 `계정설정 / 로그아웃` 메뉴가 열리고, `계정설정`은 `/me/settings`, `로그아웃`은 `/auth`로 이동합니다.
+
+### 영향받은 파일
+- `src/App.jsx`
+- `src/components/layout/TopNavigation.jsx`
+- `src/components/landing/LandingShell.jsx`
+- `src/components/landing/LandingTopBar.jsx`
+- `src/components/landing/LandingShell.test.jsx`
+- `src/hooks/useHeaderAccountMenu.js`
+- `src/styles/landing.css`
+
+### 아키텍처 결정 근거
+- 헤더 전체를 하나로 합치기보다, 페이지별 시각 구조는 유지하고 계정 관련 동작만 공용화하는 편이 리스크가 낮고 사용자 요구에도 정확히 맞습니다.
+- 표시 이름 계산과 계정 메뉴 액션을 한 훅으로 묶어 두면 소개/일반 헤더의 동작 차이가 다시 벌어질 가능성을 줄일 수 있습니다.
+
 ## 2026-04-04
 
 ### 케어미스 이력과 진화 카운터를 stage-local ledger로 동기화

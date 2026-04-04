@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   communityBoards,
   getCommunityBoardHref,
@@ -11,71 +10,38 @@ import {
   getMobileServiceOverflowItems,
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
+import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 import NotebookTopBar from "../home/NotebookTopBar";
 
-function getDisplayTamerName(currentUser, tamerName) {
-  return (
-    tamerName ||
-    currentUser?.displayName ||
-    currentUser?.email?.split("@")[0] ||
-    "익명의 테이머"
-  );
-}
-
 function TopNavigation({ tamerName = "" }) {
-  const { currentUser, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
+  const {
+    currentUser,
+    displayTamerName,
+    isAccountMenuOpen,
+    isLogoutLoading,
+    menuError,
+    accountMenuRef,
+    toggleAccountMenu,
+    closeAccountMenu,
+    handleSettingsClick,
+    handleLogoutClick,
+  } = useHeaderAccountMenu({ tamerName });
   const isNotebookRoute = location.pathname === "/notebook";
   const isCommunityRoute = location.pathname === "/community";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const homePath = currentUser ? "/" : "/landing";
   const links = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
   const mobileOverflowItems = getMobileServiceOverflowItems();
-  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isLogoutLoading, setIsLogoutLoading] = useState(false);
-  const [menuError, setMenuError] = useState("");
-  const accountMenuRef = useRef(null);
   const communityMenuRef = useRef(null);
   const mobileMenuRef = useRef(null);
-  const displayTamerName = getDisplayTamerName(currentUser, tamerName);
 
   useEffect(() => {
-    setIsAccountMenuOpen(false);
     setIsCommunityMenuOpen(false);
     setIsMobileMenuOpen(false);
-    setMenuError("");
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!isAccountMenuOpen) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event) => {
-      if (!accountMenuRef.current?.contains(event.target)) {
-        setIsAccountMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setIsAccountMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isAccountMenuOpen]);
 
   useEffect(() => {
     if (!isCommunityMenuOpen) {
@@ -134,15 +100,13 @@ function TopNavigation({ tamerName = "" }) {
   }, [isMobileMenuOpen]);
 
   const handleAccountMenuToggle = () => {
-    setMenuError("");
     setIsCommunityMenuOpen(false);
     setIsMobileMenuOpen(false);
-    setIsAccountMenuOpen((prev) => !prev);
+    toggleAccountMenu();
   };
 
   const handleCommunityMenuToggle = () => {
-    setMenuError("");
-    setIsAccountMenuOpen(false);
+    closeAccountMenu();
     setIsMobileMenuOpen(false);
     setIsCommunityMenuOpen((prev) => !prev);
   };
@@ -152,34 +116,13 @@ function TopNavigation({ tamerName = "" }) {
   };
 
   const handleMobileMenuToggle = () => {
-    setMenuError("");
-    setIsAccountMenuOpen(false);
+    closeAccountMenu();
     setIsCommunityMenuOpen(false);
     setIsMobileMenuOpen((prev) => !prev);
   };
 
   const handleCloseMobileMenu = () => {
     setIsMobileMenuOpen(false);
-  };
-
-  const handleSettingsClick = () => {
-    setIsAccountMenuOpen(false);
-    navigate("/me/settings");
-  };
-
-  const handleLogoutClick = async () => {
-    setIsLogoutLoading(true);
-    setMenuError("");
-
-    try {
-      await logout();
-      setIsAccountMenuOpen(false);
-      navigate("/auth");
-    } catch (error) {
-      setMenuError(error.message || "로그아웃 중 오류가 발생했습니다.");
-    } finally {
-      setIsLogoutLoading(false);
-    }
   };
 
   if (isNotebookRoute) {

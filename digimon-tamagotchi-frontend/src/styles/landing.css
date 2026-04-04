@@ -75,7 +75,7 @@
   backdrop-filter: blur(26px) saturate(140%);
   pointer-events: auto;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .landing-topbar__surface::before,
@@ -244,6 +244,7 @@
 .landing-topbar__account {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   min-height: 3.6rem;
   padding: 0 1.45rem;
@@ -254,11 +255,97 @@
   color: var(--landing-ivory);
   font-size: 0.95rem;
   font-weight: 800;
+  font-family: inherit;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
   box-shadow:
     0 10px 30px rgba(5, 14, 11, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.landing-topbar__account-wrap {
+  position: relative;
+}
+
+.landing-topbar__account--open {
+  box-shadow:
+    0 14px 32px rgba(5, 14, 11, 0.34),
+    0 0 24px rgba(135, 242, 154, 0.08),
+    inset 0 0 0 1px rgba(247, 242, 234, 0.12);
+}
+
+.landing-topbar__account-name {
+  max-width: 8.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.landing-topbar__account-caret {
+  font-size: 0.75rem;
+  opacity: 0.88;
+}
+
+.landing-topbar__menu {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 6;
+  display: grid;
+  gap: 0.3rem;
+  min-width: 11rem;
+  padding: 0.45rem;
+  border: 1px solid rgba(135, 242, 154, 0.14);
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(180deg, rgba(18, 24, 31, 0.96), rgba(11, 16, 22, 0.98));
+  box-shadow:
+    0 22px 42px rgba(3, 10, 17, 0.42),
+    0 0 20px rgba(93, 183, 255, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.landing-topbar__menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  border-radius: 0.95rem;
+  background: transparent;
+  color: rgba(247, 242, 234, 0.92);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.landing-topbar__menu-item:hover,
+.landing-topbar__menu-item:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  outline: none;
+}
+
+.landing-topbar__menu-item:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.landing-topbar__menu-item--danger {
+  color: #ffd39a;
+}
+
+.landing-topbar__menu-error {
+  margin: 0;
+  padding: 0.2rem 0.2rem 0;
+  color: #ffb4b4;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .landing-section {
@@ -1347,6 +1434,10 @@
     padding: 0 1.15rem;
   }
 
+  .landing-topbar__account-name {
+    max-width: 5.6rem;
+  }
+
   .landing-hero-section {
     padding-top: 98px;
   }
@@ -1392,6 +1483,10 @@
     min-height: 3rem;
     padding: 0 1rem;
     font-size: 0.9rem;
+  }
+
+  .landing-topbar__account-name {
+    max-width: 4.8rem;
   }
 
   .landing-topbar__mobile-home {

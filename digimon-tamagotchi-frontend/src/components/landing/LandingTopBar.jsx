@@ -1,22 +1,23 @@
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
-import { useAuth } from "../../contexts/AuthContext";
 import {
   getPrimaryHeaderNavItems,
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
+import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 
-function getDisplayTamerName(currentUser) {
-  return (
-    currentUser?.displayName ||
-    currentUser?.email?.split("@")[0] ||
-    "익명의 테이머"
-  );
-}
-
-export function LandingTopBar() {
-  const { currentUser } = useAuth();
-  const displayTamerName = getDisplayTamerName(currentUser);
+export function LandingTopBar({ tamerName = "" }) {
+  const {
+    currentUser,
+    displayTamerName,
+    isAccountMenuOpen,
+    isLogoutLoading,
+    menuError,
+    accountMenuRef,
+    toggleAccountMenu,
+    handleSettingsClick,
+    handleLogoutClick,
+  } = useHeaderAccountMenu({ tamerName });
   const navItems = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
   const mobileHomePath = currentUser ? "/" : "/auth";
 
@@ -65,10 +66,50 @@ export function LandingTopBar() {
             </Link>
 
             {currentUser ? (
-              <Link className="landing-topbar__account" to="/me">
-                <span>{displayTamerName}</span>
-                <span aria-hidden="true">▾</span>
-              </Link>
+              <div className="landing-topbar__account-wrap" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  className={`landing-topbar__account${
+                    isAccountMenuOpen ? " landing-topbar__account--open" : ""
+                  }`}
+                  onClick={toggleAccountMenu}
+                  aria-haspopup="menu"
+                  aria-expanded={isAccountMenuOpen}
+                  aria-label={`${displayTamerName} 계정 메뉴`}
+                >
+                  <span className="landing-topbar__account-name">{displayTamerName}</span>
+                  <span className="landing-topbar__account-caret" aria-hidden="true">
+                    {isAccountMenuOpen ? "▴" : "▾"}
+                  </span>
+                </button>
+
+                {isAccountMenuOpen ? (
+                  <div className="landing-topbar__menu" role="menu" aria-label="계정 메뉴">
+                    <button
+                      type="button"
+                      className="landing-topbar__menu-item"
+                      onClick={handleSettingsClick}
+                      role="menuitem"
+                    >
+                      계정설정
+                    </button>
+                    <button
+                      type="button"
+                      className="landing-topbar__menu-item landing-topbar__menu-item--danger"
+                      onClick={handleLogoutClick}
+                      disabled={isLogoutLoading}
+                      role="menuitem"
+                    >
+                      {isLogoutLoading ? "🚪 로그아웃 중..." : "🚪 로그아웃"}
+                    </button>
+                    {menuError ? (
+                      <p className="landing-topbar__menu-error" role="alert">
+                        {menuError}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <Link className="landing-topbar__account" to="/auth">
                 로그인
