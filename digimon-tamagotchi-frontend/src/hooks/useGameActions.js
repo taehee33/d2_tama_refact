@@ -7,6 +7,7 @@ import { feedProtein, willRefuseProtein } from "../logic/food/protein";
 import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
 import { calculateInjuryChance } from "../logic/battle/calculator";
 import { doc, updateDoc, collection, serverTimestamp, increment, setDoc } from "firebase/firestore";
+import { clearPoopOverflowState } from "../data/stats";
 import { db } from "../firebase";
 import { archiveArenaBattleLog, createLogArchiveId } from "../utils/logArchiveApi";
 import {
@@ -642,15 +643,7 @@ export function useGameActions({
       setDigimonStats((prevStats) => {
         const oldPoopCount = prevStats.poopCount || 0;
         
-        const updatedStats = {
-          ...prevStats,
-          poopCount: 0,
-          poopReachedMaxAt: null,
-          lastPoopPenaltyAt: null,
-          // 똥 청소 시 부상 상태는 해제하지 않음 (치료제로만 회복 가능)
-          // isInjured는 그대로 유지
-          lastSavedAt: now
-        };
+        const updatedStats = clearPoopOverflowState(prevStats, now);
         
         // Activity Log 추가
         let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;

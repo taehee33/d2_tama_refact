@@ -1,4 +1,4 @@
-import { applyLazyUpdate } from "./stats";
+import { applyLazyUpdate, clearActiveInjuryState, clearPoopOverflowState } from "./stats";
 
 const NOW_ISO = "2026-03-31T12:00:00.000Z";
 
@@ -292,6 +292,27 @@ describe("applyLazyUpdate", () => {
     expect(result.strengthMistakeDeadline).toBeNull();
   });
 
+  test("회복된 배고픔/힘은 기존 zeroAt를 정리하고 다시 0이 되면 새 시각으로 기록한다", () => {
+    const oldZeroAt = Date.parse("2026-03-31T09:00:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 1,
+        hungerCountdown: 30,
+        lastHungerZeroAt: oldZeroAt,
+        strength: 1,
+        strengthCountdown: 30,
+        lastStrengthZeroAt: oldZeroAt,
+      }),
+      Date.parse("2026-03-31T11:59:00.000Z")
+    );
+
+    expect(result.fullness).toBe(0);
+    expect(result.strength).toBe(0);
+    expect(result.lastHungerZeroAt).toBe(Date.parse("2026-03-31T11:59:30.000Z"));
+    expect(result.lastStrengthZeroAt).toBe(Date.parse("2026-03-31T11:59:30.000Z"));
+  });
+
   test("poopCount가 7에서 8이 되면 즉시 부상과 새 시간 필드를 설정하고 케어미스는 올리지 않는다", () => {
     const result = applyLazyUpdate(
       createBaseStats({
@@ -366,6 +387,45 @@ describe("applyLazyUpdate", () => {
     expect(result.poopReachedMaxAt).toBe(legacyTime);
     expect(result.lastPoopPenaltyAt).toBe(legacyTime);
     expect(result.lastMaxPoopTime).toBeUndefined();
+  });
+
+  test("poop 청소는 poop 관련 시간 필드만 정리하고 부상 상태는 유지한다", () => {
+    const cleanedAt = new Date(NOW_ISO);
+    const result = clearPoopOverflowState(
+      createBaseStats({
+        poopCount: 8,
+        poopReachedMaxAt: Date.parse("2026-03-31T10:00:00.000Z"),
+        lastPoopPenaltyAt: Date.parse("2026-03-31T11:00:00.000Z"),
+        isInjured: true,
+        injuries: 3,
+      }),
+      cleanedAt
+    );
+
+    expect(result.poopCount).toBe(0);
+    expect(result.poopReachedMaxAt).toBeNull();
+    expect(result.lastPoopPenaltyAt).toBeNull();
+    expect(result.isInjured).toBe(true);
+    expect(result.injuries).toBe(3);
+    expect(result.lastSavedAt).toBe(cleanedAt);
+  });
+
+  test("치료는 active injury만 정리하고 누적 injuries는 유지한다", () => {
+    const result = clearActiveInjuryState(
+      createBaseStats({
+        isInjured: true,
+        injuredAt: Date.parse("2026-03-31T11:00:00.000Z"),
+        injuries: 4,
+        healedDosesCurrent: 1,
+        injuryReason: "poop",
+      })
+    );
+
+    expect(result.isInjured).toBe(false);
+    expect(result.injuredAt).toBeNull();
+    expect(result.healedDosesCurrent).toBe(0);
+    expect(result.injuryReason).toBeNull();
+    expect(result.injuries).toBe(4);
   });
 
   test("배고픔 0이 12시간 이상 지속되면 굶주림 사망 처리한다", () => {

@@ -2,6 +2,7 @@
 import { defaultStats } from "./defaultStatsFile";
 import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
 import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
+import { evaluateDeathConditions } from "../logic/stats/death";
 
 function migrateLegacyPoopTimers(target, fallbackTime = null) {
   if ((target.poopCount || 0) < 8) {
@@ -29,6 +30,26 @@ function applyPoopInjury(target, timestampMs, count = 1) {
   target.injuries = (target.injuries || 0) + count;
   target.healedDosesCurrent = 0;
   target.injuryReason = "poop";
+}
+
+export function clearPoopOverflowState(stats, lastSavedAt = new Date()) {
+  return {
+    ...stats,
+    poopCount: 0,
+    poopReachedMaxAt: null,
+    lastPoopPenaltyAt: null,
+    lastSavedAt,
+  };
+}
+
+export function clearActiveInjuryState(stats) {
+  return {
+    ...stats,
+    isInjured: false,
+    injuredAt: null,
+    healedDosesCurrent: 0,
+    injuryReason: null,
+  };
 }
 
 export function initializeStats(digiName, oldStats={}, dataMap={}){
@@ -193,14 +214,11 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   // 배고픔/힘 감소 로직은 handleHungerTick, handleStrengthTick으로 이동
   // 이 함수는 lifespanSeconds, timeToEvolveSeconds, poop만 처리
 
-  // hunger=0 => 12h->사망 (이 로직은 handleHungerTick에서 처리하지만, 여기서도 체크)
-  if(s.fullness>0){
-    s.lastHungerZeroAt= null;
-  } else if(s.fullness===0 && s.lastHungerZeroAt){
-    const elapsed= (Date.now()- s.lastHungerZeroAt)/1000;
-    if(elapsed>=43200){
-      s.isDead= true;
-    }
+  if (s.fullness > 0) {
+    s.lastHungerZeroAt = null;
+  }
+  if (s.strength > 0) {
+    s.lastStrengthZeroAt = null;
   }
 
   // ★ (3) poop 로직 (수면 중에는 타이머 감소하지 않음)
@@ -247,6 +265,14 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   if ((s.poopCount || 0) < 8) {
     s.poopReachedMaxAt = null;
     s.lastPoopPenaltyAt = null;
+  }
+
+  const deathEvaluation = evaluateDeathConditions(s, Date.now());
+  if (deathEvaluation.isDead) {
+    s.isDead = true;
+    if (deathEvaluation.reason) {
+      s.deathReason = deathEvaluation.reason;
+    }
   }
 
   return s;
@@ -490,6 +516,10 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.hungerTimer > 0) {
+    if (updatedStats.fullness > 0) {
+      updatedStats.lastHungerZeroAt = null;
+    }
+
     // 수면 시간을 제외한 실제 활동 시간만큼만 hungerCountdown 감소
     let activeSeconds = elapsedSeconds;
     if (sleepSchedule) {
@@ -518,6 +548,10 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.strengthTimer > 0) {
+    if (updatedStats.strength > 0) {
+      updatedStats.lastStrengthZeroAt = null;
+    }
+
     // 수면 시간을 제외한 실제 활동 시간만큼만 strengthCountdown 감소
     let activeSeconds = elapsedSeconds;
     if (sleepSchedule) {
@@ -635,63 +669,13 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
     }
   }
 
-  // 사망 체크는 isDead가 false일 때만 실행
+  // 사망 체크는 공통 evaluator를 기준으로 단일화
   if (!updatedStats.isDead) {
-    // 배고픔이 0이고 12시간(43200초) 경과 시 사망
-    if (updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt) {
-      const hungerZeroTime = typeof updatedStats.lastHungerZeroAt === 'number'
-        ? updatedStats.lastHungerZeroAt
-        : new Date(updatedStats.lastHungerZeroAt).getTime();
-      const elapsedSinceZero = (now.getTime() - hungerZeroTime) / 1000;
-      
-      if (elapsedSinceZero >= 43200) {
-        console.log("[applyLazyUpdate] 굶주림 사망 체크:", { elapsedSinceZero, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
-        updatedStats.isDead = true;
-        updatedStats.deathReason = 'STARVATION (굶주림)'; // 사망 원인 저장
-      }
-    } else if (updatedStats.fullness > 0) {
-      // 배고픔이 다시 채워지면 리셋
-      updatedStats.lastHungerZeroAt = null;
-    }
-
-    // 힘이 0이고 12시간(43200초) 경과 시 사망
-    if (updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt) {
-      const strengthZeroTime = typeof updatedStats.lastStrengthZeroAt === 'number'
-        ? updatedStats.lastStrengthZeroAt
-        : new Date(updatedStats.lastStrengthZeroAt).getTime();
-      const elapsedSinceZero = (now.getTime() - strengthZeroTime) / 1000;
-      
-      if (elapsedSinceZero >= 43200) {
-        console.log("[applyLazyUpdate] 힘 소진 사망 체크:", { elapsedSinceZero, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
-        updatedStats.isDead = true;
-        updatedStats.deathReason = 'EXHAUSTION (힘 소진)'; // 사망 원인 저장
-      }
-    } else if (updatedStats.strength > 0) {
-      // 힘이 다시 채워지면 리셋
-      updatedStats.lastStrengthZeroAt = null;
-    }
-
-    // 부상 과다 사망 체크: injuries >= 15
-    if ((updatedStats.injuries || 0) >= 15) {
-      console.log("[applyLazyUpdate] 부상 과다 사망 체크:", { injuries: updatedStats.injuries });
+    const deathEvaluation = evaluateDeathConditions(updatedStats, now.getTime());
+    if (deathEvaluation.isDead) {
       updatedStats.isDead = true;
-      updatedStats.deathReason = 'INJURY OVERLOAD (부상 과다: 15회)'; // 사망 원인 저장
-    }
-
-    // 부상 방치 사망 체크: isInjured 상태이고 6시간(21600000ms) 경과
-    if (updatedStats.isInjured && updatedStats.injuredAt) {
-      const injuredTime = ensureTimestamp(updatedStats.injuredAt);
-      const elapsedSinceInjury = getElapsedTimeExcludingFridge(
-        injuredTime,
-        now.getTime(),
-        updatedStats.frozenAt,
-        updatedStats.takeOutAt
-      );
-      
-      if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
-        console.log("[applyLazyUpdate] 부상 방치 사망 체크:", { elapsedSinceInjury });
-        updatedStats.isDead = true;
-        updatedStats.deathReason = 'INJURY NEGLECT (부상 방치: 6시간)'; // 사망 원인 저장
+      if (deathEvaluation.reason) {
+        updatedStats.deathReason = deathEvaluation.reason;
       }
     }
   }

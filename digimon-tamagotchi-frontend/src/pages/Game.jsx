@@ -48,8 +48,8 @@ import { quests } from "../data/v1/quests";
 import { checkEvolution } from "../logic/evolution/checker";
 import { handleHungerTick } from "../logic/stats/hunger";
 import { handleStrengthTick } from "../logic/stats/strength";
+import { evaluateDeathConditions } from "../logic/stats/death";
 import { getMasterDataSnapshotForSync } from "../utils/masterDataUtils";
-import { getElapsedTimeExcludingFridge } from "../utils/fridgeTime";
 
 const DEFAULT_SEASON_ID = 1;
 
@@ -671,52 +671,14 @@ function Game({ immersive = false }){
         } else if (!sleepingNow && currentAnimation === "sleep" && !updatedStats.isInjured && !updatedStats.isDead) {
           setCurrentAnimation("idle");
         }
-        // 배고픔/힘이 0이고 12시간 경과 시 사망 체크
-        // ⚠️ 새로운 시작 직후에는 사망 체크를 하지 않음 (lastHungerZeroAt이 null이어야 함)
-        if(updatedStats.fullness === 0 && updatedStats.lastHungerZeroAt && !updatedStats.isDead){
-          const elapsed = (Date.now() - updatedStats.lastHungerZeroAt) / 1000;
-          if(elapsed >= 43200){ // 12시간 = 43200초
-            console.log("[타이머] 굶주림 사망 체크:", { elapsed, lastHungerZeroAt: updatedStats.lastHungerZeroAt });
+        if (!updatedStats.isDead) {
+          const deathEvaluation = evaluateDeathConditions(updatedStats, Date.now());
+          if (deathEvaluation.isDead) {
             updatedStats.isDead = true;
-            const reason = 'STARVATION (굶주림)';
-            updatedStats.deathReason = reason; // digimonStats에 저장
-            setDeathReason(reason);
-          }
-        }
-        if(updatedStats.strength === 0 && updatedStats.lastStrengthZeroAt && !updatedStats.isDead){
-          const elapsed = (Date.now() - updatedStats.lastStrengthZeroAt) / 1000;
-          if(elapsed >= 43200){
-            console.log("[타이머] 힘 소진 사망 체크:", { elapsed, lastStrengthZeroAt: updatedStats.lastStrengthZeroAt });
-            updatedStats.isDead = true;
-            const reason = 'EXHAUSTION (힘 소진)';
-            updatedStats.deathReason = reason; // digimonStats에 저장
-            setDeathReason(reason);
-          }
-        }
-        // 부상 과다 사망 체크: injuries >= 15
-        if((updatedStats.injuries || 0) >= 15 && !updatedStats.isDead){
-          updatedStats.isDead = true;
-          const reason = 'INJURY OVERLOAD (부상 과다: 15회)';
-          updatedStats.deathReason = reason; // digimonStats에 저장
-          setDeathReason(reason);
-        }
-        // 부상 방치 사망 체크: isInjured 상태이고 6시간 경과
-        if(updatedStats.isInjured && updatedStats.injuredAt && !updatedStats.isDead){
-          const injuredTime = typeof updatedStats.injuredAt === 'number'
-            ? updatedStats.injuredAt
-            : new Date(updatedStats.injuredAt).getTime();
-          // 냉장고 시간을 제외한 경과 시간 계산
-          const elapsedSinceInjury = getElapsedTimeExcludingFridge(
-            injuredTime,
-            Date.now(),
-            updatedStats.frozenAt,
-            updatedStats.takeOutAt
-          );
-          if(elapsedSinceInjury >= 21600000){ // 6시간 = 21600000ms
-            updatedStats.isDead = true;
-            const reason = 'INJURY NEGLECT (부상 방치: 6시간)';
-            updatedStats.deathReason = reason; // digimonStats에 저장
-            setDeathReason(reason);
+            if (deathEvaluation.reason) {
+              updatedStats.deathReason = deathEvaluation.reason;
+              setDeathReason(deathEvaluation.reason);
+            }
           }
         }
         // 수명 종료 체크 제거됨 - 수명으로 인한 사망 없음

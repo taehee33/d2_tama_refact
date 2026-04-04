@@ -4,7 +4,7 @@
 import { initializeStats } from "../data/stats";
 import { updateEncyclopedia } from "./useEncyclopedia";
 import { addActivityLog } from "./useGameLogic";
-import { getElapsedTimeExcludingFridge } from "../utils/fridgeTime";
+import { evaluateDeathConditions } from "../logic/stats/death";
 
 /**
  * useDeath Hook
@@ -87,75 +87,7 @@ export function useDeath({
    * @returns {Object} 사망 여부 및 사유
    */
   function checkDeathCondition(stats) {
-    // 냉장고 상태에서는 사망하지 않음
-    if (stats.isFrozen) {
-      return { isDead: false, reason: null };
-    }
-    
-    // 배고픔/힘이 0이고 12시간 경과 시 사망
-    if (stats.fullness === 0 && stats.lastHungerZeroAt) {
-      const hungerZeroTime = typeof stats.lastHungerZeroAt === 'number'
-        ? stats.lastHungerZeroAt
-        : new Date(stats.lastHungerZeroAt).getTime();
-      // 냉장고 시간을 제외한 경과 시간 계산
-      const elapsedMs = getElapsedTimeExcludingFridge(
-        hungerZeroTime,
-        Date.now(),
-        stats.frozenAt,
-        stats.takeOutAt
-      );
-      const elapsed = elapsedMs / 1000;
-      if (elapsed >= 43200) { // 12시간 = 43200초
-        return { isDead: true, reason: 'STARVATION (굶주림)' };
-      }
-    }
-    if (stats.strength === 0 && stats.lastStrengthZeroAt) {
-      const strengthZeroTime = typeof stats.lastStrengthZeroAt === 'number'
-        ? stats.lastStrengthZeroAt
-        : new Date(stats.lastStrengthZeroAt).getTime();
-      // 냉장고 시간을 제외한 경과 시간 계산
-      const elapsedMs = getElapsedTimeExcludingFridge(
-        strengthZeroTime,
-        Date.now(),
-        stats.frozenAt,
-        stats.takeOutAt
-      );
-      const elapsed = elapsedMs / 1000;
-      if (elapsed >= 43200) {
-        return { isDead: true, reason: 'EXHAUSTION (힘 소진)' };
-      }
-    }
-    
-    // 부상 과다 사망 체크: injuries >= 15
-    if ((stats.injuries || 0) >= 15) {
-      return { isDead: true, reason: 'INJURY OVERLOAD (부상 과다: 15회)' };
-    }
-    
-    // 부상 방치 사망 체크: 6시간 이상 치료하지 않음
-    if (stats.isInjured && stats.injuredAt) {
-      const injuredTime = typeof stats.injuredAt === 'number'
-        ? stats.injuredAt
-        : new Date(stats.injuredAt).getTime();
-      // 냉장고 시간을 제외한 경과 시간 계산
-      const elapsedSinceInjury = getElapsedTimeExcludingFridge(
-        injuredTime,
-        Date.now(),
-        stats.frozenAt,
-        stats.takeOutAt
-      );
-      if (elapsedSinceInjury >= 21600000) { // 6시간 = 21600000ms
-        return { isDead: true, reason: 'INJURY NEGLECT (부상 방치: 6시간)' };
-      }
-    }
-    
-    // 수명으로 인한 사망 제거됨
-    // 이미 isDead가 true인 경우 다른 사망 원인을 찾지 못했을 때 fallback
-    if (stats.isDead) {
-      // 다른 사망 원인을 찾지 못한 경우, reason은 null로 반환
-      return { isDead: true, reason: null };
-    }
-    
-    return { isDead: false, reason: null };
+    return evaluateDeathConditions(stats, Date.now());
   }
 
   return {
@@ -163,4 +95,3 @@ export function useDeath({
     checkDeathCondition,
   };
 }
-

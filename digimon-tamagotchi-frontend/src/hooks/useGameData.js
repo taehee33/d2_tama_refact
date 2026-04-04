@@ -11,7 +11,7 @@ import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
-import { getElapsedTimeExcludingFridge } from "../utils/fridgeTime";
+import { evaluateDeathConditions } from "../logic/stats/death";
 
 /**
  * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
@@ -399,35 +399,8 @@ export function useGameData({
    */
   function checkDeathStatus(updated) {
     if (!digimonStats.isDead && updated.isDead) {
-      let reason = null;
-      if (updated.fullness === 0 && updated.lastHungerZeroAt) {
-        const elapsed = (Date.now() - updated.lastHungerZeroAt) / 1000;
-        if (elapsed >= 43200) {
-          reason = 'STARVATION (굶주림)';
-        }
-      } else if (updated.strength === 0 && updated.lastStrengthZeroAt) {
-        const elapsed = (Date.now() - updated.lastStrengthZeroAt) / 1000;
-        if (elapsed >= 43200) {
-          reason = 'EXHAUSTION (힘 소진)';
-        }
-      } else if ((updated.injuries || 0) >= 15) {
-        reason = 'INJURY OVERLOAD (부상 과다: 15회)';
-      } else if (updated.isInjured && updated.injuredAt) {
-        const injuredTime = typeof updated.injuredAt === 'number'
-          ? updated.injuredAt
-          : new Date(updated.injuredAt).getTime();
-        // 냉장고 시간을 제외한 경과 시간 계산
-        const elapsedSinceInjury = getElapsedTimeExcludingFridge(
-          injuredTime,
-          Date.now(),
-          updated.frozenAt,
-          updated.takeOutAt
-        );
-        if (elapsedSinceInjury >= 21600000) {
-          reason = 'INJURY NEGLECT (부상 방치: 6시간)';
-        }
-      }
-      // 수명으로 인한 사망 제거됨
+      const deathEvaluation = evaluateDeathConditions(updated, Date.now());
+      const reason = updated.deathReason ?? deathEvaluation.reason;
       
       if (reason) {
         updated.deathReason = reason; // digimonStats에 저장

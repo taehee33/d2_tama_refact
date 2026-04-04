@@ -6,6 +6,7 @@ import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule, isWithinSleepSchedule } from "./useGameHandlers";
 import { wakeForInteraction } from "./useGameActions";
+import { clearActiveInjuryState } from "../data/stats";
 
 /**
  * useGameAnimations Hook
@@ -266,10 +267,7 @@ export function useGameAnimations({
     
     // 필요 치료 횟수 충족 시 완전 회복
     if (newHealedDoses >= requiredDoses) {
-      updatedStats.isInjured = false;
-      updatedStats.injuredAt = null;
-      updatedStats.healedDosesCurrent = 0;
-      updatedStats.injuryReason = null; // 부상 원인 리셋
+      updatedStats = clearActiveInjuryState(updatedStats);
       const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
       if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
