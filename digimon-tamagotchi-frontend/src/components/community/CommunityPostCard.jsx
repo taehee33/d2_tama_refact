@@ -35,7 +35,10 @@ function CommunityPostCard({
         </span>
 
         <div className="community-post-card__topbar-right">
-          <div className="community-post-card__meta-block">
+          <div
+            className="community-post-card__meta-block"
+            aria-label="게시글 작성 정보"
+          >
             <span className="community-post-card__meta-item">
               작성자 : {post.authorTamerName}
             </span>

@@ -269,6 +269,7 @@ describe("Community", () => {
     expect(within(postCard).getByText("유년기 II · Ver.2")).toBeInTheDocument();
     expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
     expect(within(postCard).getByText(/작성자 : 히히히/)).toBeInTheDocument();
+    expect(within(postCard).getByLabelText("게시글 작성 정보")).toBeInTheDocument();
   });
 
   it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
@@ -436,6 +437,7 @@ describe("Community", () => {
     expect(within(postCard).getByRole("button", { name: "삭제" })).toBeInTheDocument();
     expect(within(postCard).getByText(/작성자 : 한솔/)).toBeInTheDocument();
     expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
+    expect(within(postCard).getByLabelText("게시글 작성 정보")).toBeInTheDocument();
     expect(within(postCard).getByText("코로몬")).toBeInTheDocument();
     expect(within(postCard).getByText("성장기 · Ver.1")).toBeInTheDocument();
     expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
