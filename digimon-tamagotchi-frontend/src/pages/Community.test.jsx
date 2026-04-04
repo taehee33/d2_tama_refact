@@ -91,6 +91,7 @@ describe("Community", () => {
     expect(screen.getByText("승률 70%면 루틴이 꽤 안정적이네요.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 자랑하기" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "자랑하기" })).not.toBeInTheDocument();
+    expect(screen.queryByText("샘플 피드")).not.toBeInTheDocument();
   });
 
   it("게시판 탭을 전환하면 자유게시판, 버그제보/QnA, 디스코드 패널을 각각 보여 준다", () => {
@@ -167,15 +168,29 @@ describe("Community", () => {
 
     expect(hero).not.toBeNull();
     expect(toolbarAside).not.toBeNull();
+    expect(within(hero).getByText("커뮤니티 > 자랑게시판")).toBeInTheDocument();
     expect(within(hero).queryByText("대표 장면 자동 생성")).not.toBeInTheDocument();
     expect(within(hero).queryByText("댓글 중심 상세 보기")).not.toBeInTheDocument();
     expect(within(hero).queryByText("실제 피드 0개")).not.toBeInTheDocument();
+    expect(screen.queryByText("실제 피드")).not.toBeInTheDocument();
     expect(
       within(hero).queryByRole("link", { name: "로그인하고 자랑하기" })
     ).not.toBeInTheDocument();
     expect(
       within(toolbarAside).getByRole("link", { name: "로그인하고 자랑하기" })
     ).toBeInTheDocument();
+  });
+
+  it("선택한 게시판에 따라 상단 breadcrumb 라벨이 함께 바뀐다", () => {
+    render(<Community />);
+
+    expect(screen.getByText("커뮤니티 > 자랑게시판")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /자유게시판/i }));
+    expect(screen.getByText("커뮤니티 > 자유게시판")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
+    expect(screen.getByText("커뮤니티 > 버그제보 / QnA")).toBeInTheDocument();
   });
 
   it("자랑게시판 목록 카드는 제목, 내용, 댓글과 오른쪽 썸네일 정보를 분리해 보여 준다", async () => {

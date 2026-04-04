@@ -574,9 +574,6 @@ function Community() {
       <div className="community-feed-shell">
         <div className="community-feed-toolbar">
           <div>
-            <p className="service-section-label">
-              {currentUser ? "실제 피드" : "샘플 피드"}
-            </p>
             <h2>대표 장면과 성장 로그를 한눈에 보기</h2>
             <p className="service-muted">
               {currentUser
@@ -941,7 +938,9 @@ function Community() {
       <header className="community-hero">
         <div className="community-hero__content">
           <div className="community-hero__eyebrow">
-            <p className="service-section-label">커뮤니티</p>
+            <p className="service-section-label">
+              커뮤니티 &gt; {activeBoardMeta?.title || activeBoardCopy.title}
+            </p>
             {activeBoardMeta ? (
               <span className="community-hero__status">{activeBoardMeta.status}</span>
             ) : null}
