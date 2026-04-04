@@ -722,15 +722,17 @@ function Game({ immersive = false }){
         let nextLedger = initializeCareMistakeLedger(updatedStats.careMistakeLedger);
         const previousLedgerIds = new Set(previousLedger.map((entry) => entry.id));
         const duplicateEventIds = [];
-        const newCareMistakeEntries = nextLedger.filter((entry) => !previousLedgerIds.has(entry.id)).filter((entry) => {
-          if (!entry?.id) return false;
-          if (lastAddedCareMistakeKeysRef.current.has(entry.id)) {
-            duplicateEventIds.push(entry.id);
-            return false;
-          }
-          lastAddedCareMistakeKeysRef.current.add(entry.id);
-          return true;
-        });
+        const newCareMistakeEntries = nextLedger
+          .filter((entry) => !previousLedgerIds.has(entry.id))
+          .filter((entry) => {
+            if (!entry?.id) return false;
+            if (lastAddedCareMistakeKeysRef.current.has(entry.id)) {
+              duplicateEventIds.push(entry.id);
+              return false;
+            }
+            lastAddedCareMistakeKeysRef.current.add(entry.id);
+            return true;
+          });
         if (duplicateEventIds.length > 0) {
           nextLedger = nextLedger.filter((entry) => !duplicateEventIds.includes(entry.id));
           updatedStats = {

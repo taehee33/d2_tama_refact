@@ -548,10 +548,10 @@ export function useGameData({
             }
             
             const prevLogCount = (savedStats.activityLogs || []).length;
-          savedStats = repairCareMistakeLedger(
-            applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy),
-            savedStats.activityLogs || []
-          ).nextStats;
+            savedStats = repairCareMistakeLedger(
+              applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy),
+              savedStats.activityLogs || []
+            ).nextStats;
             // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
             const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
             newLogs.forEach((log) => {
