@@ -152,7 +152,7 @@ describe("Community", () => {
     expect(tablist.compareDocumentPosition(heroHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("게시판 선택 UI는 칩형 탭으로 제목만 보여 주고 CTA는 툴바로 이동한다", () => {
+  it("게시판 선택 UI는 칩형 탭으로 제목만 보여 주고 헤더 보조 칩은 숨긴다", () => {
     const { container } = render(<Community />);
 
     const tablist = screen.getByRole("tablist", { name: "커뮤니티 보드" });
@@ -167,6 +167,9 @@ describe("Community", () => {
 
     expect(hero).not.toBeNull();
     expect(toolbarAside).not.toBeNull();
+    expect(within(hero).queryByText("대표 장면 자동 생성")).not.toBeInTheDocument();
+    expect(within(hero).queryByText("댓글 중심 상세 보기")).not.toBeInTheDocument();
+    expect(within(hero).queryByText("실제 피드 0개")).not.toBeInTheDocument();
     expect(
       within(hero).queryByRole("link", { name: "로그인하고 자랑하기" })
     ).not.toBeInTheDocument();

@@ -125,33 +125,18 @@ function Community() {
           title: "자유게시판",
           description:
             "플레이 근황, 공략 메모, 짧은 질문을 편하게 나누는 대화형 보드입니다.",
-          chips: [
-            "플레이 잡담 환영",
-            "짧은 질문 중심",
-            `추천 주제 ${communityFreeBoardTopics.length}개`,
-          ],
         };
       case "support":
         return {
           title: "버그제보 / QnA",
           description:
             "버그 제보 체크리스트와 FAQ를 한 화면에 모아 빠르게 확인하는 지원 보드입니다.",
-          chips: [
-            `FAQ ${supportFaqs.length}개`,
-            `체크리스트 ${supportChecklist.length}개`,
-            "지원 흐름 정리",
-          ],
         };
       case "discord":
         return {
           title: "디스코드 커뮤니티",
           description:
             "실시간 질문, 스냅샷 공유, 채널 입장 링크를 함께 안내하는 커뮤니티 입구입니다.",
-          chips: [
-            "실시간 대화",
-            `권장 채널 ${communityDiscordChannels.length}개`,
-            "초대 링크 제공",
-          ],
         };
       case "showcase":
       default:
@@ -159,16 +144,9 @@ function Community() {
           title: "내 디지몬 자랑 피드",
           description:
             "대표 장면과 성장 로그를 바로 둘러보고, 현재 슬롯 상태로 스냅샷 글을 남기는 메인 피드입니다.",
-          chips: [
-            "대표 장면 자동 생성",
-            "댓글 중심 상세 보기",
-            currentUser
-              ? `실제 피드 ${posts.length}개`
-              : `샘플 피드 ${communityShowcaseSamples.length}개`,
-          ],
         };
     }
-  }, [activeBoardId, currentUser, posts.length]);
+  }, [activeBoardId]);
 
   const activeBoardMeta = useMemo(
     () =>
@@ -970,13 +948,6 @@ function Community() {
           </div>
           <h1>{activeBoardCopy.title}</h1>
           <p className="community-hero__description">{activeBoardCopy.description}</p>
-          <div className="community-hero__chips">
-            {activeBoardCopy.chips.map((chip) => (
-              <span key={chip} className="community-hero__chip">
-                {chip}
-              </span>
-            ))}
-          </div>
         </div>
       </header>
 
