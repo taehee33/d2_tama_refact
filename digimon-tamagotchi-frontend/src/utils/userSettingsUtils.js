@@ -87,7 +87,7 @@ export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationE
   if (siteTheme !== undefined) {
     const normalizedTheme = normalizeSiteTheme(siteTheme);
     if (!normalizedTheme) {
-      throw new Error("사이트 테마는 기본 또는 노트북만 선택할 수 있습니다.");
+      throw new Error("사이트 테마는 기본 또는 한솔이의 노트북만 선택할 수 있습니다.");
     }
     updates.siteTheme = normalizedTheme;
   }

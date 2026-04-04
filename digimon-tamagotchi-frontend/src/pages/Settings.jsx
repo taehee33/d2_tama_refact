@@ -44,7 +44,7 @@ function Settings() {
           <div className="service-inline-actions">
             <span className="service-badge">{`슬롯 ${slots.length} / ${maxSlots}`}</span>
             <Link className="service-text-link" to="/me">
-              ← 마이로 돌아가기
+              ← 테이머(설정)로 돌아가기
             </Link>
           </div>
         </div>
@@ -64,7 +64,7 @@ function Settings() {
 
         <div className="service-card service-card--warm">
           <p className="service-section-label">세션</p>
-          <h2>로그아웃</h2>
+          <h2>🚪 로그아웃</h2>
           <p>
             현재 기기에서 로그인 세션을 종료합니다. 다시 플레이하려면 Google 로그인이
             필요합니다.
@@ -75,7 +75,7 @@ function Settings() {
           {isLogoutConfirming ? (
             <div className="space-y-3">
               <div className="rounded-[1.2rem] border border-amber-200 bg-white/75 p-4 text-sm text-slate-700">
-                로그아웃하면 플레이 허브와 마이페이지 접근이 종료됩니다.
+                로그아웃하면 플레이 허브와 테이머(설정) 화면 접근이 종료됩니다.
               </div>
               <div className="service-inline-actions">
                 <button
@@ -91,7 +91,7 @@ function Settings() {
                   disabled={logoutLoading}
                   className="service-button service-button--primary"
                 >
-                  {logoutLoading ? "로그아웃 중..." : "로그아웃"}
+                  {logoutLoading ? "🚪 로그아웃 중..." : "🚪 로그아웃"}
                 </button>
               </div>
             </div>
@@ -101,7 +101,7 @@ function Settings() {
               onClick={() => setIsLogoutConfirming(true)}
               className="service-button service-button--primary"
             >
-              로그아웃 확인
+              🚪 로그아웃 확인
             </button>
           )}
         </div>

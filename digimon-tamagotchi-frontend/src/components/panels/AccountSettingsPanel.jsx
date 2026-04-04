@@ -414,7 +414,7 @@ function AccountSettingsPanel({
         <div className="service-field">
           <span>화면 테마</span>
           <p className="service-muted">
-            서비스 홈, 가이드, 마이, 커뮤니티 같은 일반 페이지 분위기를 바꿉니다.
+            서비스 홈, 가이드, 테이머(설정), 커뮤니티 같은 일반 페이지 분위기를 바꿉니다.
             노트북 쇼케이스 화면은 별도로 유지됩니다.
           </p>
         </div>

@@ -90,7 +90,7 @@ function Home() {
               <span>한솔의 노트북과 파일섬 랜딩 화면으로 이동</span>
             </Link>
             <Link className="service-action-card" to="/me">
-              <strong>마이</strong>
+              <strong>테이머(설정)</strong>
               <span>내 디지몬과 도감, 계정 설정으로 바로 이동</span>
             </Link>
             <Link className="service-action-card" to="/guide">

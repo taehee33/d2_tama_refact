@@ -18,7 +18,7 @@ export const SITE_THEME_DEFAULT = "default";
 export const SITE_THEME_NOTEBOOK = "notebook";
 export const SITE_THEME_OPTIONS = Object.freeze([
   { id: SITE_THEME_DEFAULT, label: "기본" },
-  { id: SITE_THEME_NOTEBOOK, label: "노트북" },
+  { id: SITE_THEME_NOTEBOOK, label: "한솔이의 노트북" },
 ]);
 
 const ThemeContext = createContext(null);

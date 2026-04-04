@@ -9,7 +9,7 @@ function MobileTabBar() {
     { to: homePath, label: "홈", icon: "🏠", end: true },
     { to: "/play", label: "플레이", icon: "🕹️" },
     { to: "/community", label: "커뮤니티", icon: "💬" },
-    { to: "/me", label: "마이", icon: "🧢", authOnly: true },
+    { to: "/me", label: "테이머(설정)", icon: "🧢", authOnly: true },
     { to: "/notebook", label: "노트북", icon: "💻" },
   ];
 

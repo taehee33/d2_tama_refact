@@ -13,7 +13,7 @@ function Collection() {
           <div className="service-inline-actions">
             <span className="service-badge">Ver.1 / Ver.2 통합 보기</span>
             <Link className="service-text-link" to="/me">
-              ← 마이로 돌아가기
+              ← 테이머(설정)로 돌아가기
             </Link>
           </div>
         </div>

@@ -14,7 +14,7 @@ function AccountSettingsModal({
   const titleMap = {
     menu: "계정 설정",
     settings: "계정 설정",
-    logout: "로그아웃 확인",
+    logout: "🚪 로그아웃 확인",
   };
 
   const handleLogout = async () => {
@@ -60,7 +60,7 @@ function AccountSettingsModal({
                 onClick={() => setModalMode("logout")}
                 className="pixel-art-button w-full rounded bg-red-500 px-4 py-3 text-left font-semibold text-white hover:bg-red-600"
               >
-                로그아웃
+                🚪 로그아웃
               </button>
             </div>
           ) : null}
@@ -97,7 +97,7 @@ function AccountSettingsModal({
                   onClick={handleLogout}
                   className="pixel-art-button flex-1 rounded bg-red-500 px-4 py-2 font-semibold text-white hover:bg-red-600"
                 >
-                  로그아웃
+                  🚪 로그아웃
                 </button>
               </div>
             </div>

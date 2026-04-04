@@ -130,7 +130,7 @@ function Login() {
             디지몬 서비스 셸에 로그인
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-slate-600 sm:text-base">
-            플레이 허브, 몰입형 플레이, 마이 허브를 같은 계정 흐름으로 이어서 사용할 수 있도록 로그인 구조를 정리했습니다.
+            플레이 허브, 몰입형 플레이, 테이머 허브를 같은 계정 흐름으로 이어서 사용할 수 있도록 로그인 구조를 정리했습니다.
           </p>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -141,7 +141,7 @@ function Login() {
               </p>
             </div>
             <div className="rounded-[28px] bg-[#edf7f4] p-5">
-              <h2 className="text-lg font-black text-slate-900">마이 허브</h2>
+              <h2 className="text-lg font-black text-slate-900">테이머 허브</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 도감, 계정 설정, 최근 디지몬 흐름을 서비스처럼 탐색합니다.
               </p>

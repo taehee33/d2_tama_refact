@@ -11,6 +11,7 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
+import { sortSlotsByRecentActivity } from "../utils/slotRecency";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
@@ -242,8 +243,11 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
     [currentUser, isFirebaseAvailable, loadSlots]
   );
 
+  const recentSlots = useMemo(() => sortSlotsByRecentActivity(slots), [slots]);
+
   return {
     slots,
+    recentSlots,
     loading,
     error,
     reload: loadSlots,
@@ -253,7 +257,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
     resetNickname,
     saveOrder,
     canCreateMore: slots.length < maxSlots,
-    recentSlot: useMemo(() => slots[0] || null, [slots]),
+    recentSlot: recentSlots[0] || null,
   };
 }
 

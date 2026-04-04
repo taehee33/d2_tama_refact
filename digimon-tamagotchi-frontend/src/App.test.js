@@ -117,7 +117,7 @@ jest.mock("./pages/PlayFull", () => () => <div>몰입형 플레이 화면</div>)
 jest.mock("./pages/NotebookLanding", () => () => <div>노트북 랜딩 화면</div>);
 jest.mock("./pages/Guide", () => () => <div>가이드 화면</div>);
 jest.mock("./pages/Community", () => () => <div>커뮤니티 화면</div>);
-jest.mock("./pages/Me", () => () => <div>마이 화면</div>);
+jest.mock("./pages/Me", () => () => <div>테이머 화면</div>);
 jest.mock("./pages/Collection", () => () => <div>도감 화면</div>);
 jest.mock("./pages/Settings", () => () => <div>설정 화면</div>);
 jest.mock("./pages/News", () => () => <div>소식 화면</div>);

@@ -36,7 +36,7 @@ function ThemeProbe() {
       <div data-testid="resolved-theme">{resolvedTheme}</div>
       <div data-testid="theme-loading">{String(isThemeLoading)}</div>
       <button type="button" onClick={() => setTheme("notebook")}>
-        노트북 저장
+        한솔이의 노트북 저장
       </button>
     </div>
   );
@@ -131,7 +131,7 @@ describe("ThemeContext", () => {
       </ThemeProvider>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "노트북 저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "한솔이의 노트북 저장" }));
 
     await waitFor(() =>
       expect(window.localStorage.getItem(SITE_THEME_STORAGE_KEY)).toBe("notebook")
@@ -151,7 +151,7 @@ describe("ThemeContext", () => {
       expect(screen.getByTestId("theme-loading")).toHaveTextContent("false")
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "노트북 저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "한솔이의 노트북 저장" }));
 
     await waitFor(() =>
       expect(mockSaveUserSettings).toHaveBeenCalledWith("tester", {

@@ -34,7 +34,7 @@ jest.mock("../contexts/AuthContext", () => ({
 jest.mock("../contexts/ThemeContext", () => ({
   SITE_THEME_OPTIONS: [
     { id: "default", label: "기본" },
-    { id: "notebook", label: "노트북" },
+    { id: "notebook", label: "한솔이의 노트북" },
   ],
   useTheme: () => mockThemeState,
 }));

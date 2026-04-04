@@ -3142,3 +3142,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/data/serviceContent.js`
 - `digimon-tamagotchi-frontend/src/App.test.js`
 - `docs/REFACTORING_LOG.md`
+
+### 테이머 메뉴명을 테이머(설정)으로 조정
+
+- 모바일 탭, 홈/플레이 허브 이동 카드, `/me` 상단 라벨, 설정·도감 복귀 링크의 메뉴명을 `테이머(설정)`으로 맞춰 계정/설정 성격이 더 바로 드러나도록 정리했다.
+- 화면 테마 설명과 로그아웃 안내 문구도 같은 메뉴명을 따라가도록 조정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Collection.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Settings.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Me.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `docs/REFACTORING_LOG.md`

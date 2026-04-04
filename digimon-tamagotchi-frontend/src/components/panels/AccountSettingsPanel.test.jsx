@@ -21,7 +21,7 @@ jest.mock("../../contexts/AuthContext", () => ({
 jest.mock("../../contexts/ThemeContext", () => ({
   SITE_THEME_OPTIONS: [
     { id: "default", label: "기본" },
-    { id: "notebook", label: "노트북" },
+    { id: "notebook", label: "한솔이의 노트북" },
   ],
   useTheme: () => ({
     themeId: "default",
@@ -110,7 +110,7 @@ describe("AccountSettingsPanel", () => {
 
     await waitFor(() => expect(screen.getByText("화면 테마")).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "노트북" }));
+    fireEvent.click(screen.getByRole("button", { name: "한솔이의 노트북" }));
 
     await waitFor(() => expect(mockSetTheme).toHaveBeenCalledWith("notebook"));
   });
