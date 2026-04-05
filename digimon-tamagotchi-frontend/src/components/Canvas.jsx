@@ -1,5 +1,5 @@
-// src/components/Canvas.jsx
 import React, { useEffect, useRef } from "react";
+import { getFridgeRenderPolicy } from "./fridgeRenderPolicy";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
@@ -163,7 +163,13 @@ const Canvas = ({
       // ★ (3) 로드할 이미지들 (v2 디지몬은 digimonImageBase가 /Ver2_Mod_Kor)
       const imageSources={};
       const digimonSpriteNames = new Set(frames.map((fn) => String(fn)));
-      if (currentAnimation === "idle" && idleMotionTimeline.length > 0) {
+      const shouldLoadIdleMotionFrames =
+        currentAnimation === "idle" &&
+        idleMotionTimeline.length > 0 &&
+        !isFrozen &&
+        !takeOutAt;
+
+      if (shouldLoadIdleMotionFrames) {
         idleMotionTimeline.forEach((step) => {
           digimonSpriteNames.add(String(step.spriteNumber));
         });
@@ -267,11 +273,22 @@ const Canvas = ({
         animationStartedAt = nowTimestamp;
       }
 
+      const fridgeRenderPolicy = getFridgeRenderPolicy({
+        isFrozen,
+        frozenAt,
+        takeOutAt,
+        now: Date.now(),
+      });
+
       ctx.clearRect(0,0,width,height);
 
       // 디지몬
-      if(frames.length>0){
-        const motionStepIndex = currentAnimation === "idle" && idleMotionTimeline.length > 0
+      if(fridgeRenderPolicy.shouldShowDigimon && frames.length>0){
+        const canUseIdleMotionTimeline =
+          fridgeRenderPolicy.shouldUseIdleMotionTimeline &&
+          currentAnimation === "idle" &&
+          idleMotionTimeline.length > 0;
+        const motionStepIndex = canUseIdleMotionTimeline
           ? Math.floor((nowTimestamp - animationStartedAt) / IDLE_MOTION_STEP_MS) % idleMotionTimeline.length
           : null;
         const motionStep = motionStepIndex !== null
@@ -281,24 +298,32 @@ const Canvas = ({
         // 거절 애니메이션일 때는 feedStep으로 좌우 번갈아가게
         let idx = 0;
         let name;
-        if(currentAnimation === "foodRejectRefuse"){
+        if(currentAnimation === "foodRejectRefuse" && fridgeRenderPolicy.shouldCycleDigimonFrames){
           // feedStep % 2로 좌우 번갈아가게 (0: 좌, 1: 우)
           idx = feedStep % 2;
           name = frames[idx] || frames[0];
         } else if (motionStep) {
           name = `${motionStep.spriteNumber}`;
         } else {
-          idx = Math.floor(frame/speed) % frames.length;
-          name = frames[idx];
+          idx = fridgeRenderPolicy.shouldCycleDigimonFrames
+            ? Math.floor(frame/speed) % frames.length
+            : 0;
+          name = frames[idx] || frames[0];
         }
         const key= getDigimonSpriteKey(name);
         const digimonImg= spriteCache.current[key];
         if(digimonImg && digimonImg.naturalWidth>0){
+          const baseAnimationForDraw = fridgeRenderPolicy.shouldFreezeDigimonMotion
+            ? "idle"
+            : currentAnimation;
           const drawState = motionStep
             ? getIdleMotionDrawState(width, height, motionStep)
             : {
-                ...getDefaultDigimonDrawState(width, height, currentAnimation),
-                flip: currentAnimation === "foodRejectRefuse" && idx === 1,
+                ...getDefaultDigimonDrawState(width, height, baseAnimationForDraw),
+                flip:
+                  fridgeRenderPolicy.shouldCycleDigimonFrames &&
+                  currentAnimation === "foodRejectRefuse" &&
+                  idx === 1,
               };
 
           drawDigimonImage(ctx, digimonImg, drawState);
@@ -463,27 +488,10 @@ const Canvas = ({
       
       // ★ (8) 냉장고 애니메이션
       // 꺼내기 애니메이션 (4단계)
-      if(!isFrozen && !isDead && takeOutAt){
-        const takeOutTime = typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime();
-        const elapsedMs = Date.now() - takeOutTime;
-        const elapsedSeconds = elapsedMs / 1000;
-        
-        // 꺼내기 애니메이션 단계 결정
-        // 1단계: 0~0.8초 (553 진동 효과)
-        // 2단계: 0.8~2.0초 (555 → 554 얼음 감소, 553 사라짐)
-        // 3단계: 2.0~2.5초 (552 제거)
-        // 4단계: 2.5~3.5초 (디지몬만 표시, 기상 완료)
-        let currentStage = 0; // 기본값: 완료 (애니메이션 종료)
-        if (elapsedSeconds < 0.8) {
-          currentStage = 1; // 1단계: 해제 신호
-        } else if (elapsedSeconds < 2.0) {
-          currentStage = 2; // 2단계: 해동 시작
-        } else if (elapsedSeconds < 2.5) {
-          currentStage = 3; // 3단계: 얼음 깨짐
-        } else if (elapsedSeconds < 3.5) {
-          currentStage = 4; // 4단계: 기상 완료
-        }
-        
+      if(!isFrozen && !isDead && fridgeRenderPolicy.takeOutStage){
+        const elapsedSeconds = (fridgeRenderPolicy.takeOutElapsedMs || 0) / 1000;
+        const currentStage = fridgeRenderPolicy.takeOutStage;
+
         // 1단계: 해제 신호 (553 진동 효과)
         if (currentStage === 1) {
           const fridgeImg1 = spriteCache.current['fridge1'];
@@ -591,23 +599,10 @@ const Canvas = ({
       }
       
       // 넣기 애니메이션 (냉장고 상태일 때) - 3단계 애니메이션
-      if(isFrozen && !isDead && frozenAt){
-        // frozenAt 기준으로 경과 시간 계산 (밀리초)
-        const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
-        const elapsedMs = Date.now() - frozenTime;
-        const elapsedSeconds = elapsedMs / 1000;
-        
-        // 단계 결정
-        // 1단계: 0~1.0초 (552만)
-        // 2단계: 1.0~2.5초 (552 + 554/555 교차)
-        // 3단계: 2.5초 이후 (553만)
-        let currentStage = 2; // 기본값: 3단계
-        if (elapsedSeconds < 1.0) {
-          currentStage = 0; // 1단계
-        } else if (elapsedSeconds < 2.5) {
-          currentStage = 1; // 2단계
-        }
-        
+      if(isFrozen && !isDead && fridgeRenderPolicy.fridgeStage !== null){
+        const elapsedSeconds = (fridgeRenderPolicy.fridgeElapsedMs || 0) / 1000;
+        const currentStage = fridgeRenderPolicy.fridgeStage;
+
         // 1단계: 밥 위치에 냉장고 (552)만 표시
         if (currentStage === 0) {
           const fridgeImg0 = spriteCache.current['fridge0'];
