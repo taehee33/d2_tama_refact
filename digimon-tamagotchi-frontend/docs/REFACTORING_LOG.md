@@ -360,6 +360,30 @@
 - Hero를 viewport 기준 풀블리드 스테이지로 재구성하고, 중간 `Gallery` 구간은 `Memory Scene` 역할의 대형 회상 장면으로 전환했습니다.
 - 외부 대형 아트 없이도 동작하도록 `landingContent`에 optional artwork 필드를 추가하고, 기본값은 repo 스프라이트 합성 모드로 두었습니다.
 
+## 2026-04-05
+
+### 부상 과다와 부상 이력을 현재 단계 기준으로 정렬
+- `StatsPopup`의 부상 이력 집계를 현재 슬롯 전체 로그가 아니라 `evolutionStageStartedAt` 이후 로그만 보도록 정리해, `injuries` 누적값과 같은 범위를 표시하도록 맞췄습니다.
+- `activityLogs`와 `battleLogs`를 함께 정규화하는 순수 helper를 추가해, 같은 배틀 부상이 두 소스에 동시에 있어도 1건으로 dedupe 되도록 정리했습니다.
+- `부상 과다` 카드의 안내 문구를 `현재 단계 누적 부상` 기준으로 고쳐, 실제 게임 규칙과 화면 텍스트가 같은 의미를 가지도록 맞췄습니다.
+
+### 1초 틱 추가 부상 로그 누락 보정
+- `updateLifespan`으로 똥 8개 방치 추가 부상이 발생했을 때, 같은 틱에서 `injuries`만 오르고 `activityLogs`가 비어 부상 이력이 덜 보이던 경로를 보정했습니다.
+- poopCount가 늘지 않았더라도 `injuryReason === "poop"`이면서 `injuries`가 증가한 경우, 증가 수만큼 `POOP` 로그를 즉시 생성해 새로고침 없이도 이력 건수가 카운터와 맞도록 정리했습니다.
+
+### 테스트 추가
+- 부상 이력 helper 테스트를 추가해 현재 단계 필터링, battle/activity dedupe, 똥 8개 추가 부상 로그 분리 생성 동작을 검증하도록 했습니다.
+
+### 영향받은 파일
+- `src/components/StatsPopup.jsx`
+- `src/pages/Game.jsx`
+- `src/logic/stats/injuryHistory.js`
+- `src/logic/stats/injuryHistory.test.js`
+
+### 아키텍처 결정 근거
+- `injuries`는 이미 현재 단계 누적 부상 수로 쓰이고 진화 시 리셋되므로, 게임 규칙을 바꾸기보다 부상 이력의 집계 범위를 현재 단계에 맞추는 편이 안전합니다.
+- 배틀 로그와 활동 로그를 UI에서 직접 섞어 세면 중복/누락이 반복되므로, 표시용 정규화 함수를 하나 두고 화면은 그 결과만 읽게 하는 구조가 유지보수와 테스트에 유리합니다.
+
 ### 추가 영향 파일
 - `src/components/landing/LandingShell.jsx`
 - `src/components/landing/LandingTopBar.jsx`

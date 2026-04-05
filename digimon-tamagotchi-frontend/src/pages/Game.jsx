@@ -22,6 +22,7 @@ import {
   initializeCareMistakeLedger,
   repairCareMistakeLedger,
 } from "../logic/stats/careMistakeLedger";
+import { buildTickPoopInjuryLogs } from "../logic/stats/injuryHistory";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
 import { useGameActions } from "../hooks/useGameActions";
@@ -772,6 +773,21 @@ function Game({ immersive = false }){
           setActivityLogs(newLogs);
           if (appendLogToSubcollection) appendLogToSubcollection(newLogs[newLogs.length - 1]).catch(() => {});
           updatedStats = { ...updatedStats, activityLogs: newLogs };
+        }
+        const tickPoopInjuryLogs = buildTickPoopInjuryLogs(prevStats, updatedStats);
+        if (tickPoopInjuryLogs.length > 0) {
+          let currentLogs = updatedStats.activityLogs || prevStats.activityLogs || [];
+          tickPoopInjuryLogs.forEach((entry) => {
+            const nextLogs = addActivityLog(currentLogs, entry.type, entry.text, entry.timestamp);
+            const appendedLog = nextLogs[nextLogs.length - 1];
+            const wasAdded = nextLogs.length > currentLogs.length;
+            currentLogs = nextLogs;
+            if (wasAdded && appendLogToSubcollection && appendedLog) {
+              appendLogToSubcollection(appendedLog).catch(() => {});
+            }
+          });
+          setActivityLogs(currentLogs);
+          updatedStats = { ...updatedStats, activityLogs: currentLogs };
         }
         if (!prevStats.isDead && updatedStats.isDead && !hasSeenDeathPopup) {
           const reason = deathReason || "Unknown";
