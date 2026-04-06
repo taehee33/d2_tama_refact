@@ -478,3 +478,10 @@
 
 ### 추가 영향 파일
 - `src/styles/landing.css`
+
+### Landing 성장 섹션 폭 정렬
+- `Growth` 섹션만 공통 `landing-constrain` 래퍼를 쓰지 않아 다른 랜딩 섹션보다 좌우 여백이 더 좁아 보이던 문제를 정리했습니다.
+- 성장 섹션도 Hero, Memory, CTA와 같은 반응형 폭 규칙을 재사용하도록 래퍼를 `landing-constrain`으로 통일해, 데스크톱과 모바일 모두 같은 좌우 리듬으로 보이게 맞췄습니다.
+
+### 추가 영향 파일
+- `src/components/landing/Growth.jsx`

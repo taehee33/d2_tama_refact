@@ -8,7 +8,7 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 export function Growth() {
   return (
     <section className="landing-section landing-growth-section" aria-labelledby="landing-growth-title">
-      <div className="landing-container landing-growth">
+      <div className="landing-constrain landing-growth">
         <div className="landing-growth__visual-card">
           <div className="landing-growth__visual-glow" aria-hidden="true" />
           <ImageWithFallback
