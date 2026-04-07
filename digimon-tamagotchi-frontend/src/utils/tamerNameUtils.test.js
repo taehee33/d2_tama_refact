@@ -18,6 +18,7 @@ jest.mock("../firebase", () => ({
 
 const {
   checkNicknameAvailability,
+  getTamerName,
   normalizeNicknameInput,
   resetToDefaultTamerName,
   toNicknameKey,
@@ -108,11 +109,23 @@ describe("tamerNameUtils", () => {
           getCount += 1;
           order.push({ type: "get" });
 
+          if (getCount === 1) {
+            return createSnapshot({ tamerName: "Old Name", uid: "tester", displayName: "테스터" });
+          }
+
           if (getCount === 2) {
+            return createSnapshot({ tamerName: "Old Name" });
+          }
+
+          if (getCount === 3) {
             return createSnapshot(null);
           }
 
-          return createSnapshot({ tamerName: "Old Name", uid: "tester" });
+          if (getCount === 4) {
+            return createSnapshot({ uid: "tester" });
+          }
+
+          return createSnapshot(null);
         }),
         update: jest.fn((_ref, data) => {
           order.push({ type: "update" });
@@ -150,6 +163,14 @@ describe("tamerNameUtils", () => {
     expect(operations[1]).toMatchObject({
       type: "set",
       data: expect.objectContaining({
+        tamerName: "New Name",
+        updatedAt: expect.any(Date),
+      }),
+      options: { merge: true },
+    });
+    expect(operations[2]).toMatchObject({
+      type: "set",
+      data: expect.objectContaining({
         uid: "tester",
         nickname: "New Name",
         normalizedKey: "new name",
@@ -179,10 +200,21 @@ describe("tamerNameUtils", () => {
             return createSnapshot({ tamerName: "한 솔" });
           }
 
-          return createSnapshot({ uid: "tester" });
+          if (getCount === 2) {
+            return createSnapshot({ tamerName: "한 솔" });
+          }
+
+          if (getCount === 3) {
+            return createSnapshot({ uid: "tester" });
+          }
+
+          return createSnapshot(null);
         }),
         update: jest.fn(() => {
           order.push({ type: "update" });
+        }),
+        set: jest.fn(() => {
+          order.push({ type: "set" });
         }),
         delete: jest.fn(() => {
           order.push({ type: "delete" });
@@ -199,5 +231,20 @@ describe("tamerNameUtils", () => {
     expect(firstWriteIndex).toBeGreaterThanOrEqual(1);
     expect(orderTypes.slice(0, firstWriteIndex).every((type) => type === "get")).toBe(true);
     expect(orderTypes.slice(firstWriteIndex).includes("get")).toBe(false);
+  });
+
+  test("테이머명 로드는 profile/main 값을 우선 사용한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot({ tamerName: "프로필 이름" }))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          tamerName: "루트 이름",
+          displayName: "표시 이름",
+        })
+      );
+
+    const result = await getTamerName("tester", "Auth 이름");
+
+    expect(result).toBe("프로필 이름");
   });
 });

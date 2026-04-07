@@ -1,8 +1,12 @@
 // src/utils/userProfileUtils.js
-// 사용자 프로필: 도감 마스터 칭호(achievements), 최대 슬롯(maxSlots) — Firestore users/{uid}
+// 사용자 프로필: 도감 마스터 칭호(achievements), 최대 슬롯(maxSlots)
+// profile/main 우선 + users/{uid} fallback + dual-write 호환 단계
 
 import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+
+export const USER_PROFILE_COLLECTION = "profile";
+export const USER_PROFILE_DOC_ID = "main";
 
 /** 기본 최대 슬롯 수 (도감 마스터 없을 때, 기존 앱과 동일 10개) */
 export const BASE_MAX_SLOTS = 10;
@@ -15,6 +19,46 @@ export const ACHIEVEMENT_VER1_MASTER = "ver1_master";
 
 /** 칭호 키: Ver.2 도감 완성 */
 export const ACHIEVEMENT_VER2_MASTER = "ver2_master";
+
+export function getUserProfileRef(uid) {
+  return doc(db, "users", uid, USER_PROFILE_COLLECTION, USER_PROFILE_DOC_ID);
+}
+
+function hasOwnField(data, fieldName) {
+  return !!data && Object.prototype.hasOwnProperty.call(data, fieldName);
+}
+
+function resolveAchievements(profileData, rootData) {
+  if (Array.isArray(profileData?.achievements)) {
+    return [...profileData.achievements];
+  }
+
+  if (Array.isArray(rootData?.achievements)) {
+    return [...rootData.achievements];
+  }
+
+  return [];
+}
+
+function resolveMaxSlots(profileData, rootData, achievements) {
+  if (hasOwnField(profileData, "maxSlots")) {
+    return typeof profileData.maxSlots === "number" && profileData.maxSlots >= BASE_MAX_SLOTS
+      ? profileData.maxSlots
+      : computeMaxSlotsFromAchievements(achievements);
+  }
+
+  if (hasOwnField(profileData, "achievements")) {
+    return computeMaxSlotsFromAchievements(achievements);
+  }
+
+  if (hasOwnField(rootData, "maxSlots")) {
+    return typeof rootData.maxSlots === "number" && rootData.maxSlots >= BASE_MAX_SLOTS
+      ? rootData.maxSlots
+      : computeMaxSlotsFromAchievements(achievements);
+  }
+
+  return computeMaxSlotsFromAchievements(achievements);
+}
 
 /**
  * achievements 배열로 maxSlots 계산 (마스터당 +5)
@@ -40,17 +84,13 @@ export async function getAchievementsAndMaxSlots(uid) {
   try {
     if (!db) return { achievements: [], maxSlots: BASE_MAX_SLOTS };
     const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      const data = userSnap.data();
-      const achievements = Array.isArray(data.achievements) ? [...data.achievements] : [];
-      const maxSlots =
-        typeof data.maxSlots === "number" && data.maxSlots >= BASE_MAX_SLOTS
-          ? data.maxSlots
-          : computeMaxSlotsFromAchievements(achievements);
-      return { achievements, maxSlots };
-    }
-    return { achievements: [], maxSlots: BASE_MAX_SLOTS };
+    const profileRef = getUserProfileRef(uid);
+    const [profileSnap, userSnap] = await Promise.all([getDoc(profileRef), getDoc(userRef)]);
+    const profileData = profileSnap.exists() ? profileSnap.data() : null;
+    const rootData = userSnap.exists() ? userSnap.data() : null;
+    const achievements = resolveAchievements(profileData, rootData);
+    const maxSlots = resolveMaxSlots(profileData, rootData, achievements);
+    return { achievements, maxSlots };
   } catch (error) {
     console.error("칭호/최대 슬롯 로드 오류:", error);
     return { achievements: [], maxSlots: BASE_MAX_SLOTS };
@@ -78,6 +118,7 @@ export async function updateAchievementsAndMaxSlots(uid, achievements) {
   const maxSlots = computeMaxSlotsFromAchievements(achievements);
   try {
     const userRef = doc(db, "users", uid);
+    const profileRef = getUserProfileRef(uid);
     const userSnap = await getDoc(userRef);
     const updates = {
       achievements: Array.isArray(achievements) ? achievements : [],
@@ -89,6 +130,8 @@ export async function updateAchievementsAndMaxSlots(uid, achievements) {
     } else {
       await setDoc(userRef, updates);
     }
+
+    await setDoc(profileRef, updates, { merge: true });
   } catch (error) {
     console.error("칭호/최대 슬롯 저장 오류:", error);
     throw error;

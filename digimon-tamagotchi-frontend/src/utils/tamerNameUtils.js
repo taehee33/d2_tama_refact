@@ -3,9 +3,30 @@
 
 import { doc, getDoc, runTransaction, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { getUserProfileRef } from "./userProfileUtils";
 
 const NICKNAME_INDEX_COLLECTION = "nickname_index";
 const NORMALIZED_SPACE_NOTICE = "연속된 공백은 1칸으로 자동 변경됩니다.";
+
+function hasOwnField(data, fieldName) {
+  return !!data && Object.prototype.hasOwnProperty.call(data, fieldName);
+}
+
+function resolveStoredTamerName(profileData, rootData) {
+  if (hasOwnField(profileData, "tamerName")) {
+    return typeof profileData.tamerName === "string" ? profileData.tamerName : null;
+  }
+
+  if (typeof rootData?.tamerName === "string") {
+    return rootData.tamerName;
+  }
+
+  return null;
+}
+
+function resolveDisplayFallback(rootData, authDisplayName, uid) {
+  return rootData?.displayName || authDisplayName || `Trainer_${uid.slice(0, 6)}`;
+}
 
 /**
  * 닉네임 입력값 정규화
@@ -181,6 +202,7 @@ export async function updateTamerName(uid, newNickname, oldNickname = null) {
   const normalizedKey = availability.normalizedKey;
 
   const userRef = doc(db, "users", uid);
+  const profileRef = getUserProfileRef(uid);
   const nicknameRef = doc(db, NICKNAME_INDEX_COLLECTION, normalizedKey);
 
   await runTransaction(db, async (transaction) => {
@@ -189,12 +211,16 @@ export async function updateTamerName(uid, newNickname, oldNickname = null) {
       throw new Error("사용자 정보를 찾을 수 없습니다.");
     }
 
+    const profileSnap = await transaction.get(profileRef);
     const nicknameSnap = await transaction.get(nicknameRef);
     if (nicknameSnap.exists() && nicknameSnap.data().uid !== uid) {
       throw new Error("이미 사용 중인 테이머명입니다.");
     }
 
-    const storedNickname = userSnap.data()?.tamerName;
+    const storedNickname = resolveStoredTamerName(
+      profileSnap.exists() ? profileSnap.data() : null,
+      userSnap.data()
+    );
     const previousNickname =
       typeof storedNickname === "string" && storedNickname.trim() !== ""
         ? storedNickname
@@ -213,6 +239,15 @@ export async function updateTamerName(uid, newNickname, oldNickname = null) {
       tamerName: normalizedNickname,
       updatedAt: now,
     });
+
+    transaction.set(
+      profileRef,
+      {
+        tamerName: normalizedNickname,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
 
     transaction.set(
       nicknameRef,
@@ -257,6 +292,7 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
   void authDisplayName;
 
   const userRef = doc(db, "users", uid);
+  const profileRef = getUserProfileRef(uid);
 
   await runTransaction(db, async (transaction) => {
     const userSnap = await transaction.get(userRef);
@@ -264,7 +300,11 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
       throw new Error("사용자 정보를 찾을 수 없습니다.");
     }
 
-    const storedNickname = userSnap.data()?.tamerName;
+    const profileSnap = await transaction.get(profileRef);
+    const storedNickname = resolveStoredTamerName(
+      profileSnap.exists() ? profileSnap.data() : null,
+      userSnap.data()
+    );
     const nicknameToReset =
       typeof storedNickname === "string" && storedNickname.trim() !== ""
         ? storedNickname
@@ -281,6 +321,15 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
       tamerName: null,
       updatedAt: new Date(),
     });
+
+    transaction.set(
+      profileRef,
+      {
+        tamerName: null,
+        updatedAt: new Date(),
+      },
+      { merge: true }
+    );
 
     if (currentNicknameRef && currentNicknameSnap?.exists() && currentNicknameSnap.data().uid === uid) {
       transaction.delete(currentNicknameRef);
@@ -301,14 +350,21 @@ export async function getTamerName(uid, authDisplayName) {
 
   try {
     const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
+    const profileRef = getUserProfileRef(uid);
+    const [profileSnap, userSnap] = await Promise.all([getDoc(profileRef), getDoc(userRef)]);
+    const profileData = profileSnap.exists() ? profileSnap.data() : null;
+    const userData = userSnap.exists() ? userSnap.data() : null;
+    const storedTamerName = resolveStoredTamerName(profileData, userData);
 
-    if (userSnap.exists()) {
-      const userData = userSnap.data();
-      return userData.tamerName || userData.displayName || authDisplayName || `Trainer_${uid.slice(0, 6)}`;
+    if (storedTamerName && storedTamerName.trim()) {
+      return storedTamerName;
     }
 
-    return authDisplayName || `Trainer_${uid.slice(0, 6)}`;
+    if (userData || profileData) {
+      return resolveDisplayFallback(userData, authDisplayName, uid);
+    }
+
+    return resolveDisplayFallback(null, authDisplayName, uid);
   } catch (error) {
     console.error("테이머명 가져오기 오류:", error);
     return authDisplayName || "익명의 테이머";
@@ -328,15 +384,19 @@ export async function initializeTamerName(uid, displayName) {
 
   try {
     const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
+    const profileRef = getUserProfileRef(uid);
+    const [profileSnap, userSnap] = await Promise.all([getDoc(profileRef), getDoc(userRef)]);
 
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      if (userData.tamerName) {
-        return userData.tamerName;
+      const profileData = profileSnap.exists() ? profileSnap.data() : null;
+      const storedTamerName = resolveStoredTamerName(profileData, userData);
+
+      if (storedTamerName) {
+        return storedTamerName;
       }
 
-      return userData.displayName || displayName || `Trainer_${uid.slice(0, 6)}`;
+      return resolveDisplayFallback(userData, displayName, uid);
     }
 
     await setDoc(userRef, {

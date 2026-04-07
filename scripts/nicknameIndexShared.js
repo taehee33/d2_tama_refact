@@ -68,6 +68,18 @@ function isNicknameIndexInSync(entry, indexEntry) {
   );
 }
 
+function hasOwnField(data, fieldName) {
+  return !!data && Object.prototype.hasOwnProperty.call(data, fieldName);
+}
+
+function resolveTamerNameFromProfile(profileData, rootData) {
+  if (hasOwnField(profileData, "tamerName")) {
+    return typeof profileData.tamerName === "string" ? profileData.tamerName : null;
+  }
+
+  return rootData?.tamerName ?? null;
+}
+
 function collectNicknameEntriesFromUsers(userRecords) {
   const entries = [];
   let normalizedCount = 0;
@@ -277,15 +289,18 @@ function initializeFirestore() {
 
 async function collectNicknameEntries(db) {
   const usersSnapshot = await db.collection("users").get();
-  const userRecords = [];
+  const userRecords = await Promise.all(
+    usersSnapshot.docs.map(async (userDoc) => {
+      const userData = userDoc.data();
+      const profileSnap = await userDoc.ref.collection("profile").doc("main").get();
+      const profileData = profileSnap.exists ? profileSnap.data() : null;
 
-  usersSnapshot.forEach((userDoc) => {
-    const userData = userDoc.data();
-    userRecords.push({
-      uid: userDoc.id,
-      tamerName: userData.tamerName,
-    });
-  });
+      return {
+        uid: userDoc.id,
+        tamerName: resolveTamerNameFromProfile(profileData, userData),
+      };
+    })
+  );
 
   return collectNicknameEntriesFromUsers(userRecords);
 }

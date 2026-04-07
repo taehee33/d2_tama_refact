@@ -5,6 +5,7 @@
     "firebase:login": "firebase login",
     "firestore:deploy": "firebase deploy --only firestore:rules",
     "encyclopedia:backfill": "node scripts/backfillUserEncyclopedia.js",
+    "profile:backfill": "node scripts/backfillUserProfile.js",
     "nickname:audit": "node scripts/auditNicknameIndex.js",
     "nickname:backfill": "node scripts/backfillNicknameIndex.js",
     "nickname:verify": "node scripts/verifyNicknameIndex.js",

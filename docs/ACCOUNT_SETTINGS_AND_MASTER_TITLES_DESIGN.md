@@ -12,18 +12,23 @@
 
 | 섹션 | 내용 | 데이터 소스 |
 |------|------|-------------|
-| 테이머명 | 입력란, 중복 확인, 저장/기본값 복구 | `users/{uid}.tamerName` (tamerNameUtils) |
+| 테이머명 | 입력란, 중복 확인, 저장/기본값 복구 | `users/{uid}/profile/main.tamerName` 우선, 루트 `users/{uid}.tamerName` fallback (tamerNameUtils, dual-write 호환) |
 | 현재 테이머명 표시 | "현재 테이머명: 한태희" | 동일 |
 | Discord 알림 | 웹훅 URL, "알람 받기" 체크박스, 알림 설정 저장 | `users/{uid}/settings/main.discordWebhookUrl`, `isNotificationEnabled`, `siteTheme` (userSettingsUtils, 루트 fallback 호환) |
 
-- **한계**: 칭호/슬롯 정보 없음, 전역 설정(테마·버프 등)이 계정 단위로 분리되어 있지 않음.
+- **현재 상태(2026-04-07)**: `settings/main`, `encyclopedia/{version}`, `profile/main` 분리가 진행 중이며, 루트 `users/{uid}`는 fallback 및 구버전 호환용으로 함께 유지됩니다.
 
 ### 1.2 Firestore `users/{uid}` 문서 (현재)
 
-- `tamerName`, `displayName`, `updatedAt`
-- `discordWebhookUrl`, `isNotificationEnabled`
-- `encyclopedia`: 루트 필드는 마이그레이션 fallback 용도로만 남아 있고, 신규 저장은 `users/{uid}/encyclopedia/{version}` 문서 우선
-- 칭호(achievements), 최대 슬롯(maxSlots), 전역 설정(settings) **없음**.
+- 루트 `users/{uid}`
+  - `displayName`, `email`, `photoURL`, `isAnonymous`, `createdAt`, `updatedAt`
+  - `tamerName`, `achievements`, `maxSlots`는 fallback/구버전 호환용으로 유지
+- `users/{uid}/settings/main`
+  - `discordWebhookUrl`, `isNotificationEnabled`, `siteTheme`
+- `users/{uid}/encyclopedia/{version}`
+  - Ver.1 / Ver.2 도감 문서
+- `users/{uid}/profile/main`
+  - `tamerName`, `achievements`, `maxSlots`, `updatedAt`
 
 ### 1.3 슬롯 수
 

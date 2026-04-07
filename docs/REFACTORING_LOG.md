@@ -4,23 +4,26 @@
 
 ---
 
-## [2026-04-07] TIRED 상태에서 배고픔·힘 케어미스 타이머가 멈추지 않도록 수정
+## [2026-04-07] TIRED/SLEEPING 호출 타이머 경계를 다시 정리
 
 ### 작업 유형
-- ⏱ TIRED/실수면 판정 경계 수정
-- 📣 배고픔·힘 호출 타이머 규칙 재정렬
-- 🧪 TIRED/SLEEPING 호출 표시 회귀 테스트 추가
+- 😴 TIRED/SLEEPING 호출 타이머 경계 수정
+- ⏸ 실제 수면 pause 동작 안정화
+- 🧪 sleepy 상태 카운트다운 회귀 테스트 추가
 
 ### 목적 및 영향
-- **목적:** `TIRED`는 졸림 경고 상태이지 실제 수면이 아니므로, 배고픔/힘 0 이후의 케어미스 10분 타이머가 계속 진행되도록 규칙과 표시를 맞춘다.
-- **범위:** 실시간 수면 판정, 호출 표시 테스트, 문서만 조정하고 저장 스키마나 lazy update 데이터 구조는 바꾸지 않는다.
+- **목적:** `TIRED`에서는 배고픔/힘 케어미스 10분 타이머가 계속 진행되고, `SLEEPING`에서는 잠들기 직전 남은 시간이 고정된 채 일시정지되도록 규칙을 다시 맞춘다.
+- **범위:** 실시간 호출 타이머 계산, 호출 view-model, 관련 테스트와 문서만 조정하고 저장 스키마는 바꾸지 않는다.
 - **내용:**
-  - `useGameRealtimeLoop`에서 `isActuallySleeping` 판정을 `SLEEPING`일 때만 참으로 바꾸어, `TIRED` 상태에서는 배고픔/힘 호출 타이머와 관련 실시간 감소 로직이 더 이상 일시정지되지 않도록 정리했다.
-  - 공통 호출 helper 테스트에 `TIRED` 상태의 배고픔/힘 호출은 pause 문구 없이 일반 10분 카운트다운을 보여준다는 기대값을 추가했다.
-  - 기존 `SLEEPING` 일시정지 표시는 유지해, 실제 수면 중에는 기존처럼 호출 타이머가 멈춰 보이도록 했다.
+  - `checkCallTimeouts`의 기존 timestamp pushing을 제거해, 실제 수면 중에 `9:59 ↔ 10:00`으로 무한 리셋되던 문제를 없앴다.
+  - `checkCalls`는 수면에서 깨어날 때 `sleepStartAt` 기준으로 잠든 시간을 `startedAt`과 deadline에 한 번만 반영해, 수면 전 남은 시간부터 자연스럽게 다시 흐르도록 정리했다.
+  - `callStatusUtils`는 `startedAt`/deadline이 비어 있는 깨진 활성 호출 상태라도 `lastHungerZeroAt`/`lastStrengthZeroAt`를 fallback으로 사용해 `현재 + 10분`으로 되감기지 않도록 보강했다.
+  - `SLEEPING` 상태 표시에서는 현재 시각이 아니라 `sleepStartAt` 기준의 남은 시간을 보여 주도록 바꿔, 잠들어 있는 동안 남은 시간이 줄어들지 않게 맞췄다.
 
 ### 영향받은 파일
-- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
 - `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
 - `docs/REFACTORING_LOG.md`
 
@@ -28,7 +31,48 @@
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runInBand src/utils/callStatusUtils.test.js src/hooks/useGameLogic.test.js src/data/stats.test.js src/components/GameScreen.test.jsx`
 
 ### 아키텍처 메모
-- 실수면 여부를 런타임에서 더 엄격히 정의해 두면, 이후 호출 타이머, 스탯 감소, 똥 타이머, 기타 수면 예외 규칙이 `TIRED`와 `SLEEPING`을 혼동해 다시 어긋날 가능성을 줄일 수 있다.
+- 호출 타이머 pause는 기준 시각을 매초 덮어쓰는 방식보다 `sleepStartAt`을 별도로 기록하고, 수면 종료 시 한 번만 보정하는 방식이 lazy update의 수면 제외 계산과도 더 잘 맞는다.
+
+## [2026-04-07] 사용자 프로필을 `profile/main`으로 분리하는 호환 단계 도입
+
+### 작업 유형
+- 👤 사용자 프로필 저장 경로 분리
+- 🔁 루트 + `profile/main` dual-write 호환 단계 도입
+- 🧾 닉네임 인덱스 운영 스크립트 경로 정합성 갱신
+- 🧪 프로필/닉네임 유틸 테스트 보강
+
+### 목적 및 영향
+- **목적:** `users/{uid}` 루트 문서에 몰려 있던 `tamerName`, `achievements`, `maxSlots`를 `users/{uid}/profile/main`으로 분리해 문서 결합도를 낮추고, 이후 루트 사용자 문서를 인증 메타 중심으로 정리할 준비를 한다.
+- **범위:** 런타임 프로필/닉네임 유틸, 닉네임 백필·verify 스크립트, Firestore rules, 프로필 백필 스크립트와 문서만 조정하며, 기존 화면 계약과 로그인 bootstrap 로직은 유지한다.
+- **내용:**
+  - `userProfileUtils`는 `profile/main`을 우선 읽고 루트 `users/{uid}`를 fallback으로 읽도록 바꿨으며, 칭호 저장 시 루트와 `profile/main`을 함께 갱신한다.
+  - `tamerNameUtils`는 테이머명을 `profile/main` 우선으로 읽고, 닉네임 저장/기본값 복구 transaction에서 루트와 `profile/main`을 함께 갱신하도록 정리했다.
+  - `scripts/nicknameIndexShared.js`, `backfillNicknameIndex.js`, `verifyNicknameIndex.js`는 `profile/main` 우선 기준으로 닉네임 상태를 수집·정규화하도록 갱신했다.
+  - `scripts/backfillUserProfile.js`와 `npm run profile:backfill`를 추가해 루트 프로필 필드를 `profile/main`으로 안전하게 복사할 수 있도록 했다.
+  - `firestore.rules`에 `users/{uid}/profile/{profileId}` owner 규칙을 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.test.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+- `scripts/nicknameIndexShared.js`
+- `scripts/backfillNicknameIndex.js`
+- `scripts/verifyNicknameIndex.js`
+- `scripts/backfillUserProfile.js`
+- `package.json`
+- `firestore.rules`
+- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/userProfileUtils.test.js src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx src/pages/Home.test.jsx src/pages/Me.test.jsx`
+- `node --check scripts/backfillUserProfile.js`
+- `node --test tests/nickname-index-migration.test.js`
+
+### 아키텍처 메모
+- 이번 라운드는 루트 필드를 삭제하지 않는 호환 단계라서, 구버전 탭/캐시와의 충돌을 줄이기 위해 루트와 `profile/main`을 함께 갱신한다.
+- 다음 단계는 `profile:backfill` 운영 반영 후, 루트 프로필 필드의 읽기/쓰기 제거 여부를 결정하는 것이다.
 
 ## [2026-04-07] 호출 상태 UI를 공통 view-model 기반으로 통합
 

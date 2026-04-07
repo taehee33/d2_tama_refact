@@ -53,7 +53,7 @@ async function main() {
     return;
   }
 
-  console.log("[nickname verify] users/{uid}.tamerName 과 nickname_index 상태가 일치합니다.");
+  console.log("[nickname verify] users/{uid}/profile/main 우선 기준으로 nickname_index 상태가 일치합니다.");
 }
 
 main().catch((error) => {

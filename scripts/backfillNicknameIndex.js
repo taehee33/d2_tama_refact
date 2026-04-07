@@ -42,6 +42,7 @@ async function main() {
   let committedBatchCount = 0;
   let indexUpsertCount = 0;
   let userNormalizationCount = 0;
+  let profileNormalizationCount = 0;
   let deletedExtraIndexCount = 0;
 
   for (const entry of entries) {
@@ -56,12 +57,23 @@ async function main() {
 
     if (entry.didNormalizeSpaces) {
       const userRef = db.collection("users").doc(entry.uid);
+      const profileRef = userRef.collection("profile").doc("main");
       batch.update(userRef, {
         tamerName: entry.normalizedNickname,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
+      batch.set(
+        profileRef,
+        {
+          tamerName: entry.normalizedNickname,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      operationCount += 1;
       operationCount += 1;
       userNormalizationCount += 1;
+      profileNormalizationCount += 1;
     }
 
     if (operationCount >= BATCH_LIMIT) {
@@ -88,6 +100,7 @@ async function main() {
 
   console.log(`[nickname backfill] nickname_index 업서트 ${indexUpsertCount}건`);
   console.log(`[nickname backfill] users/{uid}.tamerName 정규화 ${userNormalizationCount}건`);
+  console.log(`[nickname backfill] users/{uid}/profile/main.tamerName 정규화 ${profileNormalizationCount}건`);
   console.log(`[nickname backfill] 불필요한 nickname_index 삭제 ${deletedExtraIndexCount}건`);
   console.log(`[nickname backfill] 커밋 배치 수 ${committedBatchCount}개`);
   console.log("[nickname backfill] verify 통과 후 npm run nickname:cleanup 으로 metadata/nicknames 문서를 정리할 수 있습니다.");
