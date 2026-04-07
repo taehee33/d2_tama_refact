@@ -53,7 +53,7 @@ export const defaultStats = {
     winRate: 0, // 현재 디지몬일 때의 승률 (%) (진화 조건용)
     isInjured: false, // 부상 상태 (똥 8개, 배틀 부상 시 true)
     injuredAt: null, // 부상 당한 시각 (6시간 사망 체크용)
-    injuries: 0, // 이 단계에서 누적된 부상 횟수 (15회 사망 체크용)
+    injuries: 0, // 이번 생 누적 부상 횟수 (15회 사망 체크용)
     poopReachedMaxAt: null, // 똥이 처음 8개가 된 시각
     lastPoopPenaltyAt: null, // 추가 부상 8시간 주기의 기준 시각
     healedDosesCurrent: 0, // 현재 투여된 치료제 횟수

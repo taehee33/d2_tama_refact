@@ -1,4 +1,9 @@
-import { applyLazyUpdate, clearActiveInjuryState, clearPoopOverflowState } from "./stats";
+import {
+  applyLazyUpdate,
+  clearActiveInjuryState,
+  clearPoopOverflowState,
+  initializeStats,
+} from "./stats";
 
 const NOW_ISO = "2026-03-31T12:00:00.000Z";
 
@@ -43,6 +48,61 @@ function createBaseStats(overrides = {}) {
     ...overrides,
   };
 }
+
+const initializeDataMap = {
+  Digitama: {
+    evolutionStage: "Digitama",
+    hungerTimer: 1,
+    strengthTimer: 1,
+    poopTimer: 1,
+  },
+  Agumon: {
+    evolutionStage: "Child",
+    hungerTimer: 1,
+    strengthTimer: 1,
+    poopTimer: 1,
+    minWeight: 20,
+    maxEnergy: 10,
+  },
+};
+
+describe("initializeStats", () => {
+  test("진화 시에는 이번 생 누적 부상 횟수를 유지하고 활성 부상 상태만 초기화한다", () => {
+    const result = initializeStats(
+      "Agumon",
+      {
+        birthTime: Date.parse("2026-03-31T00:00:00.000Z"),
+        injuries: 4,
+        isInjured: true,
+        injuredAt: Date.parse("2026-04-01T08:00:00.000Z"),
+        totalReincarnations: 1,
+      },
+      initializeDataMap
+    );
+
+    expect(result.injuries).toBe(4);
+    expect(result.isInjured).toBe(false);
+    expect(result.injuredAt).toBeNull();
+  });
+
+  test("새로운 시작에서는 누적 부상 횟수를 0으로 초기화한다", () => {
+    const result = initializeStats(
+      "Digitama",
+      {
+        birthTime: Date.parse("2026-03-31T00:00:00.000Z"),
+        injuries: 4,
+        isInjured: true,
+        injuredAt: Date.parse("2026-04-01T08:00:00.000Z"),
+        totalReincarnations: 2,
+      },
+      initializeDataMap
+    );
+
+    expect(result.injuries).toBe(0);
+    expect(result.isInjured).toBe(false);
+    expect(result.injuredAt).toBeNull();
+  });
+});
 
 describe("applyLazyUpdate", () => {
   beforeEach(() => {

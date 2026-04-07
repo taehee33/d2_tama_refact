@@ -9,6 +9,7 @@ import { initializeStats } from "../data/stats";
 import { addActivityLog } from "./useGameLogic";
 import { updateEncyclopedia } from "./useEncyclopedia";
 import { archiveJogressLog, createLogArchiveId } from "../utils/logArchiveApi";
+import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 
 /** 맵 키 또는 entry.id로 한글 이름 조회 (슬롯에 id가 저장된 경우 대비) */
 function getDigimonDisplayName(maps, digimonId) {
@@ -243,8 +244,8 @@ export function useEvolution({
     const old = { ...currentStats };
     
     // 진화 시 스탯 리셋 (매뉴얼 규칙)
-    // careMistakes, overfeeds, battlesForEvolution, proteinOverdose, injuries 등은 initializeStats에서 리셋됨
-    // 하지만 여기서 명시적으로 리셋하여 확실히 함
+    // careMistakes, overfeeds, battlesForEvolution, proteinOverdose 등은 리셋하지만,
+    // injuries는 이번 생 누적으로 유지한다.
     
     // 새 디지몬 데이터 가져오기 (minWeight, maxEnergy 확인용)
     const newDigimonData = digimonDataVer1[newName] || {};
@@ -258,7 +259,6 @@ export function useEvolution({
       careMistakes: 0,
       overfeeds: 0,
       proteinOverdose: 0,
-      injuries: 0,
       trainings: 0,
       sleepDisturbances: 0,
       strength: 0, // 진화 시 strength 리셋
@@ -287,7 +287,18 @@ export function useEvolution({
     
     const existingLogs = currentStats.activityLogs || activityLogs || [];
     const newDigimonName = newDigimonData.name || newName;
-    const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `Evolution: Evolved to ${newDigimonName}!`);
+    const updatedLogs = addActivityLog(
+      existingLogs,
+      "EVOLUTION",
+      `Evolution: Evolved to ${newDigimonName}!`,
+      buildDigimonLogSnapshot(
+        newName,
+        digimonDataVer1,
+        newDigimonDataVer1,
+        evolutionDataVer1,
+        digimonDataVer2
+      )
+    );
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: newName };
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
@@ -358,7 +369,6 @@ export function useEvolution({
         careMistakes: 0,
         overfeeds: 0,
         proteinOverdose: 0,
-        injuries: 0,
         trainings: 0,
         sleepDisturbances: 0,
         strength: 0,
@@ -378,7 +388,14 @@ export function useEvolution({
       const updatedLogs = addActivityLog(
         existingLogs,
         "EVOLUTION",
-        `조그레스 진화(로컬): ${newDigimonName}!`
+        `조그레스 진화(로컬): ${newDigimonName}!`,
+        buildDigimonLogSnapshot(
+          targetId,
+          digimonDataVer1,
+          newDigimonDataVer1,
+          evolutionDataVer1,
+          digimonDataVer2
+        )
       );
       const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
 
@@ -629,7 +646,6 @@ export function useEvolution({
       careMistakes: 0,
       overfeeds: 0,
       proteinOverdose: 0,
-      injuries: 0,
       trainings: 0,
       sleepDisturbances: 0,
       strength: 0,
@@ -645,7 +661,12 @@ export function useEvolution({
     if (newDigimonData?.sprite !== undefined) nx.sprite = newDigimonData.sprite;
     const resultName = newDigimonData.name || guestTargetId;
     const existingLogs = Array.isArray(guestStats.activityLogs) ? guestStats.activityLogs : [];
-    const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${resultName}!`);
+    const updatedLogs = addActivityLog(
+      existingLogs,
+      "EVOLUTION",
+      `조그레스 진화(온라인): ${resultName}!`,
+      buildDigimonLogSnapshot(guestTargetId, guestMap, digimonDataVer1, newDigimonDataVer1)
+    );
     const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: guestTargetId };
     const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
 
@@ -771,7 +792,6 @@ export function useEvolution({
         careMistakes: 0,
         overfeeds: 0,
         proteinOverdose: 0,
-        injuries: 0,
         trainings: 0,
         sleepDisturbances: 0,
         strength: 0,
@@ -787,7 +807,12 @@ export function useEvolution({
       if (newDigimonData?.sprite !== undefined) nx.sprite = newDigimonData.sprite;
       const newDigimonName = newDigimonData.name || targetId;
       const existingLogs = currentStats.activityLogs || activityLogs || [];
-      const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${newDigimonName}!`);
+      const updatedLogs = addActivityLog(
+        existingLogs,
+        "EVOLUTION",
+        `조그레스 진화(온라인): ${newDigimonName}!`,
+        buildDigimonLogSnapshot(targetId, hostMap, digimonDataVer1, newDigimonDataVer1)
+      );
       const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
       const now = new Date();
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
@@ -896,7 +921,6 @@ export function useEvolution({
         careMistakes: 0,
         overfeeds: 0,
         proteinOverdose: 0,
-        injuries: 0,
         trainings: 0,
         sleepDisturbances: 0,
         strength: 0,
@@ -912,7 +936,12 @@ export function useEvolution({
       if (newDigimonData?.sprite !== undefined) nx.sprite = newDigimonData.sprite;
       const newDigimonName = newDigimonData.name || targetId;
       const existingLogs = Array.isArray(currentStats.activityLogs) ? currentStats.activityLogs : [];
-      const updatedLogs = addActivityLog(existingLogs, "EVOLUTION", `조그레스 진화(온라인): ${newDigimonName}!`);
+      const updatedLogs = addActivityLog(
+        existingLogs,
+        "EVOLUTION",
+        `조그레스 진화(온라인): ${newDigimonName}!`,
+        buildDigimonLogSnapshot(targetId, hostMap, digimonDataVer1, newDigimonDataVer1)
+      );
       const nxWithLogs = { ...nx, activityLogs: updatedLogs, selectedDigimon: targetId };
       const { activityLogs: _dropA, battleLogs: _dropB, ...statsForDb } = nxWithLogs;
       const now = new Date();

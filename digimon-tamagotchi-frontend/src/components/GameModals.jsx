@@ -246,6 +246,9 @@ export default function GameModals({
           stats={digimonStats}
           activityLogs={activityLogs}
           digimonData={currentDigimonData}
+          digimonDataMap={newDigimonDataVer1}
+          selectedDigimonId={selectedDigimon}
+          slotVersion={slotVersion || "Ver.1"}
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}
           onChangeStats={(ns) => setDigimonStatsAndSave?.(ns) || (() => {})}

@@ -445,12 +445,23 @@ export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windo
 
 export function addActivityLog(currentLogs = [], type, text, timestampMs) {
   const logs = initializeActivityLogs(currentLogs);
-  const ts = timestampMs !== undefined ? timestampMs : Date.now();
+  const isOptionsObject =
+    timestampMs != null &&
+    typeof timestampMs === "object" &&
+    !Array.isArray(timestampMs);
+  const extraFields = isOptionsObject ? { ...timestampMs } : {};
+  const ts =
+    typeof timestampMs === "number"
+      ? timestampMs
+      : (isOptionsObject && typeof timestampMs.timestamp === "number"
+          ? timestampMs.timestamp
+          : Date.now());
+  delete extraFields.timestamp;
   // 케어미스 이력 멱등성: 동일 사유 로그가 15분 이내에 있으면 추가하지 않음 (실시간·과거 재구성 중복 방지)
   if (hasDuplicateCareMistakeLog(logs, type, text, ts)) {
     return logs;
   }
-  const newLog = { type, text, timestamp: ts };
+  const newLog = { type, text, timestamp: ts, ...extraFields };
 
   const updatedLogs = [...logs, newLog];
   if (updatedLogs.length > MAX_ACTIVITY_LOGS) {

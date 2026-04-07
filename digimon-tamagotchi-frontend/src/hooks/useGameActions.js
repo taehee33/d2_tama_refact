@@ -10,6 +10,7 @@ import { calculateInjuryChance } from "../logic/battle/calculator";
 import { serverTimestamp } from "firebase/firestore";
 import { clearPoopOverflowState } from "../data/stats";
 import { completeArenaBattle } from "../utils/arenaApi";
+import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import {
   isTimeWithinSleepSchedule,
   normalizeSleepSchedule,
@@ -38,7 +39,7 @@ const MAX_BATTLE_LOGS = 100;
 /**
  * 배틀 로그 한 건 추가 (배틀 기록 전용 배열에만 저장, activityLogs에는 넣지 않음)
  * @param {Array} prevBattleLogs - 기존 battleLogs
- * @param {Object} entry - { timestamp, mode: 'sparring'|'arena'|'quest'|'skip', text, win?, enemyName?, injury? }
+ * @param {Object} entry - { timestamp, mode: 'sparring'|'arena'|'quest'|'skip', text, win?, enemyName?, injury?, digimonId?, digimonName? }
  * @returns {Array} 최대 100개 유지
  */
 function appendBattleLog(prevBattleLogs, entry) {
@@ -668,6 +669,8 @@ export function useGameActions({
    * 배틀 완료 핸들러
    */
   const handleBattleComplete = async (battleResult) => {
+    const currentDigimonSnapshot = buildDigimonLogSnapshot(selectedDigimon, digimonData);
+
     // Sparring 모드는 배틀 횟수에 반영하지 않고 로그만 남김
     if (battleType === 'sparring') {
       const updatedStats = await applyLazyUpdateBeforeAction();
@@ -686,7 +689,13 @@ export function useGameActions({
       const energyDelta = newEnergy - oldEnergy;
       
       const sparringText = `Sparring: Practice Match (No Record) (Wt ${weightDelta}g, En ${energyDelta})`;
-      const sparringEntry = { mode: "sparring", text: sparringText, win: battleResult.win, timestamp: Date.now() };
+      const sparringEntry = {
+        mode: "sparring",
+        text: sparringText,
+        win: battleResult.win,
+        timestamp: Date.now(),
+        ...currentDigimonSnapshot,
+      };
       setDigimonStats((prevStats) => {
         const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, sparringEntry);
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(sparringEntry).catch(() => {});
@@ -837,7 +846,14 @@ export function useGameActions({
       const arenaText = battleResult.win
         ? `Arena: Won vs ${tamerName} (Rank UP) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Arena: Lost vs ${tamerName} (Wt ${weightDelta}g, En ${energyDelta})`;
-      const arenaEntry = { mode: "arena", text: arenaText, win: battleResult.win, enemyName: tamerName, timestamp: Date.now() };
+      const arenaEntry = {
+        mode: "arena",
+        text: arenaText,
+        win: battleResult.win,
+        enemyName: tamerName,
+        timestamp: Date.now(),
+        ...currentDigimonSnapshot,
+      };
       setDigimonStats((prevStats) => {
         const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, arenaEntry);
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(arenaEntry).catch(() => {});
@@ -871,7 +887,12 @@ export function useGameActions({
     // 에너지 부족 체크 (배틀 시작 전)
     if ((updatedStats.energy || 0) <= 0) {
       setDigimonStats((prevStats) => {
-        const skipEntry = { mode: "skip", text: "Battle: Skipped (Not enough Energy)", timestamp: Date.now() };
+        const skipEntry = {
+          mode: "skip",
+          text: "Battle: Skipped (Not enough Energy)",
+          timestamp: Date.now(),
+          ...currentDigimonSnapshot,
+        };
         const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, skipEntry);
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(skipEntry).catch(() => {});
         const statsWithBattleLogs = { ...updatedStats, battleLogs: updatedBattleLogs };
@@ -973,7 +994,15 @@ export function useGameActions({
         ? `Quest: Defeated ${enemyName} (Stage Clear) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Quest: Defeated ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questWinText += " - Battle: Injured! (Chance hit)";
-      const questWinEntry = { mode: "quest", text: questWinText, win: true, enemyName, injury: isInjured, timestamp: Date.now() };
+      const questWinEntry = {
+        mode: "quest",
+        text: questWinText,
+        win: true,
+        enemyName,
+        injury: isInjured,
+        timestamp: Date.now(),
+        ...currentDigimonSnapshot,
+      };
       setDigimonStats((prevStats) => {
         const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, questWinEntry);
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questWinEntry).catch(() => {});
@@ -1038,7 +1067,15 @@ export function useGameActions({
       
       let questLoseText = `Quest: Defeated by ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questLoseText += " - Battle: Injured! (Chance hit)";
-      const questLoseEntry = { mode: "quest", text: questLoseText, win: false, enemyName, injury: isInjured, timestamp: Date.now() };
+      const questLoseEntry = {
+        mode: "quest",
+        text: questLoseText,
+        win: false,
+        enemyName,
+        injury: isInjured,
+        timestamp: Date.now(),
+        ...currentDigimonSnapshot,
+      };
       setDigimonStats((prevStats) => {
         const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, questLoseEntry);
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questLoseEntry).catch(() => {});

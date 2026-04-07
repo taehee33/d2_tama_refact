@@ -21,7 +21,7 @@ export const defaultStats = {
   basePower: 0,               // 기본 파워
   careMistakes: 0,            // 실수 횟수 (진화 시 리셋)
   proteinOverdose: 0,         // 프로틴 과다 (최대 7, 4개당 +1)
-  injuries: 0,                // 부상 횟수 (15회 시 사망)
+  injuries: 0,                // 이번 생 누적 부상 횟수 (15회 시 사망)
   battlesWon: 0,              // 승리 횟수
   battlesLost: 0,             // 패배 횟수
   battlesForEvolution: 0,     // 진화를 위한 배틀 횟수 (진화 시 리셋)

@@ -1,5 +1,39 @@
 # REFACTORING LOG
 
+## 2026-04-07
+
+### 이번 생 누적 부상 이력과 당시 디지몬 복원 기준 정리
+- `injuries`를 현재 진화 단계 누적이 아니라 이번 생 누적으로 재정의해, 일반 진화와 조그레스에서는 유지되고 환생/새로운 시작에서만 초기화되도록 정리했습니다.
+- 활동 로그/배틀 로그 서브컬렉션 저장 스키마에 `digimonId`, `digimonName` 스냅샷을 선택적으로 함께 저장하도록 확장해, 새 부상 로그와 진화/환생 로그에서 당시 디지몬 정보를 바로 읽을 수 있게 했습니다.
+- 부상 이력 helper는 새 스냅샷 필드를 우선 사용하고, 예전 로그는 현재 생의 진화 로그를 시간순으로 역추적해 `당시 디지몬`을 fallback 복원하도록 변경했습니다.
+- StatsPopup의 부상 카운터와 부상 이력 라벨을 `현재 단계 기준`에서 `이번 생 기준`으로 바꾸고, 각 부상 항목에 `당시 디지몬` 보조 정보를 표시하도록 업데이트했습니다.
+- 부상 이력 테스트를 이번 생 기준으로 다시 정리해, `birthTime` 이후의 부상만 남는 시나리오와 진화 로그를 역추적해 당시 디지몬을 복원하는 시나리오를 함께 검증하도록 확장했습니다.
+- 새 로그에는 당시 디지몬 스냅샷이 있고, 기존 로그에는 스냅샷이 없어도 진화 로그를 따라가며 `당시 디지몬`을 계산하는 흐름을 기준으로 테스트 기대값을 맞췄습니다.
+- 똥 8개 추가 부상처럼 같은 틱에 여러 건이 생길 수 있는 경우도 분리 로그 형태로 유지된다는 점을 함께 확인하도록 보강했습니다.
+
+### 영향받은 파일
+- `src/utils/digimonLogSnapshot.js`
+- `src/data/stats.js`
+- `src/data/defaultStatsFile.js`
+- `src/data/v1/defaultStats.js`
+- `src/hooks/useGameLogic.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useGameActions.js`
+- `src/hooks/useEvolution.js`
+- `src/hooks/useDeath.js`
+- `src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `src/components/StatsPopup.jsx`
+- `src/components/GameModals.jsx`
+- `src/data/stats.test.js`
+- `src/logic/stats/injuryHistory.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 새 로그에는 스냅샷을 직접 저장하고, 기존 로그는 표시 시점에만 fallback 복원하도록 분리해 두면 저장 구조 변경 이후 데이터와 기존 누적 데이터 모두를 한 번에 호환할 수 있습니다.
+- `injuries` 의미를 이번 생 누적으로 통일하면 부상 카운터, 부상 과다 사망 판정, 상태 배지, 부상 이력 UI가 같은 기준을 공유하게 되어 별도 누적 필드를 추가하지 않아도 됩니다.
+- 부상 이력은 단순 문자열 목록이 아니라, "언제 어떤 디지몬 상태에서 부상했는지"를 읽는 기록이기 때문에 테스트도 시간 기준과 당시 디지몬 복원을 함께 검증해야 합니다.
+- 이번 변경은 구현 상세보다 기대 동작을 명확히 남기는 데 초점을 두어, 이후 소스 반영이 들어와도 회귀를 쉽게 잡을 수 있게 합니다.
+
 ## 2026-04-05
 
 ### 냉장고 상태에서 디지몬이 돌아다니는 렌더 버그 수정

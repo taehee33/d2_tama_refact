@@ -12,6 +12,7 @@ import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
+import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 
@@ -373,9 +374,18 @@ export function useGameData({
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
         const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
+        const digimonSnapshot = buildDigimonLogSnapshot(
+          selectedDigimon || digimonStats?.selectedDigimon || null,
+          evolutionDataForSlot,
+          adaptedV1,
+          adaptedV2,
+          digimonDataVer1
+        );
         const prevLogs = Array.isArray(digimonStats.activityLogs) ? digimonStats.activityLogs : [];
         const updated = repairCareMistakeLedger(
-          applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy),
+          applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy, {
+            digimonSnapshot,
+          }),
           digimonStats.activityLogs || []
         ).nextStats;
 
@@ -548,8 +558,18 @@ export function useGameData({
             }
             
             const prevLogCount = (savedStats.activityLogs || []).length;
+            const digimonSnapshot = buildDigimonLogSnapshot(
+              savedName,
+              evolutionDataForSlot,
+              dataMap,
+              digimonDataVer1,
+              adaptedV1,
+              adaptedV2
+            );
             savedStats = repairCareMistakeLedger(
-              applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy),
+              applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy, {
+                digimonSnapshot,
+              }),
               savedStats.activityLogs || []
             ).nextStats;
             // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
@@ -657,6 +677,8 @@ export function useGameData({
           type: logEntry.type,
           text: logEntry.text ?? "",
           timestamp: logEntry.timestamp ?? Date.now(),
+          ...(logEntry.digimonId ? { digimonId: logEntry.digimonId } : {}),
+          ...(logEntry.digimonName ? { digimonName: logEntry.digimonName } : {}),
         });
       } catch (error) {
         console.error("[appendLogToSubcollection] 오류:", error);
@@ -682,6 +704,8 @@ export function useGameData({
           ...(typeof entry.win === "boolean" && { win: entry.win }),
           ...(entry.enemyName != null && entry.enemyName !== "" && { enemyName: entry.enemyName }),
           ...(typeof entry.injury === "boolean" && { injury: entry.injury }),
+          ...(entry.digimonId ? { digimonId: entry.digimonId } : {}),
+          ...(entry.digimonName ? { digimonName: entry.digimonName } : {}),
         });
       } catch (error) {
         console.error("[appendBattleLogToSubcollection] 오류:", error);

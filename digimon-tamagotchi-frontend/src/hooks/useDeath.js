@@ -5,6 +5,7 @@ import { initializeStats } from "../data/stats";
 import { updateEncyclopedia } from "./useEncyclopedia";
 import { addActivityLog } from "./useGameLogic";
 import { evaluateDeathConditions } from "../logic/stats/death";
+import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 
 /**
  * useDeath Hook
@@ -59,7 +60,8 @@ export function useDeath({
     const reincarnationLogs = addActivityLog(
       nx.activityLogs || old.activityLogs || [],
       "REINCARNATION",
-      `Reincarnation: Transformed to ${ohaka} (death form)`
+      `Reincarnation: Transformed to ${ohaka} (death form)`,
+      buildDigimonLogSnapshot(ohaka, digimonDataVer1)
     );
     if (appendLogToSubcollection) await appendLogToSubcollection(reincarnationLogs[reincarnationLogs.length - 1]).catch(() => {});
     const nxWithLogs = { ...nx, activityLogs: reincarnationLogs, selectedDigimon: ohaka };

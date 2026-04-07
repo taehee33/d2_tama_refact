@@ -3,6 +3,7 @@ import { defaultStats } from "./defaultStatsFile";
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
 import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
+import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 
@@ -122,7 +123,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
   merged.careMistakeLedger = [];
-  merged.injuries = 0; // 부상 횟수 리셋
+  merged.injuries = isNewStart
+    ? 0
+    : (oldStats.injuries !== undefined ? oldStats.injuries : (merged.injuries || 0)); // 이번 생 누적 부상 횟수 유지
   merged.isInjured = false; // 부상 상태 리셋
   merged.injuredAt = null; // 부상 시간 리셋
   merged.healedDosesCurrent = 0; // 치료제 횟수 리셋
@@ -370,9 +373,16 @@ function ensureTimestamp(val) {
  * @param {number} maxLogs - 최대 유지 개수
  * @returns {Array} 업데이트된 로그 배열
  */
-function pushBackdatedActivityLog(activityLogs, type, text, timestampMs, maxLogs = MAX_ACTIVITY_LOGS) {
+function pushBackdatedActivityLog(
+  activityLogs,
+  type,
+  text,
+  timestampMs,
+  maxLogs = MAX_ACTIVITY_LOGS,
+  extraFields = {}
+) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
-  const next = [...logs, { type, text, timestamp: timestampMs }];
+  const next = [...logs, { type, text, timestamp: timestampMs, ...extraFields }];
   return next.length > maxLogs ? next.slice(-maxLogs) : next;
 }
 
@@ -422,7 +432,13 @@ function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = 
  * @param {number} maxEnergy - 최대 에너지 (선택적)
  * @returns {Object} 업데이트된 스탯
  */
-export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEnergy = null) {
+export function applyLazyUpdate(
+  stats,
+  lastSavedAt,
+  sleepSchedule = null,
+  maxEnergy = null,
+  options = {}
+) {
   if (!lastSavedAt) {
     // 마지막 저장 시간이 없으면 현재 시간으로 설정
     return { ...stats, lastSavedAt: new Date() };
@@ -484,6 +500,7 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
 
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
+  const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
   migrateLegacyPoopTimers(updatedStats);
   
   // birthTime이 없으면 현재 시간으로 설정
@@ -609,7 +626,9 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
               updatedStats.activityLogs,
               'POOP',
               'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
-              timeToMax
+              timeToMax,
+              MAX_ACTIVITY_LOGS,
+              digimonSnapshot
             );
           }
         }
@@ -624,7 +643,9 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
               updatedStats.activityLogs,
               'POOP',
               'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
-              updatedStats.poopReachedMaxAt
+              updatedStats.poopReachedMaxAt,
+              MAX_ACTIVITY_LOGS,
+              digimonSnapshot
             );
           }
         }
@@ -647,7 +668,9 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
                 updatedStats.activityLogs,
                 'POOP',
                 `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 [과거 재구성]`,
-                nowMs
+                nowMs,
+                MAX_ACTIVITY_LOGS,
+                digimonSnapshot
               );
             }
           }

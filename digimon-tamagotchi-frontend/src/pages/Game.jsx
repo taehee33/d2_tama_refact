@@ -33,6 +33,7 @@ import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
+import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
@@ -1281,7 +1282,8 @@ async function setSelectedDigimonAndSave(name) {
       const newStartLogs = addActivityLog(
         currentLogs,
         "NEW_START",
-        `New start: Reborn as ${initialDigimonId}`
+        `New start: Reborn as ${initialDigimonId}`,
+        buildDigimonLogSnapshot(initialDigimonId, digimonDataForSlot, evolutionDataForSlot)
       );
       if (appendLogToSubcollection) appendLogToSubcollection(newStartLogs[newStartLogs.length - 1]).catch(() => {});
       const nsWithLogs = { ...ns, activityLogs: newStartLogs, selectedDigimon: initialDigimonId };

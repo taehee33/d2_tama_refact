@@ -137,14 +137,25 @@ function CareMistakeHistory({ stats, activityLogs, formatTimestamp }) {
 
 /**
  * 부상 이력 아코디언 컴포넌트
- * activityLogs / battleLogs를 현재 단계 기준으로 정규화해 부상 카운터와 범위를 맞춘다.
+ * activityLogs / battleLogs를 이번 생 기준으로 정규화해 부상 카운터와 범위를 맞춘다.
  */
-function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp, currentStageStartedAt = null }) {
+function InjuryHistory({
+  activityLogs,
+  battleLogs = [],
+  formatTimestamp,
+  currentLifeStartedAt = null,
+  selectedDigimonId = null,
+  slotVersion = "Ver.1",
+  digimonDataMap = null,
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const injuryLogs = getDisplayInjuryEntries({
     activityLogs,
     battleLogs,
-    currentStageStartedAt,
+    currentLifeStartedAt,
+    currentDigimonId: selectedDigimonId,
+    slotVersion,
+    digimonDataMap,
   });
   
   return (
@@ -157,7 +168,7 @@ function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp, current
           <span className="text-sm font-semibold text-gray-700">
             부상 이력 ({injuryLogs.length}건)
           </span>
-          <span className="text-[10px] text-gray-400">현재 단계 기준</span>
+          <span className="text-[10px] text-gray-400">이번 생 기준</span>
         </div>
         <span className="text-gray-500 text-xs">
           {isOpen ? '▲ 접기' : '▼ 펼치기'}
@@ -168,12 +179,13 @@ function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp, current
         <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
           {injuryLogs.length === 0 ? (
             <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
-              현재 단계 부상 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+              이번 생 부상 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
             </div>
           ) : (
             injuryLogs.map((log, index) => {
               const timestamp = ensureTimestamp(log.timestamp);
               const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
+              const digimonLabel = log.digimonName || log.digimonId || "확인 불가";
               
               // 부상 원인 추출
               let injuryType = '부상 발생';
@@ -206,6 +218,9 @@ function InjuryHistory({ activityLogs, battleLogs = [], formatTimestamp, current
                   </div>
                   <div className={`${textColor.replace('700', '600')} mt-1 text-[10px]`}>
                     {formattedTime}
+                  </div>
+                  <div className={`${textColor.replace('700', '600')} mt-1 text-[10px]`}>
+                    당시 디지몬: {digimonLabel}
                   </div>
                 </div>
               );
@@ -280,6 +295,9 @@ export default function StatsPopup({
   stats,
   activityLogs: activityLogsProp = null, // 틱에서 즉시 반영된 로그 (부상/케어미스 새로고침 없이 표시)
   digimonData = null, // 종족 고정 파라미터 (digimonData)
+  digimonDataMap = null,
+  selectedDigimonId = null,
+  slotVersion = "Ver.1",
   onClose,
   devMode=false,
   onChangeStats,
@@ -1902,7 +1920,7 @@ export default function StatsPopup({
                     )}
                   </div>
                   <div className="text-[10px] text-gray-500 mb-2">
-                    현재 진화 단계 기준 누적 부상 횟수
+                    이번 생 누적 부상 횟수
                   </div>
                   {/* 부상 과다 게이지 */}
                   <div className="w-full bg-gray-200 h-3 rounded-full flex overflow-hidden mb-1">
@@ -1934,7 +1952,7 @@ export default function StatsPopup({
                     <div className="text-orange-500">※ 주의: 부상 횟수가 증가하고 있습니다.</div>
                   ) : (
                     <div className="text-gray-500">
-                      조건 미충족 (현재 단계 누적 부상: {injuries || 0}/15)
+                      조건 미충족 (이번 생 누적 부상: {injuries || 0}/15)
                     </div>
                   )}
                   
@@ -1944,7 +1962,10 @@ export default function StatsPopup({
                       activityLogs={displayActivityLogs}
                       battleLogs={stats?.battleLogs || []}
                       formatTimestamp={formatTimestamp}
-                      currentStageStartedAt={stats?.evolutionStageStartedAt ?? null}
+                      currentLifeStartedAt={stats?.birthTime ?? null}
+                      selectedDigimonId={selectedDigimonId}
+                      slotVersion={slotVersion}
+                      digimonDataMap={digimonDataMap}
                     />
                   </div>
                 </div>
