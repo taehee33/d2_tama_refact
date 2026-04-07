@@ -25,12 +25,16 @@ const ControlPanel = ({
   
   // 냉장고 상태
   isFrozen = false,
+
+  // 조명 상태
+  isLightsOn = true,
 }) => {
+  const rootClassName = isMobile
+    ? "flex flex-col items-center gap-4 mt-2 w-full control-panel-mobile"
+    : "flex justify-center items-center space-x-4 mt-2";
+
   return (
-    <div className={isMobile 
-      ? "flex flex-col items-center gap-4 mt-2 w-full control-panel-mobile" 
-      : "flex justify-center items-center space-x-4 mt-2"
-    }>
+    <div className={rootClassName}>
       <div className={isMobile ? "w-full stats-panel-mobile" : ""}>
         <StatsPanel stats={stats} sleepStatus={sleepStatus} isMobile={isMobile} />
       </div>
@@ -42,6 +46,7 @@ const ControlPanel = ({
           onMenuClick={onMenuClick}
           isMobile={isMobile}
           isFrozen={isFrozen}
+          isLightsOn={isLightsOn}
         />
       </div>
     </div>

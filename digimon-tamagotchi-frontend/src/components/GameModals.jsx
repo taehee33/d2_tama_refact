@@ -743,7 +743,6 @@ export default function GameModals({
         <ExtraMenuModal
           onClose={() => toggleModal('extra', false)}
           onOpenSettings={() => toggleModal('settings', true)}
-          onOpenDigimonInfo={() => toggleModal('digimonInfo', true)}
           onOpenCollection={() => toggleModal('collection', true)}
           onOpenActivityLog={() => toggleModal('activityLog', true)}
           onOpenBattleLog={() => toggleModal('battleLog', true)}

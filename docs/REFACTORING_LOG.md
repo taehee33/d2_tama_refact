@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-04-07] `Game.jsx` 2차 축소: runtime/persistence composite hook 도입
+
+### 작업 유형
+- 🧭 `Game.jsx` orchestration 축소
+- ⏱ runtime effect composite hook 도입
+- 💾 page persistence effect composite hook 도입
+- 🧪 composite hook characterization 테스트 추가
+
+### 목적 및 영향
+- **목적:** `Game.jsx`에 남아 있던 runtime effect 묶음과 master-data/background/localStorage persistence effect 묶음을 한 단계 더 바깥으로 옮겨, 페이지를 조합 중심 컨테이너에 가깝게 줄인다.
+- **범위:** `Game.jsx`, `src/hooks/game-runtime/*`, 관련 테스트와 로그 문서만 조정하고, Firestore 경로, localStorage key, `GameModals`/`GameScreen`/`ControlPanel`/`DigimonStatusBadges`의 공개 prop shape는 유지한다.
+- **내용:**
+  - `src/hooks/game-runtime/useGameRuntimeEffects.js`를 추가해 `useGameClock`, `useGameSaveOnLeave`, `useGameRealtimeLoop`, `useGameSleepStatusLoop`, `useTakeOutCleanup` 호출을 한 곳으로 모았다.
+  - `src/hooks/game-runtime/useGamePagePersistenceEffects.js`를 추가해 master data sync, background save gate, sprite 크기 localStorage 저장, `clearedQuestIndex` load/save를 한 곳으로 모았다.
+  - `Game.jsx`에서는 위 두 composite hook과 기존 `useJogressSubscriptions`만 호출하고, animation view-model / page view-model / modal bindings / render 조합에 집중하도록 줄였다.
+  - `syncRemainingByElapsed`는 page persistence hook 내부 private helper로 이동했고, `digimon_view_settings`, `slot${slotId}_clearedQuestIndex` key는 그대로 유지했다.
+  - `useGameRuntimeEffects.test.js`, `useGamePagePersistenceEffects.test.js`를 추가해 기존 입력 매핑, background gate, master-data sync countdown 보정, 기존 localStorage key 유지 여부를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePagePersistenceEffects.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePagePersistenceEffects.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/game-runtime/useGameRuntimeEffects.test.js src/hooks/game-runtime/useGamePagePersistenceEffects.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js src/hooks/game-runtime/useTakeOutCleanup.test.js src/hooks/game-runtime/buildGamePageViewModel.test.js src/hooks/game-runtime/buildGameModalBindings.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+- `node --test tests/*.test.js api/_lib/*.test.js`
+
+### 아키텍처 메모
+- 이번 라운드는 `좋은 수준의 추가 축소`까지만 목표로 하므로, `useJogressSubscriptions`는 별도 hook으로 유지하고 animation/evolution gating effect도 `Game.jsx`에 남겼다.
+- 다음 단계는 이 구조를 바탕으로 persistence 세부 경계나 `Game.jsx` 내 남은 page-specific effect를 더 다루되, 이번처럼 composite 수준 이상으로 뭉치지 않는 방향이 안전하다.
+
 ## [2026-04-07] `Game.jsx` 구독/effect/view-model 안전 분리 1차
 
 ### 작업 유형
@@ -3437,4 +3473,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.jsx`
 - `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.test.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 사용자 설정을 `users/{uid}/settings/main`으로 분리 시작
+
+- 사용자 설정 1단계로 `discordWebhookUrl`, `isNotificationEnabled`, `siteTheme` 저장 경로를 루트 `users/{uid}` 문서에서 `users/{uid}/settings/main` 문서로 옮기기 시작했다.
+- `userSettingsUtils`는 이제 새 경로를 우선 읽고, 아직 마이그레이션되지 않은 기존 사용자에 대해서만 루트 문서를 fallback으로 읽는다.
+- 설정 저장은 `setDoc(..., { merge: true })` 기반으로 `settings/main`에만 쓰도록 바꿔, 이후 `profile`과 `encyclopedia` 분리와 충돌하지 않도록 했다.
+- Firestore 규칙에 `users/{uid}/settings/{settingsId}` 소유자 접근 규칙을 추가했고, 유틸 단위 테스트로 `settings/main 우선 읽기`, `루트 fallback`, `새 경로 저장`을 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.test.js`
+- `firestore.rules`
+- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
 - `docs/REFACTORING_LOG.md`

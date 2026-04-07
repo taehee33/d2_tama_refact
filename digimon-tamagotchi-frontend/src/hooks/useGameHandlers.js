@@ -7,6 +7,7 @@ import {
   normalizeSleepSchedule,
   shiftSleepScheduleByHours,
 } from "../utils/sleepUtils";
+import { getGameMenuById, getMenuDisabledState } from "../constants/gameMenus";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
@@ -172,58 +173,31 @@ export function useGameHandlers({
   const handleMenuClick = (menu) => {
     // 수면방해는 실제 액션 수행 시점에 처리됨 (메뉴 클릭 시점이 아님)
     // 스탯(status), 호출(callSign), 조명(electric)은 수면방해 제외
+    const menuMeta = getGameMenuById(menu);
+    const disabledState = getMenuDisabledState(menu, {
+      isFrozen: Boolean(digimonStats?.isFrozen),
+      isLightsOn,
+    });
 
-    // Lights 모달은 electric 버튼에 매핑 (수면방해 제외)
-    if (menu === "electric") {
-      toggleModal('lights', true);
-      setActiveMenu(menu);
+    if (!menuMeta || menuMeta.surface !== "primary" || disabledState.disabled) {
       return;
     }
 
-    // 불이 꺼진 상태에서는 식사·훈련·배틀·교감·화장실·치료 동작 불가
-    const needsLights = ['eat', 'train', 'battle', 'communication', 'bathroom', 'heal'];
-    if (needsLights.includes(menu) && !isLightsOn) {
-      alert('💡 조명을 먼저 켜주세요! 💡');
-      return;
-    }
+    const menuActionMap = {
+      electric: () => toggleModal("lights", true),
+      eat: () => toggleModal("feed", true),
+      status: () => toggleModal("stats", true),
+      bathroom: () => handleCleanPoopFromHook(),
+      train: () => toggleModal("train", true),
+      battle: () => toggleModal("battleSelection", true),
+      heal: () => handleHeal(),
+      callSign: () => toggleModal("call", true),
+      communication: () => toggleModal("interaction", true),
+      extra: () => toggleModal("extra", true),
+    };
 
-    setActiveMenu(menu);
-    switch(menu){
-      case "eat":
-        toggleModal('feed', true);
-        break;
-      case "status":
-        // 스탯은 수면방해 제외
-        toggleModal('stats', true);
-        break;
-      case "bathroom":
-        // 화장실은 실제 청소 시 수면방해 발생 (handleCleanPoop에서 처리)
-        handleCleanPoopFromHook();
-        break;
-      case "train":
-        toggleModal('train', true);
-        break;
-      case "battle":
-        toggleModal('battleSelection', true);
-        break;
-      case "heal":
-        // 치료는 실제 치료 완료 시 수면방해 발생 (handleHeal에서 처리)
-        handleHeal();
-        break;
-      case "callSign":
-        // 호출은 수면방해 제외
-        toggleModal('call', true);
-        break;
-      case "communication":
-        // 교감은 실제 액션 선택 시 수면방해 발생 (각 모달에서 처리)
-        toggleModal('interaction', true);
-        break;
-      case "extra":
-        // 추가 기능은 수면방해 제외
-        toggleModal('extra', true);
-        break;
-      default:
-    }
+    setActiveMenu(menuMeta.id);
+    menuActionMap[menuMeta.id]?.();
   };
 
   /**

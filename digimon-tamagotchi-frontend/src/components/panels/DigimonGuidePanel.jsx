@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { checkEvolutionAvailability } from "../../hooks/useGameLogic";
 import { translateStage } from "../../utils/stageTranslator";
+import { getGroupedGameMenus, MENU_SURFACES } from "../../constants/gameMenus";
 
 function getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2) {
   if (!partnerId) {
@@ -109,6 +110,10 @@ function convertConditionsToRequirements(conditions) {
   return requirements;
 }
 
+function formatMenuLabels(group) {
+  return group.menus.map((menu) => menu.label).join(", ");
+}
+
 function DigimonGuidePanel({
   currentDigimonName,
   currentDigimonData,
@@ -130,6 +135,10 @@ function DigimonGuidePanel({
     TIPS: "게임 팁",
     GUIDE: "기본 가이드",
   };
+  const primaryMenuGroups = getGroupedGameMenus(MENU_SURFACES.PRIMARY);
+  const extraMenuGroups = getGroupedGameMenus(MENU_SURFACES.EXTRA);
+  const basicMenus = primaryMenuGroups.find((group) => group.id === "basic");
+  const careMenus = primaryMenuGroups.find((group) => group.id === "care");
 
   const renderHeader = () => (
     <div className="mb-4 flex items-center justify-between gap-2 flex-wrap">
@@ -512,10 +521,11 @@ function DigimonGuidePanel({
       <div className="pixel-art-card rounded border-2 border-indigo-400 bg-gray-700 p-4">
         <h3 className="mb-3 text-xl font-bold text-indigo-300 pixel-art-text">🎮 기본 조작</h3>
         <ul className="space-y-2 break-words text-sm text-white">
-          <li>• <strong>상단 메뉴:</strong> 상태, 먹이기, 훈련, 배틀</li>
-          <li>• <strong>하단 메뉴:</strong> 화장실, 조명, 치료, 호출</li>
+          <li>• <strong>{basicMenus?.label}:</strong> {formatMenuLabels(basicMenus || { menus: [] })}</li>
+          <li>• <strong>{careMenus?.label}:</strong> {formatMenuLabels(careMenus || { menus: [] })}</li>
+          <li>• <strong>더보기:</strong> {extraMenuGroups.map((group) => `${group.label}(${formatMenuLabels(group)})`).join(" / ")}</li>
           <li>• <strong>Evolution 버튼:</strong> 진화 조건을 만족하면 진화할 수 있습니다</li>
-          <li>• <strong>❓ 버튼:</strong> 디지몬 정보, 진화 가이드, 활동 로그 등을 확인할 수 있습니다</li>
+          <li>• <strong>가이드 버튼:</strong> 디지몬 정보와 진화 가이드를 바로 확인할 수 있습니다</li>
         </ul>
       </div>
 

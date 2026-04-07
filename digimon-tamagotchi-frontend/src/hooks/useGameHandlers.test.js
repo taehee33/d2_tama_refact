@@ -71,3 +71,58 @@ describe("useGameHandlers handleToggleLights", () => {
     );
   });
 });
+
+describe("useGameHandlers handleMenuClick", () => {
+  test("조명이 꺼져 있으면 조명 의존 메뉴를 열지 않는다", () => {
+    const params = createDefaultParams({ isLightsOn: false });
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    act(() => {
+      result.current.handleMenuClick("battle");
+    });
+
+    expect(params.toggleModal).not.toHaveBeenCalled();
+    expect(params.setActiveMenu).not.toHaveBeenCalled();
+  });
+
+  test("조명이 꺼져 있어도 상태와 조명 메뉴는 계속 접근 가능하다", () => {
+    const params = createDefaultParams({ isLightsOn: false });
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    act(() => {
+      result.current.handleMenuClick("status");
+      result.current.handleMenuClick("electric");
+    });
+
+    expect(params.setActiveMenu).toHaveBeenNthCalledWith(1, "status");
+    expect(params.toggleModal).toHaveBeenNthCalledWith(1, "stats", true);
+    expect(params.setActiveMenu).toHaveBeenNthCalledWith(2, "electric");
+    expect(params.toggleModal).toHaveBeenNthCalledWith(2, "lights", true);
+  });
+
+  test("냉장고 상태에서는 먹이와 훈련만 막고 다른 메뉴는 유지한다", () => {
+    const params = createDefaultParams({
+      digimonStats: {
+        isFrozen: true,
+        activityLogs: [],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: Date.now() - 1000 },
+        },
+      },
+    });
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    act(() => {
+      result.current.handleMenuClick("eat");
+      result.current.handleMenuClick("train");
+      result.current.handleMenuClick("battle");
+    });
+
+    expect(params.toggleModal).toHaveBeenCalledTimes(1);
+    expect(params.toggleModal).toHaveBeenCalledWith("battleSelection", true);
+    expect(params.setActiveMenu).toHaveBeenCalledTimes(1);
+    expect(params.setActiveMenu).toHaveBeenCalledWith("battle");
+  });
+});
