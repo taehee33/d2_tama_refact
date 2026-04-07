@@ -13,16 +13,16 @@ function PlayChatButton({ controlsId, isOpen, unreadCount, presenceCount, onClic
       aria-haspopup="dialog"
       aria-label={buttonLabel}
     >
-      <span className="play-chat-fab__icon" aria-hidden="true">
-        💬
+      <span className="play-chat-fab__icon-wrap" aria-hidden="true">
+        <span className="play-chat-fab__icon">💬</span>
+        {unreadCount > 0 ? (
+          <span className="play-chat-fab__badge">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        ) : null}
       </span>
       <span className="play-chat-fab__label">{buttonLabel}</span>
       <span className="play-chat-fab__presence">{`${presenceCount}명`}</span>
-      {unreadCount > 0 ? (
-        <span className="play-chat-fab__badge">
-          {unreadCount > 99 ? "99+" : unreadCount}
-        </span>
-      ) : null}
     </button>
   );
 }

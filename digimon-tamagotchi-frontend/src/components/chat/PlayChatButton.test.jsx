@@ -14,12 +14,15 @@ describe("PlayChatButton", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "채팅" })).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "채팅" });
+
+    expect(button).toBeInTheDocument();
     expect(screen.getByText("채팅")).toBeInTheDocument();
     expect(screen.getByText("2명")).toBeInTheDocument();
+    expect(button.querySelector(".play-chat-fab__icon-wrap")).not.toBeNull();
   });
 
-  test("열림 상태에서도 접속 수를 유지한다", () => {
+  test("열림 상태에서도 접속 수를 유지하고 배지를 아이콘 위에 렌더한다", () => {
     render(
       <PlayChatButton
         controlsId="drawer"
@@ -30,8 +33,15 @@ describe("PlayChatButton", () => {
       />
     );
 
-    expect(screen.getByRole("button", { name: "채팅 닫기" })).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "채팅 닫기" });
+    const iconWrap = button.querySelector(".play-chat-fab__icon-wrap");
+    const badge = button.querySelector(".play-chat-fab__badge");
+
+    expect(button).toBeInTheDocument();
     expect(screen.getByText("0명")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
+    expect(iconWrap).not.toBeNull();
+    expect(badge).not.toBeNull();
+    expect(iconWrap).toContainElement(badge);
   });
 });

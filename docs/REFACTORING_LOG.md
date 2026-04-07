@@ -3249,3 +3249,17 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/pages/Me.jsx`
 - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
 - `docs/REFACTORING_LOG.md`
+
+### 플레이 채팅 FAB 미읽음 배지를 말풍선 아이콘 위로 이동
+
+- 하단 플로팅 `채팅` 버튼의 미읽음 배지를 버튼 우상단이 아니라 왼쪽 말풍선 아이콘 기준으로 다시 배치해, 알림 위치가 더 직관적으로 읽히도록 정리했다.
+- `PlayChatButton`은 아이콘 전용 래퍼를 추가하고 배지를 그 내부로 옮겨, 라벨과 접속자 수 간격은 유지하면서 배지 기준점만 아이콘으로 고정했다.
+- 후속 미세 조정으로 배지의 세로 위치를 조금 더 위로 올려, 말풍선 이모티콘이 숫자에 과하게 가려지지 않도록 맞췄다.
+- 추가 미세 조정으로 배지를 더 위로 올려, 작은 해상도에서도 말풍선 이모티콘이 더 또렷하게 보이도록 여백을 확보했다.
+- 관련 테스트를 보강해 배지가 계속 렌더되는지만이 아니라 아이콘 래퍼 내부에 배치되는 구조도 함께 회귀 테스트로 고정했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.jsx`
+- `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`

@@ -3691,8 +3691,19 @@ code {
   background: linear-gradient(135deg, #24483d, #1f7a5f);
 }
 
+.play-chat-fab__icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 1.4rem;
+  width: 1.4rem;
+  line-height: 1;
+}
+
 .play-chat-fab__icon {
   font-size: 1rem;
+  line-height: 1;
 }
 
 .play-chat-fab__label {
@@ -3707,8 +3718,9 @@ code {
 
 .play-chat-fab__badge {
   position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
+  top: -0.9rem;
+  right: -0.62rem;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
