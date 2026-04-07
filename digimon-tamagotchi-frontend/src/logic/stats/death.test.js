@@ -85,6 +85,24 @@ describe("evaluateDeathConditions", () => {
     });
   });
 
+  test("냉장고에서 꺼낸 뒤 takeOutAt가 정리돼도 누적 제외 시간으로 배고픔 사망을 막는다", () => {
+    const result = evaluateDeathConditions(
+      createStats({
+        fullness: 0,
+        lastHungerZeroAt: Date.parse("2026-04-01T00:00:00.000Z"),
+        frozenAt: null,
+        takeOutAt: null,
+        hungerZeroFrozenDurationMs: 3 * 60 * 60 * 1000,
+      }),
+      NOW_MS
+    );
+
+    expect(result).toEqual({
+      isDead: false,
+      reason: null,
+    });
+  });
+
   test("이미 죽은 스탯은 기존 deathReason을 유지한다", () => {
     const result = evaluateDeathConditions(
       createStats({

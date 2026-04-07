@@ -35,6 +35,7 @@ export function handleStrengthTick(currentStats, digimonData, deltaSec = 1, isSl
       // 힘이 0이 되면 시간 기록
       if (s.strength === 0 && !s.lastStrengthZeroAt) {
         s.lastStrengthZeroAt = Date.now();
+        s.strengthZeroFrozenDurationMs = 0;
       }
     }
   }
@@ -44,4 +45,3 @@ export function handleStrengthTick(currentStats, digimonData, deltaSec = 1, isSl
 
 // 프로틴 관련 함수는 logic/food/protein.js로 이동되었습니다.
 // 이 파일에서는 handleStrengthTick만 제공합니다.
-

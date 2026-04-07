@@ -11,6 +11,15 @@ export function toTimestamp(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+export function toDurationMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+
+  return Math.floor(numeric);
+}
+
 /**
  * 냉장고 구간을 제외한 경과 시간(ms)
  */
@@ -18,7 +27,8 @@ export function getElapsedTimeExcludingFridge(
   startTime,
   endTime = Date.now(),
   frozenAt = null,
-  takeOutAt = null
+  takeOutAt = null,
+  extraExcludedMs = 0
 ) {
   const startMs = toTimestamp(startTime);
   const endMs = toTimestamp(endTime) ?? Date.now();
@@ -27,9 +37,11 @@ export function getElapsedTimeExcludingFridge(
     return 0;
   }
 
+  const extraPausedMs = toDurationMs(extraExcludedMs);
+
   const frozenMs = toTimestamp(frozenAt);
   if (frozenMs == null) {
-    return endMs - startMs;
+    return Math.max(0, (endMs - startMs) - extraPausedMs);
   }
 
   const takeOutMs = toTimestamp(takeOutAt) ?? endMs;
@@ -39,5 +51,5 @@ export function getElapsedTimeExcludingFridge(
   }
 
   const frozenDuration = Math.max(0, takeOutMs - frozenMs);
-  return Math.max(0, (endMs - startMs) - frozenDuration);
+  return Math.max(0, (endMs - startMs) - frozenDuration - extraPausedMs);
 }

@@ -181,6 +181,7 @@ export function useGameAnimations({
         poopCount: 0,
         poopReachedMaxAt: null,
         lastPoopPenaltyAt: null,
+        poopPenaltyFrozenDurationMs: 0,
         // 똥 청소 시 부상 상태는 해제하지 않음 (치료제로만 회복 가능)
         // isInjured는 그대로 유지
         lastSavedAt: now

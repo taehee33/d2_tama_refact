@@ -3,6 +3,48 @@
 
 import { addActivityLog } from "./useGameLogic";
 
+const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+
+function toTimestamp(value) {
+  if (value == null) return null;
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function shiftCallWindow(entry, deadline, frozenDurationMs, timeoutMs) {
+  const safeEntry = entry || { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false };
+  const startedAt = toTimestamp(safeEntry.startedAt);
+  const deadlineAt = toTimestamp(deadline);
+
+  if (safeEntry.isLogged || (startedAt == null && deadlineAt == null)) {
+    return {
+      entry: {
+        ...safeEntry,
+        isActive: false,
+      },
+      deadline: deadlineAt ?? null,
+    };
+  }
+
+  const nextStartedAt =
+    startedAt != null
+      ? startedAt + frozenDurationMs
+      : Math.max(0, (deadlineAt ?? Date.now()) - timeoutMs) + frozenDurationMs;
+  const nextDeadline = (deadlineAt != null ? deadlineAt : nextStartedAt + timeoutMs) + frozenDurationMs;
+
+  return {
+    entry: {
+      ...safeEntry,
+      isActive: false,
+      startedAt: nextStartedAt,
+      sleepStartAt: null,
+    },
+    deadline: nextDeadline,
+  };
+}
+
 /**
  * useFridge Hook
  * 냉장고에 넣기/꺼내기 로직을 담당하는 Custom Hook
@@ -46,8 +88,8 @@ export function useFridge({
       frozenAt: Date.now(),
       // 호출 상태 모두 비활성화
       callStatus: {
-        hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-        strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        hunger: { ...(currentStats.callStatus?.hunger || {}), isActive: false, sleepStartAt: null },
+        strength: { ...(currentStats.callStatus?.strength || {}), isActive: false, sleepStartAt: null },
         sleep: { isActive: false, startedAt: null }
       },
     };
@@ -78,18 +120,58 @@ export function useFridge({
     const frozenDuration = Date.now() - frozenTime;
     const frozenDurationSeconds = Math.floor(frozenDuration / 1000);
     
+    const takenOutAt = Date.now();
+    const nextHungerZeroFrozenDurationMs =
+      currentStats.fullness === 0 && currentStats.lastHungerZeroAt
+        ? (currentStats.hungerZeroFrozenDurationMs || 0) + frozenDuration
+        : (currentStats.hungerZeroFrozenDurationMs || 0);
+    const nextStrengthZeroFrozenDurationMs =
+      currentStats.strength === 0 && currentStats.lastStrengthZeroAt
+        ? (currentStats.strengthZeroFrozenDurationMs || 0) + frozenDuration
+        : (currentStats.strengthZeroFrozenDurationMs || 0);
+    const nextInjuryFrozenDurationMs =
+      currentStats.isInjured && currentStats.injuredAt
+        ? (currentStats.injuryFrozenDurationMs || 0) + frozenDuration
+        : (currentStats.injuryFrozenDurationMs || 0);
+    const nextPoopPenaltyFrozenDurationMs =
+      currentStats.poopCount >= 8 && currentStats.lastPoopPenaltyAt
+        ? (currentStats.poopPenaltyFrozenDurationMs || 0) + frozenDuration
+        : (currentStats.poopPenaltyFrozenDurationMs || 0);
+
+    const hungerWindow = shiftCallWindow(
+      currentStats.callStatus?.hunger,
+      currentStats.hungerMistakeDeadline,
+      frozenDuration,
+      HUNGER_CALL_TIMEOUT_MS
+    );
+    const strengthWindow = shiftCallWindow(
+      currentStats.callStatus?.strength,
+      currentStats.strengthMistakeDeadline,
+      frozenDuration,
+      STRENGTH_CALL_TIMEOUT_MS
+    );
+
     // 냉장고 상태 해제 (꺼내기 애니메이션을 위해 takeOutAt 기록)
     const updatedStats = {
       ...currentStats,
       isFrozen: false,
       frozenAt: null,
-      takeOutAt: Date.now(), // 꺼내기 애니메이션 시작 시간 기록
+      takeOutAt: takenOutAt, // 꺼내기 애니메이션 시작 시간 기록
       // lastSavedAt을 현재 시간으로 업데이트하여 다음 Lazy Update가 정상 작동하도록
       lastSavedAt: new Date(),
-      // 냉장고에 넣은 동안 시간이 멈췄으므로, 힘이 0이었던 시간 타이머 리셋
-      // (냉장고에서 꺼낸 후부터 다시 12시간 카운트 시작)
-      lastHungerZeroAt: currentStats.fullness === 0 ? Date.now() : currentStats.lastHungerZeroAt,
-      lastStrengthZeroAt: currentStats.strength === 0 ? Date.now() : currentStats.lastStrengthZeroAt,
+      lastHungerZeroAt: currentStats.lastHungerZeroAt,
+      lastStrengthZeroAt: currentStats.lastStrengthZeroAt,
+      hungerZeroFrozenDurationMs: nextHungerZeroFrozenDurationMs,
+      strengthZeroFrozenDurationMs: nextStrengthZeroFrozenDurationMs,
+      injuryFrozenDurationMs: nextInjuryFrozenDurationMs,
+      poopPenaltyFrozenDurationMs: nextPoopPenaltyFrozenDurationMs,
+      hungerMistakeDeadline: hungerWindow.deadline,
+      strengthMistakeDeadline: strengthWindow.deadline,
+      callStatus: {
+        hunger: hungerWindow.entry,
+        strength: strengthWindow.entry,
+        sleep: { ...(currentStats.callStatus?.sleep || {}), isActive: false, startedAt: null },
+      },
     };
     
     // 냉장고 전용 대사

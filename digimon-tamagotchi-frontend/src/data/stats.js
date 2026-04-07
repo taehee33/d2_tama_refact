@@ -30,6 +30,7 @@ function migrateLegacyPoopTimers(target, fallbackTime = null) {
 function applyPoopInjury(target, timestampMs, count = 1) {
   target.isInjured = true;
   target.injuredAt = timestampMs;
+  target.injuryFrozenDurationMs = 0;
   target.injuries = (target.injuries || 0) + count;
   target.healedDosesCurrent = 0;
   target.injuryReason = "poop";
@@ -41,6 +42,7 @@ export function clearPoopOverflowState(stats, lastSavedAt = new Date()) {
     poopCount: 0,
     poopReachedMaxAt: null,
     lastPoopPenaltyAt: null,
+    poopPenaltyFrozenDurationMs: 0,
     lastSavedAt,
   };
 }
@@ -50,6 +52,7 @@ export function clearActiveInjuryState(stats) {
     ...stats,
     isInjured: false,
     injuredAt: null,
+    injuryFrozenDurationMs: 0,
     healedDosesCurrent: 0,
     injuryReason: null,
   };
@@ -83,10 +86,13 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.isDead = false; // 새로운 시작이면 항상 false
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
+    merged.hungerZeroFrozenDurationMs = 0;
     merged.lastStrengthZeroAt = null;
+    merged.strengthZeroFrozenDurationMs = 0;
     merged.hungerMistakeDeadline = null;
     merged.strengthMistakeDeadline = null;
     merged.injuredAt = null;
+    merged.injuryFrozenDurationMs = 0;
     merged.isInjured = false;
     merged.injuries = 0;
     merged.deathReason = null; // 새로운 시작이면 deathReason 리셋
@@ -97,6 +103,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.poopCount = 0;
     merged.poopReachedMaxAt = null;
     merged.lastPoopPenaltyAt = null;
+    merged.poopPenaltyFrozenDurationMs = 0;
   } else {
     merged.age = oldStats.age || merged.age;
     merged.birthTime = oldStats.birthTime || Date.now();
@@ -128,6 +135,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     : (oldStats.injuries !== undefined ? oldStats.injuries : (merged.injuries || 0)); // 이번 생 누적 부상 횟수 유지
   merged.isInjured = false; // 부상 상태 리셋
   merged.injuredAt = null; // 부상 시간 리셋
+  merged.injuryFrozenDurationMs = 0;
   merged.healedDosesCurrent = 0; // 치료제 횟수 리셋
   // 호출 상태 초기화 (진화 시 리셋)
   merged.callStatus = {
@@ -222,9 +230,11 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
 
   if (s.fullness > 0) {
     s.lastHungerZeroAt = null;
+    s.hungerZeroFrozenDurationMs = 0;
   }
   if (s.strength > 0) {
     s.lastStrengthZeroAt = null;
+    s.strengthZeroFrozenDurationMs = 0;
   }
 
   // ★ (3) poop 로직 (수면 중에는 타이머 감소하지 않음)
@@ -239,6 +249,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
           const reachedMaxAt = Date.now();
           s.poopReachedMaxAt = reachedMaxAt;
           s.lastPoopPenaltyAt = reachedMaxAt;
+          s.poopPenaltyFrozenDurationMs = 0;
           applyPoopInjury(s, reachedMaxAt);
         }
       } else {
@@ -246,21 +257,25 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
           const reachedMaxAt = Date.now();
           s.poopReachedMaxAt = reachedMaxAt;
           s.lastPoopPenaltyAt = reachedMaxAt;
+          s.poopPenaltyFrozenDurationMs = 0;
           applyPoopInjury(s, reachedMaxAt);
         } else if (!s.lastPoopPenaltyAt) {
           s.lastPoopPenaltyAt = s.poopReachedMaxAt;
+          s.poopPenaltyFrozenDurationMs = 0;
         } else {
           const elapsedSincePenalty = getElapsedTimeExcludingFridge(
             s.lastPoopPenaltyAt,
             Date.now(),
             s.frozenAt,
-            s.takeOutAt
+            s.takeOutAt,
+            s.poopPenaltyFrozenDurationMs
           ) / 1000;
           const periods = Math.floor(elapsedSincePenalty / 28800);
           if (periods >= 1) {
             const penaltyTime = Date.now();
             applyPoopInjury(s, penaltyTime, periods);
             s.lastPoopPenaltyAt = penaltyTime;
+            s.poopPenaltyFrozenDurationMs = 0;
           }
         }
         s.poopCountdown = s.poopTimer*60;
@@ -271,6 +286,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
   if ((s.poopCount || 0) < 8) {
     s.poopReachedMaxAt = null;
     s.lastPoopPenaltyAt = null;
+    s.poopPenaltyFrozenDurationMs = 0;
   }
 
   const deathEvaluation = evaluateDeathConditions(s, Date.now());
@@ -524,6 +540,7 @@ export function applyLazyUpdate(
   if (updatedStats.hungerTimer > 0) {
     if (updatedStats.fullness > 0) {
       updatedStats.lastHungerZeroAt = null;
+      updatedStats.hungerZeroFrozenDurationMs = 0;
     }
 
     // 수면 시간을 제외한 실제 활동 시간만큼만 hungerCountdown 감소
@@ -548,6 +565,7 @@ export function applyLazyUpdate(
         // 마지막 저장 시간부터 fullness가 0이 된 시점 계산
         const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.hungerCountdown) * 1000;
         updatedStats.lastHungerZeroAt = timeToZero;
+        updatedStats.hungerZeroFrozenDurationMs = 0;
       }
     }
   }
@@ -556,6 +574,7 @@ export function applyLazyUpdate(
   if (updatedStats.strengthTimer > 0) {
     if (updatedStats.strength > 0) {
       updatedStats.lastStrengthZeroAt = null;
+      updatedStats.strengthZeroFrozenDurationMs = 0;
     }
 
     // 수면 시간을 제외한 실제 활동 시간만큼만 strengthCountdown 감소
@@ -580,6 +599,7 @@ export function applyLazyUpdate(
       if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
         const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.strengthCountdown) * 1000;
         updatedStats.lastStrengthZeroAt = timeToZero;
+        updatedStats.strengthZeroFrozenDurationMs = 0;
       }
     }
   }
@@ -620,6 +640,7 @@ export function applyLazyUpdate(
           const timeToMax = poopEventTime;
           updatedStats.poopReachedMaxAt = timeToMax;
           updatedStats.lastPoopPenaltyAt = timeToMax;
+          updatedStats.poopPenaltyFrozenDurationMs = 0;
           applyPoopInjury(updatedStats, timeToMax);
           if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
             updatedStats.activityLogs = pushBackdatedActivityLog(
@@ -656,13 +677,15 @@ export function applyLazyUpdate(
             penaltyAnchor,
             now.getTime(),
             updatedStats.frozenAt,
-            updatedStats.takeOutAt
+            updatedStats.takeOutAt,
+            updatedStats.poopPenaltyFrozenDurationMs
           );
           const periods = Math.floor((elapsedSincePenaltyMs / 1000) / 28800);
           if (periods >= 1) {
             const nowMs = now.getTime();
             applyPoopInjury(updatedStats, nowMs, periods);
             updatedStats.lastPoopPenaltyAt = nowMs;
+            updatedStats.poopPenaltyFrozenDurationMs = 0;
             if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과')) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
@@ -813,6 +836,7 @@ export function applyLazyUpdate(
     callStatus.hunger.startedAt = null;
     callStatus.hunger.isLogged = false;
     updatedStats.lastHungerZeroAt = null;
+    updatedStats.hungerZeroFrozenDurationMs = 0;
     updatedStats.hungerMistakeDeadline = null;
   }
 
@@ -919,6 +943,7 @@ export function applyLazyUpdate(
     callStatus.strength.startedAt = null;
     callStatus.strength.isLogged = false;
     updatedStats.lastStrengthZeroAt = null;
+    updatedStats.strengthZeroFrozenDurationMs = 0;
     updatedStats.strengthMistakeDeadline = null;
   }
 

@@ -34,6 +34,34 @@
 - 부상 이력은 단순 문자열 목록이 아니라, "언제 어떤 디지몬 상태에서 부상했는지"를 읽는 기록이기 때문에 테스트도 시간 기준과 당시 디지몬 복원을 함께 검증해야 합니다.
 - 이번 변경은 구현 상세보다 기대 동작을 명확히 남기는 데 초점을 두어, 이후 소스 반영이 들어와도 회귀를 쉽게 잡을 수 있게 합니다.
 
+### 원작풍 상하 공격 훈련 연출로 재구성
+- `TrainPopup`을 단순 기록형 리스트에서 원작 Ver.1 감성의 상단/하단 미니 전투 보드로 재구성해, 입력 직후 공격 라인, 상대 방어, 명중/막힘 결과가 짧은 연출 뒤에 드러나도록 바꿨습니다.
+- 훈련 팝업 좌측에는 현재 선택한 내 디지몬의 실제 스프라이트와 별명을 표시하고, 우측에는 중앙 `?`로 방어 위치를 숨기는 연습용 퍼펫 더미를 배치해 아레나처럼 좌우 대치하는 화면으로 정리했습니다.
+- 입력 패드는 내 디지몬 바로 오른쪽의 세로 컬럼으로 옮기고, `위/아래`를 한 덩어리 입력 그리드로 묶어 실제 휴대기기 방향 선택처럼 누를 수 있게 정리했습니다.
+- 훈련 진행은 `입력 대기 -> 공격 연출 -> 판정 공개 -> 다음 라운드` 흐름으로 고정했고, 라운드 기록은 보조 패널과 5칸 히트 히스토리로 축소해 현재 라운드의 체감에 집중하도록 정리했습니다.
+- `React.StrictMode` 환경에서도 판정 연출 뒤 다음 라운드로 정상 진행되도록, 훈련 팝업의 예약 타이머를 전환 토큰 기반으로 재구성하고 멈춤 회귀 테스트를 추가했습니다.
+- Ver.1 훈련 계산은 `logic/training/train.js`로 단일화하고, `data/train_digitalmonstercolor25th_ver1.js`는 하위 호환용 re-export만 남겨 중복 규칙 분기를 제거했습니다.
+- 훈련 결과 계약은 `hits`, `fails`, `isSuccess`, `message`, `roundResults`, `updatedStats`를 공통으로 반환하도록 통일했고, `useGameActions`도 이 계약만 사용하도록 맞췄습니다.
+- 훈련 관련 사용자 알림 문구를 한국어로 정리하고, 순수 로직 테스트와 팝업 상호작용 테스트를 추가해 연출 개선 이후에도 현재 앱의 스탯 규칙이 유지되는지 확인할 수 있게 했습니다.
+
+### 영향받은 파일
+- `src/components/TrainPopup.jsx`
+- `src/components/GameModals.jsx`
+- `src/components/TrainPopup.test.jsx`
+- `src/components/TrainPopup.strictmode.test.jsx`
+- `src/styles/TrainPopup.css`
+- `src/logic/training/train.js`
+- `src/logic/training/index.js`
+- `src/logic/training/train.test.js`
+- `src/data/train_digitalmonstercolor25th_ver1.js`
+- `src/hooks/useGameActions.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경은 원작의 입력 의미와 장면 흐름만 가져오고, 현재 앱의 스탯 경제는 그대로 유지해야 했기 때문에, 연출 상태는 `TrainPopup` 내부 UI 상태로만 다루고 저장 규칙은 기존 `doVer1Training` 경로에 묶는 편이 안전합니다.
+- 훈련 규칙이 `data/`와 `logic/`에 중복되면 이후 밸런스 수정이나 테스트 보강 때 다시 어긋날 가능성이 크므로, 순수 계산은 `logic/training` 한 곳만 기준으로 두는 구조가 유지보수에 유리합니다.
+- 메인 `GameScreen`의 캔버스 애니메이션을 이번 범위에서 건드리지 않으면 기존 idle/sleep/injury 렌더 정책과 충돌하지 않으면서도, 훈련 팝업만으로 충분한 입력 피드백을 줄 수 있습니다.
+
 ## 2026-04-05
 
 ### 냉장고 상태에서 디지몬이 돌아다니는 렌더 버그 수정
@@ -82,6 +110,41 @@
 ### 아키텍처 결정 근거
 - 헤더 전체를 하나로 합치기보다, 페이지별 시각 구조는 유지하고 계정 관련 동작만 공용화하는 편이 리스크가 낮고 사용자 요구에도 정확히 맞습니다.
 - 표시 이름 계산과 계정 메뉴 액션을 한 훅으로 묶어 두면 소개/일반 헤더의 동작 차이가 다시 벌어질 가능성을 줄일 수 있습니다.
+
+## 2026-04-07
+
+### 냉장고 복귀 시 zero timer와 10분 호출 타이머를 분리
+- 냉장고에서 꺼낼 때 `lastHungerZeroAt` / `lastStrengthZeroAt`를 현재 시각으로 재설정하던 흐름을 제거하고, 이 값이 계속 "실제로 0이 된 시각"만 가리키도록 고정했습니다.
+- 대신 활성 배고픔/힘 호출은 `startedAt`과 mistake deadline만 냉장고 보관 시간만큼 뒤로 밀어, 10분 호출 창이 멈췄다가 이어지는 방식으로 정리했습니다.
+- `takeOutAt`가 애니메이션 후 정리되더라도 12시간 사망 카운터가 냉장고 시간을 계속 제외할 수 있도록, 배고픔/힘/부상/똥 패널티별 냉장고 누적 제외 시간을 별도 필드로 저장하도록 확장했습니다.
+
+### 관련 리셋 경로와 회귀 테스트 정리
+- 새로운 시작, 청소, 치료, 배틀 부상 경로에서 새 냉장고 누적 제외 필드가 같이 초기화되도록 정리해 오래된 pause 값이 다음 생애나 다음 부상으로 넘어가지 않게 했습니다.
+- `useFridge` 회귀 테스트를 추가해, 냉장고에서 꺼낸 뒤 `last*ZeroAt`는 유지되고 호출 창만 보관 시간만큼 이동하는지 확인하도록 했습니다.
+- `evaluateDeathConditions` 테스트에도 누적 제외 시간이 `takeOutAt` 정리 후까지 계속 반영되는 케이스를 추가했고, `checkCalls`는 냉장고 상태에서 호출 메타를 지우지 않는다는 계약을 테스트로 고정했습니다.
+
+### 영향받은 파일
+- `src/data/defaultStatsFile.js`
+- `src/data/v1/defaultStats.js`
+- `src/data/stats.js`
+- `src/hooks/useFridge.js`
+- `src/hooks/useFridge.test.js`
+- `src/hooks/useGameActions.js`
+- `src/hooks/useGameAnimations.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useGameLogic.js`
+- `src/hooks/useGameLogic.test.js`
+- `src/pages/Game.jsx`
+- `src/logic/stats/death.js`
+- `src/logic/stats/death.test.js`
+- `src/logic/stats/hunger.js`
+- `src/logic/stats/strength.js`
+- `src/utils/fridgeTime.js`
+
+### 아키텍처 결정 근거
+- `last*ZeroAt`는 이미 12시간 사망 판정과 zero-state history의 canonical source로 사용되고 있으므로, 냉장고 복귀 시 현재 시각으로 덮어쓰면 같은 시간을 두 번 제외하는 구조가 됩니다.
+- 12시간 타이머와 10분 호출 타이머는 의미가 다르기 때문에, zero timer는 고정하고 호출 창만 이동시키는 쪽이 계약을 더 명확하게 유지합니다.
+- `takeOutAt`는 짧은 애니메이션 상태라 장기적인 시간 제외 기준으로 쓰기 어렵기 때문에, 각 타이머별 누적 냉장고 제외 시간을 별도 필드로 유지하는 것이 새로고침과 후속 lazy update까지 가장 안정적으로 연결됩니다.
 
 ## 2026-04-04
 

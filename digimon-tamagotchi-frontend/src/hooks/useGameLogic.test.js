@@ -94,6 +94,29 @@ describe("useGameLogic sleep-related warning rules", () => {
     expect(result).toBe(baseStats);
   });
 
+  test("실제 수면 중인 배고픔 호출은 타임아웃 기준 시각을 매초 리셋하지 않는다", () => {
+    const startedAt = new Date(2026, 2, 31, 22, 50, 0).getTime();
+    const sleepStartAt = new Date(2026, 2, 31, 22, 55, 0).getTime();
+    const deadline = startedAt + 10 * 60 * 1000;
+    const now = new Date(2026, 2, 31, 22, 57, 0);
+    const baseStats = createBaseStats({
+      fullness: 0,
+      lastHungerZeroAt: startedAt,
+      hungerMistakeDeadline: deadline,
+      callStatus: {
+        hunger: { isActive: true, startedAt, sleepStartAt, isLogged: false },
+        strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        sleep: { isActive: false, startedAt: null },
+      },
+    });
+
+    const result = checkCallTimeouts(baseStats, now, true);
+
+    expect(result).toBe(baseStats);
+    expect(result.callStatus.hunger.startedAt).toBe(startedAt);
+    expect(result.hungerMistakeDeadline).toBe(deadline);
+  });
+
   test("수면 방해 로그는 10분 이내 중복을 감지한다", () => {
     const now = new Date(2026, 2, 31, 23, 0, 0).getTime();
 
@@ -261,6 +284,45 @@ describe("useGameLogic hunger/strength call consistency", () => {
     );
   });
 
+  test("냉장고 상태에서는 호출 메타를 지우지 않고 활성 상태만 숨긴다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const now = new Date(2026, 2, 31, 12, 1, 0);
+
+    const result = checkCalls(
+      createBaseStats({
+        isFrozen: true,
+        fullness: 0,
+        strength: 0,
+        lastHungerZeroAt: startedAt,
+        lastStrengthZeroAt: startedAt,
+        callStatus: {
+          hunger: { isActive: true, startedAt, sleepStartAt: startedAt + 1000, isLogged: true },
+          strength: { isActive: true, startedAt, sleepStartAt: startedAt + 2000, isLogged: false },
+          sleep: { isActive: true, startedAt },
+        },
+      }),
+      true,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      now,
+      false
+    );
+
+    expect(result.callStatus.hunger).toMatchObject({
+      isActive: false,
+      startedAt,
+      isLogged: true,
+    });
+    expect(result.callStatus.strength).toMatchObject({
+      isActive: false,
+      startedAt,
+      isLogged: false,
+    });
+    expect(result.callStatus.sleep).toEqual({
+      isActive: false,
+      startedAt: null,
+    });
+  });
+
   test("15분 이내라도 서로 다른 사유의 케어미스 로그는 각각 남는다", () => {
     const baseTime = new Date(2026, 2, 31, 12, 0, 0).getTime();
     const logsWithHunger = addActivityLog(
@@ -277,5 +339,32 @@ describe("useGameLogic hunger/strength call consistency", () => {
     );
 
     expect(finalLogs).toHaveLength(2);
+  });
+
+  test("수면에서 깨어나면 배고픔 호출 타이머가 잠든 시간만큼 뒤로 이동한다", () => {
+    const zeroAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const sleepStartAt = new Date(2026, 2, 31, 11, 55, 0).getTime();
+    const now = new Date(2026, 2, 31, 11, 58, 0);
+
+    const result = checkCalls(
+      createBaseStats({
+        fullness: 0,
+        lastHungerZeroAt: zeroAt,
+        hungerMistakeDeadline: zeroAt + 10 * 60 * 1000,
+        callStatus: {
+          hunger: { isActive: true, startedAt: zeroAt, sleepStartAt, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      false,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      now,
+      false
+    );
+
+    expect(result.callStatus.hunger.startedAt).toBe(zeroAt + 3 * 60 * 1000);
+    expect(result.callStatus.hunger.sleepStartAt).toBeNull();
+    expect(result.hungerMistakeDeadline).toBe(zeroAt + 13 * 60 * 1000);
   });
 });

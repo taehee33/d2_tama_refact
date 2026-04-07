@@ -47,14 +47,18 @@ export const defaultStats = {
   poopCount: 0,               // 똥 개수 (최대 8)
   poopReachedMaxAt: null,     // 처음 똥이 8개가 된 시간
   lastPoopPenaltyAt: null,    // 추가 부상 8시간 주기의 기준 시간
+  poopPenaltyFrozenDurationMs: 0, // 현재 똥 8시간 주기에서 제외할 냉장고 누적 시간
   
   // 사망 관련
   isDead: false,              // 사망 여부
   lastHungerZeroAt: null,    // 배고픔이 0이 된 시간 (절대 기준점, DB 저장·값 있으면 now로 덮어쓰지 않음)
+  hungerZeroFrozenDurationMs: 0, // 현재 배고픔 0 타이머에서 제외할 냉장고 누적 시간
   lastStrengthZeroAt: null,  // 힘이 0이 된 시간 (절대 기준점)
+  strengthZeroFrozenDurationMs: 0, // 현재 힘 0 타이머에서 제외할 냉장고 누적 시간
   hungerMistakeDeadline: null,  // 케어미스 타임아웃 데드라인(ms). 배고픔 0 발생 시 lastHungerZeroAt+10분, DB 저장
   strengthMistakeDeadline: null, // 힘 0 발생 시 lastStrengthZeroAt+10분, DB 저장
   injuredAt: null,            // 부상 당한 시간
+  injuryFrozenDurationMs: 0,  // 현재 부상 방치 타이머에서 제외할 냉장고 누적 시간
   
   // 환생 관련
   totalReincarnations: 0,     // 토탈 환생 횟수 (일반 + Perfect 이상)

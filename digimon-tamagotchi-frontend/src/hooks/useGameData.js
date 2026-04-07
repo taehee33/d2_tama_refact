@@ -236,13 +236,17 @@ export function useGameData({
       // 새로운 시작일 때 사망 관련 필드 보존
       isDead: isNewStart ? false : undefined,
       lastHungerZeroAt: isNewStart ? null : undefined,
+      hungerZeroFrozenDurationMs: isNewStart ? 0 : undefined,
       lastStrengthZeroAt: isNewStart ? null : undefined,
+      strengthZeroFrozenDurationMs: isNewStart ? 0 : undefined,
       injuredAt: isNewStart ? null : undefined,
+      injuryFrozenDurationMs: isNewStart ? 0 : undefined,
       isInjured: isNewStart ? false : undefined,
       // 새로운 시작일 때 똥 초기화
       poopCount: isNewStart ? 0 : undefined,
       poopReachedMaxAt: isNewStart ? null : undefined,
       lastPoopPenaltyAt: isNewStart ? null : undefined,
+      poopPenaltyFrozenDurationMs: isNewStart ? 0 : undefined,
     };
     
     // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
@@ -303,13 +307,17 @@ export function useGameData({
       ...(isNewStart ? {
         isDead: false,
         lastHungerZeroAt: null,
+        hungerZeroFrozenDurationMs: 0,
         lastStrengthZeroAt: null,
+        strengthZeroFrozenDurationMs: 0,
         injuredAt: null,
+        injuryFrozenDurationMs: 0,
         isInjured: false,
         injuries: 0,
         poopCount: 0,
         poopReachedMaxAt: null,
         lastPoopPenaltyAt: null,
+        poopPenaltyFrozenDurationMs: 0,
       } : {}),
       activityLogs: finalLogs, // activityLogs를 finalStats에 포함
       ...rootSlotFields,

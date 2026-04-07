@@ -35,6 +35,7 @@ export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSlee
       // 배고픔이 0이 되면 시간 기록
       if (s.fullness === 0 && !s.lastHungerZeroAt) {
         s.lastHungerZeroAt = Date.now();
+        s.hungerZeroFrozenDurationMs = 0;
       }
     }
   }

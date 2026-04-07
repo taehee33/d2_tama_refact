@@ -5,7 +5,7 @@ import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { resetCallStatus, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "./useGameLogic";
 import { feedMeat, willRefuseMeat } from "../logic/food/meat";
 import { feedProtein, willRefuseProtein } from "../logic/food/protein";
-import { doVer1Training } from "../data/train_digitalmonstercolor25th_ver1";
+import { doVer1Training } from "../logic/training";
 import { calculateInjuryChance } from "../logic/battle/calculator";
 import { serverTimestamp } from "firebase/firestore";
 import { clearPoopOverflowState } from "../data/stats";
@@ -540,7 +540,7 @@ export function useGameActions({
         });
         return statsWithLogs;
       });
-      alert("⚠️ 체중이 너무 낮습니다!\n🍖 Eat food to gain weight!");
+      alert("⚠️ 체중이 너무 낮습니다!\n먹이로 체중을 늘려 주세요.");
       return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
     }
     
@@ -563,7 +563,7 @@ export function useGameActions({
         return statsWithLogs;
       });
       // 에너지 부족 알림 가이드
-      alert("⚠️ 에너지가 부족합니다!\n💤 Sleep to restore Energy!");
+      alert("⚠️ 에너지가 부족합니다!\n잠을 재워 에너지를 회복해 주세요.");
       return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
     }
     
@@ -980,6 +980,7 @@ export function useGameActions({
       if (isInjured) {
         finalStats.isInjured = true;
         finalStats.injuredAt = Date.now();
+        finalStats.injuryFrozenDurationMs = 0;
         finalStats.injuries = (battleStats.injuries || 0) + 1;
         finalStats.healedDosesCurrent = 0;
         finalStats.injuryReason = 'battle'; // 부상 원인 저장
@@ -1055,6 +1056,7 @@ export function useGameActions({
       if (isInjured) {
         finalStats.isInjured = true;
         finalStats.injuredAt = Date.now();
+        finalStats.injuryFrozenDurationMs = 0;
         finalStats.injuries = (battleStats.injuries || 0) + 1;
         finalStats.healedDosesCurrent = 0;
         finalStats.injuryReason = 'battle'; // 부상 원인 저장

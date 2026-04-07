@@ -366,7 +366,9 @@ export default function StatsPopup({
     lastPoopPenaltyAt: rawLastPoopPenaltyAt=null,
     lastMaxPoopTime: legacyLastMaxPoopTime=null,
     lastHungerZeroAt=null,
+    hungerZeroFrozenDurationMs=0,
     lastStrengthZeroAt=null,
+    strengthZeroFrozenDurationMs=0,
     trainings=0,
     overfeeds=0,
     sleepDisturbances=0,
@@ -381,6 +383,7 @@ export default function StatsPopup({
     perfectReincarnations=0,
     isInjured=false,
     injuredAt=null,
+    injuryFrozenDurationMs=0,
     injuries=0,
     healedDosesCurrent=0,
     hungerCountdown=0,
@@ -392,6 +395,7 @@ export default function StatsPopup({
     isFrozen=false,
     frozenAt=null,
     takeOutAt=null,
+    poopPenaltyFrozenDurationMs=0,
   } = stats || {};
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
@@ -524,9 +528,10 @@ export default function StatsPopup({
    * @returns {number} 냉장고 시간을 제외한 경과 시간 (밀리초)
    */
   // 절대 시각 기반: 경과 시간은 항상 >= 0 (음수/미래 시각 차단 → T_rem = max(0, deadline - now) 일관성)
-  const getElapsedTimeExcludingFridge = (startTime, endTime = currentTime, frozenAt = null, takeOutAt = null) => {
+  const getElapsedTimeExcludingFridge = (startTime, endTime = currentTime, frozenAt = null, takeOutAt = null, extraExcludedMs = 0) => {
+    const pausedMs = Number.isFinite(Number(extraExcludedMs)) ? Math.max(0, Number(extraExcludedMs)) : 0;
     if (!frozenAt || !startTime) {
-      return Math.max(0, endTime - startTime);
+      return Math.max(0, (endTime - startTime) - pausedMs);
     }
     const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
     const takeOutTime = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
@@ -538,7 +543,7 @@ export default function StatsPopup({
     const totalElapsed = endTime - startTime;
     
     // 냉장고 시간을 제외한 경과 시간 반환
-    return Math.max(0, totalElapsed - frozenDuration);
+    return Math.max(0, totalElapsed - frozenDuration - pausedMs);
   };
   
   // 종족 고정 파라미터 추출
@@ -1344,7 +1349,7 @@ export default function StatsPopup({
                         <div className="text-red-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt, hungerZeroFrozenDurationMs);
                         const elapsed = Math.floor(elapsedMs / 1000);
                         const threshold = 43200; // 12시간(초)
                         const remaining = Math.max(0, threshold - elapsed);
@@ -1386,7 +1391,7 @@ export default function StatsPopup({
                               return [...Array(12)].map((_, i) => {
                                 const elapsedMs = isDeadFromStarvation 
                                   ? 43200 * 1000 
-                                  : getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt);
+                                  : getElapsedTimeExcludingFridge(hungerZeroTime, nowMs, frozenAt, takeOutAt, hungerZeroFrozenDurationMs);
                               const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
                               const isFilled = i < hourElapsed;
                               return (
@@ -1462,7 +1467,7 @@ export default function StatsPopup({
                         <div className="text-orange-800 font-bold">💀 사망 (카운터 정지)</div>
                       ) : isActive ? (() => {
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt, strengthZeroFrozenDurationMs);
                         const elapsed = Math.floor(elapsedMs / 1000);
                         const threshold = 43200; // 12시간(초)
                         const remaining = Math.max(0, threshold - elapsed);
@@ -1504,7 +1509,7 @@ export default function StatsPopup({
                               return [...Array(12)].map((_, i) => {
                                 const elapsedMs = isDeadFromExhaustion 
                                   ? 43200 * 1000 
-                                  : getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt);
+                                  : getElapsedTimeExcludingFridge(strengthZeroTime, nowMs, frozenAt, takeOutAt, strengthZeroFrozenDurationMs);
                                 const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
                                 const isFilled = i < hourElapsed;
                                 return (
@@ -1580,7 +1585,7 @@ export default function StatsPopup({
                         if (!poopPenaltyTime) return null;
 
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(poopPenaltyTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = getElapsedTimeExcludingFridge(poopPenaltyTime, nowMs, frozenAt, takeOutAt, poopPenaltyFrozenDurationMs);
                         const elapsed = Math.max(0, Math.floor(elapsedMs / 1000));
                         const threshold = 28800; // 8시간 = 28800초
                         const nextInjuryIn = Math.max(0, threshold - (elapsed % threshold));
@@ -1716,7 +1721,7 @@ export default function StatsPopup({
                       ) : isActive ? (() => {
                         // 부상 방치 경과: 매 렌더 시점의 현재 시각 사용(줄어들지 않는 버그 방지)
                         const nowMs = Date.now();
-                        const elapsedMs = getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt);
+                        const elapsedMs = getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt, injuryFrozenDurationMs);
                         const elapsed = Math.floor(elapsedMs / 1000);
                         const threshold = 21600; // 6시간 = 21600초
                         const remaining = Math.max(0, threshold - elapsed);
@@ -1757,7 +1762,7 @@ export default function StatsPopup({
                               const nowMs = Date.now();
                               const elapsedMs = isDeadFromInjuryNeglect 
                                 ? 21600 * 1000 
-                                : getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt);
+                                : getElapsedTimeExcludingFridge(injuredTime, nowMs, frozenAt, takeOutAt, injuryFrozenDurationMs);
                               const hourElapsed = Math.floor(elapsedMs / 1000 / 3600);
                               const isFilled = i < hourElapsed;
                               return (

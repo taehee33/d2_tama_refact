@@ -788,13 +788,17 @@ function Game({ immersive = false }){
         birthTime: Date.now(),
         // 사망 관련 필드 초기화
         lastHungerZeroAt: null,
+        hungerZeroFrozenDurationMs: 0,
         lastStrengthZeroAt: null,
+        strengthZeroFrozenDurationMs: 0,
         injuredAt: null,
+        injuryFrozenDurationMs: 0,
         isInjured: false,
         // 새로운 시작: 똥 초기화
         poopCount: 0,
         poopReachedMaxAt: null,
         lastPoopPenaltyAt: null,
+        poopPenaltyFrozenDurationMs: 0,
       };
       
       if (isPerfectStage) {
@@ -823,13 +827,17 @@ function Game({ immersive = false }){
       ns.fullness = 0;
       ns.strength = 0;
       ns.lastHungerZeroAt = null;
+      ns.hungerZeroFrozenDurationMs = 0;
       ns.lastStrengthZeroAt = null;
+      ns.strengthZeroFrozenDurationMs = 0;
       ns.injuredAt = null;
+      ns.injuryFrozenDurationMs = 0;
       ns.isInjured = false;
       ns.injuries = 0;
       ns.poopCount = 0;
       ns.poopReachedMaxAt = null;
       ns.lastPoopPenaltyAt = null;
+      ns.poopPenaltyFrozenDurationMs = 0;
 
       console.log("[resetDigimon] 최종 초기화된 스탯:", {
         evolutionStage: ns.evolutionStage,

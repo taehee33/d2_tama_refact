@@ -27,6 +27,9 @@ export const defaultStats = {
     consecutiveMeatFed: 0, // 연속으로 먹은 고기 개수 (오버피드 체크용)
     isDead: false,
     lastHungerZeroAt: null,
+    hungerZeroFrozenDurationMs: 0,
+    lastStrengthZeroAt: null,
+    strengthZeroFrozenDurationMs: 0,
   
     maxStamina: 0,
     minWeight: 0,
@@ -53,9 +56,11 @@ export const defaultStats = {
     winRate: 0, // 현재 디지몬일 때의 승률 (%) (진화 조건용)
     isInjured: false, // 부상 상태 (똥 8개, 배틀 부상 시 true)
     injuredAt: null, // 부상 당한 시각 (6시간 사망 체크용)
+    injuryFrozenDurationMs: 0, // 현재 부상 타이머에서 제외할 냉장고 누적 시간
     injuries: 0, // 이번 생 누적 부상 횟수 (15회 사망 체크용)
     poopReachedMaxAt: null, // 똥이 처음 8개가 된 시각
     lastPoopPenaltyAt: null, // 추가 부상 8시간 주기의 기준 시각
+    poopPenaltyFrozenDurationMs: 0, // 현재 똥 8시간 주기에서 제외할 냉장고 누적 시간
     healedDosesCurrent: 0, // 현재 투여된 치료제 횟수
     // 호출(Call) 시스템
     callStatus: {

@@ -495,8 +495,8 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       };
     } else {
       updatedStats.callStatus = {
-        hunger: { ...updatedStats.callStatus.hunger, isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-        strength: { ...updatedStats.callStatus.strength, isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        hunger: { ...updatedStats.callStatus.hunger, isActive: false },
+        strength: { ...updatedStats.callStatus.strength, isActive: false },
         sleep: { ...updatedStats.callStatus.sleep, isActive: false, startedAt: null }
       };
     }
@@ -553,6 +553,11 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       if (isActuallySleeping && !existingSleepStartAt) {
         callStatus.hunger.sleepStartAt = now.getTime();
       } else if (!isActuallySleeping && existingSleepStartAt) {
+        const sleptMs = Math.max(0, now.getTime() - existingSleepStartAt);
+        callStatus.hunger.startedAt = existingStartedAt + sleptMs;
+        if (updatedStats.hungerMistakeDeadline) {
+          updatedStats.hungerMistakeDeadline += sleptMs;
+        }
         callStatus.hunger.sleepStartAt = null;
       }
       if (!updatedStats.hungerMistakeDeadline) {
@@ -570,6 +575,7 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
     callStatus.hunger.sleepStartAt = null;
     callStatus.hunger.isLogged = false; // 호출 해제 시 다음 호출에서 다시 로그 가능
     updatedStats.lastHungerZeroAt = null;
+    updatedStats.hungerZeroFrozenDurationMs = 0;
     updatedStats.hungerMistakeDeadline = null;
   }
 
@@ -603,6 +609,11 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       if (isActuallySleeping && !existingSleepStartAt) {
         callStatus.strength.sleepStartAt = now.getTime();
       } else if (!isActuallySleeping && existingSleepStartAt) {
+        const sleptMs = Math.max(0, now.getTime() - existingSleepStartAt);
+        callStatus.strength.startedAt = existingStartedAt + sleptMs;
+        if (updatedStats.strengthMistakeDeadline) {
+          updatedStats.strengthMistakeDeadline += sleptMs;
+        }
         callStatus.strength.sleepStartAt = null;
       }
       if (!updatedStats.strengthMistakeDeadline) {
@@ -620,6 +631,7 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
     callStatus.strength.sleepStartAt = null;
     callStatus.strength.isLogged = false;
     updatedStats.lastStrengthZeroAt = null;
+    updatedStats.strengthZeroFrozenDurationMs = 0;
     updatedStats.strengthMistakeDeadline = null;
   }
 
@@ -674,8 +686,10 @@ export function resetCallStatus(stats, callType) {
     }
     if (callType === 'hunger') {
       updatedStats.lastHungerZeroAt = null;
+      updatedStats.hungerZeroFrozenDurationMs = 0;
     } else if (callType === 'strength') {
       updatedStats.lastStrengthZeroAt = null;
+      updatedStats.strengthZeroFrozenDurationMs = 0;
     }
   }
 
@@ -718,19 +732,10 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
   const nowMs = now.getTime();
   let hasChanged = false; // 변경 여부 추적
 
-  // ⭐ 핵심: Timestamp Pushing - 잠자는 중이라면 타임아웃 시간을 현재로 동기화해서 "일시정지" 시킴
+  // 실제 수면 중에는 checkCalls가 sleepStartAt만 기록하고,
+  // 남은 시간 정지는 UI에서 표시한다. 기준 시각은 매초 밀지 않는다.
   if (isActuallySleeping) {
-    if (callStatus.hunger.isActive && callStatus.hunger.startedAt) {
-      callStatus.hunger.startedAt = nowMs;
-      updatedStats.hungerMistakeDeadline = nowMs + HUNGER_CALL_TIMEOUT;
-      hasChanged = true;
-    }
-    if (callStatus.strength.isActive && callStatus.strength.startedAt) {
-      callStatus.strength.startedAt = nowMs;
-      updatedStats.strengthMistakeDeadline = nowMs + STRENGTH_CALL_TIMEOUT;
-      hasChanged = true;
-    }
-    return updatedStats;
+    return stats;
   }
 
   // --- 기존 타임아웃 체크 로직 (깨어있을 때만 작동) ---
