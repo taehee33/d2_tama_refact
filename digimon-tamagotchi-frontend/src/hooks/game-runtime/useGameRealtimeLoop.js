@@ -286,7 +286,7 @@ export function useGameRealtimeLoop({
         ) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            const nextLogs = addActivityLog(currentLogs, "CALL", "Call: Hungry!");
+            const nextLogs = addActivityLog(currentLogs, "CALL", "배고픔 호출이 시작되었습니다.");
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
                 nextLogs[nextLogs.length - 1]
@@ -305,7 +305,7 @@ export function useGameRealtimeLoop({
             const nextLogs = addActivityLog(
               currentLogs,
               "CALL",
-              "Call: No Energy!"
+              "힘 호출이 시작되었습니다."
             );
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
@@ -322,7 +322,7 @@ export function useGameRealtimeLoop({
         ) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            const nextLogs = addActivityLog(currentLogs, "CALL", "Call: Sleepy!");
+            const nextLogs = addActivityLog(currentLogs, "CALL", "수면 호출이 시작되었습니다.");
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
                 nextLogs[nextLogs.length - 1]

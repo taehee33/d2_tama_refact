@@ -100,6 +100,18 @@ describe("useGameHandlers handleMenuClick", () => {
     expect(params.toggleModal).toHaveBeenNthCalledWith(2, "lights", true);
   });
 
+  test("하단 호출 버튼은 호출 모달을 연다", () => {
+    const params = createDefaultParams();
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    act(() => {
+      result.current.handleMenuClick("callSign");
+    });
+
+    expect(params.setActiveMenu).toHaveBeenCalledWith("callSign");
+    expect(params.toggleModal).toHaveBeenCalledWith("call", true);
+  });
+
   test("냉장고 상태에서는 먹이와 훈련만 막고 다른 메뉴는 유지한다", () => {
     const params = createDefaultParams({
       digimonStats: {

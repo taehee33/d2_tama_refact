@@ -28,6 +28,7 @@ export function buildGamePageViewModel({
   digimonNickname,
   evolutionDataForSlot,
   digimonStats,
+  activityLogs,
   digimonDataForSlot,
   customTime,
   slotJogressStatus,
@@ -44,12 +45,23 @@ export function buildGamePageViewModel({
   sleepStatus,
   isLightsOn,
   modals,
-  callToastMessage,
   evolutionStage,
   developerMode,
   wakeUntil,
   deathReason,
 }) {
+  const statsLogs = Array.isArray(digimonStats?.activityLogs) ? digimonStats.activityLogs : [];
+  const displayActivityLogs =
+    Array.isArray(activityLogs) && activityLogs.length >= statsLogs.length
+      ? activityLogs
+      : statsLogs;
+  const displayDigimonStats =
+    displayActivityLogs === statsLogs
+      ? digimonStats
+      : {
+          ...digimonStats,
+          activityLogs: displayActivityLogs,
+        };
   const sleepSchedule = getSleepSchedule(
     selectedDigimon,
     digimonDataForSlot,
@@ -104,11 +116,9 @@ export function buildGamePageViewModel({
       cleanStep,
       sleepStatus,
       isLightsOn,
-      digimonStats,
+      digimonStats: displayDigimonStats,
       selectedDigimon,
       showHealAnimation: modals.healAnimation,
-      showCallToast: modals.callToast,
-      callToastMessage,
       showCallModal: modals.call,
       isFrozen: digimonStats.isFrozen || false,
       frozenAt: digimonStats.frozenAt || null,

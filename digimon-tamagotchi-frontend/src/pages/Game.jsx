@@ -234,8 +234,6 @@ function Game({ immersive = false }){
     setWakeUntil,
     sleepStatus,
     setSleepStatus,
-    callToastMessage,
-    setCallToastMessage,
   } = ui;
 
   // tiredStartRef, tiredCountedRef는 더 이상 사용하지 않음 (digimonStats.tiredStartAt으로 대체)
@@ -625,6 +623,7 @@ function Game({ immersive = false }){
         digimonNickname,
         evolutionDataForSlot,
         digimonStats,
+        activityLogs,
         digimonDataForSlot,
         customTime,
         slotJogressStatus,
@@ -641,7 +640,6 @@ function Game({ immersive = false }){
         cleanStep,
         sleepStatus,
         isLightsOn,
-        callToastMessage,
         evolutionStage,
         developerMode,
         wakeUntil,
@@ -651,6 +649,7 @@ function Game({ immersive = false }){
       selectedDigimon,
       digimonNickname,
       digimonStats,
+      activityLogs,
       evolutionDataForSlot,
       digimonDataForSlot,
       customTime,
@@ -668,7 +667,6 @@ function Game({ immersive = false }){
       cleanStep,
       sleepStatus,
       isLightsOn,
-      callToastMessage,
       evolutionStage,
       developerMode,
       wakeUntil,
@@ -683,6 +681,24 @@ function Game({ immersive = false }){
     gameScreenDisplayProps,
     jogressControls,
   } = pageViewModel;
+
+  const handleResolveCallAction = useCallback(
+    (actionKey) => {
+      toggleModal("call", false);
+
+      if (actionKey === "open-feed") {
+        setActiveMenu("eat");
+        toggleModal("feed", true);
+        return;
+      }
+
+      if (actionKey === "open-lights") {
+        setActiveMenu("electric");
+        toggleModal("lights", true);
+      }
+    },
+    [setActiveMenu, toggleModal]
+  );
 
   const handleOverfeedConfirm = useCallback(async () => {
     toggleModal('overfeedConfirm', false);
@@ -1335,16 +1351,9 @@ function Game({ immersive = false }){
         digimonImageBase={digimonImageBase}
         meatSprites={MEAT_SPRITES}
         proteinSprites={PROTEIN_SPRITES}
-        onCallIconClick={() => {
-          const messages = [];
-          if (digimonStats.callStatus?.hunger?.isActive) messages.push("Hungry!");
-          if (digimonStats.callStatus?.strength?.isActive) messages.push("No Energy!");
-          if (digimonStats.callStatus?.sleep?.isActive) messages.push("Sleepy!");
-          setCallToastMessage(messages.join(" "));
-          toggleModal('callToast', true);
-          setTimeout(() => toggleModal('callToast', false), 2000);
-        }}
+        onCallIconClick={() => toggleModal("call", true)}
         onCallModalClose={() => toggleModal('call', false)}
+        onResolveCallAction={handleResolveCallAction}
         showSleepDisturbanceToast={modals.sleepDisturbanceToast}
         sleepDisturbanceToastMessage="수면 방해! 😴 (10분 동안 깨어있음)"
       />

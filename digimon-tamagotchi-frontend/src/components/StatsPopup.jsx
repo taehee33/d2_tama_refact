@@ -1,10 +1,11 @@
 // src/components/StatsPopup.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getDisplayCareMistakeEntries } from "../logic/stats/careMistakeLedger";
 import { getDisplayInjuryEntries } from "../logic/stats/injuryHistory";
+import { buildCallStatusViewModel } from "../utils/callStatusUtils";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -306,7 +307,6 @@ export default function StatsPopup({
   wakeUntil = null, // 깨어있는 시간 (timestamp)
   sleepLightOnStart = null, // 수면 중 불 켜진 시작 시간 (timestamp)
   isLightsOn = false, // 조명 상태
-  callStatus = null, // 호출 상태 { hunger: { isActive, startedAt }, strength: { isActive, startedAt }, sleep: { isActive, startedAt } }
   appendLogToSubcollection, // Firestore logs 서브컬렉션에 로그 추가 (선택)
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
@@ -326,6 +326,30 @@ export default function StatsPopup({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const statsForCallUi = useMemo(
+    () => ({
+      ...(stats || {}),
+      activityLogs: displayActivityLogs,
+    }),
+    [stats, displayActivityLogs]
+  );
+
+  const callStatusViewModel = useMemo(
+    () =>
+      buildCallStatusViewModel({
+        digimonStats: statsForCallUi,
+        sleepStatus,
+        isLightsOn,
+        currentTime,
+      }),
+    [statsForCallUi, sleepStatus, isLightsOn, currentTime]
+  );
+
+  const activeCallMap = useMemo(
+    () => new Map(callStatusViewModel.activeCalls.map((call) => [call.type, call])),
+    [callStatusViewModel.activeCalls]
+  );
   
   // stats 내부 항목 구조 분해
   const {
@@ -343,8 +367,6 @@ export default function StatsPopup({
     lastMaxPoopTime: legacyLastMaxPoopTime=null,
     lastHungerZeroAt=null,
     lastStrengthZeroAt=null,
-    hungerMistakeDeadline=null,
-    strengthMistakeDeadline=null,
     trainings=0,
     overfeeds=0,
     sleepDisturbances=0,
@@ -374,6 +396,31 @@ export default function StatsPopup({
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
   const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
+
+  const renderCallDetail = (call) => {
+    if (!call) return null;
+
+    const statusClass = call.isPaused
+      ? "text-blue-600"
+      : call.type === "sleep"
+        ? "text-amber-600"
+        : "text-red-600";
+    const riskClass = call.type === "sleep" ? "text-amber-700" : "text-red-600";
+
+    return (
+      <div className="ml-2">
+        <div className={`font-semibold ${statusClass}`}>{call.statusLabel}</div>
+        <div className="mt-1 text-xs text-gray-600">{call.reason}</div>
+        {call.pauseReason ? (
+          <div className="mt-1 text-xs text-blue-600">{call.pauseReason}</div>
+        ) : null}
+        {call.deadlineText ? (
+          <div className="mt-1 text-[10px] text-gray-500">{call.deadlineText}</div>
+        ) : null}
+        <div className={`mt-1 text-xs ${riskClass}`}>{call.riskText}</div>
+      </div>
+    );
+  };
 
   // devMode에서 select로 변경
   function handleChange(field, e){
@@ -1142,67 +1189,9 @@ export default function StatsPopup({
               조건: Fullness = 0
             </div>
             {fullness === 0 ? (
-              callStatus?.hunger?.isActive && callStatus?.hunger?.startedAt ? (() => {
-                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
-                const startedAt = ensureTimestamp(callStatus.hunger.startedAt);
-                if (!startedAt || startedAt <= 0) {
-                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
-                }
-                
-                // 냉장고 상태일 때 표시 (수면 체크보다 우선)
-                if (isFrozen) {
-                  return (
-                    <div className="text-blue-600 font-semibold ml-2">
-                      🧊 냉장고에 넣어서 얼어서 멈춤
-                      <div className="text-[10px] text-blue-500 mt-1">
-                        (냉장고에서 꺼내면 타이머가 다시 시작됩니다)
-                      </div>
-                    </div>
-                  );
-                }
-                
-                // 수면 중일 때는 타임아웃이 멈춤 (Timestamp Pushing 방식)
-                // 수면 중에는 startedAt이 현재 시간으로 계속 업데이트되므로,
-                // 경과 시간을 0으로 간주하여 마지막으로 깨어있던 시점의 남은 시간을 표시합니다.
-                const timeout = 10 * 60 * 1000; // 10분
-                // DB 데드라인 우선 사용 (새로고침 후에도 동일한 남은 시간 유지)
-                const deadlineMs = (hungerMistakeDeadline && hungerMistakeDeadline > 0)
-                  ? hungerMistakeDeadline
-                  : (startedAt + timeout);
-                const remaining = Math.max(0, deadlineMs - currentTime);
-                if (sleepStatus === 'SLEEPING') {
-                  if (remaining > 0) {
-                    const minutes = Math.floor(remaining / 60000);
-                    const seconds = Math.floor((remaining % 60000) / 1000);
-                    return (
-                      <div className="text-blue-600 font-semibold ml-2">
-                        😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                        <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ❌ 타임아웃! 케어미스 발생
-                    </div>
-                  );
-                }
-                if (remaining > 0) {
-                  const minutes = Math.floor(remaining / 60000);
-                  const seconds = Math.floor((remaining % 60000) / 1000);
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="text-red-600 font-semibold ml-2">
-                    ❌ 타임아웃! 케어미스 발생
-                  </div>
-                );
-              })() : lastHungerZeroAt ? (
+              activeCallMap.get("hunger") ? (
+                renderCallDetail(activeCallMap.get("hunger"))
+              ) : lastHungerZeroAt ? (
                 <div className="text-amber-600 font-semibold ml-2">
                   ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
                 </div>
@@ -1221,63 +1210,9 @@ export default function StatsPopup({
               조건: Strength = 0
             </div>
             {strength === 0 ? (
-              callStatus?.strength?.isActive && callStatus?.strength?.startedAt ? (() => {
-                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
-                const startedAt = ensureTimestamp(callStatus.strength.startedAt);
-                if (!startedAt || startedAt <= 0) {
-                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
-                }
-                
-                // 냉장고 상태일 때 표시 (수면 체크보다 우선)
-                if (isFrozen) {
-                  return (
-                    <div className="text-blue-600 font-semibold ml-2">
-                      🧊 냉장고에 넣어서 얼어서 멈춤
-                      <div className="text-[10px] text-blue-500 mt-1">
-                        (냉장고에서 꺼내면 타이머가 다시 시작됩니다)
-                      </div>
-                    </div>
-                  );
-                }
-                
-                const timeout = 10 * 60 * 1000; // 10분
-                const deadlineMs = (strengthMistakeDeadline && strengthMistakeDeadline > 0)
-                  ? strengthMistakeDeadline
-                  : (startedAt + timeout);
-                const remaining = Math.max(0, deadlineMs - currentTime);
-                if (sleepStatus === 'SLEEPING') {
-                  if (remaining > 0) {
-                    const minutes = Math.floor(remaining / 60000);
-                    const seconds = Math.floor((remaining % 60000) / 1000);
-                    return (
-                      <div className="text-blue-600 font-semibold ml-2">
-                        😴 수면중(멈춤) - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                        <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ❌ 타임아웃! 케어미스 발생
-                    </div>
-                  );
-                }
-                if (remaining > 0) {
-                  const minutes = Math.floor(remaining / 60000);
-                  const seconds = Math.floor((remaining % 60000) / 1000);
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 타임아웃까지: {minutes}분 {seconds}초 남음 (10분 초과 시 케어미스 +1)
-                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="text-red-600 font-semibold ml-2">
-                    ❌ 타임아웃! 케어미스 발생
-                  </div>
-                );
-              })() : lastStrengthZeroAt ? (
+              activeCallMap.get("strength") ? (
+                renderCallDetail(activeCallMap.get("strength"))
+              ) : lastStrengthZeroAt ? (
                 <div className="text-amber-600 font-semibold ml-2">
                   ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
                 </div>
@@ -1304,33 +1239,9 @@ export default function StatsPopup({
               조건: 수면 시간 + 불 켜짐
             </div>
             {sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn) ? (
-              callStatus?.sleep?.isActive && callStatus?.sleep?.startedAt ? (() => {
-                // ensureTimestamp를 사용하여 안전하게 변환 (null 체크 포함)
-                const startedAt = ensureTimestamp(callStatus.sleep.startedAt);
-                if (!startedAt || startedAt <= 0) {
-                  return <div className="text-yellow-600 ml-2">호출 대기 중...</div>;
-                }
-                const elapsed = Math.max(0, currentTime - startedAt);
-                const timeout = 60 * 60 * 1000; // 60분
-                const remaining = Math.max(0, timeout - elapsed);
-                const deadlineMs = startedAt + timeout;
-                if (remaining > 0) {
-                  const minutes = Math.floor(remaining / 60000);
-                  const seconds = Math.floor((remaining % 60000) / 1000);
-                  return (
-                    <div className="text-red-600 font-semibold ml-2">
-                      ⚠️ 활성화됨 - 경고 유지 시간: {minutes}분 {seconds}초 남음 (케어미스는 증가하지 않음)
-                      <div className="text-[10px] text-gray-500 mt-1 font-normal">데드라인: {formatTimestamp(deadlineMs)}</div>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <div className="text-yellow-600 font-semibold ml-2">
-                      ⚠️ 경고 유지 중 - 불을 끄거나 실제로 잠들면 해제됩니다
-                    </div>
-                  );
-                }
-              })() : (
+              activeCallMap.get("sleep") ? (
+                renderCallDetail(activeCallMap.get("sleep"))
+              ) : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               )
             ) : (

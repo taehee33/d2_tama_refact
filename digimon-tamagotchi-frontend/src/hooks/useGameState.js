@@ -203,7 +203,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     food: false,
     poopCleanAnimation: false,
     healAnimation: false,
-    callToast: false,
     sleepDisturbanceToast: false,
     
     // 상태 상세 모달
@@ -347,9 +346,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [wakeUntil, setWakeUntil] = useState(null);
   const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'TIRED' | 'SLEEPING'
   
-  // 호출 관련
-  const [callToastMessage, setCallToastMessage] = useState("");
-  
   // ============================================
   // 5. Refs
   // ============================================
@@ -405,7 +401,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       food: false,
       poopCleanAnimation: false,
       healAnimation: false,
-      callToast: false,
       sleepDisturbanceToast: false,
       statusDetail: false,
       overfeedConfirm: false,
@@ -561,8 +556,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setWakeUntil,
       sleepStatus,
       setSleepStatus,
-      callToastMessage,
-      setCallToastMessage,
     },
     
     // Refs (현재 사용하지 않음, 향후 필요 시 추가)
@@ -575,4 +568,3 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     },
   };
 }
-

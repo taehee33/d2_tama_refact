@@ -17,6 +17,7 @@ describe("buildGamePageViewModel", () => {
         poopCount: 2,
         sleepLightOnStart: 1234,
       },
+      activityLogs: [{ type: "CALL", text: "배고픔 호출이 시작되었습니다.", timestamp: 12345 }],
       digimonDataForSlot: {
         Agumon: {
           sleepSchedule: { start: 21, end: 7, startMinute: 0, endMinute: 0 },
@@ -37,7 +38,6 @@ describe("buildGamePageViewModel", () => {
         food: true,
         poopCleanAnimation: false,
         healAnimation: false,
-        callToast: false,
         call: false,
       },
       feedStep: 1,
@@ -45,7 +45,6 @@ describe("buildGamePageViewModel", () => {
       cleanStep: 0,
       sleepStatus: "SLEEPING",
       isLightsOn: false,
-      callToastMessage: "Sleepy!",
       evolutionStage: "Child",
       developerMode: false,
       wakeUntil: null,
@@ -62,6 +61,9 @@ describe("buildGamePageViewModel", () => {
     expect(viewModel.statusBadgeProps.sleepSchedule).toEqual(viewModel.sleepSchedule);
     expect(viewModel.gameScreenDisplayProps.selectedDigimon).toBe("Agumon");
     expect(viewModel.gameScreenDisplayProps.isRefused).toBe(true);
+    expect(viewModel.gameScreenDisplayProps.digimonStats.activityLogs).toEqual([
+      { type: "CALL", text: "배고픔 호출이 시작되었습니다.", timestamp: 12345 },
+    ]);
     expect(viewModel.jogressControls).toMatchObject({
       canJogressEvolve: true,
       hasNormalEvolution: true,

@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-04-07] 호출 상태 UI를 공통 view-model 기반으로 통합
+
+### 작업 유형
+- 📣 호출 상태 공통 helper 도입
+- 🧭 호출 모달/아이콘 진입 동선 단순화
+- 🌐 호출 로그/문구 한국어 정리
+- 🧪 호출 helper 및 화면 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 배고픔/힘/수면 호출의 실제 게임 규칙은 유지하면서, `GameScreen` 호출 모달과 `StatsPopup` 호출 섹션이 같은 계산과 같은 문구를 쓰도록 정리해 오해를 줄인다.
+- **범위:** 호출 상태 표시 UI, 호출 관련 최근 로그 표현, 호출 진입 동선, 관련 테스트와 문서만 조정하고 Firestore/localStorage 저장 스키마는 바꾸지 않는다.
+- **내용:**
+  - `src/utils/callStatusUtils.js`를 추가해 호출 카드 view-model, 최근 호출 이력, 영문 레거시 호출 로그 한국어 보정 로직을 한 곳으로 모았다.
+  - `GameScreen`은 기존 영어 `Call Status Log`/토스트 흐름을 제거하고, 공통 helper 기반 한국어 호출 모달과 해결 버튼(`먹이 메뉴 열기`, `조명 설정 열기`)을 사용하도록 바꿨다.
+  - 화면 안 `📣` 호출 아이콘 클릭과 하단 `호출` 버튼이 모두 같은 `call` 모달을 열도록 정리하고, 호출 토스트 상태는 제거했다.
+  - `StatsPopup`의 호출 안내는 더 이상 별도 인라인 계산을 하지 않고, 공통 helper 결과를 사용해 수면 경고 전용 규칙과 수면/냉장고 일시정지 문구를 `GameScreen`과 맞췄다.
+  - 실시간 호출 시작 로그는 `배고픔 호출이 시작되었습니다.`, `힘 호출이 시작되었습니다.`, `수면 호출이 시작되었습니다.`로 통일했고, `ActivityLogModal`에서도 예전 영어 호출 로그를 한국어로 보정해 보여준다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/components/ActivityLogModal.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGamePageViewModel.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGamePageViewModel.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/callStatusUtils.test.js src/components/GameScreen.test.jsx src/hooks/useGameHandlers.test.js src/hooks/game-runtime/buildGamePageViewModel.test.js`
+
+### 아키텍처 메모
+- 호출 표시를 view-model helper로 분리해 두면, 이후 Discord 알림, 상단 상태 요약, 활동 로그 탭도 같은 호출 라벨/문구 규칙을 재사용할 수 있다.
+- 이번 라운드는 저장 구조나 lazy update 규칙을 건드리지 않고, UI 표현과 진입 동선만 로직에 맞춰 재정렬해 리스크를 화면 범위로 제한했다.
+
 ## [2026-04-07] `Game.jsx` 2차 축소: runtime/persistence composite hook 도입
 
 ### 작업 유형

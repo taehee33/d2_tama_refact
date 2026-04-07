@@ -257,7 +257,6 @@ export default function GameModals({
           wakeUntil={ui?.wakeUntil || null}
           sleepLightOnStart={ui?.sleepLightOnStart || null}
           isLightsOn={gameState?.isLightsOn || false}
-          callStatus={digimonStats?.callStatus || null}
           appendLogToSubcollection={appendLogToSubcollection}
         />
       )}

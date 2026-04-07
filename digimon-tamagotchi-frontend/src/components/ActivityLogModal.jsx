@@ -4,6 +4,7 @@
 import React, { useState, useMemo } from "react";
 import { formatTimestamp } from "../utils/dateUtils";
 import { isSleepDisturbanceLog } from "../hooks/useGameLogic";
+import { normalizeCallLogText } from "../utils/callStatusUtils";
 
 /** 수면 관련 로그: 잠듦/깨어남, 수면 방해, 불 켜짐/꺼짐 */
 function isSleepLog(log) {
@@ -154,7 +155,7 @@ export default function ActivityLogModal({
                       </span>
                     )}
                     <p className="text-white text-sm break-words mt-0.5">
-                      {log.text || log.type || "Unknown"}
+                      {normalizeCallLogText(log) || log.type || "Unknown"}
                     </p>
                   </div>
                   <div className="text-gray-400 text-xs whitespace-nowrap">
