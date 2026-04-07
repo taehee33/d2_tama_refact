@@ -133,6 +133,78 @@ describe("callStatusUtils", () => {
     );
   });
 
+  test("TIRED 상태의 배고픔 호출은 일시정지 없이 10분 타이머를 계속 표시한다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 0,
+        strength: 3,
+        callStatus: {
+          hunger: {
+            isActive: true,
+            startedAt: now - 2 * 60 * 1000,
+            isLogged: false,
+          },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: {
+            isActive: true,
+            startedAt: now - 2 * 60 * 1000,
+          },
+        },
+        hungerMistakeDeadline: now + 8 * 60 * 1000,
+      },
+      sleepStatus: "TIRED",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.activeCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "hunger",
+          isPaused: false,
+          pauseReason: "",
+          statusLabel: expect.stringContaining("8분 0초"),
+        }),
+      ])
+    );
+  });
+
+  test("TIRED 상태의 힘 호출은 일시정지 없이 10분 타이머를 계속 표시한다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 0,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: {
+            isActive: true,
+            startedAt: now - 4 * 60 * 1000,
+            isLogged: false,
+          },
+          sleep: {
+            isActive: true,
+            startedAt: now - 4 * 60 * 1000,
+          },
+        },
+        strengthMistakeDeadline: now + 6 * 60 * 1000,
+      },
+      sleepStatus: "TIRED",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.activeCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "strength",
+          isPaused: false,
+          pauseReason: "",
+          statusLabel: expect.stringContaining("6분 0초"),
+        }),
+      ])
+    );
+  });
+
   test("냉장고 상태에서는 배고픔 호출을 정지 상태로 보여준다", () => {
     const viewModel = buildCallStatusViewModel({
       digimonStats: {

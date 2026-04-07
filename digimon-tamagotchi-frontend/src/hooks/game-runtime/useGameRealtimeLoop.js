@@ -143,8 +143,9 @@ export function useGameRealtimeLoop({
           napUntil: prevStats.napUntil || null,
           now: nowDate,
         });
-        const isActuallySleeping =
-          currentSleepStatus === "SLEEPING" || currentSleepStatus === "TIRED";
+        // TIRED는 졸림 경고 상태일 뿐 실제 수면이 아니므로
+        // 배고픔/힘 호출 타이머와 실시간 감소 로직은 계속 진행한다.
+        const isActuallySleeping = currentSleepStatus === "SLEEPING";
 
         let updatedStats = updateLifespan(
           prevStats,

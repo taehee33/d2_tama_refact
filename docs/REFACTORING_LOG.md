@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-04-07] TIRED 상태에서 배고픔·힘 케어미스 타이머가 멈추지 않도록 수정
+
+### 작업 유형
+- ⏱ TIRED/실수면 판정 경계 수정
+- 📣 배고픔·힘 호출 타이머 규칙 재정렬
+- 🧪 TIRED/SLEEPING 호출 표시 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** `TIRED`는 졸림 경고 상태이지 실제 수면이 아니므로, 배고픔/힘 0 이후의 케어미스 10분 타이머가 계속 진행되도록 규칙과 표시를 맞춘다.
+- **범위:** 실시간 수면 판정, 호출 표시 테스트, 문서만 조정하고 저장 스키마나 lazy update 데이터 구조는 바꾸지 않는다.
+- **내용:**
+  - `useGameRealtimeLoop`에서 `isActuallySleeping` 판정을 `SLEEPING`일 때만 참으로 바꾸어, `TIRED` 상태에서는 배고픔/힘 호출 타이머와 관련 실시간 감소 로직이 더 이상 일시정지되지 않도록 정리했다.
+  - 공통 호출 helper 테스트에 `TIRED` 상태의 배고픔/힘 호출은 pause 문구 없이 일반 10분 카운트다운을 보여준다는 기대값을 추가했다.
+  - 기존 `SLEEPING` 일시정지 표시는 유지해, 실제 수면 중에는 기존처럼 호출 타이머가 멈춰 보이도록 했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runInBand src/utils/callStatusUtils.test.js src/hooks/useGameLogic.test.js src/data/stats.test.js src/components/GameScreen.test.jsx`
+
+### 아키텍처 메모
+- 실수면 여부를 런타임에서 더 엄격히 정의해 두면, 이후 호출 타이머, 스탯 감소, 똥 타이머, 기타 수면 예외 규칙이 `TIRED`와 `SLEEPING`을 혼동해 다시 어긋날 가능성을 줄일 수 있다.
+
 ## [2026-04-07] 호출 상태 UI를 공통 view-model 기반으로 통합
 
 ### 작업 유형
