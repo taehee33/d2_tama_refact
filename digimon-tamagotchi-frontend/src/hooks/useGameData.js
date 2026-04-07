@@ -54,6 +54,82 @@ export function resolveRootSlotFields(newStats = {}, currentRootState = {}) {
 }
 
 /**
+ * 슬롯 문서에 저장할 디지몬 표시명을 계산합니다.
+ *
+ * @param {string|null} digimonId
+ * @param {string|null} digimonNickname
+ * @param {Object|null} evolutionDataForSlot
+ * @returns {string|null}
+ */
+export function buildDigimonDisplayName(
+  digimonId,
+  digimonNickname = null,
+  evolutionDataForSlot = null
+) {
+  if (!digimonId) {
+    return null;
+  }
+
+  const displayNameFromData = evolutionDataForSlot?.[digimonId]?.name;
+  const baseDisplayName = displayNameFromData || digimonId;
+  const nickname = typeof digimonNickname === "string" ? digimonNickname.trim() : "";
+
+  return nickname ? `${nickname}(${baseDisplayName})` : baseDisplayName;
+}
+
+/**
+ * 슬롯 루트 문서용 digimonStats payload를 정리합니다.
+ *
+ * @param {Object} stats
+ * @returns {Object}
+ */
+export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
+  const {
+    isLightsOn: _dropLights,
+    wakeUntil: _dropWakeUntil,
+    lastSavedAt: _dropLastSavedAt,
+    activityLogs: _dropActivityLogs,
+    battleLogs: _dropBattleLogs,
+    selectedDigimon: _dropSelectedDigimon,
+    ...digimonStatsOnly
+  } = stats || {};
+
+  return cleanObject(digimonStatsOnly);
+}
+
+/**
+ * 액션 직전 lazy update 계산용 기준 스탯을 조합합니다.
+ * 저장 시각은 Firestore 문서를 기준으로 삼고, 최신 로그/루트 상태는 메모리 값을 우선합니다.
+ *
+ * @param {Object} persistedStats
+ * @param {Object} liveStats
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }} currentRootState
+ * @returns {Object}
+ */
+export function resolveLazyUpdateBaseStats(
+  persistedStats = {},
+  liveStats = {},
+  currentRootState = {}
+) {
+  const rootSlotFields = resolveRootSlotFields(liveStats, currentRootState);
+  const liveActivityLogs = Array.isArray(liveStats.activityLogs) ? liveStats.activityLogs : null;
+  const liveBattleLogs = Array.isArray(liveStats.battleLogs) ? liveStats.battleLogs : null;
+
+  return {
+    ...persistedStats,
+    ...rootSlotFields,
+    activityLogs:
+      liveActivityLogs ||
+      (Array.isArray(persistedStats.activityLogs) ? persistedStats.activityLogs : []),
+    battleLogs:
+      liveBattleLogs ||
+      (Array.isArray(persistedStats.battleLogs) ? persistedStats.battleLogs : []),
+    selectedDigimon:
+      liveStats.selectedDigimon || persistedStats.selectedDigimon || null,
+  };
+}
+
+/**
  * useGameData Hook
  * 데이터 저장/로딩 로직을 담당하는 Custom Hook
  * 
@@ -266,19 +342,8 @@ export function useGameData({
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        // 루트 전용 필드는 digimonStats에 중복 저장하지 않음 (isLightsOn, wakeUntil, lastSavedAt)
-        // activityLogs·battleLogs는 서브컬렉션에만 저장하므로 슬롯 문서에서는 제외
-        const {
-          isLightsOn: _dropl,
-          wakeUntil: _dropw,
-          lastSavedAt: _dropt,
-          activityLogs: _dropLogs,
-          battleLogs: _dropBattleLogs,
-          selectedDigimon: _dropSelectedDigimon,
-          ...digimonStatsOnly
-        } = statsForState;
         const updateData = {
-          digimonStats: cleanObject(digimonStatsOnly),
+          digimonStats: sanitizeDigimonStatsForSlotDocument(statsForState),
           ...rootSlotFields,
           lastSavedAt: statsForState.lastSavedAt,
           updatedAt: now,
@@ -286,10 +351,11 @@ export function useGameData({
         
         // digimonDisplayName·selectedDigimon: 로드 완료 후에만 저장. 한글명 또는 ID만 (버전 안 붙임)
         if (!isLoadingSlot && effectiveSelectedDigimon) {
-          const displayNameFromData = evolutionDataForSlot?.[effectiveSelectedDigimon]?.name;
-          const baseDisplayName = displayNameFromData || effectiveSelectedDigimon;
-          const digimonDisplayName = (digimonNickname && digimonNickname.trim()) ? `${digimonNickname.trim()}(${baseDisplayName})` : baseDisplayName;
-          updateData.digimonDisplayName = digimonDisplayName;
+          updateData.digimonDisplayName = buildDigimonDisplayName(
+            effectiveSelectedDigimon,
+            digimonNickname,
+            evolutionDataForSlot
+          );
           updateData.selectedDigimon = effectiveSelectedDigimon;
         }
         
@@ -373,20 +439,30 @@ export function useGameData({
       
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
-        const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || digimonStats.lastSavedAt;
+        const persistedStats = slotData.digimonStats || {};
+        const lastSavedAt =
+          slotData.lastSavedAt ||
+          slotData.updatedAt ||
+          persistedStats.lastSavedAt ||
+          digimonStats.lastSavedAt;
+        const baseStats = resolveLazyUpdateBaseStats(persistedStats, digimonStats, {
+          isLightsOn,
+          wakeUntil,
+          dailySleepMistake,
+        });
         const digimonSnapshot = buildDigimonLogSnapshot(
-          selectedDigimon || digimonStats?.selectedDigimon || null,
+          baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
           evolutionDataForSlot,
           adaptedV1,
           adaptedV2,
           digimonDataVer1
         );
-        const prevLogs = Array.isArray(digimonStats.activityLogs) ? digimonStats.activityLogs : [];
+        const prevLogs = Array.isArray(baseStats.activityLogs) ? baseStats.activityLogs : [];
         const updated = repairCareMistakeLedger(
-          applyLazyUpdate(digimonStats, lastSavedAt, sleepSchedule, maxEnergy, {
+          applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
             digimonSnapshot,
           }),
-          digimonStats.activityLogs || []
+          baseStats.activityLogs || []
         ).nextStats;
 
         // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
@@ -663,7 +739,7 @@ export function useGameData({
 
   /**
    * 활동 로그 한 건을 서브컬렉션 logs에만 추가 (방안 A: 전면 서브컬렉션)
-   * @param {{ type: string, text: string, timestamp?: number }} logEntry
+   * @param {{ type: string, text: string, timestamp?: number, digimonId?: string, digimonName?: string }} logEntry
    */
   const appendLogToSubcollection = useCallback(
     async (logEntry) => {
@@ -689,7 +765,7 @@ export function useGameData({
 
   /**
    * 배틀 로그 한 건을 서브컬렉션 battleLogs에만 추가 (활동 로그와 동일 패턴)
-   * @param {{ timestamp?: number, mode: string, text: string, win?: boolean, enemyName?: string, injury?: boolean }} entry
+   * @param {{ timestamp?: number, mode: string, text: string, win?: boolean, enemyName?: string, injury?: boolean, digimonId?: string, digimonName?: string }} entry
    */
   const appendBattleLogToSubcollection = useCallback(
     async (entry) => {
@@ -714,10 +790,114 @@ export function useGameData({
     [slotId, currentUser, isFirebaseAvailable]
   );
 
+  /**
+   * 선택된 디지몬 이름과 표시명을 슬롯 루트 문서에 저장합니다.
+   * UI 상태 반영은 호출 측에서 담당하고, 여기서는 영속화만 처리합니다.
+   *
+   * @param {string} nextSelectedDigimon
+   */
+  const saveSelectedDigimon = useCallback(
+    async (nextSelectedDigimon) => {
+      if (!slotId || !currentUser || !isFirebaseAvailable || !nextSelectedDigimon) {
+        return;
+      }
+
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        await updateDoc(slotRef, {
+          selectedDigimon: nextSelectedDigimon,
+          digimonDisplayName: buildDigimonDisplayName(
+            nextSelectedDigimon,
+            digimonNickname,
+            evolutionDataForSlot
+          ),
+          isLightsOn,
+          wakeUntil,
+          updatedAt: new Date(),
+        });
+      } catch (saveError) {
+        console.error("디지몬 이름 저장 오류:", saveError);
+        setError(saveError);
+      }
+    },
+    [
+      slotId,
+      currentUser,
+      isFirebaseAvailable,
+      digimonNickname,
+      evolutionDataForSlot,
+      isLightsOn,
+      wakeUntil,
+    ]
+  );
+
+  /**
+   * 사망 직후 현재 스냅샷을 슬롯 문서에 1회 반영합니다.
+   *
+   * @param {Object} statsSnapshot
+   */
+  const persistDeathSnapshot = useCallback(
+    async (statsSnapshot) => {
+      if (!slotId || !currentUser || !isFirebaseAvailable || !statsSnapshot) {
+        return;
+      }
+
+      const effectiveSelectedDigimon =
+        statsSnapshot.selectedDigimon ||
+        digimonStats?.selectedDigimon ||
+        selectedDigimon ||
+        null;
+      const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
+        isLightsOn,
+        wakeUntil,
+        dailySleepMistake,
+      });
+      const updateData = {
+        digimonStats: sanitizeDigimonStatsForSlotDocument(statsSnapshot),
+        ...rootSlotFields,
+        lastSavedAt: statsSnapshot.lastSavedAt || new Date(),
+        updatedAt: new Date(),
+      };
+
+      if (!isLoadingSlot && effectiveSelectedDigimon) {
+        updateData.selectedDigimon = effectiveSelectedDigimon;
+        updateData.digimonDisplayName = buildDigimonDisplayName(
+          effectiveSelectedDigimon,
+          digimonNickname,
+          evolutionDataForSlot
+        );
+      }
+
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        await updateDoc(slotRef, updateData);
+      } catch (saveError) {
+        console.error("사망 스냅샷 저장 오류:", saveError);
+        setError(saveError);
+        throw saveError;
+      }
+    },
+    [
+      slotId,
+      currentUser,
+      isFirebaseAvailable,
+      digimonStats?.selectedDigimon,
+      selectedDigimon,
+      isLightsOn,
+      wakeUntil,
+      dailySleepMistake,
+      isLoadingSlot,
+      digimonNickname,
+      evolutionDataForSlot,
+    ]
+  );
+
   return {
     saveStats,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
+    saveSelectedDigimon,
+    persistDeathSnapshot,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
     isLoading,

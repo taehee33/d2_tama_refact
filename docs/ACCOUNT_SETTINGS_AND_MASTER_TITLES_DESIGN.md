@@ -14,7 +14,7 @@
 |------|------|-------------|
 | 테이머명 | 입력란, 중복 확인, 저장/기본값 복구 | `users/{uid}.tamerName` (tamerNameUtils) |
 | 현재 테이머명 표시 | "현재 테이머명: 한태희" | 동일 |
-| Discord 알림 | 웹훅 URL, "알람 받기" 체크박스, 알림 설정 저장 | `users/{uid}.discordWebhookUrl`, `isNotificationEnabled` (userSettingsUtils) |
+| Discord 알림 | 웹훅 URL, "알람 받기" 체크박스, 알림 설정 저장 | `users/{uid}/settings/main.discordWebhookUrl`, `isNotificationEnabled`, `siteTheme` (userSettingsUtils, 루트 fallback 호환) |
 
 - **한계**: 칭호/슬롯 정보 없음, 전역 설정(테마·버프 등)이 계정 단위로 분리되어 있지 않음.
 
@@ -109,7 +109,7 @@ users/{uid}
 - **settings** 구조에 맞춰 UI 추가:
   - 예: "진화 버프 사용" 체크박스 → `settings.isEvolutionBuffEnabled`
   - 예: "테마" 선택 (라이트/다크/시스템) → `settings.theme`
-- 저장 시 `users/{uid}.settings`만 업데이트 (또는 `userSettingsUtils`에서 `getUserSettings`/`saveUserSettings`가 `settings` 객체까지 읽고 쓰도록 확장).
+- 저장 시 `users/{uid}/settings/main` 문서만 업데이트하고, 마이그레이션 기간 동안은 루트 `users/{uid}` 값을 fallback으로 읽는다.
 
 ### 4.4 배치 순서 제안
 

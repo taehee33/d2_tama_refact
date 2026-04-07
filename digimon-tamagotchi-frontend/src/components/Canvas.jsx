@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { getFridgeRenderPolicy } from "./fridgeRenderPolicy";
+import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
@@ -159,6 +160,13 @@ const Canvas = ({
         frames= idleFrames;
       }
       if(!frames || frames.length===0) frames=["210"]; // fallback
+
+      recordRuntimeMetric("canvas_initImages_calls", {
+        currentAnimation,
+        frameCount: frames.length,
+        width,
+        height,
+      });
 
       // ★ (3) 로드할 이미지들 (v2 디지몬은 digimonImageBase가 /Ver2_Mod_Kor)
       const imageSources={};

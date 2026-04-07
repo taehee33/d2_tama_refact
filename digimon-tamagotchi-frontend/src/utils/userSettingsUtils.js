@@ -1,12 +1,33 @@
 // src/utils/userSettingsUtils.js
-// 사용자별 설정 (Discord 웹훅, 알림 수신 여부, 사이트 테마) - Firestore users/{uid} 저장
+// 사용자별 설정 (Discord 웹훅, 알림 수신 여부, 사이트 테마) - Firestore users/{uid}/settings/main 저장
 
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 /** Discord 웹훅 URL 허용 도메인 (discord.com, discordapp.com) */
 const DISCORD_WEBHOOK_PREFIXES = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/"];
 const SITE_THEMES = new Set(["default", "notebook"]);
+const USER_SETTINGS_DOC_ID = "main";
+
+function getUserRootRef(uid) {
+  return doc(db, "users", uid);
+}
+
+function getUserSettingsRef(uid) {
+  return doc(db, "users", uid, "settings", USER_SETTINGS_DOC_ID);
+}
+
+function getDefaultUserSettings() {
+  return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
+}
+
+function mapSettings(data) {
+  return {
+    discordWebhookUrl: data?.discordWebhookUrl ?? null,
+    isNotificationEnabled: data?.isNotificationEnabled === true,
+    siteTheme: normalizeSiteTheme(data?.siteTheme),
+  };
+}
 
 /**
  * URL이 유효한 Discord 웹훅 URL인지 검사
@@ -41,23 +62,24 @@ export function normalizeSiteTheme(themeId) {
  */
 export async function getUserSettings(uid) {
   if (!uid) {
-    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
+    return getDefaultUserSettings();
   }
   try {
-    const userRef = doc(db, "users", uid);
+    const settingsRef = getUserSettingsRef(uid);
+    const settingsSnap = await getDoc(settingsRef);
+    if (settingsSnap.exists()) {
+      return mapSettings(settingsSnap.data());
+    }
+
+    const userRef = getUserRootRef(uid);
     const userSnap = await getDoc(userRef);
     if (userSnap.exists()) {
-      const data = userSnap.data();
-      return {
-        discordWebhookUrl: data.discordWebhookUrl ?? null,
-        isNotificationEnabled: data.isNotificationEnabled === true,
-        siteTheme: normalizeSiteTheme(data.siteTheme),
-      };
+      return mapSettings(userSnap.data());
     }
-    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
+    return getDefaultUserSettings();
   } catch (error) {
     console.error("사용자 설정 로드 오류:", error);
-    return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
+    return getDefaultUserSettings();
   }
 }
 
@@ -72,7 +94,7 @@ export async function getUserSettings(uid) {
  */
 export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled, siteTheme }) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
-  const userRef = doc(db, "users", uid);
+  const settingsRef = getUserSettingsRef(uid);
   const updates = { updatedAt: new Date() };
   if (discordWebhookUrl !== undefined) {
     const val = typeof discordWebhookUrl === "string" ? discordWebhookUrl.trim() || null : null;
@@ -91,5 +113,5 @@ export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationE
     }
     updates.siteTheme = normalizedTheme;
   }
-  await updateDoc(userRef, updates);
+  await setDoc(settingsRef, updates, { merge: true });
 }

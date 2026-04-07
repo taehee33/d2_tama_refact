@@ -1,7 +1,7 @@
 # 현재 프로젝트 구조 분석 보고서
 
 **작성일:** 2026-03-24  
-**최근 갱신일:** 2026-03-29  
+**최근 갱신일:** 2026-04-07  
 **대상 저장소:** `d2_tama_refact`  
 **분석 기준:** 현재 소스코드 기준, 기존 `docs/*.md`는 참고자료로만 활용
 
@@ -53,6 +53,7 @@
   라우팅 단위의 화면이다. `Login`, `SelectScreen`, `Game`, `Home`가 있다.
 - `hooks/`
   게임 상태, 저장, 액션, 진화, 사망, 애니메이션, 아레나 등 화면 로직을 분리한 커스텀 훅 계층이다.
+  2026-04-07 기준으로 `hooks/game-runtime/` 아래에 실시간 루프, 수면 상태 루프, 탭 이탈 저장, 애니메이션 view model이 별도 분리되어 있다.
 - `logic/`
   배틀, 진화, 음식, 스탯, 훈련 같은 순수 함수 중심 도메인 로직 계층이다.
 - `data/`
@@ -146,13 +147,14 @@
 
 ### `Game.jsx`의 구조적 역할
 
-`Game.jsx`는 현재 약 1,978줄 규모의 대형 파일이며 다음 책임을 가진다.
+`Game.jsx`는 현재 약 1,655줄 규모의 대형 파일이며 다음 책임을 가진다.
 
 - URL의 `slotId` 해석
 - 인증 사용자 확인 및 비로그인 리다이렉션
 - 모바일 여부, 프로필 드롭다운, 계정 설정 등 로컬 UI 상태 관리
 - `useGameState`로 핵심 상태 묶음 생성
 - `useGameData`로 저장/로드 및 lazy update 경로 연결
+- `hooks/game-runtime/*`로 실시간 틱, 수면 상태, 탭 이탈 저장, 애니메이션 프레임 계산 연결
 - `useGameActions`, `useGameHandlers`, `useEvolution`, `useDeath`, `useGameAnimations`, `useArenaLogic`, `useFridge`를 연결
 - 최종적으로 `GameScreen`, `ControlPanel`, `GameModals`, 각종 상태 표시 컴포넌트에 값과 핸들러를 전달
 

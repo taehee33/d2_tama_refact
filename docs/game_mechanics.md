@@ -2,6 +2,13 @@
 
 이 문서는 D2 Tamagotchi 프로젝트의 게임 메커니즘과 로직을 상세히 설명합니다.
 
+> 문서 상태: 참고용 문서
+>
+> 현재 구현의 기준 소스는 `digimon-tamagotchi-frontend/src/data/stats.js`,
+> `digimon-tamagotchi-frontend/src/logic/stats/death.js`,
+> `digimon-tamagotchi-frontend/src/hooks/useGameData.js`입니다.
+> 이 문서와 실제 코드가 다르면 현재 코드와 `docs/README.md`의 기준 문서를 우선합니다.
+
 ---
 
 ## 1. Lazy Update (지연 업데이트) 알고리즘
@@ -21,8 +28,11 @@ $$\Delta t = \text{CurrentTime} - \text{LastSavedAt}$$
 ### 사망 조건 체크
 
 - **굶주림**: `fullness === 0`이고 `lastHungerZeroAt`로부터 12시간(43200초) 경과
-- **부상 과다**: `strength === 0`이고 `lastStrengthZeroAt`로부터 12시간(43200초) 경과
-- **수명 다함**: `lifespanSeconds`가 최대 수명에 도달
+- **탈진**: `strength === 0`이고 `lastStrengthZeroAt`로부터 12시간(43200초) 경과
+- **부상 과다**: 누적 `injuries >= 15`
+- **부상 방치**: `isInjured === true`이고 `injuredAt`로부터 6시간 경과
+
+현재 구현에는 `수명 다함` 사망 조건이 없습니다.
 
 ---
 
@@ -366,4 +376,3 @@ Ver.1의 각 디지몬 종은 다음과 같은 고유 스펙을 가집니다.
 
 **작성일**: 2025-12-23  
 **버전**: 1.1
-
