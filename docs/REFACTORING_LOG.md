@@ -3529,3 +3529,20 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `firestore.rules`
 - `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
 - `docs/REFACTORING_LOG.md`
+
+### 사용자 도감을 `users/{uid}/encyclopedia/{version}`으로 분리 시작
+
+- 도감 저장 2단계로 루트 `users/{uid}.encyclopedia` 대신 `users/{uid}/encyclopedia/Ver.1`, `users/{uid}/encyclopedia/Ver.2` 문서를 우선 사용하도록 변경했다.
+- `loadEncyclopedia`는 새 버전 문서를 먼저 읽고, 두 문서가 모두 없을 때만 기존 루트 `encyclopedia`를 fallback으로 읽는다.
+- `saveEncyclopedia`는 새 버전 문서에만 저장하고, `updateEncyclopedia`와 `addMissingEncyclopediaEntries`도 같은 경로를 타도록 유지했다.
+- 새 구조가 일부만 생성된 사용자를 나중에 정리할 수 있도록 `scripts/backfillUserEncyclopedia.js`와 `npm run encyclopedia:backfill` 스크립트를 추가했다.
+- 이번 단계에서는 루트 `users/{uid}.encyclopedia` 필드를 삭제하지 않고, 운영 백필과 안정화 이후 정리할 수 있게 남겨둔다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
+- `firestore.rules`
+- `package.json`
+- `scripts/backfillUserEncyclopedia.js`
+- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `docs/REFACTORING_LOG.md`

@@ -22,7 +22,7 @@
 
 - `tamerName`, `displayName`, `updatedAt`
 - `discordWebhookUrl`, `isNotificationEnabled`
-- `encyclopedia`: `{ "Ver.1": { [id]: {...} }, "Ver.2": { ... } }`
+- `encyclopedia`: 루트 필드는 마이그레이션 fallback 용도로만 남아 있고, 신규 저장은 `users/{uid}/encyclopedia/{version}` 문서 우선
 - 칭호(achievements), 최대 슬롯(maxSlots), 전역 설정(settings) **없음**.
 
 ### 1.3 슬롯 수
@@ -54,8 +54,6 @@ users/{uid}
 ├── updatedAt: Timestamp
 ├── discordWebhookUrl: string | null
 ├── isNotificationEnabled: boolean
-├── encyclopedia: { "Ver.1": {...}, "Ver.2": {...} }
-│
 ├── achievements: string[]              // 신규. 예: ["ver1_master", "ver2_master"]
 ├── maxSlots: number                    // 신규. 기본값 2, 도감 마스터당 +5 (또는 기본 10, 마스터당 +5)
 └── settings: {                         // 신규. 전역 설정
@@ -63,6 +61,9 @@ users/{uid}
       theme?: "light" | "dark" | "system",
       // 추후: notifyQuietHoursStart, notifyQuietHoursEnd, profileImageUrl 등
     }
+
+users/{uid}/encyclopedia/{version}
+└── { [digimonId]: EncyclopediaEntry }  // 예: Ver.1, Ver.2
 ```
 
 - **achievements**: 도감 완성 시에만 추가. 중복 방지로 배열에 없을 때만 `ver1_master` / `ver2_master` push.

@@ -1,7 +1,7 @@
 // src/hooks/useEncyclopedia.js
 // 도감(Encyclopedia) 데이터 저장/로드 로직
 
-import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { getRequiredDigimonIds, isVersionComplete } from "../logic/encyclopediaMaster";
 import { digimonDataVer1 } from "../data/v1/digimons";
@@ -13,6 +13,42 @@ import {
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
 
+const ENCYCLOPEDIA_VERSIONS = ["Ver.1", "Ver.2"];
+
+function createEmptyEncyclopedia() {
+  return Object.fromEntries(ENCYCLOPEDIA_VERSIONS.map((version) => [version, {}]));
+}
+
+function getUserRootRef(uid) {
+  return doc(db, "users", uid);
+}
+
+function getUserEncyclopediaRef(uid, version) {
+  return doc(db, "users", uid, "encyclopedia", version);
+}
+
+function normalizeVersionEntries(versionEntries) {
+  if (!versionEntries || typeof versionEntries !== "object") {
+    return {};
+  }
+
+  return { ...versionEntries };
+}
+
+function normalizeEncyclopedia(encyclopedia) {
+  const normalized = createEmptyEncyclopedia();
+
+  ENCYCLOPEDIA_VERSIONS.forEach((version) => {
+    normalized[version] = normalizeVersionEntries(encyclopedia?.[version]);
+  });
+
+  return normalized;
+}
+
+function hasVersionEntries(versionEntries) {
+  return Object.keys(versionEntries || {}).length > 0;
+}
+
 /**
  * 도감 데이터 로드 (계정별 통합)
  * @param {Object|null} currentUser - 현재 사용자 (Firebase Auth)
@@ -22,23 +58,41 @@ export async function loadEncyclopedia(currentUser) {
   // Firebase 로그인 필수
   if (!currentUser || !db) {
     console.warn("Firebase 로그인이 필요합니다.");
-    return { "Ver.1": {} };
+    return createEmptyEncyclopedia();
   }
 
   try {
-    // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
-    const userRef = doc(db, 'users', currentUser.uid);
+    const versionSnapshots = await Promise.all(
+      ENCYCLOPEDIA_VERSIONS.map((version) =>
+        getDoc(getUserEncyclopediaRef(currentUser.uid, version))
+      )
+    );
+    const hasAnyVersionDoc = versionSnapshots.some((snapshot) => snapshot.exists());
+
+    if (hasAnyVersionDoc) {
+      const encyclopedia = createEmptyEncyclopedia();
+      versionSnapshots.forEach((snapshot, index) => {
+        if (snapshot.exists()) {
+          encyclopedia[ENCYCLOPEDIA_VERSIONS[index]] = normalizeVersionEntries(snapshot.data());
+        }
+      });
+
+      return encyclopedia;
+    }
+
+    // Firebase: 마이그레이션 기간 동안만 루트 users/{uid}.encyclopedia fallback 허용
+    const userRef = getUserRootRef(currentUser.uid);
     const userSnap = await getDoc(userRef);
-    
+
     if (userSnap.exists()) {
       const data = userSnap.data();
-      return data.encyclopedia || { "Ver.1": {} };
+      return normalizeEncyclopedia(data.encyclopedia);
     }
   } catch (error) {
     console.error("도감 로드 오류 (Firebase):", error);
   }
 
-  return { "Ver.1": {} };
+  return createEmptyEncyclopedia();
 }
 
 /**
@@ -78,27 +132,27 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
   }
 
   try {
-    // Firebase: 사용자별 도감 저장 (/users/{uid}/encyclopedia)
-    const userRef = doc(db, 'users', currentUser.uid);
-    const userSnap = await getDoc(userRef);
-    const existing = userSnap.exists() ? (userSnap.data().encyclopedia || {}) : {};
-    // 기존 도감과 병합하여 다른 버전/다른 키가 사라지지 않도록 함 (로컬 조그레스 시 Ver.1 블리츠그레이몬 등 소실 방지)
-    const merged = {};
-    for (const ver of ['Ver.1', 'Ver.2']) {
-      merged[ver] = { ...(existing[ver] || {}), ...(encyclopedia[ver] || {}) };
+    const normalizedEncyclopedia = normalizeEncyclopedia(encyclopedia);
+    const saveTasks = [];
+
+    for (const version of ENCYCLOPEDIA_VERSIONS) {
+      if (!hasVersionEntries(normalizedEncyclopedia[version])) {
+        continue;
+      }
+
+      saveTasks.push(
+        setDoc(
+          getUserEncyclopediaRef(currentUser.uid, version),
+          normalizedEncyclopedia[version]
+        )
+      );
     }
-    if (userSnap.exists()) {
-      await updateDoc(userRef, {
-        encyclopedia: merged,
-        updatedAt: new Date(),
-      });
-    } else {
-      await setDoc(userRef, {
-        encyclopedia: merged,
-        updatedAt: new Date(),
-      });
+
+    if (saveTasks.length > 0) {
+      await Promise.all(saveTasks);
     }
-    await checkAndGrantEncyclopediaMasters(currentUser, merged);
+
+    await checkAndGrantEncyclopediaMasters(currentUser, normalizedEncyclopedia);
   } catch (error) {
     console.error("도감 저장 오류 (Firebase):", error);
   }
