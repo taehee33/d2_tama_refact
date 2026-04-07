@@ -4,6 +4,181 @@
 
 ---
 
+## [2026-04-07] `Game.jsx` 구독/effect/view-model 안전 분리 1차
+
+### 작업 유형
+- 🧭 `Game.jsx` 오케스트레이션 책임 축소
+- 🔔 조그레스 구독/냉장고 take-out 정리 훅 분리
+- 🧱 화면 파생 props / 모달 바인딩 helper 분리
+- 🧪 새 runtime helper 기준 characterization 테스트 추가
+
+### 목적 및 영향
+- **목적:** `Game.jsx` 내부에 남아 있던 조그레스 구독, `takeOutAt` 정리 타이머, 렌더용 파생 props 조립, `GameModals`용 큰 객체 조립을 바깥으로 옮겨 페이지를 오케스트레이션 허브에 가깝게 줄인다.
+- **범위:** `Game.jsx`, `src/hooks/game-runtime/*`, 관련 테스트와 로그 문서만 조정하고, `GameScreen` / `ControlPanel` / `GameModals`의 공개 prop 계약과 Firestore 경로는 유지한다.
+- **내용:**
+  - `src/hooks/game-runtime/useJogressSubscriptions.js`를 추가해 현재 슬롯 `jogressStatus`, 내가 만든 room, waiting room의 Firestore 구독을 한 곳으로 모았다.
+  - `src/hooks/game-runtime/useTakeOutCleanup.js`를 추가해 냉장고에서 꺼낸 뒤 `takeOutAt`을 3.5초 후 정리하는 타이머를 분리했다.
+  - `src/hooks/game-runtime/buildGamePageViewModel.js`를 추가해 헤더 표시명, 현재 시간 문자열, 수면 스케줄, `DigimonStatusBadges` / `ControlPanel` / `GameScreen`용 파생 display props, 조그레스 CTA 상태를 계산하도록 분리했다.
+  - `src/hooks/game-runtime/buildGameModalBindings.js`를 추가해 `GameModals`에 전달하는 `handlers`, `data`, `ui` payload 조립을 한 곳으로 모으고, 기존 nested key shape는 그대로 유지했다.
+  - `Game.jsx`는 이제 새 helper/hook을 호출하고 최종 렌더를 조합하는 쪽으로 축소했으며, 조그레스 구독 hook에는 `currentUser?.uid`만 넘기도록 경계를 더 명확히 했다.
+  - 이전 실험 파일이던 `gamePageViewModel.js`, `gameModalBindings.js`와 대응 테스트는 더 이상 참조되지 않아 제거하고 새 `build*` 파일 기준으로 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useJogressSubscriptions.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useTakeOutCleanup.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGamePageViewModel.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGameModalBindings.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useTakeOutCleanup.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGamePageViewModel.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGameModalBindings.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/game-runtime/buildGamePageViewModel.test.js src/hooks/game-runtime/buildGameModalBindings.test.js src/hooks/game-runtime/useTakeOutCleanup.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand`
+  - `src/logic/stats/injuryHistory.test.js` 3건은 이번 변경과 무관하게 계속 실패했고, 새 runtime helper 관련 테스트는 모두 통과했다.
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 라운드는 container/presenter 분리나 조그레스 persistence adapter 도입 전 단계로, 외부 컴포넌트 prop 이름을 바꾸지 않고 `계산/조립만 외부화`하는 방식으로 리스크를 제한했다.
+- `GameModals`는 가장 민감한 계약이므로 top-level 7개 prop과 내부 `handlers/data/ui` key shape를 유지한 채 조립 위치만 옮겼다.
+- 다음 단계에서는 이 구조를 바탕으로 `Game.jsx` 내 나머지 persistence/effect 덩어리와 조그레스 read 최적화를 더 안전하게 다룰 수 있다.
+
+---
+
+## [2026-04-07] 상단 상태 요약을 핵심 3개 중심으로 재구성하고 수면 정보 우선순위를 하향
+
+### 작업 유형
+- 🏷 상단 상태 배지 우선순위 재정의
+- 🧩 상태 메시지 공용 helper 도입
+- 🪟 상태 상세 모달 severity 구조 정리
+- 🧪 상태 요약/상세 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 게임 화면 상단 상태 요약을 플레이어 친화적으로 정리하고, 수면 관련 생활 정보가 긴급 경고보다 앞에 나오지 않도록 순서를 바로잡는다.
+- **범위:** `DigimonStatusBadges`, `DigimonStatusDetailModal`, 공용 상태 메시지 helper와 관련 테스트, 로그 문서만 조정하고 저장 구조와 수면 판정 로직은 유지한다.
+- **내용:**
+  - `src/components/digimonStatusMessages.js`를 추가해 상태 텍스트, 우선순위, 카테고리, 상세 힌트를 한 곳에서 생성하도록 분리했다.
+  - 상단 요약은 이제 우선순위 높은 상태 최대 3개만 보여주고, 나머지는 `+N개 더`로 접는다.
+  - `수면까지 ...` 메시지는 계속 생성하지만, 배고픔/힘 부족/부상/수면 방해 같은 경고가 있을 때는 상단 요약에서 숨기고 상세 모달에서만 확인되도록 바꿨다.
+  - 영어 상태 문구였던 `SLEEPY(Lights Off plz)`는 `졸림! 불을 꺼 주세요 😴`로 교체하고, 남은 시간/케어 미스 구간 설명은 상세 힌트로 분리했다.
+  - `DigimonStatusDetailModal`은 `지금 바로 확인 / 곧 대응 필요 / 지금 하고 있는 행동 / 상태 정보 / 안정적인 상태` 순서의 섹션으로 재배치해 상단에서 접힌 상태도 왜 중요한지 바로 이해할 수 있게 정리했다.
+  - `DigimonStatusBadges.test.jsx`, `DigimonStatusDetailModal.test.jsx`, `digimonStatusMessages.test.js`를 추가해 핵심 3개 요약, 숨겨진 수면 정보 전달, 수면 방해/수면 카운트다운 우선순위를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusDetailModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.js`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusDetailModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand src/components/digimonStatusMessages.test.js src/components/DigimonStatusBadges.test.jsx src/components/DigimonStatusDetailModal.test.jsx`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand src/hooks/useGameLogic.test.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 상태 메시지는 이제 UI용 공용 모델을 통해 생성하므로, 이후 `StatsPanel`이나 `StatsPopup`도 같은 규칙으로 맞추고 싶을 때 재사용할 수 있다.
+- 이번 라운드에서는 저장 구조나 lazy update를 건드리지 않고, 상태 메시지 생성 규칙과 표현만 바꿔 리스크를 UI 범위로 제한했다.
+
+---
+
+## [2026-04-07] 게임 화면 메뉴 구조를 메타데이터 기반 5+5 그룹으로 재정렬
+
+### 작업 유형
+- 🎮 게임 메뉴 정보 구조 재정렬
+- 🧭 더보기 허브 섹션형 재구성
+- 🔒 메뉴 잠금 상태 UI 일관화
+- 🧪 메뉴/가이드 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 게임 화면의 10개 1차 아이콘 구조는 유지하면서도, `기본 조작 / 케어·도구 / 더보기` 기준으로 메뉴 의미를 더 분명하게 정리한다.
+- **범위:** 게임 메뉴 메타데이터, 메뉴 버튼 렌더링, 더보기 모달, 메뉴 클릭 차단 규칙, 기본 가이드 문구, 관련 테스트와 로그 문서만 조정한다.
+- **내용:**
+  - `src/constants/gameMenus.js`를 추가해 1차 메뉴와 더보기 메뉴를 공통 메타데이터로 정의하고, 그룹/순서/라벨/잠금 규칙을 한곳에서 관리하도록 정리했다.
+  - `MenuIconButtons`, `IconButton`, `ControlPanel`은 이 메타데이터를 읽어 데스크톱과 모바일 모두 같은 `5 + 5` 그룹 구조를 보여 주고, 잠긴 메뉴에는 `잠김` 배지와 안내 문구를 표시하도록 바꿨다.
+  - `useGameHandlers`의 `handleMenuClick()`은 더 이상 브라우저 `alert()`를 띄우지 않고, 메뉴 메타데이터 기반 잠금 규칙을 검사한 뒤 접근 가능한 메뉴만 열도록 정리했다.
+  - `ExtraMenuModal`은 `기록 / 자료 / 보관·꾸미기 / 시스템` 섹션형 허브로 재구성했고, 하단의 `가이드` 버튼과 중복되던 `디지몬 가이드` 진입은 제거했다.
+  - `DigimonGuidePanel`의 기본 가이드 문구도 실제 메뉴 구조와 같은 `기본 조작 / 케어·도구 / 더보기` 기준으로 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/constants/gameMenus.js`
+- `digimon-tamagotchi-frontend/src/components/IconButton.jsx`
+- `digimon-tamagotchi-frontend/src/components/MenuIconButtons.jsx`
+- `digimon-tamagotchi-frontend/src/components/ControlPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/ExtraMenuModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/DigimonGuidePanel.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/buildGamePageViewModel.js`
+- `digimon-tamagotchi-frontend/src/styles/MenuIconButtons.css`
+- `digimon-tamagotchi-frontend/src/components/MenuIconButtons.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/ControlPanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/ExtraMenuModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/DigimonGuidePanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/IconButton.test.jsx src/components/MenuIconButtons.test.jsx src/components/ControlPanel.test.jsx src/components/ExtraMenuModal.test.jsx src/components/panels/DigimonGuidePanel.test.jsx src/hooks/useGameHandlers.test.js`
+
+### 아키텍처 메모
+- 메뉴 순서, 라벨, 잠금 규칙, 더보기 분류를 공용 메타데이터로 묶으면 실제 렌더링과 가이드 문구가 다시 어긋날 가능성을 크게 줄일 수 있다.
+- 조명 꺼짐/냉장고 보관 상태를 클릭 시점 경고보다 메뉴 잠금 상태와 화면 내 안내로 표현하는 편이 모바일과 몰입형 플레이 모두에서 더 자연스럽고 예측 가능하다.
+
+## [2026-04-07] 게임 런타임 루프 분리와 저장 경계 정리
+
+### 작업 유형
+- ⏱ 실시간 게임 런타임 훅 분리
+- 💾 선택 디지몬/사망 스냅샷 저장 어댑터 도입
+- 🎞 렌더용 애니메이션 view model 분리
+- 📏 런타임 계측 포인트 추가
+- 📚 기준 문서/참고 문서 구분 정리
+
+### 목적 및 영향
+- **목적:** `Game.jsx`에 몰려 있던 1초 타이머, 탭 이탈 저장, 수면 상태 계산, 렌더 중 애니메이션 상태 변경을 분리해 실시간 제어와 렌더 책임을 구분한다.
+- **범위:** 게임 런타임 훅, `useGameData`, `Canvas`, `Game.jsx`, 관련 단위 테스트와 문서만 조정하고 공개 API/Firestore 경로는 유지한다.
+- **내용:**
+  - `src/hooks/game-runtime/useGameRealtimeLoop.js`, `useGameSleepStatusLoop.js`, `useGameSaveOnLeave.js`, `useGameClock.js`를 추가해 기존 `Game.jsx` 내부 effect 덩어리를 역할별로 분리했다.
+  - `src/hooks/game-runtime/gameAnimationViewModel.js`를 추가하고, 렌더 분기 안에서 직접 호출하던 `setCurrentAnimation()`을 `desiredAnimation` 기반 effect로 옮겼다.
+  - `useGameData`에 `saveSelectedDigimon`, `persistDeathSnapshot`, `buildDigimonDisplayName`, `sanitizeDigimonStatsForSlotDocument`, `resolveLazyUpdateBaseStats`를 추가해 페이지의 직접 Firestore 쓰기를 줄였다.
+  - `applyLazyUpdateForAction()`은 Firestore 문서의 저장 시각과 서버 스냅샷을 기준으로 lazy update를 계산하되, 최신 로그와 루트 상태는 메모리 값을 우선하도록 조정했다.
+  - `Canvas`와 `Game`에는 `window.__DIGIMON_RUNTIME_METRICS__` 기반 계측을 추가해 `game_page_commits`, `slot_jogress_snapshot_wakeups`, `slot_jogress_state_updates`, `canvas_initImages_calls`를 브라우저에서 확인할 수 있게 했다.
+  - `docs/README.md`를 추가해 현재 기준 문서와 참고/분석 문서를 구분하고, `game_mechanics.md`와 `CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`도 현재 구현 기준으로 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameClock.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameSaveOnLeave.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameSleepStatusLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+- `digimon-tamagotchi-frontend/src/utils/runtimeMetrics.js`
+- `docs/README.md`
+- `docs/game_mechanics.md`
+- `docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand`
+- `node --test tests/*.test.js api/_lib/*.test.js`
+
+### 아키텍처 메모
+- `Game.jsx`는 여전히 컨테이너 허브이지만, 실시간 루프/수면 상태/이탈 저장/애니메이션 프레임 계산은 `src/hooks/game-runtime/*`로 먼저 분리해 이후 container/presenter 분리의 발판을 만들었다.
+- `saveSelectedDigimon`과 `persistDeathSnapshot`를 `useGameData`로 이동시켜 저장 경계를 한 단계 더 닫았고, `Game.jsx`는 저장 adapter를 호출하는 쪽으로 역할을 축소했다.
+- 조그레스 Firestore write adapter와 구독 범위 축소는 다음 단계 과제로 남기되, 먼저 계측값으로 실제 wake-up/재초기화 빈도를 확인할 수 있게 했다.
+
+---
+
 ## [2026-04-04] 랜딩 모바일 헤더의 더보기를 홈 링크로 단순화
 
 ### 작업 유형

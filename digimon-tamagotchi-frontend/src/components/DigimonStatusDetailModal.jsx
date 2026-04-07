@@ -1,38 +1,23 @@
 // src/components/DigimonStatusDetailModal.jsx
 import React from "react";
+import {
+  DIGIMON_STATUS_CATEGORY_META,
+  DIGIMON_STATUS_CATEGORY_ORDER,
+} from "./digimonStatusMessages";
 
 /**
  * DigimonStatusDetailModal 컴포넌트
- * 디지몬의 모든 상태를 카테고리별로 표시하는 모달
+ * 상단 요약에서 접힌 상태까지 포함해 전체 상태를 카테고리별로 보여줍니다.
  */
 const DigimonStatusDetailModal = ({
   statusMessages = [],
   onClose,
 }) => {
-  // 카테고리별로 그룹화
-  const categorizedMessages = {
-    critical: statusMessages.filter(msg => msg.category === "critical"),
-    warning: statusMessages.filter(msg => msg.category === "warning"),
-    action: statusMessages.filter(msg => msg.category === "action"),
-    info: statusMessages.filter(msg => msg.category === "info"),
-    good: statusMessages.filter(msg => msg.category === "good"),
-  };
-
-  const categoryLabels = {
-    critical: "🚨 긴급",
-    warning: "⚠️ 경고",
-    action: "🎬 행동",
-    info: "ℹ️ 정보",
-    good: "✅ 좋음",
-  };
-
-  const categoryColors = {
-    critical: "text-red-600 bg-red-50 border-red-200",
-    warning: "text-orange-600 bg-orange-50 border-orange-200",
-    action: "text-blue-600 bg-blue-50 border-blue-200",
-    info: "text-gray-600 bg-gray-50 border-gray-200",
-    good: "text-green-600 bg-green-50 border-green-200",
-  };
+  const groupedMessages = DIGIMON_STATUS_CATEGORY_ORDER.map((category) => ({
+    category,
+    meta: DIGIMON_STATUS_CATEGORY_META[category],
+    messages: statusMessages.filter((message) => message.category === category),
+  })).filter((section) => section.messages.length > 0);
 
   return (
     <div
@@ -40,46 +25,65 @@ const DigimonStatusDetailModal = ({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto pixel-art-modal"
-        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto pixel-art-modal"
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-gray-800">디지몬 상태 상세</h2>
+          <div className="flex justify-between items-start gap-4 mb-5">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">디지몬 상태 상세</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                상단 요약에서 접힌 상태까지 모두 모아 보여드려요.
+              </p>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              className="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none"
+              aria-label="상태 상세 닫기"
             >
               ✕
             </button>
           </div>
 
-          <div className="space-y-4">
-            {Object.entries(categorizedMessages).map(([category, messages]) => {
-              if (messages.length === 0) return null;
-              
-              return (
-                <div key={category} className={`border-2 rounded-lg p-4 ${categoryColors[category]}`}>
-                  <h3 className="font-bold text-lg mb-2">{categoryLabels[category]}</h3>
+          {groupedMessages.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-slate-500">
+              지금은 표시할 상태가 없어요.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupedMessages.map(({ category, meta, messages }) => (
+                <section
+                  key={category}
+                  className={`rounded-2xl border px-4 py-4 ${meta.containerClass}`}
+                >
+                  <div className="mb-3">
+                    <h3 className={`text-base font-bold ${meta.titleClass}`}>{meta.title}</h3>
+                    <p className="text-xs text-slate-500 mt-1">{meta.description}</p>
+                  </div>
                   <div className="space-y-2">
-                    {messages.map((msg, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-2 px-3 py-2 rounded ${msg.bgColor} border`}
+                    {messages.map((message) => (
+                      <article
+                        key={message.id}
+                        className="rounded-xl border border-white/80 bg-white/80 px-3 py-3 shadow-sm"
                       >
-                        <span className={`font-semibold ${msg.color}`}>{msg.text}</span>
-                      </div>
+                        <div className={`font-semibold ${message.color}`}>{message.text}</div>
+                        {message.detailHint && (
+                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                            {message.detailHint}
+                          </p>
+                        )}
+                      </article>
                     ))}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                </section>
+              ))}
+            </div>
+          )}
 
           <div className="mt-6 text-center">
             <button
               onClick={onClose}
-              className="px-6 py-2 bg-gray-500 text-white rounded-lg font-bold hover:bg-gray-600 transition-colors"
+              className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"
             >
               닫기
             </button>
@@ -91,5 +95,3 @@ const DigimonStatusDetailModal = ({
 };
 
 export default DigimonStatusDetailModal;
-
-
