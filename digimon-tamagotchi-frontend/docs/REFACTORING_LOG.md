@@ -2,13 +2,80 @@
 
 ## 2026-04-08
 
+### ver3 전용 스프라이트 폴더 분리와 임시 자산 독립
+- ver3 데이터는 초기 골격 단계에서 `/images`를 공유하고 있었지만, 이후 실제 ver3 스프라이트 정리 작업을 안전하게 이어가려면 ver1 공용 이미지와 경로를 분리해 두는 편이 유지보수에 유리하다고 판단했습니다.
+- `src/data/v3/digimons.js`의 `V3_SPRITE_BASE`를 `/Ver3_Mod_TH`로 전환하고, 현재 ver3가 참조하는 임시 스프라이트 번호 21개만 `public/images`에서 `public/Ver3_Mod_TH`로 복사해 즉시 화면이 깨지지 않도록 정리했습니다.
+- 이번 단계에서는 임시 번호 체계와 ver3 디지몬 매핑은 그대로 유지하고, 폴더 경로만 독립시켜 이후 혼합 원본 스프라이트 분류와 최종 번호 재매핑을 별도 작업으로 이어갈 수 있게 했습니다.
+
+### 영향받은 파일
+- `src/data/v3/digimons.js`
+- `public/Ver3_Mod_TH/*.png`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- ver3 경로를 여전히 `/images`에 두면 추후 ver3 전용 자산을 덮어쓰는 순간 ver1 공용 스프라이트와 충돌할 가능성이 커집니다.
+- 지금처럼 `spriteBasePath`만 먼저 독립시키면 데이터 구조와 렌더 호출부는 그대로 둔 채 자산 정리만 점진적으로 진행할 수 있어, 플레이 가능한 상태를 유지하면서 후속 분류 작업의 리스크를 낮출 수 있습니다.
+
+### 검증
+- `public/Ver3_Mod_TH` 생성 및 임시 번호 21개 복사 확인
+- `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### ver3 기본 골격 추가와 버전 공용 분기 정리
+- `src/data/v3/digimons.js`와 `src/data/v3/index.js`를 추가해 ver3 전용 스타터, 사망 폼, 유년기~궁극체 기본 진화 트리를 새 데이터 셋으로 등록했습니다.
+- ver3 스프라이트는 현재 로컬 리소스와 1:1 매핑이 완료되지 않아, 데이터 파일 안에 `임시 스프라이트 번호`라는 점을 주석으로 명시하고 우선 플레이 가능한 기본 골격을 먼저 연결했습니다.
+- `digimonVersionUtils`를 새 공용 버전 레지스트리로 도입해 `starterId`, `deathFormIds`, `spriteBasePath`, `dataMap`을 한 곳에서 관리하도록 만들고, 새 디지몬 생성/로드/리셋/사망/도감 기록 경로가 더 이상 `Ver.1 vs Ver.2` 이분법에 묶이지 않도록 정리했습니다.
+- 도감 저장 구조와 요약 계산도 `SUPPORTED_DIGIMON_VERSIONS` 기준으로 일반화해 ver3 탭이 함께 나타나고, 현재 디지몬을 도감에 보정하는 흐름도 ID 기준으로 버전을 찾아 올바른 ver3 문서에 기록되도록 바꿨습니다.
+- 설정의 개발자 디지몬 선택, 마스터 데이터 패널 버전 탭, 스파링/아레나/조그레스 방 목록의 표시용 데이터 조회도 공용 버전 헬퍼를 사용하도록 바꿔 ver3 슬롯이 들어와도 v1 데이터로 잘못 표시되거나 `/images`로 강제 fallback 되는 경로를 줄였습니다.
+
+### 영향받은 파일
+- `src/data/v3/digimons.js`
+- `src/data/v3/index.js`
+- `src/utils/digimonVersionUtils.js`
+- `src/hooks/useUserSlots.js`
+- `src/data/stats.js`
+- `src/utils/digimonLogSnapshot.js`
+- `src/hooks/useDeath.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useEvolution.js`
+- `src/pages/Game.jsx`
+- `src/components/play/NewDigimonModal.jsx`
+- `src/components/SettingsModal.jsx`
+- `src/components/panels/EncyclopediaPanel.jsx`
+- `src/hooks/useEncyclopedia.js`
+- `src/logic/encyclopediaMaster.js`
+- `src/utils/encyclopediaSummary.js`
+- `src/contexts/MasterDataContext.jsx`
+- `src/utils/masterDataUtils.js`
+- `src/components/DigimonMasterDataPanel.jsx`
+- `src/components/JogressPartnerSlotModal.jsx`
+- `src/components/JogressRoomListModal.jsx`
+- `src/components/SparringModal.jsx`
+- `src/components/BattleScreen.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/utils/communitySnapshotUtils.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `src/utils/encyclopediaSummary.test.js`
+- `src/components/panels/EncyclopediaPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 작업은 ver3 데이터만 추가하는 것으로 끝나지 않고, `DigitamaV2`나 `slot.version === "Ver.2"`처럼 숨어 있던 분기를 공용 레지스트리 기반으로 바꾸는 것이 핵심이었습니다. 그래야 이후 ver4 이상을 붙일 때도 같은 자리에 또 다른 삼항 분기를 늘리지 않아도 됩니다.
+- 스프라이트 자산이 아직 완전히 정리되지 않은 상태라 이번 범위에서는 `정확한 최종 번호`보다 `플레이 가능한 데이터 골격과 저장/도감/선택 흐름 정합성`을 먼저 맞추는 편이 리스크가 낮습니다.
+- ver3는 아직 조그레스 특수 라인과 최종 스프라이트 매핑이 확정되지 않았으므로, 현재 단계에서는 기본 성장 루프가 끊기지 않는 최소 안전 범위까지만 연결하고 나머지는 후속 자산 정리 후 확장하는 방향이 유지보수에 유리합니다.
+
+### 검증
+- `npm test -- --runInBand --watch=false src/hooks/useEncyclopedia.test.js src/utils/encyclopediaSummary.test.js src/components/panels/EncyclopediaPanel.test.jsx`
+- `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ### 몰입형 플레이에 가로 디지바이스 모드와 슬롯별 다마고치 스킨 추가
 - 슬롯 루트 문서에 `immersiveSettings`를 추가하고, `{ layoutMode, skinId }`를 `backgroundSettings`와 같은 지연 저장 패턴으로 관리해 각 슬롯이 마지막으로 사용한 `세로/가로` 모드와 스킨 프리셋을 기억하도록 확장했습니다.
-- `useGameState`, `useGameData`, `useGamePagePersistenceEffects`, `useUserSlots`를 연결해 새 슬롯 기본값은 `portrait + tama-classic-pink`로 시작하고, 로드 직후에는 Firestore에 다시 쓰지 않으며 사용자가 실제로 변경했을 때만 저장되도록 게이트를 맞췄습니다.
-- 몰입형 상단 바에 `세로/가로` 토글과 `스킨 변경` 버튼을 추가했고, 몰입형 내부에서만 보이는 스킨 선택 패널로 `클래식 핑크`, `민트`, `클리어 블루` 프리셋을 전환할 수 있게 했습니다.
+- `useGameState`, `useGameData`, `useGamePagePersistenceEffects`, `useUserSlots`를 연결해 새 슬롯 기본값은 `portrait + tama-default-none`으로 시작하고, 로드 직후에는 Firestore에 다시 쓰지 않으며 사용자가 실제로 변경했을 때만 저장되도록 게이트를 맞췄습니다.
+- 몰입형 상단 바에 `세로/가로` 토글과 `스킨 변경` 버튼을 추가했고, 몰입형 내부에서만 보이는 스킨 선택 패널로 `기본(없음)`, `클래식 핑크`, `민트`, `클리어 블루` 프리셋을 전환할 수 있게 했습니다.
 - 세로 몰입형은 기존 플레이 화면을 다마고치 셸 안에 감싸는 방향으로 유지했고, 가로 몰입형은 왼쪽 LCD/상태 요약/보조 액션, 오른쪽 대형 메뉴 버튼 그리드로 분리해 실제 디바이스를 만지는 느낌에 더 가깝게 재구성했습니다.
 - 모바일에서는 브라우저 방향 잠금은 강제하지 않고, 가로 몰입형을 세로로 보고 있을 때만 회전 안내를 띄우고 셸 크기를 살짝 줄여 사용 흐름을 끊지 않도록 정리했습니다.
 - 새 유틸/컴포넌트 테스트로 `immersiveSettings` 정규화, 저장 게이트, 상단 바 토글, 가로 조작 버튼 잠금 규칙, 셸 분기 렌더를 고정했고, 프로덕션 빌드까지 다시 돌려 JSX/스타일 조립이 문제없는지 확인했습니다.
+- 후속 조정으로 `기본(없음)` 스킨을 실제 기본값으로 바꿔, 새 슬롯과 fallback 로드 모두 컬러 스킨 없이 중립적인 기본 셸로 시작하도록 정리했습니다.
+- 후속 조정으로 세로 몰입형은 가로모드 개발 전의 기존 몰입형 배치로 되돌리고, 전용 디바이스 셸과 스킨 노출은 가로모드에서만 유지하도록 분기해 기존 세로 플레이 감각을 복구했습니다.
 
 ### 영향받은 파일
 - `src/data/immersiveSettings.js`
@@ -148,6 +215,45 @@
 ### 아키텍처 결정 근거
 - 이번 이슈는 idle 경로 데이터 자체보다 렌더 effect 의존성 안정성 문제에 가까워, 타임라인 정의나 애니메이션 속도 대신 `Canvas`의 재시작 조건만 좁게 수정하는 편이 안전합니다.
 - 의미 기반 key를 쓰면 부모에서 동일한 타임라인을 새 배열로 만들어 내려줘도 재생 상태를 유지할 수 있고, 실제 타임라인 수정은 계속 정상적으로 반영할 수 있습니다.
+
+### 몰입형 가로모드에 `벽돌 Ver.1` 이미지 프레임 스킨 추가
+- 가로 몰입형에만 적용되는 `벽돌 Ver.1` 스킨을 추가하고, 제공된 디지바이스 PNG는 흰 여백을 잘라 `public/images/immersive/brick-ver1.png` 정적 자산으로 포함할 수 있게 정리했습니다.
+- `IMMERSIVE_SKINS`는 이제 일반 셸 설명뿐 아니라 `landscapeFrameSrc`, `landscapeViewport`, `landscapeOnly` 메타데이터를 함께 가져, 이미지형 가로 프레임도 같은 슬롯별 `immersiveSettings.skinId`로 저장되도록 확장했습니다.
+- 가로모드 왼쪽 화면 영역은 스킨 메타에 따라 기존 LCD 카드와 이미지 프레임 스테이지를 분기하도록 바꿨고, `벽돌 Ver.1`에서는 디바이스 이미지의 LCD 위치에 `GameScreen`을 절대배치해 중앙 정렬과 비율 유지를 함께 처리했습니다.
+- 오른쪽 큰 버튼 패널과 아래 상태 요약/보조 버튼 배치는 유지했고, `벽돌 Ver.1` 선택 시에도 기존 메뉴 잠금 규칙과 세로 몰입형 기본 화면은 그대로 유지되도록 했습니다.
+- 스킨 선택기에는 `가로 전용` 표기와 세로 모드 동작 안내를 추가해, 저장은 가능하지만 실제 프레임은 landscape에서만 드러난다는 점을 UI에서 바로 읽을 수 있게 했습니다.
+- 후속 미세 조정으로 `brick-ver1`의 viewport를 좌우로 더 넓히고 세로 여백을 줄여, 사용자가 표시해 준 보라 가이드에 더 가깝게 게임 화면이 크게 보이도록 맞췄습니다.
+- 추가 미세 조정으로 `brick-ver1` viewport의 상단 오프셋을 약 5px 아래로 내려, 실제 LCD 창 중앙축에 더 자연스럽게 맞추도록 보정했습니다.
+- 추가 후속 조정으로 상단 오프셋을 다시 약 5px 더 내려, 현재 오버레이가 LCD 하단 쪽까지 조금 더 안정적으로 들어오도록 맞췄습니다.
+- 추가 후속 조정으로 상단 오프셋을 다시 약 5px 더 내려, 사용자가 요청한 실제 프레임 기준 위치에 한 단계 더 가깝게 맞췄습니다.
+- 추가 후속 조정으로 현재 기준 `top`과 `right`는 고정한 채 `left`를 2% 더 바깥으로 당기고 `height`도 2% 늘려, 화면이 왼쪽/아래 방향으로만 더 넓어지도록 맞췄습니다.
+- 추가 후속 조정으로 `brick-ver1` viewport를 현재 기준에서 약 2px 위로 올려, LCD 안쪽 상하 정렬을 조금 더 타이트하게 맞췄습니다.
+- 추가 후속 조정으로 `brick-ver1` viewport를 다시 약 2px 위로 올려, 상단 여백을 한 단계 더 줄였습니다.
+- 추가 후속 조정으로 현재 기준 `top`과 `right`를 유지한 채 `left`를 1% 더 바깥으로 당기고 `width`, `height`를 각각 1%씩 늘려, 화면이 왼쪽/아래 방향으로만 한 단계 더 확장되도록 맞췄습니다.
+- 추가 후속 조정으로 이번에는 크기는 유지한 채 viewport를 오른쪽으로 약 8px, 위로 약 8px 이동시켜 실제 LCD 중앙축과 더 자연스럽게 맞췄습니다.
+- 추가 후속 조정으로 같은 기준 이동을 한 번 더 적용해, viewport를 오른쪽으로 약 8px, 위로 약 8px 추가 이동시켰습니다.
+- 추가 후속 조정으로 이번에는 현재 `right`와 `top` 고정 상태를 유지한 채, viewport를 `6% 확장` 기준으로 다시 맞춰 `left`를 더 바깥으로 당기고 `width`, `height`를 함께 넓혔습니다.
+- 추가 후속 조정으로 현재 viewport를 오른쪽으로 약 2px, 아래로 약 2px 이동시켜 실제 LCD 창 안쪽 중심점에 더 가깝게 맞췄습니다.
+- 추가 후속 조정으로 viewport를 현재 기준에서 약 1px 더 아래로 내려, 상하 중심을 아주 미세하게 다시 맞췄습니다.
+- 후속 기능 확장으로 `brick-ver1` 스킨일 때는 기존 오른쪽 조작 패널 대신 `기본 조작 5개`를 이미지 위에, `케어·도구 5개`를 이미지 아래에 두는 가로 스트립 조작 UI를 추가했고, 각 줄은 가로 스크롤로 한 번에 쭉 이동할 수 있게 바꿨습니다.
+- 추가 후속 조정으로 브릭 스킨의 상단/하단 버튼 스트립도 이미지 프레임과 같은 최대 폭 기준을 사용하도록 바꿔, 버튼 정렬선이 이미지와 자연스럽게 맞도록 정리했습니다.
+- 추가 후속 조정으로 `brick-ver1` 자산 자체를 border-connected 흰 배경이 투명한 RGBA PNG로 다시 만들고, 브릭 스킨 전용 프레임/상태 패널/버튼 스트립을 더 따뜻한 금속·벽돌 톤으로 재도색해 흰 카드가 떠 보이던 느낌을 줄였습니다.
+
+### 영향받은 파일
+- `public/images/immersive/brick-ver1.png`
+- `src/data/immersiveSettings.js`
+- `src/pages/Game.jsx`
+- `src/components/layout/ImmersiveLandscapeFrameStage.jsx`
+- `src/components/layout/ImmersiveLandscapeFrameStage.test.jsx`
+- `src/components/layout/ImmersiveSkinPicker.jsx`
+- `src/components/layout/ImmersiveSkinPicker.test.jsx`
+- `src/utils/immersiveSettings.test.js`
+- `src/index.css`
+
+### 아키텍처 결정 근거
+- 이미지형 디바이스 프레임도 기존 `immersiveSettings.skinId` 경로에 태우면 슬롯 저장 구조를 더 늘리지 않고도 일반 셸 스킨과 같은 저장/복원 흐름을 유지할 수 있습니다.
+- `GameScreen` 자체는 기존 게임 렌더링을 그대로 재사용하는 편이 안전하므로, 새 스킨은 게임 로직을 건드리지 않고 가로 프레임 스테이지에서 외곽 배치와 반응형 크기 계산만 담당하도록 분리했습니다.
+- 제공 이미지 안쪽 버튼까지 클릭 영역을 다시 설계하면 조작 규칙과 테스트 범위가 크게 늘어나므로, 이번 라운드에서는 외부 큰 버튼 패널을 유지하고 이미지 프레임은 시각 레이어에 집중하는 편이 안전합니다.
 
 ## 2026-04-07
 
@@ -763,3 +869,31 @@
 ### 아키텍처 결정 근거
 - 시간 표시가 단순 interval 누적에 의존하면 개발 모드와 실제 렌더 타이밍 차이에서 체감이 어긋날 수 있어, 라운드 종료 시각 기준으로 다시 계산하는 편이 더 안전합니다.
 - 훈련 UI는 장식보다 `어디를 쳤고`, `상대가 어디를 막았고`, `결과가 무엇인지`를 즉시 읽히는 것이 중요하므로, 숨김 위치와 결과 라벨을 전투 경로 중심으로 모으는 쪽이 더 적합합니다.
+
+## 2026-04-09
+
+### 몰입형 플레이에도 실시간 채팅 오버레이 추가
+- `/play/:slotId/full` 몰입형 화면에서는 기존 전역 FAB 채팅을 일부러 숨기고 있었기 때문에, 몰입형 상단 바에 바로 여닫는 `채팅` 버튼과 unread/presence 표시를 새로 연결했습니다.
+- 채팅 본문은 새 몰입형 오버레이에서 기존 `ChatRoom`의 drawer 레이아웃을 그대로 재사용해, 읽음 처리·접속자 목록·히스토리·전송 로직을 따로 복제하지 않고 같은 로비 채널을 공유하도록 유지했습니다.
+- 몰입형 채팅은 닫기 버튼, 배경 클릭, `Escape` 키로 닫히고, 화면을 벗어날 때 자동으로 닫히도록 정리해 일반 플레이의 전역 drawer 상태와 섞이지 않게 맞췄습니다.
+- 모바일에서는 상단 도구행 아래에 맞는 높이로 열리도록 viewport 기준 최대 높이를 따로 두고, 데스크톱은 우측 상단 오버레이 패널로 띄워 몰입형 조작 화면을 최대한 덜 가리도록 배치했습니다.
+- 모바일 가로 몰입형은 실제로 폰을 눕혀 쓰는 전제가 맞기 때문에, `landscapeSide` 설정을 `자동/왼쪽/오른쪽`으로 확장하고 실제 기기 방향 감지를 우선 사용하되 사용자가 수동으로도 전환할 수 있게 보강했습니다.
+- 가로 레이아웃은 이제 방향 설정에 따라 좌우 배치를 바꿀 수 있고, 모바일 `safe-area inset`도 함께 반영해 왼쪽 가로/오른쪽 가로 어느 쪽으로 돌려도 상단 바와 몰입형 화면이 더 안정적으로 맞도록 정리했습니다.
+
+### 영향받은 파일
+- `src/pages/Game.jsx`
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `src/components/layout/ImmersiveDeviceShell.jsx`
+- `src/components/layout/ImmersiveDeviceShell.test.jsx`
+- `src/components/chat/ImmersiveChatOverlay.jsx`
+- `src/components/chat/ImmersiveChatOverlay.test.jsx`
+- `src/data/immersiveSettings.js`
+- `src/utils/immersiveSettings.js`
+- `src/utils/immersiveSettings.test.js`
+- `src/index.css`
+
+### 아키텍처 결정 근거
+- `/full`에서도 App 전역 채팅 drawer를 그대로 켜면 기존 고정 FAB가 몰입형 디바이스 레이아웃과 겹치기 쉬워, 몰입형 내부에서만 쓰는 별도 오버레이 껍데기를 두고 채팅 본문 로직은 그대로 재사용하는 편이 더 안전합니다.
+- unread, presence, 마지막 읽음 커서는 이미 `AblyContext`가 단일 상태로 관리하고 있으므로, 몰입형 채팅도 같은 컨텍스트를 쓰는 쪽이 일반 플레이와 동작 차이를 만들지 않아 유지보수에 유리합니다.
+- 모바일 브라우저의 landscape 좌우 방향 정보는 기기와 브라우저마다 편차가 있을 수 있어, 자동 감지에만 의존하지 않고 저장 가능한 수동 전환값을 함께 두는 편이 실제 사용성에서 더 안전합니다.

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { getMasterDataSnapshotForSync } from "../../utils/masterDataUtils";
+import { normalizeDigimonVersionLabel } from "../../utils/digimonVersionUtils";
 
 function syncRemainingByElapsed(previousTotal, nextTotal, currentRemaining) {
   const safeNextTotal = Math.max(0, Number(nextTotal) || 0);
@@ -31,6 +32,8 @@ export function useGamePagePersistenceEffects({
   masterDataRevision,
   backgroundSettings,
   saveBackgroundSettings,
+  immersiveSettings,
+  saveImmersiveSettings,
   width,
   height,
   clearedQuestIndex,
@@ -40,13 +43,14 @@ export function useGamePagePersistenceEffects({
 }) {
   const masterDataSyncSnapshotRef = useRef(null);
   const backgroundSettingsLoadedRef = useRef(false);
+  const immersiveSettingsLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!selectedDigimon || !digimonStats || isLoadingSlot) {
       return;
     }
 
-    const versionLabel = slotVersion === "Ver.2" ? "Ver.2" : "Ver.1";
+    const versionLabel = normalizeDigimonVersionLabel(slotVersion);
     const currentSnapshot = getMasterDataSnapshotForSync(
       versionLabel,
       selectedDigimon
@@ -144,12 +148,14 @@ export function useGamePagePersistenceEffects({
 
   useEffect(() => {
     backgroundSettingsLoadedRef.current = false;
+    immersiveSettingsLoadedRef.current = false;
   }, [slotId]);
 
   useEffect(() => {
     if (!isLoadingSlot && slotId) {
       const timer = setTimeout(() => {
         backgroundSettingsLoadedRef.current = true;
+        immersiveSettingsLoadedRef.current = true;
       }, 100);
 
       return () => clearTimeout(timer);
@@ -165,6 +171,16 @@ export function useGamePagePersistenceEffects({
       saveBackgroundSettings(backgroundSettings);
     }
   }, [backgroundSettings, slotId, saveBackgroundSettings, isLoadingSlot]);
+
+  useEffect(() => {
+    if (!slotId || !immersiveSettings) return;
+    if (isLoadingSlot) return;
+    if (!immersiveSettingsLoadedRef.current) return;
+
+    if (saveImmersiveSettings) {
+      saveImmersiveSettings(immersiveSettings);
+    }
+  }, [immersiveSettings, slotId, saveImmersiveSettings, isLoadingSlot]);
 
   useEffect(() => {
     try {

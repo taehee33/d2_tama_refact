@@ -10,8 +10,10 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
+import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
 import { sortSlotsByRecentActivity } from "../utils/slotRecency";
+import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
@@ -125,7 +127,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         );
       }
 
-      const startingDigimon = version === "Ver.2" ? "DigitamaV2" : "Digitama";
+      const startingDigimon = getStarterDigimonId(version);
       const createdAt = Date.now();
 
       await setDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
@@ -136,6 +138,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         createdAt,
         device,
         version,
+        immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
         displayOrder: 1,
         updatedAt: new Date(),
       });

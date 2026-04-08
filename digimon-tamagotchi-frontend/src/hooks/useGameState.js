@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { initializeStats } from "../data/stats";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { getBackgroundSprite } from "../utils/backgroundUtils";
 
 /**
@@ -250,6 +251,9 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // Firebase 모드: useGameData에서 Firebase에서 로드
   // 로컬 모드: useGameData에서 localStorage에서 로드
   const [backgroundSettings, setBackgroundSettings] = useState(DEFAULT_BACKGROUND_SETTINGS);
+  const [immersiveSettings, setImmersiveSettings] = useState(
+    DEFAULT_IMMERSIVE_SETTINGS
+  );
   
   // 슬롯 변경 시 기본값으로 리셋하지 않음 (useGameData에서 로드할 때까지 기다림)
   // useGameData의 useEffect가 먼저 실행되어 Firebase/localStorage에서 로드한 후
@@ -513,6 +517,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setBackgroundNumber, // 호환성 유지 (실제로는 backgroundSettings 사용)
       backgroundSettings,
       setBackgroundSettings,
+      immersiveSettings,
+      setImmersiveSettings,
       width,
       setWidth,
       height,

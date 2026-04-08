@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { usePresenceContext } from "../contexts/AblyContext";
 import { useMasterData } from "../contexts/MasterDataContext";
 
 import ControlPanel from "../components/ControlPanel";
@@ -33,12 +34,23 @@ import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
+import ImmersiveChatOverlay from "../components/chat/ImmersiveChatOverlay";
+import ImmersiveDeviceShell from "../components/layout/ImmersiveDeviceShell";
 import ImmersiveGameTopBar from "../components/layout/ImmersiveGameTopBar";
+import ImmersiveLandscapeFrameStage from "../components/layout/ImmersiveLandscapeFrameStage";
+import ImmersiveLandscapeControls from "../components/layout/ImmersiveLandscapeControls";
+import ImmersiveSkinPicker from "../components/layout/ImmersiveSkinPicker";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 
+import {
+  DEFAULT_IMMERSIVE_SETTINGS,
+  IMMERSIVE_LANDSCAPE_SIDES,
+  IMMERSIVE_LAYOUT_MODES,
+} from "../data/immersiveSettings";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
+import { digimonDataVer3 } from "../data/v3";
 import { questsVer2 } from "../data/v2modkor/quests";
 import { initializeStats } from "../data/stats";
 import { quests } from "../data/v1/quests";
@@ -46,6 +58,16 @@ import { quests } from "../data/v1/quests";
 import { checkEvolution } from "../logic/evolution/checker";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
+import {
+  getDigimonDataMapByVersion,
+  getStarterDigimonId,
+  normalizeDigimonVersionLabel,
+} from "../utils/digimonVersionUtils";
+import {
+  getImmersiveSkinById,
+  getNextImmersiveLandscapeSide,
+  normalizeImmersiveSettings,
+} from "../utils/immersiveSettings";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 
 const DEFAULT_SEASON_ID = 1;
@@ -65,9 +87,44 @@ const ver1DigimonList = [
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
 
+function getDetectedLandscapeSide() {
+  if (typeof window === "undefined") {
+    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
+  }
+
+  const screenOrientation = window.screen?.orientation;
+  const orientationType = screenOrientation?.type;
+
+  if (orientationType === "landscape-primary") {
+    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
+  }
+
+  if (orientationType === "landscape-secondary") {
+    return IMMERSIVE_LANDSCAPE_SIDES.LEFT;
+  }
+
+  const rawAngle =
+    typeof screenOrientation?.angle === "number"
+      ? screenOrientation.angle
+      : typeof window.orientation === "number"
+        ? window.orientation
+        : null;
+
+  if (rawAngle === 90) {
+    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
+  }
+
+  if (rawAngle === -90 || rawAngle === 270) {
+    return IMMERSIVE_LANDSCAPE_SIDES.LEFT;
+  }
+
+  return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
+}
+
 function Game({ immersive = false }){
   const { slotId } = useParams();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
+  const { isChatOpen, setIsChatOpen, unreadCount, presenceCount } = usePresenceContext();
   const { masterDataRevision } = useMasterData();
 
   const adaptedV1 = useMemo(() => {
@@ -80,17 +137,62 @@ function Game({ immersive = false }){
     void revisionKey;
     return adaptDataMapToOldFormat(digimonDataVer2);
   }, [masterDataRevision]);
+  const adaptedV3 = useMemo(() => {
+    const revisionKey = masterDataRevision;
+    void revisionKey;
+    return adaptDataMapToOldFormat(digimonDataVer3);
+  }, [masterDataRevision]);
   
   // 모바일 감지
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isViewportPortrait, setIsViewportPortrait] = useState(
+    window.innerHeight >= window.innerWidth
+  );
+  const [detectedLandscapeSide, setDetectedLandscapeSide] = useState(
+    getDetectedLandscapeSide
+  );
+  const [showSkinPicker, setShowSkinPicker] = useState(false);
   
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
+      setIsViewportPortrait(window.innerHeight >= window.innerWidth);
+      setDetectedLandscapeSide(getDetectedLandscapeSide());
     };
+
+    handleResize();
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("orientationchange", handleResize);
+    window.screen?.orientation?.addEventListener?.("change", handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener("orientationchange", handleResize);
+      window.screen?.orientation?.removeEventListener?.("change", handleResize);
+    };
   }, []);
+
+  const navigate= useNavigate();
+  const location = useLocation();
+  const isImmersive = immersive || location.pathname.endsWith("/full");
+  const gameHeaderClassName = [
+    "game-page-header",
+    isImmersive ? "game-page-header--immersive" : "game-page-header--default",
+    !isImmersive && isMobile ? "game-page-header--default-mobile" : "",
+    isImmersive && isMobile ? "game-page-header--immersive-mobile" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  useEffect(() => {
+    if (!isImmersive) {
+      return undefined;
+    }
+
+    return () => {
+      setIsChatOpen(false);
+    };
+  }, [isImmersive, setIsChatOpen]);
   // useGameState 훅 호출
   const {
     gameState,
@@ -105,18 +207,6 @@ function Game({ immersive = false }){
     digimonDataVer1: adaptedV1,
     defaultSeasonId: DEFAULT_SEASON_ID,
   });
-
-  const navigate= useNavigate();
-  const location = useLocation();
-  const isImmersive = immersive || location.pathname.endsWith("/full");
-  const gameHeaderClassName = [
-    "game-page-header",
-    isImmersive ? "game-page-header--immersive" : "game-page-header--default",
-    !isImmersive && isMobile ? "game-page-header--default-mobile" : "",
-    isImmersive && isMobile ? "game-page-header--immersive-mobile" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
   
   // 프로필 드롭다운 메뉴 상태
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -175,9 +265,14 @@ function Game({ immersive = false }){
     setHealTreatmentMessage,
   } = gameState;
 
-  // v1·v2 병합 없이 슬롯 버전에 따라 해당 버전 데이터만 사용
-  const digimonDataForSlot = slotVersion === "Ver.2" ? adaptedV2 : adaptedV1;
-  const evolutionDataForSlot = slotVersion === "Ver.2" ? digimonDataVer2 : newDigimonDataVer1;
+  const normalizedSlotVersion = normalizeDigimonVersionLabel(slotVersion || "Ver.1");
+  const digimonDataForSlot =
+    normalizedSlotVersion === "Ver.3"
+      ? adaptedV3
+      : normalizedSlotVersion === "Ver.2"
+        ? adaptedV2
+        : adaptedV1;
+  const evolutionDataForSlot = getDigimonDataMapByVersion(normalizedSlotVersion);
 
   const {
     developerMode,
@@ -205,6 +300,8 @@ function Game({ immersive = false }){
     backgroundNumber,
     backgroundSettings,
     setBackgroundSettings,
+    immersiveSettings,
+    setImmersiveSettings,
     width,
     height,
     feedType,
@@ -246,6 +343,7 @@ function Game({ immersive = false }){
     saveStats: setDigimonStatsAndSave,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
     saveBackgroundSettings,
+    saveImmersiveSettings,
     saveSelectedDigimon,
     persistDeathSnapshot,
     appendLogToSubcollection,
@@ -270,6 +368,7 @@ function Game({ immersive = false }){
     digimonDataVer1: digimonDataForSlot,
     adaptedV1,
     adaptedV2,
+    adaptedV3,
     isFirebaseAvailable,
     navigate,
     isLightsOn,
@@ -277,6 +376,7 @@ function Game({ immersive = false }){
     activityLogs,
     backgroundSettings,
     setBackgroundSettings,
+    setImmersiveSettings,
     selectedDigimon,
     digimonNickname,
     slotVersion,
@@ -330,6 +430,8 @@ function Game({ immersive = false }){
     masterDataRevision,
     backgroundSettings,
     saveBackgroundSettings,
+    immersiveSettings,
+    saveImmersiveSettings,
     width,
     height,
     clearedQuestIndex,
@@ -683,6 +785,78 @@ function Game({ immersive = false }){
     jogressControls,
   } = pageViewModel;
 
+  const normalizedImmersiveSettings = useMemo(
+    () => normalizeImmersiveSettings(immersiveSettings),
+    [immersiveSettings]
+  );
+  const immersiveLayoutMode =
+    normalizedImmersiveSettings.layoutMode ||
+    DEFAULT_IMMERSIVE_SETTINGS.layoutMode;
+  const immersiveSkinId =
+    normalizedImmersiveSettings.skinId || DEFAULT_IMMERSIVE_SETTINGS.skinId;
+  const landscapeSidePreference =
+    normalizedImmersiveSettings.landscapeSide ||
+    DEFAULT_IMMERSIVE_SETTINGS.landscapeSide;
+  const immersiveSkin = useMemo(
+    () => getImmersiveSkinById(immersiveSkinId),
+    [immersiveSkinId]
+  );
+  const isLandscapeImmersive =
+    isImmersive && immersiveLayoutMode === IMMERSIVE_LAYOUT_MODES.LANDSCAPE;
+  const effectiveLandscapeSide =
+    landscapeSidePreference === IMMERSIVE_LANDSCAPE_SIDES.AUTO
+      ? detectedLandscapeSide
+      : landscapeSidePreference;
+  const shouldShowRotateHint =
+    isLandscapeImmersive && isMobile && isViewportPortrait;
+
+  useEffect(() => {
+    if (!isImmersive) {
+      setShowSkinPicker(false);
+    }
+  }, [isImmersive]);
+
+  const updateImmersiveSettings = useCallback(
+    (partialSettings) => {
+      setImmersiveSettings((previousSettings) =>
+        normalizeImmersiveSettings({
+          ...normalizeImmersiveSettings(previousSettings),
+          ...partialSettings,
+        })
+      );
+    },
+    [setImmersiveSettings]
+  );
+
+  const handleLayoutModeChange = useCallback(
+    (nextLayoutMode) => {
+      updateImmersiveSettings({ layoutMode: nextLayoutMode });
+    },
+    [updateImmersiveSettings]
+  );
+
+  const handleCycleLandscapeSide = useCallback(() => {
+    updateImmersiveSettings({
+      landscapeSide: getNextImmersiveLandscapeSide(landscapeSidePreference),
+    });
+  }, [landscapeSidePreference, updateImmersiveSettings]);
+
+  const handleToggleImmersiveChat = useCallback(() => {
+    setIsChatOpen((previous) => !previous);
+  }, [setIsChatOpen]);
+
+  const handleCloseImmersiveChat = useCallback(() => {
+    setIsChatOpen(false);
+  }, [setIsChatOpen]);
+
+  const handleSkinSelect = useCallback(
+    (nextSkinId) => {
+      updateImmersiveSettings({ skinId: nextSkinId });
+      setShowSkinPicker(false);
+    },
+    [updateImmersiveSettings]
+  );
+
   const handleResolveCallAction = useCallback(
     (actionKey) => {
       toggleModal("call", false);
@@ -817,7 +991,7 @@ function Game({ immersive = false }){
       });
       
       // Ver.2는 DigitamaV2, Ver.1은 Digitama로 초기화 (공통 ID 사용 안 함)
-      const initialDigimonId = slotVersion === "Ver.2" ? "DigitamaV2" : "Digitama";
+      const initialDigimonId = getStarterDigimonId(normalizedSlotVersion);
       const ns = initializeStats(initialDigimonId, updatedStats, digimonDataForSlot);
 
       // 새로운 시작이므로 isDead와 age를 명시적으로 설정
@@ -879,13 +1053,13 @@ function Game({ immersive = false }){
     applyLazyUpdateBeforeAction,
     digimonDataForSlot,
     evolutionDataForSlot,
+    normalizedSlotVersion,
     selectedDigimon,
     setDigimonStats,
     setDigimonStatsAndSave,
     setHasSeenDeathPopup,
     setSelectedDigimon,
     setSelectedDigimonAndSave,
-    slotVersion,
     toggleModal,
   ]);
 
@@ -977,6 +1151,7 @@ function Game({ immersive = false }){
       startHealCycle,
       handleDeathConfirm,
       resetDigimon,
+      setDigimonStats,
       setDigimonStatsAndSave,
       setSelectedDigimonAndSave,
       setCurrentQuestArea,
@@ -1071,6 +1246,290 @@ function Game({ immersive = false }){
 
   // 배틀 완료 핸들러
 
+  const handleOpenStatusDetail = useCallback(
+    (messages) => {
+      setStatusDetailMessages(messages);
+      toggleModal("statusDetail", true);
+    },
+    [toggleModal]
+  );
+
+  const renderSupportActionButtons = (containerClassName = "") => (
+    <div
+      className={`flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2 ${containerClassName}`.trim()}
+    >
+      {(() => {
+        const openJogressFlow = () => toggleModal("jogressModeSelect", true);
+        return (
+          <>
+            {jogressControls.showEvolutionButton && (
+              <button
+                onClick={handleEvolutionButton}
+                disabled={jogressControls.isEvolving}
+                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${
+                  jogressControls.isEvolving
+                    ? "bg-gray-500 cursor-not-allowed"
+                    : jogressControls.hasNormalEvolution && isEvoEnabled
+                      ? "bg-green-500 hover:bg-green-600"
+                      : "bg-gray-600 hover:bg-gray-500"
+                } ${isMobile ? "evolution-button-mobile" : ""}`}
+                style={{ writingMode: "horizontal-tb", textOrientation: "mixed" }}
+                title={
+                  !jogressControls.hasNormalEvolution
+                    ? "이 디지몬은 조그레스로만 진화합니다. 클릭 시 진화 가이드 확인 가능"
+                    : undefined
+                }
+              >
+                <span className="whitespace-nowrap">진화!</span>
+              </button>
+            )}
+            {jogressControls.canJogressEvolve && (
+              <button
+                onClick={openJogressFlow}
+                disabled={jogressControls.isEvolving}
+                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center gap-1.5 ${
+                  !jogressControls.isEvolving
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-gray-500 cursor-not-allowed"
+                } ${isMobile ? "evolution-button-mobile" : ""}`}
+                style={{ writingMode: "horizontal-tb", textOrientation: "mixed" }}
+              >
+                <span className="whitespace-nowrap">조그레스 진화</span>
+                <span
+                  className={`text-xs font-bold ${
+                    jogressControls.jogressLabel === "(조그레스 진화 가능)"
+                      ? "text-green-400"
+                      : "text-amber-200"
+                  }`}
+                >
+                  {jogressControls.jogressLabel}
+                </span>
+              </button>
+            )}
+          </>
+        );
+      })()}
+      <button
+        onClick={() => toggleModal("digimonInfo", true)}
+        className={`px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600 flex items-center justify-center gap-1 ${
+          isMobile ? "guide-button-mobile" : ""
+        }`}
+        title="디지몬 가이드"
+        style={{ writingMode: "horizontal-tb", textOrientation: "mixed" }}
+      >
+        <span>📖</span>
+        <span className="whitespace-nowrap">가이드</span>
+      </button>
+      {(digimonStats.isDead || DEATH_FORM_IDS.includes(selectedDigimon)) && (
+        <button
+          onClick={() => toggleModal("deathModal", true)}
+          className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
+          title={DEATH_FORM_IDS.includes(selectedDigimon) ? "새로운 시작" : "사망 정보"}
+          style={{ writingMode: "horizontal-tb", textOrientation: "mixed" }}
+        >
+          <span className="whitespace-nowrap">
+            {DEATH_FORM_IDS.includes(selectedDigimon)
+              ? "🥚 새로운 시작"
+              : "💀 사망 확인"}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+
+  const headerStatusSection = (
+    <div className="mt-2 flex flex-col items-center gap-2">
+      <StatusHearts
+        fullness={digimonStats.fullness || 0}
+        strength={digimonStats.strength || 0}
+        maxOverfeed={digimonStats.maxOverfeed || 0}
+        proteinOverdose={digimonStats.proteinOverdose || 0}
+        showLabels
+        size="sm"
+        position="inline"
+        isFrozen={digimonStats.isFrozen || false}
+      />
+      <DigimonStatusBadges
+        {...statusBadgeProps}
+        onOpenStatusDetail={handleOpenStatusDetail}
+      />
+    </div>
+  );
+
+  const defaultHeaderSection = (
+    <div className={gameHeaderClassName}>
+      <h2 className="text-base font-bold">
+        슬롯 {slotId} - {headerDigimonLabel}
+        {digimonStats.isFrozen && (
+          <span className="ml-2 text-blue-600">🧊 냉장고</span>
+        )}
+      </h2>
+      <GameHeaderMeta
+        slotName={slotName}
+        slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
+        slotDevice={slotDevice}
+        slotVersion={slotVersion}
+        currentTimeText={currentTimeText}
+      />
+      {headerStatusSection}
+    </div>
+  );
+
+  const sharedGameScreenProps = {
+    ...gameScreenDisplayProps,
+    idleFrames,
+    idleMotionTimeline,
+    eatFrames: eatFramesArr,
+    foodRejectFrames: rejectFramesArr,
+    digimonImageBase,
+    meatSprites: MEAT_SPRITES,
+    proteinSprites: PROTEIN_SPRITES,
+    onCallIconClick: () => toggleModal("call", true),
+    onCallModalClose: () => toggleModal("call", false),
+    onResolveCallAction: handleResolveCallAction,
+    showSleepDisturbanceToast: modals.sleepDisturbanceToast,
+    sleepDisturbanceToastMessage: "수면 방해! 😴 (10분 동안 깨어있음)",
+  };
+
+  const defaultGameSection = (
+    <>
+      {defaultHeaderSection}
+      <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
+        <GameScreen {...sharedGameScreenProps} />
+        <div className={`flex justify-center w-full ${isMobile ? "control-panel-mobile" : ""}`}>
+          <ControlPanel
+            {...controlPanelProps}
+            activeMenu={activeMenu}
+            onMenuClick={handleMenuClickFromHook}
+            stats={digimonStats}
+            isMobile={isMobile}
+          />
+        </div>
+        {renderSupportActionButtons()}
+      </div>
+    </>
+  );
+
+  const landscapeScreenWidth = Math.max(
+    gameScreenDisplayProps.width || width || 300,
+    isMobile ? 300 : 340
+  );
+  const landscapeScreenHeight = Math.max(
+    gameScreenDisplayProps.height || height || 200,
+    isMobile ? 200 : 220
+  );
+  const hasLandscapeFrameSkin = Boolean(
+    immersiveSkin.landscapeFrameSrc && immersiveSkin.landscapeViewport
+  );
+  const renderLandscapeGameScreen = (screenSize = {}) => (
+    <GameScreen
+      {...sharedGameScreenProps}
+      width={screenSize.width || landscapeScreenWidth}
+      height={screenSize.height || landscapeScreenHeight}
+    />
+  );
+
+  const portraitImmersiveSection = defaultGameSection;
+
+  const landscapeImmersiveSection = (
+    <ImmersiveDeviceShell
+      layoutMode={immersiveLayoutMode}
+      skinId={immersiveSkinId}
+      isMobile={isMobile}
+      showRotateHint={shouldShowRotateHint}
+      landscapeSide={effectiveLandscapeSide}
+      landscapeSideMode={landscapeSidePreference}
+    >
+      <div
+        className={`immersive-landscape-layout ${
+          hasLandscapeFrameSkin ? "immersive-landscape-layout--frame-skin" : ""
+        } immersive-landscape-layout--side-${effectiveLandscapeSide}`.trim()}
+      >
+        <div
+          className={`immersive-landscape-display ${
+            hasLandscapeFrameSkin
+              ? "immersive-landscape-display--frame-skin"
+              : ""
+          }`.trim()}
+        >
+          {hasLandscapeFrameSkin ? (
+            <>
+              <ImmersiveLandscapeControls
+                layout="strip"
+                groupId="basic"
+                activeMenu={activeMenu}
+                onMenuClick={handleMenuClickFromHook}
+                isFrozen={digimonStats.isFrozen || false}
+                isLightsOn={isLightsOn}
+                isMobile={isMobile}
+              />
+              <ImmersiveLandscapeFrameStage
+                skin={immersiveSkin}
+                renderScreen={renderLandscapeGameScreen}
+              />
+              <ImmersiveLandscapeControls
+                layout="strip"
+                groupId="care"
+                activeMenu={activeMenu}
+                onMenuClick={handleMenuClickFromHook}
+                isFrozen={digimonStats.isFrozen || false}
+                isLightsOn={isLightsOn}
+                isMobile={isMobile}
+              />
+            </>
+          ) : (
+            <div className="immersive-landscape-display__lcd">
+              {renderLandscapeGameScreen()}
+            </div>
+          )}
+          <div className="immersive-landscape-status">
+            <div className="immersive-landscape-status__topline">
+              <span>
+                슬롯 {slotId} · {normalizedSlotVersion}
+              </span>
+              {digimonStats.isFrozen ? <span>🧊 냉장고</span> : null}
+            </div>
+            <strong className="immersive-landscape-status__title">
+              {headerDigimonLabel}
+            </strong>
+            <span className="immersive-landscape-status__meta">
+              {slotName || `슬롯${slotId}`} · {slotDevice || "디지바이스"}
+            </span>
+            <span className="immersive-landscape-status__time">
+              현재 시간 {currentTimeText}
+            </span>
+            <div className="immersive-landscape-status__hearts">
+              <StatusHearts
+                fullness={digimonStats.fullness || 0}
+                strength={digimonStats.strength || 0}
+                maxOverfeed={digimonStats.maxOverfeed || 0}
+                proteinOverdose={digimonStats.proteinOverdose || 0}
+                showLabels={false}
+                size="sm"
+                position="inline"
+                isFrozen={digimonStats.isFrozen || false}
+              />
+            </div>
+            <DigimonStatusBadges
+              {...statusBadgeProps}
+              onOpenStatusDetail={handleOpenStatusDetail}
+            />
+          </div>
+          {renderSupportActionButtons("immersive-landscape-support")}
+        </div>
+        {!hasLandscapeFrameSkin ? (
+          <ImmersiveLandscapeControls
+            activeMenu={activeMenu}
+            onMenuClick={handleMenuClickFromHook}
+            isFrozen={digimonStats.isFrozen || false}
+            isLightsOn={isLightsOn}
+            isMobile={isMobile}
+          />
+        ) : null}
+      </div>
+    </ImmersiveDeviceShell>
+  );
+
   // 로딩 중일 때 표시
   if (isLoadingSlot) {
     return (
@@ -1093,6 +1552,17 @@ function Game({ immersive = false }){
       {isImmersive ? (
         <ImmersiveGameTopBar
           isMobile={isMobile}
+          layoutMode={immersiveLayoutMode}
+          isChatOpen={isChatOpen}
+          unreadCount={unreadCount}
+          presenceCount={presenceCount || 0}
+          showLandscapeSideToggle={isLandscapeImmersive}
+          landscapeSidePreference={landscapeSidePreference}
+          effectiveLandscapeSide={effectiveLandscapeSide}
+          onChangeLayoutMode={handleLayoutModeChange}
+          onToggleChat={handleToggleImmersiveChat}
+          onCycleLandscapeSide={handleCycleLandscapeSide}
+          onToggleSkinPicker={() => setShowSkinPicker((previous) => !previous)}
           onOpenBaseView={() => navigate(`/play/${slotId}`)}
           onOpenPlayHub={() => navigate("/play")}
         />
@@ -1212,226 +1682,138 @@ function Game({ immersive = false }){
         </div>
       ) : null}
 
-      <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>
-        {!isImmersive && !isMobile && (
-          <div className="game-page-toolbar">
-            <div className="game-page-toolbar__actions">
-              <button
-                onClick={() => navigate("/play")}
-                className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-              >
-                ← 플레이 허브
-              </button>
-              <button
-                onClick={() => navigate(`/play/${slotId}/full`)}
-                className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
-              >
-                몰입형 플레이
-              </button>
-            </div>
-
-            <div className="game-page-toolbar__utilities">
-              <OnlineUsersCount />
-
-              <button
-                onClick={() => toggleModal('settings', true)}
-                className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-                title="설정"
-              >
-                ⚙️
-              </button>
-
-              {isFirebaseAvailable && currentUser ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
-                  >
-                    {currentUser.photoURL ? (
-                      <img
-                        src={currentUser.photoURL}
-                        alt="프로필"
-                        className="w-8 h-8 rounded-full"
-                      />
-                    ) : (
-                      <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
-                        {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
-                      </span>
-                    )}
-                    <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
-                      <span>테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                      {hasVer1Master && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
-                      )}
-                      {hasVer2Master && (
-                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
-                      )}
-                    </span>
-                    <span className="text-xs text-gray-500">▼</span>
-                  </button>
-
-                  {showProfileMenu && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowProfileMenu(false)}
-                      />
-                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
-                        <div className="px-3 py-2 border-b border-gray-200">
-                          <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
-                            <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                            {hasVer1Master && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
-                            )}
-                            {hasVer2Master && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {currentUser.email}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            setShowAccountSettingsModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
-                        >
-                          계정 설정/로그아웃
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : null}
-
-              {!isFirebaseAvailable && (
-                <span className="text-sm text-gray-500">Firebase 미설정</span>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className={gameHeaderClassName}>
-          <h2 className="text-base font-bold">
-            슬롯 {slotId} - {headerDigimonLabel}
-            {digimonStats.isFrozen && (
-              <span className="ml-2 text-blue-600">🧊 냉장고</span>
-            )}
-          </h2>
-          <GameHeaderMeta
-            slotName={slotName}
-            slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
-            slotDevice={slotDevice}
-            slotVersion={slotVersion}
-            currentTimeText={currentTimeText}
+      {isImmersive ? (
+        <div className="immersive-game-shell">
+          <ImmersiveChatOverlay
+            isOpen={isChatOpen}
+            isMobile={isMobile}
+            landscapeSide={effectiveLandscapeSide}
+            onClose={handleCloseImmersiveChat}
           />
-          {/* 상태 하트 표시 (시계 아래) */}
-          <div className="mt-2 flex flex-col items-center gap-2">
-            <StatusHearts
-              fullness={digimonStats.fullness || 0}
-              strength={digimonStats.strength || 0}
-              maxOverfeed={digimonStats.maxOverfeed || 0}
-              proteinOverdose={digimonStats.proteinOverdose || 0}
-              showLabels={true}
-              size="sm"
-              position="inline"
-              isFrozen={digimonStats.isFrozen || false}
-            />
-            {/* 디지몬 상태 배지 표시 */}
-            <DigimonStatusBadges
-              {...statusBadgeProps}
-              onOpenStatusDetail={(messages) => {
-                // 상태 상세 모달을 열기 위해 임시로 상태 저장
-                setStatusDetailMessages(messages);
-                toggleModal('statusDetail', true);
-              }}
-            />
-          </div>
+          <ImmersiveSkinPicker
+            isOpen={showSkinPicker}
+            activeSkinId={immersiveSkinId}
+            onSelectSkin={handleSkinSelect}
+          />
+          {isLandscapeImmersive
+            ? landscapeImmersiveSection
+            : portraitImmersiveSection}
         </div>
-      </div>
-      <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
-      <GameScreen
-        {...gameScreenDisplayProps}
-        idleFrames={idleFrames}
-        idleMotionTimeline={idleMotionTimeline}
-        eatFrames={eatFramesArr}
-        foodRejectFrames={rejectFramesArr}
-        digimonImageBase={digimonImageBase}
-        meatSprites={MEAT_SPRITES}
-        proteinSprites={PROTEIN_SPRITES}
-        onCallIconClick={() => toggleModal("call", true)}
-        onCallModalClose={() => toggleModal('call', false)}
-        onResolveCallAction={handleResolveCallAction}
-        showSleepDisturbanceToast={modals.sleepDisturbanceToast}
-        sleepDisturbanceToastMessage="수면 방해! 😴 (10분 동안 깨어있음)"
-      />
-      <div className={`flex justify-center w-full ${isMobile ? "control-panel-mobile" : ""}`}>
-        <ControlPanel
-          {...controlPanelProps}
-          activeMenu={activeMenu}
-          onMenuClick={handleMenuClickFromHook}
-          stats={digimonStats}
-          isMobile={isMobile}
-        />
-      </div>
+      ) : (
+        <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>
+          {!isImmersive && !isMobile && (
+            <div className="game-page-toolbar">
+              <div className="game-page-toolbar__actions">
+                <button
+                  onClick={() => navigate("/play")}
+                  className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+                >
+                  ← 플레이 허브
+                </button>
+                <button
+                  onClick={() => navigate(`/play/${slotId}/full`)}
+                  className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
+                >
+                  몰입형 플레이
+                </button>
+              </div>
 
-        <div className="flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2">
-      {/* 진화 / 조그레스: "진화!" 버튼 + "조그레스 진화" 버튼(상태에 따라 텍스트만 변경) */}
-      {(() => {
-        const openJogressFlow = () => toggleModal('jogressModeSelect', true);
-        return (
-          <>
-            {jogressControls.showEvolutionButton && (
-              <button
-                onClick={handleEvolutionButton}
-                disabled={jogressControls.isEvolving}
-                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${jogressControls.isEvolving ? "bg-gray-500 cursor-not-allowed" : jogressControls.hasNormalEvolution && isEvoEnabled ? "bg-green-500 hover:bg-green-600" : "bg-gray-600 hover:bg-gray-500"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-                style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-                title={!jogressControls.hasNormalEvolution ? "이 디지몬은 조그레스로만 진화합니다. 클릭 시 진화 가이드 확인 가능" : undefined}
-              >
-                <span className="whitespace-nowrap">진화!</span>
-              </button>
-            )}
-            {jogressControls.canJogressEvolve && (
-              <button
-                onClick={openJogressFlow}
-                disabled={jogressControls.isEvolving}
-                className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center gap-1.5 ${!jogressControls.isEvolving ? "bg-amber-600 hover:bg-amber-700" : "bg-gray-500 cursor-not-allowed"} ${isMobile ? 'evolution-button-mobile' : ''}`}
-                style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-              >
-                <span className="whitespace-nowrap">조그레스 진화</span>
-                <span className={`text-xs font-bold ${jogressControls.jogressLabel === "(조그레스 진화 가능)" ? "text-green-400" : "text-amber-200"}`}>{jogressControls.jogressLabel}</span>
-              </button>
-            )}
-          </>
-        );
-      })()}
-          <button
-            onClick={() => toggleModal('digimonInfo', true)}
-            className={`px-3 py-2 text-white bg-blue-500 rounded pixel-art-button hover:bg-blue-600 flex items-center justify-center gap-1 ${isMobile ? 'guide-button-mobile' : ''}`}
-            title="디지몬 가이드"
-            style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-          >
-            <span>📖</span>
-            <span className="whitespace-nowrap">가이드</span>
-          </button>
-          {/* Death Info 버튼: 죽었을 때 또는 오하카다몬일 때 표시 */}
-          {(digimonStats.isDead || DEATH_FORM_IDS.includes(selectedDigimon)) && (
-            <button
-              onClick={() => toggleModal('deathModal', true)}
-              className="px-4 py-2 text-white bg-red-800 rounded pixel-art-button hover:bg-red-900 flex items-center justify-center"
-              title={DEATH_FORM_IDS.includes(selectedDigimon) ? "새로운 시작" : "사망 정보"}
-              style={{ writingMode: 'horizontal-tb', textOrientation: 'mixed' }}
-            >
-              <span className="whitespace-nowrap">
-                {DEATH_FORM_IDS.includes(selectedDigimon) ? "🥚 새로운 시작" : "💀 사망 확인"}
-              </span>
-            </button>
+              <div className="game-page-toolbar__utilities">
+                <OnlineUsersCount />
+
+                <button
+                  onClick={() => toggleModal("settings", true)}
+                  className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
+                  title="설정"
+                >
+                  ⚙️
+                </button>
+
+                {isFirebaseAvailable && currentUser ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowProfileMenu(!showProfileMenu)}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
+                    >
+                      {currentUser.photoURL ? (
+                        <img
+                          src={currentUser.photoURL}
+                          alt="프로필"
+                          className="w-8 h-8 rounded-full"
+                        />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
+                          {currentUser.displayName?.[0] || currentUser.email?.[0] || "U"}
+                        </span>
+                      )}
+                      <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
+                        <span>
+                          테이머: {tamerName || currentUser.displayName || currentUser.email?.split("@")[0]}
+                        </span>
+                        {hasVer1Master && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">
+                            👑 Ver.1
+                          </span>
+                        )}
+                        {hasVer2Master && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">
+                            👑 Ver.2
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-gray-500">▼</span>
+                    </button>
+
+                    {showProfileMenu && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowProfileMenu(false)}
+                        />
+                        <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
+                          <div className="px-3 py-2 border-b border-gray-200">
+                            <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
+                              <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                              {hasVer1Master && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">
+                                  👑 Ver.1
+                                </span>
+                              )}
+                              {hasVer2Master && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">
+                                  👑 Ver.2
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {currentUser.email}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              setShowAccountSettingsModal(true);
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
+                          >
+                            계정 설정/로그아웃
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
+                {!isFirebaseAvailable && (
+                  <span className="text-sm text-gray-500">Firebase 미설정</span>
+                )}
+              </div>
+            </div>
           )}
+
+          {defaultGameSection}
         </div>
-      </div>
+      )}
 
       {modals && toggleModal && gameState && handlers && data && ui && (
         <GameModals

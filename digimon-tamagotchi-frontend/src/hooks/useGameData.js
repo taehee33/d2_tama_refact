@@ -10,11 +10,19 @@ import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
+import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
+import {
+  getStarterDigimonId,
+  getStarterDigimonIdFromDataMap,
+  isStarterDigimonId,
+  normalizeDigimonVersionLabel,
+} from "../utils/digimonVersionUtils";
 
 /**
  * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
@@ -150,6 +158,7 @@ export function resolveLazyUpdateBaseStats(
  * @param {Object} params.digimonDataVer1 - 디지몬 데이터 맵 (현재 슬롯용, 호환)
  * @param {Object} [params.adaptedV1] - v1 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {Object} [params.adaptedV2] - v2 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
+ * @param {Object} [params.adaptedV3] - v3 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {boolean} params.isFirebaseAvailable - Firebase 사용 가능 여부
  * @param {Function} params.navigate - 네비게이션 함수
  * @param {string} [params.selectedDigimon] - 현재 선택된 디지몬 ID (digimonDisplayName 계산용)
@@ -179,6 +188,7 @@ export function useGameData({
   digimonDataVer1,
   adaptedV1,
   adaptedV2,
+  adaptedV3,
   isFirebaseAvailable,
   navigate,
   // 추가 상태들 (applyLazyUpdateBeforeAction에서 사용)
@@ -188,6 +198,7 @@ export function useGameData({
   // 배경화면 설정
   backgroundSettings,
   setBackgroundSettings,
+  setImmersiveSettings,
   // 디지몬 표시명 (구글 스크립트/Discord 알림용 - 슬롯 문서 digimonDisplayName)
   selectedDigimon = null,
   digimonNickname = null,
@@ -536,7 +547,8 @@ export function useGameData({
           setSlotName(slotData.slotName || `슬롯${slotId}`);
           setSlotCreatedAt(slotData.createdAt || "");
           setSlotDevice(slotData.device || "");
-          setSlotVersion(slotData.version || "Ver.1");
+          const slotVersionLabel = normalizeDigimonVersionLabel(slotData.version || "Ver.1");
+          setSlotVersion(slotVersionLabel);
           setDigimonNickname(slotData.digimonNickname || null);
           setIsLightsOn(rootSlotFields.isLightsOn);
           setWakeUntil(rootSlotFields.wakeUntil);
@@ -550,11 +562,22 @@ export function useGameData({
               setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
             }
           }
+
+          if (setImmersiveSettings) {
+            setImmersiveSettings(
+              normalizeImmersiveSettings(slotData.immersiveSettings)
+            );
+          }
           
           // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
-          const dataMap = slotData.version === "Ver.2" ? (adaptedV2 || digimonDataVer1) : (adaptedV1 || digimonDataVer1);
-          // Ver.2 슬롯은 디지타마(DigitamaV2), Ver.1은 디지타마(Digitama)로 시작
-          const savedName = slotData.selectedDigimon || (slotData.version === "Ver.2" ? "DigitamaV2" : "Digitama");
+          const dataMap =
+            slotVersionLabel === "Ver.3"
+              ? (adaptedV3 || adaptedV1 || digimonDataVer1)
+              : slotVersionLabel === "Ver.2"
+                ? (adaptedV2 || digimonDataVer1)
+                : (adaptedV1 || digimonDataVer1);
+          const savedName =
+            slotData.selectedDigimon || getStarterDigimonId(slotVersionLabel);
           let savedStats = slotData.digimonStats || {};
           
           // Activity Logs 로드: 서브컬렉션 logs 우선, 없으면 구 문서 activityLogs 사용 (마이그레이션 호환)
@@ -645,8 +668,8 @@ export function useGameData({
                   lazyUpdateBaseStats.maxStamina ??
                   0;
               }
-              // 디지타마/디지타마V2인데 timeToEvolveSeconds 없음·0·NaN이면 데이터맵 값으로 보정 (구 저장·초기화 누락 대비)
-              if ((savedName === "Digitama" || savedName === "DigitamaV2") && digimonData?.timeToEvolveSeconds != null) {
+              // 스타터 단계인데 timeToEvolveSeconds 없음·0·NaN이면 데이터맵 값으로 보정
+              if (isStarterDigimonId(savedName) && digimonData?.timeToEvolveSeconds != null) {
                 const tte = lazyUpdateBaseStats.timeToEvolveSeconds;
                 if (tte === undefined || tte === null || tte === 0 || Number.isNaN(tte)) {
                   lazyUpdateBaseStats.timeToEvolveSeconds =
@@ -662,7 +685,8 @@ export function useGameData({
               dataMap,
               digimonDataVer1,
               adaptedV1,
-              adaptedV2
+              adaptedV2,
+              adaptedV3
             );
             savedStats = repairCareMistakeLedger(
               applyLazyUpdate(lazyUpdateBaseStats, lastSavedAt, sleepSchedule, maxEnergy, {
@@ -708,22 +732,30 @@ export function useGameData({
         } else {
           // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
           const fallbackDataMap = adaptedV1 || digimonDataVer1;
-          const ns = initializeStats("Digitama", {}, fallbackDataMap);
-          setSelectedDigimon("Digitama");
+          const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
+          const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
+          setSelectedDigimon(fallbackStarterId);
           setDigimonStats(ns);
           setSlotName(`슬롯${slotId}`);
           // 새 슬롯이면 배경화면 설정도 기본값으로 설정
           if (setBackgroundSettings) {
             setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
           }
+          if (setImmersiveSettings) {
+            setImmersiveSettings(DEFAULT_IMMERSIVE_SETTINGS);
+          }
         }
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         setError(error);
         const fallbackDataMap = adaptedV1 || digimonDataVer1;
-        const ns = initializeStats("Digitama", {}, fallbackDataMap);
-        setSelectedDigimon("Digitama");
+        const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
+        const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
+        setSelectedDigimon(fallbackStarterId);
         setDigimonStats(ns);
+        if (setImmersiveSettings) {
+          setImmersiveSettings(DEFAULT_IMMERSIVE_SETTINGS);
+        }
       } finally {
         setIsLoadingSlot(false);
         setIsLoading(false);
@@ -752,6 +784,29 @@ export function useGameData({
       } catch (error) {
         console.error("배경화면 설정 저장 오류:", error);
         setError(error);
+      }
+    } else {
+      console.error("Firebase 로그인이 필요합니다.");
+      setError(new Error("Firebase 로그인이 필요합니다."));
+    }
+  }, [slotId, currentUser, isFirebaseAvailable]);
+
+  const saveImmersiveSettings = useCallback(async (newImmersiveSettings) => {
+    if (!slotId) return;
+
+    const normalizedSettings = normalizeImmersiveSettings(newImmersiveSettings);
+
+    if (slotId && currentUser && isFirebaseAvailable) {
+      try {
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        await updateDoc(slotRef, {
+          immersiveSettings: normalizedSettings,
+          updatedAt: new Date(),
+        });
+        console.log("[saveImmersiveSettings] Firebase 저장 완료");
+      } catch (saveError) {
+        console.error("몰입형 설정 저장 오류:", saveError);
+        setError(saveError);
       }
     } else {
       console.error("Firebase 로그인이 필요합니다.");
@@ -918,6 +973,7 @@ export function useGameData({
     saveStats,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
+    saveImmersiveSettings,
     saveSelectedDigimon,
     persistDeathSnapshot,
     appendLogToSubcollection,

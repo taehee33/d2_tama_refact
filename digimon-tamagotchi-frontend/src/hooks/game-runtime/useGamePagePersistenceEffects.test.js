@@ -24,6 +24,8 @@ function createBaseOptions(overrides = {}) {
     masterDataRevision: 1,
     backgroundSettings: null,
     saveBackgroundSettings: jest.fn(),
+    immersiveSettings: null,
+    saveImmersiveSettings: jest.fn(),
     width: 320,
     height: 240,
     clearedQuestIndex: 3,
@@ -188,6 +190,48 @@ describe("useGamePagePersistenceEffects", () => {
     expect(saveBackgroundSettings).toHaveBeenCalledTimes(2);
     expect(saveBackgroundSettings).toHaveBeenLastCalledWith({
       backgroundNumber: 172,
+    });
+  });
+
+  test("immersive save는 로드 직후 재저장하지 않고 사용자 변경 후에만 저장한다", () => {
+    jest.useFakeTimers();
+    const saveImmersiveSettings = jest.fn();
+    const initialProps = createBaseOptions({
+      isLoadingSlot: true,
+      immersiveSettings: {
+        layoutMode: "portrait",
+        skinId: "tama-classic-pink",
+      },
+      saveImmersiveSettings,
+    });
+
+    const { rerender } = renderHook((props) => useGamePagePersistenceEffects(props), {
+      initialProps,
+    });
+
+    rerender({
+      ...initialProps,
+      isLoadingSlot: false,
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(100);
+    });
+
+    expect(saveImmersiveSettings).not.toHaveBeenCalled();
+
+    rerender({
+      ...initialProps,
+      isLoadingSlot: false,
+      immersiveSettings: {
+        layoutMode: "landscape",
+        skinId: "tama-mint",
+      },
+    });
+
+    expect(saveImmersiveSettings).toHaveBeenCalledWith({
+      layoutMode: "landscape",
+      skinId: "tama-mint",
     });
   });
 
