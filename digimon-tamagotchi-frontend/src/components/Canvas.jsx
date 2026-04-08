@@ -36,6 +36,20 @@ function getDigimonSpriteKey(frameName) {
   return `digimon:${frameName}`;
 }
 
+function getIdleMotionTimelineKey(idleMotionTimeline) {
+  return idleMotionTimeline
+    .map((step) =>
+      [
+        step?.f ?? "",
+        step?.spriteNumber ?? "",
+        step?.x ?? "",
+        step?.y ?? "",
+        step?.flip ? 1 : 0,
+      ].join(":")
+    )
+    .join("|");
+}
+
 function getDefaultDigimonDrawState(width, height, currentAnimation) {
   const digiW = width * DIGIMON_WIDTH_RATIO;
   const digiH = height * DIGIMON_HEIGHT_RATIO;
@@ -139,6 +153,7 @@ const Canvas = ({
   const spriteCache= useRef({});
   const animationID= useRef(null);
   const idleFramesKey = idleFrames.join("|");
+  const idleMotionTimelineKey = getIdleMotionTimelineKey(idleMotionTimeline);
   const eatFramesKey = eatFrames.join("|");
   const foodRejectFramesKey = foodRejectFrames.join("|");
   const foodSpritesKey = foodSprites.join("|");
@@ -271,7 +286,7 @@ const Canvas = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[
     width,height,
-    idleFramesKey,idleMotionTimeline,eatFramesKey,foodRejectFramesKey,
+    idleFramesKey,idleMotionTimelineKey,eatFramesKey,foodRejectFramesKey,
     digimonImageBase,
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSpritesKey,developerMode,
