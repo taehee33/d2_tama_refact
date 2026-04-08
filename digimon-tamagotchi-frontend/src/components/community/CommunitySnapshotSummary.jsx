@@ -1,5 +1,6 @@
 import React from "react";
 import { buildCommunitySnapshotVisual } from "../../utils/communitySnapshotUtils";
+import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
 
 function getSnapshotStatusItems(visual) {
   if (!visual) {
@@ -7,6 +8,7 @@ function getSnapshotStatusItems(visual) {
   }
 
   const items = [];
+  const sleepStatus = normalizeSleepStatusForDisplay(visual.sleepStatus);
 
   if (!visual.isLightsOn) {
     items.push("불 꺼짐");
@@ -14,10 +16,16 @@ function getSnapshotStatusItems(visual) {
 
   if (visual.isFrozen) {
     items.push("냉장고");
-  } else if (visual.sleepStatus === "SLEEPING") {
+  } else if (sleepStatus === "NAPPING") {
+    items.push("낮잠 중");
+  } else if (sleepStatus === "SLEEPING") {
     items.push("수면 중");
-  } else if (visual.sleepStatus === "TIRED") {
-    items.push("피곤");
+  } else if (sleepStatus === "SLEEPING_LIGHT_ON") {
+    items.push("수면 중(불 켜짐 경고)");
+  } else if (sleepStatus === "FALLING_ASLEEP") {
+    items.push("잠들기 준비 중");
+  } else if (sleepStatus === "AWAKE_INTERRUPTED") {
+    items.push("강제 기상 중");
   }
 
   if (visual.isDead) {

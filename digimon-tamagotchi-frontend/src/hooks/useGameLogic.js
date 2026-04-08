@@ -9,6 +9,19 @@ import {
 } from "../logic/stats/careMistakeLedger";
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 
+const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
+const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
+const SLEEP_STATUS = {
+  AWAKE: "AWAKE",
+  FALLING_ASLEEP: "FALLING_ASLEEP",
+  NAPPING: "NAPPING",
+  SLEEPING: "SLEEPING",
+  SLEEPING_LIGHT_ON: "SLEEPING_LIGHT_ON",
+  AWAKE_INTERRUPTED: "AWAKE_INTERRUPTED",
+};
+
 /**
  * Firestore Timestamp를 안전하게 변환하는 유틸 함수
  * @param {any} val - 변환할 값 (number, Date, Firestore Timestamp, string 등)
@@ -54,6 +67,30 @@ export function createSleepDisturbanceLog(reason, timestampMs = Date.now()) {
   };
 }
 
+export function isSleepStatusSleeping(status) {
+  return (
+    status === SLEEP_STATUS.NAPPING ||
+    status === SLEEP_STATUS.SLEEPING ||
+    status === SLEEP_STATUS.SLEEPING_LIGHT_ON
+  );
+}
+
+export function isSleepStatusDisturbanceSensitive(status) {
+  return status === SLEEP_STATUS.SLEEPING || status === SLEEP_STATUS.SLEEPING_LIGHT_ON;
+}
+
+export function isSleepStatusInterrupted(status) {
+  return status === SLEEP_STATUS.AWAKE_INTERRUPTED;
+}
+
+function normalizeSleepStatusValue(status) {
+  if (status === "TIRED" || status === "SLEEPY") {
+    return SLEEP_STATUS.SLEEPING_LIGHT_ON;
+  }
+
+  return status || SLEEP_STATUS.AWAKE;
+}
+
 /**
  * 수면 상태를 계산한다.
  * @param {Object} params
@@ -63,59 +100,54 @@ export function createSleepDisturbanceLog(reason, timestampMs = Date.now()) {
  * @param {number|null} params.fastSleepStart - 빠른 잠들기 시작 시간 (timestamp)
  * @param {number|null} params.napUntil - 낮잠 종료 시간 (timestamp)
  * @param {Date} [params.now] - 현재 시간 (테스트용)
- * @returns {'AWAKE'|'TIRED'|'SLEEPING'}
+ * @returns {'AWAKE'|'FALLING_ASLEEP'|'NAPPING'|'SLEEPING'|'SLEEPING_LIGHT_ON'|'AWAKE_INTERRUPTED'}
  */
 export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, napUntil = null, now = new Date() }) {
   const normalizedSleepSchedule = normalizeSleepSchedule(sleepSchedule || { start: 22, end: 6 });
   const nowMs = now.getTime();
 
-  const wakeOverride = wakeUntil ? new Date(wakeUntil).getTime() > nowMs : false;
+  const wakeUntilMs = ensureTimestamp(wakeUntil);
+  const wakeOverride = wakeUntilMs != null && wakeUntilMs > nowMs;
   const isSleepTime = isTimeWithinSleepSchedule(normalizedSleepSchedule, now);
+  const napUntilMs = ensureTimestamp(napUntil);
+  const isNapTime = napUntilMs != null && napUntilMs > nowMs;
+  const fastSleepStartMs = ensureTimestamp(fastSleepStart);
+  const isFallingAsleep =
+    fastSleepStartMs != null && nowMs - fastSleepStartMs < FALLING_ASLEEP_DELAY_MS;
 
-  const isNapTime = napUntil ? napUntil > nowMs : false; // 낮잠 시간 체크
-
-  // 불이 켜져 있으면 무조건 깨어있거나 피곤한 상태
-  if (isLightsOn) {
-    // 수면 방해 중이면 AWAKE (불이 켜져 있어도 수면 방해 중에는 깨어있음)
-    if (wakeOverride) return "AWAKE";
-    // 수면 시간이면 TIRED
-    return isSleepTime ? "TIRED" : "AWAKE";
+  if (wakeOverride) {
+    return SLEEP_STATUS.AWAKE_INTERRUPTED;
   }
 
-  // 불이 꺼져 있는 경우
-  if (!isLightsOn) {
-    // A. 수면 시간 혹은 낮잠 시간인 경우
-    if (isSleepTime || isNapTime) {
-      // fastSleepStart가 완료되었으면 wakeUntil보다 우선순위가 높음 (즉시 잠듦)
-      if (fastSleepStart) {
-        const elapsed = nowMs - fastSleepStart;
-        if (elapsed >= 15 * 1000) {
-          return "SLEEPING"; // 15초 경과 시 wakeUntil과 관계없이 잠듦
-        }
-        // 15초 전까지는 wakeUntil이 있으면 깨어있음
-        if (wakeOverride) return "AWAKE";
-        return "AWAKE"; // 15초 전까지는 깨어있음
-      }
-      
-      // fastSleepStart가 없으면 기존 로직대로
-      if (wakeOverride) return "AWAKE"; // 방해 중이면 깨어있음
-      
-      return "SLEEPING";
+  if (isSleepTime) {
+    if (isLightsOn) {
+      return SLEEP_STATUS.SLEEPING_LIGHT_ON;
     }
 
-    // B. 수면 시간이 아니지만 불을 끈 경우 (낮잠 진입 시도)
-    if (fastSleepStart) {
-      const elapsed = nowMs - fastSleepStart;
-      if (elapsed >= 15 * 1000) {
-        // 15초 경과 → 낮잠 시작 (napUntil이 설정되어 있어야 함)
-        // napUntil이 있으면 SLEEPING, 없으면 AWAKE
-        return napUntil && napUntil > nowMs ? "SLEEPING" : "AWAKE";
-      }
-      return "AWAKE"; // 15초 전까지는 깨어있음
+    if (isFallingAsleep) {
+      return SLEEP_STATUS.FALLING_ASLEEP;
     }
+
+    return SLEEP_STATUS.SLEEPING;
   }
 
-  return "AWAKE";
+  if (isNapTime) {
+    if (isLightsOn) {
+      return SLEEP_STATUS.AWAKE;
+    }
+
+    if (isFallingAsleep) {
+      return SLEEP_STATUS.FALLING_ASLEEP;
+    }
+
+    return SLEEP_STATUS.NAPPING;
+  }
+
+  if (!isLightsOn && isFallingAsleep) {
+    return SLEEP_STATUS.FALLING_ASLEEP;
+  }
+
+  return SLEEP_STATUS.AWAKE;
 }
 
 /**
@@ -478,55 +510,96 @@ export default getSleepStatus;
  * @param {boolean} isLightsOn - 조명 상태
  * @param {Object} sleepSchedule - 수면 스케줄
  * @param {Date} now - 현재 시간
+ * @param {'AWAKE'|'FALLING_ASLEEP'|'NAPPING'|'SLEEPING'|'SLEEPING_LIGHT_ON'|'AWAKE_INTERRUPTED'} sleepStatus
  * @returns {Object} 업데이트된 스탯
  */
-export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), isActuallySleeping = false) {
-  let updatedStats = { ...stats };
-  
+export function checkCalls(
+  stats,
+  isLightsOn,
+  sleepSchedule,
+  now = new Date(),
+  sleepStatus = SLEEP_STATUS.AWAKE
+) {
+  void isLightsOn;
+  void sleepSchedule;
   const emptyCallEntry = () => ({ isActive: false, startedAt: null, sleepStartAt: null, isLogged: false });
+  let updatedStats = {
+    ...stats,
+    callStatus: {
+      hunger: {
+        ...emptyCallEntry(),
+        ...(stats.callStatus?.hunger || {}),
+      },
+      strength: {
+        ...emptyCallEntry(),
+        ...(stats.callStatus?.strength || {}),
+      },
+      sleep: {
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+        ...(stats.callStatus?.sleep || {}),
+      },
+    },
+  };
+  const normalizedSleepStatus = normalizeSleepStatusValue(sleepStatus);
+  const isSleepingLike = isSleepStatusSleeping(normalizedSleepStatus);
+  const isSleepLightWarning = normalizedSleepStatus === SLEEP_STATUS.SLEEPING_LIGHT_ON;
 
   // 냉장고 상태에서는 호출을 무시
   if (updatedStats.isFrozen) {
-    if (!updatedStats.callStatus) {
-      updatedStats.callStatus = {
-        hunger: emptyCallEntry(),
-        strength: emptyCallEntry(),
-        sleep: { isActive: false, startedAt: null }
-      };
-    } else {
-      updatedStats.callStatus = {
-        hunger: { ...updatedStats.callStatus.hunger, isActive: false },
-        strength: { ...updatedStats.callStatus.strength, isActive: false },
-        sleep: { ...updatedStats.callStatus.sleep, isActive: false, startedAt: null }
-      };
-    }
-    return updatedStats;
-  }
-
-  if (!updatedStats.callStatus) {
     updatedStats.callStatus = {
-      hunger: emptyCallEntry(),
-      strength: emptyCallEntry(),
-      sleep: { isActive: false, startedAt: null }
+      hunger: { ...updatedStats.callStatus.hunger, isActive: false },
+      strength: { ...updatedStats.callStatus.strength, isActive: false },
+      sleep: {
+        ...updatedStats.callStatus.sleep,
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
     };
-  }
-  // 기존 객체 유지 시 isLogged 보존 (DB에서 로드된 값)
-  if (updatedStats.callStatus.hunger && updatedStats.callStatus.hunger.isLogged === undefined) {
-    updatedStats.callStatus.hunger.isLogged = false;
-  }
-  if (updatedStats.callStatus.strength && updatedStats.callStatus.strength.isLogged === undefined) {
-    updatedStats.callStatus.strength.isLogged = false;
+    return updatedStats;
   }
 
   const callStatus = updatedStats.callStatus;
 
-  const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
-  const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
+  const nowMs = now.getTime();
+
+  const syncCallPause = (entry, deadlineKey, timeoutMs) => {
+    const startedAt = ensureTimestamp(entry.startedAt);
+    const sleepStartAt = ensureTimestamp(entry.sleepStartAt);
+    const currentDeadline = ensureTimestamp(updatedStats[deadlineKey]);
+
+    if (isSleepingLike) {
+      if (entry.isActive && startedAt != null && sleepStartAt == null) {
+        entry.sleepStartAt = nowMs;
+      }
+      return;
+    }
+
+    if (startedAt != null && sleepStartAt != null) {
+      const sleptMs = Math.max(0, nowMs - sleepStartAt);
+      if (sleptMs > 0) {
+        entry.startedAt = startedAt + sleptMs;
+        updatedStats[deadlineKey] =
+          currentDeadline != null ? currentDeadline + sleptMs : entry.startedAt + timeoutMs;
+      } else if (currentDeadline == null) {
+        updatedStats[deadlineKey] = startedAt + timeoutMs;
+      }
+      entry.sleepStartAt = null;
+      return;
+    }
+
+    if (startedAt != null && currentDeadline == null) {
+      updatedStats[deadlineKey] = startedAt + timeoutMs;
+    }
+  };
 
   // Hunger 호출 트리거
   if (updatedStats.fullness === 0) {
     const existingStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
     const existingHungerZeroAt = ensureTimestamp(updatedStats.lastHungerZeroAt);
+    const referenceStartedAt = existingStartedAt ?? existingHungerZeroAt;
     const alreadyHandled = callStatus.hunger.isLogged === true;
 
     if (alreadyHandled) {
@@ -534,34 +607,20 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       callStatus.hunger.startedAt = null;
       callStatus.hunger.sleepStartAt = null;
       updatedStats.hungerMistakeDeadline = null;
-    } else if (existingHungerZeroAt && !existingStartedAt) {
+    } else if (referenceStartedAt != null) {
       callStatus.hunger.isActive = true;
       callStatus.hunger.isLogged = false;
-      callStatus.hunger.startedAt = existingHungerZeroAt;
-      callStatus.hunger.sleepStartAt = isActuallySleeping ? now.getTime() : null;
-      if (!updatedStats.hungerMistakeDeadline) {
-        updatedStats.hungerMistakeDeadline = existingHungerZeroAt + HUNGER_CALL_TIMEOUT_MS;
+      callStatus.hunger.startedAt = referenceStartedAt;
+      if (callStatus.hunger.sleepStartAt == null && isSleepingLike) {
+        callStatus.hunger.sleepStartAt = nowMs;
       }
-    } else if (existingHungerZeroAt && existingStartedAt) {
-      callStatus.hunger.isActive = true;
-      callStatus.hunger.startedAt = existingStartedAt;
-      const hungerElapsed = now.getTime() - existingStartedAt;
+      const hungerElapsed = nowMs - referenceStartedAt;
       if (hungerElapsed < HUNGER_CALL_TIMEOUT_MS) {
         callStatus.hunger.isLogged = false;
       }
-      const existingSleepStartAt = ensureTimestamp(callStatus.hunger.sleepStartAt);
-      if (isActuallySleeping && !existingSleepStartAt) {
-        callStatus.hunger.sleepStartAt = now.getTime();
-      } else if (!isActuallySleeping && existingSleepStartAt) {
-        const sleptMs = Math.max(0, now.getTime() - existingSleepStartAt);
-        callStatus.hunger.startedAt = existingStartedAt + sleptMs;
-        if (updatedStats.hungerMistakeDeadline) {
-          updatedStats.hungerMistakeDeadline += sleptMs;
-        }
-        callStatus.hunger.sleepStartAt = null;
-      }
+      syncCallPause(callStatus.hunger, "hungerMistakeDeadline", HUNGER_CALL_TIMEOUT_MS);
       if (!updatedStats.hungerMistakeDeadline) {
-        updatedStats.hungerMistakeDeadline = existingHungerZeroAt + HUNGER_CALL_TIMEOUT_MS;
+        updatedStats.hungerMistakeDeadline = referenceStartedAt + HUNGER_CALL_TIMEOUT_MS;
       }
     } else {
       callStatus.hunger.isActive = false;
@@ -583,6 +642,7 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
   if (updatedStats.strength === 0) {
     const existingStartedAt = ensureTimestamp(callStatus.strength.startedAt);
     const existingStrengthZeroAt = ensureTimestamp(updatedStats.lastStrengthZeroAt);
+    const referenceStartedAt = existingStartedAt ?? existingStrengthZeroAt;
     const alreadyHandled = callStatus.strength.isLogged === true;
 
     if (alreadyHandled) {
@@ -590,34 +650,20 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
       callStatus.strength.startedAt = null;
       callStatus.strength.sleepStartAt = null;
       updatedStats.strengthMistakeDeadline = null;
-    } else if (existingStrengthZeroAt && !existingStartedAt) {
+    } else if (referenceStartedAt != null) {
       callStatus.strength.isActive = true;
       callStatus.strength.isLogged = false;
-      callStatus.strength.startedAt = existingStrengthZeroAt;
-      callStatus.strength.sleepStartAt = isActuallySleeping ? now.getTime() : null;
-      if (!updatedStats.strengthMistakeDeadline) {
-        updatedStats.strengthMistakeDeadline = existingStrengthZeroAt + STRENGTH_CALL_TIMEOUT_MS;
+      callStatus.strength.startedAt = referenceStartedAt;
+      if (callStatus.strength.sleepStartAt == null && isSleepingLike) {
+        callStatus.strength.sleepStartAt = nowMs;
       }
-    } else if (existingStrengthZeroAt && existingStartedAt) {
-      callStatus.strength.isActive = true;
-      callStatus.strength.startedAt = existingStartedAt;
-      const strengthElapsed = now.getTime() - existingStartedAt;
+      const strengthElapsed = nowMs - referenceStartedAt;
       if (strengthElapsed < STRENGTH_CALL_TIMEOUT_MS) {
         callStatus.strength.isLogged = false;
       }
-      const existingSleepStartAt = ensureTimestamp(callStatus.strength.sleepStartAt);
-      if (isActuallySleeping && !existingSleepStartAt) {
-        callStatus.strength.sleepStartAt = now.getTime();
-      } else if (!isActuallySleeping && existingSleepStartAt) {
-        const sleptMs = Math.max(0, now.getTime() - existingSleepStartAt);
-        callStatus.strength.startedAt = existingStartedAt + sleptMs;
-        if (updatedStats.strengthMistakeDeadline) {
-          updatedStats.strengthMistakeDeadline += sleptMs;
-        }
-        callStatus.strength.sleepStartAt = null;
-      }
+      syncCallPause(callStatus.strength, "strengthMistakeDeadline", STRENGTH_CALL_TIMEOUT_MS);
       if (!updatedStats.strengthMistakeDeadline) {
-        updatedStats.strengthMistakeDeadline = existingStrengthZeroAt + STRENGTH_CALL_TIMEOUT_MS;
+        updatedStats.strengthMistakeDeadline = referenceStartedAt + STRENGTH_CALL_TIMEOUT_MS;
       }
     } else {
       callStatus.strength.isActive = false;
@@ -635,27 +681,19 @@ export function checkCalls(stats, isLightsOn, sleepSchedule, now = new Date(), i
     updatedStats.strengthMistakeDeadline = null;
   }
 
-  // Sleep 호출 트리거 (수면 시간이고 불이 켜져있을 때)
-  // ⚠️ 중요: 실제로 잠들었을 때는 수면 호출 비활성화
-  if (isActuallySleeping) {
-    // 실제로 잠들었으면 수면 호출 비활성화
+  if (isSleepLightWarning) {
+    callStatus.sleep.isActive = true;
+    callStatus.sleep.startedAt =
+      ensureTimestamp(callStatus.sleep.startedAt) ??
+      ensureTimestamp(updatedStats.sleepLightOnStart) ??
+      nowMs;
+    if (callStatus.sleep.isLogged === undefined) {
+      callStatus.sleep.isLogged = false;
+    }
+  } else {
     callStatus.sleep.isActive = false;
     callStatus.sleep.startedAt = null;
-  } else {
-    // 잠들지 않았을 때만 수면 호출 체크
-    const isSleepTime = isTimeWithinSleepSchedule(
-      normalizeSleepSchedule(sleepSchedule || { start: 22, end: 6 }),
-      now
-    );
-
-    if (isSleepTime && isLightsOn && !callStatus.sleep.isActive) {
-      callStatus.sleep.isActive = true;
-      callStatus.sleep.startedAt = now.getTime();
-    } else if (!isSleepTime || !isLightsOn) {
-      // 수면 시간이 아니거나 불이 꺼져있으면 수면 호출 비활성화
-      callStatus.sleep.isActive = false;
-      callStatus.sleep.startedAt = null;
-    }
+    callStatus.sleep.isLogged = false;
   }
 
   return updatedStats;
@@ -681,7 +719,11 @@ export function resetCallStatus(stats, callType) {
   if (updatedStats.callStatus[callType]) {
     updatedStats.callStatus[callType].isActive = false;
     updatedStats.callStatus[callType].startedAt = null;
-    if (callType === 'hunger' || callType === 'strength') {
+    if (
+      callType === 'hunger' ||
+      callType === 'strength' ||
+      callType === 'sleep'
+    ) {
       updatedStats.callStatus[callType].isLogged = false;
     }
     if (callType === 'hunger') {
@@ -698,12 +740,17 @@ export function resetCallStatus(stats, callType) {
 
 /**
  * 호출 타임아웃을 체크한다.
- * 배고픔/힘 호출은 careMistakes를 증가시키지만, Sleep Call은 경고 전용으로 유지한다.
+ * 배고픔/힘 호출은 careMistakes를 증가시키고, 수면 조명 경고는 같은 사건마다 30분 경과 시 1회만 케어미스를 증가시킨다.
  * @param {Object} stats - 현재 디지몬 스탯
  * @param {Date} now - 현재 시간
+ * @param {'AWAKE'|'FALLING_ASLEEP'|'NAPPING'|'SLEEPING'|'SLEEPING_LIGHT_ON'|'AWAKE_INTERRUPTED'} sleepStatus
  * @returns {Object} 업데이트된 스탯
  */
-export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = false) {
+export function checkCallTimeouts(
+  stats,
+  now = new Date(),
+  sleepStatus = SLEEP_STATUS.AWAKE
+) {
   if (!stats || !stats.callStatus) {
     return stats;
   }
@@ -725,28 +772,21 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
   };
 
   const callStatus = updatedStats.callStatus;
-  const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  const SLEEP_CALL_TIMEOUT = 60 * 60 * 1000; // 60분
-
   const nowMs = now.getTime();
   let hasChanged = false; // 변경 여부 추적
-
-  // 실제 수면 중에는 checkCalls가 sleepStartAt만 기록하고,
-  // 남은 시간 정지는 UI에서 표시한다. 기준 시각은 매초 밀지 않는다.
-  if (isActuallySleeping) {
-    return stats;
-  }
+  const normalizedSleepStatus = normalizeSleepStatusValue(sleepStatus);
+  const isSleepingLike = isSleepStatusSleeping(normalizedSleepStatus);
+  const isSleepLightWarning = normalizedSleepStatus === SLEEP_STATUS.SLEEPING_LIGHT_ON;
 
   // --- 기존 타임아웃 체크 로직 (깨어있을 때만 작동) ---
   
   // Hunger 호출 타임아웃: 이미 로그 남겼으면 카운트/로그 중복 방지 (isLogged)
   const hungerStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
-  if (hungerStartedAt) {
+  if (!isSleepingLike && hungerStartedAt) {
     const elapsed = nowMs - hungerStartedAt;
     const alreadyLogged = callStatus.hunger.isLogged === true;
-    if (elapsed > HUNGER_CALL_TIMEOUT && !alreadyLogged) {
-      const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT;
+    if (elapsed > HUNGER_CALL_TIMEOUT_MS && !alreadyLogged) {
+      const timeoutOccurredAt = hungerStartedAt + HUNGER_CALL_TIMEOUT_MS;
       const { nextStats } = appendCareMistakeEntry(updatedStats, {
         occurredAt: timeoutOccurredAt,
         reasonKey: "hunger_call",
@@ -762,7 +802,7 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
       updatedStats.hungerMistakeDeadline = null;
       hasChanged = true;
       console.log("🔥 실시간 Hunger 케어미스 발생! careMistakes:", updatedStats.careMistakes);
-    } else if (elapsed > HUNGER_CALL_TIMEOUT && alreadyLogged) {
+    } else if (elapsed > HUNGER_CALL_TIMEOUT_MS && alreadyLogged) {
       // 이미 로그됨: 상태만 정리 (카운트/로그 중복 없음)
       callStatus.hunger.isActive = false;
       callStatus.hunger.startedAt = null;
@@ -773,11 +813,11 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
   }
 
   const strengthStartedAt = ensureTimestamp(callStatus.strength.startedAt);
-  if (strengthStartedAt) {
+  if (!isSleepingLike && strengthStartedAt) {
     const elapsed = nowMs - strengthStartedAt;
     const alreadyLogged = callStatus.strength.isLogged === true;
-    if (elapsed > STRENGTH_CALL_TIMEOUT && !alreadyLogged) {
-      const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT;
+    if (elapsed > STRENGTH_CALL_TIMEOUT_MS && !alreadyLogged) {
+      const timeoutOccurredAt = strengthStartedAt + STRENGTH_CALL_TIMEOUT_MS;
       const { nextStats } = appendCareMistakeEntry(updatedStats, {
         occurredAt: timeoutOccurredAt,
         reasonKey: "strength_call",
@@ -793,7 +833,7 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
       updatedStats.strengthMistakeDeadline = null;
       hasChanged = true;
       console.log("🔥 실시간 Strength 케어미스 발생! careMistakes:", updatedStats.careMistakes);
-    } else if (elapsed > STRENGTH_CALL_TIMEOUT && alreadyLogged) {
+    } else if (elapsed > STRENGTH_CALL_TIMEOUT_MS && alreadyLogged) {
       callStatus.strength.isActive = false;
       callStatus.strength.startedAt = null;
       callStatus.strength.sleepStartAt = null;
@@ -802,12 +842,25 @@ export function checkCallTimeouts(stats, now = new Date(), isActuallySleeping = 
     }
   }
 
-  // Sleep 호출은 경고 전용 상태로 유지한다.
-  // 수면 시간에 불을 켜둔 상태가 계속되면 callStatus.sleep은 checkCalls가 유지하고,
-  // 더 이상 careMistakes를 올리거나 호출을 강제로 닫지 않는다.
+  // 수면 조명 경고는 실제 수면 중에만 동작하며, 30분 경과 시 케어미스를 1회 올린다.
   const sleepStartedAt = ensureTimestamp(callStatus.sleep.startedAt);
-  if (sleepStartedAt && nowMs - sleepStartedAt > SLEEP_CALL_TIMEOUT) {
-    return hasChanged ? updatedStats : stats;
+  if (sleepStartedAt && isSleepLightWarning) {
+    const elapsed = nowMs - sleepStartedAt;
+    const alreadyLogged = callStatus.sleep.isLogged === true;
+    if (elapsed > SLEEP_LIGHT_WARNING_TIMEOUT_MS && !alreadyLogged) {
+      const timeoutOccurredAt = sleepStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS;
+      const { nextStats } = appendCareMistakeEntry(updatedStats, {
+        occurredAt: timeoutOccurredAt,
+        reasonKey: "sleep_light_warning",
+        text: `케어미스(사유: 수면 조명 경고 30분 방치): ${(updatedStats.careMistakes || 0)} → ${(updatedStats.careMistakes || 0) + 1}`,
+        source: "realtime",
+      });
+      updatedStats.careMistakes = nextStats.careMistakes;
+      updatedStats.careMistakeLedger = nextStats.careMistakeLedger;
+      callStatus.sleep.isLogged = true;
+      hasChanged = true;
+      console.log("💡 실시간 수면 조명 케어미스 발생! careMistakes:", updatedStats.careMistakes);
+    }
   }
 
   // 변경되었을 때만 새 객체 반환, 아니면 기존 객체 그대로 반환 (리액트 최적화)

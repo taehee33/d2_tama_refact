@@ -2,7 +2,7 @@ import { formatTimestamp } from "./dateUtils";
 
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
-const SLEEP_CALL_TIMEOUT_MS = 60 * 60 * 1000;
+const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
 
 const CALL_META = {
   hunger: {
@@ -20,13 +20,31 @@ const CALL_META = {
     riskText: "10분을 넘기면 케어미스가 1 증가합니다.",
   },
   sleep: {
-    title: "수면 호출",
-    reason: "잘 시간인데 불이 켜져 있어 잠들지 못하고 있습니다.",
+    title: "수면 조명 경고",
+    reason: "잠들어 있는데 조명이 켜져 있어요. 불을 꺼 주세요.",
     actionKey: "open-lights",
     actionLabel: "조명 설정 열기",
-    riskText: "경고 전용 호출이며 케어미스는 증가하지 않습니다.",
+    riskText: "30분을 넘기면 케어미스가 1 증가합니다.",
   },
 };
+
+export function normalizeSleepStatusForDisplay(sleepStatus) {
+  if (sleepStatus === "TIRED" || sleepStatus === "SLEEPY") {
+    return "SLEEPING_LIGHT_ON";
+  }
+
+  return sleepStatus;
+}
+
+function isSleepingLikeStatus(sleepStatus) {
+  const normalized = normalizeSleepStatusForDisplay(sleepStatus);
+
+  return (
+    normalized === "NAPPING" ||
+    normalized === "SLEEPING" ||
+    normalized === "SLEEPING_LIGHT_ON"
+  );
+}
 
 function ensureTimestamp(value) {
   if (value == null || value === "") return null;
@@ -56,7 +74,8 @@ function formatDurationMs(diffMs) {
 function replaceLegacyCallTerms(text) {
   return text
     .replace(/배고픔 콜/g, "배고픔 호출")
-    .replace(/힘 콜/g, "힘 호출");
+    .replace(/힘 콜/g, "힘 호출")
+    .replace(/수면 호출/g, "수면 조명 경고");
 }
 
 export function normalizeCallLogText(value) {
@@ -67,7 +86,7 @@ export function normalizeCallLogText(value) {
   if (!trimmedText) return "";
   if (trimmedText === "Call: Hungry!") return "배고픔 호출이 시작되었습니다.";
   if (trimmedText === "Call: No Energy!") return "힘 호출이 시작되었습니다.";
-  if (trimmedText === "Call: Sleepy!") return "수면 호출이 시작되었습니다.";
+  if (trimmedText === "Call: Sleepy!") return "수면 조명 경고가 시작되었습니다.";
 
   return replaceLegacyCallTerms(trimmedText);
 }
@@ -77,7 +96,7 @@ function normalizeCallHistoryTitle(log) {
 
   if (normalizedText.includes("배고픔 호출")) return "배고픔 호출";
   if (normalizedText.includes("힘 호출")) return "힘 호출";
-  if (normalizedText.includes("수면 호출")) return "수면 호출";
+  if (normalizedText.includes("수면 조명 경고")) return "수면 조명 경고";
   if (normalizedText.includes("케어미스")) return "케어미스";
 
   return log?.type === "CALL" ? "호출" : "최근 기록";
@@ -93,7 +112,7 @@ function isCallRelatedHistory(log) {
   return (
     normalizedText.includes("배고픔 호출") ||
     normalizedText.includes("힘 호출") ||
-    normalizedText.includes("수면 호출")
+    normalizedText.includes("수면 조명 경고")
   );
 }
 
@@ -134,9 +153,12 @@ function buildHungerOrStrengthCall({
   sleepStatus,
   callEntry,
   deadlineMs,
+  lastZeroAtMs,
   timeoutMs,
 }) {
-  const startedAt = ensureTimestamp(callEntry?.startedAt);
+  const startedAt =
+    ensureTimestamp(callEntry?.startedAt) ?? ensureTimestamp(lastZeroAtMs);
+  const sleepStartAt = ensureTimestamp(callEntry?.sleepStartAt);
   const shouldShowFrozenState = isFrozen && statValue === 0;
   const hasRealtimeCall = Boolean(callEntry?.isActive && (startedAt || deadlineMs || statValue === 0));
 
@@ -146,9 +168,10 @@ function buildHungerOrStrengthCall({
 
   const effectiveDeadlineMs =
     ensureTimestamp(deadlineMs) ?? (startedAt != null ? startedAt + timeoutMs : currentTimeMs + timeoutMs);
-  const remainingMs = Math.max(0, effectiveDeadlineMs - currentTimeMs);
   const isPausedByFrozen = shouldShowFrozenState;
-  const isPausedBySleep = !isPausedByFrozen && sleepStatus === "SLEEPING";
+  const isPausedBySleep = !isPausedByFrozen && isSleepingLikeStatus(sleepStatus);
+  const referenceTimeMs = isPausedBySleep ? sleepStartAt ?? currentTimeMs : currentTimeMs;
+  const remainingMs = Math.max(0, effectiveDeadlineMs - referenceTimeMs);
   const isPaused = isPausedByFrozen || isPausedBySleep;
 
   let statusLabel = `남은 시간 ${formatDurationMs(remainingMs)}`;
@@ -185,13 +208,15 @@ function buildSleepCall({
   isLightsOn,
   isFrozen,
   callEntry,
+  sleepLightOnStart,
 }) {
   if (isFrozen) return null;
 
-  const startedAt = ensureTimestamp(callEntry?.startedAt);
+  const startedAt =
+    ensureTimestamp(callEntry?.startedAt) ?? ensureTimestamp(sleepLightOnStart);
+  const normalizedSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const hasSleepWarning = Boolean(
-    callEntry?.isActive ||
-      ((sleepStatus === "TIRED" || sleepStatus === "SLEEPING") && isLightsOn)
+    callEntry?.isActive || normalizedSleepStatus === "SLEEPING_LIGHT_ON"
   );
 
   if (!hasSleepWarning) {
@@ -199,11 +224,14 @@ function buildSleepCall({
   }
 
   const effectiveStartedAt = startedAt ?? currentTimeMs;
-  const remainingMs = Math.max(0, effectiveStartedAt + SLEEP_CALL_TIMEOUT_MS - currentTimeMs);
+  const remainingMs = Math.max(
+    0,
+    effectiveStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS - currentTimeMs
+  );
   const statusLabel =
     remainingMs > 0
-      ? `경고 유지 시간 ${formatDurationMs(remainingMs)} 남음`
-      : "경고 유지 중 - 불을 끄거나 잠들면 해제됩니다.";
+      ? `수면 중(불 켜짐 경고!) - ${formatDurationMs(remainingMs)} 남음`
+      : "수면 중(불 켜짐 경고!) - 케어미스 발생 구간";
 
   return {
     type: "sleep",
@@ -211,7 +239,10 @@ function buildSleepCall({
     reason: CALL_META.sleep.reason,
     statusLabel,
     remainingMs,
-    deadlineText: buildDeadlineText(effectiveStartedAt + SLEEP_CALL_TIMEOUT_MS),
+    deadlineText: buildDeadlineText(
+      effectiveStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS,
+      "경고 데드라인"
+    ),
     riskText: CALL_META.sleep.riskText,
     isPaused: false,
     pauseReason: "",
@@ -244,6 +275,7 @@ export function buildCallStatusViewModel({
       sleepStatus,
       callEntry: callStatus.hunger,
       deadlineMs: digimonStats?.hungerMistakeDeadline,
+      lastZeroAtMs: digimonStats?.lastHungerZeroAt,
       timeoutMs: HUNGER_CALL_TIMEOUT_MS,
     }),
     buildHungerOrStrengthCall({
@@ -259,6 +291,7 @@ export function buildCallStatusViewModel({
       sleepStatus,
       callEntry: callStatus.strength,
       deadlineMs: digimonStats?.strengthMistakeDeadline,
+      lastZeroAtMs: digimonStats?.lastStrengthZeroAt,
       timeoutMs: STRENGTH_CALL_TIMEOUT_MS,
     }),
     buildSleepCall({
@@ -267,6 +300,7 @@ export function buildCallStatusViewModel({
       isLightsOn,
       isFrozen: Boolean(digimonStats?.isFrozen),
       callEntry: callStatus.sleep,
+      sleepLightOnStart: digimonStats?.sleepLightOnStart,
     }),
   ].filter(Boolean);
 

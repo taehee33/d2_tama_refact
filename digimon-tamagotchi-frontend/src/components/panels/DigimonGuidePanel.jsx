@@ -559,7 +559,7 @@ function DigimonGuidePanel({
         <ul className="space-y-2 break-words text-sm text-white">
           <li>• <strong>Hunger Call:</strong> 배고픔이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
           <li>• <strong>Strength Call:</strong> 힘이 0이 되면 호출 시작. 10분 무시 시 케어 미스 +1</li>
-          <li>• <strong>Sleep Call:</strong> 수면 시간에 불이 켜져 있으면 경고 호출이 시작됩니다. 불을 끄거나 잠들면 해제됩니다</li>
+          <li>• <strong>수면 조명 경고:</strong> 실제 수면 중 조명이 켜져 있으면 30분 경고가 시작됩니다. 불을 끄면 해제됩니다</li>
           <li>• <strong>호출 아이콘(📣):</strong> 호출이 활성화되면 표시됩니다</li>
         </ul>
       </div>
@@ -570,7 +570,7 @@ function DigimonGuidePanel({
           <li>• <strong>수면 시간:</strong> 각 디지몬마다 정해진 수면 시간이 있습니다</li>
           <li>• <strong>불 끄기:</strong> 수면 시간에는 불을 꺼야 합니다</li>
           <li>• <strong>수면 방해:</strong> 실제로 잠든 상태에서 먹이/훈련/배틀/치료 등으로 깨우면 수면 방해 횟수가 +1 됩니다</li>
-          <li>• <strong>빠른 잠들기:</strong> 수면 시간에 불을 꺼주면, 수면 방해로 깨어있어도 10초 후 자동으로 잠듭니다</li>
+          <li>• <strong>잠들기 준비:</strong> 불을 끄면 15초 동안 잠들기 준비 상태를 거친 뒤 수면 또는 낮잠 상태로 전환됩니다</li>
         </ul>
       </div>
 

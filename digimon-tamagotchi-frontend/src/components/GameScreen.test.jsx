@@ -69,12 +69,12 @@ describe("GameScreen 호출 UI", () => {
     expect(onResolveCallAction).toHaveBeenCalledWith("open-feed");
   });
 
-  test("수면 호출 모달에서 경고 전용 문구와 조명 액션 버튼을 보여준다", () => {
+  test("수면 조명 경고 모달에서 경고 전용 문구와 조명 액션 버튼을 보여준다", () => {
     const onResolveCallAction = jest.fn();
 
     renderGameScreen({
       showCallModal: true,
-      sleepStatus: "TIRED",
+      sleepStatus: "SLEEPING_LIGHT_ON",
       isLightsOn: true,
       onResolveCallAction,
       digimonStats: {
@@ -87,8 +87,8 @@ describe("GameScreen 호출 UI", () => {
       },
     });
 
-    expect(screen.getByText("수면 호출")).toBeInTheDocument();
-    expect(screen.getByText("경고 전용 호출이며 케어미스는 증가하지 않습니다.")).toBeInTheDocument();
+    expect(screen.getByText("수면 조명 경고")).toBeInTheDocument();
+    expect(screen.getByText("30분을 넘기면 케어미스가 1 증가합니다.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "조명 설정 열기" }));
     expect(onResolveCallAction).toHaveBeenCalledWith("open-lights");
@@ -113,7 +113,7 @@ describe("GameScreen 호출 UI", () => {
     expect(screen.getByText("현재 활성 호출이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("최근 호출/케어미스 기록")).toBeInTheDocument();
     expect(screen.getByText("배고픔 호출이 시작되었습니다.")).toBeInTheDocument();
-    expect(screen.getByText("수면 호출이 시작되었습니다.")).toBeInTheDocument();
+    expect(screen.getByText("수면 조명 경고가 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText(/배고픔 호출 10분 무시/)).toBeInTheDocument();
   });
 

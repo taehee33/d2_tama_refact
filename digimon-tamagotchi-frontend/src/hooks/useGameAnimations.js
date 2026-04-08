@@ -1,12 +1,45 @@
 // src/hooks/useGameAnimations.js
 // Game.jsx의 애니메이션 사이클 로직을 분리한 Custom Hook
 
-import { addActivityLog, resetCallStatus, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "./useGameLogic";
+import {
+  addActivityLog,
+  resetCallStatus,
+  hasDuplicateSleepDisturbanceLog,
+  createSleepDisturbanceLog,
+  getSleepStatus,
+  isSleepStatusSleeping,
+  isSleepStatusDisturbanceSensitive,
+} from "./useGameLogic";
 import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
-import { getSleepSchedule, isWithinSleepSchedule } from "./useGameHandlers";
+import { getSleepSchedule } from "./useGameHandlers";
 import { wakeForInteraction } from "./useGameActions";
 import { clearActiveInjuryState } from "../data/stats";
+
+function getAnimationSleepState({
+  digimonStats,
+  selectedDigimon,
+  digimonData,
+  isLightsOn,
+  wakeUntil,
+  now = new Date(),
+}) {
+  const sleepSchedule = getSleepSchedule(selectedDigimon, digimonData, digimonStats);
+  const sleepStatus = getSleepStatus({
+    sleepSchedule,
+    isLightsOn,
+    wakeUntil,
+    fastSleepStart: digimonStats.fastSleepStart || null,
+    napUntil: digimonStats.napUntil || null,
+    now,
+  });
+
+  return {
+    sleepStatus,
+    isSleepingLike: isSleepStatusSleeping(sleepStatus),
+    shouldCountSleepDisturbance: isSleepStatusDisturbanceSensitive(sleepStatus),
+  };
+}
 
 /**
  * useGameAnimations Hook
@@ -172,9 +205,14 @@ export function useGameAnimations({
       const oldPoopCount = digimonStats.poopCount || 0;
       
       // 수면 중 청소 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-      const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, digimonStats);
-      const isSleepTime = isWithinSleepSchedule(schedule, now);
-      const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
+      const actionSleepState = getAnimationSleepState({
+        digimonStats,
+        selectedDigimon,
+        digimonData: newDigimonDataVer1,
+        isLightsOn,
+        wakeUntil,
+        now,
+      });
       
       let baseStats = {
         ...digimonStats,
@@ -188,14 +226,23 @@ export function useGameAnimations({
       };
       
       // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
-      const sleepDisturbanceDuplicate = nowSleeping && hasDuplicateSleepDisturbanceLog(digimonStats.activityLogs || [], Date.now());
+      const sleepDisturbanceDuplicate =
+        actionSleepState.isSleepingLike &&
+        hasDuplicateSleepDisturbanceLog(digimonStats.activityLogs || [], Date.now());
       let updatedStats = baseStats;
-      if (nowSleeping && setWakeUntil && !sleepDisturbanceDuplicate) {
-        updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+      if (actionSleepState.isSleepingLike && setWakeUntil && !sleepDisturbanceDuplicate) {
+        updatedStats = wakeForInteraction(
+          baseStats,
+          setWakeUntil,
+          setDigimonStatsAndSave,
+          actionSleepState.shouldCountSleepDisturbance,
+          onSleepDisturbance
+        );
       }
       
       // Activity Log 추가 (중복 시 수면 방해 로그/카운트 없이 청소 로그만)
-      const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
+      const applySleepDisturbanceLog =
+        actionSleepState.isSleepingLike && !sleepDisturbanceDuplicate;
       const logText = applySleepDisturbanceLog
         ? createSleepDisturbanceLog("화장실 청소").text
         : `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
@@ -229,9 +276,14 @@ export function useGameAnimations({
     setHealStep(0);
     
     // 수면 중 치료 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const schedule = getSleepSchedule(selectedDigimon, newDigimonDataVer1, currentStats);
-    const isSleepTime = isWithinSleepSchedule(schedule, new Date());
-    const nowSleeping = isSleepTime && !(wakeUntil && Date.now() < wakeUntil);
+    const actionSleepState = getAnimationSleepState({
+      digimonStats: currentStats,
+      selectedDigimon,
+      digimonData: newDigimonDataVer1,
+      isLightsOn,
+      wakeUntil,
+      now: new Date(),
+    });
     
     // 치료 로직
     const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
@@ -256,13 +308,22 @@ export function useGameAnimations({
     };
     
     // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
-    const sleepDisturbanceDuplicate = nowSleeping && hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now());
+    const sleepDisturbanceDuplicate =
+      actionSleepState.isSleepingLike &&
+      hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now());
     let updatedStats = baseStats;
-    if (nowSleeping && setWakeUntil && !sleepDisturbanceDuplicate) {
-      updatedStats = wakeForInteraction(baseStats, setWakeUntil, setDigimonStatsAndSave, isSleepTime, onSleepDisturbance);
+    if (actionSleepState.isSleepingLike && setWakeUntil && !sleepDisturbanceDuplicate) {
+      updatedStats = wakeForInteraction(
+        baseStats,
+        setWakeUntil,
+        setDigimonStatsAndSave,
+        actionSleepState.shouldCountSleepDisturbance,
+        onSleepDisturbance
+      );
     }
     
-    const applySleepDisturbanceLog = nowSleeping && !sleepDisturbanceDuplicate;
+    const applySleepDisturbanceLog =
+      actionSleepState.isSleepingLike && !sleepDisturbanceDuplicate;
     const logType = applySleepDisturbanceLog ? "SLEEP_DISTURBANCE" : "HEAL";
     const logText = applySleepDisturbanceLog ? createSleepDisturbanceLog("치료").text : treatmentMessage;
     

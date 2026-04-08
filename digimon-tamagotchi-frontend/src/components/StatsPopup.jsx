@@ -5,7 +5,10 @@ import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../uti
 import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getDisplayCareMistakeEntries } from "../logic/stats/careMistakeLedger";
 import { getDisplayInjuryEntries } from "../logic/stats/injuryHistory";
-import { buildCallStatusViewModel } from "../utils/callStatusUtils";
+import {
+  buildCallStatusViewModel,
+  normalizeSleepStatusForDisplay,
+} from "../utils/callStatusUtils";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -350,6 +353,29 @@ export default function StatsPopup({
     () => new Map(callStatusViewModel.activeCalls.map((call) => [call.type, call])),
     [callStatusViewModel.activeCalls]
   );
+  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
+  const isSleepingLikeStatus = [
+    "NAPPING",
+    "SLEEPING",
+    "SLEEPING_LIGHT_ON",
+  ].includes(visibleSleepStatus);
+  const sleepStatusLabel = (() => {
+    switch (visibleSleepStatus) {
+      case "FALLING_ASLEEP":
+        return "잠들기 준비 중";
+      case "NAPPING":
+        return "낮잠 중";
+      case "SLEEPING":
+        return "수면 중";
+      case "SLEEPING_LIGHT_ON":
+        return "수면 중(불 켜짐 경고!)";
+      case "AWAKE_INTERRUPTED":
+        return "강제 기상 중";
+      case "AWAKE":
+      default:
+        return "깨어있음";
+    }
+  })();
   
   // stats 내부 항목 구조 분해
   const {
@@ -856,7 +882,7 @@ export default function StatsPopup({
           </li>
           <li>Win Ratio: {winRate || 0}%</li>
           <li className="mt-2 pt-1 border-t">Flags:</li>
-          <li>- isSleeping: {sleepStatus === 'SLEEPING' ? 'Yes' : 'No'}</li>
+          <li>- isSleeping: {isSleepingLikeStatus ? 'Yes' : 'No'}</li>
           <li>- isInjured: {isInjured ? 'Yes' : 'No'}</li>
           <li>- isDead: {isDead ? 'Yes' : 'No'}</li>
           <li>- PoopCount: {poopCount}/8</li>
@@ -894,9 +920,9 @@ export default function StatsPopup({
             // 낮잠 중인지 확인
             const isNapTime = napUntil && currentTime < napUntil;
             
-            if (sleepStatus === 'AWAKE') {
+            if (visibleSleepStatus === 'AWAKE') {
               return '깨어있음';
-            } else if (sleepStatus === 'SLEEPING') {
+            } else if (visibleSleepStatus === 'SLEEPING' || visibleSleepStatus === 'NAPPING') {
               if (isNapTime) {
                 // 낮잠 중: 남은 시간 계산
                 const remainingMs = napUntil - currentTime;
@@ -913,14 +939,18 @@ export default function StatsPopup({
                   timeText = `${remainingSeconds}초`;
                 }
                 
-                return <span>수면 중 😴 <span className="text-blue-600">(낮잠: {timeText} 남음)</span></span>;
+                return <span>낮잠 중 😴 <span className="text-blue-600">({timeText} 남음)</span></span>;
               } else {
                 return '수면 중 😴';
               }
-            } else if (sleepStatus === 'TIRED') {
-              return 'SLEEPY(Lights Off plz)';
+            } else if (visibleSleepStatus === 'SLEEPING_LIGHT_ON') {
+              return '수면 중(불 켜짐 경고!)';
+            } else if (visibleSleepStatus === 'FALLING_ASLEEP') {
+              return '잠들기 준비 중';
+            } else if (visibleSleepStatus === 'AWAKE_INTERRUPTED') {
+              return '강제 기상 중';
             }
-            return sleepStatus;
+            return sleepStatusLabel;
           })()}</li>
           <li>잠들기: {(() => {
             // 디버깅: 값 확인 (개발 모드에서만)
@@ -931,7 +961,7 @@ export default function StatsPopup({
             }
             
             // fastSleepStart가 있고 불이 꺼져 있을 때 (wakeUntil과 관계없이 표시)
-            if (fastSleepStart && !isLightsOn) {
+            if (visibleSleepStatus === 'FALLING_ASLEEP' && fastSleepStart && !isLightsOn) {
               const elapsed = currentTime - fastSleepStart;
               const remainingSeconds = Math.max(0, 15 - Math.floor(elapsed / 1000));
               
@@ -954,15 +984,15 @@ export default function StatsPopup({
               }
             }
             
-            // 조건이 아닐 때 수면 상태 값 그대로 표시 (TIRED는 SLEEPY(Lights Off plz)로 통일)
-            const statusText = sleepStatus === 'AWAKE' ? 'AWAKE' : sleepStatus === 'SLEEPING' ? 'SLEEPING' : sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus;
+            // 조건이 아닐 때 수면 상태 값 그대로 표시
+            const statusText = sleepStatusLabel;
             return <span className="text-gray-500">{statusText}</span>;
           })()}</li>
           <li>조명 상태: {isLightsOn ? <span className="text-yellow-600 font-semibold">켜짐 🔆</span> : <span className="text-blue-600 font-semibold">꺼짐 🌙</span>}</li>
-          {sleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
+          {visibleSleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
             <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
           )}
-          {sleepStatus === 'SLEEPING' && (() => {
+          {visibleSleepStatus === 'SLEEPING' && (() => {
             // 낮잠 중인지 확인
             const isNapTime = napUntil && currentTime < napUntil;
             
@@ -1007,7 +1037,7 @@ export default function StatsPopup({
             );
           })()}
           {/* 빠른 잠들기 안내 */}
-          {!isLightsOn && fastSleepStart && (() => {
+          {!isLightsOn && fastSleepStart && visibleSleepStatus === 'FALLING_ASLEEP' && (() => {
             const elapsedSinceFastSleepStart = currentTime - fastSleepStart;
             const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
             if (remainingSeconds > 0 && remainingSeconds <= 15) {
@@ -1028,8 +1058,8 @@ export default function StatsPopup({
           })()}
           {/* 수면상태확인 항목 (항상 표시, 조건에 따라 다른 메시지) */}
           {(() => {
-            // 수면 시간이고 불이 켜져 있고 sleepLightOnStart가 있을 때만 카운트다운
-            if (sleepStatus === 'TIRED' && isLightsOn && sleepLightOnStart) {
+            // 수면 중이고 불이 켜져 있을 때만 카운트다운
+            if (visibleSleepStatus === 'SLEEPING_LIGHT_ON' && isLightsOn && sleepLightOnStart) {
               const elapsedMs = currentTime - sleepLightOnStart;
               const thresholdMs = 30 * 60 * 1000; // 30분
               const remainingMs = thresholdMs - elapsedMs;
@@ -1038,7 +1068,7 @@ export default function StatsPopup({
                 const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
                 return (
                   <li className="text-yellow-600 font-semibold">
-                    수면상태확인: 디지몬(조는중zZ), 조명(켜짐!) → {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
+                    수면상태확인: 수면 중(불 켜짐 경고!) → {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
                   </li>
                 );
               } else {
@@ -1050,15 +1080,15 @@ export default function StatsPopup({
               }
             }
             // 수면 시간이고 불이 꺼져 있을 때
-            else if (sleepStatus === 'SLEEPING' && !isLightsOn) {
+            else if (visibleSleepStatus === 'SLEEPING' && !isLightsOn) {
               return (
                 <li className="text-green-600 font-semibold">
-                  수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 잠자는 중 ✓
+                  수면상태확인: 수면 중, 조명(꺼짐!) → 잠자는 중 ✓
                 </li>
               );
             }
             // 수면 시간이 아니거나 수면 방해로 깨어있을 때
-            else if (sleepStatus === 'AWAKE') {
+            else if (visibleSleepStatus === 'AWAKE' || visibleSleepStatus === 'AWAKE_INTERRUPTED') {
               if (wakeUntil && currentTime < wakeUntil) {
                 // 15초 빠른 잠들기 대기 중인지 확인 (fastSleepStart가 있고 15초 안 지났을 때)
                 const isWaitingFastSleep = !isLightsOn && stats.fastSleepStart;
@@ -1068,7 +1098,7 @@ export default function StatsPopup({
                   if (remainingSeconds > 0 && remainingSeconds <= 15) {
                     return (
                       <li className="text-blue-500">
-                        수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 잠들기 준비 중 ({remainingSeconds}초 남음)
+                        수면상태확인: 잠들기 준비 중 ({remainingSeconds}초 남음)
                       </li>
                     );
                   }
@@ -1079,9 +1109,9 @@ export default function StatsPopup({
                 return (
                   <li className="text-orange-500">
                     수면상태확인: {isLightsOn ? (
-                      `디지몬(조는중zZ), 조명(켜짐!) → 수면 방해 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
+                      `강제 기상 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
                     ) : (
-                      `디지몬(조는중zZ), 조명(꺼짐!) → 수면 방해 회복 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
+                      `강제 기상 회복 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
                     )}
                   </li>
                 );
@@ -1094,7 +1124,7 @@ export default function StatsPopup({
                   if (remainingSeconds > 0 && remainingSeconds <= 15) {
                     return (
                       <li className="text-blue-500">
-                        수면상태확인: 디지몬(조는중zZ), 조명(꺼짐!) → 낮잠 준비 중 ({remainingSeconds}초 남음)
+                        수면상태확인: 잠들기 준비 중 ({remainingSeconds}초 남음)
                       </li>
                     );
                   }
@@ -1106,11 +1136,11 @@ export default function StatsPopup({
                 );
               }
             }
-            // TIRED 상태이지만 sleepLightOnStart가 없을 때 (방금 불을 켠 경우)
-            else if (sleepStatus === 'TIRED' && isLightsOn && !sleepLightOnStart) {
+            // 수면 중(불 켜짐 경고!) 상태이지만 sleepLightOnStart가 없을 때 (방금 불을 켠 경우)
+            else if (visibleSleepStatus === 'SLEEPING_LIGHT_ON' && isLightsOn && !sleepLightOnStart) {
               return (
                 <li className="text-yellow-500">
-                  수면상태확인: 디지몬(조는중zZ), 조명(켜짐!) → 카운트 시작 대기 중
+                  수면상태확인: 수면 중(불 켜짐 경고!) → 카운트 시작 대기 중
                 </li>
               );
             }
@@ -1118,7 +1148,7 @@ export default function StatsPopup({
             else {
               return (
                 <li className="text-gray-500">
-                  수면상태확인: 현재 상태 - {sleepStatus === 'TIRED' ? 'SLEEPY(Lights Off plz)' : sleepStatus === 'SLEEPING' ? '수면 중' : '깨어있음'}
+                  수면상태확인: 현재 상태 - {sleepStatusLabel}
                 </li>
               );
             }
@@ -1232,27 +1262,27 @@ export default function StatsPopup({
           {/* Sleep Call */}
           {isFrozen ? (
             <li className="border-l-4 pl-2 border-blue-300">
-              <div className="font-semibold">😴 Sleep Call (수면 호출)</div>
+              <div className="font-semibold">💡 수면 조명 경고</div>
               <div className="text-blue-600 ml-2">
                 🧊 냉장고 상태에서는 수면 개념이 없습니다
               </div>
             </li>
           ) : (
-          <li className="border-l-4 pl-2" style={{ borderColor: (sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn)) ? '#ef4444' : '#e5e7eb' }}>
-            <div className="font-semibold">😴 Sleep Call (수면 호출)</div>
+          <li className="border-l-4 pl-2" style={{ borderColor: (visibleSleepStatus === 'SLEEPING_LIGHT_ON' || activeCallMap.get("sleep")) ? '#f59e0b' : '#e5e7eb' }}>
+            <div className="font-semibold">💡 수면 조명 경고</div>
             <div className="text-xs text-gray-600 ml-2">
-              조건: 수면 시간 + 불 켜짐
+              조건: 수면 중 + 불 켜짐
             </div>
-            {sleepStatus === 'TIRED' || (sleepStatus === 'SLEEPING' && isLightsOn) ? (
-              activeCallMap.get("sleep") ? (
+            {activeCallMap.get("sleep") ? (
                 renderCallDetail(activeCallMap.get("sleep"))
-              ) : (
-                <div className="text-yellow-600 ml-2">호출 대기 중...</div>
-              )
             ) : (
-              <div className="text-green-600 ml-2">
-                ✓ 조건 미충족 (수면 상태: {sleepStatus === 'AWAKE' ? '깨어있음' : sleepStatus === 'SLEEPING' ? '수면 중 (불 꺼짐)' : sleepStatus}, 불: {isLightsOn ? '켜짐' : '꺼짐'})
-              </div>
+              visibleSleepStatus === 'SLEEPING_LIGHT_ON' ? (
+                <div className="text-yellow-600 ml-2">호출 대기 중...</div>
+              ) : (
+                <div className="text-green-600 ml-2">
+                  ✓ 조건 미충족 (수면 상태: {sleepStatusLabel}, 불: {isLightsOn ? '켜짐' : '꺼짐'})
+                </div>
+              )
             )}
           </li>
           )

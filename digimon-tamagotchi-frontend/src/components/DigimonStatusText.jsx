@@ -2,6 +2,7 @@
 import React from "react";
 import { willRefuseMeat } from "../logic/food/meat";
 import { willRefuseProtein } from "../logic/food/protein";
+import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 
 /**
  * DigimonStatusText 컴포넌트
@@ -23,6 +24,7 @@ const DigimonStatusText = ({
     overfeeds = 0,
     callStatus = {},
   } = digimonStats;
+  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
 
   // 상태 우선순위에 따라 메시지 결정
   const getStatusMessage = () => {
@@ -74,12 +76,21 @@ const DigimonStatusText = ({
       return { text: "똥이 많아요 💩", color: "text-orange-600", priority: 3 };
     }
 
-    // 4. 수면/피곤 상태
-    if (sleepStatus === "SLEEPING") {
-      return { text: "수면 중... 😴", color: "text-blue-500", priority: 4 };
+    // 4. 수면 상태
+    if (visibleSleepStatus === "AWAKE_INTERRUPTED") {
+      return { text: "강제 기상 중... ⏰", color: "text-orange-500", priority: 4 };
     }
-    if (sleepStatus === "TIRED") {
-      return { text: "SLEEPY(Lights Off plz) 😴", color: "text-yellow-600", priority: 4 };
+    if (visibleSleepStatus === "FALLING_ASLEEP") {
+      return { text: "잠들기 준비 중... 🌙", color: "text-slate-500", priority: 4 };
+    }
+    if (visibleSleepStatus === "NAPPING") {
+      return { text: "낮잠 중... 😴", color: "text-blue-500", priority: 4 };
+    }
+    if (visibleSleepStatus === "SLEEPING_LIGHT_ON") {
+      return { text: "수면 중(불 켜짐 경고!) 😴", color: "text-yellow-600", priority: 4 };
+    }
+    if (visibleSleepStatus === "SLEEPING") {
+      return { text: "수면 중... 😴", color: "text-blue-500", priority: 4 };
     }
 
     // 5. 배고픔/힘 0 (호출 상태)
@@ -90,7 +101,7 @@ const DigimonStatusText = ({
       return { text: "힘이 없어요! 💪", color: "text-red-500", priority: 5 };
     }
     if (callStatus.sleep?.isActive) {
-      return { text: "잠이 와요... 😴", color: "text-yellow-500", priority: 5 };
+      return { text: "수면 조명 경고! 💡", color: "text-yellow-500", priority: 5 };
     }
 
     // 6. 배고픔/힘 낮음 (0은 아니지만 낮음)
@@ -152,4 +163,3 @@ const DigimonStatusText = ({
 };
 
 export default DigimonStatusText;
-

@@ -1,5 +1,6 @@
 import React from "react";
 import { buildCommunitySnapshotVisual } from "../../utils/communitySnapshotUtils";
+import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
 
 const POOP_POSITIONS = [
   { top: "62%", left: "12%" },
@@ -12,6 +13,7 @@ const POOP_POSITIONS = [
 
 function CommunitySnapshotScene({ snapshot, variant = "card" }) {
   const visual = buildCommunitySnapshotVisual(snapshot);
+  const sleepStatus = normalizeSleepStatusForDisplay(visual.sleepStatus);
 
   if (!visual) {
     return null;
@@ -23,10 +25,16 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
 
   if (visual.isFrozen) {
     sceneBadges.push({ key: "frozen", label: "냉장고", tone: "cool" });
-  } else if (visual.sleepStatus === "SLEEPING") {
+  } else if (sleepStatus === "NAPPING") {
+    sceneBadges.push({ key: "napping", label: "낮잠", tone: "sleep" });
+  } else if (sleepStatus === "SLEEPING") {
     sceneBadges.push({ key: "sleeping", label: "Zzz...", tone: "sleep" });
-  } else if (visual.sleepStatus === "TIRED") {
-    sceneBadges.push({ key: "tired", label: "불 꺼줘!", tone: "warn" });
+  } else if (sleepStatus === "SLEEPING_LIGHT_ON") {
+    sceneBadges.push({ key: "sleeping-light-on", label: "불 켜짐 경고!", tone: "warn" });
+  } else if (sleepStatus === "FALLING_ASLEEP") {
+    sceneBadges.push({ key: "falling-asleep", label: "잠들기 준비", tone: "warn" });
+  } else if (sleepStatus === "AWAKE_INTERRUPTED") {
+    sceneBadges.push({ key: "awake-interrupted", label: "강제 기상", tone: "warn" });
   }
 
   if (visual.isDead) {

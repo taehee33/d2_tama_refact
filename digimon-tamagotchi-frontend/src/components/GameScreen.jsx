@@ -1,7 +1,10 @@
 // src/components/GameScreen.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Canvas from "./Canvas";
-import { buildCallStatusViewModel } from "../utils/callStatusUtils";
+import {
+  buildCallStatusViewModel,
+  normalizeSleepStatusForDisplay,
+} from "../utils/callStatusUtils";
 
 const CALL_CARD_STYLES = {
   hunger: {
@@ -79,7 +82,8 @@ const GameScreen = ({
   isFrozen = false,
   frozenAt = null,
   takeOutAt = null,
-}) => {
+  }) => {
+  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   // 부상 상태 이모티콘 목록
   const sickEmojis = ["😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "😵‍💫", "🤯"];
   
@@ -201,8 +205,8 @@ const GameScreen = ({
         />
       )}
       
-      {/* 수면/피곤 상태 아이콘 (냉장고 상태에서는 표시하지 않음) */}
-      {!isFrozen && (sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && (
+      {/* 수면 상태 아이콘 (냉장고 상태에서는 표시하지 않음) */}
+      {!isFrozen && visibleSleepStatus !== "AWAKE" && (
         <div
           style={{
             position: "absolute",
@@ -217,7 +221,15 @@ const GameScreen = ({
             fontSize: 12,
           }}
         >
-          {sleepStatus === "SLEEPING" ? "Zzz…" : "💡 불 꺼줘!"}
+          {visibleSleepStatus === "FALLING_ASLEEP"
+            ? "잠들기 준비 중"
+            : visibleSleepStatus === "NAPPING"
+              ? "낮잠 중"
+              : visibleSleepStatus === "SLEEPING"
+                ? "Zzz…"
+                : visibleSleepStatus === "SLEEPING_LIGHT_ON"
+                  ? "💡 불 켜짐 경고!"
+                  : "⏰ 강제 기상"}
         </div>
       )}
       
@@ -486,7 +498,7 @@ const GameScreen = ({
             
             <div className="mt-4 pt-4 border-t">
               <p className="text-xs text-gray-500">
-                💡 배고픔/힘 호출은 10분 내 대응이 필요하고, 수면 호출은 경고 전용입니다.
+                💡 배고픔/힘 호출은 10분 내 대응이 필요하고, 수면 조명 경고는 30분 내 조명이 정리돼야 합니다.
               </p>
             </div>
           </div>

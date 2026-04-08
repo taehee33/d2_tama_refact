@@ -27,7 +27,7 @@ function createBaseStats(overrides = {}) {
 }
 
 describe("useGameLogic sleep-related warning rules", () => {
-  test("수면 시간 + 불 켜짐이면 TIRED 상태가 된다", () => {
+  test("수면 시간 + 불 켜짐이면 SLEEPING_LIGHT_ON 상태가 된다", () => {
     const result = getSleepStatus({
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: true,
@@ -35,86 +35,176 @@ describe("useGameLogic sleep-related warning rules", () => {
       now: new Date(2026, 2, 31, 23, 0, 0),
     });
 
-    expect(result).toBe("TIRED");
+    expect(result).toBe("SLEEPING_LIGHT_ON");
   });
 
-  test("수면 시간 + 불 켜짐이면 sleep call이 활성화된다", () => {
-    const now = new Date(2026, 2, 31, 23, 0, 0);
-
-    const result = checkCalls(
-      createBaseStats(),
-      true,
-      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      now,
-      false
-    );
-
-    expect(result.callStatus.sleep.isActive).toBe(true);
-    expect(result.callStatus.sleep.startedAt).toBe(now.getTime());
-  });
-
-  test("실제로 잠든 상태면 sleep call은 비활성화된다", () => {
-    const now = new Date(2026, 2, 31, 23, 0, 0);
-
-    const result = checkCalls(
-      createBaseStats({
-        callStatus: {
-          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-          sleep: { isActive: true, startedAt: now.getTime() - 5 * 60 * 1000 },
-        },
-      }),
-      true,
-      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      now,
-      true
-    );
-
-    expect(result.callStatus.sleep.isActive).toBe(false);
-    expect(result.callStatus.sleep.startedAt).toBeNull();
-  });
-
-  test("sleep call 60분 초과는 케어미스를 올리지 않고 경고 상태를 유지한다", () => {
-    const startedAt = new Date(2026, 2, 31, 22, 0, 0).getTime();
-    const now = new Date(2026, 2, 31, 23, 1, 0);
-    const baseStats = createBaseStats({
-      callStatus: {
-        hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-        strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-        sleep: { isActive: true, startedAt },
-      },
+  test("수면 시간 + 불 꺼짐이면 15초 동안 FALLING_ASLEEP 상태가 유지된다", () => {
+    const result = getSleepStatus({
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      isLightsOn: false,
+      wakeUntil: null,
+      fastSleepStart: new Date(2026, 2, 31, 22, 59, 50).getTime(),
+      now: new Date(2026, 2, 31, 23, 0, 0),
     });
 
-    const result = checkCallTimeouts(
-      baseStats,
-      now,
-      false
-    );
-
-    expect(result).toBe(baseStats);
+    expect(result).toBe("FALLING_ASLEEP");
   });
 
-  test("실제 수면 중인 배고픔 호출은 타임아웃 기준 시각을 매초 리셋하지 않는다", () => {
-    const startedAt = new Date(2026, 2, 31, 22, 50, 0).getTime();
-    const sleepStartAt = new Date(2026, 2, 31, 22, 55, 0).getTime();
-    const deadline = startedAt + 10 * 60 * 1000;
-    const now = new Date(2026, 2, 31, 22, 57, 0);
+  test("수면 시간 + 불 꺼짐 15초 후 SLEEPING 상태가 된다", () => {
+    const result = getSleepStatus({
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      isLightsOn: false,
+      wakeUntil: null,
+      fastSleepStart: new Date(2026, 2, 31, 22, 59, 40).getTime(),
+      now: new Date(2026, 2, 31, 23, 0, 0),
+    });
+
+    expect(result).toBe("SLEEPING");
+  });
+
+  test("수면 시간이 아니고 낮잠 시간이면 NAPPING 상태가 된다", () => {
+    const result = getSleepStatus({
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      isLightsOn: false,
+      wakeUntil: null,
+      napUntil: new Date(2026, 2, 31, 15, 0, 0).getTime(),
+      now: new Date(2026, 2, 31, 12, 0, 0),
+    });
+
+    expect(result).toBe("NAPPING");
+  });
+
+  test("낮잠 중 불을 켜면 AWAKE 상태가 된다", () => {
+    const result = getSleepStatus({
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      isLightsOn: true,
+      wakeUntil: null,
+      napUntil: new Date(2026, 2, 31, 15, 0, 0).getTime(),
+      now: new Date(2026, 2, 31, 12, 0, 0),
+    });
+
+    expect(result).toBe("AWAKE");
+  });
+
+  test("wakeUntil이 남아 있으면 AWAKE_INTERRUPTED 상태가 된다", () => {
+    const result = getSleepStatus({
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      isLightsOn: false,
+      wakeUntil: new Date(2026, 2, 31, 23, 10, 0).getTime(),
+      fastSleepStart: new Date(2026, 2, 31, 22, 59, 40).getTime(),
+      now: new Date(2026, 2, 31, 23, 0, 0),
+    });
+
+    expect(result).toBe("AWAKE_INTERRUPTED");
+  });
+
+  test("잠든 동안 호출 타이머는 멈췄다가 깨어나면 이어진다", () => {
+    const zeroAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const sleepStartAt = new Date(2026, 2, 31, 23, 0, 0).getTime();
+    const wakeAt = sleepStartAt + 5 * 1000;
     const baseStats = createBaseStats({
       fullness: 0,
-      lastHungerZeroAt: startedAt,
-      hungerMistakeDeadline: deadline,
+      lastHungerZeroAt: zeroAt,
+      hungerMistakeDeadline: zeroAt + 10 * 60 * 1000,
       callStatus: {
-        hunger: { isActive: true, startedAt, sleepStartAt, isLogged: false },
+        hunger: { isActive: true, startedAt: zeroAt, sleepStartAt: null, isLogged: false },
         strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
         sleep: { isActive: false, startedAt: null },
       },
     });
 
-    const result = checkCallTimeouts(baseStats, now, true);
+    const sleepingResult = checkCalls(
+      baseStats,
+      false,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      new Date(sleepStartAt),
+      "SLEEPING"
+    );
 
-    expect(result).toBe(baseStats);
-    expect(result.callStatus.hunger.startedAt).toBe(startedAt);
-    expect(result.hungerMistakeDeadline).toBe(deadline);
+    expect(sleepingResult.callStatus.hunger.sleepStartAt).toBe(sleepStartAt);
+    expect(sleepingResult.callStatus.hunger.startedAt).toBe(zeroAt);
+    expect(sleepingResult.hungerMistakeDeadline).toBe(zeroAt + 10 * 60 * 1000);
+
+    const resumedResult = checkCalls(
+      sleepingResult,
+      false,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      new Date(wakeAt),
+      "AWAKE_INTERRUPTED"
+    );
+
+    expect(resumedResult.callStatus.hunger.sleepStartAt).toBeNull();
+    expect(resumedResult.callStatus.hunger.startedAt).toBe(zeroAt + 5 * 1000);
+    expect(resumedResult.hungerMistakeDeadline).toBe(zeroAt + 10 * 60 * 1000 + 5 * 1000);
+  });
+
+  test("수면 조명 경고 30분 초과는 같은 사건에서 케어미스를 1회만 올린다", () => {
+    const startedAt = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    const now = new Date(2026, 2, 31, 22, 31, 0);
+    const baseStats = createBaseStats({
+      callStatus: {
+        hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        sleep: { isActive: true, startedAt, isLogged: false },
+      },
+    });
+
+    const result = checkCallTimeouts(baseStats, now, "SLEEPING_LIGHT_ON");
+    const repeatedResult = checkCallTimeouts(result, new Date(2026, 2, 31, 22, 45, 0), "SLEEPING_LIGHT_ON");
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.callStatus.sleep.isLogged).toBe(true);
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ reasonKey: "sleep_light_warning", resolvedAt: null }),
+      ])
+    );
+    expect(repeatedResult.careMistakes).toBe(1);
+  });
+
+  test("수면 조명 경고는 불을 껐다가 다시 켜 새 사건이 시작되면 다시 1회 집계된다", () => {
+    const firstStartedAt = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    const secondStartedAt = new Date(2026, 2, 31, 22, 40, 0).getTime();
+    const firstIncidentResult = checkCallTimeouts(
+      createBaseStats({
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: firstStartedAt, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 22, 31, 0),
+      "SLEEPING_LIGHT_ON"
+    );
+
+    const resetIncident = checkCalls(
+      {
+        ...firstIncidentResult,
+        callStatus: {
+          ...firstIncidentResult.callStatus,
+          sleep: {
+            ...firstIncidentResult.callStatus.sleep,
+            isActive: true,
+            startedAt: secondStartedAt,
+            isLogged: false,
+          },
+        },
+        sleepLightOnStart: secondStartedAt,
+      },
+      true,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      new Date(secondStartedAt),
+      "SLEEPING_LIGHT_ON"
+    );
+
+    const secondIncidentResult = checkCallTimeouts(
+      resetIncident,
+      new Date(2026, 2, 31, 23, 11, 0),
+      "SLEEPING_LIGHT_ON"
+    );
+
+    expect(firstIncidentResult.careMistakes).toBe(1);
+    expect(secondIncidentResult.careMistakes).toBe(2);
   });
 
   test("수면 방해 로그는 10분 이내 중복을 감지한다", () => {
@@ -164,7 +254,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
         },
       }),
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.careMistakes).toBe(1);
@@ -190,7 +280,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
         },
       }),
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.careMistakes).toBe(1);
@@ -218,7 +308,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
       true,
       { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.callStatus.hunger.isActive).toBe(false);
@@ -245,7 +335,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
       true,
       { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.callStatus.strength.isActive).toBe(false);
@@ -272,7 +362,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
         },
       }),
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.careMistakes).toBe(2);
@@ -304,7 +394,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
       true,
       { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       now,
-      false
+      "AWAKE"
     );
 
     expect(result.callStatus.hunger).toMatchObject({
@@ -320,6 +410,7 @@ describe("useGameLogic hunger/strength call consistency", () => {
     expect(result.callStatus.sleep).toEqual({
       isActive: false,
       startedAt: null,
+      isLogged: false,
     });
   });
 
@@ -339,32 +430,5 @@ describe("useGameLogic hunger/strength call consistency", () => {
     );
 
     expect(finalLogs).toHaveLength(2);
-  });
-
-  test("수면에서 깨어나면 배고픔 호출 타이머가 잠든 시간만큼 뒤로 이동한다", () => {
-    const zeroAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
-    const sleepStartAt = new Date(2026, 2, 31, 11, 55, 0).getTime();
-    const now = new Date(2026, 2, 31, 11, 58, 0);
-
-    const result = checkCalls(
-      createBaseStats({
-        fullness: 0,
-        lastHungerZeroAt: zeroAt,
-        hungerMistakeDeadline: zeroAt + 10 * 60 * 1000,
-        callStatus: {
-          hunger: { isActive: true, startedAt: zeroAt, sleepStartAt, isLogged: false },
-          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
-          sleep: { isActive: false, startedAt: null },
-        },
-      }),
-      false,
-      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      now,
-      false
-    );
-
-    expect(result.callStatus.hunger.startedAt).toBe(zeroAt + 3 * 60 * 1000);
-    expect(result.callStatus.hunger.sleepStartAt).toBeNull();
-    expect(result.hungerMistakeDeadline).toBe(zeroAt + 13 * 60 * 1000);
   });
 });

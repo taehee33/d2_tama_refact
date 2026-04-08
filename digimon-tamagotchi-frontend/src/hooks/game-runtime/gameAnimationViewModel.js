@@ -56,6 +56,11 @@ export function buildGameAnimationViewModel({
   let eatFramesArr = eatOff.map((n) => `${baseSprite + n}`);
   let rejectFramesArr = rejectOff.map((n) => `${baseSprite + n}`);
   let desiredAnimation = null;
+  const sleepingLikeStatuses = new Set([
+    "NAPPING",
+    "SLEEPING",
+    "SLEEPING_LIGHT_ON",
+  ]);
 
   if (digimonStats.isDead) {
     idleFrames = [`${baseSprite + 14}`];
@@ -68,7 +73,7 @@ export function buildGameAnimationViewModel({
     rejectFramesArr = idleFrames;
     desiredAnimation = currentAnimation !== "sick" ? "sick" : null;
   } else if (
-    (sleepStatus === "SLEEPING" || sleepStatus === "TIRED") &&
+    sleepingLikeStatuses.has(sleepStatus) &&
     !isDigitama
   ) {
     idleFrames = [`${baseSprite + 11}`, `${baseSprite + 12}`];

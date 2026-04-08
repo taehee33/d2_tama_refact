@@ -1,6 +1,7 @@
 import { willRefuseMeat } from "../logic/food/meat";
 import { willRefuseProtein } from "../logic/food/protein";
 import { getTimeUntilSleep } from "../utils/sleepUtils";
+import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 
 export const DIGIMON_STATUS_CATEGORY_ORDER = [
   "critical",
@@ -152,6 +153,7 @@ export function buildDigimonStatusMessages({
   const wakeUntilTs = toTimestamp(wakeUntil);
   const sleepLightOnStartTs = toTimestamp(sleepLightOnStart);
   const napUntilTs = toTimestamp(napUntil);
+  const sleepState = normalizeSleepStatusForDisplay(sleepStatus);
   const hasWakeWindow = !isFrozen && wakeUntilTs != null && now < wakeUntilTs;
   const meatRefused = willRefuseMeat(digimonStats);
   const proteinRefused = willRefuseProtein(digimonStats);
@@ -276,20 +278,49 @@ export function buildDigimonStatusMessages({
     );
   }
 
-  if (!isFrozen && sleepStatus === "TIRED") {
+  if (!isFrozen && sleepState === "FALLING_ASLEEP") {
+    messages.push(
+      createStatusMessage({
+        id: "sleep-falling-asleep",
+        text: "잠들기 준비 중... 🌙",
+        color: "text-slate-600",
+        bgColor: "bg-slate-100",
+        category: "info",
+        priority: 33,
+        detailHint: "불을 끈 뒤 15초가 지나면 실제 수면 상태로 전환돼요.",
+      })
+    );
+  } else if (!isFrozen && sleepState === "NAPPING") {
+    const napCountdownText =
+      napUntilTs != null && now < napUntilTs
+        ? `${formatShortDuration(napUntilTs - now)} 뒤에 다시 깨어나요.`
+        : "낮잠 종료가 가까워요.";
+
+    messages.push(
+      createStatusMessage({
+        id: "sleep-napping",
+        text: "낮잠 중 😴",
+        color: "text-blue-600",
+        bgColor: "bg-blue-100",
+        category: "info",
+        priority: 33,
+        detailHint: napCountdownText,
+      })
+    );
+  } else if (!isFrozen && sleepState === "SLEEPING_LIGHT_ON") {
     const elapsedMs = sleepLightOnStartTs == null ? 0 : now - sleepLightOnStartTs;
     const remainingMs = 30 * 60 * 1000 - elapsedMs;
     const countdownText =
       sleepLightOnStartTs == null
-        ? "불을 끄면 바로 잘 수 있어요."
+        ? "불을 끄면 경고가 시작돼요."
         : remainingMs > 0
           ? `케어 미스까지 ${formatShortDuration(remainingMs)}`
           : "케어 미스 발생 구간";
 
     messages.push(
       createStatusMessage({
-        id: "sleep-tired",
-        text: `졸림! 불을 꺼 주세요 😴`,
+        id: "sleep-light-on",
+        text: "수면 중(불 켜짐 경고!) 😴",
         color: remainingMs > 0 ? "text-orange-600" : "text-red-600",
         bgColor: remainingMs > 0 ? "bg-orange-100" : "bg-red-100",
         category: "warning",
@@ -297,16 +328,59 @@ export function buildDigimonStatusMessages({
         detailHint: countdownText,
       })
     );
+  } else if (!isFrozen && sleepState === "AWAKE_INTERRUPTED") {
+    const remainingText =
+      wakeUntilTs != null && now < wakeUntilTs
+        ? `강제 기상 종료까지 ${formatShortDuration(wakeUntilTs - now)}`
+        : "강제 기상 상태예요.";
+
+    messages.push(
+      createStatusMessage({
+        id: "sleep-awake-interrupted",
+        text: "강제 기상 중 ⏰",
+        color: "text-orange-600",
+        bgColor: "bg-orange-100",
+        category: "warning",
+        priority: 33,
+        detailHint: remainingText,
+      })
+    );
+  } else if (!isFrozen && sleepState === "SLEEPING") {
+    if (napUntilTs != null && now < napUntilTs) {
+      messages.push(
+        createStatusMessage({
+          id: "sleeping-nap",
+          text: "낮잠 중 😴",
+          color: "text-blue-600",
+          bgColor: "bg-blue-100",
+          category: "info",
+          priority: 34,
+          detailHint: `${formatShortDuration(napUntilTs - now)} 뒤에 다시 깨어나요.`,
+        })
+      );
+    } else {
+      messages.push(
+        createStatusMessage({
+          id: "sleeping",
+          text: "수면 중 😴",
+          color: "text-blue-600",
+          bgColor: "bg-blue-100",
+          category: "info",
+          priority: 34,
+          detailHint: "지금은 쉬는 시간이라 깨우면 수면 방해로 집계될 수 있어요.",
+        })
+      );
+    }
   } else if (!isFrozen && hasSleepCall) {
     messages.push(
       createStatusMessage({
         id: "call-sleep",
-        text: "수면 호출 😴",
+        text: "수면 조명 경고 😴",
         color: "text-orange-600",
         bgColor: "bg-orange-100",
         category: "warning",
         priority: 34,
-        detailHint: "잘 시간이 되었어요. 불을 끄거나 잠들 수 있게 도와 주세요.",
+        detailHint: "잠들었는데 불이 켜져 있어요. 조명을 정리해 주세요.",
       })
     );
   }
@@ -452,34 +526,6 @@ export function buildDigimonStatusMessages({
         detailHint: "냉장고 보관 중에는 수면과 일부 시간 경과가 멈춰요.",
       })
     );
-  }
-
-  if (!isFrozen && sleepStatus === "SLEEPING") {
-    if (napUntilTs != null && now < napUntilTs) {
-      messages.push(
-        createStatusMessage({
-          id: "sleeping-nap",
-          text: `낮잠 중 😴`,
-          color: "text-blue-600",
-          bgColor: "bg-blue-100",
-          category: "info",
-          priority: 71,
-          detailHint: `${formatShortDuration(napUntilTs - now)} 뒤에 다시 깨어나요.`,
-        })
-      );
-    } else {
-      messages.push(
-        createStatusMessage({
-          id: "sleeping",
-          text: "수면 중 😴",
-          color: "text-blue-600",
-          bgColor: "bg-blue-100",
-          category: "info",
-          priority: 72,
-          detailHint: "지금은 쉬는 시간이라 깨우면 수면 방해로 집계될 수 있어요.",
-        })
-      );
-    }
   }
 
   if (canEvolve && !isDead) {

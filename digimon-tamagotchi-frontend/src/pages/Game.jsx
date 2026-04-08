@@ -236,7 +236,7 @@ function Game({ immersive = false }){
     setSleepStatus,
   } = ui;
 
-  // tiredStartRef, tiredCountedRef는 더 이상 사용하지 않음 (digimonStats.tiredStartAt으로 대체)
+  // legacy tired refs는 더 이상 사용하지 않음
 
   // 상태 상세 모달용 메시지 저장
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);

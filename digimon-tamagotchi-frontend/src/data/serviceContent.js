@@ -210,7 +210,7 @@ export const communityShowcaseSamples = [
       visual: {
         backgroundNumber: 168,
         isLightsOn: true,
-        sleepStatus: "TIRED",
+        sleepStatus: "SLEEPING_LIGHT_ON",
         poopCount: 6,
         isFrozen: false,
         isDead: false,

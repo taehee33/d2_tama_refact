@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { getFridgeRenderPolicy } from "./fridgeRenderPolicy";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
+import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
@@ -119,7 +120,7 @@ const Canvas = ({
   showPoopCleanAnimation=false,
   cleanStep=0,
   // ★ (3) 수면 상태 (Zzz 애니메이션)
-  sleepStatus="AWAKE", // 'AWAKE' | 'TIRED' | 'SLEEPING'
+  sleepStatus="AWAKE", // 'AWAKE' | 'FALLING_ASLEEP' | 'NAPPING' | 'SLEEPING' | 'SLEEPING_LIGHT_ON' | 'AWAKE_INTERRUPTED'
   // ★ (4) 거절 상태 (오버피드)
   isRefused=false, // 고기 거절 상태
   // ★ (5) 사망 상태
@@ -133,6 +134,7 @@ const Canvas = ({
   frozenAt=null, // 냉장고에 넣은 시간 (timestamp)
   takeOutAt=null, // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
 }) => {
+  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
   const animationID= useRef(null);
@@ -193,8 +195,15 @@ const Canvas = ({
       imageSources["poop"]= poopSprite;    // "/images/533.png"
       imageSources["clean"]= cleanSprite;  // "/images/534.png"
       
-      // Zzz 스프라이트 (수면 상태일 때, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
-      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
+      // Zzz 스프라이트 (실제 수면 상태일 때만, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
+      if(
+        (visibleSleepStatus === "NAPPING" ||
+          visibleSleepStatus === "SLEEPING" ||
+          visibleSleepStatus === "SLEEPING_LIGHT_ON") &&
+        !isDead &&
+        !isFrozen &&
+        selectedDigimon !== "Digitama"
+      ){
         zzzSprites.forEach((src, idx)=>{
           imageSources[`zzz${idx}`]= src;
         });
@@ -432,7 +441,14 @@ const Canvas = ({
       }
 
       // ★ (6) Zzz 애니메이션 (수면 상태, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
-      if((sleepStatus === "SLEEPING" || sleepStatus === "TIRED") && !isDead && !isFrozen && selectedDigimon !== "Digitama"){
+      if(
+        (visibleSleepStatus === "NAPPING" ||
+          visibleSleepStatus === "SLEEPING" ||
+          visibleSleepStatus === "SLEEPING_LIGHT_ON") &&
+        !isDead &&
+        !isFrozen &&
+        selectedDigimon !== "Digitama"
+      ){
         const zzzFrameIdx = Math.floor(frame/speed) % zzzSprites.length;
         const zzzKey = `zzz${zzzFrameIdx}`;
         const zzzImg = spriteCache.current[zzzKey];

@@ -74,21 +74,21 @@ describe("digimonStatusMessages", () => {
     expect(messages.map((message) => message.id)).not.toContain("time-until-sleep");
   });
 
-  test("TIRED 상태는 한국어 경고 문구와 남은 시간 힌트로 표시된다", () => {
+  test("SLEEPING_LIGHT_ON 상태는 한국어 경고 문구와 남은 시간 힌트로 표시된다", () => {
     const now = new Date(2026, 3, 7, 23, 10, 0).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats(),
-      sleepStatus: "TIRED",
+      sleepStatus: "SLEEPING_LIGHT_ON",
       sleepLightOnStart: now - 10 * 60 * 1000,
       currentTime: now,
     });
 
-    const tiredMessage = messages.find((message) => message.id === "sleep-tired");
+    const tiredMessage = messages.find((message) => message.id === "sleep-light-on");
 
     expect(tiredMessage).toBeTruthy();
-    expect(tiredMessage.text).toBe("졸림! 불을 꺼 주세요 😴");
+    expect(tiredMessage.text).toBe("수면 중(불 켜짐 경고!) 😴");
     expect(tiredMessage.detailHint).toContain("케어 미스까지");
-    expect(tiredMessage.text).not.toContain("Lights Off");
+    expect(tiredMessage.text).not.toContain("TIRED");
   });
 });

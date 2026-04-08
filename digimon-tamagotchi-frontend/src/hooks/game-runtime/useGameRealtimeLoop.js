@@ -4,8 +4,9 @@ import {
   checkCalls,
   checkCallTimeouts,
   getSleepStatus,
+  isSleepStatusSleeping,
 } from "../useGameLogic";
-import { getSleepSchedule, isWithinSleepSchedule } from "../useGameHandlers";
+import { getSleepSchedule } from "../useGameHandlers";
 import { updateLifespan } from "../../data/stats";
 import { handleHungerTick } from "../../logic/stats/hunger";
 import { handleStrengthTick } from "../../logic/stats/strength";
@@ -40,7 +41,7 @@ export function useGameRealtimeLoop({
   persistDeathSnapshot,
 }) {
   const lastUpdateTimeRef = useRef(Date.now());
-  const prevSleepingRef = useRef(null);
+  const prevSleepStatusRef = useRef("AWAKE");
   const lastAddedCareMistakeKeysRef = useRef(new Set());
   const runtimeRef = useRef({
     digimonDataForSlot,
@@ -132,9 +133,6 @@ export function useGameRealtimeLoop({
         );
         const nowMs = Date.now();
         const nowDate = new Date(nowMs);
-        const inSchedule = isWithinSleepSchedule(schedule, nowDate);
-        const wakeOverride = live.wakeUntil && nowMs < live.wakeUntil;
-        const sleepingNow = inSchedule && !wakeOverride;
         const currentSleepStatus = getSleepStatus({
           sleepSchedule: schedule,
           isLightsOn: live.isLightsOn,
@@ -143,9 +141,7 @@ export function useGameRealtimeLoop({
           napUntil: prevStats.napUntil || null,
           now: nowDate,
         });
-        // TIRED는 졸림 경고 상태일 뿐 실제 수면이 아니므로
-        // 배고픔/힘 호출 타이머와 실시간 감소 로직은 계속 진행한다.
-        const isActuallySleeping = currentSleepStatus === "SLEEPING";
+        const isActuallySleeping = isSleepStatusSleeping(currentSleepStatus);
 
         let updatedStats = updateLifespan(
           prevStats,
@@ -189,61 +185,48 @@ export function useGameRealtimeLoop({
           updatedStats.napUntil = null;
         }
 
-        updatedStats.tiredStartAt = prevStats.tiredStartAt || null;
-        updatedStats.tiredCounted = prevStats.tiredCounted || false;
-
-        const todayStartMs = new Date(
-          nowDate.getFullYear(),
-          nowDate.getMonth(),
-          nowDate.getDate()
-        ).getTime();
-        const storedSleepMistake = updatedStats.sleepMistakeDate;
-        const isNewDay =
-          typeof storedSleepMistake === "number"
-            ? storedSleepMistake !== todayStartMs
-            : storedSleepMistake !== nowDate.toDateString();
-
-        if (isNewDay) {
-          updatedStats.sleepMistakeDate = todayStartMs;
-          updatedStats.dailySleepMistake = false;
-          setDailySleepMistake(false);
+        if (currentSleepStatus === "FALLING_ASLEEP") {
+          if (!updatedStats.fastSleepStart && prevStats.fastSleepStart) {
+            updatedStats.fastSleepStart = prevStats.fastSleepStart;
+          }
+        } else {
+          updatedStats.fastSleepStart = null;
         }
 
-        if (sleepingNow && live.isLightsOn) {
+        if (currentSleepStatus === "SLEEPING_LIGHT_ON") {
           if (!updatedStats.sleepLightOnStart) {
             updatedStats.sleepLightOnStart = nowMs;
           }
-          updatedStats.fastSleepStart = null;
         } else {
           updatedStats.sleepLightOnStart = null;
         }
 
-        const wasSleeping = prevSleepingRef.current;
-        if (wasSleeping !== null) {
+        const wasSleepStatus = prevSleepStatusRef.current;
+        const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
+        const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
+        const wasNapping = wasSleepStatus === "NAPPING";
+        const isNapping = currentSleepStatus === "NAPPING";
+        if (wasSleepStatus !== null) {
           const timeStr = new Date(nowMs).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
             minute: "2-digit",
           });
           const currentLogs = updatedStats.activityLogs || [];
 
-          if (!wasSleeping && sleepingNow) {
-            const newLogs = addActivityLog(
-              currentLogs,
-              "SLEEP_START",
-              `잠들음 (${timeStr})`
-            );
+          if (!wasSleepingLike && isSleepingLike) {
+            const logType = isNapping ? "NAP_START" : "SLEEP_START";
+            const logText = isNapping ? `낮잠 시작 (${timeStr})` : `잠들음 (${timeStr})`;
+            const newLogs = addActivityLog(currentLogs, logType, logText);
             updatedStats.activityLogs = newLogs;
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
                 newLogs[newLogs.length - 1]
               ).catch(() => {});
             }
-          } else if (wasSleeping && !sleepingNow) {
-            const newLogs = addActivityLog(
-              currentLogs,
-              "SLEEP_END",
-              `깨어남 (${timeStr})`
-            );
+          } else if (wasSleepingLike && !isSleepingLike) {
+            const logType = wasNapping ? "NAP_END" : "SLEEP_END";
+            const logText = wasNapping ? `낮잠 종료 (${timeStr})` : `깨어남 (${timeStr})`;
+            const newLogs = addActivityLog(currentLogs, logType, logText);
             updatedStats.activityLogs = newLogs;
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
@@ -252,9 +235,9 @@ export function useGameRealtimeLoop({
             }
           }
         }
-        prevSleepingRef.current = sleepingNow;
+        prevSleepStatusRef.current = currentSleepStatus;
 
-        setIsSleeping(sleepingNow);
+        setIsSleeping(isSleepingLike);
 
         if (!updatedStats.isDead) {
           const deathEvaluation = evaluateDeathConditions(updatedStats, Date.now());
@@ -278,7 +261,7 @@ export function useGameRealtimeLoop({
           live.isLightsOn,
           sleepSchedule,
           new Date(),
-          isActuallySleeping
+          currentSleepStatus
         );
 
         if (
@@ -323,7 +306,11 @@ export function useGameRealtimeLoop({
         ) {
           setActivityLogs((prevLogs) => {
             const currentLogs = updatedStats.activityLogs || prevLogs || [];
-            const nextLogs = addActivityLog(currentLogs, "CALL", "수면 호출이 시작되었습니다.");
+            const nextLogs = addActivityLog(
+              currentLogs,
+              "CALL",
+              "수면 조명 경고가 시작되었습니다."
+            );
             if (live.appendLogToSubcollection) {
               live.appendLogToSubcollection(
                 nextLogs[nextLogs.length - 1]
@@ -341,7 +328,11 @@ export function useGameRealtimeLoop({
         const previousLedger = initializeCareMistakeLedger(
           repairedPrevStats.careMistakeLedger
         );
-        updatedStats = checkCallTimeouts(updatedStats, new Date(), isActuallySleeping);
+        updatedStats = checkCallTimeouts(
+          updatedStats,
+          new Date(),
+          currentSleepStatus
+        );
 
         let nextLedger = initializeCareMistakeLedger(updatedStats.careMistakeLedger);
         const previousLedgerIds = new Set(previousLedger.map((entry) => entry.id));
@@ -498,6 +489,18 @@ export function useGameRealtimeLoop({
           updatedStats.hungerMistakeDeadline !== prevStats.hungerMistakeDeadline ||
           updatedStats.strengthMistakeDeadline !==
             prevStats.strengthMistakeDeadline;
+        const sleepWarningStateChanged =
+          updatedStats.callStatus?.hunger?.sleepStartAt !==
+            prevStats.callStatus?.hunger?.sleepStartAt ||
+          updatedStats.callStatus?.strength?.sleepStartAt !==
+            prevStats.callStatus?.strength?.sleepStartAt ||
+          updatedStats.callStatus?.sleep?.isActive !==
+            prevStats.callStatus?.sleep?.isActive ||
+          updatedStats.callStatus?.sleep?.startedAt !==
+            prevStats.callStatus?.sleep?.startedAt ||
+          updatedStats.callStatus?.sleep?.isLogged !==
+            prevStats.callStatus?.sleep?.isLogged ||
+          updatedStats.sleepLightOnStart !== prevStats.sleepLightOnStart;
         const careMistakeJustIncreased =
           (updatedStats.careMistakes || 0) > (prevStats.careMistakes || 0);
         const injuryJustHappened =
@@ -511,6 +514,7 @@ export function useGameRealtimeLoop({
           live.setDigimonStatsAndSave &&
           (zeroAtChanged ||
             deadlineChanged ||
+            sleepWarningStateChanged ||
             careMistakeJustIncreased ||
             injuryJustHappened)
         ) {

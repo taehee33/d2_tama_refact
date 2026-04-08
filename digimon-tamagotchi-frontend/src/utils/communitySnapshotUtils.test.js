@@ -25,7 +25,7 @@ describe("communitySnapshotUtils", () => {
         totalBattlesWon: 6,
         poopCount: 6,
         isLightsOn: false,
-        sleepStatus: "TIRED",
+        sleepStatus: "SLEEPING_LIGHT_ON",
         isInjured: true,
       },
     });
@@ -52,7 +52,7 @@ describe("communitySnapshotUtils", () => {
         spriteNumber: expect.any(Number),
         backgroundNumber: expect.any(Number),
         isLightsOn: false,
-        sleepStatus: "TIRED",
+        sleepStatus: "SLEEPING_LIGHT_ON",
         poopCount: 6,
         isInjured: true,
       })

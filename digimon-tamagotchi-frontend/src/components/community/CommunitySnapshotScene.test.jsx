@@ -13,7 +13,7 @@ describe("CommunitySnapshotScene", () => {
       spriteNumber: 45,
       backgroundNumber: 168,
       isLightsOn: false,
-      sleepStatus: "TIRED",
+      sleepStatus: "SLEEPING_LIGHT_ON",
       poopCount: 6,
       isFrozen: false,
       isDead: false,
@@ -27,7 +27,7 @@ describe("CommunitySnapshotScene", () => {
     );
 
     expect(screen.getByAltText("가브몬")).toBeInTheDocument();
-    expect(screen.queryByText("불 꺼줘!")).not.toBeInTheDocument();
+    expect(screen.queryByText("불 켜짐 경고!")).not.toBeInTheDocument();
     expect(screen.queryByText("치료 필요")).not.toBeInTheDocument();
     expect(screen.queryByText("똥 위험")).not.toBeInTheDocument();
     expect(screen.queryByText("성숙기 · Ver.1")).not.toBeInTheDocument();
@@ -39,7 +39,7 @@ describe("CommunitySnapshotScene", () => {
       <CommunitySnapshotScene snapshot={snapshot} variant="composer" />
     );
 
-    expect(screen.getByText("불 꺼줘!")).toBeInTheDocument();
+    expect(screen.getByText("불 켜짐 경고!")).toBeInTheDocument();
     expect(screen.getByText("치료 필요")).toBeInTheDocument();
     expect(screen.getByText("똥 위험")).toBeInTheDocument();
     expect(screen.getByText("성숙기 · Ver.1")).toBeInTheDocument();

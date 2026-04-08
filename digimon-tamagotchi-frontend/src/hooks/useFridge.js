@@ -90,7 +90,7 @@ export function useFridge({
       callStatus: {
         hunger: { ...(currentStats.callStatus?.hunger || {}), isActive: false, sleepStartAt: null },
         strength: { ...(currentStats.callStatus?.strength || {}), isActive: false, sleepStartAt: null },
-        sleep: { isActive: false, startedAt: null }
+        sleep: { ...(currentStats.callStatus?.sleep || {}), isActive: false, startedAt: null, isLogged: false }
       },
     };
     
@@ -170,7 +170,12 @@ export function useFridge({
       callStatus: {
         hunger: hungerWindow.entry,
         strength: strengthWindow.entry,
-        sleep: { ...(currentStats.callStatus?.sleep || {}), isActive: false, startedAt: null },
+        sleep: {
+          ...(currentStats.callStatus?.sleep || {}),
+          isActive: false,
+          startedAt: null,
+          isLogged: false,
+        },
       },
     };
     

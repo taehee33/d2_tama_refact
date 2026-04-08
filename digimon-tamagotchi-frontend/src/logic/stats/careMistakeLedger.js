@@ -27,6 +27,7 @@ export function isCareMistakeLog(log) {
 export function getCareMistakeReasonKeyFromText(text = "") {
   if (text.includes("배고픔 콜")) return "hunger_call";
   if (text.includes("힘 콜")) return "strength_call";
+  if (text.includes("수면 조명 경고")) return "sleep_light_warning";
   if (text.includes("괴롭히기")) return "tease";
   if (text.includes("[기록 동기화]")) return "sync_repair";
   return "other";

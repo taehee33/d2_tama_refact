@@ -344,12 +344,12 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // 수면/조명 관련
   const [isLightsOn, setIsLightsOn] = useState(true);
   const [wakeUntil, setWakeUntil] = useState(null);
-  const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'TIRED' | 'SLEEPING'
+  const [sleepStatus, setSleepStatus] = useState("AWAKE"); // 'AWAKE' | 'FALLING_ASLEEP' | 'NAPPING' | 'SLEEPING' | 'SLEEPING_LIGHT_ON' | 'AWAKE_INTERRUPTED'
   
   // ============================================
   // 5. Refs
   // ============================================
-  // tiredStartRef, tiredCountedRef는 더 이상 사용하지 않음 (digimonStats.tiredStartAt으로 대체)
+  // legacy tired refs는 더 이상 사용하지 않음
   
   // ============================================
   // Helper Functions (모달 관리)

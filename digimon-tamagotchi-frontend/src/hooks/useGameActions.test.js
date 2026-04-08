@@ -22,7 +22,7 @@ describe("wakeForInteraction", () => {
     expect(onSleepDisturbance).toHaveBeenCalledTimes(1);
   });
 
-  test("낮잠 중 강제 깨움은 wakeUntil만 설정하고 sleepDisturbances는 올리지 않는다", () => {
+  test("낮잠 중 깨움은 wakeUntil만 설정하고 sleepDisturbances는 올리지 않는다", () => {
     const setWakeUntil = jest.fn();
     const onSleepDisturbance = jest.fn();
     const stats = {
@@ -31,7 +31,7 @@ describe("wakeForInteraction", () => {
       napUntil: Date.now() + 5 * 60 * 1000,
     };
 
-    const result = wakeForInteraction(stats, setWakeUntil, jest.fn(), true, onSleepDisturbance);
+    const result = wakeForInteraction(stats, setWakeUntil, jest.fn(), false, onSleepDisturbance);
 
     expect(result.sleepDisturbances).toBe(4);
     expect(result.careMistakes).toBe(1);

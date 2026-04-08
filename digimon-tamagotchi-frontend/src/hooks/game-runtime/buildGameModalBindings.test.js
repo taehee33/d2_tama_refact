@@ -30,7 +30,7 @@ describe("buildGameModalBindings", () => {
         sleepLightOnStart: 777,
       },
       wakeUntil: 999,
-      sleepStatus: "TIRED",
+      sleepStatus: "SLEEPING_LIGHT_ON",
     });
 
     expect(result.handlers).toMatchObject(handlersInput);
@@ -39,7 +39,7 @@ describe("buildGameModalBindings", () => {
       width: 320,
       statusDetailMessages: ["배고픔 경고"],
       wakeUntil: 999,
-      sleepStatus: "TIRED",
+      sleepStatus: "SLEEPING_LIGHT_ON",
       sleepLightOnStart: 777,
       sleepSchedule: {
         start: 20,

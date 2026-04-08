@@ -4,75 +4,81 @@
 
 ---
 
-## [2026-04-07] TIRED/SLEEPING 호출 타이머 경계를 다시 정리
+## [2026-04-08] 수면 조명 경고 케어미스를 하루 1회에서 사건별 1회로 전환
 
 ### 작업 유형
-- 😴 TIRED/SLEEPING 호출 타이머 경계 수정
-- ⏸ 실제 수면 pause 동작 안정화
-- 🧪 sleepy 상태 카운트다운 회귀 테스트 추가
+- 💡 수면 조명 경고 케어미스 집계 규칙 수정
+- 🔁 조명 경고 사건 시작/종료 시 상태 초기화 정리
+- 🧪 같은 사건 1회 / 새 사건 재집계 테스트 추가
 
 ### 목적 및 영향
-- **목적:** `TIRED`에서는 배고픔/힘 케어미스 10분 타이머가 계속 진행되고, `SLEEPING`에서는 잠들기 직전 남은 시간이 고정된 채 일시정지되도록 규칙을 다시 맞춘다.
-- **범위:** 실시간 호출 타이머 계산, 호출 view-model, 관련 테스트와 문서만 조정하고 저장 스키마는 바꾸지 않는다.
+- **목적:** `SLEEPING_LIGHT_ON`이 30분을 넘겼을 때 케어미스가 자정 기준으로만 다시 열리는 구조를 없애고, 불을 껐다가 다시 켜 새 경고 사건이 시작되면 다시 집계되는 방식으로 더 자연스럽게 만든다.
+- **범위:** 수면 조명 경고 timeout 판정, 실시간 루프의 일일 잠금 처리, 냉장고/리셋 경로의 sleep call state, 관련 테스트와 문서만 조정한다.
 - **내용:**
-  - `checkCallTimeouts`의 기존 timestamp pushing을 제거해, 실제 수면 중에 `9:59 ↔ 10:00`으로 무한 리셋되던 문제를 없앴다.
-  - `checkCalls`는 수면에서 깨어날 때 `sleepStartAt` 기준으로 잠든 시간을 `startedAt`과 deadline에 한 번만 반영해, 수면 전 남은 시간부터 자연스럽게 다시 흐르도록 정리했다.
-  - `callStatusUtils`는 `startedAt`/deadline이 비어 있는 깨진 활성 호출 상태라도 `lastHungerZeroAt`/`lastStrengthZeroAt`를 fallback으로 사용해 `현재 + 10분`으로 되감기지 않도록 보강했다.
-  - `SLEEPING` 상태 표시에서는 현재 시각이 아니라 `sleepStartAt` 기준의 남은 시간을 보여 주도록 바꿔, 잠들어 있는 동안 남은 시간이 줄어들지 않게 맞췄다.
+  - `checkCallTimeouts()`는 더 이상 `dailySleepMistake`로 수면 조명 경고를 잠그지 않고, 같은 `callStatus.sleep` 사건에서 `isLogged`가 `false`일 때만 30분 timeout 케어미스를 1회 추가하도록 바꿨다.
+  - `checkCalls()`는 `SLEEPING_LIGHT_ON`에서만 sleep call 사건을 유지하고, 사건이 끝나면 `startedAt/isLogged`를 함께 초기화해 다음 조명 경고를 새 사건으로 시작하도록 정리했다.
+  - `useGameRealtimeLoop()`에서 자정 기준 `sleepMistakeDate/dailySleepMistake` 리셋 로직을 제거해, 수면 조명 경고는 날짜가 아니라 사건 종료 여부로만 다시 열리게 했다.
+  - 냉장고 입출고처럼 수면 조명 경고 사건이 강제로 끝나는 경로도 `sleep.isLogged = false`로 정리해, 이후 새 사건이 정상 집계되도록 맞췄다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
-- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/useFridge.js`
 - `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
-- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
 - `docs/REFACTORING_LOG.md`
 
 ### 검증
-- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watchAll=false --runInBand src/utils/callStatusUtils.test.js src/hooks/useGameLogic.test.js src/data/stats.test.js src/components/GameScreen.test.jsx`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
 
 ### 아키텍처 메모
-- 호출 타이머 pause는 기준 시각을 매초 덮어쓰는 방식보다 `sleepStartAt`을 별도로 기록하고, 수면 종료 시 한 번만 보정하는 방식이 lazy update의 수면 제외 계산과도 더 잘 맞는다.
+- 수면 조명 경고는 이제 `일자`가 아니라 `경고 사건 인스턴스` 단위로 잠기므로, 배고픔/힘 호출과 같은 “사건별 1회” 규칙과 더 일관된 모델이 됐다.
 
-## [2026-04-07] 사용자 프로필을 `profile/main`으로 분리하는 호환 단계 도입
+## [2026-04-07] 수면 상태 기계를 6단계로 재정의하고 조명 경고 규칙을 수면 축으로 정렬
 
 ### 작업 유형
-- 👤 사용자 프로필 저장 경로 분리
-- 🔁 루트 + `profile/main` dual-write 호환 단계 도입
-- 🧾 닉네임 인덱스 운영 스크립트 경로 정합성 갱신
-- 🧪 프로필/닉네임 유틸 테스트 보강
+- 😴 수면 상태 enum 재정의
+- ⏱ 배고픔/힘 호출 일시정지 기준 재정렬
+- 💡 수면 호출을 `수면 조명 경고` 30분 규칙으로 전환
+- 🧪 상태 전이/UI/호출 테스트 갱신
 
 ### 목적 및 영향
-- **목적:** `users/{uid}` 루트 문서에 몰려 있던 `tamerName`, `achievements`, `maxSlots`를 `users/{uid}/profile/main`으로 분리해 문서 결합도를 낮추고, 이후 루트 사용자 문서를 인증 메타 중심으로 정리할 준비를 한다.
-- **범위:** 런타임 프로필/닉네임 유틸, 닉네임 백필·verify 스크립트, Firestore rules, 프로필 백필 스크립트와 문서만 조정하며, 기존 화면 계약과 로그인 bootstrap 로직은 유지한다.
+- **목적:** `TIRED`와 `sleepy` 표현을 제거하고, 실제 수면 여부와 조명 경고 여부를 분리한 상태 기계로 정리해 수면 중 호출/케어미스 표기와 실제 규칙이 어긋나지 않게 한다.
+- **범위:** `getSleepStatus`, 실시간 루프, 호출 view-model, 상태 메시지/배지/커뮤니티 스냅샷, 관련 테스트와 문서만 조정하고 저장 스키마는 유지한다.
 - **내용:**
-  - `userProfileUtils`는 `profile/main`을 우선 읽고 루트 `users/{uid}`를 fallback으로 읽도록 바꿨으며, 칭호 저장 시 루트와 `profile/main`을 함께 갱신한다.
-  - `tamerNameUtils`는 테이머명을 `profile/main` 우선으로 읽고, 닉네임 저장/기본값 복구 transaction에서 루트와 `profile/main`을 함께 갱신하도록 정리했다.
-  - `scripts/nicknameIndexShared.js`, `backfillNicknameIndex.js`, `verifyNicknameIndex.js`는 `profile/main` 우선 기준으로 닉네임 상태를 수집·정규화하도록 갱신했다.
-  - `scripts/backfillUserProfile.js`와 `npm run profile:backfill`를 추가해 루트 프로필 필드를 `profile/main`으로 안전하게 복사할 수 있도록 했다.
-  - `firestore.rules`에 `users/{uid}/profile/{profileId}` owner 규칙을 추가했다.
+  - 수면 상태를 `AWAKE`, `FALLING_ASLEEP`, `NAPPING`, `SLEEPING`, `SLEEPING_LIGHT_ON`, `AWAKE_INTERRUPTED`로 재정의하고, `FROZEN`은 기존 `isFrozen` 축으로 유지했다.
+  - `NAPPING`, `SLEEPING`, `SLEEPING_LIGHT_ON`은 실제 수면으로 취급해 배고픔/힘 감소와 10분 호출을 멈추고, `FALLING_ASLEEP`, `AWAKE`, `AWAKE_INTERRUPTED`는 깨어 있는 상태로 처리하도록 런타임과 액션 로직을 맞췄다.
+  - 배고픔/힘 호출은 `sleepStartAt` 기준으로 일시정지 시점의 남은 시간을 고정해서 보여주고, 깨어날 때만 `startedAt/deadline`을 한 번 밀도록 정리했다.
+  - 기존 `Sleep Call 60분 경고`는 제거하고, `SLEEPING_LIGHT_ON`일 때만 `수면 조명 경고` 30분 타이머가 돌며 케어미스를 1회 올리도록 변경했다.
+  - `TIRED`/`SLEEPY` 레거시 입력은 화면 레이어에서 `SLEEPING_LIGHT_ON`으로 정규화해 저장 호환성을 유지했다.
 
 ### 영향받은 파일
-- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.js`
-- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.test.js`
-- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
-- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
-- `scripts/nicknameIndexShared.js`
-- `scripts/backfillNicknameIndex.js`
-- `scripts/verifyNicknameIndex.js`
-- `scripts/backfillUserProfile.js`
-- `package.json`
-- `firestore.rules`
-- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.js`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusText.jsx`
+- `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotSummary.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
+- `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.test.js`
+- `digimon-tamagotchi-frontend/src/utils/communitySnapshotUtils.test.js`
 - `docs/REFACTORING_LOG.md`
 
 ### 검증
-- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/userProfileUtils.test.js src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx src/pages/Home.test.jsx src/pages/Me.test.jsx`
-- `node --check scripts/backfillUserProfile.js`
-- `node --test tests/nickname-index-migration.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js src/hooks/useGameActions.test.js src/utils/callStatusUtils.test.js src/components/GameScreen.test.jsx src/components/digimonStatusMessages.test.js src/utils/communitySnapshotUtils.test.js src/components/community/CommunitySnapshotScene.test.jsx src/hooks/game-runtime/buildGameModalBindings.test.js src/hooks/game-runtime/gameAnimationViewModel.test.js`
 
 ### 아키텍처 메모
-- 이번 라운드는 루트 필드를 삭제하지 않는 호환 단계라서, 구버전 탭/캐시와의 충돌을 줄이기 위해 루트와 `profile/main`을 함께 갱신한다.
-- 다음 단계는 `profile:backfill` 운영 반영 후, 루트 프로필 필드의 읽기/쓰기 제거 여부를 결정하는 것이다.
+- 이번 라운드는 저장 스키마를 늘리지 않고 `fastSleepStart`, `napUntil`, `wakeUntil`, `sleepLightOnStart`, `sleepStartAt` 조합만으로 상태 전이와 호출 일시정지를 표현했다.
+- 수면 관련 UI는 이제 `현재 상태`와 `페널티 타이머`를 분리해 보여 주므로, 앞으로 커뮤니티 카드/상단 배지/호출 모달이 같은 상태명을 공유할 수 있다.
 
 ## [2026-04-07] 호출 상태 UI를 공통 view-model 기반으로 통합
 
