@@ -2,6 +2,8 @@
 
 구글 앱스 스크립트(디스코드 호출 알림 등)에서 **디지몬 표시명**, **별명(nickname)**, **어떤 조건으로 어떤 필드를 읽을지** 정리합니다.
 
+> 2026-04-08 이후 디스코드 상태 알림은 Firestore 직접 조회 대신 [`/api/notifications/daily-digimon-report`](./DISCORD_NOTIFICATION_API_GUIDE.md) 경유 방식을 권장합니다. 이 문서는 API 내부나 운영 스크립트가 슬롯 문서 필드 의미를 확인할 때 참고용으로 유지합니다.
+
 ---
 
 ## 스크립트에서 가져갈 때 (요약)

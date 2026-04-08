@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-04-08] Discord 상태 알림을 Firestore 직접 조회에서 서버 API 경유 구조로 전환
+
+### 작업 유형
+- 🔐 Firestore Admin 기반 서버 알림 API 추가
+- 🤖 Apps Script 연동용 비밀키 인증 계약 정의
+- 🧪 `node --test` 서버 API 회귀 테스트 및 엔트리포인트 확인 추가
+- 📝 운영 가이드와 스크립트 문서 갱신
+
+### 목적 및 영향
+- **목적:** Google Apps Script가 Firestore REST API를 인증 없이 직접 조회하면서 `PERMISSION_DENIED`가 발생하던 경로를 제거하고, Firestore Rules를 완화하지 않은 채 Discord 상태 리포트를 계속 보낼 수 있게 한다.
+- **범위:** 새 알림 API 헬퍼/엔드포인트, 루트 배포 래퍼, 서버 테스트, 운영 문서와 Apps Script 가이드를 추가한다. 게임 런타임, Firestore Rules, Discord 설정 UI는 변경하지 않는다.
+- **내용:**
+  - `api/notifications/daily-digimon-report`를 추가해 `x-d2-scheduler-secret` 헤더와 `NOTIFICATION_API_SECRET` 환경변수로만 호출 가능한 서버 간 엔드포인트를 만들었다.
+  - 서버는 Firestore Admin 헬퍼로 `users`, `users/{uid}/settings/main`, `users/{uid}/profile/main`, `users/{uid}/slots`를 읽어 사용자별 Discord 전송용 `messageContent`를 조합한다.
+  - 알림 설정은 `settings/main` 우선 + 루트 fallback, 테이머명은 `profile/main.tamerName` 우선 + 루트 `tamerName/displayName` fallback으로 읽어 최신 사용자 구조를 놓치지 않도록 맞췄다.
+  - 슬롯 판정은 기존 Apps Script 규칙을 유지하면서 냉장/냉동 슬롯을 제외하고, `fullness/strength/callStatus/isJogressReady` 기준으로 이상 상태 문구를 생성하도록 옮겼다.
+  - 루트 래퍼와 `node --test` 파일을 추가해 헬퍼 로직과 엔드포인트 로딩을 독립적으로 검증할 수 있게 했고, 운영 문서에는 Vercel 환경변수, Script Properties, Apps Script 예시를 함께 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/notificationReports.js`
+- `digimon-tamagotchi-frontend/api/notifications/daily-digimon-report.js`
+- `api/_lib/notificationReports.js`
+- `api/_lib/notificationReports.test.js`
+- `api/notifications/daily-digimon-report.js`
+- `tests/notification-entrypoints.test.js`
+- `package.json`
+- `docs/DISCORD_NOTIFICATION_API_GUIDE.md`
+- `docs/FIRESTORE_DIGIMON_NAME_FOR_SCRIPT.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `npm run test:notification-api`
+
+### 아키텍처 메모
+- Firestore Rules는 계속 사용자 본인 읽기 기준을 유지하고, 운영용 일괄 조회는 서버 API + 서비스 계정으로만 처리한다. 덕분에 Apps Script는 스케줄러와 Discord 전송만 맡고, 데이터 구조 변경은 서버 한 곳에서만 따라가면 된다.
+
 ## [2026-04-08] 낮잠 reload 경로에도 루트 조명 상태를 합쳐 poop timer 정합성 복구
 
 ### 작업 유형
