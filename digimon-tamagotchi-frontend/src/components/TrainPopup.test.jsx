@@ -59,7 +59,7 @@ describe("TrainPopup UI", () => {
     window.alert.mockRestore();
   });
 
-  test("새 UI는 내 디지몬, 퍼펫 상대, ? 가림, 공격함/막음 흐름을 보여준다", async () => {
+  test("새 UI는 내 디지몬, 샌드백 상대, ? 가림, 공격함/막음 흐름을 보여준다", async () => {
     renderTrainPopup();
 
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
@@ -67,7 +67,8 @@ describe("TrainPopup UI", () => {
     expect(screen.getByText(/원작풍 상하 공격 훈련/)).toBeInTheDocument();
     expect(screen.getByText(/내 디지몬/)).toBeInTheDocument();
     expect(screen.getByLabelText("내 디지몬과 공격 패드")).toBeInTheDocument();
-    expect(screen.getByText(/상대 퍼펫/)).toBeInTheDocument();
+    expect(screen.getByText(/샌드백/)).toBeInTheDocument();
+    expect(screen.getByAltText("훈련 샌드백 스프라이트")).toHaveAttribute("src", "/images/567.png");
     expect(screen.getByText("?")).toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: /위/ })).toBeEnabled();
@@ -83,9 +84,10 @@ describe("TrainPopup UI", () => {
     expect(screen.getAllByText(/막음/).length).toBeGreaterThan(0);
     expect(screen.getByText(/방어당함/)).toBeInTheDocument();
     expect(screen.getByAltText("공격 스프라이트")).toHaveAttribute("src", "/images/211.png");
+    expect(screen.queryByTestId("train-hit-effect")).not.toBeInTheDocument();
   });
 
-  test("명중하면 공격 스프라이트가 끝까지 날아가고 퍼펫이 피격 반응을 보인다", async () => {
+  test("하단 명중이면 122/123 피격 이펙트가 샌드백 하단에 표시된다", async () => {
     renderTrainPopup();
 
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
@@ -95,9 +97,35 @@ describe("TrainPopup UI", () => {
       jest.advanceTimersByTime(300);
     });
 
+    const hitEffect = screen.getByTestId("train-hit-effect");
+
     expect(screen.getByText(/명중 성공/)).toBeInTheDocument();
     expect(screen.getAllByText(/피격/).length).toBeGreaterThan(0);
     expect(screen.queryByLabelText("방패 방어")).not.toBeInTheDocument();
+    expect(hitEffect).toHaveClass("is-lower");
+    expect(screen.getByTestId("train-hit-effect-122")).toHaveAttribute("src", "/images/122.png");
+    expect(screen.getByTestId("train-hit-effect-123")).toHaveAttribute("src", "/images/123.png");
+  });
+
+  test("상단 명중이면 122/123 피격 이펙트가 샌드백 상단에 표시된다", async () => {
+    renderTrainPopup({
+      digimonStats: {
+        weight: 10,
+        energy: 5,
+        strength: 2,
+        effort: 1,
+        trainings: 1,
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "시작" }));
+    fireEvent.click(screen.getByRole("button", { name: /위/ }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(screen.getByTestId("train-hit-effect")).toHaveClass("is-upper");
   });
 
   test("입력 대기 중 남은 시간은 1초마다 감소한다", async () => {

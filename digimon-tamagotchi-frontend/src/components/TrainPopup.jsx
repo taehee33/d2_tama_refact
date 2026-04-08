@@ -7,6 +7,8 @@ const ROUND_COUNT = 5;
 const ROUND_TIME_LIMIT = 5;
 const ATTACK_REVEAL_DELAY_MS = 220;
 const RESULT_HOLD_DELAY_MS = 420;
+const PUPPET_SPRITE_SRC = "/images/567.png";
+const HIT_EFFECT_FRAMES = ["/images/122.png", "/images/123.png"];
 
 const TRAINING_LANES = [
   { key: "U", label: "상단", buttonLabel: "↑", assistiveLabel: "위" },
@@ -364,7 +366,7 @@ export default function TrainPopup({
           <div className="train-popup__ready-copy">
             <span className="train-popup__eyebrow">TRAINING MODE</span>
             <h2>훈련 시작</h2>
-            <p>원작풍 상하 공격 훈련으로 5라운드 동안 상대 퍼펫의 방어를 읽어 보세요.</p>
+            <p>원작풍 상하 공격 훈련으로 5라운드 동안 샌드백의 방어를 읽어 보세요.</p>
           </div>
 
           <div className="train-popup__ready-card">
@@ -570,8 +572,8 @@ export default function TrainPopup({
           </div>
 
           <article className="train-popup__fighter-card train-popup__fighter-card--dummy">
-            <span className="train-popup__fighter-label">상대 퍼펫</span>
-            <div className="train-popup__dummy-stage" aria-label="상대 퍼펫">
+            <span className="train-popup__fighter-label">샌드백</span>
+            <div className="train-popup__dummy-stage" aria-label="샌드백">
               <div className={`train-popup__dummy-top-guard ${getDummyGuardState("U")}`}>
                 {getDummyGuardLabel("U")}
               </div>
@@ -586,21 +588,41 @@ export default function TrainPopup({
                       : ""
                 }`}
               >
-                <div className="train-popup__dummy-head" />
-                <div className="train-popup__dummy-body" />
-                <div className="train-popup__dummy-arm train-popup__dummy-arm--left" />
-                <div className="train-popup__dummy-arm train-popup__dummy-arm--right" />
-                <div className="train-popup__dummy-leg train-popup__dummy-leg--left" />
-                <div className="train-popup__dummy-leg train-popup__dummy-leg--right" />
+                <img
+                  src={PUPPET_SPRITE_SRC}
+                  alt="훈련 샌드백 스프라이트"
+                  className="train-popup__dummy-sprite"
+                />
               </div>
               {shouldRevealDefense && currentExchange?.isHit && (
-                <div
-                  className={`train-popup__dummy-impact ${
-                    currentExchange.attack === "U" ? "is-upper" : "is-lower"
-                  }`}
-                >
-                  피격!
-                </div>
+                <>
+                  <div
+                    className={`train-popup__hit-effect ${
+                      currentExchange.attack === "U" ? "is-upper" : "is-lower"
+                    }`}
+                    data-testid="train-hit-effect"
+                  >
+                    {HIT_EFFECT_FRAMES.map((frameSrc, index) => (
+                      <img
+                        key={frameSrc}
+                        src={frameSrc}
+                        alt=""
+                        aria-hidden="true"
+                        data-testid={`train-hit-effect-${index === 0 ? "122" : "123"}`}
+                        className={`train-popup__hit-effect-frame ${
+                          index === 0 ? "is-frame-122" : "is-frame-123"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className={`train-popup__dummy-impact ${
+                      currentExchange.attack === "U" ? "is-upper" : "is-lower"
+                    }`}
+                  >
+                    피격!
+                  </div>
+                </>
               )}
               <div className={`train-popup__dummy-bottom-guard ${getDummyGuardState("D")}`}>
                 {getDummyGuardLabel("D")}
