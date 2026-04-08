@@ -599,8 +599,16 @@ function Game({ immersive = false }){
         digimonDataForSlot,
         currentAnimation,
         sleepStatus,
+        evolutionStage,
       }),
-    [selectedDigimon, digimonStats, digimonDataForSlot, currentAnimation, sleepStatus]
+    [
+      selectedDigimon,
+      digimonStats,
+      digimonDataForSlot,
+      currentAnimation,
+      sleepStatus,
+      evolutionStage,
+    ]
   );
 
   useEffect(() => {
@@ -900,6 +908,7 @@ function Game({ immersive = false }){
           startHealCycle,
           handleDeathConfirm,
           resetDigimon,
+          setDigimonStats,
           setDigimonStatsAndSave,
           setSelectedDigimonAndSave,
           setCurrentQuestArea,

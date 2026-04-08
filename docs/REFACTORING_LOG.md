@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-04-08] 디지타마 부화 중 `135` 스프라이트를 전용 모션으로 적용
+
+### 작업 유형
+- 🥚 디지타마 부화 모션 정의 활성화
+- 🎞 진화 상태 기반 렌더 프레임 분기 추가
+- 🧪 부화 프레임 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 디지타마 부화 연출을 `알 흔들림 -> 깨진 알 정지 컷 -> 실제 진화` 순서로 보이게 만들어, 깨진 알이 흔들리거나 반전되어 보이는 어색함을 없앤다.
+- **범위:** `digimonAnimations`, `gameAnimationViewModel`, `Game.jsx` 전달부, 관련 테스트와 문서만 조정한다. 저장 스키마, lazy update, 진화 타이밍은 변경하지 않는다.
+- **내용:**
+  - `digimonAnimations`에 주석으로만 남아 있던 `digitamaEvolve(91)`를 실제 정의로 추가해 base sprite `133` 기준 `135`를 공식적으로 참조하도록 정리했다.
+  - `buildGameAnimationViewModel()`은 `evolutionStage`를 입력받아 `Digitama`와 `DigitamaV2`가 `shaking`일 때는 기존 알 프레임(`133`, `134`)을 유지하고, `flashing`일 때만 idle/eat/reject 프레임을 모두 `135` 단일 프레임으로 고정하도록 조정했다.
+  - `GameScreen`은 디지타마의 `flashing` 단계에서만 기존 `invert`/`.evolution-flashing` 효과를 끄고, 깨진 알을 정지 컷으로 보여주도록 분기했다. 일반 디지몬의 진화 플래시는 그대로 유지한다.
+  - 테스트는 디지타마 `shaking`과 `flashing`의 프레임 차이, 디지타마/일반 디지몬의 플래시 스타일 차이를 확인하도록 확장했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/digimonAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/game-runtime/gameAnimationViewModel.test.js src/components/Canvas.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 부화 연출은 별도 저장 상태를 추가하지 않고 기존 `evolutionStage`만 재사용해 렌더 단계에서만 분기한다. 덕분에 Firebase/localStorage 저장 계약과 lazy update 규칙은 그대로 유지되고, 디지타마 전용 시각 효과만 독립적으로 다룰 수 있다.
+
 ## [2026-04-08] `dailySleepMistake` 잔재 상태를 저장/전달 경로에서 제거
 
 ### 작업 유형

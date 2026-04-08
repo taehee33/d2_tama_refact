@@ -21,8 +21,8 @@ const digimonAnimations = {
 
   // (A) digitamaIdle (90번)
   90: { name: "digitamaidle", frames: [0, 1] },
-  // 필요하면 91번에 evolve 모션(알에서 135)...
-  // 91: { name: "digitamaEvolve", frames: [2] },
+  // 디지타마 부화 모션 (base 133 -> 135)
+  91: { name: "digitamaEvolve", frames: [2] },
 };
 
 export default digimonAnimations;
@@ -48,8 +48,8 @@ const animationDefinitions = {
 
   // (A) digitamaIdle (90번)
   90: { name: "digitamaidle", frames: [0, 1] },
-  // 필요하면 91번에 evolve 모션(알에서 135)...
-  // 91: { name: "digitamaEvolve", frames: [2] },
+  // 디지타마 부화 모션 (base 133 -> 135)
+  91: { name: "digitamaEvolve", frames: [2] },
 };
 
 export default animationDefinitions;
