@@ -519,6 +519,7 @@ export default function TrainPopup({
                 <span className="train-popup__fighter-caption">선택한 방향으로 즉시 공격합니다.</span>
               </article>
 
+              {isMobileLayout && renderAttackControls("mobile")}
               {!isMobileLayout && renderAttackControls("inline")}
             </div>
           </section>
@@ -660,7 +661,6 @@ export default function TrainPopup({
                 {getDummyGuardLabel("D")}
               </div>
             </div>
-            {isMobileLayout && renderAttackControls("mobile")}
             <span className="train-popup__fighter-caption">
               입력 전에는 중앙 ?로 방어가 숨겨집니다.
             </span>

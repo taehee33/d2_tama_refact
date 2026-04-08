@@ -333,10 +333,10 @@
 
 .train-popup__player-panel-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 102px;
-  gap: 12px;
-  align-items: center;
-  height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  height: auto;
 }
 
 .train-popup__fighter-card {
@@ -350,7 +350,7 @@
 .train-popup__fighter-card--player {
   position: relative;
   justify-content: center;
-  min-height: 100%;
+  min-height: 0;
   padding: 0;
   padding-top: 30px;
   border: 0;
@@ -617,12 +617,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 10px 22px rgba(16, 24, 40, 0.16);
-  font-size: 1.9rem;
+  font-size: 3.8rem;
+  line-height: 1;
   transform: translate(-50%, -50%);
 }
 
@@ -803,7 +804,8 @@
 
 .train-popup__control-panel--inline {
   height: auto;
-  align-self: center;
+  width: 100%;
+  align-self: stretch;
 }
 
 .train-popup__control-panel--mobile {
@@ -890,10 +892,12 @@
   align-items: center;
   justify-content: center;
   padding: 10px 6px;
-  border: 1px solid rgba(91, 104, 131, 0.12);
+  border: 1px solid rgba(91, 104, 131, 0.18);
   border-radius: 18px;
   text-align: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.72),
+    0 8px 16px rgba(16, 24, 40, 0.08);
 }
 
 .train-popup__attack-button--grid span {
@@ -906,21 +910,25 @@
 }
 
 .train-popup__attack-button--grid.is-upper {
-  background: linear-gradient(180deg, rgba(255, 241, 241, 0.98), rgba(255, 250, 250, 1));
+  background: linear-gradient(180deg, rgba(255, 212, 212, 0.98), rgba(255, 234, 234, 1));
+  border-color: rgba(216, 81, 81, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 20px rgba(216, 81, 81, 0.16);
   color: var(--train-upper);
 }
 
 .train-popup__attack-button--grid.is-upper span {
-  color: var(--train-upper);
+  color: #b93a3a;
 }
 
 .train-popup__attack-button--grid.is-lower {
-  background: linear-gradient(180deg, rgba(240, 246, 255, 0.98), rgba(251, 253, 255, 1));
+  background: linear-gradient(180deg, rgba(211, 228, 255, 0.98), rgba(235, 243, 255, 1));
+  border-color: rgba(58, 115, 222, 0.32);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 20px rgba(58, 115, 222, 0.14);
   color: var(--train-lower);
 }
 
 .train-popup__attack-button--grid.is-lower span {
-  color: var(--train-lower);
+  color: #2157c2;
 }
 
 .train-popup__attack-button.is-selected {
@@ -1113,8 +1121,8 @@
   }
 
   .train-popup__player-panel-grid {
-    grid-template-columns: minmax(0, 1fr) 84px;
-    gap: 10px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
 
   .train-popup__player-panel,
@@ -1176,9 +1184,9 @@
   }
 
   .train-popup__lane-shield {
-    width: 44px;
-    height: 44px;
-    font-size: 1.45rem;
+    width: 68px;
+    height: 68px;
+    font-size: 2.9rem;
   }
 
   .train-popup__lane-question {
@@ -1268,7 +1276,7 @@
 
   .train-popup__player-panel-grid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    gap: 6px;
     height: auto;
   }
 
@@ -1322,7 +1330,7 @@
   .train-popup__control-panel--mobile {
     display: flex;
     align-self: stretch;
-    margin-top: 2px;
+    margin-top: 6px;
   }
 
   .train-popup__input-grid {
@@ -1331,7 +1339,7 @@
 
   .train-popup__control-panel--mobile .train-popup__input-grid {
     min-height: auto;
-    gap: 4px;
+    gap: 5px;
     width: 100%;
   }
 
@@ -1349,18 +1357,33 @@
   }
 
   .train-popup__control-panel--mobile .train-popup__attack-button--grid {
-    min-height: 48px;
+    min-height: 52px;
     gap: 2px;
-    padding: 6px 3px;
+    padding: 7px 4px;
     border-radius: 12px;
   }
 
   .train-popup__control-panel--mobile .train-popup__attack-button--grid span {
     font-size: 0.53rem;
+    font-weight: 900;
   }
 
   .train-popup__control-panel--mobile .train-popup__attack-button--grid strong {
-    font-size: 1.15rem;
+    font-size: 1.24rem;
+    font-weight: 900;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
+  }
+
+  .train-popup__control-panel--mobile .train-popup__attack-button--grid.is-upper {
+    background: linear-gradient(180deg, rgba(255, 210, 210, 0.98), rgba(255, 238, 238, 1));
+    border-color: rgba(216, 81, 81, 0.34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84), 0 10px 20px rgba(216, 81, 81, 0.16);
+  }
+
+  .train-popup__control-panel--mobile .train-popup__attack-button--grid.is-lower {
+    background: linear-gradient(180deg, rgba(210, 227, 255, 0.98), rgba(237, 244, 255, 1));
+    border-color: rgba(58, 115, 222, 0.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84), 0 10px 20px rgba(58, 115, 222, 0.14);
   }
 
   .train-popup__control-help {
@@ -1413,9 +1436,9 @@
   }
 
   .train-popup__lane-shield {
-    width: 32px;
-    height: 32px;
-    font-size: 1rem;
+    width: 64px;
+    height: 64px;
+    font-size: 2rem;
   }
 
   .train-popup__lane-question {

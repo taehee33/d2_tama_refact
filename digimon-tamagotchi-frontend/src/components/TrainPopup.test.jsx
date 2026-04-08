@@ -143,15 +143,21 @@ describe("TrainPopup UI", () => {
     expect(screen.getByTestId("train-hit-effect")).toHaveClass("is-upper");
   });
 
-  test("모바일에서는 공격 버튼이 샌드백 아래 패널로 이동한다", async () => {
+  test("모바일에서는 공격 버튼이 내 디지몬 아래 패널로 이동한다", async () => {
     setViewportWidth(390);
     renderTrainPopup();
 
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
 
-    expect(screen.getByLabelText("내 디지몬")).toBeInTheDocument();
+    const playerPanel = screen.getByLabelText("내 디지몬");
+    const mobileControls = screen.getByLabelText("모바일 입력 패드");
+    const dummyCard = screen.getByText("샌드백").closest("article");
+
+    expect(playerPanel).toBeInTheDocument();
     expect(screen.queryByLabelText("내 디지몬과 공격 패드")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("모바일 입력 패드")).toBeInTheDocument();
+    expect(mobileControls).toBeInTheDocument();
+    expect(playerPanel).toContainElement(mobileControls);
+    expect(dummyCard).not.toContainElement(mobileControls);
     expect(screen.getAllByRole("button", { name: /위/ })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /아래/ })).toHaveLength(1);
   });

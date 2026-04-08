@@ -2,6 +2,41 @@
 
 ## 2026-04-08
 
+### 몰입형 플레이에 가로 디지바이스 모드와 슬롯별 다마고치 스킨 추가
+- 슬롯 루트 문서에 `immersiveSettings`를 추가하고, `{ layoutMode, skinId }`를 `backgroundSettings`와 같은 지연 저장 패턴으로 관리해 각 슬롯이 마지막으로 사용한 `세로/가로` 모드와 스킨 프리셋을 기억하도록 확장했습니다.
+- `useGameState`, `useGameData`, `useGamePagePersistenceEffects`, `useUserSlots`를 연결해 새 슬롯 기본값은 `portrait + tama-classic-pink`로 시작하고, 로드 직후에는 Firestore에 다시 쓰지 않으며 사용자가 실제로 변경했을 때만 저장되도록 게이트를 맞췄습니다.
+- 몰입형 상단 바에 `세로/가로` 토글과 `스킨 변경` 버튼을 추가했고, 몰입형 내부에서만 보이는 스킨 선택 패널로 `클래식 핑크`, `민트`, `클리어 블루` 프리셋을 전환할 수 있게 했습니다.
+- 세로 몰입형은 기존 플레이 화면을 다마고치 셸 안에 감싸는 방향으로 유지했고, 가로 몰입형은 왼쪽 LCD/상태 요약/보조 액션, 오른쪽 대형 메뉴 버튼 그리드로 분리해 실제 디바이스를 만지는 느낌에 더 가깝게 재구성했습니다.
+- 모바일에서는 브라우저 방향 잠금은 강제하지 않고, 가로 몰입형을 세로로 보고 있을 때만 회전 안내를 띄우고 셸 크기를 살짝 줄여 사용 흐름을 끊지 않도록 정리했습니다.
+- 새 유틸/컴포넌트 테스트로 `immersiveSettings` 정규화, 저장 게이트, 상단 바 토글, 가로 조작 버튼 잠금 규칙, 셸 분기 렌더를 고정했고, 프로덕션 빌드까지 다시 돌려 JSX/스타일 조립이 문제없는지 확인했습니다.
+
+### 영향받은 파일
+- `src/data/immersiveSettings.js`
+- `src/utils/immersiveSettings.js`
+- `src/utils/immersiveSettings.test.js`
+- `src/hooks/useGameState.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useUserSlots.js`
+- `src/hooks/game-runtime/useGamePagePersistenceEffects.js`
+- `src/hooks/game-runtime/useGamePagePersistenceEffects.test.js`
+- `src/pages/Game.jsx`
+- `src/components/MenuIconButtons.jsx`
+- `src/styles/MenuIconButtons.css`
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `src/components/layout/ImmersiveDeviceShell.jsx`
+- `src/components/layout/ImmersiveDeviceShell.test.jsx`
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/components/layout/ImmersiveLandscapeControls.test.jsx`
+- `src/components/layout/ImmersiveSkinPicker.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경은 게임 규칙이나 lazy update를 손대는 작업이 아니라 몰입형 뷰의 저장/표시 계층 확장이므로, `device`와 섞지 않고 슬롯 루트에 별도 `immersiveSettings`를 두는 편이 기존 기종 정보와 시각 프리셋 책임을 깔끔하게 분리할 수 있습니다.
+- 저장 시점을 `backgroundSettings`와 같은 게이트 방식으로 맞추면 로드 직후 불필요한 Firestore 쓰기를 막으면서도 사용자가 토글이나 스킨을 바꾼 순간만 안전하게 영속화할 수 있어 비용과 일관성을 함께 지킬 수 있습니다.
+- 가로 조작은 이번 범위에서 하드웨어식 포커스 이동까지 재설계하지 않고 기존 메뉴 액션을 큰 버튼 재배치로 재사용해, 게임 로직·잠금 규칙·모달 흐름을 건드리지 않으면서도 디바이스 감성만 선명하게 강화할 수 있습니다.
+
 ### 부상 상태에서 idle roaming이 재생되던 캔버스 렌더 회귀 수정
 - `gameAnimationViewModel`은 이미 `isInjured`일 때 `sick` 애니메이션과 부상 프레임을 원하도록 되어 있었지만, `Canvas`는 `currentAnimation === "idle"`만 기준으로 `idleMotionTimeline`을 허용해 본체가 아픈 상태에서도 돌아다니는 장면이 잠깐 보일 수 있었습니다.
 - `Canvas`의 idle 타임라인 preload 조건과 실제 사용 조건 모두에 `!isInjured`를 추가해, 부상 중에는 애니메이션 상태가 잠깐 `idle`이어도 roaming 좌표와 flip 타임라인을 전혀 사용하지 않고 전달된 부상 프레임만 중앙에 그리도록 보강했습니다.
@@ -716,6 +751,8 @@
 - 모바일 결과 모달은 한 화면에 더 안정적으로 들어오도록, 결과 카드 2열 배치와 가로 버튼 배치로 압축하고 모달 최대 높이를 viewport 기준으로 제한했습니다.
 - 모바일 전투판은 공격 버튼을 샌드백 아래 세로 패널로 옮기고, 왼쪽 패널과 샌드백 카드 폭을 더 압축해 가운데 공격 레인이 더 넓게 보이도록 다시 배분했습니다.
 - 모바일 헤더의 `닫기` 버튼은 우측 상단에 절대 배치로 고정해, 제목 아래로 떨어지지 않고 한 손 조작에서 바로 닿는 위치를 유지하도록 정리했습니다.
+- 모바일 공격 버튼은 다시 `내 디지몬` 카드 아래로 옮기고, 상단/하단 버튼 색을 더 진하게 조정해 작은 화면에서도 방향 선택이 더 또렷하게 보이도록 다듬었습니다.
+- 막힘 연출의 `🛡️` 방패 이모지는 모바일 기준에서 2배 크게 키워, 공격이 어디서 막혔는지 한눈에 식별되도록 강화했습니다.
 
 ### 영향받은 파일
 - `src/components/TrainPopup.jsx`
