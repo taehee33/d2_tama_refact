@@ -1,64 +1,62 @@
 // src/logic/training/train.js
-// Digital Monster Color 매뉴얼 기반 훈련 로직
+// Digital Monster Color 기반 훈련 로직
+
+export const VER1_DEFENSE_PATTERNS = [
+  ["U", "D", "U", "D", "D"],
+  ["D", "D", "U", "U", "D"],
+  ["D", "U", "U", "D", "D"],
+  ["U", "D", "D", "U", "U"],
+  ["D", "U", "D", "U", "D"],
+  ["U", "D", "U", "D", "U"],
+];
+
+/**
+ * Ver.1 반복 방어 패턴을 반환합니다.
+ * @param {number} trainingCount - 현재 누적 훈련 횟수
+ * @returns {string[]} 5라운드 방어 패턴
+ */
+export function getVer1DefensePattern(trainingCount = 0) {
+  const count = Number.isFinite(Number(trainingCount)) ? Number(trainingCount) : 0;
+  const patternIndex = Math.abs(count) % VER1_DEFENSE_PATTERNS.length;
+  return [...VER1_DEFENSE_PATTERNS[patternIndex]];
+}
 
 /**
  * Ver.1 훈련 결과 계산
- * 매뉴얼: "Press A for a high attack or B for a low attack. If your attack reaches the opposing Digimon 3 out of 5 times, training is successful."
- * "Every four trainings will add one Effort Heart, regardless of whether or not they are successful."
- * "Your Digimon will also lose 1 gigabyte of weight every time they train."
- * "If training is successful, you will also gain a strength heart."
- * 
+ * 원작 Ver.1의 입력 구조를 따르되, 스탯 증감은 현재 앱 규칙을 유지합니다.
+ *
  * @param {Object} digimonStats - 현재 디지몬 스탯
  * @param {Array} partialResults - 5라운드 결과 [{round, attack, defend, isHit}, ...]
  * @returns {Object} 훈련 결과
  */
 export function doVer1Training(digimonStats, partialResults) {
   const hits = partialResults.filter((r) => r.isHit).length;
-  const fails = partialResults.length - hits; // 보통 5 - hits
+  const fails = partialResults.length - hits;
+  const isSuccess = hits >= 3;
+  const message = isSuccess ? "< 좋은 훈련이었다! >" : "< X!꽝!X >";
 
-  // message
-  let message = "";
-  let weightChange = 0;
-  let strengthChange = 0;
-  if (hits <= 2) {
-    message = "< X!꽝!X >";
-    weightChange = -2;
-  } else if (hits <= 4) {
-    message = "< 좋은 훈련이었다! >";
-    weightChange = -2;
-    strengthChange = 1; // 성공 시 힘 +1
-  } else {
-    message = "< 미친거아니야?! 대성공!!! >";
-    weightChange = -4;
-    strengthChange = 3; // 대성공 시 힘 +3
+  const updatedStats = { ...digimonStats };
+  updatedStats.weight = Math.max(0, (updatedStats.weight || 0) - 2);
+  updatedStats.energy = Math.max(0, (updatedStats.energy || 0) - 1);
+
+  if (isSuccess) {
+    updatedStats.strength = Math.min(5, (updatedStats.strength || 0) + 1);
   }
 
-  // stat update
-  let s = { ...digimonStats };
+  updatedStats.trainings = (updatedStats.trainings || 0) + 1;
 
-  // 체중은 최소 0 이하로 내려가지 않도록 clamp
-  const newWeight = Math.max(0, s.weight + weightChange);
-  s.weight = newWeight;
-
-  // strength 유지(진화해도) → s.strength은 누적
-  s.strength = Math.min(5, (s.strength || 0) + strengthChange);
-
-  // 훈련 횟수++ (성공/실패 모두 카운트)
-  s.trainings = (s.trainings || 0) + 1;
-
-  // 4회마다 effort+1 (성공/실패 모두 카운트)
-  if (s.trainings % 4 === 0) {
-    s.effort = Math.min(5, (s.effort || 0) + 1);
+  if (updatedStats.trainings % 4 === 0) {
+    updatedStats.effort = Math.min(5, (updatedStats.effort || 0) + 1);
   }
 
-  // 최종 결과 리턴
   return {
-    updatedStats: s,
+    updatedStats,
     hits,
     fails,
+    isSuccess,
     message,
     roundResults: partialResults,
-    trainingSuccessful: hits >= 3,
+    trainingSuccessful: isSuccess,
   };
 }
 
@@ -109,4 +107,3 @@ export function doVer5Training(digimonStats, meterValue) {
     trainingSuccessful: false,
   };
 }
-

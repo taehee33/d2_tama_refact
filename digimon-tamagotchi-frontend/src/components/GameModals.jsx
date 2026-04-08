@@ -315,6 +315,9 @@ export default function GameModals({
           digimonStats={digimonStats}
           setDigimonStatsAndSave={setDigimonStatsAndSave}
           onTrainResult={handleTrainResult}
+          selectedDigimon={selectedDigimon}
+          digimonNickname={digimonNickname}
+          digimonDataForSlot={digimonDataVer1}
         />
       )}
 

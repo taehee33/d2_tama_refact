@@ -7,5 +7,6 @@ export {
   doVer3Training,
   doVer4Training,
   doVer5Training,
-} from './train';
-
+  getVer1DefensePattern,
+  VER1_DEFENSE_PATTERNS,
+} from "./train";
