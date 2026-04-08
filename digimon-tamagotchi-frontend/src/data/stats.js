@@ -1,11 +1,20 @@
 // src/data/stats.js
 import { defaultStats } from "./defaultStatsFile";
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
-import { calculateSleepSecondsInRange } from "../utils/sleepUtils";
+import {
+  isTimeWithinSleepSchedule,
+  normalizeSleepSchedule,
+} from "../utils/sleepUtils";
 import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
 import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
+
+const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
+const NAP_DURATION_MS = 3 * 60 * 60 * 1000;
+const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
+const SLEEP_ANALYSIS_STEP_MS = 15 * 1000;
+const MAX_SLEEP_ANALYSIS_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function migrateLegacyPoopTimers(target, fallbackTime = null) {
   if ((target.poopCount || 0) < 8) {
@@ -141,8 +150,11 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.callStatus = {
     hunger: { isActive: false, startedAt: null, isLogged: false },
     strength: { isActive: false, startedAt: null, isLogged: false },
-    sleep: { isActive: false, startedAt: null }
+    sleep: { isActive: false, startedAt: null, isLogged: false }
   };
+  merged.fastSleepStart = null;
+  merged.napUntil = null;
+  merged.sleepLightOnStart = null;
   
   // 매뉴얼 기반 필드 초기화
   
@@ -438,6 +450,138 @@ function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = 
   });
 }
 
+function isSleepLikeStatus(status) {
+  return (
+    status === "NAPPING" ||
+    status === "SLEEPING" ||
+    status === "SLEEPING_LIGHT_ON"
+  );
+}
+
+function getEffectiveFastSleepStartMs(stats = {}) {
+  const explicitFastSleepStart = ensureTimestamp(stats.fastSleepStart);
+  if (explicitFastSleepStart != null) {
+    return explicitFastSleepStart;
+  }
+
+  const napUntilMs = ensureTimestamp(stats.napUntil);
+  if (napUntilMs == null) {
+    return null;
+  }
+
+  return napUntilMs - NAP_DURATION_MS - FALLING_ASLEEP_DELAY_MS;
+}
+
+function getLazySleepStatusAtMs(stats = {}, sleepSchedule, timestampMs) {
+  const lightsOn = stats.isLightsOn !== undefined ? Boolean(stats.isLightsOn) : true;
+  const wakeUntilMs = ensureTimestamp(stats.wakeUntil);
+  if (wakeUntilMs != null && wakeUntilMs > timestampMs) {
+    return "AWAKE_INTERRUPTED";
+  }
+
+  const normalizedSchedule = sleepSchedule ? normalizeSleepSchedule(sleepSchedule) : null;
+  const isSleepTime =
+    normalizedSchedule != null &&
+    isTimeWithinSleepSchedule(normalizedSchedule, new Date(timestampMs));
+
+  const napUntilMs = ensureTimestamp(stats.napUntil);
+  const napStartAt =
+    napUntilMs != null ? napUntilMs - NAP_DURATION_MS : null;
+  const isNapTime =
+    napStartAt != null &&
+    timestampMs >= napStartAt &&
+    timestampMs < napUntilMs;
+
+  const fastSleepStartMs = getEffectiveFastSleepStartMs(stats);
+  const isFallingAsleep =
+    fastSleepStartMs != null &&
+    timestampMs >= fastSleepStartMs &&
+    timestampMs < fastSleepStartMs + FALLING_ASLEEP_DELAY_MS;
+
+  if (isSleepTime) {
+    if (lightsOn) {
+      return "SLEEPING_LIGHT_ON";
+    }
+    if (isFallingAsleep) {
+      return "FALLING_ASLEEP";
+    }
+    return "SLEEPING";
+  }
+
+  if (isNapTime) {
+    if (lightsOn) {
+      return "AWAKE";
+    }
+    if (isFallingAsleep) {
+      return "FALLING_ASLEEP";
+    }
+    return "NAPPING";
+  }
+
+  return "AWAKE";
+}
+
+function analyzeSleepStatesInRange(stats = {}, startTime, endTime, sleepSchedule) {
+  const startMs = ensureTimestamp(startTime);
+  const endMs = ensureTimestamp(endTime);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+    return {
+      sleepLikeSeconds: 0,
+      sleepLightSegments: [],
+      currentStatus: getLazySleepStatusAtMs(stats, sleepSchedule, endMs || Date.now()),
+    };
+  }
+
+  const actualEnd = Math.min(endMs, startMs + MAX_SLEEP_ANALYSIS_RANGE_MS);
+  let current = startMs;
+  let sleepLikeMs = 0;
+  let activeSleepLightStart = null;
+  const sleepLightSegments = [];
+
+  while (current < actualEnd) {
+    const next = Math.min(current + SLEEP_ANALYSIS_STEP_MS, actualEnd);
+    const status = getLazySleepStatusAtMs(stats, sleepSchedule, current);
+
+    if (isSleepLikeStatus(status)) {
+      sleepLikeMs += next - current;
+    }
+
+    if (status === "SLEEPING_LIGHT_ON") {
+      if (activeSleepLightStart == null) {
+        activeSleepLightStart = current;
+      }
+    } else if (activeSleepLightStart != null) {
+      sleepLightSegments.push({
+        startedAt: activeSleepLightStart,
+        endedAt: current,
+      });
+      activeSleepLightStart = null;
+    }
+
+    current = next;
+  }
+
+  const currentStatus = getLazySleepStatusAtMs(stats, sleepSchedule, endMs);
+
+  if (activeSleepLightStart != null) {
+    sleepLightSegments.push({
+      startedAt: activeSleepLightStart,
+      endedAt: actualEnd,
+    });
+  }
+
+  return {
+    sleepLikeSeconds: Math.floor(sleepLikeMs / 1000),
+    sleepLightSegments,
+    currentStatus,
+  };
+}
+
+function calculateSleepLikeSecondsInRange(startTime, endTime, stats, sleepSchedule) {
+  return analyzeSleepStatesInRange(stats, startTime, endTime, sleepSchedule).sleepLikeSeconds;
+}
+
 /**
  * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
  * 스탯(배고픔, 수명 등)을 한 번에 차감
@@ -543,10 +687,15 @@ export function applyLazyUpdate(
       updatedStats.hungerZeroFrozenDurationMs = 0;
     }
 
-    // 수면 시간을 제외한 실제 활동 시간만큼만 hungerCountdown 감소
+    // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
     let activeSeconds = elapsedSeconds;
-    if (sleepSchedule) {
-      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
+      const sleepSeconds = calculateSleepLikeSecondsInRange(
+        lastSaved.getTime(),
+        now.getTime(),
+        updatedStats,
+        sleepSchedule
+      );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
     
@@ -577,10 +726,15 @@ export function applyLazyUpdate(
       updatedStats.strengthZeroFrozenDurationMs = 0;
     }
 
-    // 수면 시간을 제외한 실제 활동 시간만큼만 strengthCountdown 감소
+    // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
     let activeSeconds = elapsedSeconds;
-    if (sleepSchedule) {
-      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
+      const sleepSeconds = calculateSleepLikeSecondsInRange(
+        lastSaved.getTime(),
+        now.getTime(),
+        updatedStats,
+        sleepSchedule
+      );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
     
@@ -618,10 +772,15 @@ export function applyLazyUpdate(
       updatedStats.poopCountdown = maxValidCountdown;
     }
     
-    // 수면 시간을 제외한 실제 활동 시간만큼만 poopCountdown 감소
+    // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
     let activeSeconds = elapsedSeconds;
-    if (sleepSchedule) {
-      const sleepSeconds = calculateSleepSecondsInRange(lastSaved.getTime(), now.getTime(), sleepSchedule);
+    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
+      const sleepSeconds = calculateSleepLikeSecondsInRange(
+        lastSaved.getTime(),
+        now.getTime(),
+        updatedStats,
+        sleepSchedule
+      );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
     
@@ -719,7 +878,7 @@ export function applyLazyUpdate(
     updatedStats.callStatus = {
       hunger: { isActive: false, startedAt: null, isLogged: false },
       strength: { isActive: false, startedAt: null, isLogged: false },
-      sleep: { isActive: false, startedAt: null }
+      sleep: { isActive: false, startedAt: null, isLogged: false }
     };
   }
   if (updatedStats.callStatus.hunger && updatedStats.callStatus.hunger.isLogged === undefined) {
@@ -728,10 +887,30 @@ export function applyLazyUpdate(
   if (updatedStats.callStatus.strength && updatedStats.callStatus.strength.isLogged === undefined) {
     updatedStats.callStatus.strength.isLogged = false;
   }
+  if (updatedStats.callStatus.sleep && updatedStats.callStatus.sleep.isLogged === undefined) {
+    updatedStats.callStatus.sleep.isLogged = false;
+  }
 
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  const sleepRangeAnalysis = analyzeSleepStatesInRange(
+    updatedStats,
+    lastSaved.getTime(),
+    now.getTime(),
+    sleepSchedule
+  );
+  const expiredNapUntil = ensureTimestamp(updatedStats.napUntil);
+  if (expiredNapUntil != null && expiredNapUntil <= now.getTime()) {
+    updatedStats.napUntil = null;
+  }
+  if (sleepRangeAnalysis.currentStatus !== "FALLING_ASLEEP") {
+    updatedStats.fastSleepStart = null;
+  }
+  const expiredWakeUntil = ensureTimestamp(updatedStats.wakeUntil);
+  if (expiredWakeUntil != null && expiredWakeUntil <= now.getTime()) {
+    updatedStats.wakeUntil = null;
+  }
 
   // Hunger 호출 처리
   if (updatedStats.fullness === 0) {
@@ -763,8 +942,13 @@ export function applyLazyUpdate(
         }
       }
 
-      if (activeStartedAt && sleepSchedule) {
-        const sleepDuringCall = calculateSleepSecondsInRange(activeStartedAt, now.getTime(), sleepSchedule);
+      if (activeStartedAt) {
+        const sleepDuringCall = calculateSleepLikeSecondsInRange(
+          activeStartedAt,
+          now.getTime(),
+          updatedStats,
+          sleepSchedule
+        );
         const totalElapsedMs = now.getTime() - activeStartedAt;
         const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
 
@@ -796,34 +980,8 @@ export function applyLazyUpdate(
         } else {
           const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
           callStatus.hunger.startedAt = Math.min(now.getTime(), pushedStart);
-        }
-      } else if (activeStartedAt) {
-        const elapsed = now.getTime() - activeStartedAt;
-        if (elapsed > HUNGER_CALL_TIMEOUT) {
-          const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
-          if (!alreadyLogged) {
-            const result = appendCareMistakeEntry(updatedStats, {
-              occurredAt: timeoutOccurredAt,
-              reasonKey: "hunger_call",
-              text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
-              source: "backfill",
-            });
-            updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
-            if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
-              updatedStats.activityLogs = pushBackdatedActivityLog(
-                updatedStats.activityLogs,
-                'CAREMISTAKE',
-                '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
-                timeoutOccurredAt
-              );
-            }
-            callStatus.hunger.isLogged = true;
-          }
-          callStatus.hunger.isActive = false;
-          callStatus.hunger.startedAt = null;
-          updatedStats.hungerMistakeDeadline = null;
+          updatedStats.hungerMistakeDeadline =
+            callStatus.hunger.startedAt + HUNGER_CALL_TIMEOUT;
         }
       }
     } else {
@@ -870,8 +1028,13 @@ export function applyLazyUpdate(
         }
       }
 
-      if (activeStartedAt && sleepSchedule) {
-        const sleepDuringCall = calculateSleepSecondsInRange(activeStartedAt, now.getTime(), sleepSchedule);
+      if (activeStartedAt) {
+        const sleepDuringCall = calculateSleepLikeSecondsInRange(
+          activeStartedAt,
+          now.getTime(),
+          updatedStats,
+          sleepSchedule
+        );
         const totalElapsedMs = now.getTime() - activeStartedAt;
         const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
 
@@ -903,34 +1066,8 @@ export function applyLazyUpdate(
         } else {
           const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
           callStatus.strength.startedAt = Math.min(now.getTime(), pushedStart);
-        }
-      } else if (activeStartedAt) {
-        const elapsed = now.getTime() - activeStartedAt;
-        if (elapsed > STRENGTH_CALL_TIMEOUT) {
-          const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
-          if (!alreadyLogged) {
-            const result = appendCareMistakeEntry(updatedStats, {
-              occurredAt: timeoutOccurredAt,
-              reasonKey: "strength_call",
-              text: "케어미스(사유: 힘 콜 10분 무시) [과거 재구성]",
-              source: "backfill",
-            });
-            updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
-            if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
-              updatedStats.activityLogs = pushBackdatedActivityLog(
-                updatedStats.activityLogs,
-                'CAREMISTAKE',
-                '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
-                timeoutOccurredAt
-              );
-            }
-            callStatus.strength.isLogged = true;
-          }
-          callStatus.strength.isActive = false;
-          callStatus.strength.startedAt = null;
-          updatedStats.strengthMistakeDeadline = null;
+          updatedStats.strengthMistakeDeadline =
+            callStatus.strength.startedAt + STRENGTH_CALL_TIMEOUT;
         }
       }
     } else {
@@ -947,9 +1084,94 @@ export function applyLazyUpdate(
     updatedStats.strengthMistakeDeadline = null;
   }
 
-  // Sleep 호출 처리 (수면 주기당 1회만)
-  // 수면 호출은 실시간으로만 처리 (Lazy Update에서는 처리하지 않음)
-  // 이유: 수면 호출은 수면 시간이 시작될 때 한 번만 발생해야 하므로
+  // 수면 조명 경고는 offline/lazy update 복귀 시에도 사건 단위로 복원한다.
+  const previousSleepCallStartedAt =
+    ensureTimestamp(callStatus.sleep.startedAt) ??
+    ensureTimestamp(updatedStats.sleepLightOnStart);
+  const previousSleepCallLogged = callStatus.sleep.isLogged === true;
+  const activeSleepLightSegment =
+    sleepRangeAnalysis.currentStatus === "SLEEPING_LIGHT_ON"
+      ? sleepRangeAnalysis.sleepLightSegments[
+          sleepRangeAnalysis.sleepLightSegments.length - 1
+        ] || null
+      : null;
+  let activeSleepLightEffectiveStart = null;
+
+  if (activeSleepLightSegment) {
+    activeSleepLightEffectiveStart =
+      previousSleepCallStartedAt != null &&
+      previousSleepCallStartedAt <=
+        activeSleepLightSegment.startedAt + SLEEP_ANALYSIS_STEP_MS
+        ? Math.min(previousSleepCallStartedAt, activeSleepLightSegment.startedAt)
+        : activeSleepLightSegment.startedAt;
+    callStatus.sleep.isActive = true;
+    callStatus.sleep.startedAt = activeSleepLightEffectiveStart;
+    updatedStats.sleepLightOnStart = activeSleepLightEffectiveStart;
+    callStatus.sleep.isLogged =
+      previousSleepCallLogged &&
+      previousSleepCallStartedAt != null &&
+      previousSleepCallStartedAt <=
+        activeSleepLightSegment.startedAt + SLEEP_ANALYSIS_STEP_MS;
+  } else {
+    callStatus.sleep.isActive = false;
+    callStatus.sleep.startedAt = null;
+    callStatus.sleep.isLogged = false;
+    updatedStats.sleepLightOnStart = null;
+  }
+
+  sleepRangeAnalysis.sleepLightSegments.forEach((segment, index) => {
+    const isActiveSegment =
+      activeSleepLightSegment != null &&
+      activeSleepLightSegment.startedAt === segment.startedAt &&
+      activeSleepLightEffectiveStart != null;
+    const isContinuingPersistedIncident =
+      index === 0 &&
+      previousSleepCallStartedAt != null &&
+      previousSleepCallStartedAt <= segment.startedAt + SLEEP_ANALYSIS_STEP_MS;
+    const effectiveStartedAt = isActiveSegment
+      ? activeSleepLightEffectiveStart
+      : isContinuingPersistedIncident
+        ? Math.min(previousSleepCallStartedAt, segment.startedAt)
+        : segment.startedAt;
+    const segmentDurationMs = Math.max(0, segment.endedAt - effectiveStartedAt);
+    if (segmentDurationMs < SLEEP_LIGHT_WARNING_TIMEOUT_MS) {
+      return;
+    }
+
+    if (isContinuingPersistedIncident && previousSleepCallLogged) {
+      return;
+    }
+
+    const timeoutOccurredAt = effectiveStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS;
+    const result = appendCareMistakeEntry(updatedStats, {
+      occurredAt: timeoutOccurredAt,
+      reasonKey: "sleep_light_warning",
+      text: "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+      source: "backfill",
+    });
+    updatedStats.careMistakes = result.nextStats.careMistakes;
+    updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
+    if (
+      result.added &&
+      !alreadyHasBackdatedLog(
+        updatedStats.activityLogs,
+        "CAREMISTAKE",
+        timeoutOccurredAt,
+        "수면 조명 경고"
+      )
+    ) {
+      updatedStats.activityLogs = pushBackdatedActivityLog(
+        updatedStats.activityLogs,
+        "CAREMISTAKE",
+        "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+        timeoutOccurredAt
+      );
+    }
+
+    if (isActiveSegment) {
+      callStatus.sleep.isLogged = true;
+    }
+  });
 
   // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크
   updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSaved, now);

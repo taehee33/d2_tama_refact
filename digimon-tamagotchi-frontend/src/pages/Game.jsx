@@ -195,8 +195,6 @@ function Game({ immersive = false }){
     setIsEvoEnabled,
     hasSeenDeathPopup,
     setHasSeenDeathPopup,
-    dailySleepMistake,
-    setDailySleepMistake,
   } = flags || {};
 
   const {
@@ -266,7 +264,6 @@ function Game({ immersive = false }){
     setDigimonNickname,
     setIsLightsOn,
     setWakeUntil,
-    setDailySleepMistake,
     setIsLoadingSlot,
     setDeathReason,
     toggleModal,
@@ -277,7 +274,6 @@ function Game({ immersive = false }){
     navigate,
     isLightsOn,
     wakeUntil,
-    dailySleepMistake,
     activityLogs,
     backgroundSettings,
     setBackgroundSettings,
@@ -311,7 +307,6 @@ function Game({ immersive = false }){
     digimonDataForSlot,
     isLightsOn,
     wakeUntil,
-    dailySleepMistake,
     deathReason,
     hasSeenDeathPopup,
     appendLogToSubcollection,
@@ -321,7 +316,6 @@ function Game({ immersive = false }){
     setActivityLogs,
     setSleepStatus,
     setIsSleeping,
-    setDailySleepMistake,
     setDeathReason,
     setHasSeenDeathPopup,
   });
@@ -374,7 +368,6 @@ function Game({ immersive = false }){
     currentUser,
     slotName,
     isLightsOn,
-    dailySleepMistake,
     battleType,
     setShowBattleScreen: (value) => toggleModal('battleScreen', value),
     setBattleType,

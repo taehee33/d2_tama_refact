@@ -4,6 +4,68 @@
 
 ---
 
+## [2026-04-08] `dailySleepMistake` 잔재 상태를 저장/전달 경로에서 제거
+
+### 작업 유형
+- 🧹 사용되지 않는 수면 케어미스 필드 정리
+- 🔌 상태/훅 시그니처 단순화
+- 🧪 저장 helper 및 런타임 전달 테스트 갱신
+
+### 목적 및 영향
+- **목적:** 실제 수면 조명 케어미스 판정에 더 이상 쓰이지 않는 `dailySleepMistake`를 상태, 저장, 전달 경로에서 제거해 케어미스 로직 이해를 단순화하고 불필요한 루트 필드 동기화를 없앤다.
+- **범위:** `useGameState`, `Game.jsx`, `useGameData`, `useGameRuntimeEffects`, `useGameRealtimeLoop`, `useGameActions`의 시그니처와 저장 payload, 관련 테스트와 문서만 정리한다.
+- **내용:**
+  - `useGameState` flags에서 `dailySleepMistake/setDailySleepMistake`를 제거하고, `Game.jsx` 및 런타임 훅 전달층도 해당 prop 없이 동작하도록 정리했다.
+  - `useGameData`의 루트 필드 해석과 lazy update 기준 스탯 조합에서 `dailySleepMistake`를 제거하고, 저장 시에는 `deleteField()`를 함께 보내 예전 루트 슬롯 문서에 남아 있던 필드가 다음 저장 때 정리되도록 맞췄다.
+  - `sanitizeDigimonStatsForSlotDocument()`도 stale `dailySleepMistake`를 제거하도록 보강해, 과거 세션에서 메모리에 남아 있던 값이 다시 `digimonStats` 안으로 저장되지 않게 했다.
+  - `useGameRuntimeEffects.test.js`, `useGameData.test.js`는 새 계약에 맞게 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `dailySleepMistake`는 이제 런타임 계약에서 사라지고, 수면 조명 케어미스 잠금은 `callStatus.sleep.isLogged`와 사건 경계만으로 설명된다.
+
+## [2026-04-08] 오프라인 복귀 시 수면 조명 케어미스와 낮잠 제외 시간을 lazy update로 복원
+
+### 작업 유형
+- 🛌 lazy update 수면 상태 재구성 보강
+- 💡 수면 조명 경고 케어미스 백필 보정
+- 🧪 오프라인 복귀/낮잠/강제 기상 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 앱이 꺼져 있거나 저장 경계를 넘는 동안 발생한 `SLEEPING_LIGHT_ON` 30분 경고와 `NAPPING` 제외 시간을 `applyLazyUpdate()`에서도 실시간 로직과 같은 기준으로 복원해, 케어미스와 호출 데드라인이 재접속 후 어긋나지 않게 한다.
+- **범위:** `src/data/stats.js`의 lazy update 경로, 해당 회귀 테스트, 문서만 조정한다. 저장 스키마는 유지하고 `dailySleepMistake` 정리 작업은 별도 후속으로 남긴다.
+- **내용:**
+  - lazy update에 `FALLING_ASLEEP`, `NAPPING`, `SLEEPING`, `SLEEPING_LIGHT_ON`, `AWAKE_INTERRUPTED`를 계산하는 수면 상태 분석 함수를 추가해 배고픔/힘/똥 countdown과 10분 호출 타이머가 실제 수면 구간만 멈추도록 맞췄다.
+  - `sleepLightOnStart`와 `callStatus.sleep.isLogged`를 이용해 수면 조명 경고를 사건 단위로 이어 붙이도록 보정해, 저장 경계를 넘어도 같은 사건을 중복 집계하지 않고 끝난 사건의 30분 케어미스는 정확히 복원되게 했다.
+  - `wakeUntil`이 남아 있던 강제 기상 시간은 수면 제외 시간으로 잘못 빼지 않도록 정리했고, 이미 끝난 낮잠의 `fastSleepStart`/`napUntil`은 lazy update 시점에 함께 청소되도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/data/stats.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/callStatusUtils.test.js`
+
+### 아키텍처 메모
+- 이번 보정으로 케어미스 복원 책임은 실시간 루프와 lazy update가 같은 수면 상태 정의를 공유하게 됐고, 탭 종료나 재접속 여부와 무관하게 동일한 결과를 기대할 수 있게 됐다.
+
 ## [2026-04-08] 수면 조명 경고 케어미스를 하루 1회에서 사건별 1회로 전환
 
 ### 작업 유형
@@ -79,6 +141,47 @@
 ### 아키텍처 메모
 - 이번 라운드는 저장 스키마를 늘리지 않고 `fastSleepStart`, `napUntil`, `wakeUntil`, `sleepLightOnStart`, `sleepStartAt` 조합만으로 상태 전이와 호출 일시정지를 표현했다.
 - 수면 관련 UI는 이제 `현재 상태`와 `페널티 타이머`를 분리해 보여 주므로, 앞으로 커뮤니티 카드/상단 배지/호출 모달이 같은 상태명을 공유할 수 있다.
+
+## [2026-04-07] 사용자 프로필을 `profile/main`으로 분리하는 호환 단계 도입
+
+### 작업 유형
+- 👤 사용자 프로필 저장 경로 분리
+- 🔁 루트 + `profile/main` dual-write 호환 단계 도입
+- 🧾 닉네임 인덱스 운영 스크립트 경로 정합성 갱신
+- 🧪 프로필/닉네임 유틸 테스트 보강
+
+### 목적 및 영향
+- **목적:** `users/{uid}` 루트 문서에 몰려 있던 `tamerName`, `achievements`, `maxSlots`를 `users/{uid}/profile/main`으로 분리해 문서 결합도를 낮추고, 이후 루트 사용자 문서를 인증 메타 중심으로 정리할 준비를 한다.
+- **범위:** 런타임 프로필/닉네임 유틸, 닉네임 백필·verify 스크립트, Firestore rules, 프로필 백필 스크립트와 문서만 조정하며, 기존 화면 계약과 로그인 bootstrap 로직은 유지한다.
+- **내용:**
+  - `userProfileUtils`는 `profile/main`을 우선 읽고 루트 `users/{uid}`를 fallback으로 읽도록 바꿨으며, 칭호 저장 시 루트와 `profile/main`을 함께 갱신한다.
+  - `tamerNameUtils`는 테이머명을 `profile/main` 우선으로 읽고, 닉네임 저장/기본값 복구 transaction에서 루트와 `profile/main`을 함께 갱신하도록 정리했다.
+  - `scripts/nicknameIndexShared.js`, `backfillNicknameIndex.js`, `verifyNicknameIndex.js`는 `profile/main` 우선 기준으로 닉네임 상태를 수집·정규화하도록 갱신했다.
+  - `scripts/backfillUserProfile.js`와 `npm run profile:backfill`를 추가해 루트 프로필 필드를 `profile/main`으로 안전하게 복사할 수 있도록 했다.
+  - `firestore.rules`에 `users/{uid}/profile/{profileId}` owner 규칙을 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/userProfileUtils.test.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+- `scripts/nicknameIndexShared.js`
+- `scripts/backfillNicknameIndex.js`
+- `scripts/verifyNicknameIndex.js`
+- `scripts/backfillUserProfile.js`
+- `package.json`
+- `firestore.rules`
+- `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --watchAll=false --runInBand src/utils/userProfileUtils.test.js src/utils/tamerNameUtils.test.js src/components/panels/AccountSettingsPanel.test.jsx src/pages/Home.test.jsx src/pages/Me.test.jsx`
+- `node --check scripts/backfillUserProfile.js`
+- `node --test tests/nickname-index-migration.test.js`
+
+### 아키텍처 메모
+- 이번 라운드는 루트 필드를 삭제하지 않는 호환 단계라서, 구버전 탭/캐시와의 충돌을 줄이기 위해 루트와 `profile/main`을 함께 갱신한다.
+- 다음 단계는 `profile:backfill` 운영 반영 후, 루트 프로필 필드의 읽기/쓰기 제거 여부를 결정하는 것이다.
 
 ## [2026-04-07] 호출 상태 UI를 공통 view-model 기반으로 통합
 

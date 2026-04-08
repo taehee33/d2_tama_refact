@@ -210,7 +210,6 @@ export function wakeForInteraction(
  * @param {Object|null} params.currentUser - 현재 사용자
  * @param {string} params.slotName - 슬롯 이름
  * @param {boolean} params.isLightsOn - 조명 상태
- * @param {boolean} params.dailySleepMistake - 일일 수면 케어 미스
  * @param {string|null} params.battleType - 배틀 타입
  * @param {Function} params.setShowBattleScreen - 배틀 화면 표시 설정 함수
  * @param {Function} params.setBattleType - 배틀 타입 설정 함수
@@ -251,7 +250,6 @@ export function useGameActions({
   currentUser,
   slotName,
   isLightsOn,
-  dailySleepMistake,
   battleType,
   setShowBattleScreen,
   setBattleType,

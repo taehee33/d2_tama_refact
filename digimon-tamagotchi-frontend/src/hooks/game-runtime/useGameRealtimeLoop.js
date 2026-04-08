@@ -24,14 +24,12 @@ export function useGameRealtimeLoop({
   setDigimonStats,
   setActivityLogs,
   setIsSleeping,
-  setDailySleepMistake,
   setDeathReason,
   setHasSeenDeathPopup,
   digimonDataForSlot,
   selectedDigimon,
   isLightsOn,
   wakeUntil,
-  dailySleepMistake,
   deathReason,
   hasSeenDeathPopup,
   slotId,
@@ -48,7 +46,6 @@ export function useGameRealtimeLoop({
     selectedDigimon,
     isLightsOn,
     wakeUntil,
-    dailySleepMistake,
     deathReason,
     hasSeenDeathPopup,
     slotId,
@@ -64,7 +61,6 @@ export function useGameRealtimeLoop({
       selectedDigimon,
       isLightsOn,
       wakeUntil,
-      dailySleepMistake,
       deathReason,
       hasSeenDeathPopup,
       slotId,
@@ -78,7 +74,6 @@ export function useGameRealtimeLoop({
     selectedDigimon,
     isLightsOn,
     wakeUntil,
-    dailySleepMistake,
     deathReason,
     hasSeenDeathPopup,
     slotId,
@@ -478,9 +473,6 @@ export function useGameRealtimeLoop({
 
         updatedStats.isLightsOn = live.isLightsOn;
         updatedStats.wakeUntil = live.wakeUntil;
-        if (typeof updatedStats.dailySleepMistake !== "boolean") {
-          updatedStats.dailySleepMistake = live.dailySleepMistake;
-        }
 
         const zeroAtChanged =
           updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt ||
@@ -531,7 +523,6 @@ export function useGameRealtimeLoop({
   }, [
     digimonStats.isDead,
     setActivityLogs,
-    setDailySleepMistake,
     setDeathReason,
     setDigimonStats,
     setHasSeenDeathPopup,

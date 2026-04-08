@@ -37,8 +37,8 @@ function cleanObject(obj) {
  * newStats에 최신 값이 들어오면 그 값을 우선 사용하고, 없으면 현재 훅 상태를 fallback으로 사용합니다.
  *
  * @param {Object} newStats
- * @param {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }} currentRootState
- * @returns {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }}
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null }} currentRootState
+ * @returns {{ isLightsOn: boolean, wakeUntil: number|null }}
  */
 export function resolveRootSlotFields(newStats = {}, currentRootState = {}) {
   return {
@@ -46,10 +46,6 @@ export function resolveRootSlotFields(newStats = {}, currentRootState = {}) {
       newStats.isLightsOn !== undefined ? newStats.isLightsOn : currentRootState.isLightsOn,
     wakeUntil:
       newStats.wakeUntil !== undefined ? newStats.wakeUntil : (currentRootState.wakeUntil ?? null),
-    dailySleepMistake:
-      typeof newStats.dailySleepMistake === "boolean"
-        ? newStats.dailySleepMistake
-        : Boolean(currentRootState.dailySleepMistake),
   };
 }
 
@@ -87,6 +83,7 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
   const {
     isLightsOn: _dropLights,
     wakeUntil: _dropWakeUntil,
+    dailySleepMistake: _dropDailySleepMistake,
     lastSavedAt: _dropLastSavedAt,
     activityLogs: _dropActivityLogs,
     battleLogs: _dropBattleLogs,
@@ -103,7 +100,7 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
  *
  * @param {Object} persistedStats
  * @param {Object} liveStats
- * @param {{ isLightsOn: boolean, wakeUntil: number|null, dailySleepMistake: boolean }} currentRootState
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null }} currentRootState
  * @returns {Object}
  */
 export function resolveLazyUpdateBaseStats(
@@ -147,7 +144,6 @@ export function resolveLazyUpdateBaseStats(
  * @param {Function} params.setSlotVersion - 슬롯 버전 설정 함수
  * @param {Function} params.setIsLightsOn - 불 켜짐 상태 설정 함수
  * @param {Function} params.setWakeUntil - 깨울 때까지 시간 설정 함수
- * @param {Function} params.setDailySleepMistake - 일일 수면 실수 설정 함수
  * @param {Function} params.setIsLoadingSlot - 로딩 상태 설정 함수
  * @param {Function} params.setDeathReason - 사망 사유 설정 함수
  * @param {Function} params.toggleModal - 모달 토글 함수
@@ -177,7 +173,6 @@ export function useGameData({
   setDigimonNickname,
   setIsLightsOn,
   setWakeUntil,
-  setDailySleepMistake,
   setIsLoadingSlot,
   setDeathReason,
   toggleModal,
@@ -189,7 +184,6 @@ export function useGameData({
   // 추가 상태들 (applyLazyUpdateBeforeAction에서 사용)
   isLightsOn,
   wakeUntil,
-  dailySleepMistake,
   activityLogs,
   // 배경화면 설정
   backgroundSettings,
@@ -297,7 +291,6 @@ export function useGameData({
     const rootSlotFields = resolveRootSlotFields(newStats, {
       isLightsOn,
       wakeUntil,
-      dailySleepMistake,
     });
 
     const finalStats = {
@@ -353,6 +346,7 @@ export function useGameData({
         const updateData = {
           digimonStats: sanitizeDigimonStatsForSlotDocument(statsForState),
           ...rootSlotFields,
+          dailySleepMistake: deleteField(),
           lastSavedAt: statsForState.lastSavedAt,
           updatedAt: now,
         };
@@ -456,7 +450,6 @@ export function useGameData({
         const baseStats = resolveLazyUpdateBaseStats(persistedStats, digimonStats, {
           isLightsOn,
           wakeUntil,
-          dailySleepMistake,
         });
         const digimonSnapshot = buildDigimonLogSnapshot(
           baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
@@ -543,7 +536,6 @@ export function useGameData({
           setDigimonNickname(slotData.digimonNickname || null);
           setIsLightsOn(slotData.isLightsOn !== undefined ? slotData.isLightsOn : true);
           setWakeUntil(slotData.wakeUntil || null);
-          if (slotData.dailySleepMistake !== undefined) setDailySleepMistake(slotData.dailySleepMistake);
           
           // 배경화면 설정 로드
           if (setBackgroundSettings) {
@@ -821,6 +813,7 @@ export function useGameData({
           ),
           isLightsOn,
           wakeUntil,
+          dailySleepMistake: deleteField(),
           updatedAt: new Date(),
         });
       } catch (saveError) {
@@ -858,11 +851,11 @@ export function useGameData({
       const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
         isLightsOn,
         wakeUntil,
-        dailySleepMistake,
       });
       const updateData = {
         digimonStats: sanitizeDigimonStatsForSlotDocument(statsSnapshot),
         ...rootSlotFields,
+        dailySleepMistake: deleteField(),
         lastSavedAt: statsSnapshot.lastSavedAt || new Date(),
         updatedAt: new Date(),
       };
@@ -893,7 +886,6 @@ export function useGameData({
       selectedDigimon,
       isLightsOn,
       wakeUntil,
-      dailySleepMistake,
       isLoadingSlot,
       digimonNickname,
       evolutionDataForSlot,

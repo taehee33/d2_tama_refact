@@ -239,7 +239,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [isLoadingSlot, setIsLoadingSlot] = useState(true);
   const [isEvoEnabled, setIsEvoEnabled] = useState(false);
   const [hasSeenDeathPopup, setHasSeenDeathPopup] = useState(false);
-  const [dailySleepMistake, setDailySleepMistake] = useState(false);
   
   // ============================================
   // 4. UI State (UI 관련 상태)
@@ -502,8 +501,6 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setIsEvoEnabled,
       hasSeenDeathPopup,
       setHasSeenDeathPopup,
-      dailySleepMistake,
-      setDailySleepMistake,
     },
     
     // UI State

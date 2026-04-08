@@ -6,24 +6,21 @@ import {
 } from "./useGameData";
 
 describe("resolveRootSlotFields", () => {
-  test("newStats에 최신 조명/기상/수면 경고 값이 있으면 그 값을 우선 사용한다", () => {
+  test("newStats에 최신 조명/기상 값이 있으면 그 값을 우선 사용한다", () => {
     const result = resolveRootSlotFields(
       {
         isLightsOn: false,
         wakeUntil: 123456789,
-        dailySleepMistake: false,
       },
       {
         isLightsOn: true,
         wakeUntil: null,
-        dailySleepMistake: true,
       }
     );
 
     expect(result).toEqual({
       isLightsOn: false,
       wakeUntil: 123456789,
-      dailySleepMistake: false,
     });
   });
 
@@ -33,14 +30,12 @@ describe("resolveRootSlotFields", () => {
       {
         isLightsOn: true,
         wakeUntil: 987654321,
-        dailySleepMistake: true,
       }
     );
 
     expect(result).toEqual({
       isLightsOn: true,
       wakeUntil: 987654321,
-      dailySleepMistake: true,
     });
   });
 });
@@ -69,6 +64,7 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
       fullness: 4,
       isLightsOn: false,
       wakeUntil: 1234,
+      dailySleepMistake: true,
       lastSavedAt: new Date("2026-04-07T00:00:00.000Z"),
       activityLogs: [{ type: "CALL" }],
       battleLogs: [{ mode: "quest" }],
@@ -100,7 +96,6 @@ describe("resolveLazyUpdateBaseStats", () => {
       {
         isLightsOn: false,
         wakeUntil: 4567,
-        dailySleepMistake: true,
       }
     );
 
@@ -109,7 +104,6 @@ describe("resolveLazyUpdateBaseStats", () => {
       strength: 1,
       isLightsOn: false,
       wakeUntil: 4567,
-      dailySleepMistake: true,
       activityLogs: [{ type: "LIVE" }],
       battleLogs: [{ mode: "quest" }],
       selectedDigimon: "Greymon",

@@ -29,8 +29,13 @@ function createBaseStats(overrides = {}) {
     callStatus: {
       hunger: { isActive: false, startedAt: null, isLogged: false },
       strength: { isActive: false, startedAt: null, isLogged: false },
-      sleep: { isActive: false, startedAt: null },
+      sleep: { isActive: false, startedAt: null, isLogged: false },
     },
+    isLightsOn: true,
+    wakeUntil: null,
+    fastSleepStart: null,
+    napUntil: null,
+    sleepLightOnStart: null,
     careMistakes: 0,
     careMistakeLedger: [],
     injuries: 0,
@@ -177,6 +182,62 @@ describe("applyLazyUpdate", () => {
     expect(result.poopCountdown).toBe(50);
   });
 
+  test("낮잠 시간은 hunger/strength/poop countdown에서 제외한다", () => {
+    const napStart = Date.parse("2026-03-31T11:00:15.000Z");
+    const now = new Date("2026-03-31T12:00:15.000Z");
+    jest.setSystemTime(now);
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: false,
+        napUntil: Date.parse("2026-03-31T14:00:15.000Z"),
+        lifespanSeconds: 10,
+        timeToEvolveSeconds: 6000,
+        hungerCountdown: 30,
+        strengthCountdown: 40,
+        poopCountdown: 50,
+      }),
+      napStart,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.lifespanSeconds).toBe(3610);
+    expect(result.timeToEvolveSeconds).toBe(2400);
+    expect(result.fullness).toBe(2);
+    expect(result.strength).toBe(2);
+    expect(result.poopCount).toBe(0);
+    expect(result.hungerCountdown).toBe(30);
+    expect(result.strengthCountdown).toBe(40);
+    expect(result.poopCountdown).toBe(50);
+  });
+
+  test("낮잠 중이었던 시간은 hunger/strength/poop countdown에서 제외한다", () => {
+    const napStart = Date.parse("2026-03-31T14:00:00.000Z");
+    const napSleepStart = napStart + 15 * 1000;
+    const napEnd = napSleepStart + 3 * 60 * 60 * 1000;
+    jest.setSystemTime(new Date("2026-03-31T14:30:15.000Z"));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        hungerCountdown: 60,
+        strengthCountdown: 60,
+        poopCountdown: 300,
+        isLightsOn: false,
+        fastSleepStart: napStart,
+        napUntil: napEnd,
+      }),
+      napStart,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.hungerCountdown).toBe(45);
+    expect(result.strengthCountdown).toBe(45);
+    expect(result.poopCountdown).toBe(285);
+    expect(result.fullness).toBe(2);
+    expect(result.strength).toBe(2);
+    expect(result.poopCount).toBe(0);
+  });
+
   test("냉장고에 넣은 이후 시간은 경과 계산에서 제외한다", () => {
     const result = applyLazyUpdate(
       createBaseStats({
@@ -216,6 +277,36 @@ describe("applyLazyUpdate", () => {
     expect(result.callStatus.hunger.startedAt).toBe(hungerZeroAt);
     expect(result.hungerMistakeDeadline).toBe(hungerZeroAt + 10 * 60 * 1000);
     expect(result.careMistakes).toBe(0);
+  });
+
+  test("낮잠 중인 배고픔 호출은 sleep-like 시간만큼 deadline이 밀린다", () => {
+    const hungerZeroAt = Date.parse("2026-03-31T11:00:00.000Z");
+    jest.setSystemTime(new Date("2026-03-31T12:00:00.000Z"));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 0,
+        isLightsOn: false,
+        napUntil: Date.parse("2026-03-31T14:05:15.000Z"),
+        lastHungerZeroAt: hungerZeroAt,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      Date.parse("2026-03-31T11:04:00.000Z"),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.careMistakes).toBe(0);
+    expect(result.callStatus.hunger.isActive).toBe(true);
+    expect(result.callStatus.hunger.startedAt).toBe(
+      Date.parse("2026-03-31T11:54:45.000Z")
+    );
+    expect(result.hungerMistakeDeadline).toBe(
+      Date.parse("2026-03-31T12:04:45.000Z")
+    );
   });
 
   test("hunger call 10분 초과는 케어미스를 한 번 올리고 호출을 닫되 zeroAt는 유지한다", () => {
@@ -258,6 +349,128 @@ describe("applyLazyUpdate", () => {
         }),
       ])
     );
+  });
+
+  test("앱이 꺼져 있는 동안 수면 시간이 시작되어 불이 켜진 채 30분을 넘기면 수면 조명 케어미스를 복원한다", () => {
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 35, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 21, 55, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    const expectedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    const expectedTimeout = new Date(2026, 2, 31, 22, 30, 0).getTime();
+
+    expect(result.callStatus.sleep.isActive).toBe(true);
+    expect(result.callStatus.sleep.startedAt).toBe(expectedStart);
+    expect(result.callStatus.sleep.isLogged).toBe(true);
+    expect(result.sleepLightOnStart).toBe(expectedStart);
+    expect(result.careMistakes).toBe(1);
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "sleep_light_warning",
+          occurredAt: expectedTimeout,
+          source: "backfill",
+        }),
+      ])
+    );
+  });
+
+  test("저장 경계를 넘긴 수면 조명 경고 사건은 기존 sleepLightOnStart를 이어서 계산한다", () => {
+    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 40, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        sleepLightOnStart: persistedStart,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: persistedStart, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 22, 20, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    const expectedTimeout = new Date(2026, 2, 31, 22, 30, 0).getTime();
+
+    expect(result.callStatus.sleep.startedAt).toBe(persistedStart);
+    expect(result.callStatus.sleep.isLogged).toBe(true);
+    expect(result.sleepLightOnStart).toBe(persistedStart);
+    expect(result.careMistakes).toBe(1);
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "sleep_light_warning",
+          occurredAt: expectedTimeout,
+        }),
+      ])
+    );
+  });
+
+  test("이미 처리된 수면 조명 경고 사건은 저장 경계를 넘어도 다시 올리지 않는다", () => {
+    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    const timeoutOccurredAt = new Date(2026, 2, 31, 22, 30, 0).getTime();
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 50, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        careMistakes: 1,
+        careMistakeLedger: [
+          {
+            id: `sleep_light_warning:${timeoutOccurredAt}`,
+            occurredAt: timeoutOccurredAt,
+            reasonKey: "sleep_light_warning",
+            text: "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+            source: "backfill",
+            resolvedAt: null,
+            resolvedBy: null,
+          },
+        ],
+        activityLogs: [
+          {
+            type: "CAREMISTAKE",
+            text: "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+            timestamp: timeoutOccurredAt,
+          },
+        ],
+        sleepLightOnStart: persistedStart,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: persistedStart, isLogged: true },
+        },
+      }),
+      new Date(2026, 2, 31, 22, 35, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.activityLogs).toHaveLength(1);
+    expect(result.careMistakeLedger).toHaveLength(1);
+    expect(result.callStatus.sleep).toEqual({
+      isActive: true,
+      startedAt: persistedStart,
+      isLogged: true,
+    });
+    expect(result.sleepLightOnStart).toBe(persistedStart);
   });
 
   test("같은 배고픔 콜 타임아웃 이벤트가 이미 ledger에 있으면 applyLazyUpdate가 다시 올리지 않는다", () => {
@@ -379,6 +592,126 @@ describe("applyLazyUpdate", () => {
         }),
       ])
     );
+  });
+
+  test("정규 수면 중 불 켜짐은 lazy update에서도 수면 조명 경고 케어미스를 복원한다", () => {
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 31, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 21, 59, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.callStatus.sleep).toEqual({
+      isActive: true,
+      startedAt: new Date(2026, 2, 31, 22, 0, 0).getTime(),
+      isLogged: true,
+    });
+    expect(result.sleepLightOnStart).toBe(
+      new Date(2026, 2, 31, 22, 0, 0).getTime()
+    );
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "sleep_light_warning",
+          occurredAt: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+          source: "backfill",
+        }),
+      ])
+    );
+  });
+
+  test("강제 기상 중이었던 시간은 수면 제외 시간으로 빼지 않는다", () => {
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 5, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: false,
+        wakeUntil: new Date(2026, 2, 31, 22, 10, 0).getTime(),
+        hungerTimer: 10,
+        strengthTimer: 10,
+        poopTimer: 10,
+        hungerCountdown: 600,
+        strengthCountdown: 600,
+        poopCountdown: 600,
+      }),
+      new Date(2026, 2, 31, 22, 0, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.hungerCountdown).toBe(300);
+    expect(result.strengthCountdown).toBe(300);
+    expect(result.poopCountdown).toBe(300);
+    expect(result.wakeUntil).toBe(
+      new Date(2026, 2, 31, 22, 10, 0).getTime()
+    );
+  });
+
+  test("수면 조명 경고가 끝난 뒤 복귀해도 지난 사건의 케어미스는 lazy update에서 복원된다", () => {
+    jest.setSystemTime(new Date(2026, 3, 1, 7, 10, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 21, 50, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.callStatus.sleep).toEqual({
+      isActive: false,
+      startedAt: null,
+      isLogged: false,
+    });
+    expect(result.sleepLightOnStart).toBeNull();
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "sleep_light_warning",
+          occurredAt: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+        }),
+      ])
+    );
+  });
+
+  test("끝난 낮잠으로 남아 있던 fastSleepStart와 napUntil은 lazy update에서 정리된다", () => {
+    jest.setSystemTime(new Date(2026, 2, 31, 15, 30, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: false,
+        fastSleepStart: new Date(2026, 2, 31, 11, 0, 0).getTime(),
+        napUntil: new Date(2026, 2, 31, 14, 0, 15).getTime(),
+      }),
+      new Date(2026, 2, 31, 14, 5, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.fastSleepStart).toBeNull();
+    expect(result.napUntil).toBeNull();
   });
 
   test("strength call이 이미 처리된 0 구간은 새로고침 후에도 다시 열리지 않는다", () => {
