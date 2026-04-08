@@ -897,3 +897,14 @@
 - `/full`에서도 App 전역 채팅 drawer를 그대로 켜면 기존 고정 FAB가 몰입형 디바이스 레이아웃과 겹치기 쉬워, 몰입형 내부에서만 쓰는 별도 오버레이 껍데기를 두고 채팅 본문 로직은 그대로 재사용하는 편이 더 안전합니다.
 - unread, presence, 마지막 읽음 커서는 이미 `AblyContext`가 단일 상태로 관리하고 있으므로, 몰입형 채팅도 같은 컨텍스트를 쓰는 쪽이 일반 플레이와 동작 차이를 만들지 않아 유지보수에 유리합니다.
 - 모바일 브라우저의 landscape 좌우 방향 정보는 기기와 브라우저마다 편차가 있을 수 있어, 자동 감지에만 의존하지 않고 저장 가능한 수동 전환값을 함께 두는 편이 실제 사용성에서 더 안전합니다.
+
+### Ver.3 데이터/자산 누락으로 인한 배포 빌드 실패 수정
+- `Game`와 여러 훅/컴포넌트가 `../data/v3`, `digimonVersionUtils`, `/Ver3_Mod_TH` 스프라이트 자산을 참조하고 있었는데, 관련 파일이 로컬에만 있고 git에 포함되지 않아 Vercel에서 `Module not found`가 발생하던 문제를 정리했습니다.
+- `src/data/v3`, `src/utils/digimonVersionUtils.js`, `public/Ver3_Mod_TH`를 저장소에 추가해 Ver.3 데이터/유틸/스프라이트 자산이 배포 환경에서도 같은 경로로 해석되도록 맞췄습니다.
+
+### 영향받은 파일
+- `src/data/v3/index.js`
+- `src/data/v3/digimons.js`
+- `src/utils/digimonVersionUtils.js`
+- `public/Ver3_Mod_TH/*`
+- `docs/REFACTORING_LOG.md`
