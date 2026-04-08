@@ -91,4 +91,46 @@ describe("digimonStatusMessages", () => {
     expect(tiredMessage.detailHint).toContain("케어 미스까지");
     expect(tiredMessage.text).not.toContain("TIRED");
   });
+
+  test("FALLING_ASLEEP 상태는 남은 15초 카운트다운을 본문과 힌트에 표시한다", () => {
+    const now = new Date(2026, 3, 7, 23, 10, 5).getTime();
+
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats({
+        fastSleepStart: now - 5 * 1000,
+      }),
+      sleepStatus: "FALLING_ASLEEP",
+      currentTime: now,
+    });
+
+    const fallingAsleepMessage = messages.find(
+      (message) => message.id === "sleep-falling-asleep"
+    );
+
+    expect(fallingAsleepMessage).toBeTruthy();
+    expect(fallingAsleepMessage.text).toBe("잠들기 준비 10초 🌙");
+    expect(fallingAsleepMessage.detailHint).toBe(
+      "10초 후 실제 수면 상태로 전환돼요."
+    );
+  });
+
+  test("NAPPING 상태는 남은 낮잠 시간을 본문과 힌트에 표시한다", () => {
+    const now = new Date(2026, 3, 7, 23, 10, 5).getTime();
+
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats({
+        napUntil: now + 65 * 1000,
+      }),
+      sleepStatus: "NAPPING",
+      currentTime: now,
+    });
+
+    const nappingMessage = messages.find(
+      (message) => message.id === "sleep-napping"
+    );
+
+    expect(nappingMessage).toBeTruthy();
+    expect(nappingMessage.text).toBe("낮잠 1분 5초 남음 😴");
+    expect(nappingMessage.detailHint).toBe("1분 5초 뒤에 다시 깨어나요.");
+  });
 });

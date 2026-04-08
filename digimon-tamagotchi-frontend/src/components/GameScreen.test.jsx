@@ -2,8 +2,16 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import GameScreen from "./GameScreen";
 
-jest.mock("./Canvas", () => function CanvasMock() {
-  return <div data-testid="canvas" />;
+jest.mock("./Canvas", () => function CanvasMock(props) {
+  return (
+    <div
+      data-testid="canvas"
+      data-class-name={props.className || ""}
+      data-animation-style={props.style?.animation || ""}
+      data-filter-style={props.style?.filter || ""}
+      data-transition-style={props.style?.transition || ""}
+    />
+  );
 });
 
 function createCallStatus(overrides = {}) {
@@ -35,8 +43,8 @@ function renderGameScreen(props = {}) {
       onCallModalClose={jest.fn()}
       onResolveCallAction={jest.fn()}
       showCallModal={false}
+      currentTime={props.currentTime ?? now}
       {...props}
-      currentTime={now}
     />
   );
 }
@@ -184,5 +192,65 @@ describe("GameScreen 부상 이모지 오버레이", () => {
     });
 
     expect(screen.queryAllByText("💉")).toHaveLength(0);
+  });
+});
+
+describe("GameScreen 수면 상태 라벨", () => {
+  test("잠들기 준비 중이면 우상단 라벨에 남은 초를 표시한다", () => {
+    const now = new Date("2026-04-07T12:00:05.000Z").getTime();
+
+    renderGameScreen({
+      sleepStatus: "FALLING_ASLEEP",
+      isLightsOn: false,
+      currentTime: now,
+      digimonStats: {
+        fastSleepStart: now - 5 * 1000,
+      },
+    });
+
+    expect(screen.getByText("잠들기 준비 10초")).toBeInTheDocument();
+  });
+
+  test("낮잠 중이면 우상단 라벨에 남은 낮잠 시간을 표시한다", () => {
+    const now = new Date("2026-04-07T12:00:05.000Z").getTime();
+
+    renderGameScreen({
+      sleepStatus: "NAPPING",
+      isLightsOn: false,
+      currentTime: now,
+      digimonStats: {
+        napUntil: now + 65 * 1000,
+      },
+    });
+
+    expect(screen.getByText("낮잠 1분 5초 남음")).toBeInTheDocument();
+  });
+});
+
+describe("GameScreen 디지타마 부화 연출", () => {
+  test("디지타마 flashing 단계에서는 깨진 알 정지 컷만 보여주도록 플래시 효과를 제거한다", () => {
+    renderGameScreen({
+      selectedDigimon: "Digitama",
+      evolutionStage: "flashing",
+    });
+
+    const canvas = screen.getByTestId("canvas");
+
+    expect(canvas).toHaveAttribute("data-class-name", "");
+    expect(canvas).toHaveAttribute("data-filter-style", "none");
+    expect(canvas).toHaveAttribute("data-transition-style", "none");
+  });
+
+  test("일반 디지몬 flashing 단계에서는 기존 플래시 효과를 유지한다", () => {
+    renderGameScreen({
+      selectedDigimon: "Agumon",
+      evolutionStage: "flashing",
+    });
+
+    const canvas = screen.getByTestId("canvas");
+
+    expect(canvas).toHaveAttribute("data-class-name", "evolution-flashing");
+    expect(canvas).toHaveAttribute("data-filter-style", "invert(1)");
+    expect(canvas).toHaveAttribute("data-transition-style", "filter 0.1s");
   });
 });

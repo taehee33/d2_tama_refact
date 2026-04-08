@@ -5,6 +5,10 @@ import {
   buildCallStatusViewModel,
   normalizeSleepStatusForDisplay,
 } from "../utils/callStatusUtils";
+import {
+  formatSleepCountdown,
+  getFallingAsleepRemainingSeconds,
+} from "../utils/sleepUtils";
 
 const SICK_EMOJI_POOL = [
   "😷",
@@ -104,13 +108,17 @@ const GameScreen = ({
   isFrozen = false,
   frozenAt = null,
   takeOutAt = null,
+  currentTime: currentTimeProp = null,
   }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
+  const isDigitama =
+    selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2";
+  const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
   
   // 부상 상태일 때 11시/5시만 랜덤, 1시/7시는 주사기로 고정
   const [selectedSickEmojis, setSelectedSickEmojis] = useState([]);
   const prevIsInjured = useRef(digimonStats.isInjured);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [liveCurrentTime, setLiveCurrentTime] = useState(Date.now());
   
   useEffect(() => {
     if (digimonStats.isInjured) {
@@ -125,12 +133,31 @@ const GameScreen = ({
   }, [digimonStats.isInjured, selectedSickEmojis.length]);
 
   useEffect(() => {
+    if (currentTimeProp != null) {
+      return undefined;
+    }
+
     const timer = setInterval(() => {
-      setCurrentTime(Date.now());
+      setLiveCurrentTime(Date.now());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [currentTimeProp]);
+
+  const currentTime = currentTimeProp ?? liveCurrentTime;
+  const fallingAsleepRemainingSeconds =
+    visibleSleepStatus === "FALLING_ASLEEP"
+      ? getFallingAsleepRemainingSeconds(
+          digimonStats.fastSleepStart || null,
+          currentTime
+        )
+      : null;
+  const napRemainingText =
+    visibleSleepStatus === "NAPPING" &&
+    digimonStats.napUntil &&
+    currentTime < digimonStats.napUntil
+      ? formatSleepCountdown(digimonStats.napUntil - currentTime)
+      : null;
 
   const callStatusViewModel = useMemo(
     () =>
@@ -237,9 +264,14 @@ const GameScreen = ({
           }}
         >
           {visibleSleepStatus === "FALLING_ASLEEP"
-            ? "잠들기 준비 중"
+            ? fallingAsleepRemainingSeconds != null &&
+              fallingAsleepRemainingSeconds > 0
+              ? `잠들기 준비 ${fallingAsleepRemainingSeconds}초`
+              : "잠들기 준비 중"
             : visibleSleepStatus === "NAPPING"
-              ? "낮잠 중"
+              ? napRemainingText
+                ? `낮잠 ${napRemainingText} 남음`
+                : "낮잠 중"
               : visibleSleepStatus === "SLEEPING"
                 ? "Zzz…"
                 : visibleSleepStatus === "SLEEPING_LIGHT_ON"
@@ -484,10 +516,20 @@ const GameScreen = ({
           left: 0,
           zIndex: 2,
           animation: evolutionStage === 'shaking' ? 'shake 0.5s infinite' : 'none',
-          filter: evolutionStage === 'flashing' ? 'invert(1)' : 'none',
-          transition: evolutionStage === 'flashing' ? 'filter 0.1s' : 'none',
+          filter:
+            evolutionStage === 'flashing' && !isDigitamaHatchFlash
+              ? 'invert(1)'
+              : 'none',
+          transition:
+            evolutionStage === 'flashing' && !isDigitamaHatchFlash
+              ? 'filter 0.1s'
+              : 'none',
         }}
-        className={evolutionStage === 'flashing' ? 'evolution-flashing' : ''}
+        className={
+          evolutionStage === 'flashing' && !isDigitamaHatchFlash
+            ? 'evolution-flashing'
+            : ''
+        }
         width={width}
         height={height}
         digimonImageBase={digimonImageBase}

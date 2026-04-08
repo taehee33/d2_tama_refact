@@ -2,6 +2,40 @@
 
 ## 2026-04-08
 
+### 잠들기 준비 중 상태 배지와 화면 라벨에 15초 카운트다운 노출
+- `StatsPopup`에는 이미 `fastSleepStart` 기준 15초 안내가 있었지만, 사용자가 실제로 자주 보는 상단 상태 배지와 게임 화면 우상단 수면 라벨은 `잠들기 준비 중` 고정 문자열만 보여 주고 있어 카운트다운이 보이지 않던 문제를 수정했습니다.
+- `sleepUtils`에 빠른 잠들기 남은 초 계산 helper를 추가하고, `digimonStatusMessages`의 `FALLING_ASLEEP` 메시지는 `잠들기 준비 10초 🌙`처럼 본문과 상세 힌트 모두 현재 남은 초를 반영하도록 맞췄습니다.
+- `GameScreen`도 같은 helper를 사용해 우상단 수면 라벨에서 `잠들기 준비 10초` 형태로 남은 초를 표시하도록 정리했고, 테스트에서는 고정된 현재 시각을 주입할 수 있도록 선택적 `currentTime` prop을 지원하게 했습니다.
+
+### 영향받은 파일
+- `src/utils/sleepUtils.js`
+- `src/components/digimonStatusMessages.js`
+- `src/components/digimonStatusMessages.test.js`
+- `src/components/GameScreen.jsx`
+- `src/components/GameScreen.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 이슈는 수면 상태 계산이 아니라 동일한 `fastSleepStart` 기반 countdown을 어떤 UI가 실제로 소비하느냐의 문제라, 상태 기계나 저장 로직을 건드리지 않고 표시 계층에서 공용 helper를 재사용하는 편이 가장 안전합니다.
+- 남은 초 계산을 helper로 모아 두면 `StatsPopup`, 상단 배지, 게임 화면 라벨이 앞으로도 같은 경계값으로 움직여 표시 불일치를 줄일 수 있습니다.
+
+### 낮잠 중 상태 배지와 화면 라벨에 남은 낮잠 시간 노출
+- `StatsPopup`에는 `napUntil` 기준 남은 낮잠 시간이 이미 보였지만, 상단 상태 배지와 게임 화면 우상단 라벨은 `낮잠 중` 고정 문구만 보여 주고 있어 언제 깨어나는지 한눈에 알기 어려웠습니다.
+- 같은 수면 countdown helper를 재사용해 `NAPPING` 메시지 본문을 `낮잠 1분 5초 😴`처럼 바꾸고, 상세 힌트도 `1분 5초 뒤에 다시 깨어나요.`로 맞췄습니다.
+- `GameScreen` 우상단 라벨도 `napUntil`이 남아 있는 동안은 `낮잠 1분 5초` 형태로 남은 시간을 보여 주고, `napUntil`이 없거나 지난 경우에만 기존 `낮잠 중` 문구로 fallback 하도록 정리했습니다.
+
+### 영향받은 파일
+- `src/utils/sleepUtils.js`
+- `src/components/digimonStatusMessages.js`
+- `src/components/digimonStatusMessages.test.js`
+- `src/components/GameScreen.jsx`
+- `src/components/GameScreen.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경도 상태 저장이나 수면 판정 규칙이 아니라 `napUntil` 기반 남은 시간을 어떤 UI에 노출하느냐의 문제이므로, 기존 `StatsPopup` 계산식을 복제하기보다 공용 helper를 재사용해 표시 계층만 정리하는 편이 안전합니다.
+- `FALLING_ASLEEP`와 `NAPPING`이 같은 duration formatter를 쓰도록 맞춰 두면, 수면 관련 요약 UI 전반에서 시간 표시 방식이 일정하게 유지됩니다.
+
 ### 낮잠 상태에서 idle 타임라인이 재생되던 수면 모션 회귀 수정
 - `NAPPING` 상태 배지와 `Zzz` 오버레이는 정상인데, `Canvas`가 `currentAnimation === "idle"`만 보고 `idleMotionTimeline` 스프라이트를 계속 preload/재생해 본체가 걷는 것처럼 보이던 문제를 수정했습니다.
 - `gameAnimationViewModel`은 `sleepStatus`를 표시용 기준과 같은 방식으로 정규화한 뒤 `NAPPING`, `SLEEPING`, `SLEEPING_LIGHT_ON`을 모두 수면형 상태로 취급해, 항상 수면 프레임(`+11`, `+12`)과 `sleep` 애니메이션을 반환하도록 정리했습니다.
@@ -664,6 +698,8 @@
 - 막힘 연출은 레일 중앙 `🛡️`에서 투사체가 멈추도록 바꿨고, 명중 연출은 투사체가 끝까지 날아가 퍼펫 쪽 `피격` 반응과 흔들림이 함께 보이도록 강화했습니다.
 - 왼쪽 전투판은 `내 디지몬`과 `공격 패드`를 하나의 카드 안에서 단순한 2열 그리드로 합쳐, 선택과 발사 시작점이 같은 덩어리로 읽히도록 정리했습니다.
 - 오른쪽 상대 퍼펫은 CSS 도형 대신 `public/images/567.png` 스프라이트 이미지를 직접 사용하도록 바꿔, 훈련용 상대가 더 선명한 픽셀 아트로 보이게 정리했습니다.
+- 샌드백이 명중했을 때는 `122.png`, `123.png` 피격 이펙트를 샌드백 위에 빠르게 반복 표시하도록 추가하고, 기존 `피격!` 텍스트는 이펙트와 겹치지 않게 옆으로 밀어 함께 유지했습니다.
+- 모바일 결과 모달은 한 화면에 더 안정적으로 들어오도록, 결과 카드 2열 배치와 가로 버튼 배치로 압축하고 모달 최대 높이를 viewport 기준으로 제한했습니다.
 
 ### 영향받은 파일
 - `src/components/TrainPopup.jsx`

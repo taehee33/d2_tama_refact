@@ -19,6 +19,7 @@ function getCanvasInitCount() {
 describe("Canvas idle motion timeline", () => {
   const originalImage = global.Image;
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  let loadedImageSources = [];
 
   beforeAll(() => {
     HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
@@ -37,6 +38,7 @@ describe("Canvas idle motion timeline", () => {
 
       set src(value) {
         this._src = value;
+        loadedImageSources.push(value);
       }
     };
   });
@@ -49,6 +51,7 @@ describe("Canvas idle motion timeline", () => {
   beforeEach(() => {
     resetRuntimeMetrics();
     jest.clearAllMocks();
+    loadedImageSources = [];
   });
 
   test("같은 의미의 idle 타임라인으로 다시 렌더링되면 캔버스를 재초기화하지 않는다", async () => {
@@ -113,5 +116,28 @@ describe("Canvas idle motion timeline", () => {
     await waitFor(() => {
       expect(getCanvasInitCount()).toBe(2);
     });
+  });
+
+  test("낮잠 상태에서는 idle 타임라인 스프라이트를 preload하지 않고 수면 프레임만 사용한다", async () => {
+    render(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="idle"
+        sleepStatus="NAPPING"
+        selectedDigimon="Agumon"
+        idleFrames={["111", "112"]}
+        idleMotionTimeline={buildIdleMotionTimeline()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getCanvasInitCount()).toBe(1);
+    });
+
+    expect(loadedImageSources).toContain("/images/111.png");
+    expect(loadedImageSources).toContain("/images/112.png");
+    expect(loadedImageSources).not.toContain("/images/210.png");
+    expect(loadedImageSources).not.toContain("/images/211.png");
   });
 });

@@ -344,6 +344,42 @@ const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const NAP_DURATION_MS = 3 * 60 * 60 * 1000;
 const WAKE_INTERRUPTION_DURATION_MS = 10 * 60 * 1000;
 
+export function getFallingAsleepRemainingSeconds(
+  fastSleepStart,
+  now = Date.now()
+) {
+  const fastSleepStartMs = ensureTimestamp(fastSleepStart);
+  const nowMs = ensureTimestamp(now) ?? Date.now();
+
+  if (fastSleepStartMs == null) {
+    return null;
+  }
+
+  const remainingMs = Math.max(
+    0,
+    fastSleepStartMs + FALLING_ASLEEP_DELAY_MS - nowMs
+  );
+
+  return Math.ceil(remainingMs / 1000);
+}
+
+export function formatSleepCountdown(diffMs) {
+  const safeMs = Math.max(0, diffMs || 0);
+  const hours = Math.floor(safeMs / (60 * 60 * 1000));
+  const minutes = Math.floor((safeMs % (60 * 60 * 1000)) / 60000);
+  const seconds = Math.floor((safeMs % 60000) / 1000);
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes}분 ${seconds}초`;
+  }
+
+  return `${seconds}초`;
+}
+
 function buildScheduledSleepIntervals(startMs, endMs, schedule) {
   if (!schedule) {
     return [];

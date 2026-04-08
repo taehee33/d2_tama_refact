@@ -1,5 +1,6 @@
 import digimonAnimations from "../../data/digimonAnimations";
 import { resolveIdleMotionTimeline } from "../../data/idleMotionTimeline";
+import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
 
 export const DEATH_FORM_IDS = [
   "Ohakadamon1",
@@ -14,12 +15,15 @@ export function buildGameAnimationViewModel({
   digimonDataForSlot,
   currentAnimation,
   sleepStatus,
+  evolutionStage = "idle",
 }) {
   const digimonData = digimonDataForSlot[selectedDigimon];
   const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
   const digimonImageBase = digimonData?.spriteBasePath || "/images";
   const isDigitama =
     selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2";
+  const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
+  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const safeBaseSprite = Number(baseSprite);
   const idleMotionTimeline =
     !Number.isFinite(safeBaseSprite) ||
@@ -44,7 +48,12 @@ export function buildGameAnimationViewModel({
   let eatAnimId = 2;
   let rejectAnimId = 3;
 
-  if (isDigitama) {
+  if (isDigitamaHatchFlash) {
+    // 깨진 알은 flashing 단계에서만 정지 컷으로 보여준다.
+    idleAnimId = 91;
+    eatAnimId = 91;
+    rejectAnimId = 91;
+  } else if (isDigitama) {
     idleAnimId = 90;
   }
 
@@ -73,7 +82,7 @@ export function buildGameAnimationViewModel({
     rejectFramesArr = idleFrames;
     desiredAnimation = currentAnimation !== "sick" ? "sick" : null;
   } else if (
-    sleepingLikeStatuses.has(sleepStatus) &&
+    sleepingLikeStatuses.has(visibleSleepStatus) &&
     !isDigitama
   ) {
     idleFrames = [`${baseSprite + 11}`, `${baseSprite + 12}`];

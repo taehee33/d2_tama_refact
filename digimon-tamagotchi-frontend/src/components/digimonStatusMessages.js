@@ -1,6 +1,10 @@
 import { willRefuseMeat } from "../logic/food/meat";
 import { willRefuseProtein } from "../logic/food/protein";
-import { getTimeUntilSleep } from "../utils/sleepUtils";
+import {
+  formatSleepCountdown,
+  getFallingAsleepRemainingSeconds,
+  getTimeUntilSleep,
+} from "../utils/sleepUtils";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 
 export const DIGIMON_STATUS_CATEGORY_ORDER = [
@@ -71,23 +75,6 @@ function toTimestamp(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function formatShortDuration(diffMs) {
-  const safeMs = Math.max(0, diffMs);
-  const hours = Math.floor(safeMs / (60 * 60 * 1000));
-  const minutes = Math.floor((safeMs % (60 * 60 * 1000)) / 60000);
-  const seconds = Math.floor((safeMs % 60000) / 1000);
-
-  if (hours > 0) {
-    return `${hours}시간 ${minutes}분`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}분 ${seconds}초`;
-  }
-
-  return `${seconds}초`;
-}
-
 function createStatusMessage(overrides) {
   return {
     summaryEligible: true,
@@ -142,6 +129,7 @@ export function buildDigimonStatusMessages({
     proteinOverdose = 0,
     callStatus = {},
     napUntil = null,
+    fastSleepStart = null,
     isNocturnal = false,
     isFrozen = false,
     isInjured = false,
@@ -268,7 +256,7 @@ export function buildDigimonStatusMessages({
     messages.push(
       createStatusMessage({
         id: "sleep-disturbance",
-        text: `수면 방해: ${formatShortDuration(wakeUntilTs - now)} 더 깨어 있음 😵`,
+        text: `수면 방해: ${formatSleepCountdown(wakeUntilTs - now)} 더 깨어 있음 😵`,
         color: "text-orange-600",
         bgColor: "bg-orange-100",
         category: "warning",
@@ -279,27 +267,44 @@ export function buildDigimonStatusMessages({
   }
 
   if (!isFrozen && sleepState === "FALLING_ASLEEP") {
+    const remainingSeconds = getFallingAsleepRemainingSeconds(
+      fastSleepStart,
+      now
+    );
+    const countdownText =
+      remainingSeconds != null && remainingSeconds > 0
+        ? `잠들기 준비 ${remainingSeconds}초 🌙`
+        : "잠들기 준비 중... 🌙";
+    const detailHint =
+      remainingSeconds != null && remainingSeconds > 0
+        ? `${remainingSeconds}초 후 실제 수면 상태로 전환돼요.`
+        : "불을 끈 뒤 15초가 지나면 실제 수면 상태로 전환돼요.";
+
     messages.push(
       createStatusMessage({
         id: "sleep-falling-asleep",
-        text: "잠들기 준비 중... 🌙",
+        text: countdownText,
         color: "text-slate-600",
         bgColor: "bg-slate-100",
         category: "info",
         priority: 33,
-        detailHint: "불을 끈 뒤 15초가 지나면 실제 수면 상태로 전환돼요.",
+        detailHint,
       })
     );
   } else if (!isFrozen && sleepState === "NAPPING") {
     const napCountdownText =
       napUntilTs != null && now < napUntilTs
-        ? `${formatShortDuration(napUntilTs - now)} 뒤에 다시 깨어나요.`
+        ? `${formatSleepCountdown(napUntilTs - now)} 뒤에 다시 깨어나요.`
         : "낮잠 종료가 가까워요.";
+    const napText =
+      napUntilTs != null && now < napUntilTs
+        ? `낮잠 ${formatSleepCountdown(napUntilTs - now)} 남음 😴`
+        : "낮잠 중 😴";
 
     messages.push(
       createStatusMessage({
         id: "sleep-napping",
-        text: "낮잠 중 😴",
+        text: napText,
         color: "text-blue-600",
         bgColor: "bg-blue-100",
         category: "info",
@@ -314,7 +319,7 @@ export function buildDigimonStatusMessages({
       sleepLightOnStartTs == null
         ? "불을 끄면 경고가 시작돼요."
         : remainingMs > 0
-          ? `케어 미스까지 ${formatShortDuration(remainingMs)}`
+          ? `케어 미스까지 ${formatSleepCountdown(remainingMs)}`
           : "케어 미스 발생 구간";
 
     messages.push(
@@ -331,7 +336,7 @@ export function buildDigimonStatusMessages({
   } else if (!isFrozen && sleepState === "AWAKE_INTERRUPTED") {
     const remainingText =
       wakeUntilTs != null && now < wakeUntilTs
-        ? `강제 기상 종료까지 ${formatShortDuration(wakeUntilTs - now)}`
+        ? `강제 기상 종료까지 ${formatSleepCountdown(wakeUntilTs - now)}`
         : "강제 기상 상태예요.";
 
     messages.push(
@@ -355,7 +360,7 @@ export function buildDigimonStatusMessages({
           bgColor: "bg-blue-100",
           category: "info",
           priority: 34,
-          detailHint: `${formatShortDuration(napUntilTs - now)} 뒤에 다시 깨어나요.`,
+          detailHint: `${formatSleepCountdown(napUntilTs - now)} 뒤에 다시 깨어나요.`,
         })
       );
     } else {

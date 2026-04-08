@@ -13,6 +13,11 @@ const DIGIMON_WIDTH_RATIO = 0.4;
 const DIGIMON_HEIGHT_RATIO = 0.4;
 const IDLE_MOTION_COORDINATE_GRID = 80;
 const IDLE_MOTION_STEP_MS = 700;
+const SLEEPING_LIKE_VISUAL_STATUSES = new Set([
+  "NAPPING",
+  "SLEEPING",
+  "SLEEPING_LIGHT_ON",
+]);
 
 // 배치 (8,6,4,2)위치가 top row, (7,5,3,1)이 bottom row
 // #1 => bottom-right
@@ -149,6 +154,9 @@ const Canvas = ({
   takeOutAt=null, // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
 }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
+  const isSleepingLikeVisualState = SLEEPING_LIKE_VISUAL_STATUSES.has(
+    visibleSleepStatus
+  );
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
   const animationID= useRef(null);
@@ -191,6 +199,7 @@ const Canvas = ({
       const shouldLoadIdleMotionFrames =
         currentAnimation === "idle" &&
         idleMotionTimeline.length > 0 &&
+        !isSleepingLikeVisualState &&
         !isFrozen &&
         !takeOutAt;
 
@@ -212,9 +221,7 @@ const Canvas = ({
       
       // Zzz 스프라이트 (실제 수면 상태일 때만, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
       if(
-        (visibleSleepStatus === "NAPPING" ||
-          visibleSleepStatus === "SLEEPING" ||
-          visibleSleepStatus === "SLEEPING_LIGHT_ON") &&
+        isSleepingLikeVisualState &&
         !isDead &&
         !isFrozen &&
         selectedDigimon !== "Digitama"
@@ -291,7 +298,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSpritesKey,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
+    sleepStatus,isSleepingLikeVisualState,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
   ]);
 
   function startAnimation(ctx, frames){
@@ -319,6 +326,7 @@ const Canvas = ({
         const canUseIdleMotionTimeline =
           fridgeRenderPolicy.shouldUseIdleMotionTimeline &&
           currentAnimation === "idle" &&
+          !isSleepingLikeVisualState &&
           idleMotionTimeline.length > 0;
         const motionStepIndex = canUseIdleMotionTimeline
           ? Math.floor((nowTimestamp - animationStartedAt) / IDLE_MOTION_STEP_MS) % idleMotionTimeline.length
@@ -457,9 +465,7 @@ const Canvas = ({
 
       // ★ (6) Zzz 애니메이션 (수면 상태, 사망 상태가 아닐 때만, 디지타마 제외, 냉장고 상태 제외)
       if(
-        (visibleSleepStatus === "NAPPING" ||
-          visibleSleepStatus === "SLEEPING" ||
-          visibleSleepStatus === "SLEEPING_LIGHT_ON") &&
+        isSleepingLikeVisualState &&
         !isDead &&
         !isFrozen &&
         selectedDigimon !== "Digitama"
