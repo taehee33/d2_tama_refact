@@ -109,4 +109,27 @@ describe("resolveLazyUpdateBaseStats", () => {
       selectedDigimon: "Greymon",
     });
   });
+
+  test("로드 경로처럼 live stats가 비어 있어도 루트 조명과 기상 상태를 lazy update 입력에 합친다", () => {
+    const result = resolveLazyUpdateBaseStats(
+      {
+        napUntil: 1712559600000,
+        poopCountdown: 180,
+        activityLogs: [{ type: "NAP_START" }],
+      },
+      {},
+      {
+        isLightsOn: false,
+        wakeUntil: 1712552400000,
+      }
+    );
+
+    expect(result).toMatchObject({
+      napUntil: 1712559600000,
+      poopCountdown: 180,
+      isLightsOn: false,
+      wakeUntil: 1712552400000,
+      activityLogs: [{ type: "NAP_START" }],
+    });
+  });
 });

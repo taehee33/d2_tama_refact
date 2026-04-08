@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-04-08] 낮잠 reload 경로에도 루트 조명 상태를 합쳐 poop timer 정합성 복구
+
+### 작업 유형
+- 💤 낮잠 lazy update 입력 스탯 정합성 수정
+- 🔁 슬롯 로드 경로와 액션 경로의 루트 상태 병합 규칙 통일
+- 🧪 `useGameData` 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 낮잠 중에는 세션 내 실시간 루프와 새로고침 후 lazy update가 모두 같은 수면 판정을 사용하도록 맞춰, `poopCountdown`이 reload 전후로 다르게 흐르지 않게 한다.
+- **범위:** `useGameData`의 슬롯 로드 경로와 관련 helper/test만 조정한다. 저장 스키마, 실시간 poop 감소 로직, `data/stats`의 낮잠 제외 규칙은 유지한다.
+- **내용:**
+  - 슬롯 로드 시 `digimonStats`만 바로 `applyLazyUpdate()`에 넘기던 흐름을 정리하고, 액션 전 경로와 같은 `resolveLazyUpdateBaseStats()`를 거쳐 루트 `isLightsOn`/`wakeUntil`을 합친 뒤 lazy update를 적용하도록 변경했다.
+  - 로드 직후 메모리에 올리는 `digimonStats`도 같은 병합 결과를 기준으로 사용해, 첫 렌더 상태 판정과 다음 액션 직전 판정이 어긋나지 않도록 맞췄다.
+  - helper 테스트를 보강해 persisted stats에 조명 필드가 없어도 로드용 lazy update 입력에는 루트 조명/기상 상태가 반드시 합쳐지는 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js src/data/stats.test.js`
+
+### 아키텍처 메모
+- 슬롯 문서 스키마는 그대로 유지하고, 루트에 저장된 조명/기상 상태를 lazy update 입력 단계에서만 재조합한다. 덕분에 Firebase 문서 구조를 바꾸지 않고도 실시간 루프와 reload 복원 로직의 수면 판정을 같은 기준으로 유지할 수 있다.
+
 ## [2026-04-08] 디지타마 부화 중 `135` 스프라이트를 전용 모션으로 적용
 
 ### 작업 유형

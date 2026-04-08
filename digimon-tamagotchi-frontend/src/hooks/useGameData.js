@@ -528,14 +528,18 @@ export function useGameData({
         
         if (slotSnap.exists()) {
           const slotData = slotSnap.data();
+          const rootSlotFields = resolveRootSlotFields(slotData, {
+            isLightsOn: true,
+            wakeUntil: null,
+          });
           
           setSlotName(slotData.slotName || `슬롯${slotId}`);
           setSlotCreatedAt(slotData.createdAt || "");
           setSlotDevice(slotData.device || "");
           setSlotVersion(slotData.version || "Ver.1");
           setDigimonNickname(slotData.digimonNickname || null);
-          setIsLightsOn(slotData.isLightsOn !== undefined ? slotData.isLightsOn : true);
-          setWakeUntil(slotData.wakeUntil || null);
+          setIsLightsOn(rootSlotFields.isLightsOn);
+          setWakeUntil(rootSlotFields.wakeUntil);
           
           // 배경화면 설정 로드
           if (setBackgroundSettings) {
@@ -612,28 +616,46 @@ export function useGameData({
             setSelectedDigimon(savedName);
             setDigimonStats({ ...ns, selectedDigimon: savedName });
           } else {
+            const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
+              savedStats,
+              {},
+              rootSlotFields
+            );
             // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
-            const lastSavedAt = slotData.lastSavedAt || slotData.updatedAt || savedStats.lastSavedAt || new Date();
+            const lastSavedAt =
+              slotData.lastSavedAt ||
+              slotData.updatedAt ||
+              lazyUpdateBaseStats.lastSavedAt ||
+              new Date();
             
             // sleepSchedule과 maxEnergy 계산 (버전별 데이터 맵 사용)
             let sleepSchedule = null;
             let maxEnergy = null;
             if (dataMap && savedName) {
-              sleepSchedule = getSleepSchedule(savedName, dataMap, savedStats);
+              sleepSchedule = getSleepSchedule(
+                savedName,
+                dataMap,
+                lazyUpdateBaseStats
+              );
               const digimonData = dataMap[savedName];
               if (digimonData) {
-                maxEnergy = digimonData.stats?.maxEnergy ?? savedStats.maxEnergy ?? savedStats.maxStamina ?? 0;
+                maxEnergy =
+                  digimonData.stats?.maxEnergy ??
+                  lazyUpdateBaseStats.maxEnergy ??
+                  lazyUpdateBaseStats.maxStamina ??
+                  0;
               }
               // 디지타마/디지타마V2인데 timeToEvolveSeconds 없음·0·NaN이면 데이터맵 값으로 보정 (구 저장·초기화 누락 대비)
               if ((savedName === "Digitama" || savedName === "DigitamaV2") && digimonData?.timeToEvolveSeconds != null) {
-                const tte = savedStats.timeToEvolveSeconds;
+                const tte = lazyUpdateBaseStats.timeToEvolveSeconds;
                 if (tte === undefined || tte === null || tte === 0 || Number.isNaN(tte)) {
-                  savedStats = { ...savedStats, timeToEvolveSeconds: digimonData.timeToEvolveSeconds };
+                  lazyUpdateBaseStats.timeToEvolveSeconds =
+                    digimonData.timeToEvolveSeconds;
                 }
               }
             }
             
-            const prevLogCount = (savedStats.activityLogs || []).length;
+            const prevLogCount = (lazyUpdateBaseStats.activityLogs || []).length;
             const digimonSnapshot = buildDigimonLogSnapshot(
               savedName,
               evolutionDataForSlot,
@@ -643,10 +665,10 @@ export function useGameData({
               adaptedV2
             );
             savedStats = repairCareMistakeLedger(
-              applyLazyUpdate(savedStats, lastSavedAt, sleepSchedule, maxEnergy, {
+              applyLazyUpdate(lazyUpdateBaseStats, lastSavedAt, sleepSchedule, maxEnergy, {
                 digimonSnapshot,
               }),
-              savedStats.activityLogs || []
+              lazyUpdateBaseStats.activityLogs || []
             ).nextStats;
             // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
             const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
