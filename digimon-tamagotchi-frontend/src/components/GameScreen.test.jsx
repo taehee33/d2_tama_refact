@@ -139,3 +139,50 @@ describe("GameScreen 호출 UI", () => {
     expect(onCallIconClick).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("GameScreen 부상 이모지 오버레이", () => {
+  test("부상 상태면 1시와 7시에 주사기 이모지가 고정 표시된다", () => {
+    renderGameScreen({
+      digimonStats: {
+        isInjured: true,
+        isDead: false,
+      },
+    });
+
+    const syringeOverlays = screen.getAllByText("💉");
+
+    expect(syringeOverlays).toHaveLength(2);
+    expect(
+      syringeOverlays.some(
+        (element) => element.style.top === "70%" && element.style.left === "10%"
+      )
+    ).toBe(true);
+    expect(
+      syringeOverlays.some(
+        (element) => element.style.top === "30%" && element.style.right === "10%"
+      )
+    ).toBe(true);
+  });
+
+  test("사망 상태면 주사기 이모지 오버레이를 숨긴다", () => {
+    renderGameScreen({
+      digimonStats: {
+        isInjured: true,
+        isDead: true,
+      },
+    });
+
+    expect(screen.queryAllByText("💉")).toHaveLength(0);
+  });
+
+  test("부상 상태가 아니면 주사기 이모지 오버레이를 표시하지 않는다", () => {
+    renderGameScreen({
+      digimonStats: {
+        isInjured: false,
+        isDead: false,
+      },
+    });
+
+    expect(screen.queryAllByText("💉")).toHaveLength(0);
+  });
+});

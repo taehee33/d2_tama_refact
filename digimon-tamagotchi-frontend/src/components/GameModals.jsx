@@ -44,6 +44,21 @@ import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandler
 import { checkEvolution } from "../logic/evolution/checker";
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 
+export function applyStatsPopupChange(nextStats, setDigimonStats, setDigimonStatsAndSave) {
+  if (!nextStats) return;
+
+  if (typeof setDigimonStats === "function") {
+    setDigimonStats((prevStats) => ({
+      ...(prevStats || {}),
+      ...nextStats,
+    }));
+  }
+
+  if (typeof setDigimonStatsAndSave === "function") {
+    void setDigimonStatsAndSave(nextStats);
+  }
+}
+
 /**
  * GameModals 컴포넌트
  * Game.jsx의 모든 모달 렌더링을 담당하는 컴포넌트
@@ -74,6 +89,7 @@ export default function GameModals({
 
   const {
     digimonStats,
+    setDigimonStats,
     selectedDigimon,
     slotId,
     slotName,
@@ -251,7 +267,7 @@ export default function GameModals({
           slotVersion={slotVersion || "Ver.1"}
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}
-          onChangeStats={(ns) => setDigimonStatsAndSave?.(ns) || (() => {})}
+          onChangeStats={(ns) => applyStatsPopupChange(ns, setDigimonStats, setDigimonStatsAndSave)}
           sleepSchedule={ui?.sleepSchedule || null}
           sleepStatus={ui?.sleepStatus || "AWAKE"}
           wakeUntil={ui?.wakeUntil || null}

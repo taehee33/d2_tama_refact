@@ -6,6 +6,28 @@ import {
   normalizeSleepStatusForDisplay,
 } from "../utils/callStatusUtils";
 
+const SICK_EMOJI_POOL = [
+  "😷",
+  "🤒",
+  "🤕",
+  "🤢",
+  "🤮",
+  "🤧",
+  "🥵",
+  "🥶",
+  "🥴",
+  "😵",
+  "😵‍💫",
+  "🤯",
+];
+
+const SICK_EMOJI_POSITIONS = [
+  { key: "left-top", top: "30%", left: "10%", animationDelay: "0s" },
+  { key: "left-bottom", top: "70%", left: "10%", animationDelay: "0.5s" },
+  { key: "right-top", top: "30%", right: "10%", animationDelay: "1s" },
+  { key: "right-bottom", top: "70%", right: "10%", animationDelay: "1.5s" },
+];
+
 const CALL_CARD_STYLES = {
   hunger: {
     container: "border-red-300 bg-red-50",
@@ -84,29 +106,22 @@ const GameScreen = ({
   takeOutAt = null,
   }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
-  // 부상 상태 이모티콘 목록
-  const sickEmojis = ["😷", "🤒", "🤕", "🤢", "🤮", "🤧", "🥵", "🥶", "🥴", "😵", "😵‍💫", "🤯"];
   
-  // 부상 상태일 때 랜덤으로 4개 선택 (부상 상태가 시작될 때 한 번만 선택)
+  // 부상 상태일 때 11시/5시만 랜덤, 1시/7시는 주사기로 고정
   const [selectedSickEmojis, setSelectedSickEmojis] = useState([]);
   const prevIsInjured = useRef(digimonStats.isInjured);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
   useEffect(() => {
-    // 부상 상태가 시작될 때 랜덤으로 4개 선택
-    // 똥 8개로 인한 부상일 때도 이모티콘이 표시되도록 조건 수정
     if (digimonStats.isInjured) {
-      // 이전에 부상 상태가 아니었거나, 이모티콘이 선택되지 않은 경우에만 선택
       if (!prevIsInjured.current || selectedSickEmojis.length === 0) {
-        const shuffled = [...sickEmojis].sort(() => Math.random() - 0.5);
-        setSelectedSickEmojis(shuffled.slice(0, 4));
+        const shuffled = [...SICK_EMOJI_POOL].sort(() => Math.random() - 0.5);
+        setSelectedSickEmojis([shuffled[0], "💉", "💉", shuffled[1]]);
       }
     } else if (!digimonStats.isInjured && prevIsInjured.current) {
-      // 부상 상태가 끝나면 초기화
       setSelectedSickEmojis([]);
     }
     prevIsInjured.current = digimonStats.isInjured;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [digimonStats.isInjured, selectedSickEmojis.length]);
 
   useEffect(() => {
@@ -233,72 +248,28 @@ const GameScreen = ({
         </div>
       )}
       
-      {/* 부상 상태: 이모티콘 디지몬 주변에 4개 표시 (왼쪽 2개, 오른쪽 2개) */}
+      {/* 부상 상태: 1시/7시는 주사기, 11시/5시는 랜덤 이모티콘 표시 */}
       {digimonStats.isInjured && !digimonStats.isDead && selectedSickEmojis.length === 4 && (
         <>
-          {/* 왼쪽 위 이모티콘 */}
-          <div
-            style={{
-              position: "absolute",
-              top: "30%",
-              left: "10%",
-              transform: "translateY(-50%)",
-              zIndex: 5,
-              fontSize: 48,
-              opacity: 0.7,
-              animation: "float 2s ease-in-out infinite",
-            }}
-          >
-            {selectedSickEmojis[0]}
-          </div>
-          {/* 왼쪽 아래 이모티콘 */}
-          <div
-            style={{
-              position: "absolute",
-              top: "70%",
-              left: "10%",
-              transform: "translateY(-50%)",
-              zIndex: 5,
-              fontSize: 48,
-              opacity: 0.7,
-              animation: "float 2s ease-in-out infinite",
-              animationDelay: "0.5s",
-            }}
-          >
-            {selectedSickEmojis[1]}
-          </div>
-          {/* 오른쪽 위 이모티콘 */}
-          <div
-            style={{
-              position: "absolute",
-              top: "30%",
-              right: "10%",
-              transform: "translateY(-50%)",
-              zIndex: 5,
-              fontSize: 48,
-              opacity: 0.7,
-              animation: "float 2s ease-in-out infinite",
-              animationDelay: "1s",
-            }}
-          >
-            {selectedSickEmojis[2]}
-          </div>
-          {/* 오른쪽 아래 이모티콘 */}
-          <div
-            style={{
-              position: "absolute",
-              top: "70%",
-              right: "10%",
-              transform: "translateY(-50%)",
-              zIndex: 5,
-              fontSize: 48,
-              opacity: 0.7,
-              animation: "float 2s ease-in-out infinite",
-              animationDelay: "1.5s",
-            }}
-          >
-            {selectedSickEmojis[3]}
-          </div>
+          {selectedSickEmojis.map((emoji, index) => (
+            <div
+              key={SICK_EMOJI_POSITIONS[index].key}
+              style={{
+                position: "absolute",
+                top: SICK_EMOJI_POSITIONS[index].top,
+                left: SICK_EMOJI_POSITIONS[index].left,
+                right: SICK_EMOJI_POSITIONS[index].right,
+                transform: "translateY(-50%)",
+                zIndex: 5,
+                fontSize: 48,
+                opacity: 0.7,
+                animation: "float 2s ease-in-out infinite",
+                animationDelay: SICK_EMOJI_POSITIONS[index].animationDelay,
+              }}
+            >
+              {emoji}
+            </div>
+          ))}
         </>
       )}
 

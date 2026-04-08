@@ -2,6 +2,56 @@
 
 ## 2026-04-08
 
+### 낮잠 상태에서 idle 타임라인이 재생되던 수면 모션 회귀 수정
+- `NAPPING` 상태 배지와 `Zzz` 오버레이는 정상인데, `Canvas`가 `currentAnimation === "idle"`만 보고 `idleMotionTimeline` 스프라이트를 계속 preload/재생해 본체가 걷는 것처럼 보이던 문제를 수정했습니다.
+- `gameAnimationViewModel`은 `sleepStatus`를 표시용 기준과 같은 방식으로 정규화한 뒤 `NAPPING`, `SLEEPING`, `SLEEPING_LIGHT_ON`을 모두 수면형 상태로 취급해, 항상 수면 프레임(`+11`, `+12`)과 `sleep` 애니메이션을 반환하도록 정리했습니다.
+- `Canvas`는 수면형 상태에서는 idle 타임라인 스프라이트를 preload하지 않고, 애니메이션 상태가 잠깐 `idle`이어도 `canUseIdleMotionTimeline`을 강제로 꺼서 전달받은 수면 프레임만 중앙에 그리도록 보강했습니다.
+- 회귀 테스트로 `NAPPING`이 수면 프레임과 `sleep` 애니메이션을 선택하는지, 그리고 낮잠 중에는 `210/211` idle 스프라이트를 preload하지 않는지 고정했습니다.
+
+### 영향받은 파일
+- `src/hooks/game-runtime/gameAnimationViewModel.js`
+- `src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `src/components/Canvas.jsx`
+- `src/components/Canvas.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 이슈는 수면 상태 판정이나 저장 데이터보다 “수면 상태와 캔버스 idle 모션 렌더가 잠깐 어긋날 때 어떤 시각화를 우선하느냐”의 문제라, lazy update나 수면 상태 기계 대신 view-model과 `Canvas`의 시각화 게이트만 좁게 보강하는 편이 가장 안전합니다.
+- 수면형 상태에서 idle 타임라인 자체를 차단하면, 액션 직후 `currentAnimation`이 잠깐 흔들리더라도 본체가 걷는 장면이 다시 나타나지 않아 수면 UX를 안정적으로 유지할 수 있습니다.
+
+### Stats OLD 탭의 부상 체크박스 즉시 반영 회귀 수정
+- `StatsPopup`의 OLD 탭은 controlled input인데, `GameModals`가 변경값을 비동기 `setDigimonStatsAndSave`로만 넘기고 있어 체크박스를 눌러도 한 프레임 동안 예전 값으로 다시 그려지는 문제가 있었습니다.
+- Stats 팝업 변경 연결부를 `applyStatsPopupChange` helper로 분리하고, 저장 전에 `setDigimonStats`로 메모리 상태를 먼저 갱신한 뒤 같은 payload를 비동기 저장하도록 바꿨습니다.
+- 이 변경으로 `isInjured` 체크박스뿐 아니라 OLD 탭의 다른 개발용 입력도 저장 완료를 기다리지 않고 즉시 UI에 반영됩니다.
+- 추가로 OLD 탭의 부상 상태 입력을 작은 체크박스에서 넓은 토글 버튼으로 바꿔, 모바일 스크롤 모달 안에서도 더 쉽게 눌리고 현재 ON/OFF 상태가 바로 읽히도록 정리했습니다.
+- 또 OLD 탭은 모달이 열려 있는 동안 자체 편집 상태를 유지하도록 바꿔, 부모 저장이나 실시간 틱과 별개로 토글 버튼이 즉시 ON/OFF로 반응하도록 보강했습니다.
+
+### 영향받은 파일
+- `src/components/GameModals.jsx`
+- `src/components/GameModals.test.jsx`
+- `src/components/StatsPopup.jsx`
+- `src/components/StatsPopup.test.jsx`
+- `src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 문제 원인은 스탯 편집 UI가 아니라 `StatsPopup -> GameModals -> saveStats` 연결부의 비동기 반영 타이밍이었기 때문에, 입력 컴포넌트 자체를 로컬 draft 상태로 복잡하게 늘리기보다 변경 연결부만 보강하는 편이 리스크가 낮습니다.
+- 메모리 상태 선반영 후 저장을 뒤따르게 하면 기존 저장 파이프라인과 lazy update 흐름은 유지하면서도 dev 편집 UI의 controlled input 체감을 안정적으로 복구할 수 있습니다.
+
+### 부상 오버레이의 1시/7시 이모지를 주사기로 고정
+- `GameScreen`의 부상 상태 오버레이가 매번 4개 이모지를 전부 랜덤으로 고르던 흐름을 정리하고, 1시와 7시 위치는 항상 `💉`가 나오도록 고정했습니다.
+- 나머지 11시와 5시 위치만 기존 부상 이모지 풀에서 랜덤으로 선택되도록 바꿔, 요청한 시계 방향 배치는 유지하면서도 주변의 아픈 분위기 연출은 그대로 남겼습니다.
+- 중복된 4개 절대배치 `div`는 위치 배열 기반 렌더로 통합하고, `GameScreen` 테스트에 주사기 개수/위치와 숨김 조건 회귀 케이스를 추가했습니다.
+
+### 영향받은 파일
+- `src/components/GameScreen.jsx`
+- `src/components/GameScreen.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 요청은 저장 데이터나 상태 판정이 아니라 부상 상태의 표시 방식만 바꾸는 작업이므로, `Canvas`나 게임 로직 대신 `GameScreen`의 오버레이 레이어만 수정하는 편이 가장 안전합니다.
+- 위치 규칙을 배열 기반으로 고정해 두면 이후 특정 방향 이모지를 다시 바꾸더라도 렌더 순서와 애니메이션 지연을 한 곳에서 관리할 수 있어 회귀 가능성을 줄일 수 있습니다.
+
 ### idle 타임라인이 초반 구간만 반복되던 렌더 리셋 버그 수정
 - `Canvas`가 `idleMotionTimeline` 배열 참조가 바뀔 때마다 애니메이션을 다시 시작하고 있어, 부모의 1초 단위 재렌더 동안 같은 내용의 타임라인도 계속 1프레임 근처로 되감기던 문제를 수정했습니다.
 - idle 타임라인 전용 안정 key를 추가해 `f`, `spriteNumber`, `x`, `y`, `flip` 의미값이 실제로 달라질 때만 캔버스 초기화가 다시 일어나도록 정리했습니다.
@@ -613,6 +663,7 @@
 - 공격 스프라이트는 이제 레일의 왼쪽 끝에서 출발하고, 막힘일 때는 중간 방패 이모지에 걸려 정지하며, 명중일 때는 퍼펫 쪽까지 도달해 `피격!` 반응과 함께 상대가 맞은 장면처럼 보이도록 연출을 보강했습니다.
 - 막힘 연출은 레일 중앙 `🛡️`에서 투사체가 멈추도록 바꿨고, 명중 연출은 투사체가 끝까지 날아가 퍼펫 쪽 `피격` 반응과 흔들림이 함께 보이도록 강화했습니다.
 - 왼쪽 전투판은 `내 디지몬`과 `공격 패드`를 하나의 카드 안에서 단순한 2열 그리드로 합쳐, 선택과 발사 시작점이 같은 덩어리로 읽히도록 정리했습니다.
+- 오른쪽 상대 퍼펫은 CSS 도형 대신 `public/images/567.png` 스프라이트 이미지를 직접 사용하도록 바꿔, 훈련용 상대가 더 선명한 픽셀 아트로 보이게 정리했습니다.
 
 ### 영향받은 파일
 - `src/components/TrainPopup.jsx`

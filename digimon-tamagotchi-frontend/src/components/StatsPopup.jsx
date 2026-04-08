@@ -313,8 +313,10 @@ export default function StatsPopup({
   appendLogToSubcollection, // Firestore logs 서브컬렉션에 로그 추가 (선택)
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
+  const [editableStats, setEditableStats] = useState(() => ({ ...(stats || {}) }));
+  const currentStats = devMode ? editableStats : stats;
   // 이력 표시: 틱에서 setActivityLogs로 갱신된 prop이 더 많거나 같으면 사용(즉시 반영), 아니면 stats.activityLogs
-  const statsLogs = stats?.activityLogs ?? [];
+  const statsLogs = currentStats?.activityLogs ?? [];
   const displayActivityLogs = (activityLogsProp != null && activityLogsProp.length >= statsLogs.length)
     ? activityLogsProp
     : statsLogs;
@@ -332,10 +334,10 @@ export default function StatsPopup({
 
   const statsForCallUi = useMemo(
     () => ({
-      ...(stats || {}),
+      ...(currentStats || {}),
       activityLogs: displayActivityLogs,
     }),
-    [stats, displayActivityLogs]
+    [currentStats, displayActivityLogs]
   );
 
   const callStatusViewModel = useMemo(
@@ -422,7 +424,7 @@ export default function StatsPopup({
     frozenAt=null,
     takeOutAt=null,
     poopPenaltyFrozenDurationMs=0,
-  } = stats || {};
+  } = currentStats || {};
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
   const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
@@ -452,22 +454,13 @@ export default function StatsPopup({
     );
   };
 
-  // devMode에서 select로 변경
-  function handleChange(field, e){
+  function commitStatChange(field, val) {
     if(!onChangeStats) return;
-    let val;
-    
-    // boolean 필드는 checkbox로 처리
-    if(field === "isInjured") {
-      val = e.target.checked;
-    } else {
-      val = parseInt(e.target.value, 10);
-    }
-
+    const baseStats = currentStats || {};
     // 기존 값
-    const oldPoopCount = stats.poopCount || 0;
+    const oldPoopCount = baseStats.poopCount || 0;
 
-    const newStats = { ...stats, [field]: val };
+    const newStats = { ...baseStats, [field]: val };
 
     // poopCount가 8 이상이 되는 순간 즉시 부상 시각과 다음 추가 부상 기준 시각을 함께 세팅
     if(field === "poopCount") {
@@ -491,7 +484,18 @@ export default function StatsPopup({
       newStats.healedDosesCurrent = 0;
     }
 
+    setEditableStats(newStats);
     onChangeStats(newStats);
+  }
+
+  // devMode에서 select로 변경
+  function handleChange(field, e){
+    const val = parseInt(e.target.value, 10);
+    commitStatChange(field, val);
+  }
+
+  function handleBooleanToggle(field, nextValue) {
+    commitStatChange(field, nextValue);
   }
 
   // devMode용 select range
@@ -801,15 +805,26 @@ export default function StatsPopup({
               <h4 className="font-bold text-xs mb-1">부상 상태 테스트</h4>
               
               {/* isInjured */}
-              <label className="block mt-1 flex items-center">
-                <input
-                  type="checkbox"
-                  checked={isInjured || false}
-                  onChange={(e)=> handleChange("isInjured",e)}
-                  className="mr-2"
-                />
-                isInjured (부상 상태)
-              </label>
+              <button
+                type="button"
+                onClick={() => handleBooleanToggle("isInjured", !(isInjured || false))}
+                className={`mt-1 flex w-full items-center justify-between rounded border px-3 py-2 text-left transition-colors ${
+                  isInjured
+                    ? "border-red-400 bg-red-50 text-red-700"
+                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                }`}
+                aria-pressed={isInjured || false}
+              >
+                <span className="flex items-center gap-2">
+                  <span className="text-lg leading-none" aria-hidden="true">
+                    {isInjured ? "☑" : "☐"}
+                  </span>
+                  <span>isInjured (부상 상태)</span>
+                </span>
+                <span className="text-xs font-semibold">
+                  {isInjured ? "ON" : "OFF"}
+                </span>
+              </button>
               
               {/* injuries */}
               <label className="block mt-1">
