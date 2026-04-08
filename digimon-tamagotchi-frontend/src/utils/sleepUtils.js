@@ -38,6 +38,97 @@ function buildScheduleDate(baseDate, hour, minute = 0, dayOffset = 0) {
   return target;
 }
 
+function ensureTimestamp(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+
+  if (typeof value === "object" && "seconds" in value) {
+    const millis = value.seconds * 1000 + (value.nanoseconds || 0) / 1000000;
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function clampInterval(startMs, endMs, rangeStartMs, rangeEndMs) {
+  const clampedStart = Math.max(startMs, rangeStartMs);
+  const clampedEnd = Math.min(endMs, rangeEndMs);
+
+  if (!Number.isFinite(clampedStart) || !Number.isFinite(clampedEnd) || clampedStart >= clampedEnd) {
+    return null;
+  }
+
+  return {
+    start: clampedStart,
+    end: clampedEnd,
+  };
+}
+
+function mergeIntervals(intervals) {
+  if (!Array.isArray(intervals) || intervals.length === 0) {
+    return [];
+  }
+
+  const sorted = [...intervals]
+    .filter((interval) => interval && interval.start < interval.end)
+    .sort((a, b) => a.start - b.start);
+
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  const merged = [sorted[0]];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = merged[merged.length - 1];
+    const current = sorted[index];
+
+    if (current.start <= previous.end) {
+      previous.end = Math.max(previous.end, current.end);
+      continue;
+    }
+
+    merged.push({ ...current });
+  }
+
+  return merged;
+}
+
+function subtractInterval(intervals, removeStartMs, removeEndMs) {
+  if (!Number.isFinite(removeStartMs) || !Number.isFinite(removeEndMs) || removeStartMs >= removeEndMs) {
+    return intervals;
+  }
+
+  return intervals.flatMap((interval) => {
+    if (interval.end <= removeStartMs || interval.start >= removeEndMs) {
+      return [interval];
+    }
+
+    const next = [];
+
+    if (interval.start < removeStartMs) {
+      next.push({ start: interval.start, end: removeStartMs });
+    }
+
+    if (removeEndMs < interval.end) {
+      next.push({ start: removeEndMs, end: interval.end });
+    }
+
+    return next;
+  });
+}
+
 function formatDuration(diffMs) {
   const safeMs = Math.max(0, diffMs);
   const totalMinutes = Math.max(0, Math.ceil(safeMs / (60 * 1000)));
@@ -120,6 +211,21 @@ export function getMostRecentWakeDate(schedule, now = new Date()) {
   }
 
   return buildScheduleDate(now, normalized.end, normalized.endMinute, -1);
+}
+
+export function getMostRecentSleepDate(schedule, now = new Date()) {
+  const normalized = normalizeSleepSchedule(schedule);
+  const todaySleep = buildScheduleDate(
+    now,
+    normalized.start,
+    normalized.startMinute
+  );
+
+  if (todaySleep.getTime() <= now.getTime()) {
+    return todaySleep;
+  }
+
+  return buildScheduleDate(now, normalized.start, normalized.startMinute, -1);
 }
 
 export function getNextWakeDate(schedule, now = new Date()) {
@@ -232,4 +338,142 @@ export function calculateSleepSecondsInRange(startTime, endTime, schedule) {
   }
 
   return Math.floor(sleepMs / 1000);
+}
+
+const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
+const NAP_DURATION_MS = 3 * 60 * 60 * 1000;
+const WAKE_INTERRUPTION_DURATION_MS = 10 * 60 * 1000;
+
+function buildScheduledSleepIntervals(startMs, endMs, schedule) {
+  if (!schedule) {
+    return [];
+  }
+
+  const normalized = normalizeSleepSchedule(schedule);
+  const rangeStart = new Date(startMs);
+  rangeStart.setHours(0, 0, 0, 0);
+
+  const rangeEnd = new Date(endMs);
+  rangeEnd.setHours(0, 0, 0, 0);
+
+  const daySpan = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
+  const intervals = [];
+
+  for (let offset = -1; offset <= daySpan + 1; offset += 1) {
+    const sleepStart = buildScheduleDate(
+      rangeStart,
+      normalized.start,
+      normalized.startMinute,
+      offset
+    );
+    const sleepEndBaseOffset =
+      toMinutesOfDay(normalized.start, normalized.startMinute) <
+      toMinutesOfDay(normalized.end, normalized.endMinute)
+        ? offset
+        : offset + 1;
+    const sleepEnd = buildScheduleDate(
+      rangeStart,
+      normalized.end,
+      normalized.endMinute,
+      sleepEndBaseOffset
+    );
+
+    const clamped = clampInterval(
+      sleepStart.getTime(),
+      sleepEnd.getTime(),
+      startMs,
+      endMs
+    );
+
+    if (clamped) {
+      intervals.push(clamped);
+    }
+  }
+
+  return intervals;
+}
+
+function buildNapIntervals(startMs, endMs, { isLightsOn = true, fastSleepStart = null, napUntil = null } = {}) {
+  if (isLightsOn) {
+    return [];
+  }
+
+  const napUntilMs = ensureTimestamp(napUntil);
+  if (napUntilMs == null) {
+    return [];
+  }
+
+  const fastSleepStartMs = ensureTimestamp(fastSleepStart);
+  const napStartMs =
+    fastSleepStartMs != null
+      ? fastSleepStartMs + FALLING_ASLEEP_DELAY_MS
+      : napUntilMs - NAP_DURATION_MS;
+
+  const clamped = clampInterval(napStartMs, napUntilMs, startMs, endMs);
+  return clamped ? [clamped] : [];
+}
+
+export function getSleepLikeIntervalsInRange(
+  startTime,
+  endTime,
+  {
+    schedule = null,
+    isLightsOn = true,
+    wakeUntil = null,
+    fastSleepStart = null,
+    napUntil = null,
+  } = {}
+) {
+  const startMs = ensureTimestamp(startTime);
+  const endMs = ensureTimestamp(endTime);
+
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+    return [];
+  }
+
+  let intervals = [
+    ...buildScheduledSleepIntervals(startMs, endMs, schedule),
+    ...buildNapIntervals(startMs, endMs, {
+      isLightsOn,
+      fastSleepStart,
+      napUntil,
+    }),
+  ];
+
+  intervals = mergeIntervals(intervals);
+
+  const wakeUntilMs = ensureTimestamp(wakeUntil);
+  if (wakeUntilMs != null) {
+    const wakeStartMs = wakeUntilMs - WAKE_INTERRUPTION_DURATION_MS;
+    intervals = subtractInterval(intervals, wakeStartMs, wakeUntilMs);
+  }
+
+  return mergeIntervals(intervals);
+}
+
+export function calculateSleepLikeSecondsInRange(startTime, endTime, context = {}) {
+  return getSleepLikeIntervalsInRange(startTime, endTime, context).reduce(
+    (total, interval) => total + Math.floor((interval.end - interval.start) / 1000),
+    0
+  );
+}
+
+export function getActiveSleepLikeStartedAt(currentTime, context = {}) {
+  const currentMs = ensureTimestamp(currentTime);
+
+  if (!Number.isFinite(currentMs)) {
+    return null;
+  }
+
+  const lookbackStartMs = currentMs - 48 * 60 * 60 * 1000;
+  const intervals = getSleepLikeIntervalsInRange(lookbackStartMs, currentMs + 1, context);
+
+  for (let index = intervals.length - 1; index >= 0; index -= 1) {
+    const interval = intervals[index];
+    if (interval.start <= currentMs && currentMs < interval.end) {
+      return interval.start;
+    }
+  }
+
+  return null;
 }

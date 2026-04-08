@@ -66,8 +66,11 @@ export const defaultStats = {
     callStatus: {
       hunger: { isActive: false, startedAt: null, isLogged: false }, // 제한시간 10분
       strength: { isActive: false, startedAt: null, isLogged: false },
-      sleep: { isActive: false, startedAt: null }     // 제한시간 60분
+      sleep: { isActive: false, startedAt: null, isLogged: false }
     },
+    fastSleepStart: null,
+    napUntil: null,
+    sleepLightOnStart: null,
     
     // 냉장고(냉동수면) 관련
     isFrozen: false,    // 냉장고 보관 여부
