@@ -199,6 +199,7 @@ const Canvas = ({
       const shouldLoadIdleMotionFrames =
         currentAnimation === "idle" &&
         idleMotionTimeline.length > 0 &&
+        !isInjured &&
         !isSleepingLikeVisualState &&
         !isFrozen &&
         !takeOutAt;
@@ -326,6 +327,7 @@ const Canvas = ({
         const canUseIdleMotionTimeline =
           fridgeRenderPolicy.shouldUseIdleMotionTimeline &&
           currentAnimation === "idle" &&
+          !isInjured &&
           !isSleepingLikeVisualState &&
           idleMotionTimeline.length > 0;
         const motionStepIndex = canUseIdleMotionTimeline

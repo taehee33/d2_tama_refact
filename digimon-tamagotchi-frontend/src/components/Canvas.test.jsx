@@ -140,4 +140,28 @@ describe("Canvas idle motion timeline", () => {
     expect(loadedImageSources).not.toContain("/images/210.png");
     expect(loadedImageSources).not.toContain("/images/211.png");
   });
+
+  test("부상 상태에서는 idle 타임라인 스프라이트를 preload하지 않고 부상 프레임만 사용한다", async () => {
+    render(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="idle"
+        isInjured
+        idleFrames={["123", "124"]}
+        idleMotionTimeline={buildIdleMotionTimeline()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getCanvasInitCount()).toBe(1);
+    });
+
+    expect(loadedImageSources).toContain("/images/123.png");
+    expect(loadedImageSources).toContain("/images/124.png");
+    expect(loadedImageSources).toContain("/images/541.png");
+    expect(loadedImageSources).toContain("/images/542.png");
+    expect(loadedImageSources).not.toContain("/images/210.png");
+    expect(loadedImageSources).not.toContain("/images/211.png");
+  });
 });

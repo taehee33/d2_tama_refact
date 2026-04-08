@@ -2,6 +2,20 @@
 
 ## 2026-04-08
 
+### 부상 상태에서 idle roaming이 재생되던 캔버스 렌더 회귀 수정
+- `gameAnimationViewModel`은 이미 `isInjured`일 때 `sick` 애니메이션과 부상 프레임을 원하도록 되어 있었지만, `Canvas`는 `currentAnimation === "idle"`만 기준으로 `idleMotionTimeline`을 허용해 본체가 아픈 상태에서도 돌아다니는 장면이 잠깐 보일 수 있었습니다.
+- `Canvas`의 idle 타임라인 preload 조건과 실제 사용 조건 모두에 `!isInjured`를 추가해, 부상 중에는 애니메이션 상태가 잠깐 `idle`이어도 roaming 좌표와 flip 타임라인을 전혀 사용하지 않고 전달된 부상 프레임만 중앙에 그리도록 보강했습니다.
+- 회귀 테스트로 부상 상태에서는 `210/211` idle 타임라인 스프라이트를 preload하지 않고, 부상 프레임과 부상 아이콘 스프라이트만 사용하는 규칙을 고정했습니다.
+
+### 영향받은 파일
+- `src/components/Canvas.jsx`
+- `src/components/Canvas.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 문제는 부상 판정이나 저장 로직이 아니라, 렌더 계층이 `currentAnimation`의 잠깐의 흔들림을 어떻게 해석하느냐의 문제이므로 `useGameActions`나 상태 저장 파이프라인 대신 `Canvas`의 시각화 게이트만 좁게 수정하는 편이 가장 안전합니다.
+- 수면 상태와 같은 방식으로 부상 상태에서도 idle 타임라인 자체를 차단하면, 액션 직후 `idle` 전환이 잠깐 끼더라도 sick 포즈가 안정적으로 유지되어 사용자 체감과 상태 표현이 일치합니다.
+
 ### 잠들기 준비 중 상태 배지와 화면 라벨에 15초 카운트다운 노출
 - `StatsPopup`에는 이미 `fastSleepStart` 기준 15초 안내가 있었지만, 사용자가 실제로 자주 보는 상단 상태 배지와 게임 화면 우상단 수면 라벨은 `잠들기 준비 중` 고정 문자열만 보여 주고 있어 카운트다운이 보이지 않던 문제를 수정했습니다.
 - `sleepUtils`에 빠른 잠들기 남은 초 계산 helper를 추가하고, `digimonStatusMessages`의 `FALLING_ASLEEP` 메시지는 `잠들기 준비 10초 🌙`처럼 본문과 상세 힌트 모두 현재 남은 초를 반영하도록 맞췄습니다.
