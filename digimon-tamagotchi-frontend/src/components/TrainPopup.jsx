@@ -14,6 +14,7 @@ const TRAINING_LANES = [
   { key: "U", label: "상단", buttonLabel: "↑", assistiveLabel: "위" },
   { key: "D", label: "하단", buttonLabel: "↓", assistiveLabel: "아래" },
 ];
+const MOBILE_BREAKPOINT = 720;
 
 function formatDirection(direction) {
   return direction === "U" ? "상단" : "하단";
@@ -130,6 +131,9 @@ export default function TrainPopup({
   const [beforeStats, setBeforeStats] = useState(null);
   const [chosenPattern, setChosenPattern] = useState([]);
   const [currentExchange, setCurrentExchange] = useState(null);
+  const [isMobileLayout, setIsMobileLayout] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+  );
   const lifecycleTokenRef = useRef(0);
   const transitionTokenRef = useRef(0);
   const timeoutIdsRef = useRef([]);
@@ -189,6 +193,21 @@ export default function TrainPopup({
       clearScheduledTimeouts();
     };
   }, [clearScheduledTimeouts]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncLayoutMode = () => {
+      setIsMobileLayout(window.innerWidth <= MOBILE_BREAKPOINT);
+    };
+
+    syncLayoutMode();
+    window.addEventListener("resize", syncLayoutMode);
+
+    return () => {
+      window.removeEventListener("resize", syncLayoutMode);
+    };
+  }, []);
 
   const closePopup = useCallback(() => {
     clearScheduledTimeouts();
@@ -358,6 +377,32 @@ export default function TrainPopup({
     if (currentExchange.defend === laneKey) return "is-active";
     return "";
   };
+  const renderAttackControls = (variant = "inline") => (
+    <aside
+      className={`train-popup__control-panel train-popup__control-panel--${variant}`}
+      aria-label={variant === "mobile" ? "모바일 입력 패드" : "입력 패드"}
+    >
+      <div className="train-popup__input-grid">
+        {TRAINING_LANES.map((lane) => (
+          <button
+            key={`${variant}-${lane.key}`}
+            type="button"
+            aria-label={`${lane.label} 공격 ${lane.assistiveLabel}`}
+            onClick={() => handleAttackSelection(lane.key)}
+            disabled={!isAwaitingInput}
+            className={`train-popup__attack-button train-popup__attack-button--grid ${
+              lane.key === "U" ? "is-upper" : "is-lower"
+            } ${
+              currentExchange?.attack === lane.key && shouldRevealDefense ? "is-selected" : ""
+            }`}
+          >
+            <span>{lane.label} 공격</span>
+            <strong>{lane.buttonLabel}</strong>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
 
   if (phase === "ready") {
     return (
@@ -400,7 +445,7 @@ export default function TrainPopup({
     <div className="train-popup__overlay">
       <div className="train-popup__shell">
         <header className="train-popup__header">
-          <div>
+          <div className="train-popup__header-copy">
             <span className="train-popup__eyebrow">원작풍 상하 공격 훈련</span>
             <h2>숨은 방어를 뚫어 보세요</h2>
             <p>{statusMessage}</p>
@@ -420,7 +465,11 @@ export default function TrainPopup({
           </div>
           <div className="train-popup__score-card">
             <span>남은 시간</span>
-            <strong>{phase === "battle" ? timeLeft : 0}초</strong>
+            <strong
+              className={phase === "battle" && timeLeft <= 3 ? "is-urgent" : ""}
+            >
+              {phase === "battle" ? timeLeft : 0}초
+            </strong>
           </div>
           <div className="train-popup__round-history" role="list" aria-label="히트 히스토리">
             {Array.from({ length: ROUND_COUNT }, (_, index) => {
@@ -451,7 +500,10 @@ export default function TrainPopup({
         </section>
 
         <section className="train-popup__arena" aria-label="훈련 전투 무대">
-          <section className="train-popup__player-panel" aria-label="내 디지몬과 공격 패드">
+          <section
+            className="train-popup__player-panel"
+            aria-label={isMobileLayout ? "내 디지몬" : "내 디지몬과 공격 패드"}
+          >
             <div className="train-popup__player-panel-grid">
               <article className="train-popup__fighter-card train-popup__fighter-card--player">
                 <span className="train-popup__fighter-label">내 디지몬</span>
@@ -467,27 +519,7 @@ export default function TrainPopup({
                 <span className="train-popup__fighter-caption">선택한 방향으로 즉시 공격합니다.</span>
               </article>
 
-              <aside className="train-popup__control-panel train-popup__control-panel--inline" aria-label="입력 패드">
-                <div className="train-popup__input-grid">
-                  {TRAINING_LANES.map((lane) => (
-                    <button
-                      key={lane.key}
-                      type="button"
-                      aria-label={`${lane.label} 공격 ${lane.assistiveLabel}`}
-                      onClick={() => handleAttackSelection(lane.key)}
-                      disabled={!isAwaitingInput}
-                      className={`train-popup__attack-button train-popup__attack-button--grid ${
-                        lane.key === "U" ? "is-upper" : "is-lower"
-                      } ${
-                        currentExchange?.attack === lane.key && shouldRevealDefense ? "is-selected" : ""
-                      }`}
-                    >
-                      <span>{lane.label} 공격</span>
-                      <strong>{lane.buttonLabel}</strong>
-                    </button>
-                  ))}
-                </div>
-              </aside>
+              {!isMobileLayout && renderAttackControls("inline")}
             </div>
           </section>
 
@@ -628,6 +660,7 @@ export default function TrainPopup({
                 {getDummyGuardLabel("D")}
               </div>
             </div>
+            {isMobileLayout && renderAttackControls("mobile")}
             <span className="train-popup__fighter-caption">
               입력 전에는 중앙 ?로 방어가 숨겨집니다.
             </span>

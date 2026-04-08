@@ -158,6 +158,10 @@
   gap: 20px;
 }
 
+.train-popup__header-copy {
+  min-width: 0;
+}
+
 .train-popup__header h2,
 .train-popup__ready-copy h2 {
   margin: 6px 0 8px;
@@ -261,6 +265,10 @@
   margin-top: 10px;
   font-size: 2.1rem;
   line-height: 1;
+}
+
+.train-popup__score-card strong.is-urgent {
+  color: var(--train-upper);
 }
 
 .train-popup__round-history {
@@ -798,6 +806,11 @@
   align-self: center;
 }
 
+.train-popup__control-panel--mobile {
+  display: none;
+  width: 100%;
+}
+
 .train-popup__control-copy {
   display: flex;
   align-items: baseline;
@@ -1189,8 +1202,10 @@
   }
 
   .train-popup__header {
+    position: relative;
     flex-direction: column;
     gap: 10px;
+    padding-right: 72px;
   }
 
   .train-popup__header h2 {
@@ -1199,6 +1214,17 @@
 
   .train-popup__header p {
     font-size: 0.86rem;
+  }
+
+  .train-popup__close-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 10px 12px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    line-height: 1;
   }
 
   .train-popup__scoreboard {
@@ -1230,18 +1256,20 @@
   }
 
   .train-popup__arena {
-    grid-template-columns: minmax(156px, 174px) minmax(0, 1fr) 74px;
+    grid-template-columns: minmax(90px, 96px) minmax(0, 1fr) 84px;
     grid-template-areas: "playerpanel lanes dummy";
-    gap: 6px;
+    gap: 5px;
+    align-items: start;
   }
 
   .train-popup__player-panel {
-    padding: 8px 6px;
+    padding: 6px 4px;
   }
 
   .train-popup__player-panel-grid {
-    grid-template-columns: minmax(0, 1fr) 58px;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    height: auto;
   }
 
   .train-popup__fighter-card,
@@ -1252,40 +1280,59 @@
 
   .train-popup__fighter-card--player {
     padding: 0;
+    padding-top: 22px;
+    gap: 4px;
   }
 
   .train-popup__fighter-card--dummy {
-    padding: 8px 6px;
-    gap: 6px;
+    padding: 8px 4px 6px;
+    gap: 5px;
   }
 
   .train-popup__control-panel {
     padding: 0;
-    gap: 6px;
+    gap: 4px;
   }
 
   .train-popup__fighter-label,
   .train-popup__control-title {
-    font-size: 0.78rem;
+    font-size: 0.7rem;
   }
 
   .train-popup__fighter-frame {
-    width: 62px;
-    height: 62px;
-    border-radius: 18px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
   }
 
   .train-popup__player-sprite {
-    width: 48px;
-    height: 48px;
+    width: 42px;
+    height: 42px;
   }
 
   .train-popup__fighter-card strong {
-    font-size: 0.72rem;
+    font-size: 0.66rem;
+    line-height: 1.15;
+  }
+
+  .train-popup__control-panel--inline {
+    display: none;
+  }
+
+  .train-popup__control-panel--mobile {
+    display: flex;
+    align-self: stretch;
+    margin-top: 2px;
   }
 
   .train-popup__input-grid {
     min-height: 94px;
+  }
+
+  .train-popup__control-panel--mobile .train-popup__input-grid {
+    min-height: auto;
+    gap: 4px;
+    width: 100%;
   }
 
   .train-popup__attack-button--grid {
@@ -1301,48 +1348,68 @@
     font-size: 1.5rem;
   }
 
+  .train-popup__control-panel--mobile .train-popup__attack-button--grid {
+    min-height: 48px;
+    gap: 2px;
+    padding: 6px 3px;
+    border-radius: 12px;
+  }
+
+  .train-popup__control-panel--mobile .train-popup__attack-button--grid span {
+    font-size: 0.53rem;
+  }
+
+  .train-popup__control-panel--mobile .train-popup__attack-button--grid strong {
+    font-size: 1.15rem;
+  }
+
   .train-popup__control-help {
     font-size: 0.74rem;
     line-height: 1.35;
   }
 
   .train-popup__lanes {
-    padding: 8px;
-    gap: 6px;
+    padding: 6px;
+    gap: 5px;
   }
 
   .train-popup__lane-row {
-    padding: 7px 8px;
-    border-radius: 16px;
+    padding: 6px;
+    border-radius: 14px;
   }
 
   .train-popup__lane-track {
-    grid-template-columns: minmax(0, 1fr) 42px;
-    gap: 4px;
-    min-height: 40px;
+    display: block;
+    position: relative;
+    min-height: 36px;
   }
 
   .train-popup__lane-callout {
-    min-height: 24px;
-    padding: 0 4px;
-    font-size: 0.58rem;
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    z-index: 2;
+    min-height: 18px;
+    padding: 0 5px;
+    font-size: 0.55rem;
+    transform: translateY(-50%);
   }
 
   .train-popup__lane-rail {
-    height: 40px;
-    --train-projectile-start: -34px;
-    --train-projectile-hit: calc(100% + 48px);
+    height: 36px;
+    --train-projectile-start: -30px;
+    --train-projectile-hit: calc(100% + 42px);
   }
 
   .train-popup__lane-rail::before {
-    left: 4%;
-    right: 4%;
-    height: 8px;
+    left: 2%;
+    right: 2%;
+    height: 7px;
   }
 
   .train-popup__lane-projectile-shell {
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
   }
 
   .train-popup__lane-shield {
@@ -1352,33 +1419,33 @@
   }
 
   .train-popup__lane-question {
-    width: 38px;
-    height: 38px;
-    font-size: 1.35rem;
+    width: 34px;
+    height: 34px;
+    font-size: 1.2rem;
   }
 
   .train-popup__lane-result-badge {
-    top: 6px;
-    padding: 5px 10px;
-    font-size: 0.68rem;
+    top: 4px;
+    padding: 4px 8px;
+    font-size: 0.62rem;
   }
 
   .train-popup__dummy-stage {
-    width: 78px;
-    min-height: 110px;
-    grid-template-rows: 22px 1fr 22px;
+    width: 70px;
+    min-height: 94px;
+    grid-template-rows: 18px 1fr 18px;
   }
 
   .train-popup__dummy-top-guard,
   .train-popup__dummy-bottom-guard {
-    width: 46px;
+    width: 40px;
     min-height: 18px;
-    font-size: 0.6rem;
+    font-size: 0.54rem;
   }
 
   .train-popup__dummy-puppet {
-    width: 72px;
-    height: 68px;
+    width: 62px;
+    height: 58px;
   }
 
   .train-popup__dummy-sprite {
@@ -1386,16 +1453,16 @@
   }
 
   .train-popup__hit-effect {
-    width: 72px;
-    height: 36px;
+    width: 64px;
+    height: 32px;
   }
 
   .train-popup__hit-effect.is-upper {
-    top: 24px;
+    top: 20px;
   }
 
   .train-popup__hit-effect.is-lower {
-    bottom: 26px;
+    bottom: 22px;
   }
 
   .train-popup__dummy-impact {
@@ -1406,7 +1473,7 @@
   }
 
   .train-popup__dummy-impact.is-upper {
-    top: 58px;
+    top: 48px;
   }
 
   .train-popup__dummy-impact.is-lower {

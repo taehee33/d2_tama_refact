@@ -2,6 +2,19 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import TrainPopup from "./TrainPopup";
 
+const DEFAULT_VIEWPORT_WIDTH = 1024;
+
+function setViewportWidth(width) {
+  act(() => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: width,
+    });
+    window.dispatchEvent(new Event("resize"));
+  });
+}
+
 function renderTrainPopup(extraProps = {}) {
   const baseProps = {
     onClose: jest.fn(),
@@ -49,12 +62,14 @@ describe("TrainPopup UI", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.spyOn(window, "alert").mockImplementation(() => {});
+    setViewportWidth(DEFAULT_VIEWPORT_WIDTH);
   });
 
   afterEach(() => {
     act(() => {
       jest.runOnlyPendingTimers();
     });
+    setViewportWidth(DEFAULT_VIEWPORT_WIDTH);
     jest.useRealTimers();
     window.alert.mockRestore();
   });
@@ -128,6 +143,19 @@ describe("TrainPopup UI", () => {
     expect(screen.getByTestId("train-hit-effect")).toHaveClass("is-upper");
   });
 
+  test("모바일에서는 공격 버튼이 샌드백 아래 패널로 이동한다", async () => {
+    setViewportWidth(390);
+    renderTrainPopup();
+
+    fireEvent.click(screen.getByRole("button", { name: "시작" }));
+
+    expect(screen.getByLabelText("내 디지몬")).toBeInTheDocument();
+    expect(screen.queryByLabelText("내 디지몬과 공격 패드")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("모바일 입력 패드")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /위/ })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /아래/ })).toHaveLength(1);
+  });
+
   test("입력 대기 중 남은 시간은 1초마다 감소한다", async () => {
     renderTrainPopup();
 
@@ -141,6 +169,20 @@ describe("TrainPopup UI", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/4초/)).toBeInTheDocument();
+    });
+  });
+
+  test("남은 시간이 3초 이하가 되면 빨간색 긴급 표시 클래스를 붙인다", async () => {
+    renderTrainPopup();
+
+    fireEvent.click(screen.getByRole("button", { name: "시작" }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/3초/)).toHaveClass("is-urgent");
     });
   });
 
