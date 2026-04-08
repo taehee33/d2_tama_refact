@@ -81,6 +81,45 @@ test("arena admin config handler rejects non-admin users", async () => {
   process.env.ARENA_ADMIN_EMAILS = previousEmails;
 });
 
+test("arena admin config handler returns archive monitoring snapshot on GET", async () => {
+  await withArenaAdminEnv(async () => {
+    const mockSnapshot = {
+      summary: {
+        windowHours: 24,
+      },
+      events: [
+        {
+          id: "monitor-1",
+          source: "arena_archive_post",
+          outcome: "success",
+        },
+      ],
+    };
+
+    const handler = createArenaAdminConfigHandler({
+      verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+      getSupabaseAdminClient: () => ({}),
+      getArchiveMonitoringSnapshot: async () => mockSnapshot,
+    });
+
+    const res = createMockRes();
+    await handler(
+      {
+        method: "GET",
+        headers: { authorization: "Bearer test-token" },
+        query: {
+          view: "archive-monitoring",
+          hours: "24",
+        },
+      },
+      res
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, mockSnapshot);
+  });
+});
+
 test("arena season end handler archives current season snapshot and resets entries", async () => {
   await withArenaAdminEnv(async () => {
     let capturedWrites = null;

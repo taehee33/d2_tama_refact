@@ -102,6 +102,8 @@ export async function deleteArenaArchive(currentUser, archiveId) {
 export async function fetchArenaArchiveMonitoring(currentUser, options = {}) {
   const params = new URLSearchParams();
 
+  params.set("view", "archive-monitoring");
+
   if (options.hours !== undefined && options.hours !== null) {
     params.set("hours", String(options.hours));
   }
@@ -121,7 +123,7 @@ export async function fetchArenaArchiveMonitoring(currentUser, options = {}) {
   const queryString = params.toString();
   const payload = await requestArenaApi(
     currentUser,
-    `/api/arena/admin/archive-monitoring${queryString ? `?${queryString}` : ""}`,
+    `/api/arena/admin/config${queryString ? `?${queryString}` : ""}`,
     {
       method: "GET",
     }

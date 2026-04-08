@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-04-08] Vercel Hobby 함수 제한 대응으로 아레나 관리자 라우트 1개를 기존 엔드포인트에 병합
+
+### 작업 유형
+- 🧩 서버리스 함수 수 절감을 위한 관리자 API 통합
+- 🔁 관리자 모니터링 호출 경로 재배선
+- 🧪 `arenaHandlers` 관리자 GET 분기 테스트 추가
+
+### 목적 및 영향
+- **목적:** `api/notifications/daily-digimon-report`를 추가한 뒤 Vercel Hobby의 "Serverless Functions 최대 12개" 제한에 걸리던 배포 실패를 해소한다.
+- **범위:** 아레나 관리자용 `archive-monitoring` 전용 라우트를 제거하고, 같은 관리자 경계의 기존 `config` 엔드포인트가 `GET` 요청에서 모니터링 스냅샷을 반환하도록 합친다. 알림 API와 일반 사용자 기능 경로는 유지한다.
+- **내용:**
+  - `createArenaAdminConfigHandler()`가 이제 `PUT`뿐 아니라 `GET`도 받아, 관리자 인증 후 archive monitoring 스냅샷을 반환할 수 있게 확장했다.
+  - 프런트 `fetchArenaArchiveMonitoring()`은 `/api/arena/admin/archive-monitoring` 대신 `/api/arena/admin/config?view=archive-monitoring...` 경로를 사용하도록 바꿨다.
+  - 별도 함수 파일 `digimon-tamagotchi-frontend/api/arena/admin/archive-monitoring.js`를 삭제해 배포 함수 수를 1개 줄였다.
+  - 서버 테스트에 관리자 `GET` 분기를 추가해 모니터링 응답이 같은 handler에서 계속 유지되는지 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+- `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+- `digimon-tamagotchi-frontend/api/arena/admin/archive-monitoring.js` (삭제)
+- `api/_lib/arenaHandlers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/arenaHandlers.test.js`
+
+### 아키텍처 메모
+- Hobby 플랜에서는 함수 수가 하드 제한이므로, 관리자 전용 보조 읽기 엔드포인트는 같은 권한 경계의 기존 함수에 메서드 분기로 합치는 편이 운영 비용 대비 효율적이다.
+
 ## [2026-04-08] Discord 상태 알림을 Firestore 직접 조회에서 서버 API 경유 구조로 전환
 
 ### 작업 유형

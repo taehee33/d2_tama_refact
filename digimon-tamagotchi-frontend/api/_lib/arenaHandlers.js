@@ -231,15 +231,31 @@ function createArenaAdminConfigHandler(deps = {}) {
   const verifyUser = deps.verifyRequestUser || verifyRequestUser;
   const commit = deps.commitWrites || commitWrites;
   const getDocumentByPath = deps.getDocument || getDocument;
+  const getMonitoringSnapshot =
+    deps.getArchiveMonitoringSnapshot || getArchiveMonitoringSnapshot;
 
   return async function arenaAdminConfigHandler(req, res) {
-    if (!allowMethods(req, res, ["PUT"])) {
+    if (!allowMethods(req, res, ["GET", "PUT"])) {
       return;
     }
 
     try {
       const decodedToken = await verifyUser(req);
       assertArenaAdmin(decodedToken);
+
+      if (req.method === "GET") {
+        const snapshot = await getMonitoringSnapshot({
+          supabase: resolveSupabaseClient(deps),
+          hours: req.query?.hours,
+          limit: req.query?.limit,
+          source: normalizeString(req.query?.source) || undefined,
+          outcome: normalizeString(req.query?.outcome) || undefined,
+        });
+
+        sendJson(res, 200, snapshot);
+        return;
+      }
+
       const input = ensureSeasonConfigInput(await parseJsonBody(req));
       const now = new Date();
       const existingConfig = await getDocumentByPath(ARENA_CONFIG_PATH);
@@ -257,6 +273,11 @@ function createArenaAdminConfigHandler(deps = {}) {
         config: input,
       });
     } catch (error) {
+      if (error instanceof TypeError) {
+        handleApiError(res, createArenaValidationError(error.message));
+        return;
+      }
+
       handleApiError(res, error);
     }
   };
