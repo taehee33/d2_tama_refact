@@ -1096,6 +1096,19 @@
 - `src/components/layout/GameDefaultSection.test.jsx`
 - `docs/REFACTORING_LOG.md`
 
+### GamePage presenter 배포 누락 보정
+- `Game.jsx`가 `GamePageView`, `GamePageToolbar`, `ImmersiveLandscapeSection` presenter를 이미 import하고 있었지만, 실제 파일들이 Git에 누락되어 Vercel에서 `Can't resolve '../components/layout/GamePageView'` 오류가 발생했습니다.
+- 세 파일은 기본 화면/툴바/가로 몰입형 셸 조합을 담당하는 presenter 계층이라, 임시로 import를 제거하기보다 파일 자체와 테스트를 함께 저장소에 포함시켜 로컬과 배포 환경을 일치시키는 쪽으로 정리했습니다.
+
+### 영향받은 파일
+- `src/components/layout/GamePageView.jsx`
+- `src/components/layout/GamePageView.test.jsx`
+- `src/components/layout/GamePageToolbar.jsx`
+- `src/components/layout/GamePageToolbar.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
 ### Ver.4 / Ver.5 플레이 가능 확장과 Ver.3~Ver.5 로컬 조그레스 활성화
 - `Ver.4`, `Ver.5`를 신규 슬롯 생성, 로드, 일반 진화, 사망, 도감, 마스터데이터까지 실제로 사용할 수 있는 지원 버전으로 승격했습니다. 기준 로스터는 [Wikimon Ver.4](https://wikimon.net/Digital_Monster_COLOR_Ver.4), [Wikimon Ver.5](https://wikimon.net/Digital_Monster_COLOR_Ver.5), [Humulos DMC](https://humulos.com/digimon/dmc/) 진화표와 DigiROM, 그리고 로컬 `VB for DMC Sprite Conversion`의 공식 로스터 폴더를 함께 대조해 확정했습니다.
 - `src/data/v4`, `src/data/v5`에 각 버전별 `Digitama 1 + death 2 + living roster 19` 구조를 추가하고, stage 스키마는 현재 앱 공용 규칙인 `Digitama > Baby I > Baby II > Child > Adult > Perfect > Ultimate > Super Ultimate`를 그대로 따르도록 맞췄습니다.
