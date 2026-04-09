@@ -1,6 +1,8 @@
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2, V2_SPRITE_BASE } from "../data/v2modkor";
 import { digimonDataVer3, V3_SPRITE_BASE } from "../data/v3";
+import { digimonDataVer4, V4_SPRITE_BASE } from "../data/v4";
+import { digimonDataVer5, V5_SPRITE_BASE } from "../data/v5";
 
 const VERSION_CONFIGS = {
   "Ver.1": {
@@ -26,6 +28,22 @@ const VERSION_CONFIGS = {
     deathFormIds: ["Ohakadamon1V3", "Ohakadamon2V3"],
     spriteBasePath: V3_SPRITE_BASE,
     dataMap: digimonDataVer3,
+  },
+  "Ver.4": {
+    key: "ver4",
+    label: "Ver.4",
+    starterId: "DigitamaV4",
+    deathFormIds: ["Ohakadamon1V4", "Ohakadamon2V4"],
+    spriteBasePath: V4_SPRITE_BASE,
+    dataMap: digimonDataVer4,
+  },
+  "Ver.5": {
+    key: "ver5",
+    label: "Ver.5",
+    starterId: "DigitamaV5",
+    deathFormIds: ["Ohakadamon1V5", "Ohakadamon2V5"],
+    spriteBasePath: V5_SPRITE_BASE,
+    dataMap: digimonDataVer5,
   },
 };
 
@@ -110,4 +128,42 @@ export function getDigimonEntryByVersion(version = "Ver.1", digimonId) {
   }
 
   return getDigimonDataMapByVersion(version)?.[digimonId] || null;
+}
+
+export function getDigimonDataMapsByPreference(version = "Ver.1") {
+  const normalizedVersion = normalizeDigimonVersionLabel(version);
+
+  return [
+    getDigimonDataMapByVersion(normalizedVersion),
+    ...SUPPORTED_DIGIMON_VERSIONS.filter(
+      (label) => label !== normalizedVersion
+    ).map((label) => getDigimonDataMapByVersion(label)),
+  ].filter(Boolean);
+}
+
+export function findDigimonEntryAcrossVersions(
+  digimonId,
+  preferredVersion = "Ver.1"
+) {
+  if (!digimonId) {
+    return null;
+  }
+
+  return (
+    getDigimonDataMapsByPreference(preferredVersion)
+      .map((dataMap) => {
+        if (!dataMap) {
+          return null;
+        }
+
+        if (dataMap[digimonId]) {
+          return dataMap[digimonId];
+        }
+
+        return (
+          Object.values(dataMap).find((entry) => entry?.id === digimonId) || null
+        );
+      })
+      .find(Boolean) || null
+  );
 }
