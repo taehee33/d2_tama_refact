@@ -2,7 +2,20 @@
 // Game.jsx의 데이터 저장/로딩 로직을 분리한 Custom Hook
 
 import { useState, useEffect, useCallback } from "react";
-import { doc, getDoc, updateDoc, deleteField, collection, addDoc, query, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  deleteField,
+  collection,
+  addDoc,
+  setDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
 import { initializeStats } from "../data/stats";
@@ -12,7 +25,11 @@ import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
-import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
+import {
+  buildPersistentActivityLogPayload,
+  getPersistentActivityLogDocId,
+  shouldPersistActivityLog,
+} from "../utils/activityLogPersistence";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
@@ -23,6 +40,32 @@ import {
   isStarterDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
+import { toEpochMs } from "../utils/time";
+
+const GAME_TIMESTAMP_KEYS = new Set([
+  "birthTime",
+  "frozenAt",
+  "takeOutAt",
+  "injuredAt",
+  "lastHungerZeroAt",
+  "lastStrengthZeroAt",
+  "hungerMistakeDeadline",
+  "strengthMistakeDeadline",
+  "poopReachedMaxAt",
+  "lastPoopPenaltyAt",
+  "lastAgeUpdateDate",
+  "evolutionStageStartedAt",
+  "fastSleepStart",
+  "napUntil",
+  "wakeUntil",
+  "sleepLightOnStart",
+  "timestamp",
+  "occurredAt",
+  "resolvedAt",
+  "startedAt",
+  "sleepStartAt",
+  "lastSavedAt",
+]);
 
 /**
  * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
@@ -40,6 +83,54 @@ function cleanObject(obj) {
   return result;
 }
 
+function isGameTimestampKey(key) {
+  return GAME_TIMESTAMP_KEYS.has(key);
+}
+
+function normalizeLogTimestamp(entry) {
+  if (!entry || typeof entry !== "object") {
+    return entry;
+  }
+
+  const timestamp = toEpochMs(entry.timestamp);
+  return timestamp == null ? entry : { ...entry, timestamp };
+}
+
+export function normalizeGameTimingFields(value, currentKey = null) {
+  if (isGameTimestampKey(currentKey)) {
+    return toEpochMs(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeGameTimingFields(entry));
+  }
+
+  if (value == null || typeof value !== "object") {
+    return value;
+  }
+
+  const result = { ...value };
+  Object.keys(result).forEach((key) => {
+    result[key] = normalizeGameTimingFields(result[key], key);
+  });
+  return result;
+}
+
+export function resolveLastSavedAtSource(
+  slotData = {},
+  persistedStats = {},
+  liveStats = {}
+) {
+  return (
+    slotData.lastSavedAtServer ||
+    slotData.lastSavedAt ||
+    persistedStats.lastSavedAtServer ||
+    persistedStats.lastSavedAt ||
+    liveStats.lastSavedAt ||
+    null
+  );
+}
+
 /**
  * 슬롯 루트 전용 상태 필드 해석
  * newStats에 최신 값이 들어오면 그 값을 우선 사용하고, 없으면 현재 훅 상태를 fallback으로 사용합니다.
@@ -49,11 +140,15 @@ function cleanObject(obj) {
  * @returns {{ isLightsOn: boolean, wakeUntil: number|null }}
  */
 export function resolveRootSlotFields(newStats = {}, currentRootState = {}) {
+  const resolvedWakeUntil =
+    newStats.wakeUntil !== undefined
+      ? newStats.wakeUntil
+      : (currentRootState.wakeUntil ?? null);
+
   return {
     isLightsOn:
       newStats.isLightsOn !== undefined ? newStats.isLightsOn : currentRootState.isLightsOn,
-    wakeUntil:
-      newStats.wakeUntil !== undefined ? newStats.wakeUntil : (currentRootState.wakeUntil ?? null),
+    wakeUntil: toEpochMs(resolvedWakeUntil),
   };
 }
 
@@ -99,7 +194,7 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
     ...digimonStatsOnly
   } = stats || {};
 
-  return cleanObject(digimonStatsOnly);
+  return cleanObject(normalizeGameTimingFields(digimonStatsOnly));
 }
 
 /**
@@ -120,7 +215,7 @@ export function resolveLazyUpdateBaseStats(
   const liveActivityLogs = Array.isArray(liveStats.activityLogs) ? liveStats.activityLogs : null;
   const liveBattleLogs = Array.isArray(liveStats.battleLogs) ? liveStats.battleLogs : null;
 
-  return {
+  return normalizeGameTimingFields({
     ...persistedStats,
     ...rootSlotFields,
     activityLogs:
@@ -131,7 +226,7 @@ export function resolveLazyUpdateBaseStats(
       (Array.isArray(persistedStats.battleLogs) ? persistedStats.battleLogs : []),
     selectedDigimon:
       liveStats.selectedDigimon || persistedStats.selectedDigimon || null,
-  };
+  });
 }
 
 /**
@@ -155,7 +250,7 @@ export function resolveLazyUpdateBaseStats(
  * @param {Function} params.setIsLoadingSlot - 로딩 상태 설정 함수
  * @param {Function} params.setDeathReason - 사망 사유 설정 함수
  * @param {Function} params.toggleModal - 모달 토글 함수
- * @param {Object} params.digimonDataVer1 - 디지몬 데이터 맵 (현재 슬롯용, 호환)
+ * @param {Object} params.digimonDataVer1 - 현재 슬롯의 런타임 데이터 맵 (adapted 호환)
  * @param {Object} [params.adaptedV1] - v1 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {Object} [params.adaptedV2] - v2 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
  * @param {Object} [params.adaptedV3] - v3 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
@@ -208,6 +303,7 @@ export function useGameData({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const slotRuntimeDataMap = digimonDataVer1;
 
   /**
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
@@ -262,7 +358,7 @@ export function useGameData({
     } else {
       baseStats = await applyLazyUpdateForAction();
     }
-    const now = new Date();
+    const nowMs = Date.now();
     
     // Activity Logs 처리: 함수형 업데이트로 확실히 누적
     let finalLogs;
@@ -325,9 +421,11 @@ export function useGameData({
       } : {}),
       activityLogs: finalLogs, // activityLogs를 finalStats에 포함
       ...rootSlotFields,
-      lastSavedAt: now,
+      lastSavedAt: nowMs,
     };
-    const repairedFinalStats = repairCareMistakeLedger(finalStats, finalLogs).nextStats;
+    const repairedFinalStats = normalizeGameTimingFields(
+      repairCareMistakeLedger(finalStats, finalLogs).nextStats
+    );
     
     console.log("[saveStats] finalStats:", {
       isNewStart,
@@ -358,8 +456,9 @@ export function useGameData({
           digimonStats: sanitizeDigimonStatsForSlotDocument(statsForState),
           ...rootSlotFields,
           dailySleepMistake: deleteField(),
-          lastSavedAt: statsForState.lastSavedAt,
-          updatedAt: now,
+          lastSavedAt: toEpochMs(statsForState.lastSavedAt) ?? nowMs,
+          lastSavedAtServer: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         };
         
         // digimonDisplayName·selectedDigimon: 로드 완료 후에만 저장. 한글명 또는 ID만 (버전 안 붙임)
@@ -409,13 +508,13 @@ export function useGameData({
     let sleepSchedule = null;
     let maxEnergy = null;
     
-    if (digimonDataVer1) {
+    if (slotRuntimeDataMap) {
       // evolutionStage로 현재 디지몬 찾기
       const currentDigimonName = digimonStats.evolutionStage 
-        ? Object.keys(digimonDataVer1).find(key => digimonDataVer1[key]?.evolutionStage === digimonStats.evolutionStage) || "Digitama"
+        ? Object.keys(slotRuntimeDataMap).find(key => slotRuntimeDataMap[key]?.evolutionStage === digimonStats.evolutionStage) || "Digitama"
         : "Digitama";
       
-      const digimonData = digimonDataVer1[currentDigimonName];
+      const digimonData = slotRuntimeDataMap[currentDigimonName];
       if (digimonData) {
         // sleepSchedule 계산
         if (digimonData.stats?.sleepSchedule) {
@@ -452,12 +551,10 @@ export function useGameData({
       
       if (slotSnap.exists()) {
         const slotData = slotSnap.data();
-        const persistedStats = slotData.digimonStats || {};
+        const persistedStats = normalizeGameTimingFields(slotData.digimonStats || {});
         const lastSavedAt =
-          slotData.lastSavedAt ||
-          slotData.updatedAt ||
-          persistedStats.lastSavedAt ||
-          digimonStats.lastSavedAt;
+          resolveLastSavedAtSource(slotData, persistedStats, digimonStats) ??
+          Date.now();
         const baseStats = resolveLazyUpdateBaseStats(persistedStats, digimonStats, {
           isLightsOn,
           wakeUntil,
@@ -467,15 +564,17 @@ export function useGameData({
           evolutionDataForSlot,
           adaptedV1,
           adaptedV2,
-          digimonDataVer1
+          slotRuntimeDataMap
         );
         const prevLogs = Array.isArray(baseStats.activityLogs) ? baseStats.activityLogs : [];
-        const updated = repairCareMistakeLedger(
+        const updated = normalizeGameTimingFields(
+          repairCareMistakeLedger(
           applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
             digimonSnapshot,
           }),
           baseStats.activityLogs || []
-        ).nextStats;
+        ).nextStats
+        );
 
         // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
         const nextLogs = Array.isArray(updated.activityLogs) ? updated.activityLogs : [];
@@ -572,13 +671,13 @@ export function useGameData({
           // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
           const dataMap =
             slotVersionLabel === "Ver.3"
-              ? (adaptedV3 || adaptedV1 || digimonDataVer1)
+              ? (adaptedV3 || adaptedV1 || slotRuntimeDataMap)
               : slotVersionLabel === "Ver.2"
-                ? (adaptedV2 || digimonDataVer1)
-                : (adaptedV1 || digimonDataVer1);
+                ? (adaptedV2 || slotRuntimeDataMap)
+                : (adaptedV1 || slotRuntimeDataMap);
           const savedName =
             slotData.selectedDigimon || getStarterDigimonId(slotVersionLabel);
-          let savedStats = slotData.digimonStats || {};
+          let savedStats = normalizeGameTimingFields(slotData.digimonStats || {});
           
           // Activity Logs 로드: 서브컬렉션 logs 우선, 없으면 구 문서 activityLogs 사용 (마이그레이션 호환)
           // 로드한 로그를 savedStats.activityLogs에 넣어야 StatsPopup/케어미스 이력에 반영됨 (서브컬렉션만 쓰면 digimonStats.activityLogs가 비어 이력이 사라진 것처럼 보임)
@@ -590,16 +689,20 @@ export function useGameData({
             const logsSnap = await getDocs(logsQuery);
             if (!logsSnap.empty) {
               loadedActivityLogs = filterEntriesForSlotCreation(
-                logsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                logsSnap.docs.map((d) => normalizeLogTimestamp({ id: d.id, ...d.data() })),
                 slotData.createdAt
               );
               setActivityLogs(loadedActivityLogs);
             } else {
-              loadedActivityLogs = initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []);
+              loadedActivityLogs = initializeActivityLogs(
+                (savedStats.activityLogs || slotData.activityLogs || []).map(normalizeLogTimestamp)
+              );
               setActivityLogs(loadedActivityLogs);
             }
           } catch (_e) {
-            loadedActivityLogs = initializeActivityLogs(savedStats.activityLogs || slotData.activityLogs || []);
+            loadedActivityLogs = initializeActivityLogs(
+              (savedStats.activityLogs || slotData.activityLogs || []).map(normalizeLogTimestamp)
+            );
             setActivityLogs(loadedActivityLogs);
           }
           // 서브컬렉션은 timestamp desc이므로 오래된 순(이력 표시용)으로 뒤집어 digimonStats에 넣음
@@ -613,14 +716,14 @@ export function useGameData({
             const battleLogsSnap = await getDocs(battleLogsQuery);
             if (!battleLogsSnap.empty) {
               loadedBattleLogs = filterEntriesForSlotCreation(
-                battleLogsSnap.docs.map((d) => ({ id: d.id, ...d.data() })),
+                battleLogsSnap.docs.map((d) => normalizeLogTimestamp({ id: d.id, ...d.data() })),
                 slotData.createdAt
               );
             }
           } catch (_e) {
             // fallback: 문서 내 battleLogs 유지
           }
-          savedStats.battleLogs = loadedBattleLogs;
+          savedStats.battleLogs = loadedBattleLogs.map(normalizeLogTimestamp);
 
           // proteinCount 필드 제거 (마이그레이션)
           if (savedStats.proteinCount !== undefined) {
@@ -636,6 +739,7 @@ export function useGameData({
             // 새 디지몬: 저장된 이름(Ver.2면 DigitamaV2, Ver.1이면 Digitama)으로 버전별 데이터 맵으로 초기화
             const ns = initializeStats(savedName, {}, dataMap);
             ns.birthTime = Date.now();
+            ns.lastSavedAt = Date.now();
             setSelectedDigimon(savedName);
             setDigimonStats({ ...ns, selectedDigimon: savedName });
           } else {
@@ -646,10 +750,8 @@ export function useGameData({
             );
             // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
             const lastSavedAt =
-              slotData.lastSavedAt ||
-              slotData.updatedAt ||
-              lazyUpdateBaseStats.lastSavedAt ||
-              new Date();
+              resolveLastSavedAtSource(slotData, lazyUpdateBaseStats) ??
+              Date.now();
             
             // sleepSchedule과 maxEnergy 계산 (버전별 데이터 맵 사용)
             let sleepSchedule = null;
@@ -683,17 +785,19 @@ export function useGameData({
               savedName,
               evolutionDataForSlot,
               dataMap,
-              digimonDataVer1,
+              slotRuntimeDataMap,
               adaptedV1,
               adaptedV2,
               adaptedV3
             );
-            savedStats = repairCareMistakeLedger(
+            savedStats = normalizeGameTimingFields(
+              repairCareMistakeLedger(
               applyLazyUpdate(lazyUpdateBaseStats, lastSavedAt, sleepSchedule, maxEnergy, {
                 digimonSnapshot,
               }),
               lazyUpdateBaseStats.activityLogs || []
-            ).nextStats;
+            ).nextStats
+            );
             // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
             const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
             newLogs.forEach((log) => {
@@ -731,7 +835,7 @@ export function useGameData({
           }
         } else {
           // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
-          const fallbackDataMap = adaptedV1 || digimonDataVer1;
+          const fallbackDataMap = adaptedV1 || slotRuntimeDataMap;
           const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
           const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
           setSelectedDigimon(fallbackStarterId);
@@ -748,7 +852,7 @@ export function useGameData({
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         setError(error);
-        const fallbackDataMap = adaptedV1 || digimonDataVer1;
+        const fallbackDataMap = adaptedV1 || slotRuntimeDataMap;
         const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
         const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
         setSelectedDigimon(fallbackStarterId);
@@ -778,7 +882,7 @@ export function useGameData({
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         await updateDoc(slotRef, {
           backgroundSettings: newBackgroundSettings,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(),
         });
         console.log('[saveBackgroundSettings] Firebase 저장 완료');
       } catch (error) {
@@ -801,7 +905,7 @@ export function useGameData({
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         await updateDoc(slotRef, {
           immersiveSettings: normalizedSettings,
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(),
         });
         console.log("[saveImmersiveSettings] Firebase 저장 완료");
       } catch (saveError) {
@@ -815,8 +919,9 @@ export function useGameData({
   }, [slotId, currentUser, isFirebaseAvailable]);
 
   /**
-   * 활동 로그 한 건을 서브컬렉션 logs에만 추가 (방안 A: 전면 서브컬렉션)
-   * @param {{ type: string, text: string, timestamp?: number, digimonId?: string, digimonName?: string }} logEntry
+   * 활동 로그 한 건을 서브컬렉션 logs에만 추가한다.
+   * eventId가 계산되는 케어미스/부상성 로그는 같은 사건을 다시 저장해도 같은 문서에 upsert한다.
+   * @param {{ type: string, text: string, timestamp?: number, eventId?: string, digimonId?: string, digimonName?: string }} logEntry
    */
   const appendLogToSubcollection = useCallback(
     async (logEntry) => {
@@ -826,13 +931,18 @@ export function useGameData({
       try {
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         const logsRef = collection(slotRef, "logs");
-        await addDoc(logsRef, {
-          type: logEntry.type,
-          text: logEntry.text ?? "",
-          timestamp: logEntry.timestamp ?? Date.now(),
-          ...(logEntry.digimonId ? { digimonId: logEntry.digimonId } : {}),
-          ...(logEntry.digimonName ? { digimonName: logEntry.digimonName } : {}),
+        const payload = buildPersistentActivityLogPayload({
+          ...logEntry,
+          timestamp: toEpochMs(logEntry?.timestamp) ?? Date.now(),
         });
+        const docId = getPersistentActivityLogDocId(payload);
+
+        if (docId) {
+          await setDoc(doc(logsRef, docId), payload, { merge: true });
+          return;
+        }
+
+        await addDoc(logsRef, payload);
       } catch (error) {
         console.error("[appendLogToSubcollection] 오류:", error);
       }
@@ -851,7 +961,7 @@ export function useGameData({
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         const battleLogsRef = collection(slotRef, "battleLogs");
         await addDoc(battleLogsRef, {
-          timestamp: entry.timestamp ?? Date.now(),
+          timestamp: toEpochMs(entry.timestamp) ?? Date.now(),
           mode: entry.mode,
           text: entry.text ?? "",
           ...(typeof entry.win === "boolean" && { win: entry.win }),
@@ -891,7 +1001,7 @@ export function useGameData({
           isLightsOn,
           wakeUntil,
           dailySleepMistake: deleteField(),
-          updatedAt: new Date(),
+          updatedAt: serverTimestamp(),
         });
       } catch (saveError) {
         console.error("디지몬 이름 저장 오류:", saveError);
@@ -933,8 +1043,9 @@ export function useGameData({
         digimonStats: sanitizeDigimonStatsForSlotDocument(statsSnapshot),
         ...rootSlotFields,
         dailySleepMistake: deleteField(),
-        lastSavedAt: statsSnapshot.lastSavedAt || new Date(),
-        updatedAt: new Date(),
+        lastSavedAt: toEpochMs(statsSnapshot.lastSavedAt) ?? Date.now(),
+        lastSavedAtServer: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
 
       if (!isLoadingSlot && effectiveSelectedDigimon) {

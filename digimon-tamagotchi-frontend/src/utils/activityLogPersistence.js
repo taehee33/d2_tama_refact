@@ -1,6 +1,8 @@
 // Firestore에 영구 저장할 활동 로그 타입 정책
 // write 절감 1차 단계에서는 핵심 이력만 남기고 반복성 높은 일반 액션 로그는 세션 내 메모리로만 유지한다.
 
+import { buildActivityLogEventId } from "./activityLogEventId";
+
 export const PERSISTED_ACTIVITY_LOG_TYPES = new Set([
   "CALL",
   "CAREMISTAKE",
@@ -33,4 +35,21 @@ export function shouldPersistActivityLog(logEntry) {
   }
 
   return PERSISTED_ACTIVITY_LOG_TYPES.has(logType);
+}
+
+export function buildPersistentActivityLogPayload(logEntry = {}) {
+  const eventId = buildActivityLogEventId(logEntry);
+
+  return {
+    type: logEntry?.type,
+    text: logEntry?.text ?? "",
+    timestamp: logEntry?.timestamp ?? Date.now(),
+    ...(eventId ? { eventId } : {}),
+    ...(logEntry?.digimonId ? { digimonId: logEntry.digimonId } : {}),
+    ...(logEntry?.digimonName ? { digimonName: logEntry.digimonName } : {}),
+  };
+}
+
+export function getPersistentActivityLogDocId(logEntry) {
+  return buildPersistentActivityLogPayload(logEntry).eventId || null;
 }

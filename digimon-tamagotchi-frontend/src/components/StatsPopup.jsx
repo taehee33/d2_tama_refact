@@ -3,12 +3,16 @@ import React, { useState, useEffect, useMemo } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
-import { getDisplayCareMistakeEntries } from "../logic/stats/careMistakeLedger";
+import {
+  getDisplayCareMistakeEntries,
+  getActiveCareMistakeEntries,
+} from "../logic/stats/careMistakeLedger";
 import { getDisplayInjuryEntries } from "../logic/stats/injuryHistory";
 import {
   buildCallStatusViewModel,
   normalizeSleepStatusForDisplay,
 } from "../utils/callStatusUtils";
+import { toEpochMs } from "../utils/time";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -78,18 +82,30 @@ function SleepDisturbanceHistory({ activityLogs, formatTimestamp, currentStageSt
   );
 }
 
+function DiagnosticNotice({ children }) {
+  if (!children) return null;
+
+  return (
+    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+      {children}
+    </div>
+  );
+}
+
 /**
  * 케어미스 발생 이력 아코디언 컴포넌트
  * stats.careMistakeLedger를 우선 사용하고, 없으면 activityLogs 기반으로 현재 단계 ledger를 재구성합니다.
  */
-function CareMistakeHistory({ stats, activityLogs, formatTimestamp }) {
+function CareMistakeHistory({ stats, activityLogs, formatTimestamp, entries = null }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const { entries: careMistakeEntries } = getDisplayCareMistakeEntries(
-    stats || {},
-    activityLogs || [],
-    { currentStageStartedAt: stats?.evolutionStageStartedAt ?? null }
-  );
+  const careMistakeEntries =
+    entries ||
+    getDisplayCareMistakeEntries(
+      stats || {},
+      activityLogs || [],
+      { currentStageStartedAt: stats?.evolutionStageStartedAt ?? null }
+    ).entries;
   const sortedEntries = [...careMistakeEntries].sort((a, b) => (b.occurredAt || 0) - (a.occurredAt || 0));
   
   return (
@@ -99,7 +115,7 @@ function CareMistakeHistory({ stats, activityLogs, formatTimestamp }) {
         className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
       >
         <span className="text-sm font-semibold text-gray-700">
-          케어미스 발생 이력 ({sortedEntries.length}건)
+          현재 활성 케어미스 이력 ({sortedEntries.length}건)
         </span>
         <span className="text-gray-500 text-xs">
           {isOpen ? '▲ 접기' : '▼ 펼치기'}
@@ -110,7 +126,7 @@ function CareMistakeHistory({ stats, activityLogs, formatTimestamp }) {
         <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
           {sortedEntries.length === 0 ? (
             <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
-              케어미스 발생 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+              현재 활성 케어미스 이력이 없습니다. (놀아주기/간식주기로 해소되었거나 로그가 아직 기록되지 않았을 수 있습니다)
             </div>
           ) : (
             sortedEntries.map((entry, index) => {
@@ -151,16 +167,19 @@ function InjuryHistory({
   selectedDigimonId = null,
   slotVersion = "Ver.1",
   digimonDataMap = null,
+  injuryLogs = null,
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const injuryLogs = getDisplayInjuryEntries({
-    activityLogs,
-    battleLogs,
-    currentLifeStartedAt,
-    currentDigimonId: selectedDigimonId,
-    slotVersion,
-    digimonDataMap,
-  });
+  const displayLogs =
+    injuryLogs ||
+    getDisplayInjuryEntries({
+      activityLogs,
+      battleLogs,
+      currentLifeStartedAt,
+      currentDigimonId: selectedDigimonId,
+      slotVersion,
+      digimonDataMap,
+    });
   
   return (
     <div className="mt-2 border-t pt-2">
@@ -170,7 +189,7 @@ function InjuryHistory({
       >
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-gray-700">
-            부상 이력 ({injuryLogs.length}건)
+            부상 이력 ({displayLogs.length}건)
           </span>
           <span className="text-[10px] text-gray-400">이번 생 기준</span>
         </div>
@@ -181,12 +200,12 @@ function InjuryHistory({
       
       {isOpen && (
         <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
-          {injuryLogs.length === 0 ? (
+          {displayLogs.length === 0 ? (
             <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
               이번 생 부상 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
             </div>
           ) : (
-            injuryLogs.map((log, index) => {
+            displayLogs.map((log, index) => {
               const timestamp = ensureTimestamp(log.timestamp);
               const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
               const digimonLabel = log.digimonName || log.digimonId || "확인 불가";
@@ -284,15 +303,7 @@ const formatTimestamp = formatTimestampUtil;
  * @returns {number|null} - timestamp (milliseconds) 또는 null
  */
 function ensureTimestamp(val) {
-  if (!val) return null;
-  if (typeof val === 'number') return val;
-  // Firestore Timestamp 객체 처리
-  if (val && typeof val === 'object' && 'seconds' in val) {
-    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
-  }
-  // Date 객체나 문자열 처리
-  const date = new Date(val);
-  return isNaN(date.getTime()) ? null : date.getTime();
+  return toEpochMs(val);
 }
 
 export default function StatsPopup({
@@ -428,6 +439,56 @@ export default function StatsPopup({
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
   const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
+  const currentStageStartedAt = currentStats?.evolutionStageStartedAt ?? null;
+  const currentLifeStartedAt = currentStats?.birthTime ?? null;
+
+  const careMistakeHistoryEntries = useMemo(
+    () =>
+      getDisplayCareMistakeEntries(
+        currentStats || {},
+        displayActivityLogs || [],
+        { currentStageStartedAt }
+      ).entries,
+    [currentStageStartedAt, currentStats, displayActivityLogs]
+  );
+  const rawActiveCareMistakeCount = useMemo(
+    () => getActiveCareMistakeEntries(currentStats?.careMistakeLedger || []).length,
+    [currentStats?.careMistakeLedger]
+  );
+  const injuryHistoryEntries = useMemo(
+    () =>
+      getDisplayInjuryEntries({
+        activityLogs: displayActivityLogs,
+        battleLogs: currentStats?.battleLogs || stats?.battleLogs || [],
+        currentLifeStartedAt,
+        currentDigimonId: selectedDigimonId,
+        slotVersion,
+        digimonDataMap,
+      }),
+    [
+      currentLifeStartedAt,
+      currentStats?.battleLogs,
+      digimonDataMap,
+      displayActivityLogs,
+      selectedDigimonId,
+      slotVersion,
+      stats?.battleLogs,
+    ]
+  );
+  const careMistakeDiagnosticMessage = useMemo(() => {
+    if ((careMistakes || 0) === rawActiveCareMistakeCount) {
+      return null;
+    }
+
+    return "진단: 현재 케어미스 값과 원본 이력이 완전히 일치하지 않습니다. 과거 중복 로그나 레거시 슬롯 데이터가 남아 있을 수 있으며, 기존 기록은 유지한 채 새 로그부터만 중복을 막습니다.";
+  }, [careMistakes, rawActiveCareMistakeCount]);
+  const injuryDiagnosticMessage = useMemo(() => {
+    if ((injuries || 0) === injuryHistoryEntries.length) {
+      return null;
+    }
+
+    return "진단: 이번 생 누적 부상 횟수와 표시 이력이 완전히 일치하지 않습니다. 과거 중복 로그, 레거시 기록, 또는 과거 재구성 집계 방식 차이로 보일 수 있으며 기존 데이터는 수정하지 않습니다.";
+  }, [injuries, injuryHistoryEntries.length]);
 
   const renderCallDetail = (call) => {
     if (!call) return null;
@@ -441,6 +502,7 @@ export default function StatsPopup({
 
     return (
       <div className="ml-2">
+        <div className="text-[11px] font-semibold text-red-500">호출 진행 중</div>
         <div className={`font-semibold ${statusClass}`}>{call.statusLabel}</div>
         <div className="mt-1 text-xs text-gray-600">{call.reason}</div>
         {call.pauseReason ? (
@@ -1185,7 +1247,7 @@ export default function StatsPopup({
           <SleepDisturbanceHistory 
             activityLogs={displayActivityLogs} 
             formatTimestamp={formatTimestamp}
-            currentStageStartedAt={stats?.evolutionStageStartedAt ?? null}
+            currentStageStartedAt={currentStageStartedAt}
           />
         )}
         
@@ -1243,7 +1305,7 @@ export default function StatsPopup({
                 renderCallDetail(activeCallMap.get("hunger"))
               ) : lastHungerZeroAt ? (
                 <div className="text-amber-600 font-semibold ml-2">
-                  ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
+                  ⚠️ 케어미스 반영 후 호출 종료 - 현재 활성 케어미스는 없지만 0 상태 12시간 카운터는 계속 진행 중
                 </div>
               ) : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
@@ -1264,7 +1326,7 @@ export default function StatsPopup({
                 renderCallDetail(activeCallMap.get("strength"))
               ) : lastStrengthZeroAt ? (
                 <div className="text-amber-600 font-semibold ml-2">
-                  ⚠️ 10분 케어 호출 종료 - 0 상태 12시간 지속 카운터는 계속 진행 중
+                  ⚠️ 케어미스 반영 후 호출 종료 - 현재 활성 케어미스는 없지만 0 상태 12시간 카운터는 계속 진행 중
                 </div>
               ) : (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
@@ -1306,19 +1368,21 @@ export default function StatsPopup({
         
         {/* 케어미스 발생 이력 (현재 진화 단계 시작 시점 이후만 표시 → Care Mistakes 카운터와 일치) */}
         <CareMistakeHistory 
-          stats={stats}
+          stats={currentStats}
           activityLogs={displayActivityLogs} 
           formatTimestamp={formatTimestamp}
+          entries={careMistakeHistoryEntries}
         />
+        <DiagnosticNotice>{careMistakeDiagnosticMessage}</DiagnosticNotice>
       </div>
 
       {/* Sec 6. 진화 판정 카운터 */}
       <div className="border-b pb-2">
         <h3 className="font-bold text-base mb-2">6. 진화 판정 카운터</h3>
         <ul className="space-y-1">
-          <li title="현재 진화 단계(스테이지)가 시작된 이후의 케어미스만 집계됩니다.">
+          <li title="현재 시스템에서는 아직 해소되지 않은 케어미스 수를 표시합니다. 놀아주기/간식주기로 감소할 수 있으며, 진화 판정도 현재 값을 그대로 사용합니다.">
             Care Mistakes: {careMistakes || 0}
-            <span className="text-gray-500 text-xs font-normal ml-1">(진화 구간 기준)</span>
+            <span className="text-gray-500 text-xs font-normal ml-1">(현재 활성 기준, 감소 가능)</span>
           </li>
           <li>Training Count: {trainings || 0}</li>
           <li>Overfeeds: {overfeeds || 0}</li>
@@ -1921,14 +1985,16 @@ export default function StatsPopup({
                   <div className="mt-2">
                     <InjuryHistory 
                       activityLogs={displayActivityLogs}
-                      battleLogs={stats?.battleLogs || []}
+                      battleLogs={currentStats?.battleLogs || stats?.battleLogs || []}
                       formatTimestamp={formatTimestamp}
-                      currentLifeStartedAt={stats?.birthTime ?? null}
+                      currentLifeStartedAt={currentLifeStartedAt}
                       selectedDigimonId={selectedDigimonId}
                       slotVersion={slotVersion}
                       digimonDataMap={digimonDataMap}
+                      injuryLogs={injuryHistoryEntries}
                     />
                   </div>
+                  <DiagnosticNotice>{injuryDiagnosticMessage}</DiagnosticNotice>
                 </div>
               </li>
             );

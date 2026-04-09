@@ -4,10 +4,10 @@
 import { isTimeWithinSleepSchedule, normalizeSleepSchedule } from "../utils/sleepUtils";
 import {
   appendCareMistakeEntry,
-  getCareMistakeEventIdFromLog,
-  getCareMistakeReasonKeyFromText,
 } from "../logic/stats/careMistakeLedger";
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
+import { buildActivityLogEventId } from "../utils/activityLogEventId";
+import { toEpochMs } from "../utils/time";
 
 const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -28,15 +28,7 @@ const SLEEP_STATUS = {
  * @returns {number|null} - timestamp (milliseconds) 또는 null
  */
 function ensureTimestamp(val) {
-  if (!val) return null;
-  if (typeof val === 'number') return val;
-  // Firestore Timestamp 객체 처리
-  if (val && typeof val === 'object' && 'seconds' in val) {
-    return val.seconds * 1000 + (val.nanoseconds || 0) / 1000000;
-  }
-  // Date 객체나 문자열 처리
-  const date = new Date(val);
-  return isNaN(date.getTime()) ? null : date.getTime();
+  return toEpochMs(val);
 }
 
 /**
@@ -449,15 +441,14 @@ export function initializeActivityLogs(existingLogs = []) {
  * @param {number} [timestampMs] - 로그 시각(ms). 생략 시 Date.now() 사용. applyLazyUpdate와 동일 시각을 쓰면 중복 로그 방지됨.
  * @returns {Array} 업데이트된 로그 배열
  */
-/** 케어미스 로그 중복 여부: 같은 사유 + 같은 발생 시각의 동일 이벤트면 true */
-function hasDuplicateCareMistakeLog(logs, type, text, timestampMs) {
-  if (type !== 'CAREMISTAKE' || !logs.length) return false;
-  const ts = timestampMs !== undefined ? timestampMs : Date.now();
-  const nextEventId = `${getCareMistakeReasonKeyFromText(text || '')}:${ts}`;
-  return logs.some((log) => {
-    if (log.type !== type) return false;
-    return getCareMistakeEventIdFromLog(log) === nextEventId;
-  });
+/** eventId가 계산되는 로그는 같은 사건이면 다시 추가하지 않는다. */
+function hasDuplicateActivityLogEvent(logs, nextLog) {
+  if (!logs.length) return false;
+
+  const nextEventId = buildActivityLogEventId(nextLog);
+  if (!nextEventId) return false;
+
+  return logs.some((log) => buildActivityLogEventId(log) === nextEventId);
 }
 
 /** 수면 방해 로그 중복 여부: 같은 강제 기상 사건(기본 10분) 안에 이미 기록된 수면 방해 로그가 있으면 true */
@@ -489,11 +480,13 @@ export function addActivityLog(currentLogs = [], type, text, timestampMs) {
           ? timestampMs.timestamp
           : Date.now());
   delete extraFields.timestamp;
-  // 케어미스 이력 멱등성: 동일 사유 로그가 15분 이내에 있으면 추가하지 않음 (실시간·과거 재구성 중복 방지)
-  if (hasDuplicateCareMistakeLog(logs, type, text, ts)) {
+  const baseLog = { type, text, timestamp: ts, ...extraFields };
+  const eventId = buildActivityLogEventId(baseLog);
+
+  if (hasDuplicateActivityLogEvent(logs, baseLog)) {
     return logs;
   }
-  const newLog = { type, text, timestamp: ts, ...extraFields };
+  const newLog = eventId ? { ...baseLog, eventId } : baseLog;
 
   const updatedLogs = [...logs, newLog];
   if (updatedLogs.length > MAX_ACTIVITY_LOGS) {

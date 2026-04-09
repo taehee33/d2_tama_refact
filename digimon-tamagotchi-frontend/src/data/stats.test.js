@@ -4,6 +4,7 @@ import {
   clearPoopOverflowState,
   initializeStats,
 } from "./stats";
+import { buildActivityLogEventId } from "../utils/activityLogEventId";
 
 const NOW_ISO = "2026-03-31T12:00:00.000Z";
 
@@ -122,10 +123,30 @@ describe("applyLazyUpdate", () => {
   test("마지막 저장 시각이 없으면 현재 시각만 기록하고 종료한다", () => {
     const result = applyLazyUpdate(createBaseStats(), null);
 
-    expect(result.lastSavedAt).toBeInstanceOf(Date);
-    expect(result.lastSavedAt.getTime()).toBe(Date.parse(NOW_ISO));
+    expect(result.lastSavedAt).toBe(Date.parse(NOW_ISO));
     expect(result.fullness).toBe(2);
     expect(result.strength).toBe(2);
+  });
+
+  test("KST 자정 경계를 넘기면 lazy update가 나이를 하루 한 번만 증가시킨다", () => {
+    jest.setSystemTime(new Date("2026-03-31T15:01:00.000Z"));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        age: 3,
+        lastAgeUpdateDate: Date.parse("2026-03-30T15:00:00.000Z"),
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 999,
+        poopCountdown: 999 * 60,
+      }),
+      Date.parse("2026-03-31T14:59:00.000Z")
+    );
+
+    expect(result.age).toBe(4);
+    expect(result.lastAgeUpdateDate).toBe(Date.parse("2026-03-31T15:00:00.000Z"));
   });
 
   test("기본 시간 경과에 따라 수명/진화시간과 콜 상태를 함께 갱신한다", () => {
@@ -538,6 +559,38 @@ describe("applyLazyUpdate", () => {
     expect(result.callStatus.hunger.isLogged).toBe(true);
   });
 
+  test("실시간 케어미스 로그가 이미 있으면 lazy update가 과거 재구성 텍스트로 중복 추가하지 않는다", () => {
+    const hungerZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
+    const timeoutOccurredAt = hungerZeroAt + 10 * 60 * 1000;
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 0,
+        careMistakes: 1,
+        lastHungerZeroAt: hungerZeroAt,
+        activityLogs: [
+          {
+            type: "CAREMISTAKE",
+            text: "케어미스(사유: 배고픔 콜 10분 무시): 0 → 1",
+            timestamp: timeoutOccurredAt,
+          },
+        ],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.careMistakes).toBe(1);
+    expect(result.activityLogs).toHaveLength(1);
+    expect(buildActivityLogEventId(result.activityLogs[0])).toBe(
+      `caremistake:hunger_call:${timeoutOccurredAt}`
+    );
+  });
+
   test("hunger call이 이미 처리된 0 구간은 새로고침 후에도 다시 열리지 않는다", () => {
     const hungerZeroAt = Date.parse("2026-03-31T11:49:00.000Z");
 
@@ -826,6 +879,35 @@ describe("applyLazyUpdate", () => {
     expect(result.injuryReason).toBe("poop");
   });
 
+  test("실시간 똥 부상 로그가 이미 있으면 lazy update가 같은 사건을 중복 기록하지 않는다", () => {
+    const poopReachedMaxAt = Date.parse("2026-03-31T11:59:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        poopCount: 8,
+        poopCountdown: 0,
+        poopReachedMaxAt,
+        lastPoopPenaltyAt: poopReachedMaxAt,
+        isInjured: false,
+        injuries: 0,
+        activityLogs: [
+          {
+            type: "POOP",
+            text: "Pooped (Total: 7→8) - Injury: Too much poop (8 piles)",
+            timestamp: poopReachedMaxAt,
+          },
+        ],
+      }),
+      Date.parse("2026-03-31T11:59:30.000Z")
+    );
+
+    expect(result.injuries).toBe(1);
+    expect(result.activityLogs).toHaveLength(1);
+    expect(buildActivityLogEventId(result.activityLogs[0])).toBe(
+      `poop:max_poop:${poopReachedMaxAt}`
+    );
+  });
+
   test("poopCount가 8 미만이면 legacy lastMaxPoopTime은 새 필드로 유지하지 않는다", () => {
     const result = applyLazyUpdate(
       createBaseStats({
@@ -876,7 +958,7 @@ describe("applyLazyUpdate", () => {
     expect(result.lastPoopPenaltyAt).toBeNull();
     expect(result.isInjured).toBe(true);
     expect(result.injuries).toBe(3);
-    expect(result.lastSavedAt).toBe(cleanedAt);
+    expect(result.lastSavedAt).toBe(cleanedAt.getTime());
   });
 
   test("치료는 active injury만 정리하고 누적 injuries는 유지한다", () => {

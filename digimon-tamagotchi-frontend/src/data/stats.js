@@ -7,8 +7,14 @@ import {
 } from "../utils/sleepUtils";
 import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime";
 import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
+import { KST_DAY_MS, getStartOfKstDayMs, isSameKstDay } from "../utils/time";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
+import { buildActivityLogEventId } from "../utils/activityLogEventId";
+import {
+  getStarterDigimonIdFromDataMap,
+  isStarterDigimonId,
+} from "../utils/digimonVersionUtils";
 
 const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const NAP_DURATION_MS = 3 * 60 * 60 * 1000;
@@ -45,14 +51,14 @@ function applyPoopInjury(target, timestampMs, count = 1) {
   target.injuryReason = "poop";
 }
 
-export function clearPoopOverflowState(stats, lastSavedAt = new Date()) {
+export function clearPoopOverflowState(stats, lastSavedAt = Date.now()) {
   return {
     ...stats,
     poopCount: 0,
     poopReachedMaxAt: null,
     lastPoopPenaltyAt: null,
     poopPenaltyFrozenDurationMs: 0,
-    lastSavedAt,
+    lastSavedAt: ensureTimestamp(lastSavedAt) ?? Date.now(),
   };
 }
 
@@ -70,7 +76,7 @@ export function clearActiveInjuryState(stats) {
 export function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
     console.error(`initializeStats: [${digiName}] not found in dataMap!`);
-    digiName= "Digitama"; // fallback
+    digiName = getStarterDigimonIdFromDataMap(dataMap); // fallback
   }
   const custom = dataMap[digiName] || {};
   
@@ -85,13 +91,15 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   }
 
   // 새로운 시작(디지타마/디지타마V2 초기화)인지 확인
-  const isNewStart = (digiName === "Digitama" || digiName === "DigitamaV2") && oldStats.totalReincarnations !== undefined;
+  const isNewStart =
+    isStarterDigimonId(digiName) &&
+    oldStats.totalReincarnations !== undefined;
   
   // 기존 이어받기 (나이, 수명)
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
   if (isNewStart) {
     merged.age = 0;
-    merged.birthTime = oldStats.birthTime || Date.now();
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
     merged.isDead = false; // 새로운 시작이면 항상 false
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
@@ -115,7 +123,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.poopPenaltyFrozenDurationMs = 0;
   } else {
     merged.age = oldStats.age || merged.age;
-    merged.birthTime = oldStats.birthTime || Date.now();
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
     // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
     // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
   }
@@ -215,7 +223,8 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
 
   // 현재 진화 단계 시작 시각 (케어미스 이력 필터: 이 시점 이후 로그만 표시 → 카운터와 일치)
   if (isNewStart) {
-    merged.evolutionStageStartedAt = merged.birthTime || Date.now();
+    merged.evolutionStageStartedAt =
+      ensureTimestamp(merged.birthTime) ?? Date.now();
   } else {
     merged.evolutionStageStartedAt = Date.now();
   }
@@ -319,21 +328,17 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
  * @returns {Object} 업데이트된 스탯
  */
 export function updateAge(stats){
-  const now= new Date();
-  const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  // 자정(00:00)이고, 오늘 아직 age가 증가하지 않았으면 증가
-  if(now.getHours()===0 && now.getMinutes()===0){
-    const lastAgeUpdateDate = stats.lastAgeUpdateDate 
-      ? new Date(stats.lastAgeUpdateDate)
-      : null;
-    
-    // 마지막 증가 날짜가 없거나 오늘이 아니면 age 증가
-    if (!lastAgeUpdateDate || lastAgeUpdateDate.getTime() !== currentDate.getTime()) {
-      return { 
-        ...stats, 
+  const nowMs = Date.now();
+  const currentKstDayStart = getStartOfKstDayMs(nowMs);
+  const elapsedFromDayStart = nowMs - currentKstDayStart;
+
+  // KST 자정 이후 첫 1분 안에서만 age를 증가시켜 실시간 루프의 오차를 허용한다.
+  if (elapsedFromDayStart >= 0 && elapsedFromDayStart < 60 * 1000) {
+    if (!isSameKstDay(stats.lastAgeUpdateDate, nowMs)) {
+      return {
+        ...stats,
         age: (stats.age || 0) + 1,
-        lastAgeUpdateDate: currentDate.getTime()
+        lastAgeUpdateDate: currentKstDayStart,
       };
     }
   }
@@ -350,36 +355,29 @@ export function updateAge(stats){
  */
 export function updateAgeWithLazyUpdate(stats, lastSaved, now) {
   let updatedStats = { ...stats };
-  const lastAgeUpdateDate = updatedStats.lastAgeUpdateDate 
-    ? new Date(updatedStats.lastAgeUpdateDate)
-    : null;
-  
-  // 마지막 저장 시간의 다음 자정부터 현재까지의 모든 자정 체크
-  let checkTime = new Date(lastSaved);
-  checkTime.setHours(0);
-  checkTime.setMinutes(0);
-  checkTime.setSeconds(0);
-  checkTime.setMilliseconds(0);
-  
-  // 마지막 저장 시간이 자정 이후라면 다음 날 자정으로 이동
-  if (lastSaved.getHours() > 0 || lastSaved.getMinutes() > 0 || lastSaved.getSeconds() > 0) {
-    checkTime.setDate(checkTime.getDate() + 1);
+  const lastSavedMs = ensureTimestamp(lastSaved);
+  const nowMs = ensureTimestamp(now);
+  let lastAgeUpdateDateMs = ensureTimestamp(updatedStats.lastAgeUpdateDate);
+
+  if (!Number.isFinite(lastSavedMs) || !Number.isFinite(nowMs) || lastSavedMs >= nowMs) {
+    return updatedStats;
   }
-  
-  // 현재 시간까지의 모든 자정 체크
-  while (checkTime.getTime() <= now.getTime()) {
-    const checkDate = new Date(checkTime.getFullYear(), checkTime.getMonth(), checkTime.getDate());
-    
-    // 마지막 증가 날짜가 없거나 체크하는 날짜가 마지막 증가 날짜보다 이후면 age 증가
-    if (!lastAgeUpdateDate || checkDate.getTime() > lastAgeUpdateDate.getTime()) {
+
+  let checkDayStart = getStartOfKstDayMs(lastSavedMs) + KST_DAY_MS;
+
+  while (checkDayStart <= nowMs) {
+    if (
+      !Number.isFinite(lastAgeUpdateDateMs) ||
+      !isSameKstDay(lastAgeUpdateDateMs, checkDayStart)
+    ) {
       updatedStats.age = (updatedStats.age || 0) + 1;
-      updatedStats.lastAgeUpdateDate = checkDate.getTime();
+      updatedStats.lastAgeUpdateDate = checkDayStart;
+      lastAgeUpdateDateMs = checkDayStart;
     }
-    
-    // 다음 날 자정으로 이동
-    checkTime.setDate(checkTime.getDate() + 1);
+
+    checkDayStart += KST_DAY_MS;
   }
-  
+
   return updatedStats;
 }
 
@@ -410,7 +408,10 @@ function pushBackdatedActivityLog(
   extraFields = {}
 ) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
-  const next = [...logs, { type, text, timestamp: timestampMs, ...extraFields }];
+  const baseLog = { type, text, timestamp: timestampMs, ...extraFields };
+  const eventId = buildActivityLogEventId(baseLog);
+  const nextLog = eventId ? { ...baseLog, eventId } : baseLog;
+  const next = [...logs, nextLog];
   return next.length > maxLogs ? next.slice(-maxLogs) : next;
 }
 
@@ -438,11 +439,14 @@ function logTimestampToMs(log) {
 }
 
 /** 이미 동일 이벤트(타입+타임스탬프+텍스트 패턴) 로그가 있으면 true. 중복 로그/카운터 방지용. Firestore timestamp 정규화 적용 */
-function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = '') {
+function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = "", eventId = null) {
   const logs = Array.isArray(activityLogs) ? activityLogs : [];
   const targetMs = typeof timestampMs === 'number' ? timestampMs : null;
   if (targetMs == null) return false;
   return logs.some((log) => {
+    if (eventId && buildActivityLogEventId(log) === eventId) {
+      return true;
+    }
     if (log.type !== type) return false;
     if (textContains && (!log.text || !log.text.includes(textContains))) return false;
     const logMs = logTimestampToMs(log);
@@ -652,6 +656,49 @@ function calculateSleepLikeSecondsInRange(startTime, endTime, stats, sleepSchedu
   return analyzeSleepStatesInRange(stats, startTime, endTime, sleepSchedule).sleepLikeSeconds;
 }
 
+function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = null) {
+  const nextStats = { ...stats };
+  migrateLegacyPoopTimers(nextStats);
+
+  if (
+    (nextStats.poopCount || 0) >= 8 &&
+    nextStats.poopReachedMaxAt &&
+    !nextStats.isInjured
+  ) {
+    const injuryLogText =
+      "Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]";
+    const injuryLogEventId = buildActivityLogEventId({
+      type: "POOP",
+      text: injuryLogText,
+      timestamp: nextStats.poopReachedMaxAt,
+    });
+    applyPoopInjury(nextStats, nextStats.poopReachedMaxAt);
+
+    if (
+      !alreadyHasBackdatedLog(
+        nextStats.activityLogs,
+        "POOP",
+        nextStats.poopReachedMaxAt,
+        "Too much poop",
+        injuryLogEventId
+      )
+    ) {
+      nextStats.activityLogs = pushBackdatedActivityLog(
+        nextStats.activityLogs,
+        "POOP",
+        injuryLogText,
+        nextStats.poopReachedMaxAt,
+        MAX_ACTIVITY_LOGS,
+        digimonSnapshot
+      );
+    }
+  }
+
+  nextStats.lastSavedAt = savedAtMs;
+  delete nextStats.lastMaxPoopTime;
+  return nextStats;
+}
+
 /**
  * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
  * 스탯(배고픔, 수명 등)을 한 번에 차감
@@ -671,20 +718,21 @@ export function applyLazyUpdate(
 ) {
   if (!lastSavedAt) {
     // 마지막 저장 시간이 없으면 현재 시간으로 설정
-    return { ...stats, lastSavedAt: new Date() };
+    return finalizeNoElapsedLazyUpdate(stats, Date.now());
   }
 
   // 마지막 저장 시간을 Date 객체로 변환 (Firestore Timestamp 지원)
   let lastSaved;
   const lastSavedTimestamp = ensureTimestamp(lastSavedAt);
-  if (lastSavedTimestamp) {
+  if (lastSavedTimestamp != null) {
     lastSaved = new Date(lastSavedTimestamp);
   } else {
     // 알 수 없는 형식이면 현재 시간으로 설정
-    return { ...stats, lastSavedAt: new Date() };
+    return finalizeNoElapsedLazyUpdate(stats, Date.now());
   }
 
-  const now = new Date();
+  const nowMs = Date.now();
+  const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
   
   // 냉장고 시간을 제외한 경과 시간 계산
   let elapsedSeconds;
@@ -710,32 +758,31 @@ export function applyLazyUpdate(
     if (elapsedSeconds <= 0) {
       // 냉장고에 넣은 이후의 시간만 있었으므로 스탯 변경 없음
       // lastSavedAt만 업데이트하여 다음 lazy update가 정상 작동하도록 함
-      return { ...stats, lastSavedAt: now };
+      return finalizeNoElapsedLazyUpdate(stats, nowMs, digimonSnapshot);
     }
     // 냉장고에 넣기 전의 시간이 있었다면 그 시간만큼만 스탯 변경
   } else {
     // 냉장고 상태가 아니면 일반 경과 시간 계산
-    elapsedSeconds = Math.floor((now.getTime() - lastSaved.getTime()) / 1000);
+    elapsedSeconds = Math.floor((nowMs - lastSaved.getTime()) / 1000);
   }
 
   // 경과 시간이 없거나 음수면 그대로 반환
   if (elapsedSeconds <= 0) {
-    return { ...stats, lastSavedAt: now };
+    return finalizeNoElapsedLazyUpdate(stats, nowMs, digimonSnapshot);
   }
 
   // 사망한 경우 더 이상 업데이트하지 않음
   if (stats.isDead) {
-    return { ...stats, lastSavedAt: now };
+    return finalizeNoElapsedLazyUpdate(stats, nowMs, digimonSnapshot);
   }
 
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
-  const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
   migrateLegacyPoopTimers(updatedStats);
   
   // birthTime이 없으면 현재 시간으로 설정
   if (!updatedStats.birthTime) {
-    updatedStats.birthTime = now.getTime();
+    updatedStats.birthTime = nowMs;
   }
   
   // 나이는 updateAge 함수에서 자정에만 증가하도록 처리 (여기서는 계산하지 않음)
@@ -762,7 +809,7 @@ export function applyLazyUpdate(
     if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
       const sleepSeconds = calculateSleepLikeSecondsInRange(
         lastSaved.getTime(),
-        now.getTime(),
+        nowMs,
         updatedStats,
         sleepSchedule
       );
@@ -801,7 +848,7 @@ export function applyLazyUpdate(
     if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
       const sleepSeconds = calculateSleepLikeSecondsInRange(
         lastSaved.getTime(),
-        now.getTime(),
+        nowMs,
         updatedStats,
         sleepSchedule
       );
@@ -847,7 +894,7 @@ export function applyLazyUpdate(
     if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
       const sleepSeconds = calculateSleepLikeSecondsInRange(
         lastSaved.getTime(),
-        now.getTime(),
+        nowMs,
         updatedStats,
         sleepSchedule
       );
@@ -860,22 +907,28 @@ export function applyLazyUpdate(
     }
     
     while (updatedStats.poopCountdown <= 0) {
-      const poopEventTime = now.getTime() + (updatedStats.poopCountdown * 1000);
+      const poopEventTime = nowMs + (updatedStats.poopCountdown * 1000);
 
       if (updatedStats.poopCount < 8) {
         updatedStats.poopCount++;
 
         if (updatedStats.poopCount === 8 && !updatedStats.poopReachedMaxAt) {
           const timeToMax = poopEventTime;
+          const injuryLogText = 'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]';
+          const injuryLogEventId = buildActivityLogEventId({
+            type: "POOP",
+            text: injuryLogText,
+            timestamp: timeToMax,
+          });
           updatedStats.poopReachedMaxAt = timeToMax;
           updatedStats.lastPoopPenaltyAt = timeToMax;
           updatedStats.poopPenaltyFrozenDurationMs = 0;
           applyPoopInjury(updatedStats, timeToMax);
-          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop')) {
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop', injuryLogEventId)) {
             updatedStats.activityLogs = pushBackdatedActivityLog(
               updatedStats.activityLogs,
               'POOP',
-              'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+              injuryLogText,
               timeToMax,
               MAX_ACTIVITY_LOGS,
               digimonSnapshot
@@ -887,12 +940,18 @@ export function applyLazyUpdate(
         migrateLegacyPoopTimers(updatedStats, poopEventTime);
 
         if (updatedStats.poopReachedMaxAt && !updatedStats.isInjured) {
+          const injuryLogText = 'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]';
+          const injuryLogEventId = buildActivityLogEventId({
+            type: "POOP",
+            text: injuryLogText,
+            timestamp: updatedStats.poopReachedMaxAt,
+          });
           applyPoopInjury(updatedStats, updatedStats.poopReachedMaxAt);
-          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', updatedStats.poopReachedMaxAt, 'Too much poop')) {
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', updatedStats.poopReachedMaxAt, 'Too much poop', injuryLogEventId)) {
             updatedStats.activityLogs = pushBackdatedActivityLog(
               updatedStats.activityLogs,
               'POOP',
-              'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]',
+              injuryLogText,
               updatedStats.poopReachedMaxAt,
               MAX_ACTIVITY_LOGS,
               digimonSnapshot
@@ -904,22 +963,27 @@ export function applyLazyUpdate(
         if (penaltyAnchor) {
           const elapsedSincePenaltyMs = getElapsedTimeExcludingFridge(
             penaltyAnchor,
-            now.getTime(),
+            nowMs,
             updatedStats.frozenAt,
             updatedStats.takeOutAt,
             updatedStats.poopPenaltyFrozenDurationMs
           );
           const periods = Math.floor((elapsedSincePenaltyMs / 1000) / 28800);
           if (periods >= 1) {
-            const nowMs = now.getTime();
+            const penaltyLogText = `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 [과거 재구성]`;
+            const penaltyLogEventId = buildActivityLogEventId({
+              type: "POOP",
+              text: penaltyLogText,
+              timestamp: nowMs,
+            });
             applyPoopInjury(updatedStats, nowMs, periods);
             updatedStats.lastPoopPenaltyAt = nowMs;
             updatedStats.poopPenaltyFrozenDurationMs = 0;
-            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과')) {
+            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과', penaltyLogEventId)) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'POOP',
-                `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 [과거 재구성]`,
+                penaltyLogText,
                 nowMs,
                 MAX_ACTIVITY_LOGS,
                 digimonSnapshot
@@ -935,7 +999,7 @@ export function applyLazyUpdate(
 
   // 사망 체크는 공통 evaluator를 기준으로 단일화
   if (!updatedStats.isDead) {
-    const deathEvaluation = evaluateDeathConditions(updatedStats, now.getTime());
+    const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
     if (deathEvaluation.isDead) {
       updatedStats.isDead = true;
       if (deathEvaluation.reason) {
@@ -971,7 +1035,7 @@ export function applyLazyUpdate(
   const sleepLightWarningState = resolveSleepLightWarningStateInRange({
     stats: updatedStats,
     startTime: lastSaved.getTime(),
-    endTime: now.getTime(),
+    endTime: nowMs,
     sleepSchedule,
     previousStartedAt: previousSleepCallStartedAt,
     previousLogged: previousSleepCallLogged,
@@ -985,14 +1049,14 @@ export function applyLazyUpdate(
   const resolvedSleepLightSegments =
     sleepLightWarningState.resolvedSleepLightSegments;
   const expiredNapUntil = ensureTimestamp(updatedStats.napUntil);
-  if (expiredNapUntil != null && expiredNapUntil <= now.getTime()) {
+  if (expiredNapUntil != null && expiredNapUntil <= nowMs) {
     updatedStats.napUntil = null;
   }
   if (sleepRangeAnalysis.currentStatus !== "FALLING_ASLEEP") {
     updatedStats.fastSleepStart = null;
   }
   const expiredWakeUntil = ensureTimestamp(updatedStats.wakeUntil);
-  if (expiredWakeUntil != null && expiredWakeUntil <= now.getTime()) {
+  if (expiredWakeUntil != null && expiredWakeUntil <= nowMs) {
     updatedStats.wakeUntil = null;
   }
 
@@ -1020,7 +1084,7 @@ export function applyLazyUpdate(
 
       const activeStartedAt = ensureTimestamp(callStatus.hunger.startedAt);
       if (activeStartedAt) {
-        const elapsed = now.getTime() - activeStartedAt;
+        const elapsed = nowMs - activeStartedAt;
         if (elapsed < HUNGER_CALL_TIMEOUT) {
           callStatus.hunger.isLogged = false;
         }
@@ -1029,30 +1093,36 @@ export function applyLazyUpdate(
       if (activeStartedAt) {
         const sleepDuringCall = calculateSleepLikeSecondsInRange(
           activeStartedAt,
-          now.getTime(),
+          nowMs,
           updatedStats,
           sleepSchedule
         );
-        const totalElapsedMs = now.getTime() - activeStartedAt;
+        const totalElapsedMs = nowMs - activeStartedAt;
         const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
 
         if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
+          const careMistakeLogText = '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]';
+          const careMistakeEventId = buildActivityLogEventId({
+            type: "CAREMISTAKE",
+            text: careMistakeLogText,
+            timestamp: timeoutOccurredAt,
+          });
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
               occurredAt: timeoutOccurredAt,
               reasonKey: "hunger_call",
-              text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+              text: careMistakeLogText,
               source: "backfill",
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜')) {
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜', careMistakeEventId)) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'CAREMISTAKE',
-                '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]',
+                careMistakeLogText,
                 timeoutOccurredAt
               );
             }
@@ -1063,7 +1133,7 @@ export function applyLazyUpdate(
           updatedStats.hungerMistakeDeadline = null;
         } else {
           const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
-          callStatus.hunger.startedAt = Math.min(now.getTime(), pushedStart);
+          callStatus.hunger.startedAt = Math.min(nowMs, pushedStart);
           updatedStats.hungerMistakeDeadline =
             callStatus.hunger.startedAt + HUNGER_CALL_TIMEOUT;
         }
@@ -1106,7 +1176,7 @@ export function applyLazyUpdate(
 
       const activeStartedAt = ensureTimestamp(callStatus.strength.startedAt);
       if (activeStartedAt) {
-        const strengthElapsed = now.getTime() - activeStartedAt;
+        const strengthElapsed = nowMs - activeStartedAt;
         if (strengthElapsed < STRENGTH_CALL_TIMEOUT) {
           callStatus.strength.isLogged = false;
         }
@@ -1115,30 +1185,36 @@ export function applyLazyUpdate(
       if (activeStartedAt) {
         const sleepDuringCall = calculateSleepLikeSecondsInRange(
           activeStartedAt,
-          now.getTime(),
+          nowMs,
           updatedStats,
           sleepSchedule
         );
-        const totalElapsedMs = now.getTime() - activeStartedAt;
+        const totalElapsedMs = nowMs - activeStartedAt;
         const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
 
         if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
+          const careMistakeLogText = '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]';
+          const careMistakeEventId = buildActivityLogEventId({
+            type: "CAREMISTAKE",
+            text: careMistakeLogText,
+            timestamp: timeoutOccurredAt,
+          });
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
               occurredAt: timeoutOccurredAt,
               reasonKey: "strength_call",
-              text: "케어미스(사유: 힘 콜 10분 무시) [과거 재구성]",
+              text: careMistakeLogText,
               source: "backfill",
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜')) {
+                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜', careMistakeEventId)) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'CAREMISTAKE',
-                '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]',
+                careMistakeLogText,
                 timeoutOccurredAt
               );
             }
@@ -1149,7 +1225,7 @@ export function applyLazyUpdate(
           updatedStats.strengthMistakeDeadline = null;
         } else {
           const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
-          callStatus.strength.startedAt = Math.min(now.getTime(), pushedStart);
+          callStatus.strength.startedAt = Math.min(nowMs, pushedStart);
           updatedStats.strengthMistakeDeadline =
             callStatus.strength.startedAt + STRENGTH_CALL_TIMEOUT;
         }
@@ -1196,10 +1272,16 @@ export function applyLazyUpdate(
     }
 
     const timeoutOccurredAt = effectiveStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS;
+    const careMistakeLogText = "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]";
+    const careMistakeEventId = buildActivityLogEventId({
+      type: "CAREMISTAKE",
+      text: careMistakeLogText,
+      timestamp: timeoutOccurredAt,
+    });
     const result = appendCareMistakeEntry(updatedStats, {
       occurredAt: timeoutOccurredAt,
       reasonKey: "sleep_light_warning",
-      text: "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+      text: careMistakeLogText,
       source: "backfill",
     });
     updatedStats.careMistakes = result.nextStats.careMistakes;
@@ -1210,13 +1292,14 @@ export function applyLazyUpdate(
         updatedStats.activityLogs,
         "CAREMISTAKE",
         timeoutOccurredAt,
-        "수면 조명 경고"
+        "수면 조명 경고",
+        careMistakeEventId
       )
     ) {
       updatedStats.activityLogs = pushBackdatedActivityLog(
         updatedStats.activityLogs,
         "CAREMISTAKE",
-        "케어미스(사유: 수면 조명 경고 30분 방치) [과거 재구성]",
+        careMistakeLogText,
         timeoutOccurredAt
       );
     }
@@ -1227,10 +1310,10 @@ export function applyLazyUpdate(
   });
 
   // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크
-  updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSaved, now);
+  updatedStats = updateAgeWithLazyUpdate(updatedStats, lastSavedTimestamp, nowMs);
 
   // 마지막 저장 시간 업데이트
-  updatedStats.lastSavedAt = now;
+  updatedStats.lastSavedAt = nowMs;
   delete updatedStats.lastMaxPoopTime;
 
   return updatedStats;

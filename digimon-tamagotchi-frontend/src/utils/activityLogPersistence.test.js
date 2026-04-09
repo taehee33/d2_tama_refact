@@ -1,4 +1,6 @@
 import {
+  buildPersistentActivityLogPayload,
+  getPersistentActivityLogDocId,
   PERSISTED_ACTIVITY_LOG_TYPES,
   shouldPersistActivityLog,
 } from "./activityLogPersistence";
@@ -24,5 +26,23 @@ describe("activityLogPersistence", () => {
     expect(shouldPersistActivityLog(null)).toBe(false);
     expect(shouldPersistActivityLog({})).toBe(false);
     expect(shouldPersistActivityLog({ type: "" })).toBe(false);
+  });
+
+  test("eventId가 계산되는 로그는 Firestore 문서 키도 같은 값으로 고정한다", () => {
+    const careMistakeLog = {
+      type: "CAREMISTAKE",
+      text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+      timestamp: Date.parse("2026-04-09T00:54:00.000Z"),
+    };
+
+    const firstPayload = buildPersistentActivityLogPayload(careMistakeLog);
+    const secondPayload = buildPersistentActivityLogPayload({ ...careMistakeLog });
+
+    const persistedDocs = new Map();
+    persistedDocs.set(getPersistentActivityLogDocId(firstPayload), firstPayload);
+    persistedDocs.set(getPersistentActivityLogDocId(secondPayload), secondPayload);
+
+    expect(firstPayload.eventId).toBe(secondPayload.eventId);
+    expect(persistedDocs.size).toBe(1);
   });
 });

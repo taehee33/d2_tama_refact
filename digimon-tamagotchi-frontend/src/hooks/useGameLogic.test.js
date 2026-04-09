@@ -455,4 +455,44 @@ describe("useGameLogic hunger/strength call consistency", () => {
 
     expect(finalLogs).toHaveLength(2);
   });
+
+  test("같은 케어미스 사건을 다시 추가해도 activityLogs에는 1건만 남는다", () => {
+    const eventTime = new Date(2026, 2, 31, 12, 0, 0).getTime();
+    const firstLogs = addActivityLog(
+      [],
+      "CAREMISTAKE",
+      "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+      eventTime
+    );
+    const duplicateLogs = addActivityLog(
+      firstLogs,
+      "CAREMISTAKE",
+      "케어미스(사유: 배고픔 콜 10분 무시): 0 → 1",
+      eventTime
+    );
+
+    expect(firstLogs).toHaveLength(1);
+    expect(duplicateLogs).toHaveLength(1);
+    expect(duplicateLogs[0].eventId).toBe(firstLogs[0].eventId);
+  });
+
+  test("같은 똥 부상 사건을 다시 추가해도 activityLogs에는 1건만 남는다", () => {
+    const eventTime = new Date(2026, 2, 31, 12, 0, 0).getTime();
+    const firstLogs = addActivityLog(
+      [],
+      "POOP",
+      "Pooped (Total: 7→8) - Injury: Too much poop (8 piles)",
+      eventTime
+    );
+    const duplicateLogs = addActivityLog(
+      firstLogs,
+      "POOP",
+      "Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]",
+      eventTime
+    );
+
+    expect(firstLogs).toHaveLength(1);
+    expect(duplicateLogs).toHaveLength(1);
+    expect(duplicateLogs[0].eventId).toBe(firstLogs[0].eventId);
+  });
 });

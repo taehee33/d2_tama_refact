@@ -1,10 +1,11 @@
-import { toTimestamp } from "../../utils/fridgeTime";
+import { toEpochMs } from "../../utils/time";
 import {
   getLifeStartDigimonId,
   resolveDigimonLogName,
   resolveDigimonSnapshotFromToken,
   sanitizeDigimonLogSnapshot,
 } from "../../utils/digimonLogSnapshot";
+import { buildActivityLogEventId } from "../../utils/activityLogEventId";
 
 function hasInjuryText(text = "") {
   return text.includes("Injury") || text.includes("부상");
@@ -45,7 +46,7 @@ function getLogSnapshot(log, digimonDataMap = null) {
 }
 
 function toInjuryEntry(log, inputSource, digimonDataMap = null) {
-  const timestamp = toTimestamp(log?.timestamp);
+  const timestamp = toEpochMs(log?.timestamp);
   const text = typeof log?.text === "string" ? log.text : "";
   const source = normalizeInjuryReason(text, inputSource === "battleLog" ? "battle" : "general");
 
@@ -54,6 +55,7 @@ function toInjuryEntry(log, inputSource, digimonDataMap = null) {
   return {
     timestamp,
     text,
+    eventId: buildActivityLogEventId(log),
     source,
     inputSource,
     normalizedReason: normalizeInjuryReason(text, source),
@@ -104,7 +106,7 @@ function parseTransitionToken(text = "") {
 function extractTransitionSnapshot(log, digimonDataMap = null) {
   if (!isDigimonTransitionLog(log)) return null;
 
-  const timestamp = toTimestamp(log?.timestamp);
+  const timestamp = toEpochMs(log?.timestamp);
   if (timestamp == null) return null;
 
   const directSnapshot = getLogSnapshot(log, digimonDataMap);
@@ -130,11 +132,11 @@ function resolveFallbackSnapshots(
   activityLogs = [],
   { currentLifeStartedAt = null, slotVersion = "Ver.1", currentDigimonId = null, digimonDataMap = null } = {}
 ) {
-  const lifeStartedAt = toTimestamp(currentLifeStartedAt);
+  const lifeStartedAt = toEpochMs(currentLifeStartedAt);
   const transitionLogs = (activityLogs || [])
     .map((log) => ({
       log,
-      timestamp: toTimestamp(log?.timestamp),
+      timestamp: toEpochMs(log?.timestamp),
     }))
     .filter(({ timestamp }) => {
       if (timestamp == null) return false;
@@ -201,7 +203,7 @@ export function getDisplayInjuryEntries({
   currentDigimonId = null,
   digimonDataMap = null,
 } = {}) {
-  const lifeStartedAt = toTimestamp(currentLifeStartedAt);
+  const lifeStartedAt = toEpochMs(currentLifeStartedAt);
 
   const candidates = [
     ...(battleLogs || [])
@@ -219,7 +221,9 @@ export function getDisplayInjuryEntries({
   const dedupedByKey = new Map();
 
   candidates.forEach((entry) => {
-    const dedupeKey = `${entry.timestamp}:${entry.source}:${entry.normalizedReason}`;
+    const dedupeKey =
+      entry.eventId ||
+      `${entry.timestamp}:${entry.source}:${entry.normalizedReason}`;
     if (!dedupedByKey.has(dedupeKey)) {
       dedupedByKey.set(dedupeKey, entry);
       dedupeOrder.push(dedupeKey);
@@ -256,8 +260,8 @@ export function buildTickPoopInjuryLogs(prevStats = {}, nextStats = {}, digimonS
   if (nextPoopCount > prevPoopCount) return [];
 
   const baseTimestamp =
-    toTimestamp(nextStats?.lastPoopPenaltyAt) ??
-    toTimestamp(nextStats?.injuredAt) ??
+    toEpochMs(nextStats?.lastPoopPenaltyAt) ??
+    toEpochMs(nextStats?.injuredAt) ??
     Date.now();
   const sanitizedSnapshot = sanitizeDigimonLogSnapshot(digimonSnapshot);
 

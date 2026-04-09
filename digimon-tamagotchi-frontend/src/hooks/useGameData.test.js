@@ -1,5 +1,6 @@
 import {
   buildDigimonDisplayName,
+  resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
   resolveRootSlotFields,
   sanitizeDigimonStatsForSlotDocument,
@@ -75,6 +76,64 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
     expect(result).toEqual({
       fullness: 4,
     });
+  });
+
+  test("게임 시간 필드는 epoch ms 숫자로 정규화한다", () => {
+    const result = sanitizeDigimonStatsForSlotDocument({
+      birthTime: {
+        seconds: 1712559600,
+        nanoseconds: 500000000,
+      },
+      injuredAt: new Date("2026-04-07T01:23:45.000Z"),
+      callStatus: {
+        hunger: {
+          startedAt: "2026-04-07T03:00:00.000Z",
+        },
+      },
+    });
+
+    expect(result.birthTime).toBe(1712559600500);
+    expect(result.injuredAt).toBe(Date.parse("2026-04-07T01:23:45.000Z"));
+    expect(result.callStatus.hunger.startedAt).toBe(
+      Date.parse("2026-04-07T03:00:00.000Z")
+    );
+  });
+});
+
+describe("resolveLastSavedAtSource", () => {
+  test("서버 기준 저장 시각을 최우선으로 사용한다", () => {
+    const serverTimestamp = {
+      toMillis: () => 3000,
+    };
+
+    expect(
+      resolveLastSavedAtSource(
+        {
+          lastSavedAtServer: serverTimestamp,
+          lastSavedAt: 2000,
+        },
+        {
+          lastSavedAt: 1500,
+        },
+        {
+          lastSavedAt: 1000,
+        }
+      )
+    ).toBe(serverTimestamp);
+  });
+
+  test("서버 시각이 없으면 숫자 lastSavedAt fallback을 사용한다", () => {
+    expect(
+      resolveLastSavedAtSource(
+        {},
+        {
+          lastSavedAt: 1500,
+        },
+        {
+          lastSavedAt: 1000,
+        }
+      )
+    ).toBe(1500);
   });
 });
 

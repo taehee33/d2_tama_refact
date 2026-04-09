@@ -4,6 +4,293 @@
 
 ---
 
+## [2026-04-09] `Game.jsx` 2차 분리: 기본/가로 몰입형 section presenter 연결
+
+### 작업 유형
+- 🧩 `GameDefaultSection`, `ImmersiveLandscapeSection`를 `Game.jsx`에 실제 연결
+- 🧪 section presenter prop 계약과 가로 몰입형 분기 테스트 보강
+
+### 목적 및 영향
+- **목적:** `Game.jsx` 안에 남아 있던 `defaultGameSection`, `landscapeImmersiveSection` 대형 JSX 블록을 안전하게 presenter로 치환해 페이지 파일을 더 얇게 만든다.
+- **범위:** 저장 순서, lazy update, 진화/환생 액션 로직은 건드리지 않고 화면 조립 경계만 이동한다.
+- **내용:**
+  - `Game.jsx`는 기본 화면 조립을 `GameDefaultSection`에, 가로 몰입형 shell 내부 조립을 `ImmersiveLandscapeSection`에 위임하도록 정리했다.
+  - `GameDefaultSection`은 기존 `Game.jsx` 마크업과 동일하게 헤더 노드와 화면/컨트롤 컬럼을 sibling 구조로 유지하도록 맞췄다.
+  - `ImmersiveLandscapeSection`은 `statusNode`와 `supportActionsNode`를 그대로 주입받으면서 frame skin / non-frame skin 분기, control strip/panel 조립만 맡도록 경계를 고정했다.
+  - 테스트는 `GameDefaultSection`의 `GameScreen`/`ControlPanel` prop 전달과 모바일 클래스 분기를 직접 검증하고, `ImmersiveLandscapeSection`은 child presenter mock 기반으로 frame/panel 분기와 layout metadata 전달을 확인하도록 바꿨다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeSection.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/layout/GameDefaultSection.test.jsx src/components/layout/ImmersiveLandscapeSection.test.jsx src/components/layout/GamePageToolbar.test.jsx src/components/layout/GamePageView.test.jsx src/components/layout/ImmersiveGameView.test.jsx src/hooks/game-runtime/useImmersiveGameLayout.test.js src/components/layout/ImmersiveGameTopBar.test.jsx src/components/layout/ImmersiveDeviceShell.test.jsx src/components/layout/ImmersiveLandscapeControls.test.jsx src/components/layout/ImmersiveLandscapeFrameStage.test.jsx src/components/layout/ImmersiveSkinPicker.test.jsx src/components/chat/ImmersiveChatOverlay.test.jsx src/components/GameScreen.test.jsx`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/pages/Game.jsx src/components/layout/GameDefaultSection.jsx src/components/layout/GameDefaultSection.test.jsx src/components/layout/ImmersiveLandscapeSection.jsx src/components/layout/ImmersiveLandscapeSection.test.jsx src/components/layout/GamePageToolbar.jsx src/components/layout/GamePageToolbar.test.jsx src/components/layout/GamePageView.jsx src/components/layout/GamePageView.test.jsx src/components/layout/ImmersiveGameView.jsx src/components/layout/ImmersiveGameView.test.jsx src/hooks/game-runtime/useImmersiveGameLayout.js src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+
+### 아키텍처 메모
+- 이번 단계는 `Game.jsx`를 얇은 route container로 수렴시키는 중간 단계다. `statusNode` 같은 opaque node 주입은 아직 남아 있지만, 저장/도메인 로직을 건드리지 않고 화면 블록을 먼저 고립시키는 편이 회귀 리스크가 가장 낮다.
+
+## [2026-04-09] 게임 시간 표현을 epoch ms + 서버 저장 시각 기준으로 정비
+
+### 작업 유형
+- ⏱ 공용 시간 유틸 추가 및 timestamp 정규화 로직 통합
+- ☁️ Firestore 슬롯 저장에 `lastSavedAtServer` 도입 및 metadata 시간 저장 방식 정리
+- 🌏 KST 기준 day-boundary로 lazy update/나이 증가 규칙 통일
+- 🧪 시간 유틸/게임 저장 경로/아레나 로그 정렬 회귀 테스트와 빌드 검증
+
+### 목적 및 영향
+- **목적:** 클라이언트 `new Date()`만으로 lazy update 기준 시각을 잡던 구조를 보완해, 멀티기기 시계 차이·수동 시계 변경·비게임 metadata 수정 때문에 게임 진행 시간이 멈추거나 과가속되는 문제를 줄인다.
+- **범위:** 프런트 공용 시간 유틸, `useGameData` 저장/로드 경로, `stats.js`의 나이/`lastSavedAt` 처리, 일부 Firestore metadata 쓰기 경로(`useUserSlots`, `useEvolution`, repository), 로그 표시/정렬 컴포넌트, 관련 테스트와 문서를 함께 조정한다. Supabase `timestamptz` 스키마는 변경하지 않는다.
+- **내용:**
+  - `src/utils/time.js`를 추가해 `toEpochMs`, `formatTimestamp`, `getStartOfKstDayMs`, `isSameKstDay`를 공용 규약으로 만들고, Firestore Timestamp / Date / ISO string / number 혼용 입력을 한 곳에서 정규화하도록 맞췄다.
+  - `useGameData`는 슬롯 로드와 액션 직전 lazy update에서 `lastSavedAtServer -> lastSavedAt -> persisted stats` 순으로 저장 기준 시각을 고르도록 바꿨고, 기존 `slotData.updatedAt` fallback은 제거했다.
+  - 슬롯 저장 시 게임 계산용 시간은 epoch ms 숫자로 정규화해 `digimonStats`에 저장하고, 루트 문서에는 `lastSavedAt`(number)와 `lastSavedAtServer`/`updatedAt`(`serverTimestamp`)를 함께 기록하도록 정리했다.
+  - `stats.js`는 `lastSavedAt`을 더 이상 `Date`로 되돌리지 않고 epoch ms로 유지하며, age/day rollover를 KST 자정 기준으로 계산하도록 바꿨다.
+  - Activity/Battle/Arena 로그 정렬과 표시도 공용 시간 유틸을 사용하도록 맞춰, Firestore Timestamp와 숫자 타임스탬프가 섞여 있어도 같은 규칙으로 보이게 했다.
+  - 조그레스/슬롯 metadata 업데이트 경로는 `updatedAt: serverTimestamp()`를 사용하게 정리했고, 새 슬롯 생성 시 `createdAt` 숫자는 유지하면서 `createdAtServer`와 `lastSavedAtServer`를 추가해 additive migration 형태를 유지했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/time.js`
+- `digimon-tamagotchi-frontend/src/utils/time.test.js`
+- `digimon-tamagotchi-frontend/src/utils/dateUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/fridgeTime.js`
+- `digimon-tamagotchi-frontend/src/utils/slotLogUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/slotRecency.js`
+- `digimon-tamagotchi-frontend/src/utils/sleepUtils.js`
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/careMistakeLedger.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/injuryHistory.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useFridge.js`
+- `digimon-tamagotchi-frontend/src/hooks/useUserSlots.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/components/ActivityLogModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/BattleLogModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/fridgeRenderPolicy.js`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.js`
+- `digimon-tamagotchi-frontend/src/repositories/UserSlotRepository.js`
+- `digimon-tamagotchi-frontend/src/repositories/SlotRepository.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/time.test.js src/hooks/useGameData.test.js src/data/stats.test.js src/components/ArenaScreen.test.jsx src/utils/slotRecency.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 게임 계산용 시간과 metadata 시간을 분리했다. 게임 계산은 epoch ms 숫자와 `lastSavedAtServer` 우선 규칙을 사용하고, 정렬/감사용 metadata는 Firestore `serverTimestamp()`로 남긴다. 덕분에 lazy update 알고리즘은 유지하면서도 기기별 시계 차이와 비게임 문서 수정이 진행 시간에 섞여드는 문제를 줄일 수 있다.
+
+## [2026-04-09] 가로 몰입형 섹션 presenter 분리
+
+### 작업 유형
+- 🧩 `ImmersiveLandscapeSection` presenter 추가
+- 🧪 frame skin / non-frame skin 분기와 status/support 노드 노출 테스트 추가
+
+### 목적 및 영향
+- **목적:** `Game.jsx`의 `landscapeImmersiveSection` JSX를 그대로 옮겨 붙을 수 있도록, 가로 몰입형 레이아웃 조립만 담당하는 전용 컴포넌트를 먼저 분리한다.
+- **범위:** `Game.jsx`는 수정하지 않았고, `ImmersiveDeviceShell`, `ImmersiveLandscapeControls`, `ImmersiveLandscapeFrameStage`를 조립하는 새 presenter와 그 테스트만 추가했다.
+- **내용:**
+  - `ImmersiveLandscapeSection`을 추가해 `deviceShellProps`, `hasLandscapeFrameSkin`, `immersiveSkin`, `controlsProps`, `renderLandscapeGameScreen`, `slotMeta`, `statusNode`, `supportActionsNode`만으로 가로 몰입형 화면을 조립할 수 있게 했다.
+  - 프레임 스킨이 있는 경우 양쪽 strip 조작 패널과 `ImmersiveLandscapeFrameStage`를, 없는 경우 LCD 화면과 일반 조작 패널을 렌더하도록 분기했다.
+  - `statusNode`와 `supportActionsNode`가 화면에 그대로 노출되는지, `slotMeta`가 데이터 속성으로 전달되는지 검증하는 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeSection.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand ImmersiveLandscapeSection`
+
+### 아키텍처 메모
+- 이번 분리는 `Game.jsx`의 `landscapeImmersiveSection`을 presenter로 옮길 때 필요한 최소 경계다. 다음 라운드에서는 이 컴포넌트에 `Game.jsx`의 실제 상태/핸들러를 연결하면 된다.
+
+## [2026-04-09] Game 기본 화면 presenter 분리 준비
+
+### 작업 유형
+- 🧩 `Game.jsx`의 기본 화면 섹션을 옮길 수 있는 presenter 컴포넌트 추가
+- 🧪 `GameScreen` / `ControlPanel` / `supportActionsNode` 렌더 및 모바일 분기 테스트 추가
+
+### 목적 및 영향
+- **목적:** `Game.jsx`의 `defaultGameSection` JSX를 나중에 그대로 옮겨 붙을 수 있도록, 기본 화면 조립만 담당하는 전용 컴포넌트를 먼저 분리한다.
+- **범위:** `Game.jsx`는 수정하지 않았고, 기본 헤더 노드, `GameScreen`, `ControlPanel`, 지원 액션 노드 조합만 담당하는 새 presenter와 그 테스트만 추가했다.
+- **내용:**
+  - `GameDefaultSection`을 추가해 `headerNode`, `gameScreenProps`, `controlPanelProps`, `activeMenu`, `onMenuClick`, `stats`, `isMobile`, `supportActionsNode`만으로 기본 화면을 조립할 수 있게 했다.
+  - `GameScreen`과 `ControlPanel`은 presenter 내부에서 렌더링되도록 설계했다.
+  - 기본 헤더, 화면, 컨트롤 패널, 지원 액션 노드가 렌더되는지와 모바일 클래스 분기를 검증하는 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && npm test -- --runInBand src/components/layout/GameDefaultSection.test.jsx`
+
+### 아키텍처 메모
+- 이번 분리는 `Game.jsx`의 기본 화면을 바로 옮길 수 있게 만드는 최소 단위다. 다음 라운드에서는 `defaultGameSection`의 실제 JSX를 이 presenter로 치환하기 전에, 필요한 props만 그대로 연결하면 된다.
+
+## [2026-04-09] 케어미스/부상 로그 eventId 도입과 StatsPopup 일관성 정리
+
+### 작업 유형
+- 🐛 로그 중복 방지 경로 정리 (`CAREMISTAKE`, 부상성 `POOP`)
+- 🧭 `StatsPopup`의 케어미스 의미를 현재 시스템 기준에 맞게 명확화
+- 🧪 eventId, 메모리 dedupe, Firestore 저장 멱등성, 진단 UI 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 케어미스와 부상 로그가 실시간 틱, lazy update 과거 재구성, 상호작용 모달을 오가며 같은 사건이 중복 기록되는 문제를 앞으로 생기는 로그부터 막는다. 동시에 `careMistakes`는 누적이 아니라 **현재 해소 가능한 값**이라는 현재 구현 의미를 화면에서 오해 없이 보여준다.
+- **범위:** 저장 스키마의 기존 `careMistakes` 필드는 유지하고, 레거시 Firestore 로그 문서는 마이그레이션하지 않는다. 기존 중복 로그는 삭제하지 않고 그대로 둔다.
+- **내용:**
+  - `activityLogEventId` 유틸을 추가해 `CAREMISTAKE`와 부상성 `POOP` 로그에 타입·원인·발생 시각 기반의 안정적인 `eventId`를 부여했다.
+  - `addActivityLog`와 `data/stats.js`의 과거 재구성 로그 생성 경로가 이제 `eventId` 기준으로 같은 사건을 다시 넣지 않도록 정리했다.
+  - Firestore `logs` 서브컬렉션 저장은 `eventId`가 있는 로그에 대해 랜덤 `addDoc` 대신 고정 doc id `setDoc`을 사용하도록 바꿔, 같은 사건 재저장 시 문서가 늘어나지 않게 했다.
+  - `injuryHistory`는 새 로그의 `eventId`를 우선 사용해 표시용 dedupe를 수행한다. 기존 레거시 로그는 그대로 읽되, 새 로그부터만 더 안정적으로 합쳐진다.
+  - `StatsPopup`은 `Care Mistakes`를 이제 `(현재 활성 기준, 감소 가능)`으로 설명하고, 호출 진행/케어미스 반영 후 호출 종료/12시간 카운트 지속 상태를 더 분리된 문구로 보여준다.
+  - `StatsPopup`에는 현재 카운터와 원본 이력이 어긋날 때 과거 중복 로그나 레거시 데이터 가능성을 알려주는 비파괴 진단 문구를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/activityLogEventId.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogEventId.test.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/stats.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/injuryHistory.js`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+- `digimon-tamagotchi-frontend/src/components/StatsPopup.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand --watchAll=false src/utils/activityLogEventId.test.js src/utils/activityLogPersistence.test.js src/data/stats.test.js src/hooks/useGameLogic.test.js src/logic/stats/injuryHistory.test.js src/components/StatsPopup.test.jsx src/components/GameScreen.test.jsx`
+
+### 아키텍처 메모
+- 이번 변경은 `careMistakes`를 누적 진화 카운터로 바꾸지 않는다. 현재 저장/표시 모델을 유지한 채, “같은 사건이 여러 경로에서 다시 기록되는 문제”만 앞으로 생기는 로그부터 차단하는 방향으로 제한했다.
+
+## [2026-04-09] Game.jsx 1차 분리: 몰입형 layout hook 및 페이지 presenter 연결
+
+### 작업 유형
+- 🧩 `Game.jsx`에서 몰입형 layout 상태/핸들러를 전용 Hook으로 분리
+- 🪟 페이지 툴바와 몰입형 화면 조립을 presenter 계층으로 이동
+- 🧪 새 Hook/presenter 테스트 추가 및 관련 UI 테스트 검증
+
+### 목적 및 영향
+- **목적:** `Game.jsx`를 한 번에 대형 리팩터링하지 않고, 가장 안전한 1차 단계인 화면 조립과 몰입형 layout 책임부터 분리해 페이지 파일을 얇게 만든다.
+- **범위:** `Game.jsx`의 모바일/데스크톱 툴바 렌더, 몰입형 top bar/chat/skin picker 조립, 몰입형 orientation/fullscreen 상태 계산을 새 파일로 이동한다. `resetDigimon`, 과식 처리, 진화 가능 여부 계산, 저장 계약, lazy update, Firestore 경로는 변경하지 않는다.
+- **내용:**
+  - `useImmersiveGameLayout`를 추가해 immersive settings 정규화, 회전/전체화면 상태, skin picker 제어, 채팅 토글, 가로/세로 전환 핸들러를 `Game.jsx` 밖으로 옮겼다.
+  - `GamePageToolbar`, `GamePageView`, `ImmersiveGameView`를 도입해 `Game.jsx`의 모바일 헤더, 데스크톱 툴바, 몰입형 top bar/chat/picker 조립을 presenter 계층으로 이동했다.
+  - `Game.jsx`는 기존 게임 상태/데이터/액션 orchestration과 `defaultGameSection`, `landscapeImmersiveSection` 같은 화면 내용 조립은 유지하되, 최종 return 블록과 몰입형 UI 상태 코드를 크게 줄이는 방향으로 정리했다.
+  - 새 Hook과 presenter 테스트를 추가했고, 기존 몰입형 UI/게임 화면 테스트와 함께 관련 범위를 다시 검증했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useImmersiveGameLayout.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `digimon-tamagotchi-frontend/src/components/layout/GamePageView.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GamePageView.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GamePageToolbar.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GamePageToolbar.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveGameView.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveGameView.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand src/hooks/game-runtime/useImmersiveGameLayout.test.js src/components/layout/GamePageView.test.jsx src/components/layout/GamePageToolbar.test.jsx src/components/layout/ImmersiveGameView.test.jsx src/components/layout/ImmersiveGameTopBar.test.jsx src/components/layout/ImmersiveDeviceShell.test.jsx src/components/layout/ImmersiveLandscapeControls.test.jsx src/components/layout/ImmersiveSkinPicker.test.jsx src/components/chat/ImmersiveChatOverlay.test.jsx src/components/GameScreen.test.jsx src/components/ControlPanel.test.jsx`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/pages/Game.jsx src/components/layout/GamePageView.jsx src/components/layout/GamePageToolbar.jsx src/components/layout/ImmersiveGameView.jsx src/hooks/game-runtime/useImmersiveGameLayout.js src/components/layout/GamePageView.test.jsx src/components/layout/GamePageToolbar.test.jsx src/components/layout/ImmersiveGameView.test.jsx src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build` 실행 시 기존 워킹트리의 별도 오류 `src/logic/stats/injuryHistory.js`의 `toTimestamp` 미정의로 실패
+
+### 아키텍처 메모
+- 이번 라운드는 presenter 분리와 immersive layout 분리만 먼저 진행한 안전한 1차 단계다. `Game.jsx`의 최종 조립부와 몰입형 상태는 분리했지만, 저장 순서가 민감한 페이지 잔여 액션과 `useEvolution`/`useGameData` 경계 축소는 아직 다음 라운드로 남긴다.
+
+## [2026-04-09] Game.jsx 분리 전 리스크·가능사항 분석 메모 작성
+
+### 작업 유형
+- 🧭 `Game.jsx` 후속 분리 라운드 사전 분석
+- 📋 presenter / immersive layout / 페이지 잔여 액션 / `useEvolution` / `useGameData` 위험도 분류
+- 📝 실행 전 기준 문서 추가
+
+### 목적 및 영향
+- **목적:** `Game.jsx` 후속 분리 작업을 구현하기 전에, 어떤 단계부터 안전하게 착수할 수 있는지와 어떤 부분은 테스트를 먼저 확보해야 하는지를 코드 기준으로 판정한다.
+- **범위:** 문서화만 수행한다. 런타임 동작, 저장 스키마, lazy update 규칙, Firestore 경로, 모달 key 이름, 테스트 동작은 변경하지 않는다.
+- **내용:**
+  - `Game.jsx`, `useEvolution`, `useGameData`, 관련 테스트 파일을 기준으로 현재 복잡도와 책임 분포를 다시 점검했다.
+  - 후속 분리 순서를 `presenter 분리 -> immersive layout hook 분리 -> 페이지 잔여 액션 분리 -> useEvolution 온라인 조그레스 분리 -> useGameData 경계 축소`로 고정했다.
+  - 각 단계마다 `분리 가능`, `선행 테스트 필요`, `지금은 보류` 중 하나로 판정하고, 선행 조건과 회귀 포인트, characterization test 후보를 정리한 메모를 추가했다.
+
+### 영향받은 파일
+- `docs/GAME_JSX_SPLIT_RISK_FEASIBILITY_ANALYSIS.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- 정적 코드 분석과 기존 테스트 파일/문서 확인만 수행
+
+### 아키텍처 메모
+- 현재 구조에서는 `Game.jsx`의 렌더 조립과 몰입형 layout 상태를 먼저 떼어내는 것이 가장 안전하다. 반면 `resetDigimon`, 온라인 조그레스 완료 흐름, `useGameData`의 hydration/save/UI side effect 경계는 저장 순서와 회귀 면적이 커서 선행 테스트 없이 바로 분리하면 위험하다.
+
+## [2026-04-09] 자유게시판을 로그인 전용 작성형 게시판으로 전환
+
+### 작업 유형
+- 🧩 커뮤니티 데이터 모델을 `showcase`/`free` 공용 게시판 구조로 확장
+- ✍️ 자유게시판 전용 글쓰기/상세/댓글 UI 추가
+- 🔀 게시판별 API 라우트와 클라이언트 API를 board-aware 구조로 일반화
+- 🧪 서버/클라이언트 회귀 테스트와 프로덕션 빌드 검증
+
+### 목적 및 영향
+- **목적:** 기존 안내형 패널에 머물던 자유게시판을 실제 글 작성이 가능한 로그인 전용 게시판으로 바꾸고, 자랑게시판은 기존 스냅샷 중심 UX를 유지한 채 두 게시판을 공용 인프라 위에서 운영할 수 있게 만든다.
+- **범위:** 커뮤니티 서버 유틸, Vercel API 엔트리포인트, Supabase 마이그레이션, 프런트 커뮤니티 페이지/모달/목록 UI, 관련 테스트와 문서를 함께 조정한다. 게임 런타임, 슬롯 저장 구조, 자랑게시판의 스냅샷 생성 규칙은 유지한다.
+- **내용:**
+  - `community_posts`에 `category`를 추가하고 `slot_id`/`snapshot`을 nullable로 완화하는 신규 마이그레이션을 만들었다. 동시에 체크 제약으로 `showcase`는 슬롯 스냅샷 필수, `free`는 말머리 필수 + 슬롯 스냅샷 금지를 강제했다.
+  - 서버 커뮤니티 유틸은 `boardId`를 받는 공용 함수로 재구성했다. 자유게시판은 `general/question/guide` 말머리 기반 검증과 필터링을 사용하고, 자랑게시판은 기존 슬롯 스냅샷 재조회 흐름을 그대로 유지한다.
+  - API 라우트는 `api/community/[boardId]/...` 동적 구조로 통합했다. 댓글 수정/삭제도 부모 글의 `board_id`를 확인하도록 맞춰 다른 게시판 경로 오용을 막았다.
+  - 프런트 `communityApi`를 board-aware 함수로 교체하고, `Community.jsx`는 자유게시판에 정적 공지 카드 + 압축 행 리스트 + 말머리 필터 + 텍스트 전용 작성 모달을 제공하도록 개편했다.
+  - `CommunityPostDetailDialog`는 게시판 종류에 따라 렌더링을 분기해, 자유게시판에서는 스냅샷/스탯 패널 없이 제목, 본문, 댓글 중심 상세를 표시하도록 조정했다.
+  - 비로그인 사용자는 자유게시판에서 실제 글 목록을 조회하지 않고 로그인 게이트와 운영 안내만 보게 하여 초기 정책을 UI와 API 흐름 모두에 반영했다.
+
+### 영향받은 파일
+- `api/_lib/community.js`
+- `api/_lib/community.test.js`
+- `api/community/[boardId]/posts/index.js`
+- `api/community/[boardId]/posts/[postId].js`
+- `api/community/[boardId]/posts/[postId]/comments/index.js`
+- `api/community/[boardId]/comments/[commentId].js`
+- `api/community/showcase/posts/index.js` (삭제)
+- `api/community/showcase/posts/[postId].js` (삭제)
+- `api/community/showcase/posts/[postId]/comments/index.js` (삭제)
+- `api/community/showcase/comments/[commentId].js` (삭제)
+- `supabase/migrations/20260409_community_free_board.sql`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostRow.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.test.js`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `tests/community-lib.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/community.test.js tests/community-lib.test.js`
+- `node -e "require('./api/community/[boardId]/posts/index.js'); require('./api/community/[boardId]/posts/[postId].js'); require('./api/community/[boardId]/posts/[postId]/comments/index.js'); require('./api/community/[boardId]/comments/[commentId].js'); console.log('ok');"`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/Community.test.jsx src/utils/communityApi.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 게시판 종류별 차이는 DB 제약과 공용 service 레이어에서 먼저 제한하고, 프런트는 그 계약을 소비하는 형태로 두었다. 덕분에 이후 공략/질문 전용 보드나 관리자 공지 보드를 추가해도 라우트 구조를 다시 복제하지 않고 `boardId`와 입력 규칙만 확장하면 된다.
+
 ## [2026-04-08] Vercel Hobby 함수 제한 대응으로 아레나 관리자 라우트 1개를 기존 엔드포인트에 병합
 
 ### 작업 유형
