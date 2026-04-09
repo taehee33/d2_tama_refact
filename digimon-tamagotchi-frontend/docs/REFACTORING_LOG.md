@@ -1,5 +1,66 @@
 # REFACTORING LOG
 
+## 2026-04-09
+
+### BattleScreen 아레나 snapshot 우선순위와 adapter `24:00` 경계 보정
+- `src/components/BattleScreen.jsx`에 아레나 상대 데이터 해석 helper를 추가해, 아레나 배틀은 `digimonSnapshot.slotVersion` 기준의 데이터맵을 먼저 조회하고 `snapshot.stats.power`, `snapshot.stats.type`, `snapshot.attackSprite`를 우선 사용하도록 정리했습니다.
+- 적 발사체는 이제 `arena snapshot attackSprite -> enemyData.attackSprite -> 버전 데이터맵 attackSprite -> 기존 v1 fallback` 순으로 해석해, Ver.2/Ver.3 슬롯 상대가 Ver.1 발사체로 잘못 보일 가능성을 줄였습니다.
+- `src/data/v1/adapter.js`는 `24:00`을 더 이상 `23:00`으로 clamp하지 않고 표시 문자열은 그대로 유지한 채, `sleepSchedule` 계산에서만 자정(`0`)으로 변환하도록 수정했습니다.
+- `src/components/GameModals.jsx`, `src/hooks/useEvolution.js`에는 `slotRuntimeDataMap`, `slotEvolutionDataMap` alias를 추가해, 슬롯별 데이터맵과 옛날 prop 이름 사이의 혼동을 줄였습니다.
+
+### 테스트 보강
+- `src/components/BattleScreen.test.js`를 추가해 버전별 데이터맵 우선 조회, 아레나 snapshot power/type 반영, snapshot fallback enemy data 생성, 적 발사체 우선순위를 고정했습니다.
+- `src/data/v1/adapter.test.js`를 추가해 `sleepTime: "24:00"`과 `wakeTime: "24:00"`이 표시 문자열을 유지하면서 `sleepSchedule.start/end`만 자정으로 계산되는지 검증했습니다.
+
+### 영향받은 파일
+- `src/components/BattleScreen.jsx`
+- `src/components/BattleScreen.test.js`
+- `src/components/GameModals.jsx`
+- `src/hooks/useEvolution.js`
+- `src/data/v1/adapter.js`
+- `src/data/v1/adapter.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경은 훈련/배틀 규칙이나 진화 밸런스를 바꾸는 작업이 아니라, 이미 저장된 슬롯 버전과 아레나 snapshot이 가진 메타데이터를 어느 계층에서 우선 해석하느냐의 문제라서 표시/참조 경계만 좁게 보정하는 편이 가장 안전합니다.
+- 어댑터는 아직 런타임 호환 계층으로 필요하지만, `24:00` 같은 데이터 왜곡은 실제 수면 스케줄 계산에 영향을 줄 수 있으므로 제거보다 국소 보정이 유지보수와 운영 안정성 모두에 유리합니다.
+
+### Ver.3 원작 로스터를 Super Ultimate 2종까지 확장
+- `src/data/v3/digimons.js`에 Ver.3 최종 로스터 기준 `Chaosmon`, `Millenniumon`을 `Super Ultimate`로 추가해, 기존 21엔트리 골격을 23엔트리 완성형 데이터셋으로 확장했습니다.
+- `BanchoLeomon -> Chaosmon`, `Chimairamon -> Millenniumon` 조그레스 메타데이터를 원작 기준으로 반영했지만, 현재 앱은 Ver.4/Ver.5 활성 슬롯이 없으므로 실제 획득 경로보다 마스터데이터/도감 완성을 우선했습니다.
+- `Centaurmon`, `Ogremon` 내부 ID는 기존 저장 호환성을 위해 유지하고, 원작 외부 표기 차이는 코드 주석과 문서 판단 기준으로만 관리합니다.
+
+### 조그레스 가이드 표시를 외부 버전 파트너까지 안전하게 일반화
+- `src/utils/jogressUtils.js`를 추가해 Ver.1↔Ver.2 크로스 조그레스 이름 표기와, Ver.3처럼 현재 앱에 없는 외부 버전 파트너가 필요한 조그레스의 안내 문구를 한 곳에서 처리하도록 정리했습니다.
+- `EvolutionGuideModal`, `DigimonGuidePanel`은 이제 `Darkdramon Ver.4`, `Mugendramon Ver.5` 같은 파트너를 텍스트로 정확히 보여주고, 실제 앱에서 아직 지원되지 않는 조합은 “정보 표시용”이라는 안내를 함께 렌더링합니다.
+- `buildGamePageViewModel`은 현재 지원되는 버전에 실제 파트너 데이터가 있는 조그레스만 액션 버튼을 열도록 바꿔, Ver.3 최종 로스터를 추가해도 플레이 버튼이 잘못 노출되지 않게 했습니다.
+
+### Ver.3 placeholder 자산과 테스트 보강
+- `public/Ver3_Mod_TH/481.png`, `public/Ver3_Mod_TH/496.png`를 기존 Ver.3 임시 자산 복사본으로 추가해 `Chaosmon`, `Millenniumon`이 도감/마스터데이터/UI에서 깨진 이미지 없이 렌더링되도록 맞췄습니다.
+- 테스트는 Ver.3 도감 대상에 `Chaosmon`, `Millenniumon`이 포함되는지, 외부 버전 파트너 조그레스가 안내 전용으로 보이는지, 외부 버전 조그레스가 액션 버튼을 열지 않는지를 고정했습니다.
+
+### 영향받은 파일
+- `src/data/v3/digimons.js`
+- `src/utils/jogressUtils.js`
+- `src/utils/jogressUtils.test.js`
+- `src/components/EvolutionGuideModal.jsx`
+- `src/components/panels/DigimonGuidePanel.jsx`
+- `src/components/panels/DigimonGuidePanel.test.jsx`
+- `src/hooks/game-runtime/buildGamePageViewModel.js`
+- `src/hooks/game-runtime/buildGamePageViewModel.test.js`
+- `src/utils/encyclopediaSummary.test.js`
+- `public/Ver3_Mod_TH/481.png`
+- `public/Ver3_Mod_TH/496.png`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 원작 Ver.3 로스터는 [Humulos Ver.3 진화표](https://humulos.com/digimon/dmc/#c3_anchor), [Humulos Digimon List](https://humulos.com/digimon/dmc/list/), [Wikimon Ver.3](https://wikimon.net/Digital_Monster_COLOR_Ver.3)를 기준으로 확정할 수 있었지만, 현재 앱에는 Ver.4/Ver.5 실플레이 경로가 없으므로 조그레스 종착점은 `데이터/도감 완성 우선`으로 넣는 편이 안전했습니다.
+- `VB for DMC Sprite Conversion`은 Ver.3 전체 로스터를 이름 기준으로 1:1 보장하지 못하므로, 신규 2종은 별도 원본 추출 대신 `placeholder` 정책으로 우선 연결했습니다.
+- 조그레스 버튼 노출을 파트너 존재 여부 기반으로 좁히면, 미래에 Ver.4/Ver.5 데이터가 실제로 추가되었을 때 별도 하드코딩 없이 자연스럽게 버튼이 열리도록 유지할 수 있습니다.
+
+### 검증
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/jogressUtils.test.js src/components/panels/DigimonGuidePanel.test.jsx src/hooks/game-runtime/buildGamePageViewModel.test.js src/utils/encyclopediaSummary.test.js`
+
 ## 2026-04-08
 
 ### ver3 전용 스프라이트 폴더 분리와 임시 자산 독립
@@ -934,6 +995,12 @@
 - `세로` 토글을 누르면 `orientation.unlock?.()`와 fullscreen 종료를 best effort로 정리하고, 브라우저가 실제 fullscreen 상태를 바꾸면 `fullscreenchange` 구독으로 몰입형 상태 배너가 즉시 동기화되게 맞췄습니다.
 - 가로 고정 성공, 미지원, 거부, 세로 복귀 경로는 `immersiveOrientation` 유틸 테스트로 분리해 검증했고, 화면에는 상단 바 바로 아래 상태 배너를 추가해 `가로 전체화면으로 보는 중` 또는 fallback 안내를 바로 확인할 수 있게 했습니다.
 
+### 모바일 몰입형 상단 바를 더 전체화면처럼 압축
+- 모바일 몰입형 상단 바는 기존처럼 넓은 흰 패널이 두 줄 이상 화면을 차지하지 않도록, 전체 폭 패널 대신 둥근 반투명 floating capsule 형태로 줄였습니다.
+- `세로/가로`, 방향, 채팅, 스킨 변경 도구들은 줄바꿈 대신 가로 스크롤 가능한 한 줄 툴바로 바꿔, 버튼 수가 많아도 게임 화면 위를 크게 가리지 않도록 정리했습니다.
+- 모바일에서는 `몰입형 플레이` 배지를 숨기고 버튼 패딩과 safe-area 여백을 더 촘촘하게 다듬어, 브라우저 UI 아래에서도 실제 게임 화면이 더 빨리 시작되도록 조정했습니다.
+- 이에 맞춰 몰입형 본문과 채팅 오버레이의 상단 시작 위치도 함께 내려, 상단 바는 더 작아지고 디지바이스 화면은 더 많이 보이게 맞췄습니다.
+
 ### 영향받은 파일
 - `src/pages/Game.jsx`
 - `src/utils/immersiveOrientation.js`
@@ -944,3 +1011,4 @@
 ### 아키텍처 결정 근거
 - 모바일 브라우저의 landscape lock은 사용자 클릭 맥락과 fullscreen 조건에 의존하는 경우가 많아, 별도 버튼보다 기존 `가로` 토글 안에서 `레이아웃 전환 + 가로 고정 시도`를 함께 처리하는 편이 사용 흐름과 저장 상태를 덜 어지럽힙니다.
 - 브라우저별 분기와 오류 메시지를 `Game` 안에 직접 흩뿌리면 회귀 테스트가 어려워지므로, fullscreen/orientation API 호출 순서를 별도 유틸로 분리해 성공/실패/미지원 케이스를 독립적으로 검증하는 편이 유지보수에 더 안전합니다.
+- 모바일 몰입형은 브라우저 주소창과 safe-area 때문에 네이티브 전체화면처럼 완전히 비울 수는 없으므로, 상단 조작부 자체를 floating overlay와 스크롤 툴바로 압축해 체감상 화면 점유율을 높이는 쪽이 웹 환경에서 더 현실적이고 안정적입니다.
