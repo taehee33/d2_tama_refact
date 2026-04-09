@@ -13,6 +13,8 @@ export default function JogressModeSelectModal({
   onClose,
   onSelectLocal,
   onSelectOnline,
+  supportsOnline = true,
+  onlineNotice = "",
 }) {
   return (
     <div
@@ -38,6 +40,11 @@ export default function JogressModeSelectModal({
         <p className="text-gray-300 text-sm mb-4">
           합체할 방식을 선택하세요.
         </p>
+        {!supportsOnline && onlineNotice && (
+          <div className="mb-4 rounded border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">
+            {onlineNotice}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           <button
@@ -51,10 +58,18 @@ export default function JogressModeSelectModal({
           </button>
           <button
             onClick={() => {
+              if (!supportsOnline) {
+                return;
+              }
               onSelectOnline?.();
               onClose?.();
             }}
-            className="px-6 py-3 bg-blue-600 text-white font-bold rounded pixel-art-button hover:bg-blue-700"
+            disabled={!supportsOnline}
+            className={`px-6 py-3 text-white font-bold rounded pixel-art-button ${
+              supportsOnline
+                ? "bg-blue-600 hover:bg-blue-700"
+                : "bg-slate-600 cursor-not-allowed opacity-70"
+            }`}
           >
             온라인 — 다른 유저와 합체
           </button>

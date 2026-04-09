@@ -1,33 +1,15 @@
 // src/components/EvolutionGuideModal.jsx
 import React from "react";
 import { checkEvolutionAvailability } from "../hooks/useGameLogic";
+import {
+  getJogressPartnerDisplayName,
+  getJogressSupportMessage,
+} from "../utils/jogressUtils";
 
 /**
  * 진화 가이드 모달 컴포넌트 (Data-Driven)
  * digimons.js의 구조화된 진화 조건 데이터를 표시합니다.
  */
-/**
- * 조그레스 파트너 표시명: Ver.1↔Ver.2 크로스이므로 반대 버전 맵에서 이름 조회
- * @param {string} partnerId - 현재 맵의 partner ID (예: CresGarurumon, BlitzGreymon)
- * @param {string} slotVersion - "Ver.1" | "Ver.2"
- * @param {Object} digimonDataVer1 - v1 전체 맵
- * @param {Object} digimonDataVer2 - v2 전체 맵
- */
-function getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2) {
-  if (!partnerId) return "";
-  const otherMap = slotVersion === "Ver.2" ? digimonDataVer1 : digimonDataVer2;
-  // v1 맵 키는 "BlitzGreymon", v2 맵 키는 "CresGarurumonV2" 형태이므로 V1/V2 접미사 정규화
-  const keyForV1 = partnerId.replace(/V1$/i, "").replace(/V2$/i, "");
-  const keyForV2 = keyForV1 + "V2";
-  const otherKey = slotVersion === "Ver.2" ? keyForV1 : keyForV2;
-  const data = otherMap?.[otherKey] || otherMap?.[partnerId];
-  const baseName = data?.name || data?.id || partnerId;
-  const versionSuffix = slotVersion === "Ver.2" ? " Ver.1" : " Ver.2";
-  // 데이터 이름에 이미 버전이 포함돼 있으면 중복 붙이지 않음
-  if (baseName.endsWith(" Ver.1") || baseName.endsWith(" Ver.2")) return baseName;
-  return baseName + versionSuffix;
-}
-
 export default function EvolutionGuideModal({
   currentDigimonName,
   currentDigimonData,
@@ -115,8 +97,10 @@ export default function EvolutionGuideModal({
     }
     // Case 3: 조그레스 (jogress) — Ver.1↔Ver.2 크로스, 파트너는 반대 버전 표기
     else if (evo.jogress) {
-      const partnerId = evo.jogress?.partner || "";
-      const partnerName = getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2);
+      const partnerName = getJogressPartnerDisplayName(evo.jogress, slotVersion, [
+        digimonDataVer1,
+        digimonDataVer2,
+      ]);
       evolutionList.push({
         targetId,
         targetName,
@@ -126,6 +110,10 @@ export default function EvolutionGuideModal({
         conditionType: 'jogress',
         jogress: evo.jogress,
         jogressPartnerName: partnerName,
+        jogressSupportMessage: getJogressSupportMessage(evo.jogress, [
+          digimonDataVer1,
+          digimonDataVer2,
+        ]),
       });
     }
     // Case 4: 조건이 없는 경우 (시간 조건만 있거나 자동 진화)
@@ -189,7 +177,7 @@ export default function EvolutionGuideModal({
               <div className="space-y-2">
                 {evo.conditionType === 'jogress' ? (
                   <div className="text-amber-300 text-sm space-y-1">
-                    <p className="font-medium">조그레스 진화(로컬/온라인)로 진행할 수 있습니다.</p>
+                    <p className="font-medium">{evo.jogressSupportMessage}</p>
                     {evo.jogressPartnerName && (
                       <p className="text-gray-400">파트너: {evo.jogressPartnerName}</p>
                     )}

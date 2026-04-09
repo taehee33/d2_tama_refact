@@ -12,8 +12,17 @@ import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
+import {
+  SUPPORTED_DIGIMON_VERSIONS,
+  getDigimonVersionByDigimonId,
+  normalizeDigimonVersionLabel,
+} from "../utils/digimonVersionUtils";
 
-const ENCYCLOPEDIA_VERSIONS = ["Ver.1", "Ver.2"];
+const ENCYCLOPEDIA_VERSIONS = SUPPORTED_DIGIMON_VERSIONS;
+const VERSION_MASTER_ACHIEVEMENTS = {
+  "Ver.1": ACHIEVEMENT_VER1_MASTER,
+  "Ver.2": ACHIEVEMENT_VER2_MASTER,
+};
 
 function createEmptyEncyclopedia() {
   return Object.fromEntries(ENCYCLOPEDIA_VERSIONS.map((version) => [version, {}]));
@@ -103,14 +112,26 @@ export async function loadEncyclopedia(currentUser) {
 export async function checkAndGrantEncyclopediaMasters(currentUser, mergedEncyclopedia) {
   if (!currentUser?.uid || !db || !mergedEncyclopedia) return;
   try {
-    const idsVer1 = getRequiredDigimonIds(digimonDataVer1, digimonDataVer2, "Ver.1");
-    const idsVer2 = getRequiredDigimonIds(digimonDataVer1, digimonDataVer2, "Ver.2");
-    const ver1Complete = isVersionComplete(mergedEncyclopedia["Ver.1"] || {}, idsVer1);
-    const ver2Complete = isVersionComplete(mergedEncyclopedia["Ver.2"] || {}, idsVer2);
     const { achievements } = await getAchievementsAndMaxSlots(currentUser.uid);
     const next = [...achievements];
-    if (ver1Complete && !next.includes(ACHIEVEMENT_VER1_MASTER)) next.push(ACHIEVEMENT_VER1_MASTER);
-    if (ver2Complete && !next.includes(ACHIEVEMENT_VER2_MASTER)) next.push(ACHIEVEMENT_VER2_MASTER);
+
+    ENCYCLOPEDIA_VERSIONS.forEach((version) => {
+      const achievement = VERSION_MASTER_ACHIEVEMENTS[version];
+      if (!achievement) {
+        return;
+      }
+
+      const requiredIds =
+        version === "Ver.1" || version === "Ver.2"
+          ? getRequiredDigimonIds(digimonDataVer1, digimonDataVer2, version)
+          : getRequiredDigimonIds(version);
+      const isComplete = isVersionComplete(mergedEncyclopedia[version] || {}, requiredIds);
+
+      if (isComplete && !next.includes(achievement)) {
+        next.push(achievement);
+      }
+    });
+
     if (next.length > achievements.length) {
       await updateAchievementsAndMaxSlots(currentUser.uid, next);
     }
@@ -174,16 +195,17 @@ export async function updateEncyclopedia(
   version = "Ver.1" // 버전 파라미터 추가 (Ver.2 별도 관리)
 ) {
   if (!digimonName) return;
+  const normalizedVersion = normalizeDigimonVersionLabel(version);
   
   // 도감 데이터 로드 (계정별)
   const encyclopedia = await loadEncyclopedia(currentUser);
   
   // 해당 디지몬 데이터 가져오기 또는 초기화
-  if (!encyclopedia[version]) {
-    encyclopedia[version] = {};
+  if (!encyclopedia[normalizedVersion]) {
+    encyclopedia[normalizedVersion] = {};
   }
   
-  const digimonData = encyclopedia[version][digimonName] || {
+  const digimonData = encyclopedia[normalizedVersion][digimonName] || {
     isDiscovered: false,
     raisedCount: 0,
     bestStats: {},
@@ -233,11 +255,11 @@ export async function updateEncyclopedia(
   // 이력 추가 (최대 5개만 유지)
   const historyEntry = {
     date: Date.now(),
-    result: eventType === 'evolution' 
-      ? `Evolved to ${finalStats.evolutionStage || digimonName}`
-      : eventType === 'death'
-      ? `Died: ${finalStats.deathReason || 'Unknown'}`
-      : 'Discovered',
+    result: eventType === "evolution"
+      ? `진화: ${finalStats.evolutionStage || digimonName}`
+      : eventType === "death"
+        ? `사망: ${finalStats.deathReason || "원인 미상"}`
+        : "발견",
     finalStats: {
       age: finalStats.age || 0,
       winRate: finalStats.winRate || 0,
@@ -249,7 +271,7 @@ export async function updateEncyclopedia(
   digimonData.history = [historyEntry, ...(digimonData.history || [])].slice(0, 5);
   
   // 저장 (계정별)
-  encyclopedia[version][digimonName] = digimonData;
+  encyclopedia[normalizedVersion][digimonName] = digimonData;
   await saveEncyclopedia(encyclopedia, currentUser);
 }
 
@@ -260,7 +282,7 @@ export async function updateEncyclopedia(
  * @param {string[]} digimonIds - 추가할 디지몬 ID (예: ["BlitzGreymon", "ShinMonzaemon"])
  * @returns {Promise<{ added: string[], skipped: string[] }>} 추가된 ID 목록, 이미 있어서 스킵된 ID 목록
  */
-export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []) {
+export async function addMissingEncyclopediaEntries(currentUser, digimonIds = [], version = null) {
   const added = [];
   const skipped = [];
 
@@ -268,12 +290,7 @@ export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []
     return { added, skipped };
   }
 
-  const version = "Ver.1";
   const encyclopedia = await loadEncyclopedia(currentUser);
-
-  if (!encyclopedia[version]) {
-    encyclopedia[version] = {};
-  }
 
   const now = Date.now();
   const minimalEntry = {
@@ -287,12 +304,20 @@ export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []
 
   for (const id of digimonIds) {
     if (!id || typeof id !== "string") continue;
-    const existing = encyclopedia[version][id];
+    const targetVersion = normalizeDigimonVersionLabel(
+      version || getDigimonVersionByDigimonId(id)
+    );
+
+    if (!encyclopedia[targetVersion]) {
+      encyclopedia[targetVersion] = {};
+    }
+
+    const existing = encyclopedia[targetVersion][id];
     if (existing?.isDiscovered) {
       skipped.push(id);
       continue;
     }
-    encyclopedia[version][id] = { ...minimalEntry };
+    encyclopedia[targetVersion][id] = { ...minimalEntry };
     added.push(id);
   }
 

@@ -1,7 +1,7 @@
 // src/hooks/useGameData.js
 // Game.jsx의 데이터 저장/로딩 로직을 분리한 Custom Hook
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   doc,
   getDoc,
@@ -251,9 +251,7 @@ export function resolveLazyUpdateBaseStats(
  * @param {Function} params.setDeathReason - 사망 사유 설정 함수
  * @param {Function} params.toggleModal - 모달 토글 함수
  * @param {Object} params.digimonDataVer1 - 현재 슬롯의 런타임 데이터 맵 (adapted 호환)
- * @param {Object} [params.adaptedV1] - v1 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
- * @param {Object} [params.adaptedV2] - v2 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
- * @param {Object} [params.adaptedV3] - v3 adapted 데이터 맵 (슬롯 로드 시 버전별 선택용)
+ * @param {Object} [params.adaptedDataMapsByVersion] - 버전별 adapted 데이터 맵
  * @param {boolean} params.isFirebaseAvailable - Firebase 사용 가능 여부
  * @param {Function} params.navigate - 네비게이션 함수
  * @param {string} [params.selectedDigimon] - 현재 선택된 디지몬 ID (digimonDisplayName 계산용)
@@ -281,9 +279,7 @@ export function useGameData({
   setDeathReason,
   toggleModal,
   digimonDataVer1,
-  adaptedV1,
-  adaptedV2,
-  adaptedV3,
+  adaptedDataMapsByVersion,
   isFirebaseAvailable,
   navigate,
   // 추가 상태들 (applyLazyUpdateBeforeAction에서 사용)
@@ -304,6 +300,16 @@ export function useGameData({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const slotRuntimeDataMap = digimonDataVer1;
+  const runtimeAdaptedDataMaps = useMemo(
+    () => adaptedDataMapsByVersion || {},
+    [adaptedDataMapsByVersion]
+  );
+  const getAdaptedDataMap = useCallback(
+    (versionLabel = "Ver.1") =>
+      runtimeAdaptedDataMaps[normalizeDigimonVersionLabel(versionLabel)] ||
+      slotRuntimeDataMap,
+    [runtimeAdaptedDataMaps, slotRuntimeDataMap]
+  );
 
   /**
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
@@ -562,8 +568,7 @@ export function useGameData({
         const digimonSnapshot = buildDigimonLogSnapshot(
           baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
           evolutionDataForSlot,
-          adaptedV1,
-          adaptedV2,
+          ...Object.values(runtimeAdaptedDataMaps),
           slotRuntimeDataMap
         );
         const prevLogs = Array.isArray(baseStats.activityLogs) ? baseStats.activityLogs : [];
@@ -669,12 +674,7 @@ export function useGameData({
           }
           
           // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
-          const dataMap =
-            slotVersionLabel === "Ver.3"
-              ? (adaptedV3 || adaptedV1 || slotRuntimeDataMap)
-              : slotVersionLabel === "Ver.2"
-                ? (adaptedV2 || slotRuntimeDataMap)
-                : (adaptedV1 || slotRuntimeDataMap);
+          const dataMap = getAdaptedDataMap(slotVersionLabel);
           const savedName =
             slotData.selectedDigimon || getStarterDigimonId(slotVersionLabel);
           let savedStats = normalizeGameTimingFields(slotData.digimonStats || {});
@@ -786,9 +786,7 @@ export function useGameData({
               evolutionDataForSlot,
               dataMap,
               slotRuntimeDataMap,
-              adaptedV1,
-              adaptedV2,
-              adaptedV3
+              ...Object.values(runtimeAdaptedDataMaps)
             );
             savedStats = normalizeGameTimingFields(
               repairCareMistakeLedger(
@@ -835,7 +833,7 @@ export function useGameData({
           }
         } else {
           // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
-          const fallbackDataMap = adaptedV1 || slotRuntimeDataMap;
+          const fallbackDataMap = getAdaptedDataMap("Ver.1");
           const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
           const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
           setSelectedDigimon(fallbackStarterId);
@@ -852,7 +850,7 @@ export function useGameData({
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         setError(error);
-        const fallbackDataMap = adaptedV1 || slotRuntimeDataMap;
+        const fallbackDataMap = getAdaptedDataMap("Ver.1");
         const fallbackStarterId = getStarterDigimonIdFromDataMap(fallbackDataMap);
         const ns = initializeStats(fallbackStarterId, {}, fallbackDataMap);
         setSelectedDigimon(fallbackStarterId);

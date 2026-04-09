@@ -2,26 +2,10 @@ import React, { useState } from "react";
 import { checkEvolutionAvailability } from "../../hooks/useGameLogic";
 import { translateStage } from "../../utils/stageTranslator";
 import { getGroupedGameMenus, MENU_SURFACES } from "../../constants/gameMenus";
-
-function getJogressPartnerDisplayName(partnerId, slotVersion, digimonDataVer1, digimonDataVer2) {
-  if (!partnerId) {
-    return "";
-  }
-
-  const otherMap = slotVersion === "Ver.2" ? digimonDataVer1 : digimonDataVer2;
-  const keyForV1 = partnerId.replace(/V1$/i, "").replace(/V2$/i, "");
-  const keyForV2 = `${keyForV1}V2`;
-  const otherKey = slotVersion === "Ver.2" ? keyForV1 : keyForV2;
-  const data = otherMap?.[otherKey] || otherMap?.[partnerId];
-  const baseName = data?.name || data?.id || partnerId;
-  const versionSuffix = slotVersion === "Ver.2" ? " Ver.1" : " Ver.2";
-
-  if (baseName.endsWith(" Ver.1") || baseName.endsWith(" Ver.2")) {
-    return baseName;
-  }
-
-  return `${baseName}${versionSuffix}`;
-}
+import {
+  getJogressPartnerDisplayName,
+  getJogressSupportMessage,
+} from "../../utils/jogressUtils";
 
 function convertConditionsToRequirements(conditions) {
   const requirements = {};
@@ -384,11 +368,14 @@ function DigimonGuidePanel({
           availability: { isAvailable: true, missingConditions: [] },
           conditionType: "jogress",
           jogressPartnerName: getJogressPartnerDisplayName(
-            evo.jogress?.partner || "",
+            evo.jogress,
             slotVersion,
-            digimonDataVer1,
-            digimonDataVer2
+            [digimonDataVer1, digimonDataVer2]
           ),
+          jogressSupportMessage: getJogressSupportMessage(evo.jogress, [
+            digimonDataVer1,
+            digimonDataVer2,
+          ]),
         });
       } else {
         const requirements = {
@@ -423,7 +410,7 @@ function DigimonGuidePanel({
             <div className="space-y-2">
               {evo.conditionType === "jogress" ? (
                 <div className="space-y-1 text-sm text-amber-300">
-                  <p className="font-medium">조그레스 진화(로컬/온라인)로 진행할 수 있습니다.</p>
+                  <p className="font-medium">{evo.jogressSupportMessage}</p>
                   {evo.jogressPartnerName ? (
                     <p className="text-gray-400">파트너: {evo.jogressPartnerName}</p>
                   ) : null}

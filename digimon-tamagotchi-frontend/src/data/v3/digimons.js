@@ -29,6 +29,8 @@ const PROVISIONAL_V3_SPRITES = {
   HiAndromon: 436,
   Gokumon: 451,
   BanchoLeomon: 466,
+  Chaosmon: 481,
+  Millenniumon: 496,
 };
 
 function buildEntry({
@@ -662,11 +664,12 @@ export const digimonDataVer3 = {
     },
     evolutions: [
       {
-        targetId: "Gokumon",
-        targetName: "고쿠몬",
-        conditions: {
-          battles: { min: 15 },
-          winRatio: { min: 80 },
+        targetId: "Millenniumon",
+        targetName: "밀레니엄몬",
+        jogress: {
+          partner: "Mugendramon",
+          partnerName: "무겐드라몬",
+          partnerVersion: "Ver.5",
         },
       },
     ],
@@ -726,6 +729,56 @@ export const digimonDataVer3 = {
       type: "Vaccine",
       sleepTime: "23:00",
       attackSprite: 116,
+    }),
+    evolutionCriteria: null,
+    evolutions: [
+      {
+        targetId: "Chaosmon",
+        targetName: "카오스몬",
+        jogress: {
+          partner: "Darkdramon",
+          partnerName: "다크드라몬",
+          partnerVersion: "Ver.4",
+        },
+      },
+    ],
+  }),
+
+  Chaosmon: buildEntry({
+    id: "Chaosmon",
+    name: "카오스몬",
+    stage: "Super Ultimate",
+    sprite: PROVISIONAL_V3_SPRITES.Chaosmon,
+    stats: buildStats({
+      hungerCycle: 66,
+      strengthCycle: 66,
+      maxOverfeed: 2,
+      basePower: 200,
+      maxEnergy: 50,
+      minWeight: 40,
+      healDoses: 1,
+      type: "Vaccine",
+      sleepTime: "23:00",
+      attackSprite: 49,
+    }),
+  }),
+
+  Millenniumon: buildEntry({
+    id: "Millenniumon",
+    name: "밀레니엄몬",
+    stage: "Super Ultimate",
+    sprite: PROVISIONAL_V3_SPRITES.Millenniumon,
+    stats: buildStats({
+      hungerCycle: 66,
+      strengthCycle: 66,
+      maxOverfeed: 2,
+      basePower: 200,
+      maxEnergy: 50,
+      minWeight: 40,
+      healDoses: 1,
+      type: "Virus",
+      sleepTime: "23:00",
+      attackSprite: 52,
     }),
   }),
 };

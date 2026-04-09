@@ -15,6 +15,11 @@ import {
   getMasterRowComparison,
   parseMasterDataImportText,
 } from "../utils/masterDataUtils";
+import {
+  SUPPORTED_DIGIMON_VERSIONS,
+  getDigimonVersionKey,
+  getSpriteBasePathByVersion,
+} from "../utils/digimonVersionUtils";
 
 const FIELD_LABELS = {
   name: "이름",
@@ -71,6 +76,12 @@ function formatValue(value) {
   }
 
   return String(value);
+}
+
+function formatOverrideCounts(overrideCounts) {
+  return SUPPORTED_DIGIMON_VERSIONS.map(
+    (version) => `${version} ${overrideCounts[getDigimonVersionKey(version)] || 0}`
+  ).join(" / ");
 }
 
 function SpritePreview({ src, alt }) {
@@ -420,11 +431,17 @@ export default function DigimonMasterDataPanel() {
   );
 
   const overrideCounts = useMemo(
-    () => ({
-      ver1: Object.keys(masterDataOverrides?.ver1 || {}).length,
-      ver2: Object.keys(masterDataOverrides?.ver2 || {}).length,
-    }),
+    () =>
+      SUPPORTED_DIGIMON_VERSIONS.reduce((acc, version) => {
+        const versionKey = getDigimonVersionKey(version);
+        acc[versionKey] = Object.keys(masterDataOverrides?.[versionKey] || {}).length;
+        return acc;
+      }, {}),
     [masterDataOverrides]
+  );
+  const totalOverrideCount = Object.values(overrideCounts).reduce(
+    (sum, count) => sum + count,
+    0
   );
 
   const parsedImportState = useMemo(() => {
@@ -624,14 +641,14 @@ export default function DigimonMasterDataPanel() {
                 저장자: {formatActor(masterDataMeta.updatedBy)}
               </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                활성 오버라이드: Ver.1 {overrideCounts.ver1} / Ver.2 {overrideCounts.ver2}
+                활성 오버라이드: {formatOverrideCounts(overrideCounts)}
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="rounded-lg border border-slate-700 bg-slate-900 p-1">
-              {["Ver.1", "Ver.2"].map((version) => (
+              {SUPPORTED_DIGIMON_VERSIONS.map((version) => (
                 <button
                   key={version}
                   type="button"
@@ -658,7 +675,7 @@ export default function DigimonMasterDataPanel() {
             <button
               type="button"
               onClick={handleResetAll}
-              disabled={isProcessing || (!overrideCounts.ver1 && !overrideCounts.ver2)}
+              disabled={isProcessing || totalOverrideCount === 0}
               className="rounded-md border border-rose-400/40 px-3 py-2 text-sm font-bold text-rose-200 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               기본으로 전체 되돌리기
@@ -963,9 +980,7 @@ export default function DigimonMasterDataPanel() {
                             onChange={handleDraftChange(field.key)}
                             placeholder={
                               field.key === "spriteBasePath"
-                                ? selectedVersion === "Ver.2"
-                                  ? "/Ver2_Mod_Kor"
-                                  : "/images"
+                                ? getSpriteBasePathByVersion(selectedVersion)
                                 : ""
                             }
                           />
@@ -1055,11 +1070,24 @@ export default function DigimonMasterDataPanel() {
                 ) : masterDataSnapshots.length ? (
                   <div className="max-h-[60vh] space-y-3 overflow-auto pr-1">
                     {masterDataSnapshots.map((snapshot) => {
-                      const summary = snapshot.changeSummary || { totalCount: 0, ver1: [], ver2: [] };
-                      const previewIds = [
-                        ...(summary.ver1 || []).map((id) => `V1:${id}`),
-                        ...(summary.ver2 || []).map((id) => `V2:${id}`),
-                      ].slice(0, 8);
+                      const summary =
+                        snapshot.changeSummary ||
+                        SUPPORTED_DIGIMON_VERSIONS.reduce(
+                          (acc, versionLabel) => {
+                            acc[getDigimonVersionKey(versionLabel)] = [];
+                            return acc;
+                          },
+                          { totalCount: 0 }
+                        );
+                      const previewIds = SUPPORTED_DIGIMON_VERSIONS.flatMap(
+                        (versionLabel) => {
+                          const versionKey = getDigimonVersionKey(versionLabel);
+                          const versionPrefix = versionLabel.replace("Ver.", "V");
+                          return (summary[versionKey] || []).map(
+                            (id) => `${versionPrefix}:${id}`
+                          );
+                        }
+                      ).slice(0, 8);
 
                       return (
                         <div

@@ -1,4 +1,5 @@
 import { getSleepSchedule } from "../useGameHandlers";
+import { isJogressPartnerSupportedInApp } from "../../utils/jogressUtils";
 
 function formatCurrentTime(customTime) {
   return customTime.toLocaleString("ko-KR", {
@@ -31,6 +32,7 @@ export function buildGamePageViewModel({
   activityLogs,
   digimonDataForSlot,
   customTime,
+  slotVersion = "Ver.1",
   slotJogressStatus,
   currentAnimation,
   feedType,
@@ -68,8 +70,17 @@ export function buildGamePageViewModel({
     digimonStats
   );
   const currentDigimonDataForEvo = evolutionDataForSlot?.[selectedDigimon];
+  const supportsOnlineJogress =
+    slotVersion === "Ver.1" || slotVersion === "Ver.2";
   const canJogressEvolve = Boolean(
-    currentDigimonDataForEvo?.evolutions?.some((e) => e.jogress)
+    currentDigimonDataForEvo?.evolutions?.some(
+      (e) => e.jogress && isJogressPartnerSupportedInApp(e.jogress)
+    )
+  );
+  const hasUnavailableJogress = Boolean(
+    currentDigimonDataForEvo?.evolutions?.some(
+      (e) => e.jogress && !isJogressPartnerSupportedInApp(e.jogress)
+    )
   );
   const hasNormalEvolution = Boolean(
     currentDigimonDataForEvo?.evolutions?.some((e) => !e.jogress)
@@ -136,7 +147,11 @@ export function buildGamePageViewModel({
         ? "(조그레스 진화 가능)"
         : slotJogressStatus?.isWaiting
           ? "(대기중)"
-          : "(-)",
+          : canJogressEvolve && !supportsOnlineJogress
+            ? "(로컬 전용)"
+          : hasUnavailableJogress
+            ? "(가이드 확인)"
+            : "(-)",
     },
   };
 }

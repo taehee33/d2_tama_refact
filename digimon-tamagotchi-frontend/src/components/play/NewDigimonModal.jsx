@@ -43,8 +43,9 @@ function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
             <select value={version} onChange={(event) => setVersion(event.target.value)}>
               <option value="Ver.1">Ver.1</option>
               <option value="Ver.2">Ver.2</option>
-              <option value="Ver.3" disabled>Ver.3 (준비 중)</option>
-              <option value="Ver.4" disabled>Ver.4 (준비 중)</option>
+              <option value="Ver.3">Ver.3</option>
+              <option value="Ver.4">Ver.4</option>
+              <option value="Ver.5">Ver.5</option>
             </select>
           </label>
         </div>

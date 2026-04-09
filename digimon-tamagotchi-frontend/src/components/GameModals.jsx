@@ -43,6 +43,7 @@ import { addActivityLog, hasDuplicateSleepDisturbanceLog, createSleepDisturbance
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
+import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 
 export function applyStatsPopupChange(nextStats, setDigimonStats, setDigimonStatsAndSave) {
   if (!nextStats) return;
@@ -218,28 +219,33 @@ export default function GameModals({
 
   const { developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, ignoreEvolutionTime, setIgnoreEvolutionTime, setIsEvolving } = flags || {};
   const ignoreAllEvolutionConditions = !!ignoreEvolutionTime;
+  const starterDigimonId = getStarterDigimonId(slotVersion || "Ver.1");
+  const supportsOnlineJogress =
+    (slotVersion || "Ver.1") === "Ver.1" || (slotVersion || "Ver.1") === "Ver.2";
+  const slotEvolutionDataMap = newDigimonDataVer1 || {};
+  const slotRuntimeDataMap = digimonDataVer1 || {};
 
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
-    if (!newDigimonDataVer1 || !digimonStats) return {};
+    if (!digimonStats) return {};
     const digimonKey = selectedDigimon || 
       (digimonStats.evolutionStage ? 
-        Object.keys(newDigimonDataVer1).find(key => 
-          newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage
+        Object.keys(slotEvolutionDataMap).find(key => 
+          slotEvolutionDataMap[key]?.stage === digimonStats.evolutionStage
         ) : 
-        "Digitama"
+        starterDigimonId
       );
-    return newDigimonDataVer1[digimonKey] || {};
+    return slotEvolutionDataMap[digimonKey] || {};
   };
 
   const currentDigimonData = getCurrentDigimonData();
   const currentDigimonKey = selectedDigimon || 
     (digimonStats?.evolutionStage ? 
-      Object.keys(newDigimonDataVer1 || {}).find(key => 
-        newDigimonDataVer1[key]?.stage === digimonStats.evolutionStage
+      Object.keys(slotEvolutionDataMap).find(key => 
+        slotEvolutionDataMap[key]?.stage === digimonStats.evolutionStage
       ) : 
-      "Digitama"
-    ) || "Digitama";
+      starterDigimonId
+    ) || starterDigimonId;
 
   return (
     <>
@@ -333,7 +339,7 @@ export default function GameModals({
           onTrainResult={handleTrainResult}
           selectedDigimon={selectedDigimon}
           digimonNickname={digimonNickname}
-          digimonDataForSlot={digimonDataVer1}
+          digimonDataForSlot={slotRuntimeDataMap}
         />
       )}
 
@@ -606,10 +612,10 @@ export default function GameModals({
       {/* Battle Screen */}
       {modals.battleScreen && (currentQuestArea || battleType === 'sparring' || battleType === 'arena') && (
         <BattleScreen
-          userDigimon={newDigimonDataVer1[selectedDigimon] || {
+          userDigimon={currentDigimonData?.id ? currentDigimonData : slotEvolutionDataMap[selectedDigimon] || {
             id: selectedDigimon,
             name: selectedDigimon,
-            stats: digimonDataVer1[selectedDigimon] || {},
+            stats: slotRuntimeDataMap[selectedDigimon] || {},
           }}
           userStats={digimonStats}
           userSlotName={slotName || `슬롯${slotId}`}
@@ -672,7 +678,7 @@ export default function GameModals({
         <HealModal
           isInjured={(gameState.healModalStats || digimonStats).isInjured || false}
           currentDoses={(gameState.healModalStats || digimonStats).healedDosesCurrent || 0}
-          requiredDoses={newDigimonDataVer1[selectedDigimon]?.stats?.healDoses || 1}
+          requiredDoses={currentDigimonData?.stats?.healDoses || 1}
           onHeal={startHealCycle}
           onClose={() => {
             toggleModal('heal', false);
@@ -885,11 +891,20 @@ export default function GameModals({
       {modals.jogressModeSelect && (
         <JogressModeSelectModal
           onClose={() => toggleModal('jogressModeSelect', false)}
+          supportsOnline={supportsOnlineJogress}
+          onlineNotice={
+            supportsOnlineJogress
+              ? ""
+              : "Ver.3~Ver.5 온라인 조그레스는 후속 지원 예정입니다. 현재는 로컬 조그레스만 사용할 수 있습니다."
+          }
           onSelectLocal={() => {
             toggleModal('jogressModeSelect', false);
             toggleModal('jogressPartnerSlot', true);
           }}
           onSelectOnline={() => {
+            if (!supportsOnlineJogress) {
+              return;
+            }
             toggleModal('jogressModeSelect', false);
             toggleModal('jogressRoomList', true);
           }}

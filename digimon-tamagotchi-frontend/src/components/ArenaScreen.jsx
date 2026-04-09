@@ -17,12 +17,18 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { digimonDataVer1 } from "../data/v1/digimons";
-import { digimonDataVer2, V2_SPRITE_BASE } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
 import { translateStage } from "../utils/stageTranslator";
 import { getTamerName } from "../utils/tamerNameUtils";
 import { getArenaBattleReplay } from "../utils/logArchiveApi";
+import {
+  getDigimonDataMapByVersion,
+  getDigimonEntryByVersion,
+  findDigimonEntryAcrossVersions,
+  getSpriteBasePathByVersion,
+  isStarterDigimonId,
+} from "../utils/digimonVersionUtils";
+import { formatTimestamp, toEpochMs } from "../utils/time";
 import "../styles/Battle.css";
 
 const MAX_ENTRIES = 3;
@@ -36,6 +42,30 @@ function normalizeArenaInteger(value, fallback = 0) {
 
 function normalizeArenaString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function toArenaTimestamp(value) {
+  return toEpochMs(value) || 0;
+}
+
+function getArenaDigimonData(digimonId, slotVersion = null) {
+  if (!digimonId) {
+    return null;
+  }
+
+  if (slotVersion) {
+    return (
+      getDigimonEntryByVersion(slotVersion, digimonId) ||
+      findDigimonEntryAcrossVersions(digimonId, slotVersion) ||
+      null
+    );
+  }
+
+  return findDigimonEntryAcrossVersions(digimonId) || null;
+}
+
+function getArenaDigimonName(digimonId, slotVersion = null, fallbackName = "Unknown") {
+  return getArenaDigimonData(digimonId, slotVersion)?.name || digimonId || fallbackName;
 }
 
 export function normalizeArenaLeaderboardEntry(entry = {}, fallbackSeasonId = CURRENT_SEASON_ID) {
@@ -254,8 +284,8 @@ export default function ArenaScreen({
         digimonNicknameData = digimonNickname || null;
       }
       
-      if (digimonName && digimonName !== "Digitama") {
-        const digimonData = digimonDataVer1[digimonName] || digimonDataVer2[digimonName];
+      if (digimonName && !isStarterDigimonId(digimonName)) {
+        const digimonData = getArenaDigimonData(digimonName);
         
         if (digimonData) {
           setCurrentDigimonInfo({
@@ -401,8 +431,8 @@ export default function ArenaScreen({
       
       // createdAt 기준으로 정렬 (최신순)
       entries.sort((a, b) => {
-        const aTime = a.createdAt?.toDate?.() || new Date(0);
-        const bTime = b.createdAt?.toDate?.() || new Date(0);
+        const aTime = toArenaTimestamp(a.createdAt);
+        const bTime = toArenaTimestamp(b.createdAt);
         return bTime - aTime;
       });
       
@@ -522,8 +552,8 @@ export default function ArenaScreen({
       
       // timestamp 기준으로 정렬 (최신순)
       uniqueLogs.sort((a, b) => {
-        const aTime = a.timestamp?.toDate?.() || new Date(0);
-        const bTime = b.timestamp?.toDate?.() || new Date(0);
+        const aTime = toArenaTimestamp(a.timestamp);
+        const bTime = toArenaTimestamp(b.timestamp);
         return bTime - aTime;
       });
       
@@ -786,9 +816,9 @@ export default function ArenaScreen({
     }
   };
 
-  // 슬롯 버전에 맞는 디지몬 데이터 반환 (Ver.2 / Ver.1)
+  // 슬롯 버전에 맞는 디지몬 데이터 반환
   const getDigimonDataForSlot = (digimonId, slotVersion) =>
-    slotVersion === "Ver.2" ? (digimonDataVer2[digimonId] || {}) : (digimonDataVer1[digimonId] || {});
+    getDigimonDataMapByVersion(slotVersion)?.[digimonId] || {};
 
   // 디지몬 스냅샷 생성 (Deep Copy)
   const createDigimonSnapshot = (slot) => {
@@ -942,21 +972,10 @@ export default function ArenaScreen({
 
   // 시간 경과 계산
   const getTimeAgo = (timestamp) => {
-    if (!timestamp) return "알 수 없음";
-    
-    let date;
-    if (timestamp.toDate) {
-      date = timestamp.toDate();
-    } else if (timestamp.seconds) {
-      date = new Date(timestamp.seconds * 1000);
-    } else if (timestamp.toMillis) {
-      date = new Date(timestamp.toMillis());
-    } else {
-      date = new Date(timestamp);
-    }
-    
-    const now = new Date();
-    const diff = now - date;
+    const timestampMs = toEpochMs(timestamp);
+    if (timestampMs == null) return "알 수 없음";
+
+    const diff = Date.now() - timestampMs;
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
@@ -1180,7 +1199,7 @@ export default function ArenaScreen({
                   <div onClick={() => handleEntryClick(entry, true)} className="cursor-pointer">
                     <div className="flex justify-center mb-2">
                       <img
-                        src={`${entry.digimonSnapshot?.spriteBasePath || (entry.digimonSnapshot?.slotVersion === "Ver.2" ? V2_SPRITE_BASE : "/images")}/${entry.digimonSnapshot?.sprite ?? 0}.png`}
+                        src={`${entry.digimonSnapshot?.spriteBasePath || getSpriteBasePathByVersion(entry.digimonSnapshot?.slotVersion)}/${entry.digimonSnapshot?.sprite ?? 0}.png`}
                         alt={entry.digimonSnapshot?.digimonName || "Unknown"}
                         className="w-24 h-24"
                         style={{ imageRendering: "pixelated" }}
@@ -1188,7 +1207,15 @@ export default function ArenaScreen({
                     </div>
                     <p className="font-bold text-center text-sm mb-1">
                       {(() => {
-                        const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || "Unknown";
+                        const digimonId =
+                          entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName;
+                        const digimonName =
+                          getDigimonEntryByVersion(
+                            entry.digimonSnapshot?.slotVersion,
+                            digimonId
+                          )?.name ||
+                          entry.digimonSnapshot?.digimonName ||
+                          "Unknown";
                         const digimonNickname = entry.digimonSnapshot?.digimonNickname;
                         const displayName = digimonNickname && digimonNickname.trim()
                           ? `${digimonNickname}(${digimonName})`
@@ -1395,7 +1422,11 @@ export default function ArenaScreen({
                       }`}
                     >
                       {(() => {
-                        const digimonName = digimonDataVer1[entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName]?.name || entry.digimonSnapshot?.digimonName || 'Unknown';
+                        const digimonName = getArenaDigimonName(
+                          entry.digimonSnapshot?.digimonId || entry.digimonSnapshot?.digimonName,
+                          entry.digimonSnapshot?.slotVersion,
+                          entry.digimonSnapshot?.digimonName || "Unknown"
+                        );
                         const digimonNickname = entry.digimonSnapshot?.digimonNickname;
                         const displayName = digimonNickname && digimonNickname.trim()
                           ? `${digimonNickname}(${digimonName})`
@@ -1422,44 +1453,9 @@ export default function ArenaScreen({
                     ? log.winnerId === currentUser?.uid  // 공격 기록: 내가 이겼으면 승리
                     : log.winnerId === currentUser?.uid; // 방어 기록: 내가 이겼으면 승리
                   
-                  let timestamp = null;
-                  if (log.timestamp) {
-                    if (log.timestamp.toDate) {
-                      timestamp = log.timestamp.toDate();
-                    } else if (log.timestamp.seconds) {
-                      timestamp = new Date(log.timestamp.seconds * 1000);
-                    } else if (log.timestamp.toMillis) {
-                      timestamp = new Date(log.timestamp.toMillis());
-                    }
-                  }
-                  const timeAgo = timestamp ? getTimeAgo(log.timestamp) : "알 수 없음";
-                  
-                  // 실제 시간 포맷팅 (예: 2026.01.04 오후 12:49)
-                  const formatDateTime = (timestamp) => {
-                    if (!timestamp) return "";
-                    let date;
-                    if (timestamp.toDate) {
-                      date = timestamp.toDate();
-                    } else if (timestamp.seconds) {
-                      date = new Date(timestamp.seconds * 1000);
-                    } else if (timestamp.toMillis) {
-                      date = new Date(timestamp.toMillis());
-                    } else {
-                      return "";
-                    }
-                    
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, '0');
-                    const day = String(date.getDate()).padStart(2, '0');
-                    const hours = date.getHours();
-                    const minutes = String(date.getMinutes()).padStart(2, '0');
-                    const ampm = hours >= 12 ? '오후' : '오전';
-                    const displayHours = hours % 12 || 12;
-                    
-                    return `${year}.${month}.${day} ${ampm} ${displayHours}:${minutes}`;
-                  };
-                  
-                  const dateTime = formatDateTime(log.timestamp);
+                  const timestamp = toEpochMs(log.timestamp);
+                  const timeAgo = timestamp != null ? getTimeAgo(timestamp) : "알 수 없음";
+                  const dateTime = timestamp != null ? formatTimestamp(timestamp, "long") : "";
 
                   // 공격 기록인 경우: 내 엔트리 정보 찾기
                   // 방어 기록인 경우: 방어한 디지몬 정보 찾기
@@ -1473,13 +1469,17 @@ export default function ArenaScreen({
                     if (myAttackingDigimon) {
                       // 엔트리 존재: 정상 표시
                       const digimonId = myAttackingDigimon?.digimonSnapshot?.digimonId || myAttackingDigimon?.digimonSnapshot?.digimonName;
-                      myDigimonName = digimonDataVer1[digimonId]?.name || myAttackingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                      myDigimonName = getArenaDigimonName(
+                        digimonId,
+                        myAttackingDigimon?.digimonSnapshot?.slotVersion,
+                        myAttackingDigimon?.digimonSnapshot?.digimonName || "Unknown Digimon"
+                      );
                       mySlotId = myAttackingDigimon?.digimonSnapshot?.slotId || null;
                     } else {
                       // 엔트리 삭제됨: 배틀 로그에서 정보 가져오기
                       isDeleted = true;
                       const digimonId = log.attackerDigimonName;
-                      myDigimonName = digimonDataVer1[digimonId]?.name || digimonId || 'Unknown Digimon';
+                      myDigimonName = getArenaDigimonName(digimonId, null, "Unknown Digimon");
                       // 슬롯 정보는 로그에 없으므로 null 유지
                     }
                   } else {
@@ -1488,13 +1488,17 @@ export default function ArenaScreen({
                     if (myDefendingDigimon) {
                       // 엔트리 존재: 정상 표시
                       const digimonId = myDefendingDigimon?.digimonSnapshot?.digimonId || myDefendingDigimon?.digimonSnapshot?.digimonName;
-                      myDigimonName = digimonDataVer1[digimonId]?.name || myDefendingDigimon?.digimonSnapshot?.digimonName || 'Unknown Digimon';
+                      myDigimonName = getArenaDigimonName(
+                        digimonId,
+                        myDefendingDigimon?.digimonSnapshot?.slotVersion,
+                        myDefendingDigimon?.digimonSnapshot?.digimonName || "Unknown Digimon"
+                      );
                       mySlotId = myDefendingDigimon?.digimonSnapshot?.slotId || null;
                     } else {
                       // 엔트리 삭제됨: 배틀 로그에서 정보 가져오기
                       isDeleted = true;
                       const digimonId = log.defenderDigimonName;
-                      myDigimonName = digimonDataVer1[digimonId]?.name || digimonId || 'Unknown Digimon';
+                      myDigimonName = getArenaDigimonName(digimonId, null, "Unknown Digimon");
                       // 슬롯 정보는 로그에 없으므로 null 유지
                     }
                   }
@@ -1525,8 +1529,8 @@ export default function ArenaScreen({
                           </p>
                           <p className="text-sm text-gray-600 mb-2">
                             {log.isAttack 
-                              ? `${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${digimonDataVer1[log.defenderDigimonName]?.name || log.defenderDigimonName}` : ''}`
-                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${digimonDataVer1[log.attackerDigimonName]?.name || log.attackerDigimonName}` : ''} → ${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''}`
+                              ? `${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''} → ${log.defenderName}${log.defenderDigimonName ? `의 ${getArenaDigimonName(log.defenderDigimonName)}` : ''}`
+                              : `${log.attackerName}${log.attackerDigimonName ? `의 ${getArenaDigimonName(log.attackerDigimonName)}` : ''} → ${myDigimonName}${isDeleted ? ' (삭제)' : ''}${mySlotId ? ` (슬롯${mySlotId})` : ''}${isDeleted ? ' *현재는 아레나 등록에서 삭제된 디지몬*' : ''}`
                             }
                           </p>
                           <p className="text-xs text-gray-500 mb-1">
@@ -1676,7 +1680,11 @@ export default function ArenaScreen({
                   const rank = idx + 1;
                   const normalizedEntry = normalizeArenaLeaderboardEntry(entry, currentSeasonId || CURRENT_SEASON_ID);
                   const { wins, losses, winRate } = getLeaderboardStats(normalizedEntry, leaderboardMode);
-                  const digimonName = digimonDataVer1[normalizedEntry.digimonSnapshot?.digimonId || normalizedEntry.digimonSnapshot?.digimonName]?.name || normalizedEntry.digimonSnapshot?.digimonName || 'Unknown';
+                  const digimonName = getArenaDigimonName(
+                    normalizedEntry.digimonSnapshot?.digimonId || normalizedEntry.digimonSnapshot?.digimonName,
+                    normalizedEntry.digimonSnapshot?.slotVersion,
+                    normalizedEntry.digimonSnapshot?.digimonName || "Unknown"
+                  );
                   const digimonNickname = normalizedEntry.digimonSnapshot?.digimonNickname;
                   const displayName = digimonNickname && digimonNickname.trim()
                     ? `${digimonNickname}(${digimonName})`
@@ -1732,8 +1740,9 @@ export default function ArenaScreen({
               ) : (
                 <div className="grid grid-cols-2 gap-4">
                   {availableSlots.map((slot) => {
-                    const digimonData = (slot.version === "Ver.2" ? digimonDataVer2[slot.selectedDigimon] : digimonDataVer1[slot.selectedDigimon]) || {};
-                    const spriteBasePath = digimonData.spriteBasePath || "/images";
+                    const digimonData = getDigimonDataForSlot(slot.selectedDigimon, slot.version);
+                    const spriteBasePath =
+                      digimonData.spriteBasePath || getSpriteBasePathByVersion(slot.version);
                     const spriteNum = digimonData.sprite ?? 0;
                     const power = slot.digimonStats?.power 
                       || calculatePower(slot.digimonStats || {}, digimonData) 
@@ -1835,7 +1844,7 @@ export default function ArenaScreen({
               <h3 className="text-xl font-bold mb-4">상세 정보</h3>
               <div className="flex justify-center mb-4">
                 <img
-                  src={`${selectedEntry.isMyEntry ? (selectedEntry.digimonSnapshot?.spriteBasePath || (selectedEntry.digimonSnapshot?.slotVersion === "Ver.2" ? V2_SPRITE_BASE : "/images")) : "/images"}/${selectedEntry.isMyEntry 
+                  src={`${selectedEntry.isMyEntry ? (selectedEntry.digimonSnapshot?.spriteBasePath || getSpriteBasePathByVersion(selectedEntry.digimonSnapshot?.slotVersion)) : "/images"}/${selectedEntry.isMyEntry 
                     ? (selectedEntry.digimonSnapshot?.sprite ?? 0)
                     : 0
                   }.png`}
@@ -1847,7 +1856,11 @@ export default function ArenaScreen({
               <p className="font-bold text-center mb-2">
                 {selectedEntry.isMyEntry
                   ? (() => {
-                      const digimonName = digimonDataVer1[selectedEntry.digimonSnapshot?.digimonId || selectedEntry.digimonSnapshot?.digimonName]?.name || selectedEntry.digimonSnapshot?.digimonName || "Unknown";
+                      const digimonName = getArenaDigimonName(
+                        selectedEntry.digimonSnapshot?.digimonId || selectedEntry.digimonSnapshot?.digimonName,
+                        selectedEntry.digimonSnapshot?.slotVersion,
+                        selectedEntry.digimonSnapshot?.digimonName || "Unknown"
+                      );
                       const digimonNickname = selectedEntry.digimonSnapshot?.digimonNickname;
                       return digimonNickname && digimonNickname.trim()
                         ? `${digimonNickname}(${digimonName})`

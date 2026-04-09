@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { digimonDataVer1 } from "../../data/v1/digimons";
-import { digimonDataVer2 } from "../../data/v2modkor";
 import {
   addMissingEncyclopediaEntries,
   loadEncyclopedia,
-  saveEncyclopedia,
 } from "../../hooks/useEncyclopedia";
+import { getRequiredDigimonIds } from "../../logic/encyclopediaMaster";
 import { translateStage } from "../../utils/stageTranslator";
+import {
+  SUPPORTED_DIGIMON_VERSIONS,
+  getDigimonDataMapByVersion,
+  getDigimonVersionByDigimonId,
+} from "../../utils/digimonVersionUtils";
 import EncyclopediaDetailModal from "../EncyclopediaDetailModal";
 import "../../styles/Battle.css";
 
@@ -23,26 +26,9 @@ function getEncyclopediaEntry(versionData, digimonKey) {
 }
 
 function getDigimonList(version) {
-  const dataMap = version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+  const dataMap = getDigimonDataMapByVersion(version);
 
-  return Object.keys(dataMap)
-    .filter((key) => {
-      const digimon = dataMap[key];
-
-      if (!digimon || digimon.stage === "Ohakadamon") {
-        return false;
-      }
-
-      if (version === "Ver.1" && key === "CresGarurumon") {
-        return false;
-      }
-
-      if (version === "Ver.2" && key === "BlitzGreymonV2") {
-        return false;
-      }
-
-      return true;
-    })
+  return getRequiredDigimonIds(version)
     .map((key) => ({
       listKey: key,
       id: key,
@@ -77,7 +63,9 @@ function EncyclopediaPanel({
   encyclopediaShowQuestionMark = true,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
-  const [encyclopedia, setEncyclopedia] = useState({ "Ver.1": {} });
+  const [encyclopedia, setEncyclopedia] = useState(() =>
+    Object.fromEntries(SUPPORTED_DIGIMON_VERSIONS.map((version) => [version, {}]))
+  );
   const [selectedVersion, setSelectedVersion] = useState("Ver.1");
   const [selectedDigimon, setSelectedDigimon] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,9 +96,10 @@ function EncyclopediaPanel({
     };
   }, [currentUser]);
 
-  const listVer1 = getDigimonList("Ver.1");
-  const listVer2 = getDigimonList("Ver.2");
-  const digimonList = selectedVersion === "Ver.2" ? listVer2 : listVer1;
+  const versionLists = Object.fromEntries(
+    SUPPORTED_DIGIMON_VERSIONS.map((version) => [version, getDigimonList(version)])
+  );
+  const digimonList = versionLists[selectedVersion] || [];
   const versionData = encyclopedia[selectedVersion] || {};
 
   const isVersionComplete = (list, data) =>
@@ -131,48 +120,24 @@ function EncyclopediaPanel({
     setFixingMessage("처리 중...");
 
     try {
-      const fromV2 = digimonDataVer2[currentDigimonId];
-      const fromV1 = digimonDataVer1[currentDigimonId];
-      const digimonData = fromV2 ?? fromV1;
-      const digimonVersion = fromV2 ? "Ver.2" : fromV1 ? "Ver.1" : null;
+      const digimonVersion = getDigimonVersionByDigimonId(currentDigimonId);
+      const digimonData = getDigimonDataMapByVersion(digimonVersion)?.[currentDigimonId];
+      const { added, skipped } = await addMissingEncyclopediaEntries(
+        currentUser,
+        [currentDigimonId],
+        digimonVersion
+      );
+      const data = await loadEncyclopedia(currentUser);
+      setEncyclopedia(data);
 
-      if (digimonVersion === "Ver.2") {
-        const data = await loadEncyclopedia(currentUser);
-        if (!data["Ver.2"]) {
-          data["Ver.2"] = {};
-        }
-
-        if (!data["Ver.2"][currentDigimonId]?.isDiscovered) {
-          data["Ver.2"][currentDigimonId] = {
-            isDiscovered: true,
-            firstDiscoveredAt: Date.now(),
-            raisedCount: 1,
-            lastRaisedAt: Date.now(),
-            bestStats: {},
-            history: [],
-          };
-          await saveEncyclopedia(data, currentUser);
-          setEncyclopedia(data);
-          setFixingMessage(`도감(Ver.2)에 ${digimonData?.name || currentDigimonId} 반영되었습니다.`);
-        } else {
-          setFixingMessage("이미 도감(Ver.2)에 등록되어 있습니다.");
-        }
+      if (added.length > 0) {
+        setFixingMessage(
+          `도감(${digimonVersion})에 ${digimonData?.name || currentDigimonId} 반영되었습니다.`
+        );
+      } else if (skipped.length > 0) {
+        setFixingMessage(`이미 도감(${digimonVersion})에 등록되어 있습니다.`);
       } else {
-        const { added, skipped } = await addMissingEncyclopediaEntries(currentUser, [
-          currentDigimonId,
-        ]);
-        const data = await loadEncyclopedia(currentUser);
-        setEncyclopedia(data);
-
-        if (added.length > 0) {
-          setFixingMessage(
-            `도감(Ver.1)에 ${digimonDataVer1[currentDigimonId]?.name || currentDigimonId} 반영되었습니다.`
-          );
-        } else if (skipped.length > 0) {
-          setFixingMessage("이미 도감에 등록되어 있습니다.");
-        } else {
-          setFixingMessage("반영할 항목이 없습니다.");
-        }
+        setFixingMessage("반영할 항목이 없습니다.");
       }
     } catch (error) {
       setFixingMessage(`보정 실패: ${error.message || "알 수 없는 오류"}`);
@@ -194,30 +159,21 @@ function EncyclopediaPanel({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setSelectedVersion("Ver.1")}
-          className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
-            selectedVersion === "Ver.1"
-              ? "bg-emerald-700 text-white"
-              : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-          }`}
-        >
-          {isVersionComplete(listVer1, encyclopedia["Ver.1"] || {}) ? "👑 " : ""}
-          Ver.1
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedVersion("Ver.2")}
-          className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
-            selectedVersion === "Ver.2"
-              ? "bg-emerald-700 text-white"
-              : "bg-slate-200 text-slate-700 hover:bg-slate-300"
-          }`}
-        >
-          {isVersionComplete(listVer2, encyclopedia["Ver.2"] || {}) ? "👑 " : ""}
-          Ver.2
-        </button>
+        {SUPPORTED_DIGIMON_VERSIONS.map((version) => (
+          <button
+            key={version}
+            type="button"
+            onClick={() => setSelectedVersion(version)}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+              selectedVersion === version
+                ? "bg-emerald-700 text-white"
+                : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+            }`}
+          >
+            {isVersionComplete(versionLists[version] || [], encyclopedia[version] || {}) ? "👑 " : ""}
+            {version}
+          </button>
+        ))}
       </div>
 
       <div className="rounded-[1.5rem] border border-slate-200 bg-white/70 p-4">
@@ -302,11 +258,7 @@ function EncyclopediaPanel({
       {selectedDigimon ? (
         <EncyclopediaDetailModal
           digimonName={selectedDigimon}
-          digimonData={
-            selectedVersion === "Ver.2"
-              ? digimonDataVer2[selectedDigimon]
-              : digimonDataVer1[selectedDigimon]
-          }
+          digimonData={getDigimonDataMapByVersion(selectedVersion)?.[selectedDigimon]}
           encyclopediaData={getEncyclopediaEntry(versionData, selectedDigimon)}
           onClose={() => setSelectedDigimon(null)}
         />

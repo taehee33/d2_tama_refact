@@ -1,11 +1,9 @@
-import { digimonDataVer1 } from "../data/v1/digimons";
-import { digimonDataVer2 } from "../data/v2modkor";
 import { getRequiredDigimonIds } from "../logic/encyclopediaMaster";
+import { SUPPORTED_DIGIMON_VERSIONS } from "./digimonVersionUtils";
 
-const VERSION_DEFINITIONS = [
-  { version: "Ver.1", dataMap: digimonDataVer1 },
-  { version: "Ver.2", dataMap: digimonDataVer2 },
-];
+const VERSION_DEFINITIONS = SUPPORTED_DIGIMON_VERSIONS.map((version) => ({
+  version,
+}));
 
 function getEncyclopediaEntry(versionData, digimonId) {
   if (!versionData || !digimonId) {
@@ -22,11 +20,7 @@ function getEncyclopediaEntry(versionData, digimonId) {
 }
 
 export function buildEncyclopediaVersionSummary(version, encyclopedia = {}) {
-  const requiredIds = getRequiredDigimonIds(
-    digimonDataVer1,
-    digimonDataVer2,
-    version
-  );
+  const requiredIds = getRequiredDigimonIds(version);
   const versionData = encyclopedia[version] || {};
   const discoveredCount = requiredIds.filter(
     (digimonId) => getEncyclopediaEntry(versionData, digimonId)?.isDiscovered === true
@@ -58,4 +52,3 @@ export function buildEncyclopediaSummary(encyclopedia = {}) {
     ),
   };
 }
-

@@ -17,4 +17,41 @@ describe("DigimonGuidePanel", () => {
     expect(screen.getByText(hasListText("케어·도구: 화장실, 조명, 치료, 호출, 더보기"))).toBeInTheDocument();
     expect(screen.getByText(hasListText("더보기: 기록(활동 로그, 배틀 기록)"))).toBeInTheDocument();
   });
+
+  test("Ver.3 조그레스는 Ver.4/Ver.5 데이터가 추가되면 로컬 지원 문구로 표시한다", () => {
+    render(
+      <DigimonGuidePanel
+        initialView="EVOLUTION"
+        slotVersion="Ver.3"
+        currentDigimonName="BanchoLeomon"
+        currentDigimonData={{
+          name: "반쵸레오몬",
+          evolutions: [
+            {
+              targetId: "Chaosmon",
+              targetName: "카오스몬",
+              jogress: {
+                partner: "Darkdramon",
+                partnerName: "다크드라몬",
+                partnerVersion: "Ver.4",
+              },
+            },
+          ],
+        }}
+        currentStats={{}}
+        digimonDataMap={{
+          Chaosmon: {
+            name: "카오스몬",
+          },
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        "현재 앱에서 로컬 조그레스로 진행할 수 있습니다. 온라인 조그레스는 Ver.1/Ver.2만 지원합니다."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText("파트너: 다크드라몬 Ver.4")).toBeInTheDocument();
+  });
 });

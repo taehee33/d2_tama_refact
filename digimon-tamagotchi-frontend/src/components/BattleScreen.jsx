@@ -10,9 +10,100 @@ import { digimonDataVer2 } from "../data/v2modkor";
 import { getQuestArea } from "../data/v1/quests";
 import { getQuestAreaVer2 } from "../data/v2modkor/quests";
 import { calculatePower } from "../logic/battle/hitrate";
+import {
+  findDigimonEntryAcrossVersions,
+  getDigimonDataMapByVersion,
+} from "../utils/digimonVersionUtils";
 import "../styles/Battle.css";
 
 // 타격 이펙트는 이제 텍스트로 표시되므로 스프라이트 경로는 더 이상 필요 없음
+
+export function getDigimonDataByVersionFallback(
+  digimonId,
+  slotVersion = "Ver.1",
+  {
+    getDigimonDataMap = getDigimonDataMapByVersion,
+    fallbackV1Map = newDigimonDataVer1,
+    fallbackV2Map = digimonDataVer2,
+  } = {}
+) {
+  if (!digimonId) {
+    return null;
+  }
+
+  const versionMap = getDigimonDataMap(slotVersion);
+  return (
+    versionMap?.[digimonId] ||
+    findDigimonEntryAcrossVersions(digimonId, slotVersion) ||
+    fallbackV1Map?.[digimonId] ||
+    fallbackV2Map?.[digimonId] ||
+    null
+  );
+}
+
+export function buildArenaEnemyBattleData(
+  arenaChallenger,
+  options = {}
+) {
+  const snapshot = arenaChallenger?.digimonSnapshot || {};
+  const digimonId =
+    snapshot.digimonId ||
+    snapshot.digimonName ||
+    arenaChallenger?.digimonId ||
+    arenaChallenger?.digimonName ||
+    "Unknown";
+  const slotVersion = snapshot.slotVersion || arenaChallenger?.slotVersion || "Ver.1";
+  const enemyDigimonData =
+    getDigimonDataByVersionFallback(digimonId, slotVersion, options) || {
+      id: digimonId,
+      name: snapshot.digimonName || digimonId,
+      sprite: snapshot.sprite ?? 0,
+      spriteBasePath: snapshot.spriteBasePath || null,
+      stats: {
+        ...(snapshot.stats || {}),
+        attackSprite:
+          snapshot.attackSprite ??
+          snapshot.stats?.attackSprite ??
+          snapshot.sprite ??
+          0,
+      },
+    };
+  const snapshotPower = snapshot.stats?.power;
+  const calculatedEnemyPower =
+    snapshotPower !== undefined && snapshotPower !== null && snapshotPower !== 0
+      ? snapshotPower
+      : enemyDigimonData.stats?.basePower || 0;
+
+  return {
+    snapshot,
+    enemyDigimonData,
+    enemyStats: {
+      power: calculatedEnemyPower,
+      type: snapshot.stats?.type ?? enemyDigimonData.stats?.type ?? null,
+    },
+    calculatedEnemyPower,
+  };
+}
+
+export function resolveEnemyProjectileSprite({
+  arenaSnapshot = null,
+  enemyData = null,
+  enemyDigimonData = null,
+  fallbackV1Map = newDigimonDataVer1,
+}) {
+  const fallbackEnemyData =
+    fallbackV1Map?.[enemyData?.digimonId || enemyData?.name] || null;
+
+  return (
+    arenaSnapshot?.attackSprite ??
+    enemyData?.attackSprite ??
+    enemyDigimonData?.stats?.attackSprite ??
+    enemyDigimonData?.sprite ??
+    fallbackEnemyData?.stats?.attackSprite ??
+    fallbackEnemyData?.sprite ??
+    0
+  );
+}
 
 export default function BattleScreen({
   userDigimon,
@@ -83,7 +174,8 @@ export default function BattleScreen({
         const id = sparringEnemySlot.selectedDigimon;
         const fromV1 = newDigimonDataVer1[id];
         const fromV2 = digimonDataVer2[id];
-        const enemyDigimonData = (sparringEnemySlot.version === "Ver.2" ? (fromV2 || fromV1) : (fromV1 || fromV2)) || {
+        const dataMap = getDigimonDataMapByVersion(sparringEnemySlot.version);
+        const enemyDigimonData = dataMap?.[id] || fromV1 || fromV2 || {
           id,
           name: sparringEnemySlot.selectedDigimon,
           stats: {},
@@ -153,32 +245,22 @@ export default function BattleScreen({
         };
       } else if (battleType === 'arena' && arenaChallenger) {
         // Arena 모드: arenaChallenger 데이터 사용
-        const enemyDigimonData = newDigimonDataVer1[arenaChallenger.digimonSnapshot.digimonId] || {
-          id: arenaChallenger.digimonSnapshot.digimonId,
-          name: arenaChallenger.digimonSnapshot.digimonName,
-          stats: arenaChallenger.digimonSnapshot.stats,
-        };
-
-        // Power 계산: snapshot에 power가 있으면 사용, 없으면 basePower 사용
-        const snapshotPower = arenaChallenger.digimonSnapshot.stats?.power;
-        const calculatedEnemyPower = snapshotPower !== undefined && snapshotPower !== null && snapshotPower !== 0
-          ? snapshotPower
-          : enemyDigimonData.stats?.basePower || 0;
+        const {
+          snapshot: snap,
+          enemyDigimonData,
+          enemyStats,
+          calculatedEnemyPower,
+        } = buildArenaEnemyBattleData(arenaChallenger);
 
         // 디버깅: 상대방 Power 값 확인
         console.log("🔍 [BattleScreen] 상대방 Power 디버깅:", {
-          digimonId: arenaChallenger.digimonSnapshot.digimonId,
-          digimonName: arenaChallenger.digimonSnapshot.digimonName,
-          snapshotStats: arenaChallenger.digimonSnapshot.stats,
-          powerFromSnapshot: snapshotPower,
+          digimonId: snap.digimonId,
+          digimonName: snap.digimonName,
+          snapshotStats: snap.stats,
+          powerFromSnapshot: snap.stats?.power,
           basePowerFromData: enemyDigimonData.stats?.basePower,
           finalPower: calculatedEnemyPower,
         });
-
-        const enemyStats = {
-          power: calculatedEnemyPower,
-          type: arenaChallenger.digimonSnapshot.stats?.type || null,
-        };
 
         const userDigimonName = userDigimon.name || userDigimon.id || "Unknown";
         // 유저 디지몬 별명이 있으면 "별명(디지몬명)", 없으면 "디지몬명"
@@ -205,7 +287,6 @@ export default function BattleScreen({
           enemyName
         );
 
-        const snap = arenaChallenger.digimonSnapshot;
         result = {
           win: battleResult.won,
           logs: battleResult.log,
@@ -217,10 +298,11 @@ export default function BattleScreen({
             tamerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
             trainerName: arenaChallenger.tamerName || arenaChallenger.trainerName || 'Unknown',
             sprite: snap?.sprite ?? enemyDigimonData.sprite ?? 0,
-            spriteBasePath: snap?.spriteBasePath || null,
-            attackSprite: snap?.stats?.attackSprite ?? enemyDigimonData.stats?.attackSprite ?? enemyDigimonData.sprite ?? 0,
+            spriteBasePath: snap?.spriteBasePath || enemyDigimonData?.spriteBasePath || null,
+            attackSprite: snap?.attackSprite ?? enemyDigimonData.stats?.attackSprite ?? enemyDigimonData.sprite ?? 0,
             digimonId: enemyDigimonData.id || snap?.digimonId,
             digimonNickname: snap?.digimonNickname || null,
+            slotVersion: snap?.slotVersion || arenaChallenger?.slotVersion || "Ver.1",
           },
           isAreaClear: false,
           reward: null,
@@ -255,6 +337,41 @@ export default function BattleScreen({
   // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
     if (!enemyData) return null;
+    if (battleType === "arena") {
+      const slotVersion =
+        arenaChallenger?.digimonSnapshot?.slotVersion ||
+        enemyData.slotVersion ||
+        "Ver.1";
+      const digimonId = enemyData?.digimonId || enemyData?.name;
+      return (
+        getDigimonDataByVersionFallback(digimonId, slotVersion) || {
+          id: digimonId,
+          name: enemyData?.name || digimonId,
+          sprite: enemyData?.sprite ?? 0,
+          spriteBasePath: enemyData?.spriteBasePath || null,
+          stats: {
+            basePower: enemyData?.power || 0,
+            type:
+              enemyData?.attribute ||
+              arenaChallenger?.digimonSnapshot?.stats?.type ||
+              null,
+            attackSprite:
+              enemyData?.attackSprite ||
+              arenaChallenger?.digimonSnapshot?.attackSprite ||
+              enemyData?.sprite ||
+              0,
+          },
+        }
+      );
+    }
+    if (battleType === "sparring" && sparringEnemySlot) {
+      const digimonId =
+        enemyData?.digimonId || sparringEnemySlot.selectedDigimon || enemyData?.name;
+      return (
+        getDigimonDataByVersionFallback(digimonId, sparringEnemySlot.version || "Ver.1") ||
+        null
+      );
+    }
     const isVer2 = questVersion === "Ver.2";
     const getArea = isVer2 ? getQuestAreaVer2 : getQuestArea;
     const digimonData = isVer2 ? digimonDataVer2 : newDigimonDataVer1;
@@ -267,7 +384,10 @@ export default function BattleScreen({
   };
 
   const enemyDigimonData = getEnemyDigimonData();
-  const userDigimonData = newDigimonDataVer1[userDigimon.id || userDigimon.name] || userDigimon;
+  const userDigimonData =
+    userDigimon?.stats
+      ? userDigimon
+      : newDigimonDataVer1[userDigimon.id || userDigimon.name] || userDigimon;
 
   // 속성 정보 가져오기
   const userAttribute = userDigimonData?.stats?.type || userStats.type || null;
@@ -328,9 +448,11 @@ export default function BattleScreen({
           const attackSprite = userDigimonData?.stats?.attackSprite || userDigimonData?.sprite || 0;
           setProjectile({ type: "user", sprite: attackSprite });
         } else {
-          // 적 공격 발사체: 항상 Ver.1 공격 스프라이트 사용 (/images/ 경로와 호환)
-          const enemyV1Data = newDigimonDataVer1[enemyData?.digimonId || enemyData?.name];
-          const attackSprite = enemyV1Data?.stats?.attackSprite ?? enemyV1Data?.sprite ?? enemyDigimonData?.stats?.attackSprite ?? enemyDigimonData?.sprite ?? 0;
+          const attackSprite = resolveEnemyProjectileSprite({
+            arenaSnapshot: battleType === "arena" ? arenaChallenger?.digimonSnapshot : null,
+            enemyData,
+            enemyDigimonData,
+          });
           setProjectile({ type: "enemy", sprite: attackSprite });
         }
 

@@ -25,9 +25,15 @@ import {
   getMasterDataVersionKey,
   normalizeMasterDataOverrides,
 } from "../utils/masterDataUtils";
+import { SUPPORTED_MASTER_DATA_VERSION_KEYS } from "../utils/digimonVersionUtils";
 
 const MasterDataContext = createContext(null);
-const EMPTY_OVERRIDES = Object.freeze({ ver1: {}, ver2: {} });
+const EMPTY_OVERRIDES = Object.freeze(
+  SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce((acc, versionKey) => {
+    acc[versionKey] = {};
+    return acc;
+  }, {})
+);
 const SNAPSHOT_LIMIT = 30;
 
 function buildActor(currentUser) {
@@ -43,6 +49,14 @@ function buildActor(currentUser) {
 }
 
 function buildEmptyMeta() {
+  const emptyChangeSummary = SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce(
+    (acc, versionKey) => {
+      acc[versionKey] = [];
+      return acc;
+    },
+    {}
+  );
+
   return {
     activeSnapshotId: null,
     updatedAt: null,
@@ -50,7 +64,7 @@ function buildEmptyMeta() {
     latestActionType: null,
     latestActionLabel: null,
     latestNote: null,
-    changeSummary: { ver1: [], ver2: [], totalCount: 0 },
+    changeSummary: { ...emptyChangeSummary, totalCount: 0 },
   };
 }
 
@@ -127,7 +141,7 @@ export function MasterDataProvider({ children }) {
           ? formatSnapshotAction(activeData.latestActionType)
           : null,
         latestNote: activeData.latestNote || null,
-        changeSummary: activeData.changeSummary || { ver1: [], ver2: [], totalCount: 0 },
+        changeSummary: activeData.changeSummary || buildEmptyMeta().changeSummary,
       };
 
       const snapshots = snapshotsSnapshot.docs.map((entry) => ({
@@ -199,8 +213,10 @@ export function MasterDataProvider({ children }) {
     batch.set(
       activeRef,
       {
-        ver1Overrides: normalizedAfter.ver1,
-        ver2Overrides: normalizedAfter.ver2,
+        ...SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce((acc, versionKey) => {
+          acc[`${versionKey}Overrides`] = normalizedAfter[versionKey] || {};
+          return acc;
+        }, {}),
         activeSnapshotId: snapshotRef.id,
         updatedAt: serverTimestamp(),
         updatedBy: actor,
