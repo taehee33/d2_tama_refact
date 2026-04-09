@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 function ImmersiveGameTopBar({
   isMobile = false,
+  isCollapsed = false,
   layoutMode = "portrait",
   isChatOpen = false,
   unreadCount = 0,
@@ -9,6 +10,7 @@ function ImmersiveGameTopBar({
   showLandscapeSideToggle = false,
   landscapeSidePreference = "auto",
   effectiveLandscapeSide = "right",
+  onToggleCollapsed,
   onChangeLayoutMode,
   onToggleChat,
   onCycleLandscapeSide,
@@ -16,6 +18,30 @@ function ImmersiveGameTopBar({
   onOpenBaseView,
   onOpenPlayHub,
 }) {
+  useEffect(() => {
+    if (!isMobile || isCollapsed) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onToggleCollapsed?.(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCollapsed, isMobile, onToggleCollapsed]);
+
+  const runMobileAction = (callback, ...args) => {
+    if (isMobile && !isCollapsed) {
+      onToggleCollapsed?.(true);
+    }
+    callback?.(...args);
+  };
+
   const layoutToggle = (
     <div
       className="game-immersive-nav__layout-toggle"
@@ -24,7 +50,7 @@ function ImmersiveGameTopBar({
     >
       <button
         type="button"
-        onClick={() => onChangeLayoutMode?.("portrait")}
+        onClick={() => runMobileAction(onChangeLayoutMode, "portrait")}
         className={`game-immersive-nav__chip ${
           layoutMode === "portrait" ? "game-immersive-nav__chip--active" : ""
         }`}
@@ -34,7 +60,7 @@ function ImmersiveGameTopBar({
       </button>
       <button
         type="button"
-        onClick={() => onChangeLayoutMode?.("landscape")}
+        onClick={() => runMobileAction(onChangeLayoutMode, "landscape")}
         className={`game-immersive-nav__chip ${
           layoutMode === "landscape" ? "game-immersive-nav__chip--active" : ""
         }`}
@@ -48,7 +74,7 @@ function ImmersiveGameTopBar({
   const skinButton = (
     <button
       type="button"
-      onClick={onToggleSkinPicker}
+      onClick={() => runMobileAction(onToggleSkinPicker)}
       className="game-immersive-nav__button game-immersive-nav__button--secondary"
     >
       스킨 변경
@@ -59,7 +85,7 @@ function ImmersiveGameTopBar({
   const chatButton = (
     <button
       type="button"
-      onClick={onToggleChat}
+      onClick={() => runMobileAction(onToggleChat)}
       className={`game-immersive-nav__button game-immersive-nav__button--chat ${
         isChatOpen ? "game-immersive-nav__button--chat-active" : ""
       }`.trim()}
@@ -86,7 +112,7 @@ function ImmersiveGameTopBar({
   const landscapeSideButton = showLandscapeSideToggle ? (
     <button
       type="button"
-      onClick={onCycleLandscapeSide}
+      onClick={() => runMobileAction(onCycleLandscapeSide)}
       className="game-immersive-nav__button game-immersive-nav__button--secondary"
       aria-label="가로 방향 전환"
     >
@@ -96,38 +122,75 @@ function ImmersiveGameTopBar({
 
   if (isMobile) {
     return (
-      <div className="game-immersive-nav game-immersive-nav--mobile">
-        <div className="game-immersive-nav__inner">
-          <div className="game-immersive-nav__actions">
-            <button
-              type="button"
-              onClick={onOpenPlayHub}
-              className="game-immersive-nav__button game-immersive-nav__button--primary"
-            >
-              플레이 허브
-            </button>
-            <button
-              type="button"
-              onClick={onOpenBaseView}
-              className="game-immersive-nav__button game-immersive-nav__button--secondary"
-            >
-              기본 화면
-            </button>
-          </div>
-          <div className="game-immersive-nav__badge">몰입형 플레이</div>
-        </div>
-        <div className="game-immersive-nav__tools">
-          {layoutToggle}
-          {landscapeSideButton}
-          {chatButton}
-          {skinButton}
+      <div
+        className="game-immersive-nav game-immersive-nav--mobile"
+        data-testid="immersive-game-topbar"
+      >
+        {!isCollapsed ? (
+          <div
+            className="game-immersive-nav__mobile-backdrop"
+            onClick={() => onToggleCollapsed?.(true)}
+            aria-hidden="true"
+          />
+        ) : null}
+        <div className="game-immersive-nav__mobile-anchor">
+          <button
+            type="button"
+            className={`game-immersive-nav__fab ${
+              isCollapsed ? "" : "game-immersive-nav__fab--active"
+            }`.trim()}
+            onClick={() => onToggleCollapsed?.()}
+            aria-label={isCollapsed ? "메뉴 열기" : "메뉴 닫기"}
+            aria-expanded={!isCollapsed}
+          >
+            <span className="game-immersive-nav__fab-icon" aria-hidden="true">
+              {isCollapsed ? "☰" : "×"}
+            </span>
+            {unreadCount > 0 ? (
+              <span className="game-immersive-nav__fab-badge">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            ) : null}
+          </button>
+
+          {!isCollapsed ? (
+            <div className="game-immersive-nav__mobile-panel">
+              <div className="game-immersive-nav__inner">
+                <div className="game-immersive-nav__actions">
+                  <button
+                    type="button"
+                    onClick={() => runMobileAction(onOpenPlayHub)}
+                    className="game-immersive-nav__button game-immersive-nav__button--primary"
+                  >
+                    플레이 허브
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => runMobileAction(onOpenBaseView)}
+                    className="game-immersive-nav__button game-immersive-nav__button--secondary"
+                  >
+                    기본 화면
+                  </button>
+                </div>
+              </div>
+              <div className="game-immersive-nav__tools">
+                {layoutToggle}
+                {landscapeSideButton}
+                {chatButton}
+                {skinButton}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="game-immersive-nav game-immersive-nav--desktop">
+    <div
+      className="game-immersive-nav game-immersive-nav--desktop"
+      data-testid="immersive-game-topbar"
+    >
       <div className="game-immersive-nav__desktop-group">
         <div className="game-immersive-nav__actions">
           <button

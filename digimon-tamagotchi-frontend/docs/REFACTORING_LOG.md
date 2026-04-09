@@ -25,6 +25,23 @@
 - 이번 변경은 훈련/배틀 규칙이나 진화 밸런스를 바꾸는 작업이 아니라, 이미 저장된 슬롯 버전과 아레나 snapshot이 가진 메타데이터를 어느 계층에서 우선 해석하느냐의 문제라서 표시/참조 경계만 좁게 보정하는 편이 가장 안전합니다.
 - 어댑터는 아직 런타임 호환 계층으로 필요하지만, `24:00` 같은 데이터 왜곡은 실제 수면 스케줄 계산에 영향을 줄 수 있으므로 제거보다 국소 보정이 유지보수와 운영 안정성 모두에 유리합니다.
 
+### 슬롯 데이터맵 alias 정리로 `ver1` 직접 참조 오해 줄이기
+- `src/hooks/useGameAnimations.js`, `src/hooks/useGameHandlers.js`, `src/hooks/useDeath.js`, `src/hooks/useGameData.js`, `src/components/SettingsModal.jsx`에서, props 이름은 그대로 유지하되 내부에서는 `slotEvolutionDataMap`, `slotRuntimeDataMap`, `digimonDataMap` 같은 역할 중심 alias를 사용하도록 정리했습니다.
+- 이 변경으로 현재 슬롯 버전 데이터를 받는 훅/모달 내부에서 `newDigimonDataVer1`, `digimonDataVer1`가 실제 Ver.1 고정 데이터인지, 아니면 슬롯별 데이터맵인지 코드를 읽을 때 더 분명하게 드러나도록 맞췄습니다.
+- `SettingsModal`의 개발자 디지몬 선택도 더 이상 `Ver.2면 v2, 아니면 v1` 식의 좁은 분기만 보지 않고, `getDigimonDataMapByVersion(slotVersion)`과 현재 슬롯 데이터 fallback을 함께 쓰도록 정리해 Ver.3 이후에도 같은 흐름을 재사용할 수 있게 했습니다.
+
+### 영향받은 파일
+- `src/hooks/useGameAnimations.js`
+- `src/hooks/useGameHandlers.js`
+- `src/hooks/useDeath.js`
+- `src/hooks/useGameData.js`
+- `src/components/SettingsModal.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameHandlers.test.js src/hooks/useGameData.test.js src/hooks/useEvolution.test.js src/components/GameModals.test.jsx src/hooks/game-runtime/buildGameModalBindings.test.js`
+- `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ### Ver.3 원작 로스터를 Super Ultimate 2종까지 확장
 - `src/data/v3/digimons.js`에 Ver.3 최종 로스터 기준 `Chaosmon`, `Millenniumon`을 `Super Ultimate`로 추가해, 기존 21엔트리 골격을 23엔트리 완성형 데이터셋으로 확장했습니다.
 - `BanchoLeomon -> Chaosmon`, `Chimairamon -> Millenniumon` 조그레스 메타데이터를 원작 기준으로 반영했지만, 현재 앱은 Ver.4/Ver.5 활성 슬롯이 없으므로 실제 획득 경로보다 마스터데이터/도감 완성을 우선했습니다.
@@ -1012,3 +1029,41 @@
 - 모바일 브라우저의 landscape lock은 사용자 클릭 맥락과 fullscreen 조건에 의존하는 경우가 많아, 별도 버튼보다 기존 `가로` 토글 안에서 `레이아웃 전환 + 가로 고정 시도`를 함께 처리하는 편이 사용 흐름과 저장 상태를 덜 어지럽힙니다.
 - 브라우저별 분기와 오류 메시지를 `Game` 안에 직접 흩뿌리면 회귀 테스트가 어려워지므로, fullscreen/orientation API 호출 순서를 별도 유틸로 분리해 성공/실패/미지원 케이스를 독립적으로 검증하는 편이 유지보수에 더 안전합니다.
 - 모바일 몰입형은 브라우저 주소창과 safe-area 때문에 네이티브 전체화면처럼 완전히 비울 수는 없으므로, 상단 조작부 자체를 floating overlay와 스크롤 툴바로 압축해 체감상 화면 점유율을 높이는 쪽이 웹 환경에서 더 현실적이고 안정적입니다.
+
+## 2026-04-09
+
+### GameDefaultSection presenter 분리
+- `src/components/layout/GameDefaultSection.jsx`를 추가해 `GameScreen`과 `ControlPanel`을 내부에서 렌더링하는 기본 화면 presenter 경계를 만들었습니다.
+- `headerNode`, `gameScreenProps`, `controlPanelProps`, `activeMenu`, `onMenuClick`, `stats`, `isMobile`, `supportActionsNode`만으로 동작하도록 설계해, 이후 `Game.jsx`의 `defaultGameSection` JSX를 안전하게 옮길 수 있게 했습니다.
+- `src/components/layout/GameDefaultSection.test.jsx`에서는 기본 헤더, `GameScreen`, `ControlPanel`, `supportActionsNode` 렌더와 모바일 class 분기를 고정했습니다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameDefaultSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `npm test -- --runInBand src/components/layout/GameDefaultSection.test.jsx`
+
+### 모바일 몰입형 메뉴 접기와 가상 가로 fallback 추가
+- 모바일 몰입형 상단 조작부는 기본적으로 접힌 상태로 시작하고, 우상단 `메뉴` FAB를 눌렀을 때만 조작 패널이 열리도록 바꿔 실제 게임 화면을 더 넓게 보이게 정리했습니다.
+- 메뉴가 열린 상태에서는 바깥 영역 탭, `Esc`, 상단 액션 실행 후 자동으로 다시 접히게 맞췄고, unread 카운트는 메뉴 FAB에서도 바로 보이게 유지했습니다.
+- `가로` 버튼은 여전히 실제 `fullscreen + orientation.lock("landscape")`를 먼저 시도하지만, 모바일 portrait 상태가 유지되면 작은 인앱 확인 시트로 `가상 가로 모드` 전환 여부를 묻도록 보강했습니다.
+- 사용자가 한 번 가상 가로를 허용하면 같은 몰입형 세션 안에서는 이후 동일 실패에 자동으로 가상 가로를 다시 적용하고, 취소하면 그 세션 동안에는 prompt를 다시 띄우지 않도록 런타임 상태를 분리했습니다.
+- 가상 가로 모드에서는 상단 메뉴와 채팅은 물리 화면 기준으로 유지하고, 게임 본문만 별도 stage 안에서 90도 회전시켜 휴대폰을 돌리지 않아도 landscape 느낌으로 볼 수 있게 구성했습니다.
+
+### 영향받은 파일
+- `src/hooks/game-runtime/useImmersiveGameLayout.js`
+- `src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `src/components/layout/ImmersiveGameView.jsx`
+- `src/components/layout/ImmersiveGameView.test.jsx`
+- `src/pages/Game.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 모바일 브라우저에서는 주소창과 safe-area 때문에 상단 조작부를 완전히 없애기보다, 기본 숨김 FAB와 필요 시 오버레이 패널로 나누는 편이 전체화면 체감과 조작 접근성 사이 균형이 가장 좋습니다.
+- 실제 기기 회전 강제는 브라우저 제약으로 일관되지 않으므로, 먼저 표준 fullscreen/orientation API를 시도하고 실패 시 사용자 동의를 거쳐 앱 화면만 회전하는 가상 가로 fallback으로 내려가는 2단계 전략이 가장 현실적입니다.
+- 가상 가로는 브라우저/기기 상태와 무관한 렌더링 fallback이므로 저장 스키마가 아니라 몰입형 세션 런타임 상태로만 관리하는 편이 예측 가능성과 회귀 방지에 유리합니다.

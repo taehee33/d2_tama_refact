@@ -3,22 +3,48 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import ImmersiveGameTopBar from "./ImmersiveGameTopBar";
 
 describe("ImmersiveGameTopBar", () => {
-  test("모바일에서는 이동 버튼과 세로/가로 토글, 스킨 변경 버튼을 렌더링한다", () => {
+  test("모바일에서 접힘 상태면 메뉴 FAB만 렌더링한다", () => {
+    const onToggleCollapsed = jest.fn();
+
+    render(
+      <ImmersiveGameTopBar
+        isMobile
+        isCollapsed
+        unreadCount={3}
+        onToggleCollapsed={onToggleCollapsed}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "메뉴 열기" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByRole("button", { name: "가로" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "메뉴 열기" }));
+
+    expect(onToggleCollapsed).toHaveBeenCalledTimes(1);
+  });
+
+  test("모바일에서 펼침 상태면 액션을 렌더링하고 실행 후 접는다", () => {
     const onOpenBaseView = jest.fn();
     const onOpenPlayHub = jest.fn();
     const onChangeLayoutMode = jest.fn();
     const onToggleSkinPicker = jest.fn();
     const onToggleChat = jest.fn();
     const onCycleLandscapeSide = jest.fn();
-    const { container } = render(
+    const onToggleCollapsed = jest.fn();
+    render(
       <ImmersiveGameTopBar
         isMobile
+        isCollapsed={false}
         layoutMode="portrait"
         unreadCount={3}
         presenceCount={5}
         showLandscapeSideToggle
         landscapeSidePreference="auto"
         effectiveLandscapeSide="left"
+        onToggleCollapsed={onToggleCollapsed}
         onChangeLayoutMode={onChangeLayoutMode}
         onToggleChat={onToggleChat}
         onCycleLandscapeSide={onCycleLandscapeSide}
@@ -28,10 +54,15 @@ describe("ImmersiveGameTopBar", () => {
       />
     );
 
-    expect(container.firstChild).toHaveClass("game-immersive-nav--mobile");
-    expect(screen.getByText("몰입형 플레이")).toBeInTheDocument();
+    expect(screen.getByTestId("immersive-game-topbar")).toHaveClass(
+      "game-immersive-nav--mobile"
+    );
     expect(screen.getByRole("button", { name: "세로" })).toHaveAttribute(
       "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "메뉴 닫기" })).toHaveAttribute(
+      "aria-expanded",
       "true"
     );
 
@@ -48,9 +79,10 @@ describe("ImmersiveGameTopBar", () => {
     expect(screen.getByText("방향 자동(왼)")).toBeInTheDocument();
     expect(onCycleLandscapeSide).toHaveBeenCalledTimes(1);
     expect(screen.getByText("5명")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getAllByText("3")).toHaveLength(2);
     expect(onToggleChat).toHaveBeenCalledTimes(1);
     expect(onToggleSkinPicker).toHaveBeenCalledTimes(1);
+    expect(onToggleCollapsed).toHaveBeenCalledTimes(6);
   });
 
   test("데스크톱에서는 현재 레이아웃을 active 상태로 표시한다", () => {

@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePresenceContext } from "../contexts/AblyContext";
 import { useMasterData } from "../contexts/MasterDataContext";
 
-import ControlPanel from "../components/ControlPanel";
 import GameHeaderMeta from "../components/GameHeaderMeta";
 import GameModals from "../components/GameModals";
 import GameScreen from "../components/GameScreen";
@@ -34,23 +33,20 @@ import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
-import ImmersiveChatOverlay from "../components/chat/ImmersiveChatOverlay";
-import ImmersiveDeviceShell from "../components/layout/ImmersiveDeviceShell";
-import ImmersiveGameTopBar from "../components/layout/ImmersiveGameTopBar";
-import ImmersiveLandscapeFrameStage from "../components/layout/ImmersiveLandscapeFrameStage";
-import ImmersiveLandscapeControls from "../components/layout/ImmersiveLandscapeControls";
-import ImmersiveSkinPicker from "../components/layout/ImmersiveSkinPicker";
+import GameDefaultSection from "../components/layout/GameDefaultSection";
+import GamePageView from "../components/layout/GamePageView";
+import GamePageToolbar from "../components/layout/GamePageToolbar";
+import ImmersiveGameView from "../components/layout/ImmersiveGameView";
+import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSection";
 import { useTamerProfile } from "../hooks/useTamerProfile";
+import { useImmersiveGameLayout } from "../hooks/game-runtime/useImmersiveGameLayout";
 
-import {
-  DEFAULT_IMMERSIVE_SETTINGS,
-  IMMERSIVE_LANDSCAPE_SIDES,
-  IMMERSIVE_LAYOUT_MODES,
-} from "../data/immersiveSettings";
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { digimonDataVer3 } from "../data/v3";
+import { digimonDataVer4 } from "../data/v4";
+import { digimonDataVer5 } from "../data/v5";
 import { questsVer2 } from "../data/v2modkor/quests";
 import { initializeStats } from "../data/stats";
 import { quests } from "../data/v1/quests";
@@ -62,18 +58,8 @@ import {
   getDigimonDataMapByVersion,
   getStarterDigimonId,
   normalizeDigimonVersionLabel,
+  SUPPORTED_DIGIMON_VERSIONS,
 } from "../utils/digimonVersionUtils";
-import {
-  getImmersiveSkinById,
-  getNextImmersiveLandscapeSide,
-  normalizeImmersiveSettings,
-} from "../utils/immersiveSettings";
-import {
-  enterImmersiveLandscapeMode,
-  exitImmersiveLandscapeMode,
-  getImmersiveOrientationSupportState,
-  isImmersiveFullscreenActive,
-} from "../utils/immersiveOrientation";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 
 const DEFAULT_SEASON_ID = 1;
@@ -93,40 +79,6 @@ const ver1DigimonList = [
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
 
-function getDetectedLandscapeSide() {
-  if (typeof window === "undefined") {
-    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
-  }
-
-  const screenOrientation = window.screen?.orientation;
-  const orientationType = screenOrientation?.type;
-
-  if (orientationType === "landscape-primary") {
-    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
-  }
-
-  if (orientationType === "landscape-secondary") {
-    return IMMERSIVE_LANDSCAPE_SIDES.LEFT;
-  }
-
-  const rawAngle =
-    typeof screenOrientation?.angle === "number"
-      ? screenOrientation.angle
-      : typeof window.orientation === "number"
-        ? window.orientation
-        : null;
-
-  if (rawAngle === 90) {
-    return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
-  }
-
-  if (rawAngle === -90 || rawAngle === 270) {
-    return IMMERSIVE_LANDSCAPE_SIDES.LEFT;
-  }
-
-  return IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
-}
-
 function Game({ immersive = false }){
   const { slotId } = useParams();
   const { currentUser, logout, isFirebaseAvailable } = useAuth();
@@ -138,96 +90,22 @@ function Game({ immersive = false }){
     void revisionKey;
     return adaptDataMapToOldFormat(newDigimonDataVer1);
   }, [masterDataRevision]);
-  const adaptedV2 = useMemo(() => {
+  const adaptedDataMapsByVersion = useMemo(() => {
     const revisionKey = masterDataRevision;
     void revisionKey;
-    return adaptDataMapToOldFormat(digimonDataVer2);
-  }, [masterDataRevision]);
-  const adaptedV3 = useMemo(() => {
-    const revisionKey = masterDataRevision;
-    void revisionKey;
-    return adaptDataMapToOldFormat(digimonDataVer3);
-  }, [masterDataRevision]);
-  
-  // 모바일 감지
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [isViewportPortrait, setIsViewportPortrait] = useState(
-    window.innerHeight >= window.innerWidth
-  );
-  const [detectedLandscapeSide, setDetectedLandscapeSide] = useState(
-    getDetectedLandscapeSide
-  );
-  const [showSkinPicker, setShowSkinPicker] = useState(false);
-  const immersiveExperienceRef = useRef(null);
-  const [isImmersiveFullscreen, setIsImmersiveFullscreen] = useState(() =>
-    isImmersiveFullscreenActive(document)
-  );
-  const [orientationLockSupported, setOrientationLockSupported] = useState(false);
-  const [orientationLockError, setOrientationLockError] = useState(null);
-  
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-      setIsViewportPortrait(window.innerHeight >= window.innerWidth);
-      setDetectedLandscapeSide(getDetectedLandscapeSide());
+
+    return {
+      "Ver.1": adaptedV1,
+      "Ver.2": adaptDataMapToOldFormat(digimonDataVer2),
+      "Ver.3": adaptDataMapToOldFormat(digimonDataVer3),
+      "Ver.4": adaptDataMapToOldFormat(digimonDataVer4),
+      "Ver.5": adaptDataMapToOldFormat(digimonDataVer5),
     };
-
-    handleResize();
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener("orientationchange", handleResize);
-    window.screen?.orientation?.addEventListener?.("change", handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener("orientationchange", handleResize);
-      window.screen?.orientation?.removeEventListener?.("change", handleResize);
-    };
-  }, []);
-
-  useEffect(() => {
-    const syncFullscreenState = () => {
-      setIsImmersiveFullscreen(isImmersiveFullscreenActive(document));
-    };
-
-    syncFullscreenState();
-
-    document.addEventListener("fullscreenchange", syncFullscreenState);
-    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
-
-    return () => {
-      document.removeEventListener("fullscreenchange", syncFullscreenState);
-      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
-    };
-  }, []);
+  }, [adaptedV1, masterDataRevision]);
 
   const navigate= useNavigate();
   const location = useLocation();
   const isImmersive = immersive || location.pathname.endsWith("/full");
-  const gameHeaderClassName = [
-    "game-page-header",
-    isImmersive ? "game-page-header--immersive" : "game-page-header--default",
-    !isImmersive && isMobile ? "game-page-header--default-mobile" : "",
-    isImmersive && isMobile ? "game-page-header--immersive-mobile" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  useEffect(() => {
-    if (!isImmersive) {
-      setOrientationLockError(null);
-      return undefined;
-    }
-
-    return () => {
-      setIsChatOpen(false);
-      void exitImmersiveLandscapeMode({
-        documentRef: document,
-        screenRef: window.screen,
-        userAgent: window.navigator?.userAgent || "",
-        vendor: window.navigator?.vendor || "",
-      });
-    };
-  }, [isImmersive, setIsChatOpen]);
   // useGameState 훅 호출
   const {
     gameState,
@@ -302,11 +180,7 @@ function Game({ immersive = false }){
 
   const normalizedSlotVersion = normalizeDigimonVersionLabel(slotVersion || "Ver.1");
   const digimonDataForSlot =
-    normalizedSlotVersion === "Ver.3"
-      ? adaptedV3
-      : normalizedSlotVersion === "Ver.2"
-        ? adaptedV2
-        : adaptedV1;
+    adaptedDataMapsByVersion[normalizedSlotVersion] || adaptedV1;
   const evolutionDataForSlot = getDigimonDataMapByVersion(normalizedSlotVersion);
 
   const {
@@ -366,6 +240,50 @@ function Game({ immersive = false }){
     setSleepStatus,
   } = ui;
 
+  const {
+    immersiveExperienceRef,
+    showSkinPicker,
+    isMobileControlsCollapsed,
+    showVirtualLandscapePrompt,
+    isVirtualLandscapeActive,
+    isMobile,
+    layoutMode: immersiveLayoutMode,
+    skinId: immersiveSkinId,
+    skin: immersiveSkin,
+    landscapeSidePreference,
+    effectiveLandscapeSide,
+    virtualLandscapeDirection,
+    isLandscapeImmersive,
+    shouldShowRotateHint,
+    orientationStatusMessage,
+    orientationStatusTone,
+    virtualLandscapePromptMessage,
+    toggleMobileControls,
+    confirmVirtualLandscape,
+    dismissVirtualLandscape,
+    changeLayoutMode: handleLayoutModeChange,
+    cycleLandscapeSide: handleCycleLandscapeSide,
+    toggleImmersiveChat: handleToggleImmersiveChat,
+    closeImmersiveChat: handleCloseImmersiveChat,
+    toggleSkinPicker,
+    selectSkin: handleSkinSelect,
+  } = useImmersiveGameLayout({
+    isImmersive,
+    immersiveSettings,
+    setImmersiveSettings,
+    isChatOpen,
+    setIsChatOpen,
+  });
+
+  const gameHeaderClassName = [
+    "game-page-header",
+    isImmersive ? "game-page-header--immersive" : "game-page-header--default",
+    !isImmersive && isMobile ? "game-page-header--default-mobile" : "",
+    isImmersive && isMobile ? "game-page-header--immersive-mobile" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   // legacy tired refs는 더 이상 사용하지 않음
 
   // 상태 상세 모달용 메시지 저장
@@ -401,9 +319,7 @@ function Game({ immersive = false }){
     setDeathReason,
     toggleModal,
     digimonDataVer1: digimonDataForSlot,
-    adaptedV1,
-    adaptedV2,
-    adaptedV3,
+    adaptedDataMapsByVersion,
     isFirebaseAvailable,
     navigate,
     isLightsOn,
@@ -564,6 +480,7 @@ function Game({ immersive = false }){
     newDigimonDataVer1: evolutionDataForSlot,
     evolutionDataVer1: newDigimonDataVer1, // 조그레스 시 호스트/게스트 Ver.1 맵용 (항상 v1)
     digimonDataVer2,
+    adaptedDataMapsByVersion,
     slotName,
     tamerName,
     digimonNickname,
@@ -764,6 +681,7 @@ function Game({ immersive = false }){
         activityLogs,
         digimonDataForSlot,
         customTime,
+        slotVersion: normalizedSlotVersion,
         slotJogressStatus,
         currentAnimation,
         feedType,
@@ -791,6 +709,7 @@ function Game({ immersive = false }){
       evolutionDataForSlot,
       digimonDataForSlot,
       customTime,
+      normalizedSlotVersion,
       slotJogressStatus,
       currentAnimation,
       feedType,
@@ -819,170 +738,6 @@ function Game({ immersive = false }){
     gameScreenDisplayProps,
     jogressControls,
   } = pageViewModel;
-
-  const normalizedImmersiveSettings = useMemo(
-    () => normalizeImmersiveSettings(immersiveSettings),
-    [immersiveSettings]
-  );
-  const immersiveLayoutMode =
-    normalizedImmersiveSettings.layoutMode ||
-    DEFAULT_IMMERSIVE_SETTINGS.layoutMode;
-  const immersiveSkinId =
-    normalizedImmersiveSettings.skinId || DEFAULT_IMMERSIVE_SETTINGS.skinId;
-  const landscapeSidePreference =
-    normalizedImmersiveSettings.landscapeSide ||
-    DEFAULT_IMMERSIVE_SETTINGS.landscapeSide;
-  const immersiveSkin = useMemo(
-    () => getImmersiveSkinById(immersiveSkinId),
-    [immersiveSkinId]
-  );
-  const isLandscapeImmersive =
-    isImmersive && immersiveLayoutMode === IMMERSIVE_LAYOUT_MODES.LANDSCAPE;
-  const effectiveLandscapeSide =
-    landscapeSidePreference === IMMERSIVE_LANDSCAPE_SIDES.AUTO
-      ? detectedLandscapeSide
-      : landscapeSidePreference;
-  const shouldShowRotateHint =
-    isLandscapeImmersive && isMobile && isViewportPortrait;
-  const orientationStatusMessage =
-    isLandscapeImmersive && isMobile
-      ? orientationLockError ||
-        (isImmersiveFullscreen && orientationLockSupported
-          ? "가로 전체화면으로 보는 중"
-          : null)
-      : null;
-  const orientationStatusTone =
-    orientationLockError && isLandscapeImmersive && isMobile ? "warning" : "success";
-
-  useEffect(() => {
-    if (!isImmersive) {
-      setShowSkinPicker(false);
-    }
-  }, [isImmersive]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setOrientationLockSupported(false);
-      return;
-    }
-
-    const supportState = getImmersiveOrientationSupportState({
-      element: immersiveExperienceRef.current,
-      documentRef: document,
-      screenRef: window.screen,
-      userAgent: window.navigator?.userAgent || "",
-      vendor: window.navigator?.vendor || "",
-    });
-
-    setOrientationLockSupported(supportState.orientationLockSupported);
-  }, [isMobile, isImmersive]);
-
-  const updateImmersiveSettings = useCallback(
-    (partialSettings) => {
-      setImmersiveSettings((previousSettings) =>
-        normalizeImmersiveSettings({
-          ...normalizeImmersiveSettings(previousSettings),
-          ...partialSettings,
-        })
-      );
-    },
-    [setImmersiveSettings]
-  );
-
-  const handleLayoutModeChange = useCallback(
-    async (nextLayoutMode) => {
-      const isSwitchingToLandscape =
-        nextLayoutMode === IMMERSIVE_LAYOUT_MODES.LANDSCAPE;
-      const isSwitchingToPortrait =
-        nextLayoutMode === IMMERSIVE_LAYOUT_MODES.PORTRAIT;
-      const isSameLayoutMode = immersiveLayoutMode === nextLayoutMode;
-
-      if (!isSameLayoutMode) {
-        updateImmersiveSettings({ layoutMode: nextLayoutMode });
-      }
-
-      if (!isImmersive || !isMobile) {
-        if (isSwitchingToPortrait) {
-          setOrientationLockError(null);
-        }
-        return;
-      }
-
-      if (isSwitchingToPortrait) {
-        setOrientationLockError(null);
-
-        const result = await exitImmersiveLandscapeMode({
-          documentRef: document,
-          screenRef: window.screen,
-          userAgent: window.navigator?.userAgent || "",
-          vendor: window.navigator?.vendor || "",
-        });
-
-        setIsImmersiveFullscreen(result.isFullscreen);
-        setOrientationLockSupported(result.orientationLockSupported);
-        return;
-      }
-
-      if (!isSwitchingToLandscape) {
-        return;
-      }
-
-      const shouldSkipRetry =
-        isSameLayoutMode &&
-        isImmersiveFullscreen &&
-        orientationLockSupported &&
-        !orientationLockError;
-
-      if (shouldSkipRetry) {
-        return;
-      }
-
-      setOrientationLockError(null);
-
-      const result = await enterImmersiveLandscapeMode({
-        element: immersiveExperienceRef.current,
-        documentRef: document,
-        screenRef: window.screen,
-        userAgent: window.navigator?.userAgent || "",
-        vendor: window.navigator?.vendor || "",
-      });
-
-      setIsImmersiveFullscreen(result.isFullscreen);
-      setOrientationLockSupported(result.orientationLockSupported);
-      setOrientationLockError(result.errorMessage);
-    },
-    [
-      immersiveLayoutMode,
-      isImmersive,
-      isImmersiveFullscreen,
-      isMobile,
-      orientationLockError,
-      orientationLockSupported,
-      updateImmersiveSettings,
-    ]
-  );
-
-  const handleCycleLandscapeSide = useCallback(() => {
-    updateImmersiveSettings({
-      landscapeSide: getNextImmersiveLandscapeSide(landscapeSidePreference),
-    });
-  }, [landscapeSidePreference, updateImmersiveSettings]);
-
-  const handleToggleImmersiveChat = useCallback(() => {
-    setIsChatOpen((previous) => !previous);
-  }, [setIsChatOpen]);
-
-  const handleCloseImmersiveChat = useCallback(() => {
-    setIsChatOpen(false);
-  }, [setIsChatOpen]);
-
-  const handleSkinSelect = useCallback(
-    (nextSkinId) => {
-      updateImmersiveSettings({ skinId: nextSkinId });
-      setShowSkinPicker(false);
-    },
-    [updateImmersiveSettings]
-  );
 
   const handleResolveCallAction = useCallback(
     (actionKey) => {
@@ -1253,6 +1008,7 @@ function Game({ immersive = false }){
           currentUser,
           jogressDigimonDataVer1: newDigimonDataVer1,
           jogressDigimonDataVer2: digimonDataVer2,
+          supportedDigimonVersions: SUPPORTED_DIGIMON_VERSIONS,
         },
         uiState: ui,
         statusDetailMessages,
@@ -1519,22 +1275,16 @@ function Game({ immersive = false }){
   };
 
   const defaultGameSection = (
-    <>
-      {defaultHeaderSection}
-      <div className={`flex flex-col items-center w-full ${isMobile ? "game-screen-mobile" : ""}`}>
-        <GameScreen {...sharedGameScreenProps} />
-        <div className={`flex justify-center w-full ${isMobile ? "control-panel-mobile" : ""}`}>
-          <ControlPanel
-            {...controlPanelProps}
-            activeMenu={activeMenu}
-            onMenuClick={handleMenuClickFromHook}
-            stats={digimonStats}
-            isMobile={isMobile}
-          />
-        </div>
-        {renderSupportActionButtons()}
-      </div>
-    </>
+    <GameDefaultSection
+      headerNode={defaultHeaderSection}
+      gameScreenProps={sharedGameScreenProps}
+      controlPanelProps={controlPanelProps}
+      activeMenu={activeMenu}
+      onMenuClick={handleMenuClickFromHook}
+      stats={digimonStats}
+      isMobile={isMobile}
+      supportActionsNode={renderSupportActionButtons()}
+    />
   );
 
   const landscapeScreenWidth = Math.max(
@@ -1556,105 +1306,76 @@ function Game({ immersive = false }){
     />
   );
 
+  const landscapeStatusNode = (
+    <div className="immersive-landscape-status">
+      <div className="immersive-landscape-status__topline">
+        <span>
+          슬롯 {slotId} · {normalizedSlotVersion}
+        </span>
+        {digimonStats.isFrozen ? <span>🧊 냉장고</span> : null}
+      </div>
+      <strong className="immersive-landscape-status__title">
+        {headerDigimonLabel}
+      </strong>
+      <span className="immersive-landscape-status__meta">
+        {slotName || `슬롯${slotId}`} · {slotDevice || "디지바이스"}
+      </span>
+      <span className="immersive-landscape-status__time">
+        현재 시간 {currentTimeText}
+      </span>
+      <div className="immersive-landscape-status__hearts">
+        <StatusHearts
+          fullness={digimonStats.fullness || 0}
+          strength={digimonStats.strength || 0}
+          maxOverfeed={digimonStats.maxOverfeed || 0}
+          proteinOverdose={digimonStats.proteinOverdose || 0}
+          showLabels={false}
+          size="sm"
+          position="inline"
+          isFrozen={digimonStats.isFrozen || false}
+        />
+      </div>
+      <DigimonStatusBadges
+        {...statusBadgeProps}
+        onOpenStatusDetail={handleOpenStatusDetail}
+      />
+    </div>
+  );
+
   const portraitImmersiveSection = defaultGameSection;
 
   const landscapeImmersiveSection = (
-    <ImmersiveDeviceShell
-      layoutMode={immersiveLayoutMode}
-      skinId={immersiveSkinId}
-      isMobile={isMobile}
-      showRotateHint={shouldShowRotateHint}
-      landscapeSide={effectiveLandscapeSide}
-      landscapeSideMode={landscapeSidePreference}
-    >
-      <div
-        className={`immersive-landscape-layout ${
-          hasLandscapeFrameSkin ? "immersive-landscape-layout--frame-skin" : ""
-        } immersive-landscape-layout--side-${effectiveLandscapeSide}`.trim()}
-      >
-        <div
-          className={`immersive-landscape-display ${
-            hasLandscapeFrameSkin
-              ? "immersive-landscape-display--frame-skin"
-              : ""
-          }`.trim()}
-        >
-          {hasLandscapeFrameSkin ? (
-            <>
-              <ImmersiveLandscapeControls
-                layout="strip"
-                groupId="basic"
-                activeMenu={activeMenu}
-                onMenuClick={handleMenuClickFromHook}
-                isFrozen={digimonStats.isFrozen || false}
-                isLightsOn={isLightsOn}
-                isMobile={isMobile}
-              />
-              <ImmersiveLandscapeFrameStage
-                skin={immersiveSkin}
-                renderScreen={renderLandscapeGameScreen}
-              />
-              <ImmersiveLandscapeControls
-                layout="strip"
-                groupId="care"
-                activeMenu={activeMenu}
-                onMenuClick={handleMenuClickFromHook}
-                isFrozen={digimonStats.isFrozen || false}
-                isLightsOn={isLightsOn}
-                isMobile={isMobile}
-              />
-            </>
-          ) : (
-            <div className="immersive-landscape-display__lcd">
-              {renderLandscapeGameScreen()}
-            </div>
-          )}
-          <div className="immersive-landscape-status">
-            <div className="immersive-landscape-status__topline">
-              <span>
-                슬롯 {slotId} · {normalizedSlotVersion}
-              </span>
-              {digimonStats.isFrozen ? <span>🧊 냉장고</span> : null}
-            </div>
-            <strong className="immersive-landscape-status__title">
-              {headerDigimonLabel}
-            </strong>
-            <span className="immersive-landscape-status__meta">
-              {slotName || `슬롯${slotId}`} · {slotDevice || "디지바이스"}
-            </span>
-            <span className="immersive-landscape-status__time">
-              현재 시간 {currentTimeText}
-            </span>
-            <div className="immersive-landscape-status__hearts">
-              <StatusHearts
-                fullness={digimonStats.fullness || 0}
-                strength={digimonStats.strength || 0}
-                maxOverfeed={digimonStats.maxOverfeed || 0}
-                proteinOverdose={digimonStats.proteinOverdose || 0}
-                showLabels={false}
-                size="sm"
-                position="inline"
-                isFrozen={digimonStats.isFrozen || false}
-              />
-            </div>
-            <DigimonStatusBadges
-              {...statusBadgeProps}
-              onOpenStatusDetail={handleOpenStatusDetail}
-            />
-          </div>
-          {renderSupportActionButtons("immersive-landscape-support")}
-        </div>
-        {!hasLandscapeFrameSkin ? (
-          <ImmersiveLandscapeControls
-            activeMenu={activeMenu}
-            onMenuClick={handleMenuClickFromHook}
-            isFrozen={digimonStats.isFrozen || false}
-            isLightsOn={isLightsOn}
-            isMobile={isMobile}
-          />
-        ) : null}
-      </div>
-    </ImmersiveDeviceShell>
+    <ImmersiveLandscapeSection
+      deviceShellProps={{
+        layoutMode: immersiveLayoutMode,
+        skinId: immersiveSkinId,
+        isMobile,
+        showRotateHint: shouldShowRotateHint,
+        landscapeSide: effectiveLandscapeSide,
+        landscapeSideMode: landscapeSidePreference,
+      }}
+      hasLandscapeFrameSkin={hasLandscapeFrameSkin}
+      immersiveSkin={immersiveSkin}
+      controlsProps={{
+        activeMenu,
+        onMenuClick: handleMenuClickFromHook,
+        isFrozen: digimonStats.isFrozen || false,
+        isLightsOn,
+        isMobile,
+      }}
+      renderLandscapeGameScreen={renderLandscapeGameScreen}
+      slotMeta={{
+        slotId,
+        normalizedSlotVersion,
+        slotName,
+        slotDevice,
+        currentTimeText,
+        headerDigimonLabel,
+        isFrozen: digimonStats.isFrozen || false,
+      }}
+      statusNode={landscapeStatusNode}
+      supportActionsNode={renderSupportActionButtons("immersive-landscape-support")}
+    />
   );
 
   // 로딩 중일 때 표시
@@ -1674,298 +1395,135 @@ function Game({ immersive = false }){
     return null;
   }
 
+  const handleToggleProfileMenu = () => {
+    setShowProfileMenu((previous) => !previous);
+  };
+
+  const handleCloseProfileMenu = () => {
+    setShowProfileMenu(false);
+  };
+
+  const handleOpenAccountSettings = () => {
+    setShowProfileMenu(false);
+    setShowAccountSettingsModal(true);
+  };
+
+  const toolbarProps = {
+    currentUser,
+    isFirebaseAvailable,
+    tamerName,
+    hasVer1Master,
+    hasVer2Master,
+    showProfileMenu,
+    onToggleProfileMenu: handleToggleProfileMenu,
+    onCloseProfileMenu: handleCloseProfileMenu,
+    onOpenAccountSettings: handleOpenAccountSettings,
+    onOpenSettings: () => toggleModal("settings", true),
+    onOpenPlayHub: () => navigate("/play"),
+    onOpenImmersiveView: () => navigate(`/play/${slotId}/full`),
+    onlineUsersNode: <OnlineUsersCount />,
+  };
+
+  const mobileHeaderNode =
+    !isImmersive && isMobile ? (
+      <GamePageToolbar {...toolbarProps} isMobile />
+    ) : null;
+
+  const desktopToolbarNode =
+    !isImmersive && !isMobile ? <GamePageToolbar {...toolbarProps} /> : null;
+
+  const immersiveTopBarProps = {
+    isMobile,
+    isCollapsed: isMobileControlsCollapsed,
+    layoutMode: immersiveLayoutMode,
+    isChatOpen,
+    unreadCount,
+    presenceCount: presenceCount || 0,
+    showLandscapeSideToggle: isLandscapeImmersive,
+    landscapeSidePreference,
+    effectiveLandscapeSide,
+    onToggleCollapsed: toggleMobileControls,
+    onChangeLayoutMode: handleLayoutModeChange,
+    onToggleChat: handleToggleImmersiveChat,
+    onCycleLandscapeSide: handleCycleLandscapeSide,
+    onToggleSkinPicker: toggleSkinPicker,
+    onOpenBaseView: () => navigate(`/play/${slotId}`),
+    onOpenPlayHub: () => navigate("/play"),
+  };
+
+  const immersiveShellNode = (
+    <ImmersiveGameView
+      ref={immersiveExperienceRef}
+      layoutMode={immersiveLayoutMode}
+      topBarProps={immersiveTopBarProps}
+      orientationStatusMessage={orientationStatusMessage}
+      orientationStatusTone={orientationStatusTone}
+      isMobile={isMobile}
+      isVirtualLandscapeActive={isVirtualLandscapeActive}
+      virtualLandscapeDirection={virtualLandscapeDirection}
+      virtualLandscapePromptMessage={virtualLandscapePromptMessage}
+      showVirtualLandscapePrompt={showVirtualLandscapePrompt}
+      onConfirmVirtualLandscape={confirmVirtualLandscape}
+      onDismissVirtualLandscape={dismissVirtualLandscape}
+      chatOverlayProps={{
+        isOpen: isChatOpen,
+        isMobile,
+        landscapeSide: effectiveLandscapeSide,
+        onClose: handleCloseImmersiveChat,
+      }}
+      skinPickerProps={{
+        isOpen: showSkinPicker,
+        activeSkinId: immersiveSkinId,
+        onSelectSkin: handleSkinSelect,
+      }}
+      portraitContentNode={portraitImmersiveSection}
+      landscapeContentNode={landscapeImmersiveSection}
+    />
+  );
+
+  const defaultShellNode = (
+    <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>
+      {defaultGameSection}
+    </div>
+  );
+
+  const modalsNode =
+    modals && toggleModal && gameState && handlers && data && ui ? (
+      <GameModals
+        modals={modals}
+        toggleModal={toggleModal}
+        gameState={{
+          ...gameState,
+          isLightsOn,
+        }}
+        handlers={handlers}
+        data={data}
+        ui={modalUi}
+        flags={{
+          developerMode,
+          setDeveloperMode,
+          encyclopediaShowQuestionMark,
+          setEncyclopediaShowQuestionMark,
+          ignoreEvolutionTime,
+          setIgnoreEvolutionTime,
+          isEvolving,
+          setIsEvolving,
+        }}
+      />
+    ) : null;
+
   return (
     <>
-      {isImmersive ? null : isMobile ? (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
-          <div className="flex items-center justify-between px-3 py-2">
-            {/* 왼쪽: 플레이 허브 버튼 */}
-            <button 
-              onClick={() => navigate("/play")} 
-              className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm pixel-art-button flex items-center gap-1"
-            >
-              <span>← 허브</span>
-            </button>
+      <GamePageView
+        isMobile={isMobile}
+        isImmersive={isImmersive}
+        mobileHeaderNode={mobileHeaderNode}
+        desktopToolbarNode={desktopToolbarNode}
+        defaultShellNode={defaultShellNode}
+        immersiveShellNode={immersiveShellNode}
+      />
 
-            {/* 오른쪽: 접속자 수 + 전체 화면 + Settings + 프로필 */}
-            <div className="flex items-center gap-2">
-              {/* 접속 중인 테이머 수 */}
-              <OnlineUsersCount />
-
-              <button
-                onClick={() => navigate(`/play/${slotId}/full`)}
-                className="px-2 py-1.5 bg-slate-900 text-white rounded pixel-art-button"
-                title="몰입형 플레이"
-              >
-                ⛶
-              </button>
-              
-              {/* Settings 버튼 */}
-              <button
-                onClick={() => toggleModal('settings', true)}
-                className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-                title="설정"
-              >
-                ⚙️
-              </button>
-              
-              {/* 프로필 UI */}
-              {isFirebaseAvailable && currentUser ? (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
-                  >
-                    {currentUser.photoURL ? (
-                      <img
-                        src={currentUser.photoURL}
-                        alt="프로필"
-                        className="w-6 h-6 rounded-full"
-                      />
-                    ) : (
-                      <span className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                        {currentUser.displayName?.[0] || currentUser.email?.[0] || 'U'}
-                      </span>
-                    )}
-                    <span className="text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate flex items-center gap-1 flex-wrap">
-                      <span className="truncate">{tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-                      {hasVer1Master && (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium shrink-0">👑 Ver.1</span>
-                      )}
-                      {hasVer2Master && (
-                        <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">👑 Ver.2</span>
-                      )}
-                    </span>
-                    <span className="text-xs">▼</span>
-                  </button>
-                  
-                  {/* 드롭다운 메뉴 */}
-                  {showProfileMenu && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-40" 
-                        onClick={() => setShowProfileMenu(false)}
-                      />
-                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[150px] w-max max-w-[min(90vw,280px)] profile-dropdown">
-                        <div className="px-3 py-2 border-b border-gray-200">
-                          <p className="text-xs font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
-                            <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                            {hasVer1Master && (
-                              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
-                            )}
-                            {hasVer2Master && (
-                              <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
-                            )}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {currentUser.email}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            setShowAccountSettingsModal(true);
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
-                        >
-                          계정 설정/로그아웃
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
-          {/* 모바일: 테이머명 + 칭호 항상 표시 (버튼 클릭 없이) */}
-          {isFirebaseAvailable && currentUser && (
-            <div className="px-3 py-1.5 border-t border-gray-100 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-gray-600">테이머: {tamerName || currentUser.displayName || currentUser.email?.split('@')[0]}</span>
-              {hasVer1Master && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">👑 Ver.1</span>
-              )}
-              {hasVer2Master && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">👑 Ver.2</span>
-              )}
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {isImmersive ? (
-        <div className="immersive-mode-root" ref={immersiveExperienceRef}>
-          <ImmersiveGameTopBar
-            isMobile={isMobile}
-            layoutMode={immersiveLayoutMode}
-            isChatOpen={isChatOpen}
-            unreadCount={unreadCount}
-            presenceCount={presenceCount || 0}
-            showLandscapeSideToggle={isLandscapeImmersive}
-            landscapeSidePreference={landscapeSidePreference}
-            effectiveLandscapeSide={effectiveLandscapeSide}
-            onChangeLayoutMode={handleLayoutModeChange}
-            onToggleChat={handleToggleImmersiveChat}
-            onCycleLandscapeSide={handleCycleLandscapeSide}
-            onToggleSkinPicker={() => setShowSkinPicker((previous) => !previous)}
-            onOpenBaseView={() => navigate(`/play/${slotId}`)}
-            onOpenPlayHub={() => navigate("/play")}
-          />
-          <div className="immersive-game-shell">
-            {orientationStatusMessage ? (
-              <div
-                className={`immersive-orientation-status immersive-orientation-status--${orientationStatusTone}`.trim()}
-                role="status"
-                aria-live="polite"
-              >
-                {orientationStatusMessage}
-              </div>
-            ) : null}
-            <ImmersiveChatOverlay
-              isOpen={isChatOpen}
-              isMobile={isMobile}
-              landscapeSide={effectiveLandscapeSide}
-              onClose={handleCloseImmersiveChat}
-            />
-            <ImmersiveSkinPicker
-              isOpen={showSkinPicker}
-              activeSkinId={immersiveSkinId}
-              onSelectSkin={handleSkinSelect}
-            />
-            {isLandscapeImmersive
-              ? landscapeImmersiveSection
-              : portraitImmersiveSection}
-          </div>
-        </div>
-      ) : (
-        <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>
-          {!isImmersive && !isMobile && (
-            <div className="game-page-toolbar">
-              <div className="game-page-toolbar__actions">
-                <button
-                  onClick={() => navigate("/play")}
-                  className="px-3 py-1 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-                >
-                  ← 플레이 허브
-                </button>
-                <button
-                  onClick={() => navigate(`/play/${slotId}/full`)}
-                  className="px-3 py-1 bg-slate-900 hover:bg-slate-700 text-white rounded pixel-art-button"
-                >
-                  몰입형 플레이
-                </button>
-              </div>
-
-              <div className="game-page-toolbar__utilities">
-                <OnlineUsersCount />
-
-                <button
-                  onClick={() => toggleModal("settings", true)}
-                  className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-                  title="설정"
-                >
-                  ⚙️
-                </button>
-
-                {isFirebaseAvailable && currentUser ? (
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowProfileMenu(!showProfileMenu)}
-                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
-                    >
-                      {currentUser.photoURL ? (
-                        <img
-                          src={currentUser.photoURL}
-                          alt="프로필"
-                          className="w-8 h-8 rounded-full"
-                        />
-                      ) : (
-                        <span className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-sm font-semibold text-gray-700">
-                          {currentUser.displayName?.[0] || currentUser.email?.[0] || "U"}
-                        </span>
-                      )}
-                      <span className="text-sm text-gray-700 flex items-center gap-1 flex-wrap">
-                        <span>
-                          테이머: {tamerName || currentUser.displayName || currentUser.email?.split("@")[0]}
-                        </span>
-                        {hasVer1Master && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0">
-                            👑 Ver.1
-                          </span>
-                        )}
-                        {hasVer2Master && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium shrink-0">
-                            👑 Ver.2
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-500">▼</span>
-                    </button>
-
-                    {showProfileMenu && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setShowProfileMenu(false)}
-                        />
-                        <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-50 min-w-[200px] w-max max-w-[min(90vw,280px)]">
-                          <div className="px-3 py-2 border-b border-gray-200">
-                            <p className="text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1">
-                              <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
-                              {hasVer1Master && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium">
-                                  👑 Ver.1
-                                </span>
-                              )}
-                              {hasVer2Master && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-xs font-medium">
-                                  👑 Ver.2
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate">
-                              {currentUser.email}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setShowProfileMenu(false);
-                              setShowAccountSettingsModal(true);
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
-                          >
-                            계정 설정/로그아웃
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : null}
-
-                {!isFirebaseAvailable && (
-                  <span className="text-sm text-gray-500">Firebase 미설정</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {defaultGameSection}
-        </div>
-      )}
-
-      {modals && toggleModal && gameState && handlers && data && ui && (
-        <GameModals
-          modals={modals}
-          toggleModal={toggleModal}
-          gameState={{
-            ...gameState,
-            isLightsOn,
-          }}
-          handlers={handlers}
-          data={data}
-          ui={modalUi}
-          flags={{ developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, ignoreEvolutionTime, setIgnoreEvolutionTime, isEvolving, setIsEvolving }}
-        />
-      )}
+      {modalsNode}
       
       {!isImmersive ? (
         <>
