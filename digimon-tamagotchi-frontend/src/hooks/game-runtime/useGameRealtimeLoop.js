@@ -7,7 +7,10 @@ import {
   isSleepStatusSleeping,
 } from "../useGameLogic";
 import { getSleepSchedule } from "../useGameHandlers";
-import { updateLifespan } from "../../data/stats";
+import {
+  resolveSleepLightWarningStateInRange,
+  updateLifespan,
+} from "../../data/stats";
 import { handleHungerTick } from "../../logic/stats/hunger";
 import { handleStrengthTick } from "../../logic/stats/strength";
 import { handleEnergyRecovery } from "../../logic/stats/stats";
@@ -92,8 +95,9 @@ export function useGameRealtimeLoop({
 
     const timer = setInterval(() => {
       const now = Date.now();
+      const previousTickTimeMs = lastUpdateTimeRef.current;
       const actualElapsedSeconds = Math.floor(
-        (now - lastUpdateTimeRef.current) / 1000
+        (now - previousTickTimeMs) / 1000
       );
       lastUpdateTimeRef.current = now;
 
@@ -137,6 +141,8 @@ export function useGameRealtimeLoop({
           now: nowDate,
         });
         const isActuallySleeping = isSleepStatusSleeping(currentSleepStatus);
+        const wasSleepStatus = prevSleepStatusRef.current;
+        const wasSleepWarning = wasSleepStatus === "SLEEPING_LIGHT_ON";
 
         let updatedStats = updateLifespan(
           prevStats,
@@ -189,14 +195,38 @@ export function useGameRealtimeLoop({
         }
 
         if (currentSleepStatus === "SLEEPING_LIGHT_ON") {
-          if (!updatedStats.sleepLightOnStart) {
-            updatedStats.sleepLightOnStart = nowMs;
+          const previousSleepLightStart =
+            prevStats.callStatus?.sleep?.startedAt ??
+            prevStats.sleepLightOnStart ??
+            null;
+          let nextSleepLightStart = null;
+
+          if (actualElapsedSeconds > 1) {
+            const sleepLightWarningState =
+              resolveSleepLightWarningStateInRange({
+                stats: {
+                  ...updatedStats,
+                  isLightsOn: live.isLightsOn,
+                  wakeUntil: live.wakeUntil,
+                },
+                startTime: previousTickTimeMs,
+                endTime: nowMs,
+                sleepSchedule: schedule,
+                previousStartedAt: previousSleepLightStart,
+                previousLogged:
+                  prevStats.callStatus?.sleep?.isLogged === true,
+              });
+            nextSleepLightStart =
+              sleepLightWarningState.activeSleepLightEffectiveStart;
+          } else if (wasSleepWarning) {
+            nextSleepLightStart = previousSleepLightStart;
           }
+
+          updatedStats.sleepLightOnStart = nextSleepLightStart ?? nowMs;
         } else {
           updatedStats.sleepLightOnStart = null;
         }
 
-        const wasSleepStatus = prevSleepStatusRef.current;
         const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
         const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
         const wasNapping = wasSleepStatus === "NAPPING";

@@ -106,6 +106,72 @@ describe("callStatusUtils", () => {
     expect(sleepCall.remainingMs).toBe(25 * 60 * 1000);
   });
 
+  test("수면 조명 경고는 저장된 sleepLightOnStart를 기준으로 데드라인을 계산한다", () => {
+    const persistedStart = now - 25 * 60 * 1000;
+
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        sleepLightOnStart: persistedStart,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: {
+            isActive: true,
+            startedAt: null,
+          },
+        },
+      },
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    const sleepCall = viewModel.activeCalls.find((call) => call.type === "sleep");
+
+    expect(sleepCall).toEqual(
+      expect.objectContaining({
+        title: "수면 조명 경고",
+        remainingMs: 5 * 60 * 1000,
+        deadlineText: expect.stringContaining("경고 데드라인"),
+        statusLabel: expect.stringContaining("5분 0초"),
+      })
+    );
+  });
+
+  test("수면 조명 경고 시작 시각이 없으면 데드라인을 추정하지 않고 대기 문구를 보여준다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        sleepLightOnStart: null,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: {
+            isActive: true,
+            startedAt: null,
+          },
+        },
+      },
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    const sleepCall = viewModel.activeCalls.find((call) => call.type === "sleep");
+
+    expect(sleepCall).toEqual(
+      expect.objectContaining({
+        statusLabel: "수면 중(불 켜짐 경고!) - 카운트 시작 대기 중",
+        deadlineText: "",
+        remainingMs: 0,
+        pauseReason: "경고 시작 시각을 확인하는 중입니다.",
+      })
+    );
+  });
+
   test("수면 상태 정규화는 TIRED와 SLEEPY를 불 켜짐 경고로 본다", () => {
     expect(normalizeSleepStatusForDisplay("TIRED")).toBe("SLEEPING_LIGHT_ON");
     expect(normalizeSleepStatusForDisplay("SLEEPY")).toBe("SLEEPING_LIGHT_ON");

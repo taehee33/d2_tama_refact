@@ -578,6 +578,76 @@ function analyzeSleepStatesInRange(stats = {}, startTime, endTime, sleepSchedule
   };
 }
 
+export function resolveSleepLightWarningStateInRange({
+  stats = {},
+  startTime,
+  endTime,
+  sleepSchedule = null,
+  previousStartedAt = null,
+  previousLogged = false,
+} = {}) {
+  const startMs = ensureTimestamp(startTime);
+  const sleepRangeAnalysis = analyzeSleepStatesInRange(
+    stats,
+    startTime,
+    endTime,
+    sleepSchedule
+  );
+  const previousStartedAtMs = ensureTimestamp(previousStartedAt);
+  const activeSleepLightSegment =
+    sleepRangeAnalysis.currentStatus === "SLEEPING_LIGHT_ON"
+      ? sleepRangeAnalysis.sleepLightSegments[
+          sleepRangeAnalysis.sleepLightSegments.length - 1
+        ] || null
+      : null;
+  const canCarryPreviousIncident =
+    previousStartedAtMs != null &&
+    Number.isFinite(startMs) &&
+    sleepRangeAnalysis.sleepLightSegments.length > 0 &&
+    sleepRangeAnalysis.sleepLightSegments[0].startedAt <=
+      startMs + SLEEP_ANALYSIS_STEP_MS;
+
+  let activeSleepLightEffectiveStart = null;
+  let activeSleepLightResolvedSegment = null;
+
+  const resolvedSleepLightSegments = sleepRangeAnalysis.sleepLightSegments.map(
+    (segment, index) => {
+      const isContinuingPersistedIncident =
+        canCarryPreviousIncident && index === 0;
+      const effectiveStartedAt = isContinuingPersistedIncident
+        ? Math.min(previousStartedAtMs, segment.startedAt)
+        : segment.startedAt;
+      const isActiveSegment =
+        activeSleepLightSegment != null &&
+        activeSleepLightSegment.startedAt === segment.startedAt &&
+        activeSleepLightSegment.endedAt === segment.endedAt;
+      const resolvedSegment = {
+        ...segment,
+        effectiveStartedAt,
+        isActiveSegment,
+        isContinuingPersistedIncident,
+        shouldSkipLoggedTimeout:
+          isContinuingPersistedIncident && previousLogged,
+      };
+
+      if (isActiveSegment) {
+        activeSleepLightEffectiveStart = effectiveStartedAt;
+        activeSleepLightResolvedSegment = resolvedSegment;
+      }
+
+      return resolvedSegment;
+    }
+  );
+
+  return {
+    ...sleepRangeAnalysis,
+    activeSleepLightSegment,
+    activeSleepLightEffectiveStart,
+    activeSleepLightResolvedSegment,
+    resolvedSleepLightSegments,
+  };
+}
+
 function calculateSleepLikeSecondsInRange(startTime, endTime, stats, sleepSchedule) {
   return analyzeSleepStatesInRange(stats, startTime, endTime, sleepSchedule).sleepLikeSeconds;
 }
@@ -894,12 +964,26 @@ export function applyLazyUpdate(
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  const sleepRangeAnalysis = analyzeSleepStatesInRange(
-    updatedStats,
-    lastSaved.getTime(),
-    now.getTime(),
-    sleepSchedule
-  );
+  const previousSleepCallStartedAt =
+    ensureTimestamp(callStatus.sleep.startedAt) ??
+    ensureTimestamp(updatedStats.sleepLightOnStart);
+  const previousSleepCallLogged = callStatus.sleep.isLogged === true;
+  const sleepLightWarningState = resolveSleepLightWarningStateInRange({
+    stats: updatedStats,
+    startTime: lastSaved.getTime(),
+    endTime: now.getTime(),
+    sleepSchedule,
+    previousStartedAt: previousSleepCallStartedAt,
+    previousLogged: previousSleepCallLogged,
+  });
+  const sleepRangeAnalysis = sleepLightWarningState;
+  const activeSleepLightSegment = sleepLightWarningState.activeSleepLightSegment;
+  const activeSleepLightEffectiveStart =
+    sleepLightWarningState.activeSleepLightEffectiveStart;
+  const activeSleepLightResolvedSegment =
+    sleepLightWarningState.activeSleepLightResolvedSegment;
+  const resolvedSleepLightSegments =
+    sleepLightWarningState.resolvedSleepLightSegments;
   const expiredNapUntil = ensureTimestamp(updatedStats.napUntil);
   if (expiredNapUntil != null && expiredNapUntil <= now.getTime()) {
     updatedStats.napUntil = null;
@@ -1085,33 +1169,14 @@ export function applyLazyUpdate(
   }
 
   // 수면 조명 경고는 offline/lazy update 복귀 시에도 사건 단위로 복원한다.
-  const previousSleepCallStartedAt =
-    ensureTimestamp(callStatus.sleep.startedAt) ??
-    ensureTimestamp(updatedStats.sleepLightOnStart);
-  const previousSleepCallLogged = callStatus.sleep.isLogged === true;
-  const activeSleepLightSegment =
-    sleepRangeAnalysis.currentStatus === "SLEEPING_LIGHT_ON"
-      ? sleepRangeAnalysis.sleepLightSegments[
-          sleepRangeAnalysis.sleepLightSegments.length - 1
-        ] || null
-      : null;
-  let activeSleepLightEffectiveStart = null;
-
   if (activeSleepLightSegment) {
-    activeSleepLightEffectiveStart =
-      previousSleepCallStartedAt != null &&
-      previousSleepCallStartedAt <=
-        activeSleepLightSegment.startedAt + SLEEP_ANALYSIS_STEP_MS
-        ? Math.min(previousSleepCallStartedAt, activeSleepLightSegment.startedAt)
-        : activeSleepLightSegment.startedAt;
     callStatus.sleep.isActive = true;
     callStatus.sleep.startedAt = activeSleepLightEffectiveStart;
     updatedStats.sleepLightOnStart = activeSleepLightEffectiveStart;
-    callStatus.sleep.isLogged =
+    callStatus.sleep.isLogged = Boolean(
       previousSleepCallLogged &&
-      previousSleepCallStartedAt != null &&
-      previousSleepCallStartedAt <=
-        activeSleepLightSegment.startedAt + SLEEP_ANALYSIS_STEP_MS;
+        activeSleepLightResolvedSegment?.isContinuingPersistedIncident
+    );
   } else {
     callStatus.sleep.isActive = false;
     callStatus.sleep.startedAt = null;
@@ -1119,26 +1184,14 @@ export function applyLazyUpdate(
     updatedStats.sleepLightOnStart = null;
   }
 
-  sleepRangeAnalysis.sleepLightSegments.forEach((segment, index) => {
-    const isActiveSegment =
-      activeSleepLightSegment != null &&
-      activeSleepLightSegment.startedAt === segment.startedAt &&
-      activeSleepLightEffectiveStart != null;
-    const isContinuingPersistedIncident =
-      index === 0 &&
-      previousSleepCallStartedAt != null &&
-      previousSleepCallStartedAt <= segment.startedAt + SLEEP_ANALYSIS_STEP_MS;
-    const effectiveStartedAt = isActiveSegment
-      ? activeSleepLightEffectiveStart
-      : isContinuingPersistedIncident
-        ? Math.min(previousSleepCallStartedAt, segment.startedAt)
-        : segment.startedAt;
+  resolvedSleepLightSegments.forEach((segment) => {
+    const effectiveStartedAt = segment.effectiveStartedAt;
     const segmentDurationMs = Math.max(0, segment.endedAt - effectiveStartedAt);
     if (segmentDurationMs < SLEEP_LIGHT_WARNING_TIMEOUT_MS) {
       return;
     }
 
-    if (isContinuingPersistedIncident && previousSleepCallLogged) {
+    if (segment.shouldSkipLoggedTimeout) {
       return;
     }
 
@@ -1168,7 +1221,7 @@ export function applyLazyUpdate(
       );
     }
 
-    if (isActiveSegment) {
+    if (segment.isActiveSegment) {
       callStatus.sleep.isLogged = true;
     }
   });

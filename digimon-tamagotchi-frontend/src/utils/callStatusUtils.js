@@ -223,7 +223,23 @@ function buildSleepCall({
     return null;
   }
 
-  const effectiveStartedAt = startedAt ?? currentTimeMs;
+  if (startedAt == null) {
+    return {
+      type: "sleep",
+      title: CALL_META.sleep.title,
+      reason: CALL_META.sleep.reason,
+      statusLabel: "수면 중(불 켜짐 경고!) - 카운트 시작 대기 중",
+      remainingMs: 0,
+      deadlineText: "",
+      riskText: CALL_META.sleep.riskText,
+      isPaused: false,
+      pauseReason: "경고 시작 시각을 확인하는 중입니다.",
+      actionKey: CALL_META.sleep.actionKey,
+      actionLabel: CALL_META.sleep.actionLabel,
+    };
+  }
+
+  const effectiveStartedAt = startedAt;
   const remainingMs = Math.max(
     0,
     effectiveStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS - currentTimeMs

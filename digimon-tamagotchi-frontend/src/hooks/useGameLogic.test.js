@@ -207,6 +207,30 @@ describe("useGameLogic sleep-related warning rules", () => {
     expect(secondIncidentResult.careMistakes).toBe(2);
   });
 
+  test("수면 조명 경고 재계산 시 저장된 sleepLightOnStart를 현재 시각으로 덮어쓰지 않는다", () => {
+    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    const now = new Date(2026, 2, 31, 22, 18, 0);
+
+    const result = checkCalls(
+      createBaseStats({
+        sleepLightOnStart: persistedStart,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: null, isLogged: false },
+        },
+      }),
+      true,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      now,
+      "SLEEPING_LIGHT_ON"
+    );
+
+    expect(result.callStatus.sleep.isActive).toBe(true);
+    expect(result.callStatus.sleep.startedAt).toBe(persistedStart);
+    expect(result.sleepLightOnStart).toBe(persistedStart);
+  });
+
   test("수면 방해 로그는 10분 이내 중복을 감지한다", () => {
     const now = new Date(2026, 2, 31, 23, 0, 0).getTime();
 

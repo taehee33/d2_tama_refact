@@ -685,8 +685,7 @@ export function checkCalls(
     callStatus.sleep.isActive = true;
     callStatus.sleep.startedAt =
       ensureTimestamp(callStatus.sleep.startedAt) ??
-      ensureTimestamp(updatedStats.sleepLightOnStart) ??
-      nowMs;
+      ensureTimestamp(updatedStats.sleepLightOnStart);
     if (callStatus.sleep.isLogged === undefined) {
       callStatus.sleep.isLogged = false;
     }

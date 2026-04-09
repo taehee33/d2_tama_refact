@@ -424,6 +424,29 @@ describe("applyLazyUpdate", () => {
     );
   });
 
+  test("저장된 sleepLightOnStart가 있으면 lazy update는 현재 시각이 아니라 그 시작 시각을 유지한다", () => {
+    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
+    jest.setSystemTime(new Date(2026, 2, 31, 22, 20, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        isLightsOn: true,
+        sleepLightOnStart: persistedStart,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt: null, isLogged: false },
+        },
+      }),
+      new Date(2026, 2, 31, 21, 50, 0).getTime(),
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.callStatus.sleep.startedAt).toBe(persistedStart);
+    expect(result.sleepLightOnStart).toBe(persistedStart);
+    expect(result.careMistakes).toBe(0);
+  });
+
   test("이미 처리된 수면 조명 경고 사건은 저장 경계를 넘어도 다시 올리지 않는다", () => {
     const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
     const timeoutOccurredAt = new Date(2026, 2, 31, 22, 30, 0).getTime();
