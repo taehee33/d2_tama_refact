@@ -1086,3 +1086,59 @@
 ### 아키텍처 결정 근거
 - 버전 데이터는 코드와 자산이 같이 배포되어야 의미가 있으므로, 임시 import 제거보다 실제 버전 데이터와 스프라이트 세트를 저장소에 정식 포함하는 쪽이 기능 일관성과 추후 유지보수에 더 안전합니다.
 - 로컬 워크트리에는 이미 파일이 있어도 Vercel은 Git 커밋 기준으로만 빌드하므로, 버전 확장 작업에서는 데이터 정의 파일과 public 스프라이트 폴더의 추적 상태를 함께 확인하는 편이 재발 방지에 효과적입니다.
+
+### GameDefaultSection 배포 누락 보정
+- `Game.jsx`가 이미 `GameDefaultSection` presenter를 import하고 있었지만, 실제 `src/components/layout/GameDefaultSection.jsx`와 테스트 파일이 Git에 누락되어 Vercel에서 `Can't resolve '../components/layout/GameDefaultSection'` 오류가 발생했습니다.
+- 로컬 빌드는 미추적 파일이 워크트리에 존재해 통과했기 때문에, 이번 수정은 presenter 기능 변경이 아니라 저장소 추적 상태를 맞춰 배포 환경과 로컬 환경을 일치시키는 데 집중했습니다.
+
+### 영향받은 파일
+- `src/components/layout/GameDefaultSection.jsx`
+- `src/components/layout/GameDefaultSection.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### Ver.4 / Ver.5 플레이 가능 확장과 Ver.3~Ver.5 로컬 조그레스 활성화
+- `Ver.4`, `Ver.5`를 신규 슬롯 생성, 로드, 일반 진화, 사망, 도감, 마스터데이터까지 실제로 사용할 수 있는 지원 버전으로 승격했습니다. 기준 로스터는 [Wikimon Ver.4](https://wikimon.net/Digital_Monster_COLOR_Ver.4), [Wikimon Ver.5](https://wikimon.net/Digital_Monster_COLOR_Ver.5), [Humulos DMC](https://humulos.com/digimon/dmc/) 진화표와 DigiROM, 그리고 로컬 `VB for DMC Sprite Conversion`의 공식 로스터 폴더를 함께 대조해 확정했습니다.
+- `src/data/v4`, `src/data/v5`에 각 버전별 `Digitama 1 + death 2 + living roster 19` 구조를 추가하고, stage 스키마는 현재 앱 공용 규칙인 `Digitama > Baby I > Baby II > Child > Adult > Perfect > Ultimate > Super Ultimate`를 그대로 따르도록 맞췄습니다.
+- 내부 ID는 레거시 데이터 호환성을 우선해 공백 없는 기준명을 유지했습니다. Ver.4는 `Biyomon -> Piyomon`, `Cockatrimon -> Kokatorimon`, `Megadramon -> Ultimatedramon`, `Bloom Lordmon -> BloomLordmon`으로, Ver.5는 `DarkTyrannomon -> DarkTyranomon`, `MetalTyrannomon -> MetalTyranomon`, `Machinedramon -> Mugendramon`으로 별칭만 허용하고 실제 게임 데이터 ID는 통일된 이름만 쓰도록 정리했습니다.
+- 스프라이트 추출은 `Individual Sprites`를 source of truth로 두고 `_0.png`를 우선 사용했습니다. `_0.png`가 없는 경우에는 같은 폴더의 첫 번째 프레임을 fallback으로 복사했고, 공식 개별 스프라이트가 비어 있는 엔트리는 `0.png` placeholder를 유지했습니다. `Digitama`와 버전별 사망 폼은 공식 로스터에 개별 파일이 없어 기존 placeholder 자산을 재사용했습니다.
+- 조그레스는 이제 Ver.3~Ver.5 사이의 크로스 버전 조합까지 로컬에서 실제 획득 가능하게 열었습니다. `BanchoLeomon + Darkdramon -> Chaosmon`, `Chimairamon + Mugendramon -> Millenniumon`, `Darkdramon + Mugendramon -> Chaosdramon` 같은 조합은 가이드 표시에만 머물지 않고 실제 진화 로직과 버튼 노출까지 연결됩니다.
+- 반대로 온라인 조그레스는 이번에 Ver.3~Ver.5로 일반화하지 않았습니다. Firestore room 생성/참가/완료 흐름은 여전히 Ver.1/Ver.2만 지원하고, Ver.3~Ver.5 슬롯에서는 온라인 진입을 막은 뒤 한국어 안내 문구로 후속 지원 예정임을 명시하도록 정리했습니다.
+
+### 영향받은 파일
+- `src/data/v4/index.js`
+- `src/data/v4/digimons.js`
+- `src/data/v5/index.js`
+- `src/data/v5/digimons.js`
+- `src/utils/digimonVersionUtils.js`
+- `src/hooks/useGameData.js`
+- `src/hooks/useEvolution.js`
+- `src/hooks/game-runtime/buildGamePageViewModel.js`
+- `src/utils/jogressUtils.js`
+- `src/pages/Game.jsx`
+- `src/components/play/NewDigimonModal.jsx`
+- `src/components/GameModals.jsx`
+- `src/components/JogressModeSelectModal.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/components/BattleScreen.jsx`
+- `src/contexts/MasterDataContext.jsx`
+- `src/components/DigimonMasterDataPanel.jsx`
+- `src/utils/encyclopediaSummary.js`
+- `src/hooks/useEncyclopedia.js`
+- `src/components/panels/DigimonGuidePanel.jsx`
+- `src/components/panels/EncyclopediaPanel.jsx`
+- `src/utils/encyclopediaSummary.test.js`
+- `src/utils/jogressUtils.test.js`
+- `src/hooks/game-runtime/buildGamePageViewModel.test.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `src/components/panels/DigimonGuidePanel.test.jsx`
+- `src/components/panels/EncyclopediaPanel.test.jsx`
+- `src/components/BattleScreen.test.js`
+- `public/Ver4_Mod_TH/*`
+- `public/Ver5_Mod_TH/*`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 버전 지원이 늘어날수록 `Ver.1/Ver.2/Ver.3` 식의 삼항 분기는 빠르게 깨지므로, 버전 레지스트리와 cross-version lookup을 공통 유틸로 끌어올리는 편이 신규 버전 추가와 회귀 방지에 훨씬 유리합니다.
+- Ver.3의 `Chaosmon`, `Millenniumon`은 이미 원작 기준 최종 로스터였기 때문에, Ver.4/Ver.5를 활성화한 뒤에는 더 이상 “가이드 전용”으로 두기보다 실제 로컬 조그레스로 승격하는 편이 데이터 의미와 플레이 경험을 일치시킵니다.
+- 공식 로스터 스프라이트는 버전마다 누락과 명칭 차이가 섞여 있어 전부를 강제로 정규화하기보다, `Individual Sprites 우선 + 첫 프레임 fallback + placeholder 유지` 정책을 명문화하는 쪽이 안전합니다.
+- 온라인 조그레스는 Firestore room 스키마와 상대 버전 매칭 흐름까지 함께 일반화해야 하므로, 이번 범위에서는 플레이 가능한 로컬 조그레스까지 먼저 완성하고 온라인 확장은 별도 작업으로 defer하는 편이 리스크가 낮습니다.
