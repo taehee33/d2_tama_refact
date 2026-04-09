@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { usePresenceContext } from "../contexts/AblyContext";
@@ -68,6 +68,12 @@ import {
   getNextImmersiveLandscapeSide,
   normalizeImmersiveSettings,
 } from "../utils/immersiveSettings";
+import {
+  enterImmersiveLandscapeMode,
+  exitImmersiveLandscapeMode,
+  getImmersiveOrientationSupportState,
+  isImmersiveFullscreenActive,
+} from "../utils/immersiveOrientation";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 
 const DEFAULT_SEASON_ID = 1;
@@ -152,6 +158,12 @@ function Game({ immersive = false }){
     getDetectedLandscapeSide
   );
   const [showSkinPicker, setShowSkinPicker] = useState(false);
+  const immersiveExperienceRef = useRef(null);
+  const [isImmersiveFullscreen, setIsImmersiveFullscreen] = useState(() =>
+    isImmersiveFullscreenActive(document)
+  );
+  const [orientationLockSupported, setOrientationLockSupported] = useState(false);
+  const [orientationLockError, setOrientationLockError] = useState(null);
   
   useEffect(() => {
     const handleResize = () => {
@@ -172,6 +184,22 @@ function Game({ immersive = false }){
     };
   }, []);
 
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      setIsImmersiveFullscreen(isImmersiveFullscreenActive(document));
+    };
+
+    syncFullscreenState();
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    document.addEventListener("webkitfullscreenchange", syncFullscreenState);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreenState);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreenState);
+    };
+  }, []);
+
   const navigate= useNavigate();
   const location = useLocation();
   const isImmersive = immersive || location.pathname.endsWith("/full");
@@ -186,11 +214,18 @@ function Game({ immersive = false }){
 
   useEffect(() => {
     if (!isImmersive) {
+      setOrientationLockError(null);
       return undefined;
     }
 
     return () => {
       setIsChatOpen(false);
+      void exitImmersiveLandscapeMode({
+        documentRef: document,
+        screenRef: window.screen,
+        userAgent: window.navigator?.userAgent || "",
+        vendor: window.navigator?.vendor || "",
+      });
     };
   }, [isImmersive, setIsChatOpen]);
   // useGameState 훅 호출
@@ -809,12 +844,38 @@ function Game({ immersive = false }){
       : landscapeSidePreference;
   const shouldShowRotateHint =
     isLandscapeImmersive && isMobile && isViewportPortrait;
+  const orientationStatusMessage =
+    isLandscapeImmersive && isMobile
+      ? orientationLockError ||
+        (isImmersiveFullscreen && orientationLockSupported
+          ? "가로 전체화면으로 보는 중"
+          : null)
+      : null;
+  const orientationStatusTone =
+    orientationLockError && isLandscapeImmersive && isMobile ? "warning" : "success";
 
   useEffect(() => {
     if (!isImmersive) {
       setShowSkinPicker(false);
     }
   }, [isImmersive]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setOrientationLockSupported(false);
+      return;
+    }
+
+    const supportState = getImmersiveOrientationSupportState({
+      element: immersiveExperienceRef.current,
+      documentRef: document,
+      screenRef: window.screen,
+      userAgent: window.navigator?.userAgent || "",
+      vendor: window.navigator?.vendor || "",
+    });
+
+    setOrientationLockSupported(supportState.orientationLockSupported);
+  }, [isMobile, isImmersive]);
 
   const updateImmersiveSettings = useCallback(
     (partialSettings) => {
@@ -829,10 +890,76 @@ function Game({ immersive = false }){
   );
 
   const handleLayoutModeChange = useCallback(
-    (nextLayoutMode) => {
-      updateImmersiveSettings({ layoutMode: nextLayoutMode });
+    async (nextLayoutMode) => {
+      const isSwitchingToLandscape =
+        nextLayoutMode === IMMERSIVE_LAYOUT_MODES.LANDSCAPE;
+      const isSwitchingToPortrait =
+        nextLayoutMode === IMMERSIVE_LAYOUT_MODES.PORTRAIT;
+      const isSameLayoutMode = immersiveLayoutMode === nextLayoutMode;
+
+      if (!isSameLayoutMode) {
+        updateImmersiveSettings({ layoutMode: nextLayoutMode });
+      }
+
+      if (!isImmersive || !isMobile) {
+        if (isSwitchingToPortrait) {
+          setOrientationLockError(null);
+        }
+        return;
+      }
+
+      if (isSwitchingToPortrait) {
+        setOrientationLockError(null);
+
+        const result = await exitImmersiveLandscapeMode({
+          documentRef: document,
+          screenRef: window.screen,
+          userAgent: window.navigator?.userAgent || "",
+          vendor: window.navigator?.vendor || "",
+        });
+
+        setIsImmersiveFullscreen(result.isFullscreen);
+        setOrientationLockSupported(result.orientationLockSupported);
+        return;
+      }
+
+      if (!isSwitchingToLandscape) {
+        return;
+      }
+
+      const shouldSkipRetry =
+        isSameLayoutMode &&
+        isImmersiveFullscreen &&
+        orientationLockSupported &&
+        !orientationLockError;
+
+      if (shouldSkipRetry) {
+        return;
+      }
+
+      setOrientationLockError(null);
+
+      const result = await enterImmersiveLandscapeMode({
+        element: immersiveExperienceRef.current,
+        documentRef: document,
+        screenRef: window.screen,
+        userAgent: window.navigator?.userAgent || "",
+        vendor: window.navigator?.vendor || "",
+      });
+
+      setIsImmersiveFullscreen(result.isFullscreen);
+      setOrientationLockSupported(result.orientationLockSupported);
+      setOrientationLockError(result.errorMessage);
     },
-    [updateImmersiveSettings]
+    [
+      immersiveLayoutMode,
+      isImmersive,
+      isImmersiveFullscreen,
+      isMobile,
+      orientationLockError,
+      orientationLockSupported,
+      updateImmersiveSettings,
+    ]
   );
 
   const handleCycleLandscapeSide = useCallback(() => {
@@ -1549,24 +1676,7 @@ function Game({ immersive = false }){
 
   return (
     <>
-      {isImmersive ? (
-        <ImmersiveGameTopBar
-          isMobile={isMobile}
-          layoutMode={immersiveLayoutMode}
-          isChatOpen={isChatOpen}
-          unreadCount={unreadCount}
-          presenceCount={presenceCount || 0}
-          showLandscapeSideToggle={isLandscapeImmersive}
-          landscapeSidePreference={landscapeSidePreference}
-          effectiveLandscapeSide={effectiveLandscapeSide}
-          onChangeLayoutMode={handleLayoutModeChange}
-          onToggleChat={handleToggleImmersiveChat}
-          onCycleLandscapeSide={handleCycleLandscapeSide}
-          onToggleSkinPicker={() => setShowSkinPicker((previous) => !previous)}
-          onOpenBaseView={() => navigate(`/play/${slotId}`)}
-          onOpenPlayHub={() => navigate("/play")}
-        />
-      ) : isMobile ? (
+      {isImmersive ? null : isMobile ? (
         <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
           <div className="flex items-center justify-between px-3 py-2">
             {/* 왼쪽: 플레이 허브 버튼 */}
@@ -1683,21 +1793,48 @@ function Game({ immersive = false }){
       ) : null}
 
       {isImmersive ? (
-        <div className="immersive-game-shell">
-          <ImmersiveChatOverlay
-            isOpen={isChatOpen}
+        <div className="immersive-mode-root" ref={immersiveExperienceRef}>
+          <ImmersiveGameTopBar
             isMobile={isMobile}
-            landscapeSide={effectiveLandscapeSide}
-            onClose={handleCloseImmersiveChat}
+            layoutMode={immersiveLayoutMode}
+            isChatOpen={isChatOpen}
+            unreadCount={unreadCount}
+            presenceCount={presenceCount || 0}
+            showLandscapeSideToggle={isLandscapeImmersive}
+            landscapeSidePreference={landscapeSidePreference}
+            effectiveLandscapeSide={effectiveLandscapeSide}
+            onChangeLayoutMode={handleLayoutModeChange}
+            onToggleChat={handleToggleImmersiveChat}
+            onCycleLandscapeSide={handleCycleLandscapeSide}
+            onToggleSkinPicker={() => setShowSkinPicker((previous) => !previous)}
+            onOpenBaseView={() => navigate(`/play/${slotId}`)}
+            onOpenPlayHub={() => navigate("/play")}
           />
-          <ImmersiveSkinPicker
-            isOpen={showSkinPicker}
-            activeSkinId={immersiveSkinId}
-            onSelectSkin={handleSkinSelect}
-          />
-          {isLandscapeImmersive
-            ? landscapeImmersiveSection
-            : portraitImmersiveSection}
+          <div className="immersive-game-shell">
+            {orientationStatusMessage ? (
+              <div
+                className={`immersive-orientation-status immersive-orientation-status--${orientationStatusTone}`.trim()}
+                role="status"
+                aria-live="polite"
+              >
+                {orientationStatusMessage}
+              </div>
+            ) : null}
+            <ImmersiveChatOverlay
+              isOpen={isChatOpen}
+              isMobile={isMobile}
+              landscapeSide={effectiveLandscapeSide}
+              onClose={handleCloseImmersiveChat}
+            />
+            <ImmersiveSkinPicker
+              isOpen={showSkinPicker}
+              activeSkinId={immersiveSkinId}
+              onSelectSkin={handleSkinSelect}
+            />
+            {isLandscapeImmersive
+              ? landscapeImmersiveSection
+              : portraitImmersiveSection}
+          </div>
         </div>
       ) : (
         <div className={!isImmersive && !isMobile ? "game-page-shell" : ""}>

@@ -927,3 +927,20 @@
 - `src/utils/digimonVersionUtils.js`
 - `public/Ver3_Mod_TH/*`
 - `docs/REFACTORING_LOG.md`
+
+### 기존 `가로` 버튼에 모바일 가로 고정 시도를 통합
+- 몰입형 상단 바에 새 버튼을 늘리지 않고, 기존 `가로` 토글을 눌렀을 때 모바일에서만 `layoutMode` 전환과 함께 `requestFullscreen()` 뒤 `screen.orientation.lock("landscape")`를 best effort로 시도하도록 정리했습니다.
+- iPhone Safari나 orientation lock 미지원 브라우저에서는 실패를 에러로 터뜨리지 않고, `회전 잠금을 끄고 직접 돌려 달라`는 한국어 안내 문구로 부드럽게 fallback 하도록 런타임 유틸을 분리했습니다.
+- `세로` 토글을 누르면 `orientation.unlock?.()`와 fullscreen 종료를 best effort로 정리하고, 브라우저가 실제 fullscreen 상태를 바꾸면 `fullscreenchange` 구독으로 몰입형 상태 배너가 즉시 동기화되게 맞췄습니다.
+- 가로 고정 성공, 미지원, 거부, 세로 복귀 경로는 `immersiveOrientation` 유틸 테스트로 분리해 검증했고, 화면에는 상단 바 바로 아래 상태 배너를 추가해 `가로 전체화면으로 보는 중` 또는 fallback 안내를 바로 확인할 수 있게 했습니다.
+
+### 영향받은 파일
+- `src/pages/Game.jsx`
+- `src/utils/immersiveOrientation.js`
+- `src/utils/immersiveOrientation.test.js`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 모바일 브라우저의 landscape lock은 사용자 클릭 맥락과 fullscreen 조건에 의존하는 경우가 많아, 별도 버튼보다 기존 `가로` 토글 안에서 `레이아웃 전환 + 가로 고정 시도`를 함께 처리하는 편이 사용 흐름과 저장 상태를 덜 어지럽힙니다.
+- 브라우저별 분기와 오류 메시지를 `Game` 안에 직접 흩뿌리면 회귀 테스트가 어려워지므로, fullscreen/orientation API 호출 순서를 별도 유틸로 분리해 성공/실패/미지원 케이스를 독립적으로 검증하는 편이 유지보수에 더 안전합니다.
