@@ -19,6 +19,7 @@ describe("ImmersiveGameTopBar", () => {
       "aria-expanded",
       "false"
     );
+    expect(screen.getByText("메뉴")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "가로" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "메뉴 열기" }));
@@ -65,6 +66,7 @@ describe("ImmersiveGameTopBar", () => {
       "aria-expanded",
       "true"
     );
+    expect(screen.getByText("닫기")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "기본 화면" }));
     fireEvent.click(screen.getByRole("button", { name: "플레이 허브" }));
@@ -115,6 +117,9 @@ describe("ImmersiveGameTopBar", () => {
       "aria-pressed",
       "true"
     );
+    expect(
+      screen.getByTestId("immersive-game-topbar-tools-surface")
+    ).toBeInTheDocument();
     expect(screen.getByText("방향 오른쪽")).toBeInTheDocument();
   });
 });

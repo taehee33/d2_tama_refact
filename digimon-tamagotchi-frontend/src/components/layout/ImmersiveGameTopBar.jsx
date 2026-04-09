@@ -120,11 +120,14 @@ function ImmersiveGameTopBar({
     </button>
   ) : null;
 
+  const fabLabel = isCollapsed ? "메뉴" : "닫기";
+
   if (isMobile) {
     return (
       <div
         className="game-immersive-nav game-immersive-nav--mobile"
         data-testid="immersive-game-topbar"
+        data-state={isCollapsed ? "collapsed" : "expanded"}
       >
         {!isCollapsed ? (
           <div
@@ -142,10 +145,12 @@ function ImmersiveGameTopBar({
             onClick={() => onToggleCollapsed?.()}
             aria-label={isCollapsed ? "메뉴 열기" : "메뉴 닫기"}
             aria-expanded={!isCollapsed}
+            data-state={isCollapsed ? "collapsed" : "expanded"}
           >
             <span className="game-immersive-nav__fab-icon" aria-hidden="true">
               {isCollapsed ? "☰" : "×"}
             </span>
+            <span className="game-immersive-nav__fab-label">{fabLabel}</span>
             {unreadCount > 0 ? (
               <span className="game-immersive-nav__fab-badge">
                 {unreadCount > 99 ? "99+" : unreadCount}
@@ -211,10 +216,15 @@ function ImmersiveGameTopBar({
         <div className="game-immersive-nav__badge">몰입형 플레이</div>
       </div>
       <div className="game-immersive-nav__desktop-group game-immersive-nav__desktop-group--tools">
-        {layoutToggle}
-        {landscapeSideButton}
-        {chatButton}
-        {skinButton}
+        <div
+          className="game-immersive-nav__tools-surface"
+          data-testid="immersive-game-topbar-tools-surface"
+        >
+          {layoutToggle}
+          {landscapeSideButton}
+          {chatButton}
+          {skinButton}
+        </div>
       </div>
     </div>
   );
