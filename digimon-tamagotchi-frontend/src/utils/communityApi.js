@@ -1,7 +1,21 @@
 const COMMUNITY_API_BASE_URL = process.env.REACT_APP_COMMUNITY_API_BASE_URL || "";
+const COMMUNITY_BOARD_IDS = new Set(["showcase", "free"]);
 
 function buildCommunityUrl(path) {
   return `${COMMUNITY_API_BASE_URL}${path}`;
+}
+
+function normalizeBoardId(boardId) {
+  if (COMMUNITY_BOARD_IDS.has(boardId)) {
+    return boardId;
+  }
+
+  throw new Error("지원하지 않는 커뮤니티 게시판입니다.");
+}
+
+function buildBoardPath(boardId, suffix = "") {
+  const normalizedBoardId = normalizeBoardId(boardId);
+  return `/api/community/${normalizedBoardId}${suffix}`;
 }
 
 function extractCommunityErrorMessage(response, payload, rawText) {
@@ -74,14 +88,57 @@ async function requestCommunity(currentUser, path, options = {}) {
 }
 
 export async function listShowcasePosts(currentUser) {
-  const payload = await requestCommunity(currentUser, "/api/community/showcase/posts");
+  const payload = await requestCommunity(currentUser, buildBoardPath("showcase", "/posts"));
   return payload.posts || [];
 }
 
 export async function getShowcasePostDetail(currentUser, postId) {
+  return getCommunityPostDetail(currentUser, "showcase", postId);
+}
+
+export async function createShowcasePost(currentUser, body) {
+  return createCommunityPost(currentUser, "showcase", body);
+}
+
+export async function updateShowcasePost(currentUser, postId, body) {
+  return updateCommunityPost(currentUser, "showcase", postId, body);
+}
+
+export async function deleteShowcasePost(currentUser, postId) {
+  return deleteCommunityPost(currentUser, "showcase", postId);
+}
+
+export async function createShowcaseComment(currentUser, postId, body) {
+  return createCommunityComment(currentUser, "showcase", postId, body);
+}
+
+export async function updateShowcaseComment(currentUser, commentId, body) {
+  return updateCommunityComment(currentUser, "showcase", commentId, body);
+}
+
+export async function deleteShowcaseComment(currentUser, commentId) {
+  return deleteCommunityComment(currentUser, "showcase", commentId);
+}
+
+export async function listCommunityPosts(currentUser, boardId, options = {}) {
+  const params = new URLSearchParams();
+  if (options.category) {
+    params.set("category", options.category);
+  }
+
+  const query = params.toString();
   const payload = await requestCommunity(
     currentUser,
-    `/api/community/showcase/posts/${encodeURIComponent(postId)}`
+    `${buildBoardPath(boardId, "/posts")}${query ? `?${query}` : ""}`
+  );
+
+  return payload.posts || [];
+}
+
+export async function getCommunityPostDetail(currentUser, boardId, postId) {
+  const payload = await requestCommunity(
+    currentUser,
+    buildBoardPath(boardId, `/posts/${encodeURIComponent(postId)}`)
   );
 
   if (payload?.post && Array.isArray(payload.post.comments) && !payload.comments) {
@@ -95,8 +152,8 @@ export async function getShowcasePostDetail(currentUser, postId) {
   return payload;
 }
 
-export async function createShowcasePost(currentUser, body) {
-  const payload = await requestCommunity(currentUser, "/api/community/showcase/posts", {
+export async function createCommunityPost(currentUser, boardId, body) {
+  const payload = await requestCommunity(currentUser, buildBoardPath(boardId, "/posts"), {
     method: "POST",
     body,
   });
@@ -104,10 +161,10 @@ export async function createShowcasePost(currentUser, body) {
   return payload.post;
 }
 
-export async function updateShowcasePost(currentUser, postId, body) {
+export async function updateCommunityPost(currentUser, boardId, postId, body) {
   const payload = await requestCommunity(
     currentUser,
-    `/api/community/showcase/posts/${encodeURIComponent(postId)}`,
+    buildBoardPath(boardId, `/posts/${encodeURIComponent(postId)}`),
     {
       method: "PATCH",
       body,
@@ -117,20 +174,20 @@ export async function updateShowcasePost(currentUser, postId, body) {
   return payload.post;
 }
 
-export async function deleteShowcasePost(currentUser, postId) {
+export async function deleteCommunityPost(currentUser, boardId, postId) {
   return requestCommunity(
     currentUser,
-    `/api/community/showcase/posts/${encodeURIComponent(postId)}`,
+    buildBoardPath(boardId, `/posts/${encodeURIComponent(postId)}`),
     {
       method: "DELETE",
     }
   );
 }
 
-export async function createShowcaseComment(currentUser, postId, body) {
+export async function createCommunityComment(currentUser, boardId, postId, body) {
   return requestCommunity(
     currentUser,
-    `/api/community/showcase/posts/${encodeURIComponent(postId)}/comments`,
+    buildBoardPath(boardId, `/posts/${encodeURIComponent(postId)}/comments`),
     {
       method: "POST",
       body,
@@ -138,10 +195,10 @@ export async function createShowcaseComment(currentUser, postId, body) {
   );
 }
 
-export async function updateShowcaseComment(currentUser, commentId, body) {
+export async function updateCommunityComment(currentUser, boardId, commentId, body) {
   return requestCommunity(
     currentUser,
-    `/api/community/showcase/comments/${encodeURIComponent(commentId)}`,
+    buildBoardPath(boardId, `/comments/${encodeURIComponent(commentId)}`),
     {
       method: "PATCH",
       body,
@@ -149,10 +206,10 @@ export async function updateShowcaseComment(currentUser, commentId, body) {
   );
 }
 
-export async function deleteShowcaseComment(currentUser, commentId) {
+export async function deleteCommunityComment(currentUser, boardId, commentId) {
   return requestCommunity(
     currentUser,
-    `/api/community/showcase/comments/${encodeURIComponent(commentId)}`,
+    buildBoardPath(boardId, `/comments/${encodeURIComponent(commentId)}`),
     {
       method: "DELETE",
     }

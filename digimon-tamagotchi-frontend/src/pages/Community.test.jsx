@@ -49,22 +49,121 @@ jest.mock("../hooks/useUserSlots", () => ({
 }));
 
 jest.mock("../utils/dateUtils", () => ({
-  formatTimestamp: jest.fn(() => "4월 1일 09:00"),
+  formatTimestamp: jest.fn(() => "04/01 09:00"),
 }));
 
 jest.mock("../utils/communityApi", () => ({
-  listShowcasePosts: jest.fn(),
-  getShowcasePostDetail: jest.fn(),
-  createShowcasePost: jest.fn(),
-  updateShowcasePost: jest.fn(),
-  deleteShowcasePost: jest.fn(),
-  createShowcaseComment: jest.fn(),
-  updateShowcaseComment: jest.fn(),
-  deleteShowcaseComment: jest.fn(),
+  listCommunityPosts: jest.fn(),
+  getCommunityPostDetail: jest.fn(),
+  createCommunityPost: jest.fn(),
+  updateCommunityPost: jest.fn(),
+  deleteCommunityPost: jest.fn(),
+  createCommunityComment: jest.fn(),
+  updateCommunityComment: jest.fn(),
+  deleteCommunityComment: jest.fn(),
 }));
 
 const communityApi = require("../utils/communityApi");
 const Community = require("./Community").default;
+
+const showcasePosts = [
+  {
+    id: "showcase-1",
+    boardId: "showcase",
+    slotId: "1",
+    title: "서버에서 불러온 자랑 글",
+    body: "실제 커뮤니티 글입니다.",
+    authorUid: "user-1",
+    authorTamerName: "한솔",
+    commentCount: 2,
+    previewComments: [
+      {
+        id: "showcase-comment-2",
+        authorTamerName: "둘째",
+        body: "좋은 기록이네요.",
+      },
+      {
+        id: "showcase-comment-1",
+        authorTamerName: "첫째",
+        body: "축하합니다!",
+      },
+    ],
+    createdAt: "2026-04-01T00:00:00.000Z",
+    snapshot: {
+      slotName: "슬롯1",
+      digimonDisplayName: "코로몬",
+      stageLabel: "성장기",
+      version: "Ver.1",
+      device: "Digital Monster Color 25th",
+      weight: 12,
+      careMistakes: 0,
+      totalBattles: 4,
+      totalBattlesWon: 3,
+      winRate: 75,
+      visual: {
+        backgroundNumber: 162,
+        spriteBasePath: "/images",
+        spriteNumber: 6,
+        isLightsOn: true,
+        sleepStatus: "AWAKE",
+        poopCount: 0,
+        isFrozen: false,
+        isDead: false,
+        isInjured: false,
+      },
+    },
+  },
+];
+
+const freePostsAll = [
+  {
+    id: "free-1",
+    boardId: "free",
+    category: "general",
+    title: "오늘 배틀 루틴 공유",
+    body: "아침 배틀 루틴을 공유합니다.",
+    authorUid: "user-2",
+    authorTamerName: "메탈그레이",
+    commentCount: 1,
+    createdAt: "2026-04-01T01:00:00.000Z",
+  },
+  {
+    id: "free-2",
+    boardId: "free",
+    category: "question",
+    title: "완전체 진화 조건 질문",
+    body: "케어 미스 기준이 헷갈립니다.",
+    authorUid: "user-1",
+    authorTamerName: "한솔",
+    commentCount: 3,
+    createdAt: "2026-04-01T02:00:00.000Z",
+  },
+];
+
+const freePostDetail = {
+  post: {
+    id: "free-2",
+    boardId: "free",
+    category: "question",
+    title: "완전체 진화 조건 질문",
+    body: "케어 미스 기준이 헷갈립니다.",
+    authorUid: "user-1",
+    authorTamerName: "한솔",
+    commentCount: 3,
+    createdAt: "2026-04-01T02:00:00.000Z",
+  },
+  comments: [
+    {
+      id: "free-comment-1",
+      postId: "free-2",
+      authorUid: "user-2",
+      authorTamerName: "메탈그레이",
+      body: "성숙기 동안 누적 케어 미스를 먼저 보시면 됩니다.",
+      createdAt: "2026-04-01T03:00:00.000Z",
+      updatedAt: "2026-04-01T03:00:00.000Z",
+    },
+  ],
+};
 
 describe("Community", () => {
   beforeEach(() => {
@@ -74,6 +173,7 @@ describe("Community", () => {
     mockNavigate.mockReset();
     mockLocation.pathname = "/community";
     mockLocation.search = "";
+    window.confirm = jest.fn(() => true);
 
     Object.values(communityApi).forEach((mockFn) => {
       if (typeof mockFn?.mockReset === "function") {
@@ -82,424 +182,182 @@ describe("Community", () => {
     });
   });
 
-  it("비로그인 상태에서는 샘플 피드와 로그인 CTA를 보여 준다", () => {
+  afterEach(() => {
+    delete window.confirm;
+  });
+
+  it("비로그인 상태에서는 자랑게시판 샘플 피드만 공개한다", () => {
     render(<Community />);
 
     expect(screen.getByText("내 디지몬 자랑 피드")).toBeInTheDocument();
     expect(screen.getByText("오늘은 배틀 승률 70%를 넘겼어요")).toBeInTheDocument();
-    expect(screen.getByText("메탈가루루 팬 :")).toBeInTheDocument();
-    expect(screen.getByText("승률 70%면 루틴이 꽤 안정적이네요.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 자랑하기" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "자랑하기" })).not.toBeInTheDocument();
-    expect(screen.queryByText("샘플 피드")).not.toBeInTheDocument();
+    expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
   });
 
-  it("게시판 탭을 전환하면 자유게시판, 버그제보/QnA, 디스코드 패널을 각각 보여 준다", () => {
-    render(<Community />);
-
-    fireEvent.click(screen.getByRole("tab", { name: /자유게시판/i }));
-    expect(screen.getByRole("tab", { name: /자유게시판/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: /자랑게시판/i })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getByRole("heading", { name: "자유게시판" })).toBeInTheDocument();
-    expect(screen.getByText("오늘 플레이 로그")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
-    expect(screen.getByRole("tab", { name: /버그제보/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "버그제보 / QnA" })).toBeInTheDocument();
-    expect(screen.getByText("로그인 없이 플레이할 수 있나요?")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /디스코드/i }));
-    expect(screen.getByRole("tab", { name: /디스코드/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "디스코드 커뮤니티" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "디스코드 바로가기" })).toBeInTheDocument();
-    expect(screen.getByText("공지 확인")).toBeInTheDocument();
-  });
-
-  it("URL query의 board 값으로 초기 게시판을 선택하고 잘못된 값은 자랑게시판으로 되돌린다", () => {
-    const { rerender } = render(<Community />);
-
+  it("비로그인 상태 자유게시판은 로그인 게이트만 보여 주고 실제 목록을 요청하지 않는다", () => {
     mockLocation.search = "?board=free";
-    rerender(<Community />);
-    expect(screen.getByRole("tab", { name: /자유게시판/i })).toHaveAttribute("aria-selected", "true");
+
+    render(<Community />);
+
     expect(screen.getByRole("heading", { name: "자유게시판" })).toBeInTheDocument();
-
-    mockLocation.search = "?board=discord";
-    rerender(<Community />);
-    expect(screen.getByRole("tab", { name: /디스코드/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "디스코드 커뮤니티" })).toBeInTheDocument();
-
-    mockLocation.search = "?board=unknown";
-    rerender(<Community />);
-    expect(screen.getByRole("tab", { name: /자랑게시판/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "내 디지몬 자랑 피드" })).toBeInTheDocument();
-  });
-
-  it("페이지 안에서 게시판을 바꾸면 URL query와 선택 상태를 같이 갱신한다", () => {
-    render(<Community />);
-
-    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
-
-    expect(mockNavigate).toHaveBeenCalledWith("/community?board=support");
-    expect(screen.getByRole("tab", { name: /버그제보/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "버그제보 / QnA" })).toBeInTheDocument();
-  });
-
-  it("게시판 종류 목록이 선택된 게시판 설명보다 먼저 나온다", () => {
-    render(<Community />);
-
-    const tablist = screen.getByRole("tablist", { name: "커뮤니티 보드" });
-    const heroHeading = screen.getByRole("heading", { name: "내 디지몬 자랑 피드" });
-
-    expect(tablist.compareDocumentPosition(heroHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("게시판 선택 UI는 칩형 탭으로 제목만 보여 주고 헤더 보조 칩은 숨긴다", () => {
-    const { container } = render(<Community />);
-
-    const tablist = screen.getByRole("tablist", { name: "커뮤니티 보드" });
-    const hero = container.querySelector(".community-hero");
-    const toolbarAside = container.querySelector(".community-feed-toolbar__aside");
-
-    expect(within(tablist).getByRole("tab", { name: "자랑게시판" })).toBeInTheDocument();
     expect(
-      within(tablist).queryByText("대표 장면과 성장 로그를 올리는 메인 피드")
-    ).not.toBeInTheDocument();
-    expect(within(tablist).queryByText("샘플 공개 중")).not.toBeInTheDocument();
-
-    expect(hero).not.toBeNull();
-    expect(toolbarAside).not.toBeNull();
-    expect(within(hero).getByText("커뮤니티 > 자랑게시판")).toBeInTheDocument();
-    expect(within(hero).queryByText("대표 장면 자동 생성")).not.toBeInTheDocument();
-    expect(within(hero).queryByText("댓글 중심 상세 보기")).not.toBeInTheDocument();
-    expect(within(hero).queryByText("실제 피드 0개")).not.toBeInTheDocument();
-    expect(screen.queryByText("실제 피드")).not.toBeInTheDocument();
-    expect(
-      within(hero).queryByRole("link", { name: "로그인하고 자랑하기" })
-    ).not.toBeInTheDocument();
-    expect(
-      within(toolbarAside).getByRole("link", { name: "로그인하고 자랑하기" })
+      screen.getByText("자유게시판 실제 글은 로그인 후 확인할 수 있습니다.")
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "로그인하고 글쓰기" })).toBeInTheDocument();
+    expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
   });
 
-  it("선택한 게시판에 따라 상단 breadcrumb 라벨이 함께 바뀐다", () => {
-    render(<Community />);
-
-    expect(screen.getByText("커뮤니티 > 자랑게시판")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /자유게시판/i }));
-    expect(screen.getByText("커뮤니티 > 자유게시판")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /버그제보/i }));
-    expect(screen.getByText("커뮤니티 > 버그제보 / QnA")).toBeInTheDocument();
-  });
-
-  it("자랑게시판 목록 카드는 제목, 내용, 댓글과 오른쪽 썸네일 정보를 분리해 보여 준다", async () => {
+  it("로그인 상태 자유게시판은 말머리 필터와 압축 목록 행을 보여 준다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
       getIdToken: jest.fn().mockResolvedValue("token-123"),
     };
-    mockSlotsState.slots = [];
+    mockLocation.search = "?board=free";
 
-    communityApi.listShowcasePosts.mockResolvedValue([
-      {
-        id: "post-1",
-        slotId: "1",
-        title: "바다 산책 뿔몬",
-        body: "실제 커뮤니티 글입니다.",
-        authorUid: "user-1",
-        authorTamerName: "히히히",
-        commentCount: 0,
-        previewComments: [],
-        createdAt: "2026-04-01T00:00:00.000Z",
-        snapshot: {
-          slotName: "슬롯1",
-          digimonDisplayName: "뿔몬",
-          stageLabel: "유년기 II",
-          version: "Ver.2",
-          device: "Digital Monster Color 25th",
-          visual: {
-            backgroundNumber: 162,
-            spriteBasePath: "/images",
-            spriteNumber: 6,
-            isLightsOn: true,
-            sleepStatus: "AWAKE",
-            poopCount: 0,
-            isFrozen: false,
-            isDead: false,
-            isInjured: false,
-          },
-        },
-      },
-    ]);
-    communityApi.getShowcasePostDetail.mockResolvedValue({
-      post: {
-        id: "post-1",
-        slotId: "1",
-        title: "바다 산책 뿔몬",
-        body: "실제 커뮤니티 글입니다.",
-        authorUid: "user-1",
-        authorTamerName: "히히히",
-        commentCount: 0,
-        previewComments: [],
-        createdAt: "2026-04-01T00:00:00.000Z",
-        snapshot: {
-          slotName: "슬롯1",
-          digimonDisplayName: "뿔몬",
-          stageLabel: "유년기 II",
-          version: "Ver.2",
-          device: "Digital Monster Color 25th",
-          visual: {
-            backgroundNumber: 162,
-            spriteBasePath: "/images",
-            spriteNumber: 6,
-            isLightsOn: true,
-            sleepStatus: "AWAKE",
-            poopCount: 0,
-            isFrozen: false,
-            isDead: false,
-            isInjured: false,
-          },
-        },
-      },
-      comments: [],
+    communityApi.listCommunityPosts.mockImplementation((currentUser, boardId, options = {}) => {
+      if (boardId !== "free") {
+        return Promise.resolve([]);
+      }
+
+      if (options.category === "question") {
+        return Promise.resolve(freePostsAll.filter((post) => post.category === "question"));
+      }
+
+      return Promise.resolve(freePostsAll);
     });
 
     render(<Community />);
 
     await waitFor(() => {
-      expect(screen.getByText("바다 산책 뿔몬")).toBeInTheDocument();
+      expect(screen.getByText("오늘 배틀 루틴 공유")).toBeInTheDocument();
     });
 
-    const postCard = screen.getByText("바다 산책 뿔몬").closest("article");
-
-    expect(postCard).not.toBeNull();
-    expect(within(postCard).getByText("제목 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("내용 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("디지몬 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("단계 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("대표 장면")).toBeInTheDocument();
-    expect(within(postCard).queryByText("슬롯 :")).not.toBeInTheDocument();
-    expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
-    expect(within(postCard).getByText("0개")).toBeInTheDocument();
-    expect(within(postCard).getByText("아직 댓글이 없습니다.")).toBeInTheDocument();
-    expect(within(postCard).getByText("뿔몬")).toBeInTheDocument();
-    expect(within(postCard).getByText("유년기 II · Ver.2")).toBeInTheDocument();
-    expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
-    expect(within(postCard).getByText(/작성자 : 히히히/)).toBeInTheDocument();
-    expect(within(postCard).getByLabelText("게시글 작성 정보")).toBeInTheDocument();
-  });
-
-  it("로그인 상태에서는 자랑하기 모달과 상세 모달이 열린다", async () => {
-    mockAuthState.currentUser = {
-      uid: "user-1",
-      getIdToken: jest.fn().mockResolvedValue("token-123"),
-    };
-    mockSlotsState.slots = [
-      {
-        id: 1,
-        slotName: "슬롯1",
-        digimonDisplayName: "코로몬",
-        selectedDigimon: "Koromon",
-        version: "Ver.1",
-        device: "Digital Monster Color 25th",
-        digimonStats: {
-          evolutionStage: "Child",
-          weight: 12,
-          careMistakes: 0,
-          totalBattles: 4,
-          totalBattlesWon: 3,
-          poopCount: 0,
-          isLightsOn: true,
-          sleepStatus: "AWAKE",
-        },
-      },
-    ];
-
-    communityApi.listShowcasePosts.mockResolvedValue([
-      {
-        id: "post-1",
-        slotId: "1",
-        title: "서버에서 불러온 글",
-        body: "실제 커뮤니티 글입니다.",
-        authorUid: "user-1",
-        authorTamerName: "한솔",
-        commentCount: 4,
-        previewComments: [
-          {
-            id: "comment-4",
-            authorTamerName: "넷째",
-            body: "네번째 댓글",
-            createdAt: "2026-04-01T12:30:00.000Z",
-          },
-          {
-            id: "comment-3",
-            authorTamerName: "셋째",
-            body: "세번째 댓글",
-            createdAt: "2026-04-01T12:00:00.000Z",
-          },
-          {
-            id: "comment-2",
-            authorTamerName: "둘째",
-            body: "두번째 댓글",
-            createdAt: "2026-04-01T11:30:00.000Z",
-          },
-        ],
-        createdAt: "2026-04-01T00:00:00.000Z",
-        snapshot: {
-          slotName: "슬롯1",
-          digimonDisplayName: "코로몬",
-          stageLabel: "성장기",
-          version: "Ver.1",
-          device: "Digital Monster Color 25th",
-          weight: 12,
-          careMistakes: 0,
-          winRate: 75,
-          visual: {
-            backgroundNumber: 162,
-            spriteBasePath: "/images",
-            spriteNumber: 6,
-            isLightsOn: true,
-            sleepStatus: "AWAKE",
-            poopCount: 0,
-            isFrozen: false,
-            isDead: false,
-            isInjured: false,
-          },
-        },
-      },
-    ]);
-    communityApi.getShowcasePostDetail.mockResolvedValue({
-      post: {
-        id: "post-1",
-        slotId: "1",
-        title: "서버에서 불러온 글",
-        body: "실제 커뮤니티 글입니다.",
-        authorUid: "user-1",
-        authorTamerName: "한솔",
-        commentCount: 4,
-        createdAt: "2026-04-01T00:00:00.000Z",
-        snapshot: {
-          slotName: "슬롯1",
-          digimonDisplayName: "코로몬",
-          stageLabel: "성장기",
-          version: "Ver.1",
-          device: "Digital Monster Color 25th",
-          weight: 12,
-          careMistakes: 0,
-          winRate: 75,
-          visual: {
-            backgroundNumber: 162,
-            spriteBasePath: "/images",
-            spriteNumber: 6,
-            isLightsOn: true,
-            sleepStatus: "AWAKE",
-            poopCount: 0,
-            isFrozen: false,
-            isDead: false,
-            isInjured: false,
-          },
-        },
-      },
-      comments: [
-        {
-          id: "comment-1",
-          postId: "post-1",
-          authorUid: "user-2",
-          authorTamerName: "첫째",
-          body: "첫번째 댓글",
-          createdAt: "2026-04-01T11:00:00.000Z",
-          updatedAt: "2026-04-01T11:00:00.000Z",
-        },
-        {
-          id: "comment-2",
-          postId: "post-1",
-          authorUid: "user-3",
-          authorTamerName: "둘째",
-          body: "두번째 댓글",
-          createdAt: "2026-04-01T11:30:00.000Z",
-          updatedAt: "2026-04-01T11:30:00.000Z",
-        },
-        {
-          id: "comment-3",
-          postId: "post-1",
-          authorUid: "user-4",
-          authorTamerName: "셋째",
-          body: "세번째 댓글",
-          createdAt: "2026-04-01T12:00:00.000Z",
-          updatedAt: "2026-04-01T12:00:00.000Z",
-        },
-        {
-          id: "comment-4",
-          postId: "post-1",
-          authorUid: "user-5",
-          authorTamerName: "넷째",
-          body: "네번째 댓글",
-          createdAt: "2026-04-01T12:30:00.000Z",
-          updatedAt: "2026-04-01T12:30:00.000Z",
-        },
-      ],
-    });
-
-    render(<Community />);
-
-    await waitFor(() => {
-      expect(screen.getByText("서버에서 불러온 글")).toBeInTheDocument();
-    });
-
-    const postCard = screen.getByText("서버에서 불러온 글").closest("article");
-
-    expect(postCard).not.toBeNull();
-    expect(within(postCard).getByText("관리")).toBeInTheDocument();
-    expect(within(postCard).getByRole("button", { name: "수정" })).toBeInTheDocument();
-    expect(within(postCard).getByRole("button", { name: "삭제" })).toBeInTheDocument();
-    expect(within(postCard).getByText(/작성자 : 한솔/)).toBeInTheDocument();
-    expect(within(postCard).getByText(/작성일 :/)).toBeInTheDocument();
-    expect(within(postCard).getByLabelText("게시글 작성 정보")).toBeInTheDocument();
-    expect(within(postCard).getByText("코로몬")).toBeInTheDocument();
-    expect(within(postCard).getByText("성장기 · Ver.1")).toBeInTheDocument();
-    expect(within(postCard).getByText("실제 커뮤니티 글입니다.")).toBeInTheDocument();
-    expect(within(postCard).getByText("댓글 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("4개")).toBeInTheDocument();
-    expect(within(postCard).getByText("넷째 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("네번째 댓글")).toBeInTheDocument();
-    expect(within(postCard).getByText("셋째 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("세번째 댓글")).toBeInTheDocument();
-    expect(within(postCard).getByText("둘째 :")).toBeInTheDocument();
-    expect(within(postCard).getByText("두번째 댓글")).toBeInTheDocument();
-    expect(within(postCard).queryByText("첫번째 댓글")).not.toBeInTheDocument();
-    expect(within(postCard).getByRole("button", { name: "더보기..." })).toBeInTheDocument();
-    expect(screen.queryAllByText("내용").length).toBe(0);
-    expect(screen.queryByText("디지몬 스탯")).not.toBeInTheDocument();
-    expect(screen.queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
-    expect(screen.getByRole("dialog", { name: "내 디지몬 자랑" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "닫기" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "자랑 글 올리기" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
-
-    fireEvent.click(within(postCard).getByRole("button", { name: "더보기..." }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog", { name: "서버에서 불러온 글" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("내용")).toBeInTheDocument();
-    expect(screen.getByText("디지몬 스탯")).toBeInTheDocument();
-    expect(screen.getByText("슬롯1")).toBeInTheDocument();
-    expect(screen.getByText("Digital Monster Color 25th")).toBeInTheDocument();
-    expect(screen.getByText("첫번째 댓글")).toBeInTheDocument();
-    expect(screen.queryByText("불 꺼줘!")).not.toBeInTheDocument();
-
-    expect(communityApi.getShowcasePostDetail).toHaveBeenCalledWith(
+    expect(communityApi.listCommunityPosts).toHaveBeenCalledWith(
       mockAuthState.currentUser,
-      "post-1"
+      "free",
+      { category: "" }
     );
+    expect(screen.getByText("말머리")).toBeInTheDocument();
+    expect(screen.getByText("제목")).toBeInTheDocument();
+    expect(screen.getByText("글쓴이")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "전체" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "질문" })).toBeInTheDocument();
+    expect(
+      within(screen.getByText("오늘 배틀 루틴 공유").closest("article")).getByText("일반")
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByText("완전체 진화 조건 질문").closest("article")).getByText("질문")
+    ).toBeInTheDocument();
+    expect(screen.getByText("메탈그레이")).toBeInTheDocument();
+    expect(screen.getByText("한솔")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "안내 카드 펼치기 3개" })).toBeInTheDocument();
+    expect(screen.queryByText("자유게시판 이용 안내")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "안내 카드 펼치기 3개" }));
+
+    expect(screen.getByRole("button", { name: "안내 카드 접기 3개" })).toBeInTheDocument();
+    expect(screen.getByText("자유게시판 이용 안내")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "질문" }));
+
+    await waitFor(() => {
+      expect(communityApi.listCommunityPosts).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        "free",
+        { category: "question" }
+      );
+    });
+
+    expect(screen.queryByText("오늘 배틀 루틴 공유")).not.toBeInTheDocument();
+    expect(screen.getByText("완전체 진화 조건 질문")).toBeInTheDocument();
   });
 
-  it("글 작성 시 현재 미리보기 스냅샷을 함께 전송한다", async () => {
+  it("로그인 상태 자유게시판은 텍스트 전용 글쓰기 모달로 등록한다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=free";
+
+    communityApi.listCommunityPosts.mockResolvedValue([]);
+    communityApi.createCommunityPost.mockResolvedValue({
+      id: "free-3",
+      boardId: "free",
+      category: "guide",
+    });
+
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("button", { name: "글쓰기" }));
+
+    expect(screen.getByRole("dialog", { name: "자유게시판 글쓰기" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("말머리"), {
+      target: { value: "guide" },
+    });
+    fireEvent.change(screen.getByLabelText("제목"), {
+      target: { value: "케어 루틴 정리" },
+    });
+    fireEvent.change(screen.getByLabelText("본문"), {
+      target: { value: "아침 체크 순서를 정리했습니다." },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "글 올리기" }));
+
+    await waitFor(() => {
+      expect(communityApi.createCommunityPost).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        "free",
+        {
+          category: "guide",
+          title: "케어 루틴 정리",
+          body: "아침 체크 순서를 정리했습니다.",
+        }
+      );
+    });
+  });
+
+  it("자유게시판 상세는 스냅샷 없이 제목, 본문, 댓글만 보여 준다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=free";
+
+    communityApi.listCommunityPosts.mockResolvedValue(freePostsAll);
+    communityApi.getCommunityPostDetail.mockResolvedValue(freePostDetail);
+
+    render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("완전체 진화 조건 질문")).toBeInTheDocument();
+    });
+
+    const targetRow = screen.getByText("완전체 진화 조건 질문").closest("article");
+    fireEvent.click(within(targetRow).getByRole("button", { name: "보기" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "완전체 진화 조건 질문" })).toBeInTheDocument();
+    });
+
+    expect(communityApi.getCommunityPostDetail).toHaveBeenCalledWith(
+      mockAuthState.currentUser,
+      "free",
+      "free-2"
+    );
+    const dialog = screen.getByRole("dialog", { name: "완전체 진화 조건 질문" });
+    expect(within(dialog).getByText("질문")).toBeInTheDocument();
+    expect(within(dialog).getByText("케어 미스 기준이 헷갈립니다.")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText("성숙기 동안 누적 케어 미스를 먼저 보시면 됩니다.")
+    ).toBeInTheDocument();
+    expect(within(dialog).queryByText("디지몬 스탯")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
+    expect(within(dialog).getByLabelText("새 댓글")).toBeInTheDocument();
+  });
+
+  it("로그인 상태 자랑게시판은 현재 슬롯 스냅샷을 함께 저장한다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
       getIdToken: jest.fn().mockResolvedValue("token-123"),
@@ -529,12 +387,17 @@ describe("Community", () => {
       },
     ];
 
-    communityApi.listShowcasePosts.mockResolvedValue([]);
-    communityApi.createShowcasePost.mockResolvedValue({
-      id: "post-2",
+    communityApi.listCommunityPosts.mockResolvedValue(showcasePosts);
+    communityApi.createCommunityPost.mockResolvedValue({
+      id: "showcase-2",
+      boardId: "showcase",
     });
 
     render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("서버에서 불러온 자랑 글")).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "자랑하기" }));
 
@@ -548,8 +411,9 @@ describe("Community", () => {
     fireEvent.click(screen.getByRole("button", { name: "자랑 글 올리기" }));
 
     await waitFor(() => {
-      expect(communityApi.createShowcasePost).toHaveBeenCalledWith(
+      expect(communityApi.createCommunityPost).toHaveBeenCalledWith(
         mockAuthState.currentUser,
+        "showcase",
         expect.objectContaining({
           slotId: "2",
           title: "히히히",

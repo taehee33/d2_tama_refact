@@ -2,7 +2,19 @@
 
 const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
 
-const BOARD_ID = "showcase";
+const BOARD_ID_SHOWCASE = "showcase";
+const BOARD_ID_FREE = "free";
+const BOARD_ID = BOARD_ID_SHOWCASE;
+const SUPPORTED_BOARD_IDS = new Set([BOARD_ID_SHOWCASE, BOARD_ID_FREE]);
+const FREE_BOARD_CATEGORY_GENERAL = "general";
+const FREE_BOARD_CATEGORY_QUESTION = "question";
+const FREE_BOARD_CATEGORY_GUIDE = "guide";
+const FREE_BOARD_CATEGORY_IDS = [
+  FREE_BOARD_CATEGORY_GENERAL,
+  FREE_BOARD_CATEGORY_QUESTION,
+  FREE_BOARD_CATEGORY_GUIDE,
+];
+const FREE_BOARD_CATEGORY_SET = new Set(FREE_BOARD_CATEGORY_IDS);
 const POSTS_TABLE = "community_posts";
 const COMMENTS_TABLE = "community_post_comments";
 const PREVIEW_COMMENT_LIMIT = 3;
@@ -174,6 +186,44 @@ function normalizeSlotId(value) {
   throw createCommunityError(400, "올바른 슬롯 번호를 선택해 주세요.");
 }
 
+function normalizeBoardId(boardId) {
+  const normalizedBoardId = normalizeString(boardId);
+
+  if (SUPPORTED_BOARD_IDS.has(normalizedBoardId)) {
+    return normalizedBoardId;
+  }
+
+  throw createCommunityError(404, "존재하지 않는 게시판입니다.");
+}
+
+function normalizeFreeBoardCategory(value, { required = true } = {}) {
+  const normalizedCategory = normalizeString(value);
+
+  if (!normalizedCategory) {
+    if (required) {
+      throw createCommunityError(400, "말머리를 선택해 주세요.");
+    }
+
+    return "";
+  }
+
+  if (!FREE_BOARD_CATEGORY_SET.has(normalizedCategory)) {
+    throw createCommunityError(400, "올바른 말머리를 선택해 주세요.");
+  }
+
+  return normalizedCategory;
+}
+
+function normalizeFreeBoardCategoryFilter(value) {
+  const normalizedCategory = normalizeString(value);
+
+  if (!normalizedCategory || normalizedCategory === "all") {
+    return "";
+  }
+
+  return normalizeFreeBoardCategory(normalizedCategory);
+}
+
 function translateStageLabel(stage) {
   if (!stage) {
     return "단계 정보 없음";
@@ -182,8 +232,8 @@ function translateStageLabel(stage) {
   return stageTranslations[stage] || stage;
 }
 
-function validatePostInput(input = {}) {
-  const slotId = normalizeSlotId(input.slotId);
+function validatePostInput(input = {}, options = {}) {
+  const boardId = normalizeBoardId(options.boardId || BOARD_ID_SHOWCASE);
   const title = normalizeString(input.title);
   const body = normalizeString(input.body);
 
@@ -199,8 +249,18 @@ function validatePostInput(input = {}) {
     throw createCommunityError(400, `게시글 본문은 ${MAX_POST_BODY_LENGTH}자 이하로 입력해 주세요.`);
   }
 
+  if (boardId === BOARD_ID_FREE) {
+    return {
+      boardId,
+      category: normalizeFreeBoardCategory(input.category),
+      title,
+      body,
+    };
+  }
+
   return {
-    slotId,
+    boardId,
+    slotId: normalizeSlotId(input.slotId),
     title,
     body,
   };
@@ -275,14 +335,27 @@ function resolveStageLabel(stage) {
   return translateStageLabel(stage);
 }
 
-function validatePostPayload(input = {}, { requireSlotId = true } = {}) {
+function validatePostPayload(
+  input = {},
+  { boardId = BOARD_ID_SHOWCASE, requireSlotId = true } = {}
+) {
+  const normalizedBoardId = normalizeBoardId(boardId);
   const errors = [];
   const title = normalizeString(input.title);
   const body = normalizeString(input.body);
   const rawSlotId = normalizeString(input.slotId);
+  const rawCategory = normalizeString(input.category);
 
-  if (requireSlotId && !rawSlotId) {
+  if (normalizedBoardId === BOARD_ID_SHOWCASE && requireSlotId && !rawSlotId) {
     errors.push("슬롯을 선택해 주세요.");
+  }
+
+  if (normalizedBoardId === BOARD_ID_FREE) {
+    if (!rawCategory) {
+      errors.push("말머리를 선택해 주세요.");
+    } else if (!FREE_BOARD_CATEGORY_SET.has(rawCategory)) {
+      errors.push("올바른 말머리를 선택해 주세요.");
+    }
   }
 
   if (!title) {
@@ -299,6 +372,8 @@ function validatePostPayload(input = {}, { requireSlotId = true } = {}) {
     isValid: errors.length === 0,
     errors,
     value: {
+      boardId: normalizedBoardId,
+      category: normalizedBoardId === BOARD_ID_FREE ? rawCategory : "",
       slotId: rawSlotId,
       title,
       body,
@@ -375,6 +450,7 @@ function mapPostRow(row) {
   return {
     id: row.id,
     boardId: row.board_id,
+    category: row.category || "",
     authorUid: row.author_uid,
     authorTamerName: row.author_tamer_name,
     slotId: row.slot_id,
@@ -545,12 +621,13 @@ async function recalculateCommentCount(supabase, postId) {
   return nextCommentCount;
 }
 
-async function getPostRowOrThrow(supabase, postId) {
+async function getPostRowOrThrow(supabase, boardId, postId) {
+  const normalizedBoardId = normalizeBoardId(boardId);
   const { data, error } = await supabase
     .from(POSTS_TABLE)
     .select("*")
     .eq("id", postId)
-    .eq("board_id", BOARD_ID)
+    .eq("board_id", normalizedBoardId)
     .maybeSingle();
 
   if (error) {
@@ -564,11 +641,41 @@ async function getPostRowOrThrow(supabase, postId) {
   return data;
 }
 
-async function listCommunityPosts({ supabase, limit = 24 }) {
+async function getCommentRowOrThrow(supabase, commentId) {
   const { data, error } = await supabase
+    .from(COMMENTS_TABLE)
+    .select("*")
+    .eq("id", commentId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw createCommunityError(404, "댓글을 찾을 수 없습니다.");
+  }
+
+  return data;
+}
+
+async function listCommunityPosts({ supabase, boardId = BOARD_ID_SHOWCASE, category = "", limit = 24 }) {
+  const normalizedBoardId = normalizeBoardId(boardId);
+  const normalizedCategory =
+    normalizedBoardId === BOARD_ID_FREE
+      ? normalizeFreeBoardCategoryFilter(category)
+      : "";
+
+  let query = supabase
     .from(POSTS_TABLE)
     .select("*")
-    .eq("board_id", BOARD_ID)
+    .eq("board_id", normalizedBoardId);
+
+  if (normalizedCategory) {
+    query = query.eq("category", normalizedCategory);
+  }
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -588,8 +695,8 @@ async function listCommunityPosts({ supabase, limit = 24 }) {
   }));
 }
 
-async function getCommunityPostDetail({ supabase, postId }) {
-  const postRow = await getPostRowOrThrow(supabase, postId);
+async function getCommunityPostDetail({ supabase, boardId = BOARD_ID_SHOWCASE, postId }) {
+  const postRow = await getPostRowOrThrow(supabase, boardId, postId);
   const { data: commentRows, error: commentsError } = await supabase
     .from(COMMENTS_TABLE)
     .select("*")
@@ -608,39 +715,52 @@ async function getCommunityPostDetail({ supabase, postId }) {
 
 async function createCommunityPost({
   supabase,
+  boardId = BOARD_ID_SHOWCASE,
   uid,
   decodedToken,
   input,
   loadSlotSnapshot = loadUserSlotSnapshot,
   resolveAuthorName = resolveAuthorTamerName,
 }) {
-  const { slotId, title, body } = validatePostInput(input);
+  const normalizedBoardId = normalizeBoardId(boardId);
+  const validatedInput = validatePostInput(input, { boardId: normalizedBoardId });
   const snapshotAt = new Date().toISOString();
   const authorTamerName = await resolveAuthorName(uid, decodedToken);
+  const title = validatedInput.title;
+  const body = validatedInput.body;
   let snapshot = null;
+  let slotId = null;
+  let category = "";
 
-  try {
-    snapshot = await loadSlotSnapshot(uid, slotId, decodedToken, {
-      recordedAt: snapshotAt,
-      currentTime: snapshotAt,
-    });
-  } catch (error) {
-    console.warn("[community-api] slot snapshot fallback", {
-      uid,
-      slotId,
-      message: error?.message || String(error),
-    });
+  if (normalizedBoardId === BOARD_ID_SHOWCASE) {
+    slotId = validatedInput.slotId;
 
-    snapshot = buildCommunitySnapshotFromPreview(input.snapshot, slotId, {
-      recordedAt: snapshotAt,
-      currentTime: snapshotAt,
-    });
+    try {
+      snapshot = await loadSlotSnapshot(uid, slotId, decodedToken, {
+        recordedAt: snapshotAt,
+        currentTime: snapshotAt,
+      });
+    } catch (error) {
+      console.warn("[community-api] slot snapshot fallback", {
+        uid,
+        slotId,
+        message: error?.message || String(error),
+      });
+
+      snapshot = buildCommunitySnapshotFromPreview(input.snapshot, slotId, {
+        recordedAt: snapshotAt,
+        currentTime: snapshotAt,
+      });
+    }
+  } else {
+    category = validatedInput.category;
   }
 
   const { data, error } = await supabase
     .from(POSTS_TABLE)
     .insert({
-      board_id: BOARD_ID,
+      board_id: normalizedBoardId,
+      category: category || null,
       author_uid: uid,
       author_tamer_name: authorTamerName,
       slot_id: slotId,
@@ -662,23 +782,33 @@ async function createCommunityPost({
   };
 }
 
-async function updateCommunityPost({ supabase, uid, postId, input }) {
-  const postRow = await getPostRowOrThrow(supabase, postId);
+async function updateCommunityPost({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  uid,
+  postId,
+  input,
+}) {
+  const normalizedBoardId = normalizeBoardId(boardId);
+  const postRow = await getPostRowOrThrow(supabase, normalizedBoardId, postId);
 
   if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 수정할 수 있습니다.");
   }
 
-  const { title, body } = validatePostInput({
+  const validatedInput = validatePostInput({
     ...input,
     slotId: postRow.slot_id,
-  });
+    category: postRow.category || input.category,
+  }, { boardId: normalizedBoardId });
 
   const { data, error } = await supabase
     .from(POSTS_TABLE)
     .update({
-      title,
-      body,
+      category:
+        normalizedBoardId === BOARD_ID_FREE ? validatedInput.category : null,
+      title: validatedInput.title,
+      body: validatedInput.body,
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId)
@@ -692,8 +822,8 @@ async function updateCommunityPost({ supabase, uid, postId, input }) {
   return mapPostRow(data);
 }
 
-async function deleteCommunityPost({ supabase, uid, postId }) {
-  const postRow = await getPostRowOrThrow(supabase, postId);
+async function deleteCommunityPost({ supabase, boardId = BOARD_ID_SHOWCASE, uid, postId }) {
+  const postRow = await getPostRowOrThrow(supabase, boardId, postId);
 
   if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 삭제할 수 있습니다.");
@@ -710,8 +840,15 @@ async function deleteCommunityPost({ supabase, uid, postId }) {
   };
 }
 
-async function createCommunityComment({ supabase, uid, decodedToken, postId, input }) {
-  await getPostRowOrThrow(supabase, postId);
+async function createCommunityComment({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  uid,
+  decodedToken,
+  postId,
+  input,
+}) {
+  await getPostRowOrThrow(supabase, boardId, postId);
   const { body } = validateCommentInput(input);
   const authorTamerName = await resolveAuthorTamerName(uid, decodedToken);
 
@@ -738,21 +875,16 @@ async function createCommunityComment({ supabase, uid, decodedToken, postId, inp
   };
 }
 
-async function updateCommunityComment({ supabase, uid, commentId, input }) {
+async function updateCommunityComment({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  uid,
+  commentId,
+  input,
+}) {
   const { body } = validateCommentInput(input);
-  const { data: commentRow, error: loadError } = await supabase
-    .from(COMMENTS_TABLE)
-    .select("*")
-    .eq("id", commentId)
-    .maybeSingle();
-
-  if (loadError) {
-    throw loadError;
-  }
-
-  if (!commentRow) {
-    throw createCommunityError(404, "댓글을 찾을 수 없습니다.");
-  }
+  const commentRow = await getCommentRowOrThrow(supabase, commentId);
+  await getPostRowOrThrow(supabase, boardId, commentRow.post_id);
 
   if (commentRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 댓글만 수정할 수 있습니다.");
@@ -777,20 +909,14 @@ async function updateCommunityComment({ supabase, uid, commentId, input }) {
   };
 }
 
-async function deleteCommunityComment({ supabase, uid, commentId }) {
-  const { data: commentRow, error: loadError } = await supabase
-    .from(COMMENTS_TABLE)
-    .select("*")
-    .eq("id", commentId)
-    .maybeSingle();
-
-  if (loadError) {
-    throw loadError;
-  }
-
-  if (!commentRow) {
-    throw createCommunityError(404, "댓글을 찾을 수 없습니다.");
-  }
+async function deleteCommunityComment({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  uid,
+  commentId,
+}) {
+  const commentRow = await getCommentRowOrThrow(supabase, commentId);
+  await getPostRowOrThrow(supabase, boardId, commentRow.post_id);
 
   if (commentRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 댓글만 삭제할 수 있습니다.");
@@ -812,27 +938,98 @@ async function deleteCommunityComment({ supabase, uid, commentId }) {
   };
 }
 
+async function listShowcasePosts(options = {}) {
+  return listCommunityPosts({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function getShowcasePostDetail(options = {}) {
+  return getCommunityPostDetail({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function createShowcasePost(options = {}) {
+  return createCommunityPost({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function updateShowcasePost(options = {}) {
+  return updateCommunityPost({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function deleteShowcasePost(options = {}) {
+  return deleteCommunityPost({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function createShowcaseComment(options = {}) {
+  return createCommunityComment({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function updateShowcaseComment(options = {}) {
+  return updateCommunityComment({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
+async function deleteShowcaseComment(options = {}) {
+  return deleteCommunityComment({
+    ...options,
+    boardId: BOARD_ID_SHOWCASE,
+  });
+}
+
 module.exports = {
   BOARD_ID,
-  BOARD_ID_SHOWCASE: BOARD_ID,
+  BOARD_ID_FREE,
+  BOARD_ID_SHOWCASE,
   COMMENTS_TABLE,
+  FREE_BOARD_CATEGORY_GENERAL,
+  FREE_BOARD_CATEGORY_GUIDE,
+  FREE_BOARD_CATEGORY_IDS,
+  FREE_BOARD_CATEGORY_QUESTION,
   POSTS_TABLE,
   buildCommunitySnapshot,
   buildCommunitySnapshotFromPreview,
   createCommunityComment,
   createCommunityError,
   createCommunityPost,
+  createShowcaseComment,
+  createShowcasePost,
   deleteCommunityComment,
   deleteCommunityPost,
+  deleteShowcaseComment,
+  deleteShowcasePost,
   getCommunityPostDetail,
+  getShowcasePostDetail,
   listCommunityPosts,
+  listShowcasePosts,
   mapCommentRow,
   mapPostRow,
+  normalizeBoardId,
+  normalizeFreeBoardCategory,
   normalizeSlotId,
   resolveStageLabel,
   translateStageLabel,
   updateCommunityComment,
   updateCommunityPost,
+  updateShowcaseComment,
+  updateShowcasePost,
   validateCommentPayload,
   validateCommentInput,
   validatePostPayload,

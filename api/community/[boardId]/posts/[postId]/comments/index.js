@@ -1,7 +1,10 @@
 "use strict";
 
 const { verifyRequestUser } = require("../../../../../_lib/auth");
-const { createCommunityComment } = require("../../../../../_lib/community");
+const {
+  createCommunityComment,
+  normalizeBoardId,
+} = require("../../../../../_lib/community");
 const {
   allowMethods,
   handleApiError,
@@ -15,6 +18,7 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const boardId = Array.isArray(req.query.boardId) ? req.query.boardId[0] : req.query.boardId;
   const postId = Array.isArray(req.query.postId) ? req.query.postId[0] : req.query.postId;
 
   try {
@@ -22,6 +26,7 @@ module.exports = async function handler(req, res) {
     const input = await parseJsonBody(req);
     const result = await createCommunityComment({
       supabase: getSupabaseAdmin(),
+      boardId: normalizeBoardId(boardId),
       uid: decodedToken.uid,
       decodedToken,
       postId,

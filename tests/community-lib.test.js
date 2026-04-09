@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  BOARD_ID_FREE,
   buildCommunitySnapshot,
   buildCommunitySnapshotFromPreview,
   createCommunityPost,
@@ -31,6 +32,7 @@ function createSupabaseInsertStub() {
         data: {
           id: "post-1",
           board_id: state.insertedPayload.board_id,
+          category: state.insertedPayload.category,
           author_uid: state.insertedPayload.author_uid,
           author_tamer_name: state.insertedPayload.author_tamer_name,
           slot_id: state.insertedPayload.slot_id,
@@ -132,9 +134,27 @@ test("검증 헬퍼는 글/댓글 길이와 필수값을 확인한다", () => {
       body: " 오늘 첫 완전체가 됐어요. ",
     }),
     {
+      boardId: "showcase",
       slotId: 2,
       title: "내 디지몬 근황",
       body: "오늘 첫 완전체가 됐어요.",
+    }
+  );
+
+  assert.deepEqual(
+    validatePostInput(
+      {
+        category: "guide",
+        title: " 자유게시판 공략 ",
+        body: " 루틴 메모입니다. ",
+      },
+      { boardId: BOARD_ID_FREE }
+    ),
+    {
+      boardId: "free",
+      category: "guide",
+      title: "자유게시판 공략",
+      body: "루틴 메모입니다.",
     }
   );
 
@@ -334,4 +354,31 @@ test("createCommunityPost는 잘못된 preview snapshot이면 거부한다", asy
     }),
     /선택한 슬롯 정보가 올바르지 않습니다\./
   );
+});
+
+test("createCommunityPost는 자유게시판 글을 slot/snapshot 없이 저장한다", async () => {
+  const { supabase, state } = createSupabaseInsertStub();
+
+  await createCommunityPost({
+    supabase,
+    boardId: BOARD_ID_FREE,
+    uid: "user-1",
+    decodedToken: {
+      uid: "user-1",
+      email: "han@example.com",
+      name: "한솔",
+      idToken: "token-123",
+    },
+    input: {
+      category: "guide",
+      title: "공략 메모",
+      body: "아침 루틴을 기록합니다.",
+    },
+    resolveAuthorName: async () => "한솔",
+  });
+
+  assert.equal(state.insertedPayload.board_id, "free");
+  assert.equal(state.insertedPayload.category, "guide");
+  assert.equal(state.insertedPayload.slot_id, null);
+  assert.equal(state.insertedPayload.snapshot, null);
 });

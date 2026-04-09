@@ -102,6 +102,47 @@ export const communityFreeBoardTopics = [
   },
 ];
 
+export const communityFreeBoardCategories = [
+  { id: "all", label: "전체" },
+  { id: "general", label: "일반" },
+  { id: "question", label: "질문" },
+  { id: "guide", label: "공략" },
+];
+
+const communityFreeBoardCategoryLabels = Object.freeze({
+  general: "일반",
+  question: "질문",
+  guide: "공략",
+});
+
+export function getCommunityFreeBoardCategoryLabel(category) {
+  return communityFreeBoardCategoryLabels[category] || "일반";
+}
+
+export const communityFreeBoardPinnedPosts = [
+  {
+    id: "free-guide",
+    badge: "필독",
+    title: "자유게시판 이용 안내",
+    description:
+      "플레이 근황, 짧은 질문, 공략 메모를 편하게 나누는 공간입니다. 저장/버그 문제는 버그제보 / QnA 보드를 이용해 주세요.",
+  },
+  {
+    id: "free-etiquette",
+    badge: "공지",
+    title: "말머리만 맞춰도 흐름이 훨씬 잘 보입니다",
+    description:
+      "일반은 잡담과 근황, 질문은 도움 요청, 공략은 루틴 공유에 맞춰 사용하면 나중에 다시 찾기 쉽습니다.",
+  },
+  {
+    id: "free-showcase",
+    badge: "가이드",
+    title: "대표 장면 자랑은 자랑게시판에 남겨 주세요",
+    description:
+      "스냅샷과 성장 로그 중심 글은 자랑게시판으로 분리해 두면 기록 아카이브가 훨씬 깔끔하게 유지됩니다.",
+  },
+];
+
 export const communityShowcaseSamples = [
   {
     id: "sample-showcase-1",

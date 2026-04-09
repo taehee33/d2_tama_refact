@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import CommunityFreePostComposer from "../components/community/CommunityFreePostComposer";
+import CommunityFreePostRow from "../components/community/CommunityFreePostRow";
 import CommunityPostCard from "../components/community/CommunityPostCard";
 import CommunityPostComposer from "../components/community/CommunityPostComposer";
 import CommunityPostDetailDialog from "../components/community/CommunityPostDetailDialog";
@@ -9,6 +11,8 @@ import {
   communityDiscordChannels,
   communityDiscordChecklist,
   communityDiscordInvite,
+  communityFreeBoardCategories,
+  communityFreeBoardPinnedPosts,
   communityFreeBoardTips,
   communityFreeBoardTopics,
   communityGuidelines,
@@ -22,19 +26,26 @@ import {
 import useUserSlots from "../hooks/useUserSlots";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 import {
-  createShowcaseComment,
-  createShowcasePost,
-  deleteShowcaseComment,
-  deleteShowcasePost,
-  getShowcasePostDetail,
-  listShowcasePosts,
-  updateShowcaseComment,
-  updateShowcasePost,
+  createCommunityComment,
+  createCommunityPost,
+  deleteCommunityComment,
+  deleteCommunityPost,
+  getCommunityPostDetail,
+  listCommunityPosts,
+  updateCommunityComment,
+  updateCommunityPost,
 } from "../utils/communityApi";
 import { buildCommunityPreviewFromSlot } from "../utils/communitySnapshotUtils";
 
+const FREE_BOARD_ALL_CATEGORY = "all";
+const FREE_BOARD_DEFAULT_CATEGORY = "general";
+
 function getErrorMessage(error, fallbackMessage) {
   return error instanceof Error ? error.message : fallbackMessage;
+}
+
+function isInteractiveBoard(boardId) {
+  return boardId === "showcase" || boardId === "free";
 }
 
 function Community() {
@@ -56,6 +67,9 @@ function Community() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [selectedSlotId, setSelectedSlotId] = useState("");
+  const [category, setCategory] = useState(FREE_BOARD_DEFAULT_CATEGORY);
+  const [freeBoardFilter, setFreeBoardFilter] = useState(FREE_BOARD_ALL_CATEGORY);
+  const [isFreePinnedOpen, setIsFreePinnedOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [editingPostId, setEditingPostId] = useState("");
@@ -69,16 +83,28 @@ function Community() {
   const [editingCommentBody, setEditingCommentBody] = useState("");
   const [commentActionId, setCommentActionId] = useState("");
 
+  const isShowcaseBoard = activeBoardId === "showcase";
+  const isFreeBoard = activeBoardId === "free";
+
   const boardCards = useMemo(
     () =>
-      communityBoards.map((board) =>
-        board.id === "showcase"
-          ? {
-              ...board,
-              status: currentUser ? "운영 중" : "샘플 공개 중",
-            }
-          : board
-      ),
+      communityBoards.map((board) => {
+        if (board.id === "showcase") {
+          return {
+            ...board,
+            status: currentUser ? "운영 중" : "샘플 공개 중",
+          };
+        }
+
+        if (board.id === "free") {
+          return {
+            ...board,
+            status: currentUser ? "운영 중" : "로그인 전용",
+          };
+        }
+
+        return board;
+      }),
     [currentUser]
   );
 
@@ -101,22 +127,15 @@ function Community() {
 
   const detailData = currentUser
     ? postDetail
-    : selectedSamplePost
+    : isShowcaseBoard && selectedSamplePost
       ? { post: selectedSamplePost, comments: [] }
       : null;
 
-  const feedPosts = currentUser ? posts : communityShowcaseSamples;
-  const isShowcaseBoard = activeBoardId === "showcase";
-
-  const handleSelectBoard = useCallback(
-    (boardId) => {
-      const nextBoardId = resolveCommunityBoardId(`board=${boardId}`);
-
-      setActiveBoardId(nextBoardId);
-      navigate(getCommunityBoardHref(nextBoardId));
-    },
-    [navigate]
-  );
+  const feedPosts = currentUser
+    ? posts
+    : isShowcaseBoard
+      ? communityShowcaseSamples
+      : [];
 
   const activeBoardCopy = useMemo(() => {
     switch (activeBoardId) {
@@ -124,7 +143,7 @@ function Community() {
         return {
           title: "자유게시판",
           description:
-            "플레이 근황, 공략 메모, 짧은 질문을 편하게 나누는 대화형 보드입니다.",
+            "플레이 근황, 공략 메모, 짧은 질문을 말머리와 함께 빠르게 나누는 텍스트 보드입니다.",
         };
       case "support":
         return {
@@ -154,35 +173,46 @@ function Community() {
     [activeBoardId, boardCards]
   );
 
-  const refreshPosts = useCallback(async () => {
-    if (!currentUser) {
-      setPosts([]);
-      setPostsLoading(false);
+  const refreshPosts = useCallback(
+    async (boardId = activeBoardId, options = {}) => {
+      if (!currentUser || !isInteractiveBoard(boardId)) {
+        setPosts([]);
+        setPostsLoading(false);
+        setPostsError("");
+        return [];
+      }
+
+      const categoryFilter =
+        boardId === "free"
+          ? options.category ??
+            (freeBoardFilter !== FREE_BOARD_ALL_CATEGORY ? freeBoardFilter : "")
+          : "";
+
+      setPostsLoading(true);
       setPostsError("");
-      return [];
-    }
 
-    setPostsLoading(true);
-    setPostsError("");
-
-    try {
-      const nextPosts = await listShowcasePosts(currentUser);
-      setPosts(nextPosts);
-      return nextPosts;
-    } catch (error) {
-      setPosts([]);
-      setPostsError(
-        getErrorMessage(error, "커뮤니티 글 목록을 불러오지 못했습니다.")
-      );
-      return [];
-    } finally {
-      setPostsLoading(false);
-    }
-  }, [currentUser]);
+      try {
+        const nextPosts = await listCommunityPosts(currentUser, boardId, {
+          category: categoryFilter,
+        });
+        setPosts(nextPosts);
+        return nextPosts;
+      } catch (error) {
+        setPosts([]);
+        setPostsError(
+          getErrorMessage(error, "커뮤니티 글 목록을 불러오지 못했습니다.")
+        );
+        return [];
+      } finally {
+        setPostsLoading(false);
+      }
+    },
+    [activeBoardId, currentUser, freeBoardFilter]
+  );
 
   const refreshPostDetail = useCallback(
-    async (postId) => {
-      if (!currentUser || !postId) {
+    async (postId, boardId = activeBoardId) => {
+      if (!currentUser || !postId || !isInteractiveBoard(boardId)) {
         setPostDetail(null);
         setDetailError("");
         return null;
@@ -192,7 +222,7 @@ function Community() {
       setDetailError("");
 
       try {
-        const detail = await getShowcasePostDetail(currentUser, postId);
+        const detail = await getCommunityPostDetail(currentUser, boardId, postId);
         setPostDetail(detail);
         return detail;
       } catch (error) {
@@ -205,7 +235,7 @@ function Community() {
         setDetailLoading(false);
       }
     },
-    [currentUser]
+    [activeBoardId, currentUser]
   );
 
   useEffect(() => {
@@ -220,13 +250,63 @@ function Community() {
     }
   }, [selectedSlotId, slots]);
 
+  const resolveDefaultComposerCategory = useCallback(
+    () =>
+      freeBoardFilter !== FREE_BOARD_ALL_CATEGORY
+        ? freeBoardFilter
+        : FREE_BOARD_DEFAULT_CATEGORY,
+    [freeBoardFilter]
+  );
+
+  const resetComposer = useCallback(() => {
+    setEditingPostId("");
+    setTitle("");
+    setBody("");
+    setComposerError("");
+    setCategory(resolveDefaultComposerCategory());
+  }, [resolveDefaultComposerCategory]);
+
+  const handleCloseComposer = useCallback(() => {
+    resetComposer();
+    setIsComposerOpen(false);
+  }, [resetComposer]);
+
+  const handleOpenComposer = useCallback(() => {
+    resetComposer();
+    setIsComposerOpen(true);
+  }, [resetComposer]);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedPostId("");
+    setSelectedSamplePost(null);
+    setPostDetail(null);
+    setDetailError("");
+    setCommentDraft("");
+    setCommentError("");
+    setEditingCommentId("");
+    setEditingCommentBody("");
+    setCommentActionId("");
+  }, []);
+
   useEffect(() => {
-    if (!isShowcaseBoard) {
+    handleCloseComposer();
+    handleCloseDetail();
+    setPosts([]);
+    setPostsError("");
+    setPostsLoading(false);
+    setIsFreePinnedOpen(false);
+  }, [activeBoardId, handleCloseComposer, handleCloseDetail]);
+
+  useEffect(() => {
+    if (!currentUser || !isInteractiveBoard(activeBoardId)) {
+      setPosts([]);
+      setPostsError("");
+      setPostsLoading(false);
       return;
     }
 
-    refreshPosts();
-  }, [isShowcaseBoard, refreshPosts]);
+    refreshPosts(activeBoardId);
+  }, [activeBoardId, currentUser, freeBoardFilter, refreshPosts]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -253,50 +333,22 @@ function Community() {
   }, [currentUser, posts, selectedPostId]);
 
   useEffect(() => {
-    if (!currentUser || !selectedPostId || !isShowcaseBoard) {
+    if (!currentUser || !selectedPostId || !isInteractiveBoard(activeBoardId)) {
       return;
     }
 
-    refreshPostDetail(selectedPostId);
-  }, [currentUser, isShowcaseBoard, selectedPostId, refreshPostDetail]);
+    refreshPostDetail(selectedPostId, activeBoardId);
+  }, [activeBoardId, currentUser, refreshPostDetail, selectedPostId]);
 
-  const resetComposer = useCallback(() => {
-    setEditingPostId("");
-    setTitle("");
-    setBody("");
-    setComposerError("");
-  }, []);
+  const handleSelectBoard = useCallback(
+    (boardId) => {
+      const nextBoardId = resolveCommunityBoardId(`board=${boardId}`);
 
-  const handleCloseComposer = useCallback(() => {
-    resetComposer();
-    setIsComposerOpen(false);
-  }, [resetComposer]);
-
-  const handleOpenComposer = useCallback(() => {
-    resetComposer();
-    setIsComposerOpen(true);
-  }, [resetComposer]);
-
-  const handleCloseDetail = useCallback(() => {
-    setSelectedPostId("");
-    setSelectedSamplePost(null);
-    setPostDetail(null);
-    setDetailError("");
-    setCommentDraft("");
-    setCommentError("");
-    setEditingCommentId("");
-    setEditingCommentBody("");
-    setCommentActionId("");
-  }, []);
-
-  useEffect(() => {
-    if (activeBoardId === "showcase") {
-      return;
-    }
-
-    handleCloseComposer();
-    handleCloseDetail();
-  }, [activeBoardId, handleCloseComposer, handleCloseDetail]);
+      setActiveBoardId(nextBoardId);
+      navigate(getCommunityBoardHref(nextBoardId));
+    },
+    [navigate]
+  );
 
   const handleSubmitPost = useCallback(
     async (event) => {
@@ -306,14 +358,22 @@ function Community() {
 
       try {
         let savedPost = null;
+        let nextCategoryFilter = freeBoardFilter;
 
         if (editingPostId) {
-          savedPost = await updateShowcasePost(currentUser, editingPostId, {
+          savedPost = await updateCommunityPost(currentUser, activeBoardId, editingPostId, {
+            ...(isFreeBoard ? { category } : {}),
+            title,
+            body,
+          });
+        } else if (isFreeBoard) {
+          savedPost = await createCommunityPost(currentUser, "free", {
+            category,
             title,
             body,
           });
         } else {
-          savedPost = await createShowcasePost(currentUser, {
+          savedPost = await createCommunityPost(currentUser, "showcase", {
             slotId: selectedSlot ? String(selectedSlot.id) : "",
             title,
             body,
@@ -321,9 +381,19 @@ function Community() {
           });
         }
 
+        if (
+          isFreeBoard &&
+          freeBoardFilter !== FREE_BOARD_ALL_CATEGORY &&
+          savedPost.category &&
+          freeBoardFilter !== savedPost.category
+        ) {
+          nextCategoryFilter = savedPost.category;
+          setFreeBoardFilter(savedPost.category);
+        }
+
         resetComposer();
         setIsComposerOpen(false);
-        await refreshPosts();
+        await refreshPosts(activeBoardId, { category: nextCategoryFilter });
         setSelectedPostId(savedPost.id);
       } catch (error) {
         setComposerError(getErrorMessage(error, "게시글을 저장하지 못했습니다."));
@@ -332,9 +402,13 @@ function Community() {
       }
     },
     [
+      activeBoardId,
       body,
+      category,
       currentUser,
       editingPostId,
+      freeBoardFilter,
+      isFreeBoard,
       preview,
       refreshPosts,
       resetComposer,
@@ -343,14 +417,23 @@ function Community() {
     ]
   );
 
-  const handleEditPost = useCallback((post) => {
-    setEditingPostId(post.id);
-    setSelectedSlotId(String(post.slotId));
-    setTitle(post.title);
-    setBody(post.body || "");
-    setComposerError("");
-    setIsComposerOpen(true);
-  }, []);
+  const handleEditPost = useCallback(
+    (post) => {
+      setEditingPostId(post.id);
+      setTitle(post.title);
+      setBody(post.body || "");
+      setComposerError("");
+
+      if (post.boardId === "showcase") {
+        setSelectedSlotId(String(post.slotId));
+      } else {
+        setCategory(post.category || FREE_BOARD_DEFAULT_CATEGORY);
+      }
+
+      setIsComposerOpen(true);
+    },
+    []
+  );
 
   const handleDeletePost = useCallback(
     async (postId) => {
@@ -359,7 +442,7 @@ function Community() {
       }
 
       try {
-        await deleteShowcasePost(currentUser, postId);
+        await deleteCommunityPost(currentUser, activeBoardId, postId);
 
         if (editingPostId === postId) {
           handleCloseComposer();
@@ -369,12 +452,13 @@ function Community() {
           handleCloseDetail();
         }
 
-        await refreshPosts();
+        await refreshPosts(activeBoardId);
       } catch (error) {
         setPostsError(getErrorMessage(error, "게시글을 삭제하지 못했습니다."));
       }
     },
     [
+      activeBoardId,
       currentUser,
       editingPostId,
       handleCloseComposer,
@@ -396,13 +480,13 @@ function Community() {
       setCommentError("");
 
       try {
-        await createShowcaseComment(currentUser, postDetail.post.id, {
+        await createCommunityComment(currentUser, activeBoardId, postDetail.post.id, {
           body: commentDraft,
         });
         setCommentDraft("");
         await Promise.all([
-          refreshPosts(),
-          refreshPostDetail(postDetail.post.id),
+          refreshPosts(activeBoardId),
+          refreshPostDetail(postDetail.post.id, activeBoardId),
         ]);
       } catch (error) {
         setCommentError(getErrorMessage(error, "댓글을 등록하지 못했습니다."));
@@ -410,7 +494,7 @@ function Community() {
         setCommentLoading(false);
       }
     },
-    [commentDraft, currentUser, postDetail, refreshPostDetail, refreshPosts]
+    [activeBoardId, commentDraft, currentUser, postDetail, refreshPostDetail, refreshPosts]
   );
 
   const handleSaveCommentEdit = useCallback(
@@ -423,14 +507,14 @@ function Community() {
       setCommentError("");
 
       try {
-        await updateShowcaseComment(currentUser, commentId, {
+        await updateCommunityComment(currentUser, activeBoardId, commentId, {
           body: editingCommentBody,
         });
         setEditingCommentId("");
         setEditingCommentBody("");
         await Promise.all([
-          refreshPosts(),
-          refreshPostDetail(postDetail.post.id),
+          refreshPosts(activeBoardId),
+          refreshPostDetail(postDetail.post.id, activeBoardId),
         ]);
       } catch (error) {
         setCommentError(getErrorMessage(error, "댓글을 수정하지 못했습니다."));
@@ -438,7 +522,14 @@ function Community() {
         setCommentActionId("");
       }
     },
-    [currentUser, editingCommentBody, postDetail, refreshPostDetail, refreshPosts]
+    [
+      activeBoardId,
+      currentUser,
+      editingCommentBody,
+      postDetail,
+      refreshPostDetail,
+      refreshPosts,
+    ]
   );
 
   const handleDeleteComment = useCallback(
@@ -455,7 +546,7 @@ function Community() {
       setCommentError("");
 
       try {
-        await deleteShowcaseComment(currentUser, commentId);
+        await deleteCommunityComment(currentUser, activeBoardId, commentId);
 
         if (editingCommentId === commentId) {
           setEditingCommentId("");
@@ -463,8 +554,8 @@ function Community() {
         }
 
         await Promise.all([
-          refreshPosts(),
-          refreshPostDetail(postDetail.post.id),
+          refreshPosts(activeBoardId),
+          refreshPostDetail(postDetail.post.id, activeBoardId),
         ]);
       } catch (error) {
         setCommentError(getErrorMessage(error, "댓글을 삭제하지 못했습니다."));
@@ -472,28 +563,34 @@ function Community() {
         setCommentActionId("");
       }
     },
-    [currentUser, editingCommentId, postDetail, refreshPostDetail, refreshPosts]
+    [
+      activeBoardId,
+      currentUser,
+      editingCommentId,
+      postDetail,
+      refreshPostDetail,
+      refreshPosts,
+    ]
   );
 
   const renderBoardToolbarActions = (boardId) => {
     if (boardId === "free") {
-      return (
-        <>
+      if (currentUser) {
+        return (
           <button
             type="button"
             className="service-button service-button--primary"
-            onClick={() => handleSelectBoard("showcase")}
+            onClick={handleOpenComposer}
           >
-            자랑게시판 보기
+            글쓰기
           </button>
-          <button
-            type="button"
-            className="service-button service-button--ghost"
-            onClick={() => handleSelectBoard("support")}
-          >
-            버그제보 / QnA 보기
-          </button>
-        </>
+        );
+      }
+
+      return (
+        <Link to="/auth" className="service-button service-button--primary">
+          로그인하고 글쓰기
+        </Link>
       );
     }
 
@@ -678,18 +775,18 @@ function Community() {
             <p className="service-section-label">자유게시판</p>
             <h2>플레이 근황과 소소한 질문을 가볍게 나누는 공간</h2>
             <p className="service-muted">
-              자유게시판은 일상 대화와 짧은 메모가 빠르게 오가는 보드로 두고, 자랑용
-              기록과 운영 문의는 다른 보드로 분리해 흐름을 명확하게 유지합니다.
+              자유게시판은 카드보다 읽는 속도를 우선하는 텍스트 보드입니다. 말머리만 맞춰도
+              질문과 공략이 훨씬 빠르게 정리됩니다.
             </p>
           </div>
 
           <div className="community-feed-toolbar__aside">
             <div className="community-feed-toolbar__badges">
               <span className="service-badge service-badge--accent">
-                추천 주제 {communityFreeBoardTopics.length}개
+                안내 {communityFreeBoardPinnedPosts.length}개
               </span>
               <span className="service-badge service-badge--cool">
-                가벼운 대화 보드
+                {currentUser ? `${posts.length}개 글` : "로그인 전용"}
               </span>
             </div>
             <div className="community-feed-toolbar__actions">
@@ -698,40 +795,124 @@ function Community() {
           </div>
         </div>
 
-        <div className="service-action-grid">
-          {communityFreeBoardTopics.map((topic) => (
-            <article
-              key={topic.id}
-              className="service-inline-panel community-board-info-card"
+        <div className="community-free-pinned-section">
+          <button
+            type="button"
+            className={`community-free-pinned-toggle${isFreePinnedOpen ? " community-free-pinned-toggle--open" : ""}`}
+            onClick={() => setIsFreePinnedOpen((prev) => !prev)}
+            aria-expanded={isFreePinnedOpen}
+            aria-controls="community-free-pinned-posts"
+          >
+            <span>{isFreePinnedOpen ? "안내 카드 접기" : "안내 카드 펼치기"}</span>
+            <span className="community-free-pinned-toggle__count">
+              {communityFreeBoardPinnedPosts.length}개
+            </span>
+            <span className="community-free-pinned-toggle__arrow" aria-hidden="true" />
+          </button>
+
+          {isFreePinnedOpen ? (
+            <div
+              id="community-free-pinned-posts"
+              className="service-action-grid community-free-pinned-grid"
             >
-              <p className="service-section-label">{topic.badge}</p>
-              <strong>{topic.title}</strong>
-              <span className="service-muted">{topic.description}</span>
-            </article>
-          ))}
+              {communityFreeBoardPinnedPosts.map((item) => (
+                <article
+                  key={item.id}
+                  className="service-inline-panel community-board-info-card"
+                >
+                  <p className="service-section-label">{item.badge}</p>
+                  <strong>{item.title}</strong>
+                  <span className="service-muted">{item.description}</span>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </div>
 
-        <div className="community-public-note">
-          <strong>대표 장면과 성장 로그가 중심인 글은 자랑게시판으로 분리해 두었습니다.</strong>
-          <span>
-            자유게시판은 공략 잡담, 오늘 플레이 근황, 짧은 질문처럼 빠르게 주고받는 대화
-            흐름에 맞춰 운영합니다.
-          </span>
-        </div>
+        {!currentUser ? (
+          <div className="community-empty-box">
+            <strong>자유게시판 실제 글은 로그인 후 확인할 수 있습니다.</strong>
+            <span>
+              지금은 운영 안내만 먼저 공개됩니다. 로그인하면 목록, 상세, 댓글, 글쓰기가 모두
+              열립니다.
+            </span>
+          </div>
+        ) : (
+          <>
+            <div className="community-free-filter-row" aria-label="자유게시판 말머리 필터">
+              {communityFreeBoardCategories.map((item) => {
+                const isActive = freeBoardFilter === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`community-free-filter-chip${isActive ? " community-free-filter-chip--active" : ""}`}
+                    onClick={() => setFreeBoardFilter(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {postsError ? <p className="community-error-text">{postsError}</p> : null}
+            {postsLoading ? (
+              <p className="service-muted">게시글을 불러오는 중입니다...</p>
+            ) : null}
+
+            {!postsLoading && posts.length === 0 ? (
+              <div className="community-empty-box">
+                <strong>아직 등록된 자유게시판 글이 없습니다.</strong>
+                <span>첫 근황이나 질문을 남겨 대화를 시작해 보세요.</span>
+              </div>
+            ) : (
+              <div className="community-free-post-list">
+                <div className="community-free-post-list__header" aria-hidden="true">
+                  <span>말머리</span>
+                  <span>제목</span>
+                  <span>글쓴이</span>
+                  <span>작성일</span>
+                  <span>관리</span>
+                </div>
+
+                {posts.map((post) => (
+                  <CommunityFreePostRow
+                    key={post.id}
+                    post={post}
+                    isActive={selectedPostId === post.id}
+                    canManage={post.authorUid === currentUser.uid}
+                    onOpen={() => setSelectedPostId(post.id)}
+                    onEdit={() => handleEditPost(post)}
+                    onDelete={() => handleDeletePost(post.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <details className="community-guideline-panel">
         <summary>자유게시판 운영 메모 보기</summary>
         <div className="community-guideline-panel__body">
-          <p className="service-muted">
-            대화형 보드는 읽는 속도가 중요해서, 질문과 근황이 한눈에 구분되도록 운영 기준을
-            먼저 정리해 둡니다.
-          </p>
           <ul className="community-guideline-list">
             {communityFreeBoardTips.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
+          <div className="service-action-grid">
+            {communityFreeBoardTopics.map((topic) => (
+              <article
+                key={topic.id}
+                className="service-inline-panel community-board-info-card"
+              >
+                <p className="service-section-label">{topic.badge}</p>
+                <strong>{topic.title}</strong>
+                <span className="service-muted">{topic.description}</span>
+              </article>
+            ))}
+          </div>
         </div>
       </details>
     </div>
@@ -979,11 +1160,30 @@ function Community() {
         />
       ) : null}
 
-      {isShowcaseBoard ? (
+      {currentUser && isFreeBoard ? (
+        <CommunityFreePostComposer
+          open={isComposerOpen}
+          displayTamerName={displayTamerName}
+          category={category}
+          title={title}
+          body={body}
+          isEditing={Boolean(editingPostId)}
+          isSubmitting={composerLoading}
+          errorMessage={composerError}
+          onCategoryChange={setCategory}
+          onTitleChange={setTitle}
+          onBodyChange={setBody}
+          onSubmit={handleSubmitPost}
+          onClose={handleCloseComposer}
+        />
+      ) : null}
+
+      {(currentUser ? Boolean(selectedPostId) : Boolean(selectedSamplePost)) ? (
         <CommunityPostDetailDialog
-          open={Boolean(currentUser ? selectedPostId : selectedSamplePost)}
+          open={currentUser ? Boolean(selectedPostId) : Boolean(selectedSamplePost)}
+          boardId={currentUser ? activeBoardId : "showcase"}
           postDetail={detailData}
-          detailLoading={currentUser ? detailLoading : false}
+          detailLoading={detailLoading}
           detailError={detailError}
           currentUser={currentUser}
           commentDraft={commentDraft}

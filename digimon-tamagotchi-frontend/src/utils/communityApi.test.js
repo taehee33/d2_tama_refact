@@ -1,5 +1,7 @@
 import {
+  createCommunityPost,
   createShowcasePost,
+  listCommunityPosts,
 } from "./communityApi";
 
 describe("communityApi", () => {
@@ -8,7 +10,8 @@ describe("communityApi", () => {
   };
 
   beforeEach(() => {
-    currentUser.getIdToken.mockClear();
+    currentUser.getIdToken.mockReset();
+    currentUser.getIdToken.mockResolvedValue("token-123");
     global.fetch = jest.fn();
   });
 
@@ -52,5 +55,51 @@ describe("communityApi", () => {
         body: "본문",
       })
     ).rejects.toThrow("커뮤니티 API 경로를 찾지 못했습니다.");
+  });
+
+  it("자유게시판 목록 조회는 category query를 붙여 요청한다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ posts: [] })),
+    });
+
+    await listCommunityPosts(currentUser, "free", { category: "question" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/free/posts?category=question",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("자유게시판 글 작성은 boardId 기반 경로를 사용한다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ post: { id: "free-1" } })),
+    });
+
+    await createCommunityPost(currentUser, "free", {
+      category: "guide",
+      title: "자유글",
+      body: "본문",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/free/posts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          category: "guide",
+          title: "자유글",
+          body: "본문",
+        }),
+      })
+    );
   });
 });

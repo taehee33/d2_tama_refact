@@ -4,6 +4,7 @@ const { verifyRequestUser } = require("../../../_lib/auth");
 const {
   deleteCommunityPost,
   getCommunityPostDetail,
+  normalizeBoardId,
   updateCommunityPost,
 } = require("../../../_lib/community");
 const {
@@ -19,14 +20,21 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  const boardId = Array.isArray(req.query.boardId) ? req.query.boardId[0] : req.query.boardId;
   const postId = Array.isArray(req.query.postId) ? req.query.postId[0] : req.query.postId;
 
   try {
     const decodedToken = await verifyRequestUser(req);
     const supabase = getSupabaseAdmin();
+    const normalizedBoardId = normalizeBoardId(boardId);
 
     if (req.method === "GET") {
-      const detail = await getCommunityPostDetail({ supabase, postId });
+      const detail = await getCommunityPostDetail({
+        supabase,
+        boardId: normalizedBoardId,
+        postId,
+      });
+
       return sendJson(res, 200, detail);
     }
 
@@ -34,6 +42,7 @@ module.exports = async function handler(req, res) {
       const input = await parseJsonBody(req);
       const post = await updateCommunityPost({
         supabase,
+        boardId: normalizedBoardId,
         uid: decodedToken.uid,
         postId,
         input,
@@ -44,6 +53,7 @@ module.exports = async function handler(req, res) {
 
     const result = await deleteCommunityPost({
       supabase,
+      boardId: normalizedBoardId,
       uid: decodedToken.uid,
       postId,
     });

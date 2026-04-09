@@ -1,4 +1,5 @@
 import React from "react";
+import { getCommunityFreeBoardCategoryLabel } from "../../data/serviceContent";
 import { formatTimestamp } from "../../utils/dateUtils";
 import CommunityDialog from "./CommunityDialog";
 import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
@@ -7,6 +8,7 @@ import CommunitySnapshotSummary from "./CommunitySnapshotSummary";
 
 function CommunityPostDetailDialog({
   open,
+  boardId = "showcase",
   postDetail,
   detailLoading,
   detailError,
@@ -29,12 +31,19 @@ function CommunityPostDetailDialog({
   const post = postDetail?.post || null;
   const comments = postDetail?.comments || [];
   const commentCount = post?.commentCount ?? comments.length;
+  const isFreeBoard = boardId === "free";
+  const boardBadgeLabel = isFreeBoard
+    ? getCommunityFreeBoardCategoryLabel(post?.category)
+    : "내 디지몬 자랑";
+  const formattedCreatedAt = post?.createdAt
+    ? formatTimestamp(post.createdAt, "long")
+    : "";
 
   return (
     <CommunityDialog
       open={open}
       title={post?.title || "게시글 상세"}
-      eyebrow="피드 상세"
+      eyebrow={isFreeBoard ? "자유게시판 상세" : "피드 상세"}
       onClose={onClose}
       size="xl"
       className="community-detail-modal"
@@ -51,26 +60,40 @@ function CommunityPostDetailDialog({
 
       {post ? (
         <div className="community-panel-stack">
-          <div className="community-detail-summary">
-            <div className="community-post-card__meta">
+          <div
+            className={`community-detail-summary${isFreeBoard ? " community-detail-summary--free" : ""}`}
+          >
+            <div
+              className={`community-post-card__meta${isFreeBoard ? " community-post-card__meta--free" : ""}`}
+            >
               <div className="community-post-card__meta-primary">
-                <span className="service-badge service-badge--accent">내 디지몬 자랑</span>
+                <span className="service-badge service-badge--accent">{boardBadgeLabel}</span>
                 <span className="community-meta-box community-meta-box--author">
                   <span className="community-meta-box__label">작성자</span>
                   <strong className="community-meta-box__value">{post.authorTamerName}</strong>
                 </span>
+                {isFreeBoard ? (
+                  <span className="community-meta-box community-meta-box--timestamp">
+                    <span className="community-meta-box__label">작성일</span>
+                    <strong className="community-meta-box__value community-meta-box__value--subtle">
+                      {formattedCreatedAt}
+                    </strong>
+                  </span>
+                ) : null}
               </div>
 
-              <div className="community-post-card__meta-secondary">
-                <span className="community-post-card__timestamp">
-                  {formatTimestamp(post.createdAt, "long")}
-                </span>
-              </div>
+              {!isFreeBoard ? (
+                <div className="community-post-card__meta-secondary">
+                  <span className="community-post-card__timestamp">{formattedCreatedAt}</span>
+                </div>
+              ) : null}
             </div>
 
-            <div className="community-detail-summary__body">
+            <div
+              className={`community-detail-summary__body${isFreeBoard ? " community-detail-summary__body--free" : ""}`}
+            >
               <section
-                className="community-post-card__section community-post-card__section--title"
+                className={`community-post-card__section community-post-card__section--title${isFreeBoard ? " community-post-card__section--free-title" : ""}`}
                 aria-label="게시글 제목"
               >
                 <span className="community-post-card__section-label">제목</span>
@@ -79,24 +102,31 @@ function CommunityPostDetailDialog({
                 </h3>
               </section>
 
-              <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
-
-              <CommunitySnapshotSummary snapshot={post.snapshot} variant="detail" />
+              {!isFreeBoard ? (
+                <>
+                  <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
+                  <CommunitySnapshotSummary snapshot={post.snapshot} variant="detail" />
+                </>
+              ) : null}
 
               <section
-                className="community-post-card__section community-post-card__section--body"
+                className={`community-post-card__section community-post-card__section--body${isFreeBoard ? " community-post-card__section--free-body" : ""}`}
                 aria-label="게시글 내용"
               >
                 <span className="community-post-card__section-label">내용</span>
-                <p className="community-post-card__body">
+                <p
+                  className={`community-post-card__body${isFreeBoard ? " community-post-card__body--free" : ""}`}
+                >
                   {post.body || "작성된 코멘트가 없습니다."}
                 </p>
               </section>
 
-              <CommunityPostStatsPanel
-                snapshot={post.snapshot}
-                commentCount={post.commentCount ?? comments.length}
-              />
+              {!isFreeBoard ? (
+                <CommunityPostStatsPanel
+                  snapshot={post.snapshot}
+                  commentCount={post.commentCount ?? comments.length}
+                />
+              ) : null}
             </div>
           </div>
 
@@ -104,7 +134,7 @@ function CommunityPostDetailDialog({
             <div className="community-section-header">
               <div>
                 <p className="service-section-label">댓글</p>
-                <h3>기록에 반응 남기기</h3>
+                <h3>{isFreeBoard ? "자유글에 답글 남기기" : "기록에 반응 남기기"}</h3>
               </div>
               <span className="service-badge service-badge--cool">{commentCount}개</span>
             </div>
@@ -199,7 +229,11 @@ function CommunityPostDetailDialog({
                       className="community-input community-input--textarea"
                       value={commentDraft}
                       maxLength={300}
-                      placeholder="응원, 기록 팁, 다음 목표를 남겨 보세요."
+                      placeholder={
+                        isFreeBoard
+                          ? "답변, 추가 팁, 의견을 남겨 보세요."
+                          : "응원, 기록 팁, 다음 목표를 남겨 보세요."
+                      }
                       onChange={(event) => onCommentDraftChange(event.target.value)}
                       disabled={commentLoading}
                     />

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  BOARD_ID_FREE,
   buildCommunitySnapshot,
   listCommunityPosts,
   resolveStageLabel,
@@ -206,9 +207,103 @@ test("validatePostPayload requires title and slot", () => {
   assert.deepEqual(validation.errors, ["슬롯을 선택해 주세요.", "제목을 입력해 주세요."]);
 });
 
+test("validatePostPayload supports free board category validation", () => {
+  const invalidValidation = validatePostPayload(
+    { category: "", title: "자유글", body: "본문" },
+    { boardId: BOARD_ID_FREE }
+  );
+  const validValidation = validatePostPayload(
+    { category: "question", title: "자유글", body: "본문" },
+    { boardId: BOARD_ID_FREE }
+  );
+
+  assert.equal(invalidValidation.isValid, false);
+  assert.deepEqual(invalidValidation.errors, ["말머리를 선택해 주세요."]);
+  assert.equal(validValidation.isValid, true);
+  assert.equal(validValidation.value.category, "question");
+});
+
 test("validateCommentPayload requires non-empty body", () => {
   const validation = validateCommentPayload({ body: " " });
 
   assert.equal(validation.isValid, false);
   assert.deepEqual(validation.errors, ["댓글 내용을 입력해 주세요."]);
+});
+
+test("listCommunityPosts filters by free board category when requested", async () => {
+  const state = {
+    boardId: "",
+    category: "",
+  };
+
+  const supabase = {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq(column, value) {
+                if (column === "board_id") {
+                  state.boardId = value;
+                  return {
+                    eq(nextColumn, nextValue) {
+                      state.category = `${nextColumn}:${nextValue}`;
+                      return {
+                        order() {
+                          return {
+                            limit: async () => ({
+                              data: [],
+                              error: null,
+                            }),
+                          };
+                        },
+                      };
+                    },
+                    order() {
+                      return {
+                        limit: async () => ({
+                          data: [],
+                          error: null,
+                        }),
+                      };
+                    },
+                  };
+                }
+
+                throw new Error(`Unexpected column: ${column}`);
+              },
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          select() {
+            return {
+              in() {
+                return {
+                  order: async () => ({
+                    data: [],
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  await listCommunityPosts({
+    supabase,
+    boardId: BOARD_ID_FREE,
+    category: "question",
+  });
+
+  assert.equal(state.boardId, "free");
+  assert.equal(state.category, "category:question");
 });
