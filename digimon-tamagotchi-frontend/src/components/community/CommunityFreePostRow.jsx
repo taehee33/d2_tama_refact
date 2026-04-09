@@ -17,21 +17,20 @@ function CommunityFreePostRow({
     <article
       className={`community-free-post-row${isActive ? " community-free-post-row--active" : ""}`}
     >
-      <div className="community-free-post-row__main">
-        <span className="community-free-post-row__category">{categoryLabel}</span>
-        <button
-          type="button"
-          className="community-free-post-row__title"
-          onClick={onOpen}
-        >
-          <span>{post.title}</span>
-          {commentCount > 0 ? (
-            <strong className="community-free-post-row__comment-count">
-              [{commentCount}]
-            </strong>
-          ) : null}
-        </button>
-      </div>
+      <span className="community-free-post-row__category">{categoryLabel}</span>
+
+      <button
+        type="button"
+        className="community-free-post-row__title"
+        onClick={onOpen}
+      >
+        <span>{post.title}</span>
+        {commentCount > 0 ? (
+          <strong className="community-free-post-row__comment-count">
+            [{commentCount}]
+          </strong>
+        ) : null}
+      </button>
 
       <span className="community-free-post-row__author">{post.authorTamerName}</span>
       <span className="community-free-post-row__date">

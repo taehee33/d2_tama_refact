@@ -241,14 +241,19 @@ describe("Community", () => {
     expect(screen.getByText("말머리")).toBeInTheDocument();
     expect(screen.getByText("제목")).toBeInTheDocument();
     expect(screen.getByText("글쓴이")).toBeInTheDocument();
+    expect(screen.getByText("작성일")).toBeInTheDocument();
+    expect(screen.getByText("관리")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "전체" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "질문" })).toBeInTheDocument();
-    expect(
-      within(screen.getByText("오늘 배틀 루틴 공유").closest("article")).getByText("일반")
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByText("완전체 진화 조건 질문").closest("article")).getByText("질문")
-    ).toBeInTheDocument();
+    const generalRow = screen.getByText("오늘 배틀 루틴 공유").closest("article");
+    const questionRow = screen.getByText("완전체 진화 조건 질문").closest("article");
+
+    expect(within(generalRow).getByText("일반")).toBeInTheDocument();
+    expect(within(generalRow).getByRole("button", { name: /오늘 배틀 루틴 공유/ })).toBeInTheDocument();
+    expect(within(generalRow).getByText("메탈그레이")).toBeInTheDocument();
+    expect(generalRow.querySelector(".community-free-post-row__date")).not.toBeNull();
+    expect(within(generalRow).getByRole("button", { name: "보기" })).toBeInTheDocument();
+    expect(within(questionRow).getByText("질문")).toBeInTheDocument();
     expect(screen.getByText("메탈그레이")).toBeInTheDocument();
     expect(screen.getByText("한솔")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "안내 카드 펼치기 3개" })).toBeInTheDocument();

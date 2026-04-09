@@ -1361,7 +1361,12 @@
 .community-free-post-list__header,
 .community-free-post-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) 0.72fr 0.72fr 0.72fr;
+  grid-template-columns:
+    minmax(6.4rem, 7rem)
+    minmax(0, 1.9fr)
+    minmax(6.4rem, 0.78fr)
+    minmax(7.8rem, 0.9fr)
+    auto;
   gap: 1rem;
   align-items: center;
   padding: 0.95rem 1.2rem;
@@ -1374,6 +1379,12 @@
   font-weight: 700;
 }
 
+.community-free-post-list__header span:last-child {
+  justify-self: end;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .community-free-post-row {
   border-top: 1px solid rgba(15, 23, 42, 0.06);
   background: rgba(255, 255, 255, 0.92);
@@ -1383,16 +1394,9 @@
   background: rgba(235, 250, 243, 0.94);
 }
 
-.community-free-post-row__main {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  min-width: 0;
-}
-
 .community-free-post-row__category {
-  flex: 0 0 auto;
-  min-width: 3.5rem;
+  justify-self: start;
+  min-width: 0;
   border-radius: 0.7rem;
   background: rgba(15, 23, 42, 0.06);
   color: rgba(15, 23, 42, 0.7);
@@ -1406,6 +1410,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -1438,6 +1443,7 @@
 .community-free-post-row__date {
   color: rgba(15, 23, 42, 0.68);
   font-size: 0.92rem;
+  white-space: nowrap;
 }
 
 .community-free-post-row__actions {
@@ -1445,6 +1451,8 @@
   justify-content: flex-end;
   align-items: center;
   gap: 0.7rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {
@@ -1463,7 +1471,11 @@
 
   .community-free-post-list__header,
   .community-free-post-row {
-    grid-template-columns: minmax(0, 1.8fr) 0.9fr 0.9fr;
+    grid-template-columns:
+      minmax(6rem, 6.6rem)
+      minmax(0, 1.8fr)
+      minmax(6rem, 0.82fr)
+      minmax(7rem, 0.92fr);
   }
 
   .community-free-post-list__header span:last-child,
@@ -1512,11 +1524,6 @@
     grid-template-columns: 1fr;
     gap: 0.7rem;
     padding: 1rem 1.05rem;
-  }
-
-  .community-free-post-row__main {
-    flex-direction: column;
-    align-items: flex-start;
   }
 
   .community-free-post-row__title span {
