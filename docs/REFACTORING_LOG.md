@@ -4,6 +4,119 @@
 
 ---
 
+## [2026-04-10] `useEvolution` 6차 분리: guest waiting room cleanup을 lifecycle hook으로 이동
+
+### 작업 유형
+- 🧩 guest waiting room 정리 로직을 `useJogressRoomLifecycle` 새 메서드로 추출
+- 🧪 indexed query / fallback query cleanup 테스트 추가
+
+### 목적 및 영향
+- **목적:** `proceedJogressOnlineAsGuest` 안에 남아 있던 `jogress_rooms` 조회와 자기 waiting room 취소 분기를 `useEvolution` 밖으로 옮겨 온라인 조그레스 guest 완료 흐름을 더 얇게 만든다.
+- **범위:** room `paired` 전이, guest slot 저장, current-slot sync 순서는 그대로 유지하고, cleanup query + `cancelJogressRoom` 위임만 lifecycle hook으로 이동한다.
+- **내용:**
+  - `useJogressRoomLifecycle`에 `cancelOwnedWaitingJogressRoomsForSlot`를 추가해 현재 유저의 waiting room 중 특정 슬롯과 연결된 방만 찾아 취소하도록 정리했다.
+  - 인덱스 쿼리가 실패할 때는 기존과 동일하게 `status=waiting` fallback 조회 후 `hostUid`로 다시 거르는 동작을 유지했다.
+  - `useEvolution`의 guest join 경로는 이제 cleanup block 대신 새 lifecycle 메서드만 호출하도록 단순화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useJogressRoomLifecycle.js`
+- `digimon-tamagotchi-frontend/src/hooks/useJogressRoomLifecycle.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.js src/hooks/useJogressRoomLifecycle.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.js src/hooks/jogressPresentationHelpers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 guest join 완료 경로에서 `useEvolution`에 남은 Firestore 직접 질의는 실질적으로 사라지고, room 관리 책임은 `useJogressRoomLifecycle` 쪽으로 더 모였다. 다음 단계는 `updateEncyclopedia` 분기나 host/room complete 후처리처럼 아직 남아 있는 side effect 묶음을 더 작게 나누는 것이다.
+
+## [2026-04-10] `useEvolution` 5차 분리: 조그레스 summary/archive payload helper 추출
+
+### 작업 유형
+- 🧩 조그레스 완료 summary/archive payload 조립을 순수 helper로 추출
+- 🧪 presentation helper 단위 테스트 및 host-room archive payload 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** `useEvolution` 온라인 조그레스 완료 경로에 남아 있던 summary 구성과 archive payload 조립 중복을 줄여, 다음 단계에서 waiting room 정리나 encyclopedia 분기를 더 안전하게 분리할 수 있게 한다.
+- **범위:** Firestore write 순서, current-slot sync, encyclopedia 업데이트, modal 제어는 그대로 두고 결과 presentation/archive object 조립만 helper로 이동한다.
+- **내용:**
+  - `jogressPresentationHelpers`를 추가해 `buildJogressSummary`, `buildJogressArchivePayload`를 만들고 local/online host/room 완료 경로에서 공통으로 사용하도록 정리했다.
+  - local 조그레스와 online host 조그레스에서 반복되던 `currentLabel`, `partnerLabel`, `resultName`, archive `payload.mode/resultName/slotLabel/roomId` 조립을 호출부 밖으로 옮겼다.
+  - `proceedJogressOnlineAsHostForRoom` 테스트에는 archive payload의 `mode`, `resultName`, `roomId`까지 고정하는 assertion을 추가해 helper 연결 회귀를 막았다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressPresentationHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressPresentationHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/jogressPresentationHelpers.test.js src/hooks/useEvolution.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/jogressPresentationHelpers.js src/hooks/jogressPresentationHelpers.test.js src/hooks/useEvolution.js src/hooks/useEvolution.test.js src/hooks/jogressPersistenceHelpers.js src/hooks/evolutionStateHelpers.js src/hooks/useJogressRoomLifecycle.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useEvolution`의 온라인 조그레스 완료 경로는 `room lifecycle`, `state/log transition`, `persistence payload`, `presentation/archive payload`까지 helper 경계가 생겼다. 다음 안전 단계는 여전히 guest waiting room 정리와 encyclopedia update 분기인데, 이 둘은 Firestore 질의와 side effect가 남아 있어서 이번처럼 characterization test를 유지한 채 더 작게 떼는 편이 적합하다.
+
+## [2026-04-10] `useEvolution` 4차 분리 준비: 온라인 조그레스 guest/host complete 흐름 테스트 고정
+
+### 작업 유형
+- 🧪 `useEvolution` public hook 기준 온라인 조그레스 흐름 characterization test 추가
+- 🧭 guest join / current-slot sync / host complete 회귀 포인트 문서화
+
+### 목적 및 영향
+- **목적:** `proceedJogressOnlineAsGuest` 와 `proceedJogressOnlineAsHostForRoom` 를 더 작게 분해하기 전에, 현재 동작을 public hook 기준으로 고정해 이후 리팩터링 리스크를 낮춘다.
+- **범위:** 테스트와 문서화만 추가하고, 실제 저장 순서와 archive/도감 로직은 변경하지 않는다.
+- **내용:**
+  - `useEvolution.test.js`를 확장해 guest join 시 room이 `paired` 로 바뀌고 guest slot 문서가 진화 결과로 저장되는 경로를 고정했다.
+  - 같은 테스트 파일에서 현재 보고 있는 guest slot일 때 `setDigimonStatsAndSave`/`setSelectedDigimonAndSave`가 호출되고, 자기 waiting room이 `cancelJogressRoom` 경유로 정리되는 흐름을 추가로 묶었다.
+  - host complete 경로는 `proceedJogressOnlineAsHostForRoom` 기준으로 slot 문서 update, room `completed` 전이, current-slot append/save 동기화가 함께 일어나는지를 검증하도록 추가했다.
+  - 이 테스트는 helper를 전부 mock하지 않고 실제 `useEvolution` 조합을 기준으로 잡아, 이후 내부 helper 분리에도 회귀를 더 잘 잡도록 했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEvolution.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/useEvolution.js src/hooks/jogressPersistenceHelpers.js src/hooks/evolutionStateHelpers.js src/hooks/useJogressRoomLifecycle.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useEvolution`은 room lifecycle helper, state/log payload helper, persistence helper, 그리고 실제 guest/host complete characterization test까지 갖춘 상태다. 다음 단계는 남은 복잡도인 waiting room 정리와 archive/summary 구성 분기를 worker/helper로 더 나누되, 이번에 추가한 public flow 테스트를 안전망으로 삼는 방식이 적합하다.
+
+## [2026-04-10] `useEvolution` 3차 분리: 조그레스 persistence payload/helper 정리
+
+### 작업 유형
+- 🧩 온라인 조그레스 완료 payload와 현재 슬롯 동기화 분기를 helper로 추출
+- 🧪 persistence helper 계약 테스트 추가
+
+### 목적 및 영향
+- **목적:** `proceedJogressOnlineAsGuest`, `proceedJogressOnlineAsHost`, `proceedJogressOnlineAsHostForRoom`에 남아 있던 Firestore update payload와 current slot sync 분기를 정리해 다음 완료 경로 리팩터링의 결합도를 낮춘다.
+- **범위:** room `paired/completed` payload, completed slot payload, current viewed slot sync 분기만 helper로 이동하고, room 검색/도감/archive/alert 흐름은 기존 호출부에 남긴다.
+- **내용:**
+  - `jogressPersistenceHelpers`를 추가해 guest room `paired` payload, host room `completed` payload, completed slot 저장 payload를 공통 함수로 만들었다.
+  - `syncCurrentJogressSlot` helper를 추가해 현재 보고 있는 슬롯일 때 save-backed/local-only/auto fallback 분기를 한 곳에서 처리하도록 정리했다.
+  - `useEvolution`의 guest join, host complete, room-based host complete 경로는 이제 helper가 만든 payload를 사용해 updateDoc/writeBatch와 현재 슬롯 동기화만 연결한다.
+  - guest join에서는 기존처럼 `jogressStatus`를 비우지 않고, host complete 경로에서는 `jogressStatus: {}`를 유지하는 차이를 helper 옵션으로 명시했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressPersistenceHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressPersistenceHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/useEvolution.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/jogressPersistenceHelpers.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.js src/hooks/evolutionStateHelpers.test.js src/hooks/useJogressRoomLifecycle.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/useEvolution.js src/hooks/useEvolution.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 단계는 guest/host complete 경로의 저장 payload와 현재 슬롯 동기화 분기를 먼저 정리한 것이다. 다음 단계는 이제 상대적으로 남은 복잡도인 `내 waiting room 정리`, `archive payload 구성`, `도감 업데이트/summary 계산`을 더 작은 worker/helper로 옮기는 쪽이 자연스럽다.
+
 ## [2026-04-10] 자유게시판 1장 이미지 첨부 지원 추가
 
 ### 작업 유형
@@ -39,6 +152,92 @@
 - `node --test api/_lib/community.test.js tests/community-lib.test.js`
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/Community.test.jsx src/utils/communityApi.test.js`
 - `node -e "require('./api/_lib/community'); require('./api/community/[boardId]/posts/index.js'); require('./api/community/[boardId]/posts/[postId].js'); require('./api/community/[boardId]/posts/[postId]/comments/index.js'); require('./api/community/[boardId]/comments/[commentId].js'); console.log('api-ok');"`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-10] `useEvolution` 2차 분리: 진화 결과 state/log payload helper 추출
+
+### 작업 유형
+- 🧩 일반 진화/조그레스에 공통인 결과 state/log 조립을 순수 helper로 추출
+- 🧪 helper 레벨 characterization test 추가
+
+### 목적 및 영향
+- **목적:** `useEvolution` 내부의 일반 진화, 로컬 조그레스, 온라인 guest/host complete 경로에 반복되던 reset/log 조립을 한 곳으로 모아 다음 저장 순서 분리 단계의 리스크를 줄인다.
+- **범위:** `initializeStats`, sprite 동기화, `EVOLUTION` activity log 추가, `{ ...stats, activityLogs, selectedDigimon }` 조립만 helper로 이동하고, Firestore write 순서와 도감/archive/모달 부작용은 기존 호출부에 남긴다.
+- **내용:**
+  - `evolutionStateHelpers`를 추가해 진화 시 리셋되는 공통 스탯과 진화 결과 payload를 순수 함수로 만들었다.
+  - `useEvolution`의 `evolve`, `proceedJogressLocal`, `proceedJogressOnlineAsGuest`, `proceedJogressOnlineAsHost`, `proceedJogressOnlineAsHostForRoom`는 이제 helper가 만든 `nextStatsWithLogs`와 `updatedLogs`를 받아 저장/부작용만 처리한다.
+  - `buildDigimonLogSnapshot` 인자는 함수마다 조금씩 달라서 helper 입력을 `snapshotArgs`로 열어두고, 호출부가 기존 계약을 그대로 넘기도록 유지했다.
+  - 이 단계로 중복이 큰 “target data 조회 → reset stats → initializeStats → sprite sync → EVOLUTION log 추가” 패턴이 한 군데로 모였다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/evolutionStateHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/evolutionStateHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/evolutionStateHelpers.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/useEvolution.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/evolutionStateHelpers.js src/hooks/evolutionStateHelpers.test.js src/hooks/useEvolution.js src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 단계는 `useEvolution`의 저장 순서 자체를 건드리지 않고, 반복되는 결과 payload 조립만 줄인 안전한 중간 단계다. 다음 라운드는 이 helper를 유지한 채 guest join과 host complete 경로의 DB write/local sync/archive 분기를 더 작은 worker/helper로 나누는 쪽이 적합하다.
+
+## [2026-04-10] `useEvolution` 1차 분리: 온라인 조그레스 room lifecycle 추출
+
+### 작업 유형
+- 🧩 온라인 조그레스 room 생성/취소/호스트 상태 반영을 전용 lifecycle 훅으로 추출
+- 🧪 room lifecycle payload와 상태 전이 characterization test 추가
+
+### 목적 및 영향
+- **목적:** `useEvolution`에서 가장 먼저 분리하기 쉬운 온라인 조그레스 room lifecycle 경계를 떼어내, 이후 guest/host complete 경로 분해를 위한 안전한 기반을 만든다.
+- **범위:** `createJogressRoom`, `createJogressRoomForSlot`, `cancelJogressRoom`, `applyHostJogressStatusFromRoom`만 새 훅으로 이동하고, 실제 guest/host 조그레스 진화 처리와 도감/archive/로컬 저장 동기화는 그대로 유지한다.
+- **내용:**
+  - `useJogressRoomLifecycle`를 추가해 room 생성, host slot의 `jogressStatus.isWaiting` 반영, room 취소, paired room을 host slot의 `canEvolve` 상태로 번역하는 로직을 `useEvolution` 밖으로 옮겼다.
+  - `useEvolution`은 새 lifecycle 훅을 내부에서 조합해 기존 public API 키를 그대로 반환하도록 유지했다.
+  - `isOnlineJogressSupported`를 lifecycle 계층으로 같이 이동해 버전 지원 판정이 guest/host complete 경로와 같은 규칙을 계속 사용하도록 맞췄다.
+  - 이번 단계에서는 `proceedJogressOnlineAsGuest`, `proceedJogressOnlineAsHost`, `proceedJogressOnlineAsHostForRoom`의 저장 순서와 부작용은 건드리지 않았다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useJogressRoomLifecycle.js`
+- `digimon-tamagotchi-frontend/src/hooks/useJogressRoomLifecycle.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useJogressRoomLifecycle.test.js src/hooks/useEvolution.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+
+### 아키텍처 메모
+- room lifecycle은 Firestore room/slot 상태 전이만 담당하고, 실제 진화 결과 계산·도감 업데이트·archive 저장보다 결합도가 낮아 `useEvolution` 첫 분리 대상으로 적합했다. 다음 단계는 이 테스트를 유지한 채 guest join과 host complete 경로의 reset/log payload 중복을 줄이는 쪽이 안전하다.
+
+## [2026-04-10] 운영 도감 발견 이력 복구: 루트/버전 문서 병합 로드
+
+### 작업 유형
+- 🛠️ 도감 마이그레이션 회귀 버그 수정
+- 🛟 빈 도감 문서에 대한 슬롯/로그 기반 복구 경로 추가
+- 🧪 부분 이전 상태 재현 테스트 추가
+
+### 목적 및 영향
+- **목적:** 운영 계정에서 `users/{uid}.encyclopedia`에 남아 있던 기존 발견 이력이, 새 `users/{uid}/encyclopedia/{version}` 문서가 일부만 존재하는 상태에서 0건처럼 보이던 문제를 복구한다.
+- **범위:** 도감 로드 로직과 관련 훅 테스트만 수정하고, 저장 위치는 기존처럼 버전 문서 분리 구조를 유지한다.
+- **내용:**
+  - `loadEncyclopedia()`가 이제 루트 legacy 도감과 버전별 문서를 함께 읽어 병합한다.
+  - 같은 디지몬 키가 양쪽에 모두 있으면 최신 분리 저장 문서 값을 우선 사용하고, 루트에만 남아 있는 과거 발견 이력은 유지한다.
+  - 현재 문서가 모두 비어 있으면, 더 오래된 `users/{uid}/slots/slotN.encyclopedia` legacy 슬롯 도감까지 읽어 합친다.
+  - 위 legacy 슬롯 도감도 비어 있으면, 각 슬롯의 `selectedDigimon`, 문서 내 activity/battle 로그, 서브컬렉션 `logs`/`battleLogs`를 스캔해 최소한의 발견 이력을 재구성한다.
+  - 진화/환생/조그레스 전환 로그의 텍스트와 `digimonId`/`digimonName` 스냅샷을 함께 해석해, 계정 도감 문서가 사라져도 슬롯 기록에서 복구 가능한 종은 다시 보이도록 했다.
+  - 비어 있는 버전 문서가 존재해도 루트 도감 데이터가 가려지지 않는 회귀 테스트를 추가했다.
+  - 계정 통합 이전에 슬롯 단위로만 남아 있던 도감, 그리고 계정 도감 문서가 비어 있어도 슬롯 기록에 남아 있는 도감은 화면에서 다시 보이도록 복구 경로를 열었다.
+  - 이 변경으로 운영환경 도감 모달과 `/me/collection` 페이지가 모두 같은 병합 데이터를 사용하게 된다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEncyclopedia.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
 ## [2026-04-10] 커뮤니티 `디스코드/후원` 보드에 Ko-fi 링크 우선 연결
