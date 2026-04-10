@@ -4,6 +4,66 @@
 
 ---
 
+## [2026-04-10] 자유게시판 1장 이미지 첨부 지원 추가
+
+### 작업 유형
+- 🖼 자유게시판 전용 이미지 첨부 기능 추가
+- ☁️ Supabase Storage 버킷/DB 메타데이터 확장
+- 🧪 커뮤니티 서버/클라이언트/페이지 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 자유게시판 글에서 텍스트 중심 흐름은 유지하되, 필요한 경우 이미지 1장을 함께 첨부해 상세에서 더 풍부하게 확인할 수 있게 한다.
+- **범위:** 자유게시판(`board=free`) 글쓰기/수정/상세에만 적용하고, 자랑게시판 스냅샷 카드 구조는 그대로 유지한다.
+- **내용:**
+  - `community_posts`에 `image_path` 컬럼을 추가하고, `community-post-images` 공개 버킷을 생성하는 마이그레이션을 추가했다.
+  - 서버 커뮤니티 유틸은 자유게시판 글 생성/수정 시 `JPG/PNG/WEBP`, 최대 2MB 이미지 1장을 data URL로 받아 Supabase Storage에 업로드하고 `image_path`를 저장하도록 확장했다.
+  - 자유게시판 글 수정에서는 기존 이미지 유지, 새 이미지로 교체, 기존 이미지 제거를 모두 처리하고, 게시글 삭제 시 storage 파일도 함께 정리하도록 넣었다.
+  - 게시글 목록/상세 응답에는 `imagePath`, `imageUrl`, `imageAlt`를 포함해 프론트가 별도 스토리지 계산 없이 바로 렌더링할 수 있게 맞췄다.
+  - 자유게시판 글쓰기 모달은 파일 선택, 미리보기, 제거 버튼, 첨부 정책 안내를 추가했고, 상세 모달은 이미지가 있으면 본문과 함께 자연스럽게 노출하도록 확장했다.
+  - 목록은 여전히 텍스트 보드 성격을 유지하도록 썸네일 없이 두고, 이미지는 상세에서만 크게 보여 주는 방향을 유지했다.
+
+### 영향받은 파일
+- `supabase/migrations/20260410_community_free_board_images.sql`
+- `api/_lib/community.js`
+- `api/_lib/community.test.js`
+- `tests/community-lib.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.test.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/community.test.js tests/community-lib.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/Community.test.jsx src/utils/communityApi.test.js`
+- `node -e "require('./api/_lib/community'); require('./api/community/[boardId]/posts/index.js'); require('./api/community/[boardId]/posts/[postId].js'); require('./api/community/[boardId]/posts/[postId]/comments/index.js'); require('./api/community/[boardId]/comments/[commentId].js'); console.log('api-ok');"`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-10] 커뮤니티 `디스코드/후원` 보드에 Ko-fi 링크 우선 연결
+
+### 작업 유형
+- 🔗 Ko-fi 외부 링크 실제 반영
+- 🧭 디스코드/후원 보드 정보 구조 단순화
+- 🧪 디스코드/후원 보드 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 전달받은 Ko-fi 링크를 바로 노출해 커뮤니티 보드 안에서 실제 후원 동선이 작동하도록 만든다.
+- **범위:** 디스코드 보드의 `board=discord` 경로는 그대로 유지하고, 후원 영역 문구와 외부 CTA만 조정한다.
+- **내용:**
+  - `serviceContent`에 Ko-fi 링크(`https://ko-fi.com/hth3381`)를 추가하고, `Ko-fi 링크`라는 이름으로 별도 후원 섹션에서 노출하도록 정리했다.
+  - 디스코드/후원 보드 상단은 중복 배지와 CTA를 걷어내고, `디스코드`와 `후원` 두 개의 큰 카테고리 섹션으로 다시 묶었다.
+  - `디스코드` 섹션에는 `디스코드 링크`와 `공지 확인`, `자랑 스냅샷`, `버그제보 / QnA`, `자유잡담` 목록만 남겨 흐름을 단순화했다.
+  - `후원` 섹션에는 `Ko-fi 링크`와 `Ko-fi를 통해 후원으로 응원해 주세요.` 문구만 남겨, 지원 동선을 별도 카드로 분리했다.
+  - 테스트는 두 섹션 안에서 링크와 텍스트가 각각 렌더되는지 기준으로 갱신했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
 ## [2026-04-10] `Game.jsx` 4차 분리: 페이지 액션 helper/hook 추출
 
 ### 작업 유형
@@ -4214,4 +4274,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `package.json`
 - `scripts/backfillUserEncyclopedia.js`
 - `docs/ACCOUNT_SETTINGS_AND_MASTER_TITLES_DESIGN.md`
+- `docs/REFACTORING_LOG.md`
+
+## 2026-04-10
+
+### 커뮤니티 디스코드/후원 보드를 섹션별 색상 카드로 재정리
+
+- `디스코드 / 후원` 보드를 두 개의 큰 카테고리 카드로 다시 나눠, 디스코드는 청록 계열 안내 보드, 후원은 오렌지 계열 Ko-fi 응원 카드로 색을 확실히 분리했다.
+- 디스코드 섹션은 초대 링크를 CTA 버튼과 주소 표시로 정리하고, `공지 확인`, `자랑 스냅샷`, `버그제보 / QnA`, `자유잡담`을 작은 카드 그리드로 배치해 한눈에 읽히도록 다듬었다.
+- 후원 섹션은 `Ko-fi 링크`와 안내 문구를 강조 카드 안에 묶어, 링크와 응원 문장이 퍼져 보이지 않도록 흐름을 단순화했다.
+- 모바일에서는 두 섹션이 세로로 쌓이고 디스코드 채널 카드도 1열로 바뀌도록 반응형 스타일을 함께 정리했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
 - `docs/REFACTORING_LOG.md`

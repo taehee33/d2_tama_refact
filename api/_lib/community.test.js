@@ -178,6 +178,21 @@ test("listCommunityPosts returns latest 3 preview comments per post", async () =
 
       throw new Error(`Unexpected table: ${table}`);
     },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, "community-post-images");
+
+        return {
+          getPublicUrl(path) {
+            return {
+              data: {
+                publicUrl: `https://example.com/storage/${path}`,
+              },
+            };
+          },
+        };
+      },
+    },
   };
 
   const posts = await listCommunityPosts({ supabase });
@@ -193,6 +208,94 @@ test("listCommunityPosts returns latest 3 preview comments per post", async () =
   );
   assert.equal(posts[1].previewComments.length, 1);
   assert.equal(posts[1].previewComments[0].body, "둘째 글 댓글");
+});
+
+test("listCommunityPosts resolves free board image url when image_path exists", async () => {
+  const supabase = {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  order() {
+                    return {
+                      limit: async () => ({
+                        data: [
+                          {
+                            id: "free-1",
+                            board_id: "free",
+                            category: "general",
+                            author_uid: "user-1",
+                            author_tamer_name: "한솔",
+                            slot_id: null,
+                            title: "이미지 자유글",
+                            body: "본문",
+                            snapshot: null,
+                            image_path: "free/user-1/post-1/image.png",
+                            comment_count: 0,
+                            created_at: "2026-04-04T10:00:00.000Z",
+                            updated_at: "2026-04-04T10:00:00.000Z",
+                          },
+                        ],
+                        error: null,
+                      }),
+                    };
+                  },
+                };
+              },
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          select() {
+            return {
+              in() {
+                return {
+                  order: async () => ({
+                    data: [],
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+    storage: {
+      from(bucket) {
+        assert.equal(bucket, "community-post-images");
+
+        return {
+          getPublicUrl(path) {
+            return {
+              data: {
+                publicUrl: `https://example.com/storage/${path}`,
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+
+  const posts = await listCommunityPosts({
+    supabase,
+    boardId: BOARD_ID_FREE,
+  });
+
+  assert.equal(posts[0].imagePath, "free/user-1/post-1/image.png");
+  assert.equal(
+    posts[0].imageUrl,
+    "https://example.com/storage/free/user-1/post-1/image.png"
+  );
 });
 
 test("resolveStageLabel supports legacy stage aliases", () => {

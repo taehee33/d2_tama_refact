@@ -65,6 +65,19 @@ jest.mock("../utils/communityApi", () => ({
 
 const communityApi = require("../utils/communityApi");
 const Community = require("./Community").default;
+const OriginalFileReader = global.FileReader;
+const originalCreateObjectURL = global.URL.createObjectURL;
+const originalRevokeObjectURL = global.URL.revokeObjectURL;
+
+class MockFileReader {
+  readAsDataURL(file) {
+    this.result = `data:${file.type || "image/png"};base64,ZmFrZQ==`;
+
+    if (typeof this.onload === "function") {
+      this.onload({ target: { result: this.result } });
+    }
+  }
+}
 
 const showcasePosts = [
   {
@@ -165,7 +178,37 @@ const freePostDetail = {
   ],
 };
 
+const freeImagePostDetail = {
+  post: {
+    id: "free-1",
+    boardId: "free",
+    category: "general",
+    title: "오늘 배틀 루틴 공유",
+    body: "아침 배틀 루틴을 공유합니다.",
+    authorUid: "user-2",
+    authorTamerName: "메탈그레이",
+    commentCount: 1,
+    createdAt: "2026-04-01T01:00:00.000Z",
+    imagePath: "free/user-2/post-1/image.png",
+    imageUrl: "https://example.com/community/free-image.png",
+    imageAlt: "오늘 배틀 루틴 공유 첨부 이미지",
+  },
+  comments: [],
+};
+
 describe("Community", () => {
+  beforeAll(() => {
+    global.FileReader = MockFileReader;
+    global.URL.createObjectURL = jest.fn(() => "blob:free-post-preview");
+    global.URL.revokeObjectURL = jest.fn();
+  });
+
+  afterAll(() => {
+    global.FileReader = OriginalFileReader;
+    global.URL.createObjectURL = originalCreateObjectURL;
+    global.URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
   beforeEach(() => {
     mockAuthState.currentUser = null;
     mockSlotsState.slots = [];
@@ -205,6 +248,34 @@ describe("Community", () => {
       screen.getByText("자유게시판 실제 글은 로그인 후 확인할 수 있습니다.")
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 글쓰기" })).toBeInTheDocument();
+    expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
+  });
+
+  it("디스코드 보드는 디스코드/후원 라벨과 Ko-fi 후원 링크를 함께 보여 준다", () => {
+    mockLocation.search = "?board=discord";
+
+    render(<Community />);
+
+    const discordSection = screen.getByText("디스코드", { selector: "p" }).closest("section");
+    const supportSection = screen.getByText("후원", { selector: "p" }).closest("section");
+
+    expect(screen.getByRole("heading", { name: "디스코드/후원" })).toBeInTheDocument();
+    expect(discordSection).not.toBeNull();
+    expect(supportSection).not.toBeNull();
+    expect(within(discordSection).getByText("디스코드 관련사항")).toBeInTheDocument();
+    expect(within(discordSection).getByText("공지 확인")).toBeInTheDocument();
+    expect(within(discordSection).getByText("자랑 스냅샷")).toBeInTheDocument();
+    expect(within(discordSection).getByText("버그제보 / QnA")).toBeInTheDocument();
+    expect(within(discordSection).getByText("자유잡담")).toBeInTheDocument();
+    expect(within(supportSection).getByText("Ko-fi를 통해 후원으로 응원해 주세요.")).toBeInTheDocument();
+    expect(within(discordSection).getByRole("link", { name: "디스코드 링크" })).toHaveAttribute(
+      "href",
+      "https://discord.gg/BWXFtSCnGt"
+    );
+    expect(within(supportSection).getByRole("link", { name: "Ko-fi 링크" })).toHaveAttribute(
+      "href",
+      "https://ko-fi.com/hth3381"
+    );
     expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
   });
 
@@ -323,6 +394,66 @@ describe("Community", () => {
     });
   });
 
+  it("로그인 상태 자유게시판은 이미지 1장을 함께 첨부해 등록할 수 있다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=free";
+
+    communityApi.listCommunityPosts.mockResolvedValue([]);
+    communityApi.createCommunityPost.mockResolvedValue({
+      id: "free-image-3",
+      boardId: "free",
+      category: "general",
+      imagePath: "free/user-1/post-1/image.png",
+      imageUrl: "https://example.com/community/free-image.png",
+    });
+
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("button", { name: "글쓰기" }));
+
+    fireEvent.change(screen.getByLabelText("제목"), {
+      target: { value: "이미지 첨부 자유글" },
+    });
+    fireEvent.change(screen.getByLabelText("본문"), {
+      target: { value: "본문과 이미지를 같이 남깁니다." },
+    });
+    fireEvent.change(screen.getByLabelText("이미지 첨부"), {
+      target: {
+        files: [
+          new File(["fake-image"], "free-post.png", {
+            type: "image/png",
+          }),
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByAltText("free-post.png 미리보기")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "글 올리기" }));
+
+    await waitFor(() => {
+      expect(communityApi.createCommunityPost).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        "free",
+        expect.objectContaining({
+          category: "general",
+          title: "이미지 첨부 자유글",
+          body: "본문과 이미지를 같이 남깁니다.",
+          image: expect.objectContaining({
+            fileName: "free-post.png",
+            mimeType: "image/png",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          }),
+        })
+      );
+    });
+  });
+
   it("자유게시판 상세는 스냅샷 없이 제목, 본문, 댓글만 보여 준다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
@@ -360,6 +491,40 @@ describe("Community", () => {
     expect(within(dialog).queryByText("디지몬 스탯")).not.toBeInTheDocument();
     expect(within(dialog).queryByText("Digital Monster Color 25th")).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText("새 댓글")).toBeInTheDocument();
+  });
+
+  it("자유게시판 상세는 첨부 이미지가 있으면 본문과 함께 보여 준다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=free";
+
+    communityApi.listCommunityPosts.mockResolvedValue([
+      {
+        ...freePostsAll[0],
+        imagePath: "free/user-2/post-1/image.png",
+        imageUrl: "https://example.com/community/free-image.png",
+      },
+    ]);
+    communityApi.getCommunityPostDetail.mockResolvedValue(freeImagePostDetail);
+
+    render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("오늘 배틀 루틴 공유")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "보기" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "오늘 배틀 루틴 공유" })).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "오늘 배틀 루틴 공유" });
+    expect(
+      within(dialog).getByRole("img", { name: "오늘 배틀 루틴 공유 첨부 이미지" })
+    ).toHaveAttribute("src", "https://example.com/community/free-image.png");
   });
 
   it("로그인 상태 자랑게시판은 현재 슬롯 스냅샷을 함께 저장한다", async () => {

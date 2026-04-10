@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import CommunityFreePostComposer from "../components/community/CommunityFreePostComposer";
 import CommunityFreePostRow from "../components/community/CommunityFreePostRow";
@@ -9,8 +10,9 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   communityBoards,
   communityDiscordChannels,
-  communityDiscordChecklist,
   communityDiscordInvite,
+  communitySupportLink,
+  communitySupportNotice,
   communityFreeBoardCategories,
   communityFreeBoardPinnedPosts,
   communityFreeBoardTips,
@@ -39,9 +41,36 @@ import { buildCommunityPreviewFromSlot } from "../utils/communitySnapshotUtils";
 
 const FREE_BOARD_ALL_CATEGORY = "all";
 const FREE_BOARD_DEFAULT_CATEGORY = "general";
+const FREE_BOARD_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const FREE_BOARD_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 function getErrorMessage(error, fallbackMessage) {
   return error instanceof Error ? error.message : fallbackMessage;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result) {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("이미지 데이터를 읽지 못했습니다."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("이미지 데이터를 읽지 못했습니다."));
+    };
+
+    reader.readAsDataURL(file);
+  });
 }
 
 function isInteractiveBoard(boardId) {
@@ -72,6 +101,11 @@ function Community() {
   const [isFreePinnedOpen, setIsFreePinnedOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [imageDraft, setImageDraft] = useState(null);
+  const [existingImagePath, setExistingImagePath] = useState("");
+  const [existingImageUrl, setExistingImageUrl] = useState("");
+  const [shouldRemoveExistingImage, setShouldRemoveExistingImage] = useState(false);
+  const [imageErrorMessage, setImageErrorMessage] = useState("");
   const [editingPostId, setEditingPostId] = useState("");
   const [composerLoading, setComposerLoading] = useState(false);
   const [composerError, setComposerError] = useState("");
@@ -153,9 +187,9 @@ function Community() {
         };
       case "discord":
         return {
-          title: "디스코드 커뮤니티",
+          title: "디스코드/후원",
           description:
-            "실시간 질문, 스냅샷 공유, 채널 입장 링크를 함께 안내하는 커뮤니티 입구입니다.",
+            "실시간 질문, 스냅샷 공유, 디스코드 입장과 운영 응원 링크를 함께 정리하는 커뮤니티 입구입니다.",
         };
       case "showcase":
       default:
@@ -262,6 +296,11 @@ function Community() {
     setEditingPostId("");
     setTitle("");
     setBody("");
+    setImageDraft(null);
+    setExistingImagePath("");
+    setExistingImageUrl("");
+    setShouldRemoveExistingImage(false);
+    setImageErrorMessage("");
     setComposerError("");
     setCategory(resolveDefaultComposerCategory());
   }, [resolveDefaultComposerCategory]);
@@ -275,6 +314,63 @@ function Community() {
     resetComposer();
     setIsComposerOpen(true);
   }, [resetComposer]);
+
+  const handleFreeBoardImageChange = useCallback(async (nextFile) => {
+    setImageErrorMessage("");
+
+    const isFileLike =
+      nextFile &&
+      typeof nextFile === "object" &&
+      typeof nextFile.type === "string" &&
+      typeof nextFile.size === "number";
+
+    if (!isFileLike) {
+      setImageDraft(null);
+      return;
+    }
+
+    if (!FREE_BOARD_IMAGE_MIME_TYPES.has(nextFile.type)) {
+      setImageDraft(null);
+      setImageErrorMessage("JPG, PNG, WEBP 이미지만 첨부할 수 있습니다.");
+      return;
+    }
+
+    if (nextFile.size > FREE_BOARD_IMAGE_MAX_BYTES) {
+      setImageDraft(null);
+      setImageErrorMessage("이미지는 2MB 이하로 첨부해 주세요.");
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(nextFile);
+
+      flushSync(() => {
+        setImageDraft({
+          dataUrl,
+          fileName: nextFile.name || "community-image",
+          mimeType: nextFile.type,
+          size: nextFile.size,
+        });
+        setShouldRemoveExistingImage(false);
+      });
+    } catch (error) {
+      setImageDraft(null);
+      setImageErrorMessage(getErrorMessage(error, "이미지를 준비하지 못했습니다."));
+    }
+  }, []);
+
+  const handleFreeBoardImageRemove = useCallback(() => {
+    setImageErrorMessage("");
+
+    if (imageDraft) {
+      setImageDraft(null);
+      return;
+    }
+
+    if (existingImagePath) {
+      setShouldRemoveExistingImage(true);
+    }
+  }, [existingImagePath, imageDraft]);
 
   const handleCloseDetail = useCallback(() => {
     setSelectedPostId("");
@@ -361,17 +457,43 @@ function Community() {
         let nextCategoryFilter = freeBoardFilter;
 
         if (editingPostId) {
-          savedPost = await updateCommunityPost(currentUser, activeBoardId, editingPostId, {
+          const nextPayload = {
             ...(isFreeBoard ? { category } : {}),
             title,
             body,
+          };
+
+          if (isFreeBoard) {
+            if (imageDraft) {
+              nextPayload.image = {
+                dataUrl: imageDraft.dataUrl,
+                fileName: imageDraft.fileName,
+                mimeType: imageDraft.mimeType,
+              };
+            } else if (existingImagePath && shouldRemoveExistingImage) {
+              nextPayload.imageAction = "remove";
+            }
+          }
+
+          savedPost = await updateCommunityPost(currentUser, activeBoardId, editingPostId, {
+            ...nextPayload,
           });
         } else if (isFreeBoard) {
-          savedPost = await createCommunityPost(currentUser, "free", {
+          const nextPayload = {
             category,
             title,
             body,
-          });
+          };
+
+          if (imageDraft) {
+            nextPayload.image = {
+              dataUrl: imageDraft.dataUrl,
+              fileName: imageDraft.fileName,
+              mimeType: imageDraft.mimeType,
+            };
+          }
+
+          savedPost = await createCommunityPost(currentUser, "free", nextPayload);
         } else {
           savedPost = await createCommunityPost(currentUser, "showcase", {
             slotId: selectedSlot ? String(selectedSlot.id) : "",
@@ -407,12 +529,15 @@ function Community() {
       category,
       currentUser,
       editingPostId,
+      existingImagePath,
       freeBoardFilter,
+      imageDraft,
       isFreeBoard,
       preview,
       refreshPosts,
       resetComposer,
       selectedSlot,
+      shouldRemoveExistingImage,
       title,
     ]
   );
@@ -422,6 +547,11 @@ function Community() {
       setEditingPostId(post.id);
       setTitle(post.title);
       setBody(post.body || "");
+      setImageDraft(null);
+      setImageErrorMessage("");
+      setExistingImagePath(post.imagePath || "");
+      setExistingImageUrl(post.imageUrl || "");
+      setShouldRemoveExistingImage(false);
       setComposerError("");
 
       if (post.boardId === "showcase") {
@@ -602,7 +732,7 @@ function Community() {
             className="service-button service-button--primary"
             onClick={() => handleSelectBoard("discord")}
           >
-            디스코드 보기
+            디스코드/후원 보기
           </button>
           <button
             type="button"
@@ -624,15 +754,16 @@ function Community() {
             rel="noreferrer"
             className="service-button service-button--primary"
           >
-            디스코드 바로가기
+            디스코드 입장하기
           </a>
-          <button
-            type="button"
+          <a
+            href={communitySupportLink.url}
+            target="_blank"
+            rel="noreferrer"
             className="service-button service-button--ghost"
-            onClick={() => handleSelectBoard("support")}
           >
-            버그제보 / QnA 보기
-          </button>
+            {communitySupportLink.label}
+          </a>
         </>
       );
     }
@@ -665,6 +796,12 @@ function Community() {
       </>
     );
   };
+
+  const composerImagePreviewUrl = imageDraft?.dataUrl ||
+    (!shouldRemoveExistingImage ? existingImageUrl : "");
+  const composerImageName = imageDraft?.fileName ||
+    (!shouldRemoveExistingImage && existingImagePath ? "현재 첨부 이미지" : "");
+  const composerHasExistingImage = Boolean(existingImagePath) && !shouldRemoveExistingImage;
 
   const renderShowcaseBoard = () => (
     <div className="community-panel-stack">
@@ -996,10 +1133,10 @@ function Community() {
           </ul>
 
           <div className="community-public-note">
-            <strong>빠른 확인이 필요한 이슈는 디스코드 채널과 함께 운영해도 좋습니다.</strong>
+            <strong>빠른 확인이 필요한 이슈는 디스코드/후원 보드와 함께 운영해도 좋습니다.</strong>
             <span>
-              긴 설명이 필요한 질문은 이 보드 기준으로 정리하고, 실시간 확인은 디스코드
-              보드에서 안내하는 채널로 이어서 연결할 수 있습니다.
+              긴 설명이 필요한 질문은 이 보드 기준으로 정리하고, 실시간 확인이나 운영 응원
+              안내는 디스코드/후원 보드에서 이어서 연결할 수 있습니다.
             </span>
           </div>
         </div>
@@ -1010,71 +1147,98 @@ function Community() {
   const renderDiscordBoard = () => (
     <div className="community-panel-stack">
       <div className="community-feed-shell">
-        <div className="community-feed-toolbar">
-          <div>
-            <p className="service-section-label">디스코드 접속 정보</p>
-            <h2>실시간 질문과 스냅샷 공유를 위한 입구</h2>
-            <p className="service-muted">
-              링크만 던져 두지 않고, 입장 후 먼저 볼 채널과 자주 쓰는 흐름까지 같이 안내해
-              두면 커뮤니티 진입이 더 매끄럽습니다.
-            </p>
-          </div>
+        <p className="service-section-label">디스코드 / 후원</p>
 
-          <div className="community-feed-toolbar__aside">
-            <div className="community-feed-toolbar__badges">
-              <span className="service-badge service-badge--accent">
-                권장 채널 {communityDiscordChannels.length}개
-              </span>
-              <span className="service-badge service-badge--cool">
-                초대 링크 제공
+        <div className="community-discord-support-layout">
+          <section className="community-board-spotlight community-board-spotlight--discord">
+            <div className="community-board-spotlight__header">
+              <div className="community-board-spotlight__title-group">
+                <p className="service-section-label">디스코드</p>
+                <h3>디스코드 관련사항</h3>
+              </div>
+              <span className="community-board-spotlight__badge community-board-spotlight__badge--discord">
+                채널 4개
               </span>
             </div>
-            <div className="community-feed-toolbar__actions">
-              {renderBoardToolbarActions("discord")}
+
+            <div className="community-board-highlight community-board-highlight--discord">
+              <strong>{communityDiscordInvite.label}</strong>
+              <p className="community-board-highlight__description">
+                {communityDiscordInvite.description}
+              </p>
+              <div className="community-board-highlight__actions">
+                <a
+                  href={communityDiscordInvite.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={communityDiscordInvite.label}
+                  className="service-button community-board-link-button community-board-link-button--discord"
+                >
+                  디스코드 입장하기
+                </a>
+                <a
+                  href={communityDiscordInvite.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${communityDiscordInvite.label} 주소`}
+                  className="service-text-link community-board-highlight__url"
+                >
+                  {communityDiscordInvite.url}
+                </a>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="community-public-note">
-          <strong>{communityDiscordInvite.label}</strong>
-          <span>{communityDiscordInvite.description}</span>
-          <a
-            href={communityDiscordInvite.url}
-            target="_blank"
-            rel="noreferrer"
-            className="service-text-link"
-          >
-            {communityDiscordInvite.url}
-          </a>
-        </div>
+            <div className="community-discord-channel-grid">
+              {communityDiscordChannels.map((channel) => (
+                <article key={channel.id} className="community-discord-channel-card">
+                  <strong>{channel.title}</strong>
+                  <span>{channel.description}</span>
+                </article>
+              ))}
+            </div>
+          </section>
 
-        <div className="service-action-grid">
-          {communityDiscordChannels.map((channel) => (
-            <article
-              key={channel.id}
-              className="service-action-card community-board-info-card"
-            >
-              <strong>{channel.title}</strong>
-              <span className="service-muted">{channel.description}</span>
-            </article>
-          ))}
+          <section className="community-board-spotlight community-board-spotlight--support">
+            <div className="community-board-spotlight__header">
+              <div className="community-board-spotlight__title-group">
+                <p className="service-section-label">후원</p>
+                <h3>후원 관련사항</h3>
+              </div>
+              <span className="community-board-spotlight__badge community-board-spotlight__badge--support">
+                Ko-fi
+              </span>
+            </div>
+
+            <div className="community-board-highlight community-board-highlight--support">
+              <strong>{communitySupportLink.label}</strong>
+              <p className="community-board-highlight__description">
+                {communitySupportNotice.description}
+              </p>
+              <div className="community-board-highlight__actions">
+                <a
+                  href={communitySupportLink.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={communitySupportLink.label}
+                  className="service-button community-board-link-button community-board-link-button--support"
+                >
+                  Ko-fi로 응원하기
+                </a>
+                <a
+                  href={communitySupportLink.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${communitySupportLink.label} 주소`}
+                  className="service-text-link community-board-highlight__url"
+                >
+                  {communitySupportLink.url}
+                </a>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
-      <details className="community-guideline-panel">
-        <summary>디스코드 채널 이용 흐름 보기</summary>
-        <div className="community-guideline-panel__body">
-          <p className="service-muted">
-            디스코드는 실시간 응답이 강점이라, 먼저 볼 채널과 제보 형식을 짧게 고정해 두는
-            편이 운영 효율이 좋습니다.
-          </p>
-          <ul className="community-guideline-list">
-            {communityDiscordChecklist.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      </details>
     </div>
   );
 
@@ -1167,12 +1331,18 @@ function Community() {
           category={category}
           title={title}
           body={body}
+          imagePreviewUrl={composerImagePreviewUrl}
+          imageName={composerImageName}
+          imageErrorMessage={imageErrorMessage}
+          hasExistingImage={composerHasExistingImage}
           isEditing={Boolean(editingPostId)}
           isSubmitting={composerLoading}
           errorMessage={composerError}
           onCategoryChange={setCategory}
           onTitleChange={setTitle}
           onBodyChange={setBody}
+          onImageChange={handleFreeBoardImageChange}
+          onRemoveImage={handleFreeBoardImageRemove}
           onSubmit={handleSubmitPost}
           onClose={handleCloseComposer}
         />

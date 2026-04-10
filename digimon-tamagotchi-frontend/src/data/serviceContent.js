@@ -52,9 +52,9 @@ export const communityBoards = [
   },
   {
     id: "discord",
-    title: "디스코드",
-    description: "실시간 채널 안내와 커뮤니티 접속 정보를 모은 보드",
-    status: "실시간 안내",
+    title: "디스코드/후원",
+    description: "실시간 채널 안내와 운영 응원 링크를 함께 정리하는 보드",
+    status: "실시간/후원",
   },
 ];
 
@@ -275,32 +275,41 @@ export const communityFreeBoardTips = [
 ];
 
 export const communityDiscordInvite = {
-  label: "디지몬 키우기 디스코드 입장",
+  label: "디스코드 링크",
   url: "https://discord.gg/BWXFtSCnGt",
-  description:
-    "실시간으로 질문을 주고받거나, 스냅샷을 바로 공유하고 싶다면 디스코드 채널에서 이어서 대화할 수 있습니다.",
+  description: "공지 확인, 자랑 스냅샷, 버그제보 / QnA, 자유잡담",
+};
+
+export const communitySupportLink = {
+  label: "Ko-fi 링크",
+  url: "https://ko-fi.com/hth3381",
+};
+
+export const communitySupportNotice = {
+  title: "후원",
+  description: "Ko-fi를 통해 후원으로 응원해 주세요.",
 };
 
 export const communityDiscordChannels = [
   {
     id: "notice",
     title: "공지 확인",
-    description: "업데이트 공지, 이용 규칙, 최근 변경사항을 먼저 확인하는 진입 흐름입니다.",
+    description: "업데이트 공지와 이용 규칙 먼저 확인",
   },
   {
     id: "showoff",
     title: "자랑 스냅샷",
-    description: "대표 장면과 성장 로그를 실시간으로 공유할 때 먼저 둘러보면 좋은 영역입니다.",
+    description: "대표 장면과 성장 로그 공유",
   },
   {
     id: "support",
     title: "버그제보 / QnA",
-    description: "재현 순서, 오류 메시지, 질문 답변을 빠르게 연결해 확인하는 지원 흐름입니다.",
+    description: "오류 재현과 질문 답변 정리",
   },
   {
     id: "free-talk",
     title: "자유잡담",
-    description: "플레이 근황, 공략 메모, 소소한 질문을 편하게 주고받는 대화 용도입니다.",
+    description: "플레이 근황과 소소한 대화",
   },
 ];
 

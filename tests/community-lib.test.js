@@ -17,6 +17,8 @@ const {
 function createSupabaseInsertStub() {
   const state = {
     insertedPayload: null,
+    removedPaths: [],
+    uploadedPaths: [],
   };
 
   const builder = {
@@ -39,6 +41,7 @@ function createSupabaseInsertStub() {
           title: state.insertedPayload.title,
           body: state.insertedPayload.body,
           snapshot: state.insertedPayload.snapshot,
+          image_path: state.insertedPayload.image_path,
           comment_count: state.insertedPayload.comment_count,
           created_at: "2026-04-01T12:00:00.000Z",
           updated_at: "2026-04-01T12:00:00.000Z",
@@ -54,6 +57,35 @@ function createSupabaseInsertStub() {
       from(tableName) {
         assert.equal(tableName, "community_posts");
         return builder;
+      },
+      storage: {
+        from(bucketName) {
+          assert.equal(bucketName, "community-post-images");
+
+          return {
+            async upload(path) {
+              state.uploadedPaths.push(path);
+              return {
+                data: { path },
+                error: null,
+              };
+            },
+            getPublicUrl(path) {
+              return {
+                data: {
+                  publicUrl: `https://example.com/storage/${path}`,
+                },
+              };
+            },
+            async remove(paths) {
+              state.removedPaths.push(...paths);
+              return {
+                data: paths,
+                error: null,
+              };
+            },
+          };
+        },
       },
     },
   };
@@ -381,4 +413,41 @@ test("createCommunityPost는 자유게시판 글을 slot/snapshot 없이 저장�
   assert.equal(state.insertedPayload.category, "guide");
   assert.equal(state.insertedPayload.slot_id, null);
   assert.equal(state.insertedPayload.snapshot, null);
+  assert.equal(state.insertedPayload.image_path, null);
+});
+
+test("createCommunityPost는 자유게시판 첨부 이미지를 storage에 올리고 image_path를 저장한다", async () => {
+  const { supabase, state } = createSupabaseInsertStub();
+
+  const post = await createCommunityPost({
+    supabase,
+    boardId: BOARD_ID_FREE,
+    uid: "user-1",
+    decodedToken: {
+      uid: "user-1",
+      email: "han@example.com",
+      name: "한솔",
+      idToken: "token-123",
+    },
+    input: {
+      category: "general",
+      title: "이미지 첨부 자유글",
+      body: "본문",
+      image: {
+        fileName: "free-post.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZS1pbWFnZQ==",
+      },
+    },
+    resolveAuthorName: async () => "한솔",
+  });
+
+  assert.equal(state.uploadedPaths.length, 1);
+  assert.match(state.uploadedPaths[0], /^free\/user-1\/.+\.png$/);
+  assert.equal(state.insertedPayload.image_path, state.uploadedPaths[0]);
+  assert.equal(post.imagePath, state.uploadedPaths[0]);
+  assert.equal(
+    post.imageUrl,
+    `https://example.com/storage/${state.uploadedPaths[0]}`
+  );
 });

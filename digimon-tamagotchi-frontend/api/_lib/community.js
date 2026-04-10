@@ -1,5 +1,7 @@
 "use strict";
 
+const { randomUUID } = require("node:crypto");
+
 const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
 
 const BOARD_ID_SHOWCASE = "showcase";
@@ -21,6 +23,14 @@ const PREVIEW_COMMENT_LIMIT = 3;
 const MAX_POST_TITLE_LENGTH = 80;
 const MAX_POST_BODY_LENGTH = 500;
 const MAX_COMMENT_LENGTH = 300;
+const MAX_POST_IMAGE_BYTES = 2 * 1024 * 1024;
+const COMMUNITY_IMAGE_BUCKET = "community-post-images";
+const POST_IMAGE_MIME_TYPE_TO_EXTENSION = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const COMMUNITY_IMAGE_DATA_URL_PATTERN = /^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=\s]+)$/i;
 const DEFAULT_BACKGROUND_SETTINGS = {
   selectedId: "default",
   mode: "0",
@@ -222,6 +232,90 @@ function normalizeFreeBoardCategoryFilter(value) {
   }
 
   return normalizeFreeBoardCategory(normalizedCategory);
+}
+
+function normalizeImageAction(value) {
+  const normalizedValue = normalizeString(value);
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  if (normalizedValue === "remove") {
+    return normalizedValue;
+  }
+
+  throw createCommunityError(400, "이미지 요청 형식이 올바르지 않습니다.");
+}
+
+function parsePostImageInput(rawImage) {
+  if (!rawImage || typeof rawImage !== "object") {
+    throw createCommunityError(400, "첨부 이미지 형식이 올바르지 않습니다.");
+  }
+
+  const rawDataUrl = normalizeString(rawImage.dataUrl);
+  if (!rawDataUrl) {
+    throw createCommunityError(400, "이미지 데이터가 비어 있습니다.");
+  }
+
+  const dataUrlMatch = rawDataUrl.match(COMMUNITY_IMAGE_DATA_URL_PATTERN);
+  if (!dataUrlMatch) {
+    throw createCommunityError(400, "지원하지 않는 이미지 형식입니다. JPG, PNG, WEBP만 첨부할 수 있습니다.");
+  }
+
+  const mimeType = dataUrlMatch[1].toLowerCase();
+  const extension = POST_IMAGE_MIME_TYPE_TO_EXTENSION[mimeType];
+
+  if (!extension) {
+    throw createCommunityError(400, "지원하지 않는 이미지 형식입니다. JPG, PNG, WEBP만 첨부할 수 있습니다.");
+  }
+
+  const buffer = Buffer.from(dataUrlMatch[2].replace(/\s+/g, ""), "base64");
+
+  if (!buffer.length) {
+    throw createCommunityError(400, "이미지 데이터가 비어 있습니다.");
+  }
+
+  if (buffer.length > MAX_POST_IMAGE_BYTES) {
+    throw createCommunityError(
+      400,
+      `첨부 이미지는 ${Math.floor(MAX_POST_IMAGE_BYTES / (1024 * 1024))}MB 이하만 업로드할 수 있습니다.`
+    );
+  }
+
+  return {
+    buffer,
+    extension,
+    fileName:
+      normalizeString(rawImage.fileName || rawImage.name) || `community-image.${extension}`,
+    mimeType,
+    size: buffer.length,
+  };
+}
+
+function normalizePostImageMutation(input = {}, options = {}) {
+  const boardId = normalizeBoardId(options.boardId || BOARD_ID_SHOWCASE);
+
+  if (boardId !== BOARD_ID_FREE) {
+    if (input.image !== undefined || input.imageAction !== undefined) {
+      throw createCommunityError(400, "이미지 첨부는 자유게시판에서만 사용할 수 있습니다.");
+    }
+
+    return { kind: "keep", image: null };
+  }
+
+  if (input.image !== undefined && input.image !== null) {
+    return {
+      kind: "replace",
+      image: parsePostImageInput(input.image),
+    };
+  }
+
+  if (normalizeImageAction(input.imageAction) === "remove") {
+    return { kind: "remove", image: null };
+  }
+
+  return { kind: "keep", image: null };
 }
 
 function translateStageLabel(stage) {
@@ -447,6 +541,8 @@ async function listPreviewCommentsByPostId(supabase, postIds = []) {
 }
 
 function mapPostRow(row) {
+  const imagePath = row.image_path || "";
+
   return {
     id: row.id,
     boardId: row.board_id,
@@ -457,10 +553,79 @@ function mapPostRow(row) {
     title: row.title,
     body: row.body,
     snapshot: row.snapshot || null,
+    imagePath,
+    imageUrl: "",
+    imageAlt: imagePath ? `${row.title || "게시글"} 첨부 이미지` : "",
     commentCount: Number(row.comment_count || 0),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function buildCommunityPostImagePath(uid, postId, extension) {
+  return `free/${uid}/${postId}/${randomUUID()}.${extension}`;
+}
+
+function resolveCommunityPostImageUrl(supabase, imagePath) {
+  if (!imagePath) {
+    return "";
+  }
+
+  const { data } = supabase.storage.from(COMMUNITY_IMAGE_BUCKET).getPublicUrl(imagePath);
+  return data?.publicUrl || "";
+}
+
+function mapPostRowWithImage(supabase, row) {
+  const imagePath = row.image_path || "";
+
+  return {
+    ...mapPostRow(row),
+    imageUrl: imagePath ? resolveCommunityPostImageUrl(supabase, imagePath) : "",
+  };
+}
+
+async function uploadCommunityPostImage({
+  supabase,
+  uid,
+  postId,
+  image,
+}) {
+  const imagePath = buildCommunityPostImagePath(uid, postId, image.extension);
+  const { error } = await supabase.storage.from(COMMUNITY_IMAGE_BUCKET).upload(imagePath, image.buffer, {
+    cacheControl: "31536000",
+    contentType: image.mimeType,
+    upsert: false,
+  });
+
+  if (error) {
+    throw createCommunityError(500, "게시글 이미지를 업로드하지 못했습니다.");
+  }
+
+  return {
+    imagePath,
+  };
+}
+
+async function removeCommunityPostImageQuietly(supabase, imagePath) {
+  if (!imagePath) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase.storage.from(COMMUNITY_IMAGE_BUCKET).remove([imagePath]);
+
+    if (error) {
+      console.warn("[community-api] image cleanup failed", {
+        imagePath,
+        message: error.message || String(error),
+      });
+    }
+  } catch (error) {
+    console.warn("[community-api] image cleanup exception", {
+      imagePath,
+      message: error?.message || String(error),
+    });
+  }
 }
 
 function getFallbackAuthorTamerName(uid, decodedToken) {
@@ -690,7 +855,7 @@ async function listCommunityPosts({ supabase, boardId = BOARD_ID_SHOWCASE, categ
   );
 
   return rows.map((row) => ({
-    ...mapPostRow(row),
+    ...mapPostRowWithImage(supabase, row),
     previewComments: previewCommentsByPostId[row.id] || [],
   }));
 }
@@ -708,7 +873,7 @@ async function getCommunityPostDetail({ supabase, boardId = BOARD_ID_SHOWCASE, p
   }
 
   return {
-    post: mapPostRow(postRow),
+    post: mapPostRowWithImage(supabase, postRow),
     comments: (commentRows || []).map(mapCommentRow),
   };
 }
@@ -726,11 +891,16 @@ async function createCommunityPost({
   const validatedInput = validatePostInput(input, { boardId: normalizedBoardId });
   const snapshotAt = new Date().toISOString();
   const authorTamerName = await resolveAuthorName(uid, decodedToken);
+  const postId = randomUUID();
   const title = validatedInput.title;
   const body = validatedInput.body;
+  const imageMutation = normalizePostImageMutation(input, {
+    boardId: normalizedBoardId,
+  });
   let snapshot = null;
   let slotId = null;
   let category = "";
+  let uploadedImagePath = "";
 
   if (normalizedBoardId === BOARD_ID_SHOWCASE) {
     slotId = validatedInput.slotId;
@@ -754,11 +924,23 @@ async function createCommunityPost({
     }
   } else {
     category = validatedInput.category;
+
+    if (imageMutation.kind === "replace") {
+      const uploadResult = await uploadCommunityPostImage({
+        supabase,
+        uid,
+        postId,
+        image: imageMutation.image,
+      });
+
+      uploadedImagePath = uploadResult.imagePath;
+    }
   }
 
   const { data, error } = await supabase
     .from(POSTS_TABLE)
     .insert({
+      id: postId,
       board_id: normalizedBoardId,
       category: category || null,
       author_uid: uid,
@@ -767,17 +949,19 @@ async function createCommunityPost({
       title,
       body,
       snapshot,
+      image_path: uploadedImagePath || null,
       comment_count: 0,
     })
     .select("*")
     .single();
 
   if (error) {
+    await removeCommunityPostImageQuietly(supabase, uploadedImagePath);
     throw error;
   }
 
   return {
-    ...mapPostRow(data),
+    ...mapPostRowWithImage(supabase, data),
     comments: [],
   };
 }
@@ -801,6 +985,27 @@ async function updateCommunityPost({
     slotId: postRow.slot_id,
     category: postRow.category || input.category,
   }, { boardId: normalizedBoardId });
+  const imageMutation = normalizePostImageMutation(input, {
+    boardId: normalizedBoardId,
+  });
+  let nextImagePath = postRow.image_path || null;
+  let uploadedImagePath = "";
+
+  if (normalizedBoardId === BOARD_ID_FREE) {
+    if (imageMutation.kind === "replace") {
+      const uploadResult = await uploadCommunityPostImage({
+        supabase,
+        uid,
+        postId,
+        image: imageMutation.image,
+      });
+
+      uploadedImagePath = uploadResult.imagePath;
+      nextImagePath = uploadResult.imagePath;
+    } else if (imageMutation.kind === "remove") {
+      nextImagePath = null;
+    }
+  }
 
   const { data, error } = await supabase
     .from(POSTS_TABLE)
@@ -809,6 +1014,7 @@ async function updateCommunityPost({
         normalizedBoardId === BOARD_ID_FREE ? validatedInput.category : null,
       title: validatedInput.title,
       body: validatedInput.body,
+      image_path: normalizedBoardId === BOARD_ID_FREE ? nextImagePath : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId)
@@ -816,10 +1022,19 @@ async function updateCommunityPost({
     .single();
 
   if (error) {
+    await removeCommunityPostImageQuietly(supabase, uploadedImagePath);
     throw error;
   }
 
-  return mapPostRow(data);
+  if (
+    normalizedBoardId === BOARD_ID_FREE &&
+    postRow.image_path &&
+    postRow.image_path !== nextImagePath
+  ) {
+    await removeCommunityPostImageQuietly(supabase, postRow.image_path);
+  }
+
+  return mapPostRowWithImage(supabase, data);
 }
 
 async function deleteCommunityPost({ supabase, boardId = BOARD_ID_SHOWCASE, uid, postId }) {
@@ -834,6 +1049,8 @@ async function deleteCommunityPost({ supabase, boardId = BOARD_ID_SHOWCASE, uid,
   if (error) {
     throw error;
   }
+
+  await removeCommunityPostImageQuietly(supabase, postRow.image_path);
 
   return {
     deletedPostId: postId,

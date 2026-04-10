@@ -102,4 +102,40 @@ describe("communityApi", () => {
       })
     );
   });
+
+  it("자유게시판 이미지 첨부 글 작성은 image payload를 그대로 JSON으로 보낸다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ post: { id: "free-image-1" } })),
+    });
+
+    await createCommunityPost(currentUser, "free", {
+      category: "general",
+      title: "이미지 첨부",
+      body: "본문",
+      image: {
+        fileName: "post.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZQ==",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/free/posts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          category: "general",
+          title: "이미지 첨부",
+          body: "본문",
+          image: {
+            fileName: "post.png",
+            mimeType: "image/png",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          },
+        }),
+      })
+    );
+  });
 });

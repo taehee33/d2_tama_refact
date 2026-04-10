@@ -38,6 +38,7 @@ function CommunityPostDetailDialog({
   const formattedCreatedAt = post?.createdAt
     ? formatTimestamp(post.createdAt, "long")
     : "";
+  const freeBoardImageAlt = post?.imageAlt || `${post?.title || "자유게시판 글"} 첨부 이미지`;
 
   return (
     <CommunityDialog
@@ -107,6 +108,27 @@ function CommunityPostDetailDialog({
                   <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
                   <CommunitySnapshotSummary snapshot={post.snapshot} variant="detail" />
                 </>
+              ) : null}
+
+              {isFreeBoard && post.imageUrl ? (
+                <section
+                  className="community-post-card__section community-post-card__section--free-image"
+                  aria-label="첨부 이미지"
+                >
+                  <span className="community-post-card__section-label">이미지</span>
+                  <figure className="community-free-post-image-viewer">
+                    <img
+                      className="community-free-post-image-viewer__image"
+                      src={post.imageUrl}
+                      alt={freeBoardImageAlt}
+                    />
+                    {post.imageName ? (
+                      <figcaption className="community-free-post-image-viewer__caption">
+                        {post.imageName}
+                      </figcaption>
+                    ) : null}
+                  </figure>
+                </section>
               ) : null}
 
               <section
