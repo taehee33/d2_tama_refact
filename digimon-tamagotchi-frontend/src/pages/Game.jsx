@@ -4,18 +4,16 @@ import { useAuth } from "../contexts/AuthContext";
 import { usePresenceContext } from "../contexts/AblyContext";
 import { useMasterData } from "../contexts/MasterDataContext";
 
-import GameHeaderMeta from "../components/GameHeaderMeta";
 import GameModals from "../components/GameModals";
 import GameScreen from "../components/GameScreen";
-import StatusHearts from "../components/StatusHearts";
-import DigimonStatusBadges from "../components/DigimonStatusBadges";
 
-import { addActivityLog } from "../hooks/useGameLogic";
 import { useDeath } from "../hooks/useDeath";
 import { useEvolution } from "../hooks/useEvolution";
 import { useGameActions } from "../hooks/useGameActions";
 import { useGameAnimations } from "../hooks/useGameAnimations";
 import { useArenaLogic } from "../hooks/useArenaLogic";
+import { useGamePageActionFlows } from "../hooks/game-runtime/useGamePageActionFlows";
+import { useGamePageEvolutionAvailability } from "../hooks/game-runtime/useGamePageEvolutionAvailability";
 import { useGameHandlers } from "../hooks/useGameHandlers";
 import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
@@ -34,10 +32,12 @@ import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
 import OnlineUsersCount from "../components/OnlineUsersCount";
 import GameDefaultSection from "../components/layout/GameDefaultSection";
+import GameHeaderPanel from "../components/layout/GameHeaderPanel";
 import GamePageView from "../components/layout/GamePageView";
 import GamePageToolbar from "../components/layout/GamePageToolbar";
 import ImmersiveGameView from "../components/layout/ImmersiveGameView";
 import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSection";
+import ImmersiveLandscapeStatusPanel from "../components/layout/ImmersiveLandscapeStatusPanel";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 import { useImmersiveGameLayout } from "../hooks/game-runtime/useImmersiveGameLayout";
 
@@ -51,12 +51,9 @@ import { questsVer2 } from "../data/v2modkor/quests";
 import { initializeStats } from "../data/stats";
 import { quests } from "../data/v1/quests";
 
-import { checkEvolution } from "../logic/evolution/checker";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
-import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import {
   getDigimonDataMapByVersion,
-  getStarterDigimonId,
   normalizeDigimonVersionLabel,
   SUPPORTED_DIGIMON_VERSIONS,
 } from "../utils/digimonVersionUtils";
@@ -757,193 +754,25 @@ function Game({ immersive = false }){
     [setActiveMenu, toggleModal]
   );
 
-  const handleOverfeedConfirm = useCallback(async () => {
-    toggleModal('overfeedConfirm', false);
-    // "예" 선택: 현재 로직대로 진행 (overfeed +1, 고기 먹기)
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    if (updatedStats.isDead) return;
-
-    setDigimonStats(updatedStats);
-    setFeedType("meat");
-    setCurrentAnimation("eat");
-    toggleModal('food', true);
-    setFeedStep(0);
-    requestAnimationFrame(() => {
-      eatCycleFromHook(0, "meat", false);
+  const { handleOverfeedConfirm, handleOverfeedCancel, resetDigimon } =
+    useGamePageActionFlows({
+      applyLazyUpdateBeforeAction,
+      eatCycleFromHook,
+      setCurrentAnimation,
+      setDigimonStats,
+      setFeedStep,
+      setFeedType,
+      toggleModal,
+      selectedDigimon,
+      normalizedSlotVersion,
+      digimonDataForSlot,
+      evolutionDataForSlot,
+      appendLogToSubcollection,
+      setSelectedDigimon,
+      setDigimonStatsAndSave,
+      setSelectedDigimonAndSave,
+      setHasSeenDeathPopup,
     });
-  }, [
-    applyLazyUpdateBeforeAction,
-    eatCycleFromHook,
-    setCurrentAnimation,
-    setDigimonStats,
-    setFeedStep,
-    setFeedType,
-    toggleModal,
-  ]);
-
-  const handleOverfeedCancel = useCallback(async () => {
-    toggleModal('overfeedConfirm', false);
-    // "아니오" 선택: overfeed 증가 없이 거절 애니메이션만
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    if (updatedStats.isDead) return;
-
-    setDigimonStats(updatedStats);
-    setFeedType("meat");
-    setCurrentAnimation("foodRejectRefuse");
-    toggleModal('food', false);
-    setFeedStep(0);
-    requestAnimationFrame(() => {
-      eatCycleFromHook(0, "meat", true);
-    });
-  }, [
-    applyLazyUpdateBeforeAction,
-    eatCycleFromHook,
-    setCurrentAnimation,
-    setDigimonStats,
-    setFeedStep,
-    setFeedType,
-    toggleModal,
-  ]);
-
-  // 먹이 - Lazy Update 적용 후 Firestore에 저장
-
-  // 똥 청소
-
-  // ★ (C) 훈련
-
-  // 리셋 (디지타마로 초기화) - 새로운 시작
-  const resetDigimon = useCallback(async () => {
-    try {
-      console.log("[resetDigimon] 새로운 시작 시작");
-      
-      // 사망 폼(오하카다몬)일 때는 확인 없이 바로 초기화
-      const isOhakadamon = DEATH_FORM_IDS.includes(selectedDigimon);
-      if (!isOhakadamon && !window.confirm("정말로 초기화?")) return;
-      
-      // 최신 스탯 가져오기 (Lazy Update 적용)
-      const currentStats = await applyLazyUpdateBeforeAction();
-      console.log("[resetDigimon] 현재 스탯:", {
-        evolutionStage: currentStats.evolutionStage,
-        isDead: currentStats.isDead,
-        age: currentStats.age,
-      });
-      
-      // Perfect 이상 단계인지 확인
-      const isPerfectStage = perfectStages.includes(currentStats.evolutionStage);
-      console.log("[resetDigimon] Perfect 단계 여부:", isPerfectStage);
-      
-      // 환생 횟수 증가 및 새로운 시작을 위한 필드 초기화
-      const updatedStats = {
-        ...currentStats,
-        // 환생 횟수 증가
-        totalReincarnations: (currentStats.totalReincarnations || 0) + 1,
-        // 새로운 시작: 사망 상태 해제
-        isDead: false,
-        // 새로운 시작: 나이 초기화
-        age: 0,
-        // 새로운 시작: 생년월일 초기화
-        birthTime: Date.now(),
-        // 사망 관련 필드 초기화
-        lastHungerZeroAt: null,
-        hungerZeroFrozenDurationMs: 0,
-        lastStrengthZeroAt: null,
-        strengthZeroFrozenDurationMs: 0,
-        injuredAt: null,
-        injuryFrozenDurationMs: 0,
-        isInjured: false,
-        // 새로운 시작: 똥 초기화
-        poopCount: 0,
-        poopReachedMaxAt: null,
-        lastPoopPenaltyAt: null,
-        poopPenaltyFrozenDurationMs: 0,
-      };
-      
-      if (isPerfectStage) {
-        updatedStats.perfectReincarnations = (currentStats.perfectReincarnations || 0) + 1;
-      } else {
-        updatedStats.normalReincarnations = (currentStats.normalReincarnations || 0) + 1;
-      }
-      
-      console.log("[resetDigimon] 업데이트된 스탯:", {
-        totalReincarnations: updatedStats.totalReincarnations,
-        normalReincarnations: updatedStats.normalReincarnations,
-        perfectReincarnations: updatedStats.perfectReincarnations,
-        isDead: updatedStats.isDead,
-        age: updatedStats.age,
-      });
-      
-      // Ver.2는 DigitamaV2, Ver.1은 Digitama로 초기화 (공통 ID 사용 안 함)
-      const initialDigimonId = getStarterDigimonId(normalizedSlotVersion);
-      const ns = initializeStats(initialDigimonId, updatedStats, digimonDataForSlot);
-
-      // 새로운 시작이므로 isDead와 age를 명시적으로 설정
-      ns.isDead = false;
-      ns.age = 0;
-      ns.birthTime = Date.now();
-      ns.lastSavedAt = new Date();
-      ns.fullness = 0;
-      ns.strength = 0;
-      ns.lastHungerZeroAt = null;
-      ns.hungerZeroFrozenDurationMs = 0;
-      ns.lastStrengthZeroAt = null;
-      ns.strengthZeroFrozenDurationMs = 0;
-      ns.injuredAt = null;
-      ns.injuryFrozenDurationMs = 0;
-      ns.isInjured = false;
-      ns.injuries = 0;
-      ns.poopCount = 0;
-      ns.poopReachedMaxAt = null;
-      ns.lastPoopPenaltyAt = null;
-      ns.poopPenaltyFrozenDurationMs = 0;
-
-      console.log("[resetDigimon] 최종 초기화된 스탯:", {
-        evolutionStage: ns.evolutionStage,
-        isDead: ns.isDead,
-        age: ns.age,
-        totalReincarnations: ns.totalReincarnations,
-        fullness: ns.fullness,
-        strength: ns.strength,
-        lastSavedAt: ns.lastSavedAt,
-        lastHungerZeroAt: ns.lastHungerZeroAt,
-        lastStrengthZeroAt: ns.lastStrengthZeroAt,
-        injuredAt: ns.injuredAt,
-        isInjured: ns.isInjured,
-      });
-
-      const currentLogs = ns.activityLogs || updatedStats.activityLogs || [];
-      const newStartLogs = addActivityLog(
-        currentLogs,
-        "NEW_START",
-        `New start: Reborn as ${initialDigimonId}`,
-        buildDigimonLogSnapshot(initialDigimonId, digimonDataForSlot, evolutionDataForSlot)
-      );
-      if (appendLogToSubcollection) appendLogToSubcollection(newStartLogs[newStartLogs.length - 1]).catch(() => {});
-      const nsWithLogs = { ...ns, activityLogs: newStartLogs, selectedDigimon: initialDigimonId };
-      setSelectedDigimon(initialDigimonId);
-      setDigimonStats(nsWithLogs);
-      await setDigimonStatsAndSave(nsWithLogs, newStartLogs);
-      await setSelectedDigimonAndSave(initialDigimonId);
-      toggleModal('deathModal', false);
-      setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화
-      
-      console.log("[resetDigimon] 새로운 시작 완료 - 로컬 상태 및 Firestore 저장 완료");
-    } catch (error) {
-      console.error("[resetDigimon] 오류 발생:", error);
-    }
-  }, [
-    appendLogToSubcollection,
-    applyLazyUpdateBeforeAction,
-    digimonDataForSlot,
-    evolutionDataForSlot,
-    normalizedSlotVersion,
-    selectedDigimon,
-    setDigimonStats,
-    setDigimonStatsAndSave,
-    setHasSeenDeathPopup,
-    setSelectedDigimon,
-    setSelectedDigimonAndSave,
-    toggleModal,
-  ]);
 
   const modalBindings = useMemo(
     () =>
@@ -1075,41 +904,16 @@ function Game({ immersive = false }){
   );
   const { handlers, data, ui: modalUi } = modalBindings;
 
-  // evo 버튼 상태: 진화 시간·조건 반영 (1초마다 customTime으로 재계산해 진화 시간 미충족 시 ❌ 표시)
-  useEffect(() => {
-    if (isLoadingSlot) {
-      setIsEvoEnabled(false);
-      return;
-    }
-    if(digimonStats.isDead && !developerMode) {
-      setIsEvoEnabled(false);
-      return;
-    }
-    // 개발자 모드 + '진화조건 무시' 둘 다 켜져 있을 때만 무조건 ⭕. 그 외에는 실제 조건 검사
-    if(developerMode && ignoreEvolutionTime) {
-      setIsEvoEnabled(true);
-      return;
-    }
-    // '모든 진화 조건 무시' 옵션 시 진화 후보가 있으면 버튼 활성화 (dev mode 없이)
-    const currentDigimonData = evolutionDataForSlot[selectedDigimon];
-    if (ignoreEvolutionTime && currentDigimonData?.evolutions?.length > 0) {
-      const hasNonJogress = currentDigimonData.evolutions.some((e) => !e.jogress);
-      if (hasNonJogress) {
-        setIsEvoEnabled(true);
-        return;
-      }
-    }
-    const statsForEvoCheck = digimonStats;
-    if (currentDigimonData && currentDigimonData.evolutions) {
-      const evolutionResult = checkEvolution(statsForEvoCheck, currentDigimonData, selectedDigimon, evolutionDataForSlot);
-      if(evolutionResult.success){
-        setIsEvoEnabled(true);
-        return;
-      }
-    }
-    setIsEvoEnabled(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [digimonStats, selectedDigimon, developerMode, ignoreEvolutionTime, customTime, isLoadingSlot]);
+  useGamePageEvolutionAvailability({
+    isLoadingSlot,
+    digimonStats,
+    developerMode,
+    ignoreEvolutionTime,
+    selectedDigimon,
+    evolutionDataForSlot,
+    setIsEvoEnabled,
+    customTime,
+  });
 
   // 퀘스트 시작 핸들러
 
@@ -1220,42 +1024,35 @@ function Game({ immersive = false }){
     </div>
   );
 
-  const headerStatusSection = (
-    <div className="mt-2 flex flex-col items-center gap-2">
-      <StatusHearts
-        fullness={digimonStats.fullness || 0}
-        strength={digimonStats.strength || 0}
-        maxOverfeed={digimonStats.maxOverfeed || 0}
-        proteinOverdose={digimonStats.proteinOverdose || 0}
-        showLabels
-        size="sm"
-        position="inline"
-        isFrozen={digimonStats.isFrozen || false}
-      />
-      <DigimonStatusBadges
-        {...statusBadgeProps}
-        onOpenStatusDetail={handleOpenStatusDetail}
-      />
-    </div>
-  );
+  const sharedStatusHeartsProps = {
+    fullness: digimonStats.fullness || 0,
+    strength: digimonStats.strength || 0,
+    maxOverfeed: digimonStats.maxOverfeed || 0,
+    proteinOverdose: digimonStats.proteinOverdose || 0,
+    isFrozen: digimonStats.isFrozen || false,
+  };
+
+  const sharedStatusBadgesProps = {
+    ...statusBadgeProps,
+    onOpenStatusDetail: handleOpenStatusDetail,
+  };
 
   const defaultHeaderSection = (
-    <div className={gameHeaderClassName}>
-      <h2 className="text-base font-bold">
-        슬롯 {slotId} - {headerDigimonLabel}
-        {digimonStats.isFrozen && (
-          <span className="ml-2 text-blue-600">🧊 냉장고</span>
-        )}
-      </h2>
-      <GameHeaderMeta
-        slotName={slotName}
-        slotCreatedAtText={formatSlotCreatedAt(slotCreatedAt)}
-        slotDevice={slotDevice}
-        slotVersion={slotVersion}
-        currentTimeText={currentTimeText}
-      />
-      {headerStatusSection}
-    </div>
+    <GameHeaderPanel
+      className={gameHeaderClassName}
+      slotId={slotId}
+      digimonLabel={headerDigimonLabel}
+      isFrozen={digimonStats.isFrozen || false}
+      metaProps={{
+        slotName,
+        slotCreatedAtText: formatSlotCreatedAt(slotCreatedAt),
+        slotDevice,
+        slotVersion,
+        currentTimeText,
+      }}
+      statusHeartsProps={sharedStatusHeartsProps}
+      statusBadgesProps={sharedStatusBadgesProps}
+    />
   );
 
   const sharedGameScreenProps = {
@@ -1307,39 +1104,17 @@ function Game({ immersive = false }){
   );
 
   const landscapeStatusNode = (
-    <div className="immersive-landscape-status">
-      <div className="immersive-landscape-status__topline">
-        <span>
-          슬롯 {slotId} · {normalizedSlotVersion}
-        </span>
-        {digimonStats.isFrozen ? <span>🧊 냉장고</span> : null}
-      </div>
-      <strong className="immersive-landscape-status__title">
-        {headerDigimonLabel}
-      </strong>
-      <span className="immersive-landscape-status__meta">
-        {slotName || `슬롯${slotId}`} · {slotDevice || "디지바이스"}
-      </span>
-      <span className="immersive-landscape-status__time">
-        현재 시간 {currentTimeText}
-      </span>
-      <div className="immersive-landscape-status__hearts">
-        <StatusHearts
-          fullness={digimonStats.fullness || 0}
-          strength={digimonStats.strength || 0}
-          maxOverfeed={digimonStats.maxOverfeed || 0}
-          proteinOverdose={digimonStats.proteinOverdose || 0}
-          showLabels={false}
-          size="sm"
-          position="inline"
-          isFrozen={digimonStats.isFrozen || false}
-        />
-      </div>
-      <DigimonStatusBadges
-        {...statusBadgeProps}
-        onOpenStatusDetail={handleOpenStatusDetail}
-      />
-    </div>
+    <ImmersiveLandscapeStatusPanel
+      slotId={slotId}
+      slotVersion={normalizedSlotVersion}
+      digimonLabel={headerDigimonLabel}
+      slotName={slotName}
+      slotDevice={slotDevice}
+      currentTimeText={currentTimeText}
+      isFrozen={digimonStats.isFrozen || false}
+      statusHeartsProps={sharedStatusHeartsProps}
+      statusBadgesProps={sharedStatusBadgesProps}
+    />
   );
 
   const portraitImmersiveSection = defaultGameSection;

@@ -4,6 +4,88 @@
 
 ---
 
+## [2026-04-10] `Game.jsx` 4차 분리: 페이지 액션 helper/hook 추출
+
+### 작업 유형
+- 🧩 과식 확인/취소, 환생 초기화, evo 버튼 활성화 계산을 전용 helper/hook으로 추출
+- 🧪 액션 흐름과 evo availability를 고정하는 characterization test 추가
+
+### 목적 및 영향
+- **목적:** presenter 분리 뒤에도 `Game.jsx`에 남아 있던 페이지 전용 액션 로직을 안전한 경계로 옮겨, 다음 단계의 `useEvolution`/`useGameData` 정리를 준비한다.
+- **범위:** `handleOverfeedConfirm`, `handleOverfeedCancel`, `resetDigimon`, `isEvoEnabled` 계산만 이동하고, 저장 계약과 lazy update 규칙은 유지한다.
+- **내용:**
+  - `gamePageActionHelpers`를 추가해 `resetDigimon` 초기 상태 계산과 evo 버튼 활성화 조건을 순수 함수로 분리했다.
+  - `useGamePageActionFlows`를 추가해 과식 확인/취소 흐름과 `resetDigimon` 저장 순서를 `Game.jsx` 밖으로 옮겼다.
+  - `useGamePageEvolutionAvailability`를 추가해 `customTime` 기준 1초 재계산과 `ignoreEvolutionTime`/개발자 모드/evolution checker 분기를 전용 훅으로 분리했다.
+  - `resetDigimon`의 로그 append 경로는 promise 반환 여부와 빈 로그 배열에 방어적으로 대응하도록 정리해, 테스트 더블이나 향후 리팩터링 중에도 저장 흐름이 끊기지 않게 했다.
+  - `Game.jsx`는 이제 route/context 연결, view-model 조합, modal binding 연결에 더 집중하고, 페이지 액션 구현 세부사항은 전용 훅에 위임한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gamePageActionHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gamePageActionHelpers.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageActionFlows.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageActionFlows.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageEvolutionAvailability.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageEvolutionAvailability.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/game-runtime/gamePageActionHelpers.test.js src/hooks/game-runtime/useGamePageActionFlows.test.js src/hooks/game-runtime/useGamePageEvolutionAvailability.test.js src/components/layout/GameHeaderPanel.test.jsx src/components/layout/ImmersiveLandscapeStatusPanel.test.jsx src/components/layout/GameDefaultSection.test.jsx src/components/layout/ImmersiveLandscapeSection.test.jsx src/components/layout/GamePageToolbar.test.jsx src/components/layout/GamePageView.test.jsx src/components/layout/ImmersiveGameView.test.jsx src/components/layout/ImmersiveGameTopBar.test.jsx src/components/layout/ImmersiveDeviceShell.test.jsx src/components/layout/ImmersiveLandscapeControls.test.jsx src/components/layout/ImmersiveLandscapeFrameStage.test.jsx src/components/layout/ImmersiveSkinPicker.test.jsx src/components/chat/ImmersiveChatOverlay.test.jsx src/components/GameScreen.test.jsx src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/pages/Game.jsx src/hooks/game-runtime/gamePageActionHelpers.js src/hooks/game-runtime/gamePageActionHelpers.test.js src/hooks/game-runtime/useGamePageActionFlows.js src/hooks/game-runtime/useGamePageActionFlows.test.js src/hooks/game-runtime/useGamePageEvolutionAvailability.js src/hooks/game-runtime/useGamePageEvolutionAvailability.test.js src/components/layout/GameHeaderPanel.jsx src/components/layout/GameHeaderPanel.test.jsx src/components/layout/ImmersiveLandscapeStatusPanel.jsx src/components/layout/ImmersiveLandscapeStatusPanel.test.jsx`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 단계는 `Game.jsx`를 얇은 route container로 수렴시키는 마지막 액션 분리 단계에 가깝다. 이후 우선순위는 페이지에 남은 `resetDigimon` 연관 테스트를 유지한 채 `useEvolution`의 온라인 조그레스 흐름과 `useGameData`의 UI side effect를 경계별로 더 쪼개는 쪽이다.
+
+## [2026-04-09] `Game.jsx` 3차 분리: 헤더/상태 presenter 추출
+
+### 작업 유형
+- 🧩 `GameHeaderPanel`, `ImmersiveLandscapeStatusPanel` 추가
+- 🧪 헤더 메타/상태 요약 presenter 테스트 보강
+
+### 목적 및 영향
+- **목적:** `Game.jsx`에 남아 있던 `defaultHeaderSection`과 `landscapeStatusNode` 조립 블록을 presenter로 분리해 페이지를 더 얇은 route container에 가깝게 정리한다.
+- **범위:** 헤더/상태 표시 JSX만 이동하고, 저장/진화/모달 제어 로직은 그대로 둔다.
+- **내용:**
+  - 기본 화면 헤더는 `GameHeaderPanel`로 이동해 슬롯 제목, 메타 정보, 하트 요약, 상태 배지를 한 곳에서 조립하도록 정리했다.
+  - 가로 몰입형 상태 영역은 `ImmersiveLandscapeStatusPanel`로 이동해 슬롯 정보, 시간, 냉장고 표시, 상태 하트/배지를 별도 presenter로 분리했다.
+  - `Game.jsx`는 이제 `sharedStatusHeartsProps`, `sharedStatusBadgesProps`만 만들고 각 presenter에 전달하도록 단순화했다.
+  - 테스트는 두 presenter가 메타/하트/배지 props를 올바르게 연결하는지와 fallback 텍스트를 유지하는지 확인하도록 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameHeaderPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/GameHeaderPanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeStatusPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/layout/ImmersiveLandscapeStatusPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 메모
+- `Game.jsx`에서 화면 조립을 presenter로 먼저 옮기고 액션/영속성 훅 정리는 뒤로 미루는 전략을 유지한다. 이 단계까지 끝나면 페이지 파일에는 route/context 연결과 view-model 조합 책임이 더 분명하게 남는다.
+
+## [2026-04-09] 커뮤니티 디스코드 보드를 `디스코드/후원`으로 재정리
+
+### 작업 유형
+- 🧭 커뮤니티 보드 라벨과 안내 카피 조정
+- 📝 카카오페이·Ko-fi 후원 링크가 들어올 자리 확보
+- 🧪 디스코드 보드 라벨 회귀 테스트 추가
+
+### 목적 및 영향
+- **목적:** 커뮤니티 안에서 디스코드 초대와 운영 응원 링크를 같은 입구로 안내할 수 있게 보드 의미를 넓힌다.
+- **범위:** `?board=discord` 쿼리와 라우트 구조는 그대로 유지하고, 사용자에게 보이는 탭명/드롭다운명/보드 설명만 `디스코드/후원` 기준으로 재정리한다.
+- **내용:**
+  - `communityBoards`의 `discord` 보드 제목과 설명을 `디스코드/후원` 기준으로 바꾸고, 상단 드롭다운과 커뮤니티 탭에서도 같은 이름이 보이도록 맞췄다.
+  - `Community`의 hero 카피, 지원 보드에서 넘어가는 CTA, 디스코드 보드 툴바/안내 문구를 모두 같은 표현으로 통일했다.
+  - 디스코드 보드 본문에는 카카오페이와 Ko-fi 링크가 들어올 예정이라는 안내 노트를 추가해, 실제 링크를 붙이기 전에도 후원 동선 자리가 어디인지 바로 보이게 했다.
+  - 테스트는 `?board=discord` 진입 시 `디스코드/후원` 제목과 후원 안내 예고가 렌더되는지 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
 ## [2026-04-09] `Game.jsx` 2차 분리: 기본/가로 몰입형 section presenter 연결
 
 ### 작업 유형
