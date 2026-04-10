@@ -4,14 +4,20 @@ function ImmersiveGameTopBar({
   isMobile = false,
   isCollapsed = false,
   layoutMode = "portrait",
+  isFullscreen = false,
   isChatOpen = false,
+  isLandscapeInfoOpen = false,
   unreadCount = 0,
   presenceCount = 0,
+  showFullscreenButton = true,
+  showLandscapeInfoButton = false,
   showLandscapeSideToggle = false,
   landscapeSidePreference = "auto",
   effectiveLandscapeSide = "right",
   onToggleCollapsed,
   onChangeLayoutMode,
+  onToggleFullscreen,
+  onToggleLandscapeInfo,
   onToggleChat,
   onCycleLandscapeSide,
   onToggleSkinPicker,
@@ -81,7 +87,41 @@ function ImmersiveGameTopBar({
     </button>
   );
 
+  const fullscreenButton = showFullscreenButton ? (
+    <button
+      type="button"
+      onClick={() => runMobileAction(onToggleFullscreen)}
+      className="game-immersive-nav__button game-immersive-nav__button--secondary"
+      aria-pressed={isFullscreen}
+    >
+      {isFullscreen ? "전체화면 종료" : "전체화면"}
+    </button>
+  ) : null;
+
   const chatButtonLabel = isChatOpen ? "채팅 닫기" : "채팅";
+  const landscapeInfoButton = showLandscapeInfoButton ? (
+    <button
+      type="button"
+      onClick={() => runMobileAction(onToggleLandscapeInfo)}
+      className="game-immersive-nav__button game-immersive-nav__button--secondary"
+      aria-pressed={isLandscapeInfoOpen}
+    >
+      {isLandscapeInfoOpen ? "정보/진화 닫기" : "정보/진화"}
+    </button>
+  ) : null;
+  const floatingLandscapeInfoButton =
+    isMobile && showLandscapeInfoButton ? (
+      <button
+        type="button"
+        onClick={() => runMobileAction(onToggleLandscapeInfo)}
+        className={`game-immersive-nav__floating-button ${
+          isLandscapeInfoOpen ? "game-immersive-nav__floating-button--active" : ""
+        }`.trim()}
+        aria-pressed={isLandscapeInfoOpen}
+      >
+        {isLandscapeInfoOpen ? "정보/진화 닫기" : "정보/진화"}
+      </button>
+    ) : null;
   const chatButton = (
     <button
       type="button"
@@ -137,26 +177,32 @@ function ImmersiveGameTopBar({
           />
         ) : null}
         <div className="game-immersive-nav__mobile-anchor">
-          <button
-            type="button"
-            className={`game-immersive-nav__fab ${
-              isCollapsed ? "" : "game-immersive-nav__fab--active"
-            }`.trim()}
-            onClick={() => onToggleCollapsed?.()}
-            aria-label={isCollapsed ? "메뉴 열기" : "메뉴 닫기"}
-            aria-expanded={!isCollapsed}
-            data-state={isCollapsed ? "collapsed" : "expanded"}
+          <div
+            className="game-immersive-nav__mobile-floating-row"
+            data-testid="immersive-game-topbar-mobile-floating-row"
           >
-            <span className="game-immersive-nav__fab-icon" aria-hidden="true">
-              {isCollapsed ? "☰" : "×"}
-            </span>
-            <span className="game-immersive-nav__fab-label">{fabLabel}</span>
-            {unreadCount > 0 ? (
-              <span className="game-immersive-nav__fab-badge">
-                {unreadCount > 99 ? "99+" : unreadCount}
+            {floatingLandscapeInfoButton}
+            <button
+              type="button"
+              className={`game-immersive-nav__fab ${
+                isCollapsed ? "" : "game-immersive-nav__fab--active"
+              }`.trim()}
+              onClick={() => onToggleCollapsed?.()}
+              aria-label={isCollapsed ? "메뉴 열기" : "메뉴 닫기"}
+              aria-expanded={!isCollapsed}
+              data-state={isCollapsed ? "collapsed" : "expanded"}
+            >
+              <span className="game-immersive-nav__fab-icon" aria-hidden="true">
+                {isCollapsed ? "☰" : "×"}
               </span>
-            ) : null}
-          </button>
+              <span className="game-immersive-nav__fab-label">{fabLabel}</span>
+              {unreadCount > 0 ? (
+                <span className="game-immersive-nav__fab-badge">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </button>
+          </div>
 
           {!isCollapsed ? (
             <div className="game-immersive-nav__mobile-panel">
@@ -180,6 +226,7 @@ function ImmersiveGameTopBar({
               </div>
               <div className="game-immersive-nav__tools">
                 {layoutToggle}
+                {fullscreenButton}
                 {landscapeSideButton}
                 {chatButton}
                 {skinButton}
@@ -221,6 +268,8 @@ function ImmersiveGameTopBar({
           data-testid="immersive-game-topbar-tools-surface"
         >
           {layoutToggle}
+          {fullscreenButton}
+          {landscapeInfoButton}
           {landscapeSideButton}
           {chatButton}
           {skinButton}

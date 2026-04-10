@@ -3108,6 +3108,14 @@ code {
   scroll-snap-type: x proximity;
 }
 
+.immersive-landscape-control-strip__scroller--mobile-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  overflow-x: visible;
+  overscroll-behavior-x: auto;
+  scroll-snap-type: none;
+}
+
 .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller {
   padding: 0.55rem 0.65rem 0.8rem;
   border-radius: 1.6rem;
@@ -3131,6 +3139,10 @@ code {
 .immersive-landscape-control-strip__cell {
   flex: 0 0 auto;
   scroll-snap-align: start;
+}
+
+.immersive-landscape-control-strip__scroller--mobile-grid .immersive-landscape-control-strip__cell {
+  min-width: 0;
 }
 
 .icon-button--immersive-brick-strip {
@@ -3485,6 +3497,14 @@ code {
       pointer-events: none;
     }
 
+    .game-immersive-nav__mobile-floating-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      gap: 0.48rem;
+      pointer-events: none;
+    }
+
     .game-immersive-nav__fab {
       position: relative;
       display: inline-flex;
@@ -3525,6 +3545,7 @@ code {
       font-size: 0.76rem;
       font-weight: 800;
       line-height: 1;
+      white-space: nowrap;
       box-shadow:
         0 14px 28px rgba(15, 23, 42, 0.18),
         inset 0 1px 0 rgba(255, 255, 255, 0.84);
@@ -3833,14 +3854,52 @@ code {
       padding: 0.72rem 0.85rem 0.9rem;
     }
 
+    .immersive-game-view[data-layout-mode="landscape"] {
+      --immersive-brick-mobile-inline-safe:
+        calc(env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px) + 0.9rem);
+      --immersive-brick-mobile-shell-width-budget:
+        calc(100vw - var(--immersive-brick-mobile-inline-safe));
+      --immersive-brick-mobile-shell-height-budget:
+        calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2.5rem) / 1.08);
+      --immersive-brick-mobile-shell-width:
+        min(
+          var(--immersive-brick-mobile-shell-width-budget),
+          var(--immersive-brick-mobile-shell-height-budget)
+        );
+      --immersive-brick-mobile-stage-width:
+        calc(var(--immersive-brick-mobile-shell-width) - 0.45rem);
+    }
+
+    .immersive-game-view[data-layout-mode="landscape"][data-virtual-landscape="true"] {
+      --immersive-brick-mobile-inline-safe:
+        calc(env(safe-area-inset-left, 0px) + env(safe-area-inset-right, 0px) + 0.6rem);
+      --immersive-brick-mobile-shell-width-budget:
+        calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1.2rem);
+      --immersive-brick-mobile-shell-height-budget:
+        calc((100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 1rem) / 1.08);
+      --immersive-brick-mobile-shell-width:
+        min(
+          var(--immersive-brick-mobile-shell-width-budget),
+          var(--immersive-brick-mobile-shell-height-budget)
+        );
+      --immersive-brick-mobile-stage-width:
+        calc(var(--immersive-brick-mobile-shell-width) - 0.38rem);
+    }
+
     .immersive-device-shell__frame {
       padding: 0.95rem;
       border-radius: 2rem;
     }
 
+    .immersive-device-shell--landscape[data-skin-id="brick-ver1"] {
+      max-width: min(100%, var(--immersive-brick-mobile-shell-width, 26.25rem));
+      margin: 0 auto;
+      margin-top: 0.45rem;
+    }
+
     .immersive-device-shell--landscape[data-skin-id="brick-ver1"] .immersive-device-shell__frame {
-      padding: 0.38rem;
-      border-radius: 1.55rem;
+      padding: 0.56rem 0.22rem 0.28rem 0.12rem;
+      border-radius: 1.42rem;
     }
 
     .immersive-device-shell--rotate-hint .immersive-device-shell__frame {
@@ -3862,21 +3921,50 @@ code {
     }
 
     .immersive-landscape-frame-stage {
-      width: 100%;
+      width: min(100%, var(--immersive-brick-mobile-stage-width, 25.2rem));
     }
 
     .immersive-landscape-control-strip__scroller {
-      gap: 0.55rem;
-      padding-bottom: 0.35rem;
+      gap: 0.42rem;
+      padding-bottom: 0.22rem;
     }
 
     .immersive-landscape-control-strip {
-      width: 100%;
+      width: min(100%, var(--immersive-brick-mobile-stage-width, 25.2rem));
+    }
+
+    .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller {
+      padding: 0.42rem 0.5rem 0.62rem;
+      border-radius: 1.28rem;
+    }
+
+    .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller--mobile-grid {
+      gap: 0.24rem;
+      padding: 0.42rem 0.34rem 0.48rem;
+    }
+
+    .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller--mobile-grid .icon-button--immersive-brick-strip {
+      padding: 6px 4px !important;
+      border-radius: 14px;
+    }
+
+    .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller--mobile-grid .icon-button--immersive-brick-strip img {
+      width: 28px;
+      height: 28px;
+    }
+
+    .immersive-device-shell[data-skin-id="brick-ver1"] .immersive-landscape-control-strip__scroller--mobile-grid .icon-button--immersive-brick-strip span {
+      font-size: 9px !important;
+      line-height: 1.1 !important;
     }
 
     .immersive-device-shell--rotate-hint[data-skin-id="brick-ver1"] .immersive-landscape-frame-stage {
-      transform: scale(0.95);
+      transform: scale(0.92);
       transform-origin: top center;
+    }
+
+    .immersive-device-shell--rotate-hint[data-skin-id="brick-ver1"] .immersive-landscape-display--frame-skin {
+      padding-top: 4.93rem;
     }
 
     .immersive-skin-picker__grid {
@@ -3884,7 +3972,7 @@ code {
     }
 
     .game-page-header--immersive-mobile {
-      padding-top: calc(env(safe-area-inset-top, 0px) + 3.35rem);
+      padding-top: calc(env(safe-area-inset-top, 0px) + 4.35rem);
       padding-left: 1rem;
       padding-right: 1rem;
     }

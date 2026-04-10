@@ -17,6 +17,7 @@ function ImmersiveLandscapeControls({
   groupId = null,
 }) {
   if (layout === "strip") {
+    const isMobileGridLayout = isMobile;
     const group =
       getGroupedGameMenus(MENU_SURFACES.PRIMARY).find(
         (menuGroup) => menuGroup.id === groupId
@@ -28,7 +29,11 @@ function ImmersiveLandscapeControls({
         aria-label={`${group.label} 가로 조작`}
       >
         <div
-          className="immersive-landscape-control-strip__scroller"
+          className={`immersive-landscape-control-strip__scroller ${
+            isMobileGridLayout
+              ? "immersive-landscape-control-strip__scroller--mobile-grid"
+              : ""
+          }`.trim()}
           role="group"
           aria-label={group.label}
         >
@@ -49,8 +54,8 @@ function ImmersiveLandscapeControls({
                   isActive={activeMenu === menu.id}
                   disabled={disabledState.disabled}
                   lockedReason={disabledState.message}
-                  width={isMobile ? 88 : 92}
-                  height={isMobile ? 58 : 62}
+                  width={isMobileGridLayout ? "100%" : isMobile ? 80 : 92}
+                  height={isMobileGridLayout ? 46 : isMobile ? 54 : 62}
                   className="icon-button--immersive-brick-strip"
                   label={menu.label}
                   isMobile={isMobile}

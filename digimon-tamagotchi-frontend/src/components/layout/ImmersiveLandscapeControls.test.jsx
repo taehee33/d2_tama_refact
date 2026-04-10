@@ -40,4 +40,25 @@ describe("ImmersiveLandscapeControls", () => {
       screen.queryByRole("button", { name: "더보기" })
     ).not.toBeInTheDocument();
   });
+
+  test("모바일 브릭 스트립은 스크롤 대신 5열 그리드로 버튼을 모두 보여준다", () => {
+    const { container } = render(
+      <ImmersiveLandscapeControls
+        layout="strip"
+        groupId="basic"
+        activeMenu="status"
+        onMenuClick={jest.fn()}
+        isMobile
+      />
+    );
+
+    const scroller = container.querySelector(
+      ".immersive-landscape-control-strip__scroller--mobile-grid"
+    );
+    expect(scroller).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "상태" })).toHaveStyle({
+      width: "100%",
+    });
+  });
 });
