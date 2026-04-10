@@ -64,7 +64,9 @@ describe("PlayHub", () => {
       canCreateMore: true,
       recentSlot: {
         id: 1,
+        slotName: "슬롯1",
         selectedDigimon: "Koromon",
+        device: "Digital Monster Color 25th",
         version: "Ver.1",
       },
     });
@@ -77,6 +79,8 @@ describe("PlayHub", () => {
       "src",
       "/images/225.png"
     );
+    expect(screen.getByText("유아기 · Digital Monster Color 25th / Ver.1")).toBeInTheDocument();
+    expect(screen.getByText("슬롯1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "몰입형 화면" })).toBeInTheDocument();
   });
@@ -86,7 +90,9 @@ describe("PlayHub", () => {
       slots: [
         {
           id: 1,
+          slotName: "슬롯1",
           selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
           version: "Ver.1",
         },
       ],
@@ -100,7 +106,9 @@ describe("PlayHub", () => {
       canCreateMore: true,
       recentSlot: {
         id: 1,
+        slotName: "슬롯1",
         selectedDigimon: "Koromon",
+        device: "Digital Monster Color 25th",
         version: "Ver.1",
       },
     });

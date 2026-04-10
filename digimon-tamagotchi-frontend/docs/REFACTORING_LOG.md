@@ -1,5 +1,47 @@
 # REFACTORING LOG
 
+## 2026-04-10
+
+### 디지타마 내부/고급 카운터 센티널 표시 보정
+- `src/components/StatsPopup.jsx`, `src/components/StatsPanel.jsx`의 `내부/고급 카운터`는 더 이상 디지타마용 센티널 타이머를 raw 분/초 숫자로 그대로 노출하지 않고, `비활성`, `알 단계 전용` 같은 상태 문구로 치환해 보여 주도록 정리했습니다.
+- 공통 표시 규칙은 `src/utils/internalCounterTimerDisplay.js`로 분리해, `hunger/strength <= 0`, `Digitama + poop >= 999` 같은 예외를 한 곳에서 처리하고 일반 단계 타이머는 기존 `X min (남은 시간: Ym Zs)` 형식을 유지하도록 맞췄습니다.
+- 디버그 점검에 쓰이는 `StatsPopup` OLD 탭의 raw 숫자 목록은 그대로 두고, 실제 사용자가 혼동하기 쉬운 NEW 탭과 축약형 `StatsPanel`의 표현 계층만 좁게 보정했습니다.
+
+### 테스트 보강
+- `src/components/StatsPopup.test.jsx`에 디지타마 센티널 표시 케이스와 일반 단계 회귀 케이스를 추가했습니다.
+- `src/components/StatsPanel.test.jsx`를 새로 추가해 축약형 패널도 같은 규칙으로 `비활성`, `알 단계 전용`, 일반 countdown 표시를 렌더링하는지 고정했습니다.
+
+### 영향받은 파일
+- `src/utils/internalCounterTimerDisplay.js`
+- `src/components/StatsPopup.jsx`
+- `src/components/StatsPanel.jsx`
+- `src/components/StatsPopup.test.jsx`
+- `src/components/StatsPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 작업은 저장 데이터나 lazy update 계산을 바꾸는 것이 아니라, 디지타마 단계의 센티널 값을 사람이 읽는 진단 문구로 바꾸는 표시 계층 문제이므로 공용 helper와 렌더링 레이어만 좁게 수정하는 편이 가장 안전합니다.
+- `999`를 모든 상황에서 숨기면 이후 실제 긴 주기 데이터까지 가릴 수 있으므로, 현재 단계가 `Digitama`인 경우에만 특수 처리하고 일반 단계 카운터 형식은 그대로 유지하는 쪽이 회귀 위험이 낮습니다.
+
+### 홈과 플레이 허브 이어하기 카드에 슬롯 메타/스프라이트 요약 추가
+- `src/pages/Home.jsx`의 `오늘 할 일` 카드는 이제 최근 슬롯 스프라이트를 함께 보여 주고, `슬롯 번호`, `성장 단계·기종·버전`, `슬롯 이름·생성일`을 카드 안에서 바로 확인할 수 있도록 확장했습니다.
+- 홈 하단 `최근 디지몬` 목록도 최신 활동 기준 슬롯을 우선 사용하고, 각 카드에 스프라이트와 슬롯 메타를 함께 노출해 이어하기 전 현재 슬롯 상태를 더 빨리 파악할 수 있게 정리했습니다.
+- `src/pages/PlayHub.jsx`의 `최근 이어하기` 카드에도 같은 슬롯 메타 블록을 추가해, 홈과 플레이 허브가 서로 다른 정보량을 보여 주던 차이를 줄였습니다.
+- 공통 문자열 조합은 `src/utils/slotInfoUtils.js`로 분리하고, 관련 UI 검증은 `Home.test.jsx`, `PlayHub.test.jsx`에 보강했습니다.
+
+### 영향받은 파일
+- `src/pages/Home.jsx`
+- `src/pages/PlayHub.jsx`
+- `src/utils/slotInfoUtils.js`
+- `src/index.css`
+- `src/pages/Home.test.jsx`
+- `src/pages/PlayHub.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경은 저장 구조나 슬롯 정렬 규칙을 바꾸는 작업이 아니라, 이미 존재하는 슬롯 메타데이터를 홈/허브 진입점에서 어떻게 요약해서 보여 주느냐의 문제이므로 읽기 전용 표시 계층과 문자열 helper만 좁게 확장하는 편이 가장 안전합니다.
+- 홈과 플레이 허브의 최근 슬롯 카드가 같은 데이터를 서로 다르게 보여 주면 사용자가 이어하기 직전 맥락을 다시 확인해야 하므로, 스프라이트와 메타 형식을 공통 helper로 맞춰 두는 편이 이후 다른 진입점으로 확장할 때도 유지보수에 유리합니다.
+
 ## 2026-04-09
 
 ### BattleScreen 아레나 snapshot 우선순위와 adapter `24:00` 경계 보정

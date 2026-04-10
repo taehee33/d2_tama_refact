@@ -4920,6 +4920,17 @@ code {
   min-width: 0;
 }
 
+.service-slot-meta {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.service-slot-meta__item {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
 .service-slot-card__head h3 {
   margin: 0;
   font-size: 1.35rem;
@@ -5178,6 +5189,36 @@ code {
   text-align: left;
   cursor: pointer;
   background: var(--surface-1);
+}
+
+.service-mini-card--slot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.service-mini-card__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  padding: 0.4rem;
+  border-radius: 1rem;
+  background: var(--surface-2);
+}
+
+.service-mini-card__sprite {
+  width: 64px;
+  height: 64px;
+}
+
+.service-mini-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .service-ad-stack {

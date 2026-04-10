@@ -16,6 +16,7 @@ const mockUseTamerProfile = jest.fn();
 const mockUseUserSlots = jest.fn();
 const mockGetSlotDisplayName = jest.fn();
 const mockGetSlotStageLabel = jest.fn();
+const mockGetSlotSpriteSrc = jest.fn();
 
 jest.mock("react-router-dom", () => ({
   __esModule: true,
@@ -52,6 +53,7 @@ jest.mock("../hooks/useUserSlots", () => ({
 jest.mock("../utils/slotViewUtils", () => ({
   getSlotDisplayName: (...args) => mockGetSlotDisplayName(...args),
   getSlotStageLabel: (...args) => mockGetSlotStageLabel(...args),
+  getSlotSpriteSrc: (...args) => mockGetSlotSpriteSrc(...args),
 }));
 
 describe("Home 테마 진입점", () => {
@@ -73,27 +75,76 @@ describe("Home 테마 진입점", () => {
     });
     mockGetSlotDisplayName.mockReturnValue("볼몬");
     mockGetSlotStageLabel.mockReturnValue("유아기");
+    mockGetSlotSpriteSrc.mockReturnValue("/images/11.png");
   });
 
   test("로그인 홈에서는 최근 슬롯 이어하기 카드가 보인다", () => {
     mockUseUserSlots.mockReturnValue({
-      slots: [{ id: 1 }],
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
       loading: false,
-      recentSlot: { id: 1 },
+      recentSlot: {
+        id: 1,
+        slotName: "슬롯1",
+        device: "Digital Monster Color 25th",
+        version: "Ver.1",
+      },
+      recentSlots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
     });
 
     render(<Home />);
 
     expect(screen.getByRole("heading", { name: "한솔님, 오늘도 디지몬이 기다리고 있습니다." })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "볼몬 대표 스프라이트" })).toHaveAttribute(
+      "src",
+      "/images/11.png"
+    );
+    expect(
+      screen.getAllByText("유아기 · Digital Monster Color 25th / Ver.1").length
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("슬롯1").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "몰입형 화면" })).toBeInTheDocument();
   });
 
   test("로그인 홈에서는 공개 테마 토글 대신 빠른 이동 카드가 보인다", () => {
     mockUseUserSlots.mockReturnValue({
-      slots: [{ id: 1 }],
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
       loading: false,
-      recentSlot: { id: 1 },
+      recentSlot: {
+        id: 1,
+        slotName: "슬롯1",
+        device: "Digital Monster Color 25th",
+        version: "Ver.1",
+      },
+      recentSlots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
     });
 
     render(<Home />);

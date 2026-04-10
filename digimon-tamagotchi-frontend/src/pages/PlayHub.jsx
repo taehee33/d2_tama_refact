@@ -10,8 +10,11 @@ import useUserSlots from "../hooks/useUserSlots";
 import {
   getSlotDisplayName,
   getSlotSpriteSrc,
-  getSlotStageLabel,
 } from "../utils/slotViewUtils";
+import {
+  getSlotPrimaryInfo,
+  getSlotSecondaryInfo,
+} from "../utils/slotInfoUtils";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -209,8 +212,16 @@ function PlayHub() {
                     />
                   </div>
                   <div className="service-recent-slot__body">
+                    <p className="service-section-label">{`슬롯 ${recentSlot.id}`}</p>
                     <h2>{getSlotDisplayName(recentSlot)}</h2>
-                    <p>{getSlotStageLabel(recentSlot)} 단계부터 바로 이어서 플레이할 수 있습니다.</p>
+                    <div className="service-slot-meta">
+                      <p className="service-slot-meta__item">
+                        {getSlotPrimaryInfo(recentSlot)}
+                      </p>
+                      <p className="service-slot-meta__item">
+                        {getSlotSecondaryInfo(recentSlot)}
+                      </p>
+                    </div>
                     <div className="service-inline-actions">
                       <button
                         type="button"

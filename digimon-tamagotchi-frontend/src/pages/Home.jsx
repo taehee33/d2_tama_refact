@@ -3,7 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
-import { getSlotDisplayName, getSlotStageLabel } from "../utils/slotViewUtils";
+import {
+  getSlotDisplayName,
+  getSlotSpriteSrc,
+} from "../utils/slotViewUtils";
+import {
+  getSlotPrimaryInfo,
+  getSlotSecondaryInfo,
+} from "../utils/slotInfoUtils";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -13,7 +20,8 @@ function Home() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { displayTamerName, achievements, maxSlots } = useTamerProfile();
-  const { slots, loading, recentSlot } = useUserSlots({ maxSlots });
+  const { slots, loading, recentSlot, recentSlots = [] } = useUserSlots({ maxSlots });
+  const visibleRecentSlots = recentSlots.length > 0 ? recentSlots : slots;
 
   if (!currentUser) {
     return null;
@@ -44,23 +52,43 @@ function Home() {
               <p className="service-muted">최근 슬롯을 불러오는 중입니다.</p>
             ) : recentSlot ? (
               <>
-                <h2>{getSlotDisplayName(recentSlot)}</h2>
-                <p>{getSlotStageLabel(recentSlot)} 단계에서 다시 이어서 키울 수 있습니다.</p>
-                <div className="service-inline-actions">
-                  <button
-                    type="button"
-                    className="service-button service-button--primary"
-                    onClick={() => navigate(`/play/${recentSlot.id}`)}
-                  >
-                    이어하기
-                  </button>
-                  <button
-                    type="button"
-                    className="service-button service-button--ghost"
-                    onClick={() => navigate(`/play/${recentSlot.id}/full`)}
-                  >
-                    몰입형 화면
-                  </button>
+                <div className="service-recent-slot">
+                  <div className="service-slot-card__media service-recent-slot__media">
+                    <img
+                      src={getSlotSpriteSrc(recentSlot)}
+                      alt={`${getSlotDisplayName(recentSlot)} 대표 스프라이트`}
+                      className="service-slot-card__sprite"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <div className="service-recent-slot__body">
+                    <p className="service-section-label">{`슬롯 ${recentSlot.id}`}</p>
+                    <h2>{getSlotDisplayName(recentSlot)}</h2>
+                    <div className="service-slot-meta">
+                      <p className="service-slot-meta__item">
+                        {getSlotPrimaryInfo(recentSlot)}
+                      </p>
+                      <p className="service-slot-meta__item">
+                        {getSlotSecondaryInfo(recentSlot)}
+                      </p>
+                    </div>
+                    <div className="service-inline-actions">
+                      <button
+                        type="button"
+                        className="service-button service-button--primary"
+                        onClick={() => navigate(`/play/${recentSlot.id}`)}
+                      >
+                        이어하기
+                      </button>
+                      <button
+                        type="button"
+                        className="service-button service-button--ghost"
+                        onClick={() => navigate(`/play/${recentSlot.id}/full`)}
+                      >
+                        몰입형 화면
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </>
             ) : (
@@ -109,15 +137,26 @@ function Home() {
             <p className="service-muted">아직 시작한 디지몬이 없습니다.</p>
           ) : (
             <div className="service-mini-list">
-              {slots.slice(0, 3).map((slot) => (
+              {visibleRecentSlots.slice(0, 3).map((slot) => (
                 <button
                   key={slot.id}
                   type="button"
-                  className="service-mini-card"
+                  className="service-mini-card service-mini-card--slot"
                   onClick={() => navigate(`/play/${slot.id}`)}
                 >
-                  <strong>{getSlotDisplayName(slot)}</strong>
-                  <span>{getSlotStageLabel(slot)}</span>
+                  <div className="service-mini-card__media">
+                    <img
+                      src={getSlotSpriteSrc(slot)}
+                      alt={`${getSlotDisplayName(slot)} 슬롯 스프라이트`}
+                      className="service-mini-card__sprite"
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                  <div className="service-mini-card__body">
+                    <strong>{getSlotDisplayName(slot)}</strong>
+                    <span>{getSlotPrimaryInfo(slot)}</span>
+                    <span>{getSlotSecondaryInfo(slot)}</span>
+                  </div>
                 </button>
               ))}
             </div>
