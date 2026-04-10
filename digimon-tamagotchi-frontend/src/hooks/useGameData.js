@@ -198,6 +198,56 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
 }
 
 /**
+ * 슬롯 루트 문서 update payload를 조립합니다.
+ * saveStats / 사망 스냅샷 저장이 같은 저장 계약을 공유하도록 묶습니다.
+ *
+ * @param {Object} params
+ * @param {Object} params.stats
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null }} params.rootSlotFields
+ * @param {string|null} [params.selectedDigimon]
+ * @param {string|null} [params.digimonNickname]
+ * @param {Object|null} [params.evolutionDataForSlot]
+ * @param {boolean} [params.isLoadingSlot]
+ * @param {Object|undefined} [params.backgroundSettings]
+ * @param {number} [params.nowMs]
+ * @returns {Object}
+ */
+export function buildSlotDocumentUpdatePayload({
+  stats = {},
+  rootSlotFields = { isLightsOn: true, wakeUntil: null },
+  selectedDigimon = null,
+  digimonNickname = null,
+  evolutionDataForSlot = null,
+  isLoadingSlot = true,
+  backgroundSettings,
+  nowMs = Date.now(),
+} = {}) {
+  const updateData = {
+    digimonStats: sanitizeDigimonStatsForSlotDocument(stats),
+    ...rootSlotFields,
+    dailySleepMistake: deleteField(),
+    lastSavedAt: toEpochMs(stats.lastSavedAt) ?? nowMs,
+    lastSavedAtServer: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  if (!isLoadingSlot && selectedDigimon) {
+    updateData.selectedDigimon = selectedDigimon;
+    updateData.digimonDisplayName = buildDigimonDisplayName(
+      selectedDigimon,
+      digimonNickname,
+      evolutionDataForSlot
+    );
+  }
+
+  if (backgroundSettings !== undefined) {
+    updateData.backgroundSettings = backgroundSettings;
+  }
+
+  return updateData;
+}
+
+/**
  * 액션 직전 lazy update 계산용 기준 스탯을 조합합니다.
  * 저장 시각은 Firestore 문서를 기준으로 삼고, 최신 로그/루트 상태는 메모리 값을 우선합니다.
  *
@@ -458,29 +508,16 @@ export function useGameData({
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        const updateData = {
-          digimonStats: sanitizeDigimonStatsForSlotDocument(statsForState),
-          ...rootSlotFields,
-          dailySleepMistake: deleteField(),
-          lastSavedAt: toEpochMs(statsForState.lastSavedAt) ?? nowMs,
-          lastSavedAtServer: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        };
-        
-        // digimonDisplayName·selectedDigimon: 로드 완료 후에만 저장. 한글명 또는 ID만 (버전 안 붙임)
-        if (!isLoadingSlot && effectiveSelectedDigimon) {
-          updateData.digimonDisplayName = buildDigimonDisplayName(
-            effectiveSelectedDigimon,
-            digimonNickname,
-            evolutionDataForSlot
-          );
-          updateData.selectedDigimon = effectiveSelectedDigimon;
-        }
-        
-        // 배경화면 설정 저장 (backgroundSettings가 전달된 경우)
-        if (backgroundSettings !== undefined) {
-          updateData.backgroundSettings = backgroundSettings;
-        }
+        const updateData = buildSlotDocumentUpdatePayload({
+          stats: statsForState,
+          rootSlotFields,
+          selectedDigimon: effectiveSelectedDigimon,
+          digimonNickname,
+          evolutionDataForSlot,
+          isLoadingSlot,
+          backgroundSettings,
+          nowMs,
+        });
         
         // Activity Logs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요
         // (중복 저장 방지)
@@ -1037,23 +1074,14 @@ export function useGameData({
         isLightsOn,
         wakeUntil,
       });
-      const updateData = {
-        digimonStats: sanitizeDigimonStatsForSlotDocument(statsSnapshot),
-        ...rootSlotFields,
-        dailySleepMistake: deleteField(),
-        lastSavedAt: toEpochMs(statsSnapshot.lastSavedAt) ?? Date.now(),
-        lastSavedAtServer: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-
-      if (!isLoadingSlot && effectiveSelectedDigimon) {
-        updateData.selectedDigimon = effectiveSelectedDigimon;
-        updateData.digimonDisplayName = buildDigimonDisplayName(
-          effectiveSelectedDigimon,
-          digimonNickname,
-          evolutionDataForSlot
-        );
-      }
+      const updateData = buildSlotDocumentUpdatePayload({
+        stats: statsSnapshot,
+        rootSlotFields,
+        selectedDigimon: effectiveSelectedDigimon,
+        digimonNickname,
+        evolutionDataForSlot,
+        isLoadingSlot,
+      });
 
       try {
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);

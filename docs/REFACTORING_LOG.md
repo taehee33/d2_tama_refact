@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-04-10] `useGameData` 1차 분리: 슬롯 문서 update payload helper 추출
+
+### 작업 유형
+- 🧩 `saveStats` / `persistDeathSnapshot` 공통 Firestore update payload helper 추출
+- 🧪 payload shape characterization test 추가
+
+### 목적 및 영향
+- **목적:** `useGameData`에서 가장 안전한 중복 제거 지점인 슬롯 루트 문서 update payload 조립을 한 곳으로 모아, 이후 저장/로딩 경계 분리를 더 쉽게 만든다.
+- **범위:** 저장 순서, lazy update 호출, 사망 스냅샷 저장 타이밍은 그대로 유지하고, `updateDoc`에 전달하는 payload 조립만 helper로 통일한다.
+- **내용:**
+  - `buildSlotDocumentUpdatePayload`를 추가해 `digimonStats`, 루트 필드, `dailySleepMistake` 삭제, `lastSavedAt`, `lastSavedAtServer`, `updatedAt` 조립을 공통화했다.
+  - `saveStats`는 background 설정과 `selectedDigimon`/`digimonDisplayName` 저장 gate를 기존 의미 그대로 helper 인자로 넘기도록 정리했다.
+  - `persistDeathSnapshot`도 같은 helper를 재사용해, 사망 직후 스냅샷 저장 계약이 `saveStats`와 같은 구조를 따르도록 맞췄다.
+  - 테스트에는 기본 payload shape, 로딩 완료 후 표시명 저장 gate, backgroundSettings 포함 조건을 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+
+### 아키텍처 메모
+- 이 helper는 `useGameData`의 저장 계약을 먼저 고정하는 역할이다. 다음 단계에서는 더 큰 리스크가 있는 `loadSlot` effect 분리보다, 저장/복원에 공통으로 쓰이는 순수 계산이나 hydration 결과 object 조립을 단계적으로 분리하는 편이 안전하다.
+
 ## [2026-04-10] `useEvolution` 10차 분리: 조그레스 성공 UI 피드백 helper 추출
 
 ### 작업 유형

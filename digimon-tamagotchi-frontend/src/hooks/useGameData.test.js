@@ -1,4 +1,5 @@
 import {
+  buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
@@ -97,6 +98,102 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
     expect(result.callStatus.hunger.startedAt).toBe(
       Date.parse("2026-04-07T03:00:00.000Z")
     );
+  });
+});
+
+describe("buildSlotDocumentUpdatePayload", () => {
+  test("기본 payload에 정리된 스탯, 루트 필드, 저장 시각 정보를 담는다", () => {
+    const result = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+        isLightsOn: false,
+        wakeUntil: 1234,
+        dailySleepMistake: true,
+        lastSavedAt: 4567,
+        activityLogs: [{ type: "CALL" }],
+      },
+      rootSlotFields: {
+        isLightsOn: false,
+        wakeUntil: 1234,
+      },
+      nowMs: 9999,
+    });
+
+    expect(result).toMatchObject({
+      digimonStats: {
+        fullness: 4,
+      },
+      isLightsOn: false,
+      wakeUntil: 1234,
+      lastSavedAt: 4567,
+    });
+    expect(result.dailySleepMistake).toBeDefined();
+    expect(result.lastSavedAtServer).toBeDefined();
+    expect(result.updatedAt).toBeDefined();
+    expect(result.backgroundSettings).toBeUndefined();
+    expect(result.selectedDigimon).toBeUndefined();
+    expect(result.digimonDisplayName).toBeUndefined();
+  });
+
+  test("로드 완료 후 선택된 디지몬이 있을 때만 표시명을 함께 저장한다", () => {
+    const loadedResult = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+      },
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
+      selectedDigimon: "Agumon",
+      digimonNickname: "태희",
+      evolutionDataForSlot: {
+        Agumon: { name: "아구몬" },
+      },
+      isLoadingSlot: false,
+    });
+
+    expect(loadedResult.selectedDigimon).toBe("Agumon");
+    expect(loadedResult.digimonDisplayName).toBe("태희(아구몬)");
+
+    const loadingResult = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+      },
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
+      selectedDigimon: "Agumon",
+      digimonNickname: "태희",
+      evolutionDataForSlot: {
+        Agumon: { name: "아구몬" },
+      },
+      isLoadingSlot: true,
+    });
+
+    expect(loadingResult.selectedDigimon).toBeUndefined();
+    expect(loadingResult.digimonDisplayName).toBeUndefined();
+  });
+
+  test("배경화면 설정은 전달된 경우에만 포함한다", () => {
+    const result = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+      },
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
+      backgroundSettings: {
+        sceneId: "forest",
+        parallaxEnabled: true,
+      },
+    });
+
+    expect(result.backgroundSettings).toEqual({
+      sceneId: "forest",
+      parallaxEnabled: true,
+    });
   });
 });
 
