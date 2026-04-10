@@ -1,7 +1,7 @@
 // src/hooks/useEncyclopedia.js
 // 도감(Encyclopedia) 데이터 저장/로드 로직
 
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { getRequiredDigimonIds, isVersionComplete } from "../logic/encyclopediaMaster";
 import { digimonDataVer1 } from "../data/v1/digimons";
@@ -14,18 +14,38 @@ import {
 } from "../utils/userProfileUtils";
 import {
   SUPPORTED_DIGIMON_VERSIONS,
+  getDigimonDataMapByVersion,
   getDigimonVersionByDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
+import { resolveDigimonSnapshotFromToken } from "../utils/digimonLogSnapshot";
+import encyclopediaMigrationCore from "../utils/encyclopediaMigrationCore";
+import { toEpochMs } from "../utils/time";
 
 const ENCYCLOPEDIA_VERSIONS = SUPPORTED_DIGIMON_VERSIONS;
 const VERSION_MASTER_ACHIEVEMENTS = {
   "Ver.1": ACHIEVEMENT_VER1_MASTER,
   "Ver.2": ACHIEVEMENT_VER2_MASTER,
 };
+const {
+  buildCanonicalEncyclopedia,
+  createEmptyEncyclopedia: createEmptyEncyclopediaBase,
+  hasVersionEntries: hasVersionEntriesBase,
+  normalizeEncyclopedia: normalizeEncyclopediaBase,
+  normalizeVersionEntries,
+} = encyclopediaMigrationCore;
+const reportedLegacyFallbackKeys = new Set();
 
 function createEmptyEncyclopedia() {
-  return Object.fromEntries(ENCYCLOPEDIA_VERSIONS.map((version) => [version, {}]));
+  return createEmptyEncyclopediaBase(ENCYCLOPEDIA_VERSIONS);
+}
+
+function normalizeEncyclopedia(encyclopedia) {
+  return normalizeEncyclopediaBase(encyclopedia, ENCYCLOPEDIA_VERSIONS);
+}
+
+function hasVersionEntries(versionEntries) {
+  return hasVersionEntriesBase(versionEntries);
 }
 
 function getUserRootRef(uid) {
@@ -36,26 +56,270 @@ function getUserEncyclopediaRef(uid, version) {
   return doc(db, "users", uid, "encyclopedia", version);
 }
 
-function normalizeVersionEntries(versionEntries) {
-  if (!versionEntries || typeof versionEntries !== "object") {
-    return {};
+function reportLegacyFallbackUsage(uid, sourceSummary = {}) {
+  if (!uid || !sourceSummary?.fallbackUsed) {
+    return;
   }
 
-  return { ...versionEntries };
+  const reportKey = `${uid}:${JSON.stringify({
+    fallbackSources: sourceSummary.fallbackSources || [],
+    recoveredFromLogs: sourceSummary.recoveredFromLogs || 0,
+  })}`;
+  if (reportedLegacyFallbackKeys.has(reportKey)) {
+    return;
+  }
+
+  reportedLegacyFallbackKeys.add(reportKey);
+  console.warn("[도감] legacy fallback 사용 중", {
+    uid,
+    fallbackSources: sourceSummary.fallbackSources || [],
+    recoveredFromLogs: sourceSummary.recoveredFromLogs || 0,
+    sourceSummary,
+  });
 }
 
-function normalizeEncyclopedia(encyclopedia) {
-  const normalized = createEmptyEncyclopedia();
+function getRecoveryDataMaps(preferredVersion = "Ver.1") {
+  const normalizedVersion = normalizeDigimonVersionLabel(preferredVersion);
 
-  ENCYCLOPEDIA_VERSIONS.forEach((version) => {
-    normalized[version] = normalizeVersionEntries(encyclopedia?.[version]);
+  return [
+    getDigimonDataMapByVersion(normalizedVersion),
+    ...ENCYCLOPEDIA_VERSIONS.filter((version) => version !== normalizedVersion).map((version) =>
+      getDigimonDataMapByVersion(version)
+    ),
+  ].filter(Boolean);
+}
+
+function parseRecoveredDigimonToken(text = "") {
+  const patterns = [
+    /Reborn as\s+([^\n]+)/i,
+    /Transformed to\s+(.+?)\s+\(death form\)/i,
+    /Evolved to\s+(.+?)!/i,
+    /조그레스 진화(?:\([^)]*\))?:\s*(.+?)!/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveRecoveredDigimonId(entry, preferredVersion = "Ver.1") {
+  const directDigimonId =
+    typeof entry?.digimonId === "string" ? entry.digimonId.trim() : "";
+  if (directDigimonId) {
+    return directDigimonId;
+  }
+
+  const directToken =
+    typeof entry?.digimonName === "string" && entry.digimonName.trim()
+      ? entry.digimonName.trim()
+      : parseRecoveredDigimonToken(entry?.text || "");
+
+  if (!directToken) {
+    return null;
+  }
+
+  return (
+    resolveDigimonSnapshotFromToken(directToken, ...getRecoveryDataMaps(preferredVersion))
+      ?.digimonId || null
+  );
+}
+
+function buildRecoveredEncyclopediaEntry(existingEntry = {}, observedAt = Date.now(), resultText) {
+  const observedAtMs = toEpochMs(observedAt) ?? Date.now();
+  const existingFirstDiscoveredAt = toEpochMs(existingEntry?.firstDiscoveredAt);
+  const existingLastRaisedAt = toEpochMs(existingEntry?.lastRaisedAt);
+  const existingHistory = Array.isArray(existingEntry?.history) ? existingEntry.history : [];
+
+  return {
+    ...existingEntry,
+    isDiscovered: true,
+    firstDiscoveredAt:
+      existingFirstDiscoveredAt != null
+        ? Math.min(existingFirstDiscoveredAt, observedAtMs)
+        : observedAtMs,
+    raisedCount: Math.max(existingEntry?.raisedCount || 0, 1),
+    lastRaisedAt:
+      existingLastRaisedAt != null
+        ? Math.max(existingLastRaisedAt, observedAtMs)
+        : observedAtMs,
+    bestStats:
+      existingEntry?.bestStats && typeof existingEntry.bestStats === "object"
+        ? existingEntry.bestStats
+        : {},
+    history:
+      existingHistory.length > 0
+        ? existingHistory
+        : [
+            {
+              date: observedAtMs,
+              result: resultText || "복구: 슬롯 기록에서 발견 이력 복원",
+              finalStats: {},
+            },
+          ],
+  };
+}
+
+function markRecoveredDigimon(encyclopedia, digimonId, observedAt, resultText) {
+  const normalizedDigimonId =
+    typeof digimonId === "string" ? digimonId.trim() : "";
+  if (!normalizedDigimonId) {
+    return;
+  }
+
+  const version = normalizeDigimonVersionLabel(
+    getDigimonVersionByDigimonId(normalizedDigimonId)
+  );
+
+  if (!encyclopedia[version]) {
+    encyclopedia[version] = {};
+  }
+
+  encyclopedia[version][normalizedDigimonId] = buildRecoveredEncyclopediaEntry(
+    encyclopedia[version][normalizedDigimonId],
+    observedAt,
+    resultText
+  );
+}
+
+function collectRecoveredDigimonsFromEntries(
+  encyclopedia,
+  entries = [],
+  preferredVersion = "Ver.1",
+  resultText = "복구: 활동 로그에서 발견 이력 복원"
+) {
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const digimonId = resolveRecoveredDigimonId(entry, preferredVersion);
+    if (!digimonId) {
+      return;
+    }
+
+    markRecoveredDigimon(
+      encyclopedia,
+      digimonId,
+      entry?.timestamp,
+      resultText
+    );
+  });
+}
+
+async function loadLegacySlotSources(uid) {
+  const slotSnapshots = [];
+  const slotLegacySources = [];
+  const slotsSnapshot = await getDocs(collection(db, "users", uid, "slots"));
+
+  slotsSnapshot.forEach((slotSnapshot) => {
+    slotSnapshots.push(slotSnapshot);
+    const slotEncyclopedia = slotSnapshot.data()?.encyclopedia;
+
+    if (!slotEncyclopedia) {
+      return;
+    }
+    slotLegacySources.push({
+      key: `slot-${slotSnapshot.id || slotSnapshots.length}`,
+      encyclopedia: slotEncyclopedia,
+    });
   });
 
-  return normalized;
+  const { encyclopedia: legacyEncyclopedia } = buildCanonicalEncyclopedia({
+    versions: ENCYCLOPEDIA_VERSIONS,
+    sources: slotLegacySources,
+  });
+
+  return {
+    legacyEncyclopedia,
+    slotSnapshots,
+  };
 }
 
-function hasVersionEntries(versionEntries) {
-  return Object.keys(versionEntries || {}).length > 0;
+async function recoverEncyclopediaFromSlotSnapshots(uid, slotSnapshots = []) {
+  const recovered = createEmptyEncyclopedia();
+
+  for (const slotSnapshot of slotSnapshots) {
+    const slotData = slotSnapshot.data?.() || {};
+    const slotVersion = normalizeDigimonVersionLabel(slotData.version || "Ver.1");
+    const slotObservedAt =
+      toEpochMs(slotData.updatedAt) ??
+      toEpochMs(slotData.createdAt) ??
+      Date.now();
+
+    markRecoveredDigimon(
+      recovered,
+      slotData.selectedDigimon,
+      slotObservedAt,
+      "복구: 현재 슬롯 디지몬 반영"
+    );
+    markRecoveredDigimon(
+      recovered,
+      slotData.digimonStats?.selectedDigimon,
+      slotObservedAt,
+      "복구: 저장된 슬롯 스탯 반영"
+    );
+
+    collectRecoveredDigimonsFromEntries(
+      recovered,
+      slotData.digimonStats?.activityLogs,
+      slotVersion
+    );
+    collectRecoveredDigimonsFromEntries(
+      recovered,
+      slotData.activityLogs,
+      slotVersion
+    );
+    collectRecoveredDigimonsFromEntries(
+      recovered,
+      slotData.digimonStats?.battleLogs,
+      slotVersion,
+      "복구: 배틀 로그에서 발견 이력 복원"
+    );
+    collectRecoveredDigimonsFromEntries(
+      recovered,
+      slotData.battleLogs,
+      slotVersion,
+      "복구: 배틀 로그에서 발견 이력 복원"
+    );
+
+    if (!slotSnapshot.id) {
+      continue;
+    }
+
+    try {
+      const slotRef = doc(db, "users", uid, "slots", slotSnapshot.id);
+      const [activityLogSnapshots, battleLogSnapshots] = await Promise.all([
+        getDocs(collection(slotRef, "logs")),
+        getDocs(collection(slotRef, "battleLogs")),
+      ]);
+
+      const activityLogEntries = [];
+      activityLogSnapshots.forEach((logSnapshot) => {
+        activityLogEntries.push(logSnapshot.data?.() || {});
+      });
+      collectRecoveredDigimonsFromEntries(
+        recovered,
+        activityLogEntries,
+        slotVersion
+      );
+
+      const battleLogEntries = [];
+      battleLogSnapshots.forEach((logSnapshot) => {
+        battleLogEntries.push(logSnapshot.data?.() || {});
+      });
+      collectRecoveredDigimonsFromEntries(
+        recovered,
+        battleLogEntries,
+        slotVersion,
+        "복구: 배틀 로그에서 발견 이력 복원"
+      );
+    } catch (error) {
+      console.warn("[recoverEncyclopediaFromSlotSnapshots] 슬롯 로그 복구 스킵:", error);
+    }
+  }
+
+  return recovered;
 }
 
 /**
@@ -71,32 +335,59 @@ export async function loadEncyclopedia(currentUser) {
   }
 
   try {
+    const versionEncyclopedia = createEmptyEncyclopedia();
     const versionSnapshots = await Promise.all(
       ENCYCLOPEDIA_VERSIONS.map((version) =>
         getDoc(getUserEncyclopediaRef(currentUser.uid, version))
       )
     );
-    const hasAnyVersionDoc = versionSnapshots.some((snapshot) => snapshot.exists());
 
-    if (hasAnyVersionDoc) {
-      const encyclopedia = createEmptyEncyclopedia();
-      versionSnapshots.forEach((snapshot, index) => {
-        if (snapshot.exists()) {
-          encyclopedia[ENCYCLOPEDIA_VERSIONS[index]] = normalizeVersionEntries(snapshot.data());
-        }
-      });
+    versionSnapshots.forEach((snapshot, index) => {
+      if (snapshot.exists()) {
+        versionEncyclopedia[ENCYCLOPEDIA_VERSIONS[index]] = normalizeVersionEntries(snapshot.data());
+      }
+    });
 
-      return encyclopedia;
-    }
-
-    // Firebase: 마이그레이션 기간 동안만 루트 users/{uid}.encyclopedia fallback 허용
+    // 도감 분리 저장 마이그레이션 동안에는 루트 users/{uid}.encyclopedia도 함께 읽어
+    // 부분 이전 상태에서 과거 발견 이력이 가려지지 않도록 병합한다.
     const userRef = getUserRootRef(currentUser.uid);
     const userSnap = await getDoc(userRef);
+    const rootEncyclopedia = userSnap.exists() ? userSnap.data()?.encyclopedia : undefined;
+    const { legacyEncyclopedia, slotSnapshots } = await loadLegacySlotSources(
+      currentUser.uid
+    );
+    const recoveredEncyclopedia = await recoverEncyclopediaFromSlotSnapshots(
+      currentUser.uid,
+      slotSnapshots
+    );
+    const { encyclopedia, sourceSummary } = buildCanonicalEncyclopedia({
+      versions: ENCYCLOPEDIA_VERSIONS,
+      sources: [
+        {
+          key: "versionDocs",
+          encyclopedia: versionEncyclopedia,
+        },
+        {
+          key: "rootLegacy",
+          encyclopedia: rootEncyclopedia,
+          isFallback: true,
+        },
+        {
+          key: "slotLegacy",
+          encyclopedia: legacyEncyclopedia,
+          isFallback: true,
+        },
+        {
+          key: "logsRecovery",
+          encyclopedia: recoveredEncyclopedia,
+          isFallback: true,
+          onlyFillMissing: true,
+        },
+      ],
+    });
 
-    if (userSnap.exists()) {
-      const data = userSnap.data();
-      return normalizeEncyclopedia(data.encyclopedia);
-    }
+    reportLegacyFallbackUsage(currentUser.uid, sourceSummary);
+    return encyclopedia;
   } catch (error) {
     console.error("도감 로드 오류 (Firebase):", error);
   }

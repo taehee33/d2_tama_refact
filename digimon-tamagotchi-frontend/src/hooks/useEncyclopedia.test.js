@@ -1,14 +1,49 @@
 const mockGetDoc = jest.fn();
+const mockGetDocs = jest.fn();
 const mockSetDoc = jest.fn();
 const mockDoc = jest.fn((_db, ...segments) => ({
   path: segments.join("/"),
 }));
+const mockCollection = jest.fn((parent, ...segments) => {
+  return {
+    path:
+      parent && typeof parent.path === "string"
+        ? [parent.path, ...segments].join("/")
+        : segments.join("/"),
+  };
+});
 const mockGetAchievementsAndMaxSlots = jest.fn();
 const mockUpdateAchievementsAndMaxSlots = jest.fn();
+const TEST_DIGIMON_DATA_MAPS = {
+  "Ver.1": {
+    Digitama: { id: "Digitama", name: "디지타마" },
+    Koromon: { id: "Koromon", name: "코로몬" },
+    Agumon: { id: "Agumon", name: "아구몬" },
+    Patamon: { id: "Patamon", name: "파타몬" },
+  },
+  "Ver.2": {
+    GabumonV2: { id: "GabumonV2", name: "가부몬X" },
+  },
+  "Ver.3": {
+    Poyomon: { id: "Poyomon", name: "뽀요몬" },
+    Tokomon: { id: "Tokomon", name: "토코몬" },
+    DigitamaV3: { id: "DigitamaV3", name: "디지타마V3" },
+  },
+  "Ver.4": {
+    Yuramon: { id: "Yuramon", name: "유라몬" },
+    DigitamaV4: { id: "DigitamaV4", name: "디지타마V4" },
+  },
+  "Ver.5": {
+    Zurumon: { id: "Zurumon", name: "즈루몬" },
+    DigitamaV5: { id: "DigitamaV5", name: "디지타마V5" },
+  },
+};
 
 jest.mock("firebase/firestore", () => ({
+  collection: mockCollection,
   doc: mockDoc,
   getDoc: mockGetDoc,
+  getDocs: mockGetDocs,
   setDoc: mockSetDoc,
 }));
 
@@ -31,6 +66,7 @@ jest.mock("../data/v2modkor", () => ({
 
 jest.mock("../utils/digimonVersionUtils", () => ({
   SUPPORTED_DIGIMON_VERSIONS: ["Ver.1", "Ver.2", "Ver.3", "Ver.4", "Ver.5"],
+  getDigimonDataMapByVersion: (version) => TEST_DIGIMON_DATA_MAPS[version] || {},
   getDigimonVersionByDigimonId: (digimonId) => {
     if (["Yuramon", "DigitamaV4"].includes(digimonId)) {
       return "Ver.4";
@@ -50,6 +86,45 @@ jest.mock("../utils/digimonVersionUtils", () => ({
     ["Ver.1", "Ver.2", "Ver.3", "Ver.4", "Ver.5"].includes(version)
       ? version
       : "Ver.1",
+}));
+
+jest.mock("../utils/digimonLogSnapshot", () => ({
+  resolveDigimonSnapshotFromToken: (token, ...maps) => {
+    const normalizedToken = typeof token === "string" ? token.trim() : "";
+    if (!normalizedToken) {
+      return { digimonId: null, digimonName: null };
+    }
+
+    for (const map of maps) {
+      if (!map || typeof map !== "object") {
+        continue;
+      }
+
+      if (map[normalizedToken]) {
+        return {
+          digimonId: normalizedToken,
+          digimonName: map[normalizedToken]?.name || normalizedToken,
+        };
+      }
+
+      const matchedEntry = Object.entries(map).find(([, entry]) => {
+        return entry && (entry.id === normalizedToken || entry.name === normalizedToken);
+      });
+
+      if (matchedEntry) {
+        const [key, entry] = matchedEntry;
+        return {
+          digimonId: entry?.id || key,
+          digimonName: entry?.name || normalizedToken,
+        };
+      }
+    }
+
+    return {
+      digimonId: null,
+      digimonName: normalizedToken,
+    };
+  },
 }));
 
 jest.mock("../utils/userProfileUtils", () => ({
@@ -73,37 +148,87 @@ function createSnapshot(data) {
   };
 }
 
+function createQuerySnapshot(documents = []) {
+  const snapshots = documents.map((entry, index) => {
+    const snapshot =
+      entry && typeof entry === "object" && Object.prototype.hasOwnProperty.call(entry, "data")
+        ? createSnapshot(entry.data)
+        : createSnapshot(entry);
+
+    return {
+      ...snapshot,
+      id:
+        entry && typeof entry === "object" && typeof entry.id === "string"
+          ? entry.id
+          : `doc${index + 1}`,
+    };
+  });
+
+  return {
+    forEach: (callback) => {
+      snapshots.forEach((snapshot) => callback(snapshot));
+    },
+  };
+}
+
 describe("useEncyclopedia", () => {
+  let consoleWarnSpy;
+
   beforeEach(() => {
+    consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    mockCollection.mockClear();
     mockDoc.mockClear();
     mockGetDoc.mockReset();
+    mockGetDocs.mockReset();
     mockSetDoc.mockReset();
     mockGetAchievementsAndMaxSlots.mockReset();
     mockUpdateAchievementsAndMaxSlots.mockReset();
     mockGetAchievementsAndMaxSlots.mockResolvedValue({ achievements: [], maxSlots: 10 });
+    mockGetDocs.mockResolvedValue(createQuerySnapshot([]));
   });
 
-  test("새 encyclopedia 버전 문서가 있으면 루트 fallback보다 우선 사용한다", async () => {
+  afterEach(() => {
+    consoleWarnSpy?.mockRestore();
+  });
+
+  test("버전 문서가 있어도 루트 legacy 도감과 병합해서 과거 발견 이력을 유지한다", async () => {
     mockGetDoc
       .mockResolvedValueOnce(createSnapshot({ Agumon: { isDiscovered: true } }))
       .mockResolvedValueOnce(createSnapshot(null))
       .mockResolvedValueOnce(createSnapshot(null))
       .mockResolvedValueOnce(createSnapshot(null))
-      .mockResolvedValueOnce(createSnapshot(null));
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.1": {
+              Patamon: { isDiscovered: true },
+            },
+            "Ver.2": {
+              GabumonV2: { isDiscovered: true },
+            },
+          },
+        })
+      );
 
     const result = await loadEncyclopedia({ uid: "tester" });
 
-    expect(mockGetDoc).toHaveBeenCalledTimes(5);
+    expect(mockGetDoc).toHaveBeenCalledTimes(6);
+    expect(mockGetDocs).toHaveBeenCalledTimes(1);
     expect(mockDoc.mock.calls).toEqual([
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.1"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.2"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.3"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.4"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.5"],
+      [{ name: "test-db" }, "users", "tester"],
     ]);
     expect(result).toEqual({
-      "Ver.1": { Agumon: { isDiscovered: true } },
-      "Ver.2": {},
+      "Ver.1": {
+        Patamon: { isDiscovered: true },
+        Agumon: { isDiscovered: true },
+      },
+      "Ver.2": { GabumonV2: { isDiscovered: true } },
       "Ver.3": {},
       "Ver.4": {},
       "Ver.5": {},
@@ -132,6 +257,7 @@ describe("useEncyclopedia", () => {
     const result = await loadEncyclopedia({ uid: "tester" });
 
     expect(mockGetDoc).toHaveBeenCalledTimes(6);
+    expect(mockGetDocs).toHaveBeenCalledTimes(1);
     expect(mockDoc.mock.calls[5]).toEqual([{ name: "test-db" }, "users", "tester"]);
     expect(result).toEqual({
       "Ver.1": { Agumon: { isDiscovered: true } },
@@ -139,6 +265,216 @@ describe("useEncyclopedia", () => {
       "Ver.3": { Poyomon: { isDiscovered: true } },
       "Ver.4": { Yuramon: { isDiscovered: true } },
       "Ver.5": { Zurumon: { isDiscovered: true } },
+    });
+  });
+
+  test("비어 있는 버전 문서가 있어도 루트 도감 발견 이력이 가려지지 않는다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot({}))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.1": {
+              Agumon: { isDiscovered: true, raisedCount: 3 },
+            },
+          },
+        })
+      );
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: { isDiscovered: true, raisedCount: 3 },
+      },
+      "Ver.2": {},
+      "Ver.3": {},
+      "Ver.4": {},
+      "Ver.5": {},
+    });
+  });
+
+  test("legacy 엔트리에 isDiscovered가 없어도 기록 흔적이 있으면 발견 처리한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.1": {
+              Agumon: {
+                raisedCount: 2,
+                bestStats: {
+                  maxAge: 4,
+                },
+              },
+            },
+          },
+        })
+      );
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: {
+          isDiscovered: true,
+          raisedCount: 2,
+          bestStats: {
+            maxAge: 4,
+          },
+        },
+      },
+      "Ver.2": {},
+      "Ver.3": {},
+      "Ver.4": {},
+      "Ver.5": {},
+    });
+  });
+
+  test("루트와 버전 문서가 모두 비어 있으면 예전 슬롯별 도감을 병합해서 읽는다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null));
+    mockGetDocs
+      .mockResolvedValueOnce(
+        createQuerySnapshot([
+          {
+            encyclopedia: {
+              "Ver.1": {
+                Agumon: { isDiscovered: true, raisedCount: 2 },
+              },
+            },
+          },
+          {
+            encyclopedia: {
+              "Ver.1": {
+                Patamon: { isDiscovered: true, raisedCount: 1 },
+              },
+              "Ver.2": {
+                GabumonV2: { isDiscovered: true, raisedCount: 4 },
+              },
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(createQuerySnapshot([]))
+      .mockResolvedValueOnce(createQuerySnapshot([]))
+      .mockResolvedValueOnce(createQuerySnapshot([]))
+      .mockResolvedValueOnce(createQuerySnapshot([]));
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(mockCollection).toHaveBeenCalledWith(
+      { name: "test-db" },
+      "users",
+      "tester",
+      "slots"
+    );
+    expect(mockGetDocs).toHaveBeenCalledTimes(5);
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: { isDiscovered: true, raisedCount: 2 },
+        Patamon: { isDiscovered: true, raisedCount: 1 },
+      },
+      "Ver.2": {
+        GabumonV2: { isDiscovered: true, raisedCount: 4 },
+      },
+      "Ver.3": {},
+      "Ver.4": {},
+      "Ver.5": {},
+    });
+  });
+
+  test("도감 문서가 비어 있으면 현재 슬롯과 로그 기록으로 발견 이력을 재구성한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null));
+    mockGetDocs
+      .mockResolvedValueOnce(
+        createQuerySnapshot([
+          {
+            id: "slot1",
+            data: {
+              version: "Ver.1",
+              selectedDigimon: "Agumon",
+              digimonStats: {
+                activityLogs: [
+                  {
+                    type: "EVOLUTION",
+                    text: "Evolution: Evolved to Koromon!",
+                    timestamp: 1000,
+                  },
+                ],
+              },
+            },
+          },
+          {
+            id: "slot2",
+            data: {
+              version: "Ver.4",
+              selectedDigimon: "Yuramon",
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(
+        createQuerySnapshot([
+          {
+            data: {
+              type: "EVOLUTION",
+              text: "Evolution: Evolved to Poyomon!",
+              timestamp: 2000,
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(
+        createQuerySnapshot([
+          {
+            data: {
+              digimonId: "Tokomon",
+              digimonName: "토코몬",
+              timestamp: 3000,
+            },
+          },
+        ])
+      )
+      .mockResolvedValueOnce(createQuerySnapshot([]))
+      .mockResolvedValueOnce(createQuerySnapshot([]));
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(mockGetDocs).toHaveBeenCalledTimes(5);
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: expect.objectContaining({ isDiscovered: true }),
+        Koromon: expect.objectContaining({ isDiscovered: true }),
+      },
+      "Ver.2": {},
+      "Ver.3": {
+        Poyomon: expect.objectContaining({ isDiscovered: true }),
+        Tokomon: expect.objectContaining({ isDiscovered: true }),
+      },
+      "Ver.4": {
+        Yuramon: expect.objectContaining({ isDiscovered: true }),
+      },
+      "Ver.5": {},
     });
   });
 
@@ -195,7 +531,21 @@ describe("useEncyclopedia", () => {
         })
       )
       .mockResolvedValueOnce(createSnapshot(null))
-      .mockResolvedValueOnce(createSnapshot(null));
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.4": {
+              Yuramon: {
+                isDiscovered: true,
+                raisedCount: 2,
+                bestStats: {},
+                history: [],
+              },
+            },
+          },
+        })
+      );
 
     await updateEncyclopedia(
       "Gabumon",
@@ -205,12 +555,13 @@ describe("useEncyclopedia", () => {
       "Ver.1"
     );
 
-    expect(mockSetDoc).toHaveBeenCalledTimes(3);
+    expect(mockSetDoc).toHaveBeenCalledTimes(4);
     expect(mockDoc.mock.calls).toEqual(
       expect.arrayContaining([
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.1"],
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.2"],
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.3"],
+        [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.4"],
       ])
     );
     expect(mockSetDoc.mock.calls[0][1]).toEqual(
@@ -234,6 +585,14 @@ describe("useEncyclopedia", () => {
       Poyomon: {
         isDiscovered: true,
         raisedCount: 1,
+        bestStats: {},
+        history: [],
+      },
+    });
+    expect(mockSetDoc.mock.calls[3][1]).toEqual({
+      Yuramon: {
+        isDiscovered: true,
+        raisedCount: 2,
         bestStats: {},
         history: [],
       },

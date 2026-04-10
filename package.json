@@ -4,13 +4,15 @@
   "scripts": {
     "firebase:login": "firebase login",
     "firestore:deploy": "firebase deploy --only firestore:rules",
-    "encyclopedia:backfill": "node scripts/backfillUserEncyclopedia.js",
+    "encyclopedia:audit": "node scripts/backfillUserEncyclopedia.js --dry-run",
+    "encyclopedia:backfill": "node scripts/backfillUserEncyclopedia.js --apply",
     "profile:backfill": "node scripts/backfillUserProfile.js",
     "nickname:audit": "node scripts/auditNicknameIndex.js",
     "nickname:backfill": "node scripts/backfillNicknameIndex.js",
     "nickname:verify": "node scripts/verifyNicknameIndex.js",
     "nickname:cleanup": "node scripts/cleanupLegacyNicknameMetadata.js",
     "test:notification-api": "node --test api/_lib/notificationReports.test.js tests/notification-entrypoints.test.js",
+    "test:encyclopedia-migration": "node --test tests/encyclopedia-migration.test.js",
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
     "test:community-api": "node --test tests/community-lib.test.js"
   },
