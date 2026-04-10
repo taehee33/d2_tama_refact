@@ -1,5 +1,22 @@
 # REFACTORING LOG
 
+## 2026-04-11
+
+### 도감 버전별 총 개수 계산 회귀 수정
+- `src/logic/encyclopediaMaster.js`의 `getRequiredDigimonIds()`가 원래 `Ver.1/Ver.2`용 3인자 호출만 전제로 작성돼 있었는데, 현재 도감 패널과 요약 로직은 `getRequiredDigimonIds("Ver.1")`처럼 버전 문자열 단독 호출도 사용하고 있었습니다.
+- 이 불일치 때문에 운영 번들에서는 `"Ver.1"` 문자열 자체를 `Object.keys()`로 세어 총 개수가 `5`로 잘못 계산되었고, 도감 UI가 `발견: 0 / 5`처럼 보이는 회귀가 발생했습니다.
+- 함수를 버전 문자열 단독 호출과 다중 버전(`Ver.3`~`Ver.5`) 마스터 데이터 조회까지 안전하게 처리하도록 일반화해, 도감 패널과 요약 집계가 같은 기준의 버전별 마스터 목록을 사용하도록 맞췄습니다.
+
+### 테스트 확인
+- `src/utils/encyclopediaSummary.test.js`를 다시 실행해 버전 문자열 단독 호출 경로에서도 Ver.3~Ver.5 대상 수 계산이 정상 동작하는지 확인했습니다.
+
+### 영향받은 파일
+- `src/logic/encyclopediaMaster.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 이슈는 저장 데이터나 마이그레이션 결과가 아니라, “도감 대상 마스터 목록을 어떤 API 계약으로 계산하느냐”의 문제였으므로 도감 UI 전체를 건드리기보다 `getRequiredDigimonIds()`의 입력 계약을 현재 호출 패턴에 맞게 확장하는 편이 가장 좁고 안전한 수정입니다.
+
 ## 2026-04-10
 
 ### 도감 canonical 병합 코어와 관리자 마이그레이션 도구 추가
