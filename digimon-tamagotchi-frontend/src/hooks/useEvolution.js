@@ -6,14 +6,17 @@ import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
 import { getJogressResult } from "../logic/evolution/jogress";
 import { sanitizeDigimonStatsForSlotDocument } from "./useGameData";
-import { updateEncyclopedia } from "./useEncyclopedia";
 import { buildEvolutionTransitionState } from "./evolutionStateHelpers";
+import { syncEvolutionEncyclopediaEntries } from "./evolutionEncyclopediaHelpers";
 import {
   buildCompletedJogressRoomUpdate,
   buildCompletedJogressSlotUpdate,
   buildGuestPairingRoomUpdate,
   syncCurrentJogressSlot,
 } from "./jogressPersistenceHelpers";
+import {
+  finalizeOnlineJogressCompletionState,
+} from "./jogressCompletionHelpers";
 import {
   buildJogressArchivePayload,
   buildJogressSummary,
@@ -27,7 +30,6 @@ import {
   getDigimonDataMapByVersion,
   getDigimonDataMapsByPreference,
   getStarterDigimonId,
-  isStarterDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
 
@@ -341,27 +343,14 @@ export function useEvolution({
     await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
     await setSelectedDigimonAndSave(newName);
     
-    // ✅ 도감 업데이트: 스타터 단계를 포함한 진화 전 디지몬 기록
-    if (selectedDigimon) {
-      await updateEncyclopedia(
-        selectedDigimon,
-        old, // 진화 전 스탯
-        'evolution',
-        currentUser,
-        version // 버전 전달 (Ver.2 별도 관리)
-      );
-    }
-    
-    // ✅ 도감 업데이트: 진화 후 디지몬 발견 처리 (계정별 통합, 버전별 관리)
-    if (newName && !isStarterDigimonId(newName)) {
-      await updateEncyclopedia(
-        newName,
-        nxWithLogs, // 진화 후 스탯
-        'discovery',
-        currentUser,
-        version // 버전 전달 (Ver.2 별도 관리)
-      );
-    }
+    await syncEvolutionEncyclopediaEntries({
+      previousDigimonId: selectedDigimon,
+      previousStats: old,
+      targetId: newName,
+      nextStats: nxWithLogs,
+      currentUser,
+      version,
+    });
   }
 
   /**
@@ -453,12 +442,14 @@ export function useEvolution({
         await appendLogToSubcollection(newLogEntry).catch(() => {});
       }
 
-      if (selectedDigimon) {
-        await updateEncyclopedia(selectedDigimon, old, "evolution", currentUser, version);
-      }
-      if (targetId && !isStarterDigimonId(targetId)) {
-        await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
-      }
+      await syncEvolutionEncyclopediaEntries({
+        previousDigimonId: selectedDigimon,
+        previousStats: old,
+        targetId,
+        nextStats: nxWithLogs,
+        currentUser,
+        version,
+      });
 
       // 조그레스 성공 요약: 현재 디지몬 / 파트너(사라짐) 디지몬 구분 표시용 (한글명 사용, 키 또는 id로 조회)
       const currentDisplayName = getDigimonDisplayName(
@@ -696,10 +687,14 @@ export function useEvolution({
         setDigimonStats,
         setSelectedDigimon,
       });
-      if (selectedDigimon) await updateEncyclopedia(selectedDigimon, old, "evolution", currentUser, version);
-      if (targetId && !isStarterDigimonId(targetId)) {
-        await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, version);
-      }
+      await syncEvolutionEncyclopediaEntries({
+        previousDigimonId: selectedDigimon,
+        previousStats: old,
+        targetId,
+        nextStats: nxWithLogs,
+        currentUser,
+        version,
+      });
       const hostDisplayName = getDigimonDisplayName([hostMap, digimonDataVer1, digimonDataVer2], selectedDigimon);
       const guestDigimonName = getDigimonDisplayName(
         [roomData.guestSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1, digimonDataVer1, digimonDataVer2],
@@ -744,9 +739,12 @@ export function useEvolution({
           roomId: roomData.id || null,
         }),
       });
-      if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
-      if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
-      if (setEvolutionStage) setEvolutionStage("complete");
+      finalizeOnlineJogressCompletionState({
+        resultDisplayName,
+        setEvolutionCompleteIsJogress,
+        setEvolvedDigimonName,
+        setEvolutionStage,
+      });
     } catch (err) {
       console.error("[proceedJogressOnlineAsHost] 오류:", err);
       alert("조그레스 진화 처리 중 오류가 발생했습니다.");
@@ -813,10 +811,15 @@ export function useEvolution({
       await updateDoc(roomRef, buildCompletedJogressRoomUpdate(serverTimestampValue));
       const hostVersion = room.hostSlotVersion || "Ver.1";
       const prevDigimon = slotData.selectedDigimon;
-      if (prevDigimon) await updateEncyclopedia(prevDigimon, old, "evolution", currentUser, hostVersion).catch(() => {});
-      if (targetId && !isStarterDigimonId(targetId)) {
-        await updateEncyclopedia(targetId, nxWithLogs, "discovery", currentUser, hostVersion).catch(() => {});
-      }
+      await syncEvolutionEncyclopediaEntries({
+        previousDigimonId: prevDigimon,
+        previousStats: old,
+        targetId,
+        nextStats: nxWithLogs,
+        currentUser,
+        version: hostVersion,
+        swallowErrors: true,
+      });
       const guestDigimonName = getDigimonDisplayName(
         [room.guestSlotVersion === "Ver.2" ? digimonDataVer2 : v1Map, digimonDataVer1, digimonDataVer2],
         room.guestDigimonId
@@ -858,9 +861,12 @@ export function useEvolution({
         setDigimonStats,
         setSelectedDigimon,
       });
-      if (setEvolutionCompleteIsJogress) setEvolutionCompleteIsJogress(true);
-      if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
-      if (setEvolutionStage) setEvolutionStage("complete");
+      finalizeOnlineJogressCompletionState({
+        resultDisplayName,
+        setEvolutionCompleteIsJogress,
+        setEvolvedDigimonName,
+        setEvolutionStage,
+      });
       if (toggleModal) toggleModal("jogressRoomList", false);
       alert(`조그레스 진화 완료! ${resultDisplayName}(으)로 진화했습니다.`);
     } catch (err) {

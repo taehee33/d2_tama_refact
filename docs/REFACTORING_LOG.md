@@ -4,6 +4,90 @@
 
 ---
 
+## [2026-04-10] `useEvolution` 9차 분리: 일반 진화와 로컬 조그레스 encyclopedia 흐름도 helper로 통일
+
+### 작업 유형
+- 🧩 `evolve`와 `proceedJogressLocal`의 encyclopedia update 분기를 helper 재사용으로 정리
+- 🧪 encyclopedia helper 가드 케이스 테스트 추가
+
+### 목적 및 영향
+- **목적:** 앞 단계에서 host 완료 경로에만 적용했던 encyclopedia helper를 일반 진화와 로컬 조그레스까지 확장해, `useEvolution` 내부의 encyclopedia update 패턴을 한 방식으로 통일한다.
+- **범위:** 기존 에러 전파 동작은 그대로 유지하고, `selectedDigimon`/`targetId` 유무에 따른 호출 가드만 helper로 옮긴다.
+- **내용:**
+  - `evolve`의 진화 전 기록 + 진화 후 discovery 분기를 `syncEvolutionEncyclopediaEntries` 호출로 교체했다.
+  - `proceedJogressLocal`의 encyclopedia 분기도 같은 helper로 정리해 host/local/room-host가 같은 계약을 공유하도록 맞췄다.
+  - helper 테스트에는 `previousDigimonId`만 있는 경우, `targetId`만 있는 경우를 추가해 가드 케이스를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/evolutionEncyclopediaHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/evolutionEncyclopediaHelpers.test.js src/hooks/jogressCompletionHelpers.test.js src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.js src/hooks/evolutionEncyclopediaHelpers.js src/hooks/evolutionEncyclopediaHelpers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useEvolution`에서 encyclopedia update는 모두 helper를 통해 지나간다. 다음 단계는 guest 성공 alert / room-host modal close 같은 UI 후처리를 작은 helper로 정리하는 선택지가 자연스럽다.
+
+## [2026-04-10] `useEvolution` 8차 분리: host 조그레스 encyclopedia update helper 추출
+
+### 작업 유형
+- 🧩 host 완료 경로의 encyclopedia update 분기를 helper로 추출
+- 🧪 starter skip / swallowErrors 계약 테스트 추가
+
+### 목적 및 영향
+- **목적:** `proceedJogressOnlineAsHost`, `proceedJogressOnlineAsHostForRoom`에 남아 있던 encyclopedia update 분기를 한 곳으로 모아, 남은 side effect를 더 작게 다룰 수 있게 한다.
+- **범위:** host 완료 경로 두 곳에만 적용하고, `evolve`와 local jogress의 encyclopedia 흐름은 그대로 둔다.
+- **내용:**
+  - `evolutionEncyclopediaHelpers`에 `syncEvolutionEncyclopediaEntries`를 추가했다.
+  - 일반 host 완료 경로는 기존처럼 encyclopedia update 오류를 전파하고, room 기반 완료 경로는 `swallowErrors: true`로 기존 `.catch(() => {})` 의미를 유지했다.
+  - helper 단위 테스트에서 evolution/discovery 순서, 스타터 discovery skip, 예외 전파, 예외 삼키기 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/evolutionEncyclopediaHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/evolutionEncyclopediaHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/evolutionEncyclopediaHelpers.test.js src/hooks/jogressCompletionHelpers.test.js src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.js src/hooks/evolutionEncyclopediaHelpers.js src/hooks/evolutionEncyclopediaHelpers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 online host 완료 경로는 `room lifecycle`, `state/log transition`, `persistence payload`, `presentation/archive payload`, `completion state`, `encyclopedia sync`까지 helper 경계가 생겼다. 다음 단계는 guest 성공 alert와 host-room modal/alert 같은 UI 후처리를 더 좁히거나, `evolve`/local jogress encyclopedia 흐름까지 같은 패턴으로 맞추는 선택지로 이어질 수 있다.
+
+## [2026-04-10] `useEvolution` 7차 분리: host 완료 상태 마무리 helper 추출
+
+### 작업 유형
+- 🧩 online host 완료 후 공통 상태 반영을 작은 helper로 추출
+- 🧪 완료 상태 setter 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** `proceedJogressOnlineAsHost`, `proceedJogressOnlineAsHostForRoom`에 남아 있던 동일한 완료 상태 반영 코드를 한 곳으로 모아, 이후 encyclopedia/post-effect 분리를 더 안전하게 진행할 수 있게 한다.
+- **범위:** `setEvolutionCompleteIsJogress`, `setEvolvedDigimonName`, `setEvolutionStage` 호출만 helper로 이동하고, archive/save/modal/alert 순서는 그대로 유지한다.
+- **내용:**
+  - `jogressCompletionHelpers`에 `finalizeOnlineJogressCompletionState`를 추가했다.
+  - 두 host 완료 경로는 이제 공통 helper를 통해 완료 상태를 반영한다.
+  - `useEvolution.test.js`에는 host room 완료 시 완료 상태 setter들이 실제로 호출되는 assertion을 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressCompletionHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressCompletionHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/jogressCompletionHelpers.test.js src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.js src/hooks/useEvolution.test.js src/hooks/jogressCompletionHelpers.js src/hooks/jogressCompletionHelpers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이번 단계는 아주 작은 공통 성공 tail만 묶은 것이다. 다음 단계는 이 안전망 위에서 host/room complete 경로의 `updateEncyclopedia` 분기를 별도 helper로 옮기는 쪽이 가장 자연스럽다.
+
 ## [2026-04-10] `useEvolution` 6차 분리: guest waiting room cleanup을 lifecycle hook으로 이동
 
 ### 작업 유형
