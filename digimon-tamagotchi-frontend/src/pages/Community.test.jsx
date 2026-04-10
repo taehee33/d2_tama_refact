@@ -196,6 +196,74 @@ const freeImagePostDetail = {
   comments: [],
 };
 
+const supportPostsAll = [
+  {
+    id: "support-1",
+    boardId: "support",
+    category: "bug",
+    title: "저장 후 상태가 초기화됩니다",
+    body: "저장 버튼을 누르면 수치가 되돌아갑니다.",
+    authorUid: "user-2",
+    authorTamerName: "메탈그레이",
+    commentCount: 2,
+    createdAt: "2026-04-01T05:00:00.000Z",
+    supportContext: {
+      slotNumber: "1",
+      screenPath: "/play/1",
+      gameVersion: "Ver.2",
+    },
+  },
+  {
+    id: "support-2",
+    boardId: "support",
+    category: "solved",
+    title: "백업 복원 질문 해결됨",
+    body: "브라우저 권한 허용으로 해결했습니다.",
+    authorUid: "user-1",
+    authorTamerName: "한솔",
+    commentCount: 1,
+    createdAt: "2026-04-01T06:00:00.000Z",
+    supportContext: {
+      slotNumber: "2",
+      screenPath: "/backup",
+      gameVersion: "Ver.1",
+    },
+  },
+];
+
+const supportPostDetail = {
+  post: {
+    id: "support-1",
+    boardId: "support",
+    category: "bug",
+    title: "저장 후 상태가 초기화됩니다",
+    body: "저장 버튼을 누르면 수치가 되돌아갑니다.",
+    authorUid: "user-2",
+    authorTamerName: "메탈그레이",
+    commentCount: 2,
+    createdAt: "2026-04-01T05:00:00.000Z",
+    supportContext: {
+      slotNumber: "1",
+      screenPath: "/play/1",
+      gameVersion: "Ver.2",
+    },
+    imagePath: "support/user-2/post-1/image.png",
+    imageUrl: "https://example.com/community/support-image.png",
+    imageAlt: "저장 후 상태가 초기화됩니다 첨부 이미지",
+  },
+  comments: [
+    {
+      id: "support-comment-1",
+      postId: "support-1",
+      authorUid: "user-1",
+      authorTamerName: "한솔",
+      body: "재현 순서 공유 감사합니다.",
+      createdAt: "2026-04-01T06:10:00.000Z",
+      updatedAt: "2026-04-01T06:10:00.000Z",
+    },
+  ],
+};
+
 describe("Community", () => {
   beforeAll(() => {
     global.FileReader = MockFileReader;
@@ -246,6 +314,19 @@ describe("Community", () => {
     expect(screen.getByRole("heading", { name: "자유게시판" })).toBeInTheDocument();
     expect(
       screen.getByText("자유게시판 실제 글은 로그인 후 확인할 수 있습니다.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "로그인하고 글쓰기" })).toBeInTheDocument();
+    expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
+  });
+
+  it("비로그인 상태 버그제보 / QnA는 로그인 게이트만 보여 주고 실제 목록을 요청하지 않는다", () => {
+    mockLocation.search = "?board=support";
+
+    render(<Community />);
+
+    expect(screen.getByRole("heading", { name: "버그제보 / QnA" })).toBeInTheDocument();
+    expect(
+      screen.getByText("버그제보 / QnA 실제 글은 로그인 후 확인할 수 있습니다.")
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "로그인하고 글쓰기" })).toBeInTheDocument();
     expect(communityApi.listCommunityPosts).not.toHaveBeenCalled();
@@ -394,6 +475,144 @@ describe("Community", () => {
     });
   });
 
+  it("로그인 상태 버그제보 / QnA는 말머리 필터와 압축 목록 행을 보여 준다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=support";
+
+    communityApi.listCommunityPosts.mockImplementation((currentUser, boardId, options = {}) => {
+      if (boardId !== "support") {
+        return Promise.resolve([]);
+      }
+
+      if (options.category === "solved") {
+        return Promise.resolve(supportPostsAll.filter((post) => post.category === "solved"));
+      }
+
+      return Promise.resolve(supportPostsAll);
+    });
+
+    render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("저장 후 상태가 초기화됩니다")).toBeInTheDocument();
+    });
+
+    expect(communityApi.listCommunityPosts).toHaveBeenCalledWith(
+      mockAuthState.currentUser,
+      "support",
+      { category: "" }
+    );
+    expect(screen.getByRole("button", { name: "버그" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "질문" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "해결" })).toBeInTheDocument();
+
+    const bugRow = screen.getByText("저장 후 상태가 초기화됩니다").closest("article");
+    const solvedRow = screen.getByText("백업 복원 질문 해결됨").closest("article");
+
+    expect(within(bugRow).getByText("버그")).toBeInTheDocument();
+    expect(within(solvedRow).getByText("해결")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "해결" }));
+
+    await waitFor(() => {
+      expect(communityApi.listCommunityPosts).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        "support",
+        { category: "solved" }
+      );
+    });
+
+    expect(screen.queryByText("저장 후 상태가 초기화됩니다")).not.toBeInTheDocument();
+    expect(screen.getByText("백업 복원 질문 해결됨")).toBeInTheDocument();
+  });
+
+  it("로그인 상태 버그제보 / QnA는 supportContext와 이미지와 함께 등록한다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=support";
+
+    communityApi.listCommunityPosts.mockResolvedValue([]);
+    communityApi.createCommunityPost.mockResolvedValue({
+      id: "support-3",
+      boardId: "support",
+      category: "bug",
+      supportContext: {
+        slotNumber: "1",
+        screenPath: "/play/1",
+        gameVersion: "Ver.2",
+      },
+      imagePath: "support/user-1/post-3/image.png",
+      imageUrl: "https://example.com/community/support-upload.png",
+    });
+
+    render(<Community />);
+
+    fireEvent.click(screen.getByRole("button", { name: "글쓰기" }));
+
+    expect(screen.getByRole("dialog", { name: "버그제보 / QnA 글쓰기" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("말머리"), {
+      target: { value: "bug" },
+    });
+    fireEvent.change(screen.getByLabelText("제목"), {
+      target: { value: "저장 후 상태가 초기화됩니다" },
+    });
+    fireEvent.change(screen.getByLabelText("슬롯 번호"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("화면 경로"), {
+      target: { value: "/play/1" },
+    });
+    fireEvent.change(screen.getByLabelText("버전"), {
+      target: { value: "Ver.2" },
+    });
+    fireEvent.change(screen.getByLabelText("본문"), {
+      target: { value: "저장 버튼을 누르면 수치가 되돌아갑니다." },
+    });
+    fireEvent.change(screen.getByLabelText("이미지 첨부"), {
+      target: {
+        files: [
+          new File(["fake-image"], "support-post.png", {
+            type: "image/png",
+          }),
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByAltText("support-post.png 미리보기")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "글 올리기" }));
+
+    await waitFor(() => {
+      expect(communityApi.createCommunityPost).toHaveBeenCalledWith(
+        mockAuthState.currentUser,
+        "support",
+        expect.objectContaining({
+          category: "bug",
+          title: "저장 후 상태가 초기화됩니다",
+          body: "저장 버튼을 누르면 수치가 되돌아갑니다.",
+          supportContext: {
+            slotNumber: "1",
+            screenPath: "/play/1",
+            gameVersion: "Ver.2",
+          },
+          image: expect.objectContaining({
+            fileName: "support-post.png",
+            mimeType: "image/png",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          }),
+        })
+      );
+    });
+  });
+
   it("로그인 상태 자유게시판은 이미지 1장을 함께 첨부해 등록할 수 있다", async () => {
     mockAuthState.currentUser = {
       uid: "user-1",
@@ -525,6 +744,48 @@ describe("Community", () => {
     expect(
       within(dialog).getByRole("img", { name: "오늘 배틀 루틴 공유 첨부 이미지" })
     ).toHaveAttribute("src", "https://example.com/community/free-image.png");
+  });
+
+  it("버그제보 / QnA 상세는 support 메타와 첨부 이미지를 함께 보여 준다", async () => {
+    mockAuthState.currentUser = {
+      uid: "user-1",
+      getIdToken: jest.fn().mockResolvedValue("token-123"),
+    };
+    mockLocation.search = "?board=support";
+
+    communityApi.listCommunityPosts.mockResolvedValue(supportPostsAll);
+    communityApi.getCommunityPostDetail.mockResolvedValue(supportPostDetail);
+
+    render(<Community />);
+
+    await waitFor(() => {
+      expect(screen.getByText("저장 후 상태가 초기화됩니다")).toBeInTheDocument();
+    });
+
+    const targetRow = screen.getByText("저장 후 상태가 초기화됩니다").closest("article");
+    fireEvent.click(within(targetRow).getByRole("button", { name: "보기" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("dialog", { name: "저장 후 상태가 초기화됩니다" })
+      ).toBeInTheDocument();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "저장 후 상태가 초기화됩니다" });
+
+    expect(communityApi.getCommunityPostDetail).toHaveBeenCalledWith(
+      mockAuthState.currentUser,
+      "support",
+      "support-1"
+    );
+    expect(within(dialog).getByText("버그")).toBeInTheDocument();
+    expect(within(dialog).getByText("슬롯 번호")).toBeInTheDocument();
+    expect(within(dialog).getByText("/play/1")).toBeInTheDocument();
+    expect(within(dialog).getByText("Ver.2")).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("img", { name: "저장 후 상태가 초기화됩니다 첨부 이미지" })
+    ).toHaveAttribute("src", "https://example.com/community/support-image.png");
+    expect(within(dialog).queryByText("디지몬 스탯")).not.toBeInTheDocument();
   });
 
   it("로그인 상태 자랑게시판은 현재 슬롯 스냅샷을 함께 저장한다", async () => {

@@ -1,5 +1,5 @@
 const COMMUNITY_API_BASE_URL = process.env.REACT_APP_COMMUNITY_API_BASE_URL || "";
-const COMMUNITY_BOARD_IDS = new Set(["showcase", "free"]);
+const COMMUNITY_BOARD_IDS = new Set(["showcase", "free", "support"]);
 
 function buildCommunityUrl(path) {
   return `${COMMUNITY_API_BASE_URL}${path}`;
@@ -132,7 +132,7 @@ export async function listCommunityPosts(currentUser, boardId, options = {}) {
     `${buildBoardPath(boardId, "/posts")}${query ? `?${query}` : ""}`
   );
 
-  return payload.posts || [];
+  return payload?.posts ?? [];
 }
 
 export async function getCommunityPostDetail(currentUser, boardId, postId) {

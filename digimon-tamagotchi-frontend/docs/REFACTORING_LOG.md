@@ -2,6 +2,30 @@
 
 ## 2026-04-10
 
+### 도감 canonical 병합 코어와 관리자 마이그레이션 도구 추가
+- `src/utils/encyclopediaMigrationCore.js`를 추가해 도감 엔트리 병합 규칙을 공통화했습니다. 이제 `isDiscovered` OR, `firstDiscoveredAt` 최소값, `lastRaisedAt` 최대값, `raisedCount` 최대값, `bestStats` 항목별 최대값, `history` 중복 제거 후 최신순 5개 유지 규칙을 한 곳에서 사용합니다.
+- `src/hooks/useEncyclopedia.js`는 더 이상 `version docs -> root fallback -> 비어 있으면 slot/log 복구`처럼 단계별 조기 종료하지 않고, `users/{uid}/encyclopedia/{version}`, root `users/{uid}.encyclopedia`, legacy `slots/slotN.encyclopedia`, 슬롯/로그 기반 복구를 canonical 규칙으로 합쳐서 반환하도록 정리했습니다.
+- 운영 중 fallback가 아직 필요한 계정은 브라우저 콘솔에서 한 번만 경고를 남기도록 해, version docs 이관이 끝나지 않은 사용자를 추적할 수 있게 했습니다.
+- `scripts/backfillUserEncyclopedia.js`는 단순 root -> version 복사 스크립트에서, dry-run/apply 모드, UID 필터, achievement/maxSlots 재계산, `encyclopediaMigration` 메타데이터 기록까지 포함하는 관리자용 마이그레이션 엔진으로 확장했습니다.
+- root `users/{uid}`는 여전히 compatibility mirror로 남기고, 1차 마이그레이션에서는 legacy root/slot 도감 필드를 삭제하지 않도록 유지했습니다.
+
+### 테스트 보강
+- `src/hooks/useEncyclopedia.test.js`는 load 시 slot legacy 확인이 항상 한 번 추가되는 현재 흐름에 맞춰 Firestore read expectation을 갱신했습니다.
+- `tests/encyclopedia-migration.test.js`를 추가해 canonical 병합 규칙, dry-run 무변경 보장, apply 시 version/profile/root mirror 갱신을 검증했습니다.
+
+### 영향받은 파일
+- `src/utils/encyclopediaMigrationCore.js`
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `scripts/backfillUserEncyclopedia.js`
+- `tests/encyclopedia-migration.test.js`
+- `package.json`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 도감 데이터는 이미 `slots -> root -> version docs` 3세대가 혼재해 있어, 화면 로드와 관리자 백필이 서로 다른 병합 규칙을 쓰면 다시 누락이 생길 수 있습니다. 그래서 병합 규칙 자체를 공통 코어로 분리해 읽기와 이관이 같은 canonical 결과를 만들도록 맞췄습니다.
+- version docs를 최종 원본으로 두되, root/slot legacy 데이터를 바로 지우면 운영 복구 위험이 크므로 1차 단계는 `읽기 fallback 유지 + 배치 이관 + 메타데이터 추적`까지로 범위를 제한하는 편이 가장 안전합니다.
+
 ### 디지타마 내부/고급 카운터 센티널 표시 보정
 - `src/components/StatsPopup.jsx`, `src/components/StatsPanel.jsx`의 `내부/고급 카운터`는 더 이상 디지타마용 센티널 타이머를 raw 분/초 숫자로 그대로 노출하지 않고, `비활성`, `알 단계 전용` 같은 상태 문구로 치환해 보여 주도록 정리했습니다.
 - 공통 표시 규칙은 `src/utils/internalCounterTimerDisplay.js`로 분리해, `hunger/strength <= 0`, `Digitama + poop >= 999` 같은 예외를 한 곳에서 처리하고 일반 단계 타이머는 기존 `X min (남은 시간: Ym Zs)` 형식을 유지하도록 맞췄습니다.
@@ -1212,6 +1236,27 @@
 - 공식 로스터 스프라이트는 버전마다 누락과 명칭 차이가 섞여 있어 전부를 강제로 정규화하기보다, `Individual Sprites 우선 + 첫 프레임 fallback + placeholder 유지` 정책을 명문화하는 쪽이 안전합니다.
 - 온라인 조그레스는 Firestore room 스키마와 상대 버전 매칭 흐름까지 함께 일반화해야 하므로, 이번 범위에서는 플레이 가능한 로컬 조그레스까지 먼저 완성하고 온라인 확장은 별도 작업으로 defer하는 편이 리스크가 낮습니다.
 
+### 몰입형 독립 전체화면 버튼 추가
+- 몰입형 상단 바에 `전체화면` / `전체화면 종료` 버튼을 추가해, 세로/가로 상태를 바꾸지 않고도 현재 몰입형 화면만 fullscreen으로 전환하거나 빠져나올 수 있게 했습니다.
+- 기존 `가로` 버튼은 그대로 `fullscreen + landscape lock + fallback` 흐름을 담당하고, 새 `전체화면` 버튼은 orientation lock을 건드리지 않는 별도 fullscreen-only 동작으로 분리했습니다.
+- iPhone Safari처럼 fullscreen 제약이 큰 브라우저에서도 버튼은 그대로 보이게 두고, 누를 때 `전체화면 미지원` 안내 문구를 같은 몰입형 상태 배너 영역에 보여주도록 정리했습니다.
+- 데스크톱과 모바일 모두 같은 버튼을 사용하고, 모바일에서는 다른 상단 액션과 동일하게 실행 후 메뉴가 자동으로 접히도록 맞췄습니다.
+
+### 영향받은 파일
+- `src/utils/immersiveOrientation.js`
+- `src/utils/immersiveOrientation.test.js`
+- `src/hooks/game-runtime/useImmersiveGameLayout.js`
+- `src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- fullscreen과 landscape lock은 브라우저 지원 범위가 다르므로, 하나의 버튼에 모두 얹기보다 `가로`와 `전체화면`을 역할별로 분리하는 편이 실패 원인과 사용자 기대를 더 명확하게 맞출 수 있습니다.
+- 기존 `orientationStatusMessage` 슬롯을 재사용하면 별도 토스트나 모달을 늘리지 않고도 fullscreen 실패/미지원 상태를 일관된 위치에서 전달할 수 있어 몰입형 UI 복잡도를 낮출 수 있습니다.
+- 모바일과 데스크톱이 같은 몰입형 상단 바를 공유하는 구조이므로 fullscreen 버튼도 공통 props로 추가하는 편이 조건 분기와 테스트 중복을 줄이는 데 유리합니다.
+
 ### 몰입형 상단 우측 버튼 가시성 강화
 - 모바일 몰입형 우측 상단 토글은 기존 아이콘-only 원형 버튼 대신 `☰ 메뉴` / `× 닫기` 라벨이 붙은 진한 네이비 캡슐형 FAB로 바꿔, 밝은 배경과 브라우저 UI 위에서도 더 빠르게 인지되도록 정리했습니다.
 - 펼쳐진 모바일 메뉴 패널은 FAB와 한 세트처럼 보이도록 그림자와 외곽선 대비를 높이고, 상단에 짧은 다크 accent bar를 넣어 “전역 조작 메뉴” 성격이 중앙의 `정보 펼치기` 토글과 덜 겹치게 했습니다.
@@ -1227,3 +1272,29 @@
 - 모바일 세로 몰입형은 상단 공간이 제한적이라, 버튼 수를 늘리기보다 기존 FAB 자체를 더 명확한 라벨형 트리거로 만드는 편이 정보 밀도와 탐색성 사이 균형이 가장 좋습니다.
 - 중앙 `정보 펼치기`와 우측 전역 메뉴는 역할이 다르므로, 동작을 바꾸기보다 색/위치/톤으로 시각 계층을 분리하는 쪽이 회귀 리스크가 낮고 학습 비용도 적습니다.
 - 데스크톱과 모바일이 같은 조작 집합을 공유하더라도, 우측 도구 묶음에 공통된 surface 언어를 주면 “몰입형 전역 도구”라는 개념이 일관되게 전달돼 이후 메뉴 확장에도 유리합니다.
+
+### 가로 몰입형 기본 화면 확대 및 정보 오버레이 분리
+- 브릭 프레임 스킨의 가로 몰입형에서는 상태 카드와 보조 액션을 기본 화면에서 빼고, 디바이스 스테이지와 상하 버튼 스트립만 먼저 보이도록 바꿨습니다. 덕분에 첫 화면이 실제 디지바이스 뷰처럼 더 크게 차지합니다.
+- 가로 몰입형 상단 바에 `정보/진화` / `정보/진화 닫기` 버튼을 추가해, 슬롯/기종/현재 시간/하트/상태 배지와 진화·가이드 같은 보조 액션은 별도 오버레이로 열어 볼 수 있게 분리했습니다.
+- 모바일에서는 이 `정보/진화` 버튼을 메뉴 패널 안이 아니라 우측 상단 `메뉴` FAB 바로 아래의 독립 플로팅 버튼으로 분리해, 가로 몰입형에서 더 바로 접근할 수 있게 배치했습니다.
+- 브릭 프레임 스킨은 landscape stage 최대 폭과 shell padding을 줄여 전체화면이나 가로 모드에서 기기 이미지가 화면을 더 가득 쓰도록 조정했고, 모바일에서는 stage와 버튼 스트립이 `100%` 폭을 쓰도록 맞췄습니다.
+
+### 영향받은 파일
+- `src/pages/Game.jsx`
+- `src/hooks/game-runtime/useImmersiveGameLayout.js`
+- `src/hooks/game-runtime/useImmersiveGameLayout.test.js`
+- `src/components/layout/ImmersiveGameTopBar.jsx`
+- `src/components/layout/ImmersiveGameTopBar.test.jsx`
+- `src/components/layout/ImmersiveGameView.jsx`
+- `src/components/layout/ImmersiveGameView.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.jsx`
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.test.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 가로 몰입형에서 가장 중요한 콘텐츠는 디바이스 프레임과 게임 화면이므로, 항상 보여야 하는 정보와 필요할 때만 보는 정보를 분리하는 편이 “몰입감”과 “조작성”을 동시에 유지하기 좋습니다.
+- landscape frame skin 전용 오버레이로 처리하면 기존 세로 헤더 구조를 억지로 재사용하지 않아도 되고, non-frame landscape 레이아웃 회귀 없이 브릭 디바이스 경험만 더 강하게 다듬을 수 있습니다.
+- 정보 패널을 `ImmersiveGameView`의 별도 overlay layer로 올리면 채팅/스킨 picker와 같은 방식으로 z-index, backdrop, ESC 닫기 동작을 일관되게 관리할 수 있어 이후 몰입형 보조 패널 확장에도 유리합니다.

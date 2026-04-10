@@ -6,8 +6,9 @@ const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
 
 const BOARD_ID_SHOWCASE = "showcase";
 const BOARD_ID_FREE = "free";
+const BOARD_ID_SUPPORT = "support";
 const BOARD_ID = BOARD_ID_SHOWCASE;
-const SUPPORTED_BOARD_IDS = new Set([BOARD_ID_SHOWCASE, BOARD_ID_FREE]);
+const SUPPORTED_BOARD_IDS = new Set([BOARD_ID_SHOWCASE, BOARD_ID_FREE, BOARD_ID_SUPPORT]);
 const FREE_BOARD_CATEGORY_GENERAL = "general";
 const FREE_BOARD_CATEGORY_QUESTION = "question";
 const FREE_BOARD_CATEGORY_GUIDE = "guide";
@@ -17,12 +18,25 @@ const FREE_BOARD_CATEGORY_IDS = [
   FREE_BOARD_CATEGORY_GUIDE,
 ];
 const FREE_BOARD_CATEGORY_SET = new Set(FREE_BOARD_CATEGORY_IDS);
+const SUPPORT_BOARD_CATEGORY_BUG = "bug";
+const SUPPORT_BOARD_CATEGORY_QUESTION = "question";
+const SUPPORT_BOARD_CATEGORY_SOLVED = "solved";
+const SUPPORT_BOARD_CATEGORY_IDS = [
+  SUPPORT_BOARD_CATEGORY_BUG,
+  SUPPORT_BOARD_CATEGORY_QUESTION,
+  SUPPORT_BOARD_CATEGORY_SOLVED,
+];
+const SUPPORT_BOARD_CATEGORY_SET = new Set(SUPPORT_BOARD_CATEGORY_IDS);
+const SUPPORT_GAME_VERSION_IDS = ["Ver.1", "Ver.2"];
+const SUPPORT_GAME_VERSION_SET = new Set(SUPPORT_GAME_VERSION_IDS);
 const POSTS_TABLE = "community_posts";
 const COMMENTS_TABLE = "community_post_comments";
 const PREVIEW_COMMENT_LIMIT = 3;
 const MAX_POST_TITLE_LENGTH = 80;
 const MAX_POST_BODY_LENGTH = 500;
 const MAX_COMMENT_LENGTH = 300;
+const MAX_SUPPORT_SLOT_NUMBER_LENGTH = 24;
+const MAX_SUPPORT_SCREEN_PATH_LENGTH = 120;
 const MAX_POST_IMAGE_BYTES = 2 * 1024 * 1024;
 const COMMUNITY_IMAGE_BUCKET = "community-post-images";
 const POST_IMAGE_MIME_TYPE_TO_EXTENSION = {
@@ -224,14 +238,109 @@ function normalizeFreeBoardCategory(value, { required = true } = {}) {
   return normalizedCategory;
 }
 
-function normalizeFreeBoardCategoryFilter(value) {
+function normalizeSupportBoardCategory(value, { required = true } = {}) {
+  const normalizedCategory = normalizeString(value);
+
+  if (!normalizedCategory) {
+    if (required) {
+      throw createCommunityError(400, "말머리를 선택해 주세요.");
+    }
+
+    return "";
+  }
+
+  if (!SUPPORT_BOARD_CATEGORY_SET.has(normalizedCategory)) {
+    throw createCommunityError(400, "올바른 말머리를 선택해 주세요.");
+  }
+
+  return normalizedCategory;
+}
+
+function normalizeBoardCategory(boardId, value, { required = true } = {}) {
+  const normalizedBoardId = normalizeBoardId(boardId);
+
+  if (normalizedBoardId === BOARD_ID_FREE) {
+    return normalizeFreeBoardCategory(value, { required });
+  }
+
+  if (normalizedBoardId === BOARD_ID_SUPPORT) {
+    return normalizeSupportBoardCategory(value, { required });
+  }
+
+  return "";
+}
+
+function normalizeBoardCategoryFilter(boardId, value) {
   const normalizedCategory = normalizeString(value);
 
   if (!normalizedCategory || normalizedCategory === "all") {
     return "";
   }
 
-  return normalizeFreeBoardCategory(normalizedCategory);
+  return normalizeBoardCategory(boardId, normalizedCategory);
+}
+
+function normalizeSupportContext(input) {
+  if (input === undefined || input === null) {
+    return null;
+  }
+
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw createCommunityError(400, "버그 제보 추가 정보 형식이 올바르지 않습니다.");
+  }
+
+  const slotNumber = normalizeString(input.slotNumber);
+  const screenPath = normalizeString(input.screenPath);
+  const gameVersion = normalizeString(input.gameVersion);
+
+  if (slotNumber.length > MAX_SUPPORT_SLOT_NUMBER_LENGTH) {
+    throw createCommunityError(
+      400,
+      `슬롯 번호는 ${MAX_SUPPORT_SLOT_NUMBER_LENGTH}자 이하로 입력해 주세요.`
+    );
+  }
+
+  if (screenPath.length > MAX_SUPPORT_SCREEN_PATH_LENGTH) {
+    throw createCommunityError(
+      400,
+      `화면 경로는 ${MAX_SUPPORT_SCREEN_PATH_LENGTH}자 이하로 입력해 주세요.`
+    );
+  }
+
+  if (gameVersion && !SUPPORT_GAME_VERSION_SET.has(gameVersion)) {
+    throw createCommunityError(400, "올바른 버전 정보를 선택해 주세요.");
+  }
+
+  if (!slotNumber && !screenPath && !gameVersion) {
+    return null;
+  }
+
+  return {
+    ...(slotNumber ? { slotNumber } : {}),
+    ...(screenPath ? { screenPath } : {}),
+    ...(gameVersion ? { gameVersion } : {}),
+  };
+}
+
+function mapSupportContext(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const slotNumber = normalizeString(input.slotNumber).slice(0, MAX_SUPPORT_SLOT_NUMBER_LENGTH);
+  const screenPath = normalizeString(input.screenPath).slice(0, MAX_SUPPORT_SCREEN_PATH_LENGTH);
+  const rawGameVersion = normalizeString(input.gameVersion);
+  const gameVersion = SUPPORT_GAME_VERSION_SET.has(rawGameVersion) ? rawGameVersion : "";
+
+  if (!slotNumber && !screenPath && !gameVersion) {
+    return null;
+  }
+
+  return {
+    ...(slotNumber ? { slotNumber } : {}),
+    ...(screenPath ? { screenPath } : {}),
+    ...(gameVersion ? { gameVersion } : {}),
+  };
 }
 
 function normalizeImageAction(value) {
@@ -296,9 +405,9 @@ function parsePostImageInput(rawImage) {
 function normalizePostImageMutation(input = {}, options = {}) {
   const boardId = normalizeBoardId(options.boardId || BOARD_ID_SHOWCASE);
 
-  if (boardId !== BOARD_ID_FREE) {
+  if (boardId !== BOARD_ID_FREE && boardId !== BOARD_ID_SUPPORT) {
     if (input.image !== undefined || input.imageAction !== undefined) {
-      throw createCommunityError(400, "이미지 첨부는 자유게시판에서만 사용할 수 있습니다.");
+      throw createCommunityError(400, "이미지 첨부는 텍스트 게시판에서만 사용할 수 있습니다.");
     }
 
     return { kind: "keep", image: null };
@@ -343,12 +452,18 @@ function validatePostInput(input = {}, options = {}) {
     throw createCommunityError(400, `게시글 본문은 ${MAX_POST_BODY_LENGTH}자 이하로 입력해 주세요.`);
   }
 
-  if (boardId === BOARD_ID_FREE) {
+  if (boardId === BOARD_ID_FREE || boardId === BOARD_ID_SUPPORT) {
+    if (boardId === BOARD_ID_SUPPORT && !body) {
+      throw createCommunityError(400, "게시글 내용을 입력해 주세요.");
+    }
+
     return {
       boardId,
-      category: normalizeFreeBoardCategory(input.category),
+      category: normalizeBoardCategory(boardId, input.category),
       title,
       body,
+      supportContext:
+        boardId === BOARD_ID_SUPPORT ? normalizeSupportContext(input.supportContext) : null,
     };
   }
 
@@ -439,15 +554,20 @@ function validatePostPayload(
   const body = normalizeString(input.body);
   const rawSlotId = normalizeString(input.slotId);
   const rawCategory = normalizeString(input.category);
+  const hasSupportContext = input.supportContext !== undefined;
+  let normalizedSupportContext = null;
 
   if (normalizedBoardId === BOARD_ID_SHOWCASE && requireSlotId && !rawSlotId) {
     errors.push("슬롯을 선택해 주세요.");
   }
 
-  if (normalizedBoardId === BOARD_ID_FREE) {
+  if (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) {
     if (!rawCategory) {
       errors.push("말머리를 선택해 주세요.");
-    } else if (!FREE_BOARD_CATEGORY_SET.has(rawCategory)) {
+    } else if (
+      (normalizedBoardId === BOARD_ID_FREE && !FREE_BOARD_CATEGORY_SET.has(rawCategory)) ||
+      (normalizedBoardId === BOARD_ID_SUPPORT && !SUPPORT_BOARD_CATEGORY_SET.has(rawCategory))
+    ) {
       errors.push("올바른 말머리를 선택해 주세요.");
     }
   }
@@ -458,8 +578,20 @@ function validatePostPayload(
     errors.push(`제목은 ${MAX_POST_TITLE_LENGTH}자 이하로 입력해 주세요.`);
   }
 
+  if (normalizedBoardId === BOARD_ID_SUPPORT && !body) {
+    errors.push("내용을 입력해 주세요.");
+  }
+
   if (body.length > MAX_POST_BODY_LENGTH) {
     errors.push(`내용은 ${MAX_POST_BODY_LENGTH}자 이하로 입력해 주세요.`);
+  }
+
+  if (normalizedBoardId === BOARD_ID_SUPPORT && hasSupportContext) {
+    try {
+      normalizedSupportContext = normalizeSupportContext(input.supportContext);
+    } catch (error) {
+      errors.push(error.message);
+    }
   }
 
   return {
@@ -467,10 +599,17 @@ function validatePostPayload(
     errors,
     value: {
       boardId: normalizedBoardId,
-      category: normalizedBoardId === BOARD_ID_FREE ? rawCategory : "",
+      category:
+        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+          ? rawCategory
+          : "",
       slotId: rawSlotId,
       title,
       body,
+      supportContext:
+        normalizedBoardId === BOARD_ID_SUPPORT
+          ? normalizedSupportContext
+          : null,
     },
   };
 }
@@ -553,6 +692,7 @@ function mapPostRow(row) {
     title: row.title,
     body: row.body,
     snapshot: row.snapshot || null,
+    supportContext: mapSupportContext(row.support_context),
     imagePath,
     imageUrl: "",
     imageAlt: imagePath ? `${row.title || "게시글"} 첨부 이미지` : "",
@@ -562,8 +702,9 @@ function mapPostRow(row) {
   };
 }
 
-function buildCommunityPostImagePath(uid, postId, extension) {
-  return `free/${uid}/${postId}/${randomUUID()}.${extension}`;
+function buildCommunityPostImagePath(boardId, uid, postId, extension) {
+  const normalizedBoardId = normalizeBoardId(boardId);
+  return `${normalizedBoardId}/${uid}/${postId}/${randomUUID()}.${extension}`;
 }
 
 function resolveCommunityPostImageUrl(supabase, imagePath) {
@@ -586,11 +727,12 @@ function mapPostRowWithImage(supabase, row) {
 
 async function uploadCommunityPostImage({
   supabase,
+  boardId,
   uid,
   postId,
   image,
 }) {
-  const imagePath = buildCommunityPostImagePath(uid, postId, image.extension);
+  const imagePath = buildCommunityPostImagePath(boardId, uid, postId, image.extension);
   const { error } = await supabase.storage.from(COMMUNITY_IMAGE_BUCKET).upload(imagePath, image.buffer, {
     cacheControl: "31536000",
     contentType: image.mimeType,
@@ -827,8 +969,8 @@ async function getCommentRowOrThrow(supabase, commentId) {
 async function listCommunityPosts({ supabase, boardId = BOARD_ID_SHOWCASE, category = "", limit = 24 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const normalizedCategory =
-    normalizedBoardId === BOARD_ID_FREE
-      ? normalizeFreeBoardCategoryFilter(category)
+    normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+      ? normalizeBoardCategoryFilter(normalizedBoardId, category)
       : "";
 
   let query = supabase
@@ -900,6 +1042,7 @@ async function createCommunityPost({
   let snapshot = null;
   let slotId = null;
   let category = "";
+  let supportContext = null;
   let uploadedImagePath = "";
 
   if (normalizedBoardId === BOARD_ID_SHOWCASE) {
@@ -924,10 +1067,13 @@ async function createCommunityPost({
     }
   } else {
     category = validatedInput.category;
+    supportContext =
+      normalizedBoardId === BOARD_ID_SUPPORT ? validatedInput.supportContext : null;
 
     if (imageMutation.kind === "replace") {
       const uploadResult = await uploadCommunityPostImage({
         supabase,
+        boardId: normalizedBoardId,
         uid,
         postId,
         image: imageMutation.image,
@@ -949,6 +1095,7 @@ async function createCommunityPost({
       title,
       body,
       snapshot,
+      support_context: supportContext,
       image_path: uploadedImagePath || null,
       comment_count: 0,
     })
@@ -984,6 +1131,8 @@ async function updateCommunityPost({
     ...input,
     slotId: postRow.slot_id,
     category: postRow.category || input.category,
+    supportContext:
+      input.supportContext !== undefined ? input.supportContext : postRow.support_context,
   }, { boardId: normalizedBoardId });
   const imageMutation = normalizePostImageMutation(input, {
     boardId: normalizedBoardId,
@@ -991,10 +1140,11 @@ async function updateCommunityPost({
   let nextImagePath = postRow.image_path || null;
   let uploadedImagePath = "";
 
-  if (normalizedBoardId === BOARD_ID_FREE) {
+  if (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) {
     if (imageMutation.kind === "replace") {
       const uploadResult = await uploadCommunityPostImage({
         supabase,
+        boardId: normalizedBoardId,
         uid,
         postId,
         image: imageMutation.image,
@@ -1011,10 +1161,17 @@ async function updateCommunityPost({
     .from(POSTS_TABLE)
     .update({
       category:
-        normalizedBoardId === BOARD_ID_FREE ? validatedInput.category : null,
+        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+          ? validatedInput.category
+          : null,
       title: validatedInput.title,
       body: validatedInput.body,
-      image_path: normalizedBoardId === BOARD_ID_FREE ? nextImagePath : null,
+      support_context:
+        normalizedBoardId === BOARD_ID_SUPPORT ? validatedInput.supportContext : null,
+      image_path:
+        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+          ? nextImagePath
+          : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", postId)
@@ -1027,7 +1184,7 @@ async function updateCommunityPost({
   }
 
   if (
-    normalizedBoardId === BOARD_ID_FREE &&
+    (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) &&
     postRow.image_path &&
     postRow.image_path !== nextImagePath
   ) {
@@ -1214,6 +1371,7 @@ async function deleteShowcaseComment(options = {}) {
 module.exports = {
   BOARD_ID,
   BOARD_ID_FREE,
+  BOARD_ID_SUPPORT,
   BOARD_ID_SHOWCASE,
   COMMENTS_TABLE,
   FREE_BOARD_CATEGORY_GENERAL,
@@ -1221,6 +1379,10 @@ module.exports = {
   FREE_BOARD_CATEGORY_IDS,
   FREE_BOARD_CATEGORY_QUESTION,
   POSTS_TABLE,
+  SUPPORT_BOARD_CATEGORY_BUG,
+  SUPPORT_BOARD_CATEGORY_IDS,
+  SUPPORT_BOARD_CATEGORY_QUESTION,
+  SUPPORT_BOARD_CATEGORY_SOLVED,
   buildCommunitySnapshot,
   buildCommunitySnapshotFromPreview,
   createCommunityComment,
@@ -1240,6 +1402,7 @@ module.exports = {
   mapPostRow,
   normalizeBoardId,
   normalizeFreeBoardCategory,
+  normalizeSupportBoardCategory,
   normalizeSlotId,
   resolveStageLabel,
   translateStageLabel,

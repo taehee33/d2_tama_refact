@@ -1,5 +1,8 @@
 import React from "react";
-import { getCommunityFreeBoardCategoryLabel } from "../../data/serviceContent";
+import {
+  getCommunityFreeBoardCategoryLabel,
+  getCommunitySupportCategoryLabel,
+} from "../../data/serviceContent";
 import { formatTimestamp } from "../../utils/dateUtils";
 import CommunityDialog from "./CommunityDialog";
 import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
@@ -32,19 +35,35 @@ function CommunityPostDetailDialog({
   const comments = postDetail?.comments || [];
   const commentCount = post?.commentCount ?? comments.length;
   const isFreeBoard = boardId === "free";
+  const isSupportBoard = boardId === "support";
+  const isTextBoard = isFreeBoard || isSupportBoard;
   const boardBadgeLabel = isFreeBoard
     ? getCommunityFreeBoardCategoryLabel(post?.category)
+    : isSupportBoard
+      ? getCommunitySupportCategoryLabel(post?.category)
     : "내 디지몬 자랑";
   const formattedCreatedAt = post?.createdAt
     ? formatTimestamp(post.createdAt, "long")
     : "";
-  const freeBoardImageAlt = post?.imageAlt || `${post?.title || "자유게시판 글"} 첨부 이미지`;
+  const textBoardImageAlt = post?.imageAlt || `${post?.title || "게시글"} 첨부 이미지`;
+  const supportContext = isSupportBoard ? post?.supportContext || null : null;
+  const supportMetaItems = [
+    supportContext?.slotNumber
+      ? { id: "slotNumber", label: "슬롯 번호", value: supportContext.slotNumber }
+      : null,
+    supportContext?.screenPath
+      ? { id: "screenPath", label: "화면 경로", value: supportContext.screenPath }
+      : null,
+    supportContext?.gameVersion
+      ? { id: "gameVersion", label: "버전", value: supportContext.gameVersion }
+      : null,
+  ].filter(Boolean);
 
   return (
     <CommunityDialog
       open={open}
       title={post?.title || "게시글 상세"}
-      eyebrow={isFreeBoard ? "자유게시판 상세" : "피드 상세"}
+      eyebrow={isFreeBoard ? "자유게시판 상세" : isSupportBoard ? "버그제보 / QnA 상세" : "피드 상세"}
       onClose={onClose}
       size="xl"
       className="community-detail-modal"
@@ -62,10 +81,10 @@ function CommunityPostDetailDialog({
       {post ? (
         <div className="community-panel-stack">
           <div
-            className={`community-detail-summary${isFreeBoard ? " community-detail-summary--free" : ""}`}
+            className={`community-detail-summary${isTextBoard ? " community-detail-summary--free" : ""}`}
           >
             <div
-              className={`community-post-card__meta${isFreeBoard ? " community-post-card__meta--free" : ""}`}
+              className={`community-post-card__meta${isTextBoard ? " community-post-card__meta--free" : ""}`}
             >
               <div className="community-post-card__meta-primary">
                 <span className="service-badge service-badge--accent">{boardBadgeLabel}</span>
@@ -73,7 +92,7 @@ function CommunityPostDetailDialog({
                   <span className="community-meta-box__label">작성자</span>
                   <strong className="community-meta-box__value">{post.authorTamerName}</strong>
                 </span>
-                {isFreeBoard ? (
+                {isTextBoard ? (
                   <span className="community-meta-box community-meta-box--timestamp">
                     <span className="community-meta-box__label">작성일</span>
                     <strong className="community-meta-box__value community-meta-box__value--subtle">
@@ -83,18 +102,31 @@ function CommunityPostDetailDialog({
                 ) : null}
               </div>
 
-              {!isFreeBoard ? (
+              {!isTextBoard ? (
                 <div className="community-post-card__meta-secondary">
                   <span className="community-post-card__timestamp">{formattedCreatedAt}</span>
                 </div>
               ) : null}
             </div>
 
+            {supportMetaItems.length ? (
+              <div className="community-support-meta-grid">
+                {supportMetaItems.map((item) => (
+                  <span key={item.id} className="community-meta-box community-meta-box--support">
+                    <span className="community-meta-box__label">{item.label}</span>
+                    <strong className="community-meta-box__value community-meta-box__value--subtle">
+                      {item.value}
+                    </strong>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             <div
-              className={`community-detail-summary__body${isFreeBoard ? " community-detail-summary__body--free" : ""}`}
+              className={`community-detail-summary__body${isTextBoard ? " community-detail-summary__body--free" : ""}`}
             >
               <section
-                className={`community-post-card__section community-post-card__section--title${isFreeBoard ? " community-post-card__section--free-title" : ""}`}
+                className={`community-post-card__section community-post-card__section--title${isTextBoard ? " community-post-card__section--free-title" : ""}`}
                 aria-label="게시글 제목"
               >
                 <span className="community-post-card__section-label">제목</span>
@@ -103,14 +135,14 @@ function CommunityPostDetailDialog({
                 </h3>
               </section>
 
-              {!isFreeBoard ? (
+              {!isTextBoard ? (
                 <>
                   <CommunitySnapshotScene snapshot={post.snapshot} variant="detail" />
                   <CommunitySnapshotSummary snapshot={post.snapshot} variant="detail" />
                 </>
               ) : null}
 
-              {isFreeBoard && post.imageUrl ? (
+              {isTextBoard && post.imageUrl ? (
                 <section
                   className="community-post-card__section community-post-card__section--free-image"
                   aria-label="첨부 이미지"
@@ -120,7 +152,7 @@ function CommunityPostDetailDialog({
                     <img
                       className="community-free-post-image-viewer__image"
                       src={post.imageUrl}
-                      alt={freeBoardImageAlt}
+                      alt={textBoardImageAlt}
                     />
                     {post.imageName ? (
                       <figcaption className="community-free-post-image-viewer__caption">
@@ -132,18 +164,18 @@ function CommunityPostDetailDialog({
               ) : null}
 
               <section
-                className={`community-post-card__section community-post-card__section--body${isFreeBoard ? " community-post-card__section--free-body" : ""}`}
+                className={`community-post-card__section community-post-card__section--body${isTextBoard ? " community-post-card__section--free-body" : ""}`}
                 aria-label="게시글 내용"
               >
                 <span className="community-post-card__section-label">내용</span>
                 <p
-                  className={`community-post-card__body${isFreeBoard ? " community-post-card__body--free" : ""}`}
+                  className={`community-post-card__body${isTextBoard ? " community-post-card__body--free" : ""}`}
                 >
                   {post.body || "작성된 코멘트가 없습니다."}
                 </p>
               </section>
 
-              {!isFreeBoard ? (
+              {!isTextBoard ? (
                 <CommunityPostStatsPanel
                   snapshot={post.snapshot}
                   commentCount={post.commentCount ?? comments.length}
@@ -156,7 +188,13 @@ function CommunityPostDetailDialog({
             <div className="community-section-header">
               <div>
                 <p className="service-section-label">댓글</p>
-                <h3>{isFreeBoard ? "자유글에 답글 남기기" : "기록에 반응 남기기"}</h3>
+                <h3>
+                  {isFreeBoard
+                    ? "자유글에 답글 남기기"
+                    : isSupportBoard
+                      ? "질문과 제보에 답글 남기기"
+                      : "기록에 반응 남기기"}
+                </h3>
               </div>
               <span className="service-badge service-badge--cool">{commentCount}개</span>
             </div>
@@ -254,6 +292,8 @@ function CommunityPostDetailDialog({
                       placeholder={
                         isFreeBoard
                           ? "답변, 추가 팁, 의견을 남겨 보세요."
+                          : isSupportBoard
+                            ? "추가 재현 정보, 해결 방법, 보충 답변을 남겨 보세요."
                           : "응원, 기록 팁, 다음 목표를 남겨 보세요."
                       }
                       onChange={(event) => onCommentDraftChange(event.target.value)}

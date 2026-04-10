@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   BOARD_ID_FREE,
+  BOARD_ID_SUPPORT,
   buildCommunitySnapshot,
   buildCommunitySnapshotFromPreview,
   createCommunityPost,
@@ -41,6 +42,7 @@ function createSupabaseInsertStub() {
           title: state.insertedPayload.title,
           body: state.insertedPayload.body,
           snapshot: state.insertedPayload.snapshot,
+          support_context: state.insertedPayload.support_context,
           image_path: state.insertedPayload.image_path,
           comment_count: state.insertedPayload.comment_count,
           created_at: "2026-04-01T12:00:00.000Z",
@@ -187,6 +189,34 @@ test("검증 헬퍼는 글/댓글 길이와 필수값을 확인한다", () => {
       category: "guide",
       title: "자유게시판 공략",
       body: "루틴 메모입니다.",
+      supportContext: null,
+    }
+  );
+
+  assert.deepEqual(
+    validatePostInput(
+      {
+        category: "bug",
+        title: " 버그 제보 ",
+        body: " 저장 후 화면이 멈춥니다. ",
+        supportContext: {
+          slotNumber: " 1 ",
+          screenPath: " /play/1 ",
+          gameVersion: "Ver.2",
+        },
+      },
+      { boardId: BOARD_ID_SUPPORT }
+    ),
+    {
+      boardId: "support",
+      category: "bug",
+      title: "버그 제보",
+      body: "저장 후 화면이 멈춥니다.",
+      supportContext: {
+        slotNumber: "1",
+        screenPath: "/play/1",
+        gameVersion: "Ver.2",
+      },
     }
   );
 
@@ -450,4 +480,49 @@ test("createCommunityPost는 자유게시판 첨부 이미지를 storage에 올�
     post.imageUrl,
     `https://example.com/storage/${state.uploadedPaths[0]}`
   );
+});
+
+test("createCommunityPost는 support 글을 supportContext와 이미지와 함께 저장한다", async () => {
+  const { supabase, state } = createSupabaseInsertStub();
+
+  const post = await createCommunityPost({
+    supabase,
+    boardId: BOARD_ID_SUPPORT,
+    uid: "user-1",
+    decodedToken: {
+      uid: "user-1",
+      email: "han@example.com",
+      name: "한솔",
+      idToken: "token-123",
+    },
+    input: {
+      category: "bug",
+      title: "support 이미지 제보",
+      body: "재현 화면을 첨부합니다.",
+      supportContext: {
+        slotNumber: "1",
+        screenPath: "/play/1",
+        gameVersion: "Ver.1",
+      },
+      image: {
+        fileName: "support-post.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZS1pbWFnZQ==",
+      },
+    },
+    resolveAuthorName: async () => "한솔",
+  });
+
+  assert.equal(state.insertedPayload.board_id, "support");
+  assert.equal(state.insertedPayload.category, "bug");
+  assert.deepEqual(state.insertedPayload.support_context, {
+    slotNumber: "1",
+    screenPath: "/play/1",
+    gameVersion: "Ver.1",
+  });
+  assert.equal(state.insertedPayload.slot_id, null);
+  assert.equal(state.insertedPayload.snapshot, null);
+  assert.match(state.uploadedPaths[0], /^support\/user-1\/.+\.png$/);
+  assert.equal(post.supportContext.screenPath, "/play/1");
+  assert.equal(post.imagePath, state.uploadedPaths[0]);
 });

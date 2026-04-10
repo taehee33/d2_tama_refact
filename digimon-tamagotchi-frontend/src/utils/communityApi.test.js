@@ -77,6 +77,36 @@ describe("communityApi", () => {
     );
   });
 
+  it("support 목록 조회도 category query를 붙여 요청한다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ posts: [] })),
+    });
+
+    await listCommunityPosts(currentUser, "support", { category: "bug" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/support/posts?category=bug",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("목록 응답 payload가 null이어도 빈 배열로 처리한다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue("null"),
+    });
+
+    await expect(listCommunityPosts(currentUser, "support")).resolves.toEqual([]);
+  });
+
   it("자유게시판 글 작성은 boardId 기반 경로를 사용한다", async () => {
     global.fetch.mockResolvedValue({
       ok: true,
@@ -131,6 +161,52 @@ describe("communityApi", () => {
           body: "본문",
           image: {
             fileName: "post.png",
+            mimeType: "image/png",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          },
+        }),
+      })
+    );
+  });
+
+  it("support 글 작성은 supportContext와 image payload를 함께 보낸다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ post: { id: "support-1" } })),
+    });
+
+    await createCommunityPost(currentUser, "support", {
+      category: "bug",
+      title: "저장 후 데이터가 사라집니다",
+      body: "재현 순서를 적었습니다.",
+      supportContext: {
+        slotNumber: "1",
+        screenPath: "/play/1",
+        gameVersion: "Ver.2",
+      },
+      image: {
+        fileName: "bug.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZQ==",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/support/posts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          category: "bug",
+          title: "저장 후 데이터가 사라집니다",
+          body: "재현 순서를 적었습니다.",
+          supportContext: {
+            slotNumber: "1",
+            screenPath: "/play/1",
+            gameVersion: "Ver.2",
+          },
+          image: {
+            fileName: "bug.png",
             mimeType: "image/png",
             dataUrl: "data:image/png;base64,ZmFrZQ==",
           },

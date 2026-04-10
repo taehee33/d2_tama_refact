@@ -47,7 +47,7 @@ export const communityBoards = [
   {
     id: "support",
     title: "버그제보 / QnA",
-    description: "버그 재현 정보와 FAQ를 함께 모아 보는 지원 보드",
+    description: "버그 제보, 질문 답변, 해결 기록을 함께 남기는 지원 보드",
     status: "바로 이용 가능",
   },
   {
@@ -119,6 +119,23 @@ export function getCommunityFreeBoardCategoryLabel(category) {
   return communityFreeBoardCategoryLabels[category] || "일반";
 }
 
+export const communitySupportCategories = [
+  { id: "all", label: "전체" },
+  { id: "bug", label: "버그" },
+  { id: "question", label: "질문" },
+  { id: "solved", label: "해결" },
+];
+
+const communitySupportCategoryLabels = Object.freeze({
+  bug: "버그",
+  question: "질문",
+  solved: "해결",
+});
+
+export function getCommunitySupportCategoryLabel(category) {
+  return communitySupportCategoryLabels[category] || "질문";
+}
+
 export const communityFreeBoardPinnedPosts = [
   {
     id: "free-guide",
@@ -141,6 +158,42 @@ export const communityFreeBoardPinnedPosts = [
     description:
       "스냅샷과 성장 로그 중심 글은 자랑게시판으로 분리해 두면 기록 아카이브가 훨씬 깔끔하게 유지됩니다.",
   },
+];
+
+export const communitySupportPinnedPosts = [
+  {
+    id: "support-bug-check",
+    badge: "필독",
+    title: "버그 글에는 재현 정보가 같이 있으면 확인이 빨라집니다",
+    description:
+      "슬롯 번호, 화면 경로, 버전, 마지막 행동을 함께 적어 두면 같은 증상인지 빠르게 좁혀 볼 수 있습니다.",
+  },
+  {
+    id: "support-question-clarity",
+    badge: "가이드",
+    title: "질문은 현재 상태와 기대 결과를 짧게 적어 주세요",
+    description:
+      "무엇이 궁금한지와 지금 상태를 같이 적어 두면 답변이 훨씬 빨라지고, 나중에 같은 질문을 다시 찾기도 쉽습니다.",
+  },
+  {
+    id: "support-solved-tag",
+    badge: "공지",
+    title: "해결된 글은 말머리를 해결로 바꿔 기록해 주세요",
+    description:
+      "같은 이슈를 찾는 사람이 바로 해결 글을 찾을 수 있도록, 작성자 본인이 수정으로 말머리를 바꿔 정리해 주세요.",
+  },
+];
+
+export const communitySupportTips = [
+  "버그 제보는 슬롯 번호, 화면 경로, 버전, 마지막 행동을 같이 남기면 재현 확인이 빨라집니다.",
+  "질문은 지금 보이는 상태와 기대한 동작을 함께 적으면 답변이 더 정확해집니다.",
+  "해결된 글은 말머리를 해결로 바꿔 두면 같은 문제를 찾는 사람이 빠르게 참고할 수 있습니다.",
+];
+
+export const supportGameVersionOptions = [
+  { id: "", label: "선택 안 함" },
+  { id: "Ver.1", label: "Ver.1" },
+  { id: "Ver.2", label: "Ver.2" },
 ];
 
 export const communityShowcaseSamples = [

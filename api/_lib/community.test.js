@@ -3,9 +3,11 @@ const assert = require("node:assert/strict");
 
 const {
   BOARD_ID_FREE,
+  BOARD_ID_SUPPORT,
   buildCommunitySnapshot,
   listCommunityPosts,
   resolveStageLabel,
+  SUPPORT_BOARD_CATEGORY_BUG,
   validateCommentPayload,
   validatePostPayload,
 } = require("./community");
@@ -326,6 +328,47 @@ test("validatePostPayload supports free board category validation", () => {
   assert.equal(validValidation.value.category, "question");
 });
 
+test("validatePostPayload supports support board category and supportContext validation", () => {
+  const invalidValidation = validatePostPayload(
+    {
+      category: "",
+      title: "버그 제보",
+      body: "",
+      supportContext: {
+        slotNumber: "1234567890123456789012345",
+      },
+    },
+    { boardId: BOARD_ID_SUPPORT }
+  );
+  const validValidation = validatePostPayload(
+    {
+      category: SUPPORT_BOARD_CATEGORY_BUG,
+      title: "버그 제보",
+      body: "재현 순서",
+      supportContext: {
+        slotNumber: "1",
+        screenPath: "/play/1",
+        gameVersion: "Ver.2",
+      },
+    },
+    { boardId: BOARD_ID_SUPPORT }
+  );
+
+  assert.equal(invalidValidation.isValid, false);
+  assert.deepEqual(invalidValidation.errors, [
+    "말머리를 선택해 주세요.",
+    "내용을 입력해 주세요.",
+    "슬롯 번호는 24자 이하로 입력해 주세요.",
+  ]);
+  assert.equal(validValidation.isValid, true);
+  assert.equal(validValidation.value.category, "bug");
+  assert.deepEqual(validValidation.value.supportContext, {
+    slotNumber: "1",
+    screenPath: "/play/1",
+    gameVersion: "Ver.2",
+  });
+});
+
 test("validateCommentPayload requires non-empty body", () => {
   const validation = validateCommentPayload({ body: " " });
 
@@ -409,4 +452,82 @@ test("listCommunityPosts filters by free board category when requested", async (
 
   assert.equal(state.boardId, "free");
   assert.equal(state.category, "category:question");
+});
+
+test("listCommunityPosts filters by support board category when requested", async () => {
+  const state = {
+    boardId: "",
+    category: "",
+  };
+
+  const supabase = {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq(column, value) {
+                if (column === "board_id") {
+                  state.boardId = value;
+                  return {
+                    eq(nextColumn, nextValue) {
+                      state.category = `${nextColumn}:${nextValue}`;
+                      return {
+                        order() {
+                          return {
+                            limit: async () => ({
+                              data: [],
+                              error: null,
+                            }),
+                          };
+                        },
+                      };
+                    },
+                    order() {
+                      return {
+                        limit: async () => ({
+                          data: [],
+                          error: null,
+                        }),
+                      };
+                    },
+                  };
+                }
+
+                throw new Error(`Unexpected column: ${column}`);
+              },
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          select() {
+            return {
+              in() {
+                return {
+                  order: async () => ({
+                    data: [],
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+
+  await listCommunityPosts({
+    supabase,
+    boardId: BOARD_ID_SUPPORT,
+    category: "solved",
+  });
+
+  assert.equal(state.boardId, "support");
+  assert.equal(state.category, "category:solved");
 });

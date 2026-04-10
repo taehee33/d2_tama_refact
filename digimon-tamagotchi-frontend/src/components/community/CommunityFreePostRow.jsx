@@ -6,11 +6,12 @@ function CommunityFreePostRow({
   post,
   isActive = false,
   canManage = false,
+  getCategoryLabel = getCommunityFreeBoardCategoryLabel,
   onOpen,
   onEdit,
   onDelete,
 }) {
-  const categoryLabel = getCommunityFreeBoardCategoryLabel(post.category);
+  const categoryLabel = getCategoryLabel(post.category);
   const commentCount = Number(post.commentCount || 0);
 
   return (

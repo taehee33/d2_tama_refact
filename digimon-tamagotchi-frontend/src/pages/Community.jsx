@@ -17,13 +17,17 @@ import {
   communityFreeBoardPinnedPosts,
   communityFreeBoardTips,
   communityFreeBoardTopics,
+  communitySupportCategories,
+  communitySupportPinnedPosts,
+  communitySupportTips,
   communityGuidelines,
   communityShowcaseSamples,
+  getCommunityFreeBoardCategoryLabel,
+  getCommunitySupportCategoryLabel,
   getCommunityBoardHref,
   resolveCommunityBoardId,
   supportChecklist,
   supportFaqs,
-  supportStatusCards,
 } from "../data/serviceContent";
 import useUserSlots from "../hooks/useUserSlots";
 import { useTamerProfile } from "../hooks/useTamerProfile";
@@ -41,8 +45,10 @@ import { buildCommunityPreviewFromSlot } from "../utils/communitySnapshotUtils";
 
 const FREE_BOARD_ALL_CATEGORY = "all";
 const FREE_BOARD_DEFAULT_CATEGORY = "general";
-const FREE_BOARD_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
-const FREE_BOARD_IMAGE_MIME_TYPES = new Set([
+const SUPPORT_BOARD_ALL_CATEGORY = "all";
+const SUPPORT_BOARD_DEFAULT_CATEGORY = "bug";
+const TEXT_BOARD_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const TEXT_BOARD_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -74,7 +80,11 @@ function readFileAsDataUrl(file) {
 }
 
 function isInteractiveBoard(boardId) {
-  return boardId === "showcase" || boardId === "free";
+  return boardId === "showcase" || boardId === "free" || boardId === "support";
+}
+
+function isTextBoard(boardId) {
+  return boardId === "free" || boardId === "support";
 }
 
 function Community() {
@@ -99,8 +109,13 @@ function Community() {
   const [category, setCategory] = useState(FREE_BOARD_DEFAULT_CATEGORY);
   const [freeBoardFilter, setFreeBoardFilter] = useState(FREE_BOARD_ALL_CATEGORY);
   const [isFreePinnedOpen, setIsFreePinnedOpen] = useState(false);
+  const [supportBoardFilter, setSupportBoardFilter] = useState(SUPPORT_BOARD_ALL_CATEGORY);
+  const [isSupportPinnedOpen, setIsSupportPinnedOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [supportSlotNumber, setSupportSlotNumber] = useState("");
+  const [supportScreenPath, setSupportScreenPath] = useState("");
+  const [supportGameVersion, setSupportGameVersion] = useState("");
   const [imageDraft, setImageDraft] = useState(null);
   const [existingImagePath, setExistingImagePath] = useState("");
   const [existingImageUrl, setExistingImageUrl] = useState("");
@@ -118,7 +133,8 @@ function Community() {
   const [commentActionId, setCommentActionId] = useState("");
 
   const isShowcaseBoard = activeBoardId === "showcase";
-  const isFreeBoard = activeBoardId === "free";
+  const isSupportBoard = activeBoardId === "support";
+  const isActiveTextBoard = isTextBoard(activeBoardId);
 
   const boardCards = useMemo(
     () =>
@@ -131,6 +147,13 @@ function Community() {
         }
 
         if (board.id === "free") {
+          return {
+            ...board,
+            status: currentUser ? "운영 중" : "로그인 전용",
+          };
+        }
+
+        if (board.id === "support") {
           return {
             ...board,
             status: currentUser ? "운영 중" : "로그인 전용",
@@ -183,7 +206,7 @@ function Community() {
         return {
           title: "버그제보 / QnA",
           description:
-            "버그 제보 체크리스트와 FAQ를 한 화면에 모아 빠르게 확인하는 지원 보드입니다.",
+            "버그 제보, 질문 답변, 해결 기록을 말머리와 함께 빠르게 정리하는 텍스트 지원 보드입니다.",
         };
       case "discord":
         return {
@@ -220,7 +243,10 @@ function Community() {
         boardId === "free"
           ? options.category ??
             (freeBoardFilter !== FREE_BOARD_ALL_CATEGORY ? freeBoardFilter : "")
-          : "";
+          : boardId === "support"
+            ? options.category ??
+              (supportBoardFilter !== SUPPORT_BOARD_ALL_CATEGORY ? supportBoardFilter : "")
+            : "";
 
       setPostsLoading(true);
       setPostsError("");
@@ -241,7 +267,7 @@ function Community() {
         setPostsLoading(false);
       }
     },
-    [activeBoardId, currentUser, freeBoardFilter]
+    [activeBoardId, currentUser, freeBoardFilter, supportBoardFilter]
   );
 
   const refreshPostDetail = useCallback(
@@ -285,25 +311,35 @@ function Community() {
   }, [selectedSlotId, slots]);
 
   const resolveDefaultComposerCategory = useCallback(
-    () =>
-      freeBoardFilter !== FREE_BOARD_ALL_CATEGORY
+    (boardId = activeBoardId) => {
+      if (boardId === "support") {
+        return supportBoardFilter !== SUPPORT_BOARD_ALL_CATEGORY
+          ? supportBoardFilter
+          : SUPPORT_BOARD_DEFAULT_CATEGORY;
+      }
+
+      return freeBoardFilter !== FREE_BOARD_ALL_CATEGORY
         ? freeBoardFilter
-        : FREE_BOARD_DEFAULT_CATEGORY,
-    [freeBoardFilter]
+        : FREE_BOARD_DEFAULT_CATEGORY;
+    },
+    [activeBoardId, freeBoardFilter, supportBoardFilter]
   );
 
   const resetComposer = useCallback(() => {
     setEditingPostId("");
     setTitle("");
     setBody("");
+    setSupportSlotNumber("");
+    setSupportScreenPath("");
+    setSupportGameVersion("");
     setImageDraft(null);
     setExistingImagePath("");
     setExistingImageUrl("");
     setShouldRemoveExistingImage(false);
     setImageErrorMessage("");
     setComposerError("");
-    setCategory(resolveDefaultComposerCategory());
-  }, [resolveDefaultComposerCategory]);
+    setCategory(resolveDefaultComposerCategory(activeBoardId));
+  }, [activeBoardId, resolveDefaultComposerCategory]);
 
   const handleCloseComposer = useCallback(() => {
     resetComposer();
@@ -315,7 +351,7 @@ function Community() {
     setIsComposerOpen(true);
   }, [resetComposer]);
 
-  const handleFreeBoardImageChange = useCallback(async (nextFile) => {
+  const handleTextBoardImageChange = useCallback(async (nextFile) => {
     setImageErrorMessage("");
 
     const isFileLike =
@@ -329,13 +365,13 @@ function Community() {
       return;
     }
 
-    if (!FREE_BOARD_IMAGE_MIME_TYPES.has(nextFile.type)) {
+    if (!TEXT_BOARD_IMAGE_MIME_TYPES.has(nextFile.type)) {
       setImageDraft(null);
       setImageErrorMessage("JPG, PNG, WEBP 이미지만 첨부할 수 있습니다.");
       return;
     }
 
-    if (nextFile.size > FREE_BOARD_IMAGE_MAX_BYTES) {
+    if (nextFile.size > TEXT_BOARD_IMAGE_MAX_BYTES) {
       setImageDraft(null);
       setImageErrorMessage("이미지는 2MB 이하로 첨부해 주세요.");
       return;
@@ -359,7 +395,7 @@ function Community() {
     }
   }, []);
 
-  const handleFreeBoardImageRemove = useCallback(() => {
+  const handleTextBoardImageRemove = useCallback(() => {
     setImageErrorMessage("");
 
     if (imageDraft) {
@@ -371,6 +407,15 @@ function Community() {
       setShouldRemoveExistingImage(true);
     }
   }, [existingImagePath, imageDraft]);
+
+  const buildSupportContextPayload = useCallback(
+    () => ({
+      slotNumber: supportSlotNumber,
+      screenPath: supportScreenPath,
+      gameVersion: supportGameVersion,
+    }),
+    [supportGameVersion, supportScreenPath, supportSlotNumber]
+  );
 
   const handleCloseDetail = useCallback(() => {
     setSelectedPostId("");
@@ -391,6 +436,7 @@ function Community() {
     setPostsError("");
     setPostsLoading(false);
     setIsFreePinnedOpen(false);
+    setIsSupportPinnedOpen(false);
   }, [activeBoardId, handleCloseComposer, handleCloseDetail]);
 
   useEffect(() => {
@@ -454,16 +500,20 @@ function Community() {
 
       try {
         let savedPost = null;
-        let nextCategoryFilter = freeBoardFilter;
+        let nextCategoryFilter = isSupportBoard ? supportBoardFilter : freeBoardFilter;
 
         if (editingPostId) {
           const nextPayload = {
-            ...(isFreeBoard ? { category } : {}),
+            ...(isActiveTextBoard ? { category } : {}),
             title,
             body,
           };
 
-          if (isFreeBoard) {
+          if (isSupportBoard) {
+            nextPayload.supportContext = buildSupportContextPayload();
+          }
+
+          if (isActiveTextBoard) {
             if (imageDraft) {
               nextPayload.image = {
                 dataUrl: imageDraft.dataUrl,
@@ -478,12 +528,16 @@ function Community() {
           savedPost = await updateCommunityPost(currentUser, activeBoardId, editingPostId, {
             ...nextPayload,
           });
-        } else if (isFreeBoard) {
+        } else if (isActiveTextBoard) {
           const nextPayload = {
             category,
             title,
             body,
           };
+
+          if (isSupportBoard) {
+            nextPayload.supportContext = buildSupportContextPayload();
+          }
 
           if (imageDraft) {
             nextPayload.image = {
@@ -493,7 +547,7 @@ function Community() {
             };
           }
 
-          savedPost = await createCommunityPost(currentUser, "free", nextPayload);
+          savedPost = await createCommunityPost(currentUser, activeBoardId, nextPayload);
         } else {
           savedPost = await createCommunityPost(currentUser, "showcase", {
             slotId: selectedSlot ? String(selectedSlot.id) : "",
@@ -504,13 +558,18 @@ function Community() {
         }
 
         if (
-          isFreeBoard &&
-          freeBoardFilter !== FREE_BOARD_ALL_CATEGORY &&
+          isActiveTextBoard &&
+          nextCategoryFilter !== (isSupportBoard ? SUPPORT_BOARD_ALL_CATEGORY : FREE_BOARD_ALL_CATEGORY) &&
           savedPost.category &&
-          freeBoardFilter !== savedPost.category
+          nextCategoryFilter !== savedPost.category
         ) {
           nextCategoryFilter = savedPost.category;
-          setFreeBoardFilter(savedPost.category);
+
+          if (isSupportBoard) {
+            setSupportBoardFilter(savedPost.category);
+          } else {
+            setFreeBoardFilter(savedPost.category);
+          }
         }
 
         resetComposer();
@@ -526,18 +585,21 @@ function Community() {
     [
       activeBoardId,
       body,
+      buildSupportContextPayload,
       category,
       currentUser,
       editingPostId,
       existingImagePath,
       freeBoardFilter,
       imageDraft,
-      isFreeBoard,
+      isActiveTextBoard,
+      isSupportBoard,
       preview,
       refreshPosts,
       resetComposer,
       selectedSlot,
       shouldRemoveExistingImage,
+      supportBoardFilter,
       title,
     ]
   );
@@ -553,11 +615,19 @@ function Community() {
       setExistingImageUrl(post.imageUrl || "");
       setShouldRemoveExistingImage(false);
       setComposerError("");
+      setSupportSlotNumber(post.supportContext?.slotNumber || "");
+      setSupportScreenPath(post.supportContext?.screenPath || "");
+      setSupportGameVersion(post.supportContext?.gameVersion || "");
 
       if (post.boardId === "showcase") {
         setSelectedSlotId(String(post.slotId));
       } else {
-        setCategory(post.category || FREE_BOARD_DEFAULT_CATEGORY);
+        setCategory(
+          post.category ||
+            (post.boardId === "support"
+              ? SUPPORT_BOARD_DEFAULT_CATEGORY
+              : FREE_BOARD_DEFAULT_CATEGORY)
+        );
       }
 
       setIsComposerOpen(true);
@@ -704,7 +774,7 @@ function Community() {
   );
 
   const renderBoardToolbarActions = (boardId) => {
-    if (boardId === "free") {
+    if (boardId === "free" || boardId === "support") {
       if (currentUser) {
         return (
           <button
@@ -721,27 +791,6 @@ function Community() {
         <Link to="/auth" className="service-button service-button--primary">
           로그인하고 글쓰기
         </Link>
-      );
-    }
-
-    if (boardId === "support") {
-      return (
-        <>
-          <button
-            type="button"
-            className="service-button service-button--primary"
-            onClick={() => handleSelectBoard("discord")}
-          >
-            디스코드/후원 보기
-          </button>
-          <button
-            type="button"
-            className="service-button service-button--ghost"
-            onClick={() => handleSelectBoard("showcase")}
-          >
-            자랑게시판 보기
-          </button>
-        </>
       );
     }
 
@@ -802,6 +851,186 @@ function Community() {
   const composerImageName = imageDraft?.fileName ||
     (!shouldRemoveExistingImage && existingImagePath ? "현재 첨부 이미지" : "");
   const composerHasExistingImage = Boolean(existingImagePath) && !shouldRemoveExistingImage;
+  const supportGuidelineCards = supportFaqs.map((faq) => ({
+    id: faq.id,
+    badge: "FAQ",
+    title: faq.question,
+    description: faq.answer,
+  }));
+
+  const getCategoryLabel = useCallback((boardId, value) => {
+    if (boardId === "support") {
+      return getCommunitySupportCategoryLabel(value);
+    }
+
+    return getCommunityFreeBoardCategoryLabel(value);
+  }, []);
+
+  const renderTextBoard = ({
+    boardId,
+    sectionLabel,
+    titleText,
+    descriptionText,
+    pinnedPosts,
+    isPinnedOpen,
+    onTogglePinned,
+    categories,
+    categoryFilter,
+    onCategoryFilterChange,
+    guidelineSummary,
+    guidelineItems,
+    guidelineCards,
+    emptyTitle,
+    emptyDescription,
+    loginTitle,
+    loginDescription,
+    guidelineTitle,
+  }) => (
+    <div className="community-panel-stack">
+      <div className="community-feed-shell">
+        <div className="community-feed-toolbar">
+          <div>
+            <p className="service-section-label">{sectionLabel}</p>
+            <h2>{titleText}</h2>
+            <p className="service-muted">{descriptionText}</p>
+          </div>
+
+          <div className="community-feed-toolbar__aside">
+            <div className="community-feed-toolbar__badges">
+              <span className="service-badge service-badge--accent">
+                안내 {pinnedPosts.length}개
+              </span>
+              <span className="service-badge service-badge--cool">
+                {currentUser ? `${posts.length}개 글` : "로그인 전용"}
+              </span>
+            </div>
+            <div className="community-feed-toolbar__actions">
+              {renderBoardToolbarActions(boardId)}
+            </div>
+          </div>
+        </div>
+
+        <div className="community-free-pinned-section">
+          <button
+            type="button"
+            className={`community-free-pinned-toggle${isPinnedOpen ? " community-free-pinned-toggle--open" : ""}`}
+            onClick={onTogglePinned}
+            aria-expanded={isPinnedOpen}
+            aria-controls={`community-${boardId}-pinned-posts`}
+          >
+            <span>{isPinnedOpen ? "안내 카드 접기" : "안내 카드 펼치기"}</span>
+            <span className="community-free-pinned-toggle__count">
+              {pinnedPosts.length}개
+            </span>
+            <span className="community-free-pinned-toggle__arrow" aria-hidden="true" />
+          </button>
+
+          {isPinnedOpen ? (
+            <div
+              id={`community-${boardId}-pinned-posts`}
+              className="service-action-grid community-free-pinned-grid"
+            >
+              {pinnedPosts.map((item) => (
+                <article
+                  key={item.id}
+                  className="service-inline-panel community-board-info-card"
+                >
+                  <p className="service-section-label">{item.badge}</p>
+                  <strong>{item.title}</strong>
+                  <span className="service-muted">{item.description}</span>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {!currentUser ? (
+          <div className="community-empty-box">
+            <strong>{loginTitle}</strong>
+            <span>{loginDescription}</span>
+          </div>
+        ) : (
+          <>
+            <div className="community-free-filter-row" aria-label={`${sectionLabel} 말머리 필터`}>
+              {categories.map((item) => {
+                const isActive = categoryFilter === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`community-free-filter-chip${isActive ? " community-free-filter-chip--active" : ""}`}
+                    onClick={() => onCategoryFilterChange(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {postsError ? <p className="community-error-text">{postsError}</p> : null}
+            {postsLoading ? (
+              <p className="service-muted">게시글을 불러오는 중입니다...</p>
+            ) : null}
+
+            {!postsLoading && posts.length === 0 ? (
+              <div className="community-empty-box">
+                <strong>{emptyTitle}</strong>
+                <span>{emptyDescription}</span>
+              </div>
+            ) : (
+              <div className="community-free-post-list">
+                <div className="community-free-post-list__header" aria-hidden="true">
+                  <span>말머리</span>
+                  <span>제목</span>
+                  <span>글쓴이</span>
+                  <span>작성일</span>
+                  <span>관리</span>
+                </div>
+
+                {posts.map((post) => (
+                  <CommunityFreePostRow
+                    key={post.id}
+                    post={post}
+                    getCategoryLabel={(value) => getCategoryLabel(boardId, value)}
+                    isActive={selectedPostId === post.id}
+                    canManage={post.authorUid === currentUser.uid}
+                    onOpen={() => setSelectedPostId(post.id)}
+                    onEdit={() => handleEditPost(post)}
+                    onDelete={() => handleDeletePost(post.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <details className="community-guideline-panel">
+        <summary>{guidelineTitle}</summary>
+        <div className="community-guideline-panel__body">
+          <p className="service-muted">{guidelineSummary}</p>
+          <ul className="community-guideline-list">
+            {guidelineItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <div className="service-action-grid">
+            {guidelineCards.map((item) => (
+              <article
+                key={item.id}
+                className="service-inline-panel community-board-info-card"
+              >
+                <p className="service-section-label">{item.badge}</p>
+                <strong>{item.title}</strong>
+                <span className="service-muted">{item.description}</span>
+              </article>
+            ))}
+          </div>
+        </div>
+      </details>
+    </div>
+  );
 
   const renderShowcaseBoard = () => (
     <div className="community-panel-stack">
@@ -904,245 +1133,56 @@ function Community() {
     </div>
   );
 
-  const renderFreeBoard = () => (
-    <div className="community-panel-stack">
-      <div className="community-feed-shell">
-        <div className="community-feed-toolbar">
-          <div>
-            <p className="service-section-label">자유게시판</p>
-            <h2>플레이 근황과 소소한 질문을 가볍게 나누는 공간</h2>
-            <p className="service-muted">
-              자유게시판은 카드보다 읽는 속도를 우선하는 텍스트 보드입니다. 말머리만 맞춰도
-              질문과 공략이 훨씬 빠르게 정리됩니다.
-            </p>
-          </div>
+  const renderFreeBoard = () =>
+    renderTextBoard({
+      boardId: "free",
+      sectionLabel: "자유게시판",
+      titleText: "플레이 근황과 소소한 질문을 가볍게 나누는 공간",
+      descriptionText:
+        "자유게시판은 카드보다 읽는 속도를 우선하는 텍스트 보드입니다. 말머리만 맞춰도 질문과 공략이 훨씬 빠르게 정리됩니다.",
+      pinnedPosts: communityFreeBoardPinnedPosts,
+      isPinnedOpen: isFreePinnedOpen,
+      onTogglePinned: () => setIsFreePinnedOpen((prev) => !prev),
+      categories: communityFreeBoardCategories,
+      categoryFilter: freeBoardFilter,
+      onCategoryFilterChange: setFreeBoardFilter,
+      guidelineSummary:
+        "자유게시판은 자주 쓰는 주제와 운영 팁만 접어 두고, 본문 목록 탐색을 먼저 볼 수 있게 정리합니다.",
+      guidelineItems: communityFreeBoardTips,
+      guidelineCards: communityFreeBoardTopics,
+      emptyTitle: "아직 등록된 자유게시판 글이 없습니다.",
+      emptyDescription: "첫 근황이나 질문을 남겨 대화를 시작해 보세요.",
+      loginTitle: "자유게시판 실제 글은 로그인 후 확인할 수 있습니다.",
+      loginDescription:
+        "지금은 운영 안내만 먼저 공개됩니다. 로그인하면 목록, 상세, 댓글, 글쓰기가 모두 열립니다.",
+      guidelineTitle: "자유게시판 운영 메모 보기",
+    });
 
-          <div className="community-feed-toolbar__aside">
-            <div className="community-feed-toolbar__badges">
-              <span className="service-badge service-badge--accent">
-                안내 {communityFreeBoardPinnedPosts.length}개
-              </span>
-              <span className="service-badge service-badge--cool">
-                {currentUser ? `${posts.length}개 글` : "로그인 전용"}
-              </span>
-            </div>
-            <div className="community-feed-toolbar__actions">
-              {renderBoardToolbarActions("free")}
-            </div>
-          </div>
-        </div>
-
-        <div className="community-free-pinned-section">
-          <button
-            type="button"
-            className={`community-free-pinned-toggle${isFreePinnedOpen ? " community-free-pinned-toggle--open" : ""}`}
-            onClick={() => setIsFreePinnedOpen((prev) => !prev)}
-            aria-expanded={isFreePinnedOpen}
-            aria-controls="community-free-pinned-posts"
-          >
-            <span>{isFreePinnedOpen ? "안내 카드 접기" : "안내 카드 펼치기"}</span>
-            <span className="community-free-pinned-toggle__count">
-              {communityFreeBoardPinnedPosts.length}개
-            </span>
-            <span className="community-free-pinned-toggle__arrow" aria-hidden="true" />
-          </button>
-
-          {isFreePinnedOpen ? (
-            <div
-              id="community-free-pinned-posts"
-              className="service-action-grid community-free-pinned-grid"
-            >
-              {communityFreeBoardPinnedPosts.map((item) => (
-                <article
-                  key={item.id}
-                  className="service-inline-panel community-board-info-card"
-                >
-                  <p className="service-section-label">{item.badge}</p>
-                  <strong>{item.title}</strong>
-                  <span className="service-muted">{item.description}</span>
-                </article>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {!currentUser ? (
-          <div className="community-empty-box">
-            <strong>자유게시판 실제 글은 로그인 후 확인할 수 있습니다.</strong>
-            <span>
-              지금은 운영 안내만 먼저 공개됩니다. 로그인하면 목록, 상세, 댓글, 글쓰기가 모두
-              열립니다.
-            </span>
-          </div>
-        ) : (
-          <>
-            <div className="community-free-filter-row" aria-label="자유게시판 말머리 필터">
-              {communityFreeBoardCategories.map((item) => {
-                const isActive = freeBoardFilter === item.id;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`community-free-filter-chip${isActive ? " community-free-filter-chip--active" : ""}`}
-                    onClick={() => setFreeBoardFilter(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {postsError ? <p className="community-error-text">{postsError}</p> : null}
-            {postsLoading ? (
-              <p className="service-muted">게시글을 불러오는 중입니다...</p>
-            ) : null}
-
-            {!postsLoading && posts.length === 0 ? (
-              <div className="community-empty-box">
-                <strong>아직 등록된 자유게시판 글이 없습니다.</strong>
-                <span>첫 근황이나 질문을 남겨 대화를 시작해 보세요.</span>
-              </div>
-            ) : (
-              <div className="community-free-post-list">
-                <div className="community-free-post-list__header" aria-hidden="true">
-                  <span>말머리</span>
-                  <span>제목</span>
-                  <span>글쓴이</span>
-                  <span>작성일</span>
-                  <span>관리</span>
-                </div>
-
-                {posts.map((post) => (
-                  <CommunityFreePostRow
-                    key={post.id}
-                    post={post}
-                    isActive={selectedPostId === post.id}
-                    canManage={post.authorUid === currentUser.uid}
-                    onOpen={() => setSelectedPostId(post.id)}
-                    onEdit={() => handleEditPost(post)}
-                    onDelete={() => handleDeletePost(post.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <details className="community-guideline-panel">
-        <summary>자유게시판 운영 메모 보기</summary>
-        <div className="community-guideline-panel__body">
-          <ul className="community-guideline-list">
-            {communityFreeBoardTips.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          <div className="service-action-grid">
-            {communityFreeBoardTopics.map((topic) => (
-              <article
-                key={topic.id}
-                className="service-inline-panel community-board-info-card"
-              >
-                <p className="service-section-label">{topic.badge}</p>
-                <strong>{topic.title}</strong>
-                <span className="service-muted">{topic.description}</span>
-              </article>
-            ))}
-          </div>
-        </div>
-      </details>
-    </div>
-  );
-
-  const renderSupportBoard = () => (
-    <div className="community-panel-stack">
-      <div className="community-feed-shell">
-        <div className="community-feed-toolbar">
-          <div>
-            <p className="service-section-label">버그제보 / QnA</p>
-            <h2>재현 정보와 자주 묻는 질문을 한 번에 보기</h2>
-            <p className="service-muted">
-              오류 제보에 필요한 핵심 정보와 운영 FAQ를 같은 보드에 모아 두면, 질문과
-              답변이 흩어지지 않고 다시 찾기 쉬워집니다.
-            </p>
-          </div>
-
-          <div className="community-feed-toolbar__aside">
-            <div className="community-feed-toolbar__badges">
-              <span className="service-badge service-badge--accent">
-                상태 카드 {supportStatusCards.length}개
-              </span>
-              <span className="service-badge service-badge--cool">
-                FAQ {supportFaqs.length}개
-              </span>
-            </div>
-            <div className="community-feed-toolbar__actions">
-              {renderBoardToolbarActions("support")}
-            </div>
-          </div>
-        </div>
-
-        <div className="service-action-grid">
-          {supportStatusCards.map((item) => (
-            <article
-              key={item.id}
-              className="service-action-card community-board-info-card"
-            >
-              <strong>{item.title}</strong>
-              <span className="service-muted">{item.description}</span>
-            </article>
-          ))}
-        </div>
-      </div>
-
-      <div className="service-two-column">
-        <div className="community-feed-shell">
-          <div className="community-feed-toolbar">
-            <div>
-              <p className="service-section-label">자주 묻는 질문</p>
-              <h2>FAQ</h2>
-            </div>
-          </div>
-
-          <div className="community-panel-stack">
-            {supportFaqs.map((faq) => (
-              <div
-                key={faq.id}
-                className="service-inline-panel community-board-info-card"
-              >
-                <strong>{faq.question}</strong>
-                <p className="service-muted">{faq.answer}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="community-feed-shell">
-          <div className="community-feed-toolbar">
-            <div>
-              <p className="service-section-label">버그 제보 체크리스트</p>
-              <h2>함께 남기면 좋은 정보</h2>
-            </div>
-          </div>
-
-          <ul className="service-list">
-            {supportChecklist.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-
-          <div className="community-public-note">
-            <strong>빠른 확인이 필요한 이슈는 디스코드/후원 보드와 함께 운영해도 좋습니다.</strong>
-            <span>
-              긴 설명이 필요한 질문은 이 보드 기준으로 정리하고, 실시간 확인이나 운영 응원
-              안내는 디스코드/후원 보드에서 이어서 연결할 수 있습니다.
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const renderSupportBoard = () =>
+    renderTextBoard({
+      boardId: "support",
+      sectionLabel: "버그제보 / QnA",
+      titleText: "버그 제보와 질문, 해결 기록을 같은 흐름으로 남기는 공간",
+      descriptionText:
+        "오류 제보와 질문 답변을 텍스트 보드로 모아 두면, 재현 정보와 해결 기록을 다시 찾기가 훨씬 쉬워집니다.",
+      pinnedPosts: communitySupportPinnedPosts,
+      isPinnedOpen: isSupportPinnedOpen,
+      onTogglePinned: () => setIsSupportPinnedOpen((prev) => !prev),
+      categories: communitySupportCategories,
+      categoryFilter: supportBoardFilter,
+      onCategoryFilterChange: setSupportBoardFilter,
+      guidelineSummary:
+        "FAQ와 제보 체크리스트는 별도 정적 페이지 대신 접기형 운영 메모로 유지합니다. 글을 쓰기 전 필요한 정보만 빠르게 확인해 주세요.",
+      guidelineItems: [...communitySupportTips, ...supportChecklist],
+      guidelineCards: supportGuidelineCards,
+      emptyTitle: "아직 등록된 버그제보 / QnA 글이 없습니다.",
+      emptyDescription:
+        "첫 제보나 질문을 남겨 문제 상황과 해결 기록을 함께 쌓아 보세요.",
+      loginTitle: "버그제보 / QnA 실제 글은 로그인 후 확인할 수 있습니다.",
+      loginDescription:
+        "지금은 운영 안내와 체크리스트만 먼저 공개됩니다. 로그인하면 목록, 상세, 댓글, 글쓰기가 모두 열립니다.",
+      guidelineTitle: "버그제보 / QnA 운영 메모 보기",
+    });
 
   const renderDiscordBoard = () => (
     <div className="community-panel-stack">
@@ -1324,13 +1364,17 @@ function Community() {
         />
       ) : null}
 
-      {currentUser && isFreeBoard ? (
+      {currentUser && isActiveTextBoard ? (
         <CommunityFreePostComposer
           open={isComposerOpen}
+          boardId={activeBoardId}
           displayTamerName={displayTamerName}
           category={category}
           title={title}
           body={body}
+          supportSlotNumber={supportSlotNumber}
+          supportScreenPath={supportScreenPath}
+          supportGameVersion={supportGameVersion}
           imagePreviewUrl={composerImagePreviewUrl}
           imageName={composerImageName}
           imageErrorMessage={imageErrorMessage}
@@ -1341,8 +1385,11 @@ function Community() {
           onCategoryChange={setCategory}
           onTitleChange={setTitle}
           onBodyChange={setBody}
-          onImageChange={handleFreeBoardImageChange}
-          onRemoveImage={handleFreeBoardImageRemove}
+          onSupportSlotNumberChange={setSupportSlotNumber}
+          onSupportScreenPathChange={setSupportScreenPath}
+          onSupportGameVersionChange={setSupportGameVersion}
+          onImageChange={handleTextBoardImageChange}
+          onRemoveImage={handleTextBoardImageRemove}
           onSubmit={handleSubmitPost}
           onClose={handleCloseComposer}
         />
