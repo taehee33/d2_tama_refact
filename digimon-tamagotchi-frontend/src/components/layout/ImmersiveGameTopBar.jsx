@@ -119,7 +119,15 @@ function ImmersiveGameTopBar({
         }`.trim()}
         aria-pressed={isLandscapeInfoOpen}
       >
-        {isLandscapeInfoOpen ? "정보/진화 닫기" : "정보/진화"}
+        <span
+          className="game-immersive-nav__floating-button-icon"
+          aria-hidden="true"
+        >
+          i
+        </span>
+        <span className="game-immersive-nav__floating-button-label">
+          {isLandscapeInfoOpen ? "정보/진화 닫기" : "정보/진화"}
+        </span>
       </button>
     ) : null;
   const chatButton = (
