@@ -292,6 +292,134 @@ export function buildLoadedSlotHydrationResult({
 }
 
 /**
+ * 로드한 activity/battle logs를 저장된 슬롯 스탯에 합칩니다.
+ * 이 단계에서는 로그 컬렉션 병합과 legacy proteinCount cleanup 힌트만 반환합니다.
+ *
+ * @param {Object} params
+ * @param {Object} [params.savedStats]
+ * @param {Array} [params.loadedActivityLogs]
+ * @param {Array} [params.loadedBattleLogs]
+ * @returns {{ savedStats: Object, needsProteinCountCleanup: boolean }}
+ */
+export function buildLoadedSlotCollectionsState({
+  savedStats = {},
+  loadedActivityLogs = [],
+  loadedBattleLogs = [],
+} = {}) {
+  const nextSavedStats = {
+    ...savedStats,
+    activityLogs: [...loadedActivityLogs].reverse(),
+    battleLogs: loadedBattleLogs.map(normalizeLogTimestamp),
+  };
+  const needsProteinCountCleanup = nextSavedStats.proteinCount !== undefined;
+
+  if (needsProteinCountCleanup) {
+    delete nextSavedStats.proteinCount;
+  }
+
+  return {
+    savedStats: nextSavedStats,
+    needsProteinCountCleanup,
+  };
+}
+
+/**
+ * 저장된 슬롯 스탯을 runtime 상태로 재구성합니다.
+ * Firestore read/write나 setter 호출 없이, 기존 저장본을 메모리 상태로 복원하는 계산만 담당합니다.
+ *
+ * @param {Object} params
+ * @param {Object} params.slotData
+ * @param {string} params.savedName
+ * @param {Object} params.savedStats
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null }} params.rootSlotFields
+ * @param {Object} [params.dataMap]
+ * @param {Object} [params.slotRuntimeDataMap]
+ * @param {Object} [params.runtimeAdaptedDataMaps]
+ * @param {Object|null} [params.evolutionDataForSlot]
+ * @returns {{ digimonStats: Object, reconstructedLogsToPersist: Array }}
+ */
+export function buildLoadedSlotRuntimeState({
+  slotData = {},
+  savedName,
+  savedStats = {},
+  rootSlotFields = { isLightsOn: true, wakeUntil: null },
+  dataMap = null,
+  slotRuntimeDataMap = null,
+  runtimeAdaptedDataMaps = {},
+  evolutionDataForSlot = null,
+} = {}) {
+  const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
+    savedStats,
+    {},
+    rootSlotFields
+  );
+  const lastSavedAt =
+    resolveLastSavedAtSource(slotData, lazyUpdateBaseStats) ?? Date.now();
+
+  let sleepSchedule = null;
+  let maxEnergy = null;
+
+  if (dataMap && savedName) {
+    sleepSchedule = getSleepSchedule(savedName, dataMap, lazyUpdateBaseStats);
+    const digimonData = dataMap[savedName];
+
+    if (digimonData) {
+      maxEnergy =
+        digimonData.stats?.maxEnergy ??
+        lazyUpdateBaseStats.maxEnergy ??
+        lazyUpdateBaseStats.maxStamina ??
+        0;
+    }
+
+    if (isStarterDigimonId(savedName) && digimonData?.timeToEvolveSeconds != null) {
+      const tte = lazyUpdateBaseStats.timeToEvolveSeconds;
+      if (tte === undefined || tte === null || tte === 0 || Number.isNaN(tte)) {
+        lazyUpdateBaseStats.timeToEvolveSeconds =
+          digimonData.timeToEvolveSeconds;
+      }
+    }
+  }
+
+  const prevLogCount = (lazyUpdateBaseStats.activityLogs || []).length;
+  const digimonSnapshot = buildDigimonLogSnapshot(
+    savedName,
+    evolutionDataForSlot,
+    dataMap,
+    slotRuntimeDataMap,
+    ...Object.values(runtimeAdaptedDataMaps)
+  );
+
+  const digimonStats = normalizeGameTimingFields(
+    repairCareMistakeLedger(
+      applyLazyUpdate(lazyUpdateBaseStats, lastSavedAt, sleepSchedule, maxEnergy, {
+        digimonSnapshot,
+      }),
+      lazyUpdateBaseStats.activityLogs || []
+    ).nextStats
+  );
+  const reconstructedLogsToPersist = (digimonStats.activityLogs || []).slice(
+    prevLogCount
+  );
+
+  if (dataMap && savedName && dataMap[savedName]) {
+    const expectedSprite = dataMap[savedName].sprite;
+    if (expectedSprite !== undefined && digimonStats.sprite !== expectedSprite) {
+      console.warn("[buildLoadedSlotRuntimeState] 스프라이트 불일치 감지 및 수정:", {
+        selectedDigimon: savedName,
+        savedSprite: digimonStats.sprite,
+        expectedSprite,
+      });
+      digimonStats.sprite = expectedSprite;
+    }
+  }
+
+  return {
+    digimonStats,
+    reconstructedLogsToPersist,
+  };
+}
+
+/**
  * 액션 직전 lazy update 계산용 기준 스탯을 조합합니다.
  * 저장 시각은 Firestore 문서를 기준으로 삼고, 최신 로그/루트 상태는 메모리 값을 우선합니다.
  *
@@ -760,8 +888,6 @@ export function useGameData({
               (savedStats.activityLogs || slotData.activityLogs || []).map(normalizeLogTimestamp)
             );
           }
-          // 서브컬렉션은 timestamp desc이므로 오래된 순(이력 표시용)으로 뒤집어 digimonStats에 넣음
-          savedStats.activityLogs = [...loadedActivityLogs].reverse();
 
           // Battle Logs 로드: 서브컬렉션 battleLogs 우선, 없으면 구 문서 digimonStats.battleLogs 사용 (마이그레이션 호환)
           let loadedBattleLogs = savedStats.battleLogs || [];
@@ -778,11 +904,16 @@ export function useGameData({
           } catch (_e) {
             // fallback: 문서 내 battleLogs 유지
           }
-          savedStats.battleLogs = loadedBattleLogs.map(normalizeLogTimestamp);
+
+          const loadedCollectionsState = buildLoadedSlotCollectionsState({
+            savedStats,
+            loadedActivityLogs,
+            loadedBattleLogs,
+          });
+          savedStats = loadedCollectionsState.savedStats;
 
           // proteinCount 필드 제거 (마이그레이션)
-          if (savedStats.proteinCount !== undefined) {
-            delete savedStats.proteinCount;
+          if (loadedCollectionsState.needsProteinCountCleanup) {
             // Firestore에서도 제거
             const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
             await updateDoc(slotRef, {
@@ -805,83 +936,19 @@ export function useGameData({
               digimonStats: ns,
             });
           } else {
-            const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
-              savedStats,
-              {},
-              rootSlotFields
-            );
-            // 루트 lastSavedAt 우선, 없으면 구 문서 호환으로 digimonStats.lastSavedAt 사용
-            const lastSavedAt =
-              resolveLastSavedAtSource(slotData, lazyUpdateBaseStats) ??
-              Date.now();
-            
-            // sleepSchedule과 maxEnergy 계산 (버전별 데이터 맵 사용)
-            let sleepSchedule = null;
-            let maxEnergy = null;
-            if (dataMap && savedName) {
-              sleepSchedule = getSleepSchedule(
-                savedName,
-                dataMap,
-                lazyUpdateBaseStats
-              );
-              const digimonData = dataMap[savedName];
-              if (digimonData) {
-                maxEnergy =
-                  digimonData.stats?.maxEnergy ??
-                  lazyUpdateBaseStats.maxEnergy ??
-                  lazyUpdateBaseStats.maxStamina ??
-                  0;
-              }
-              // 스타터 단계인데 timeToEvolveSeconds 없음·0·NaN이면 데이터맵 값으로 보정
-              if (isStarterDigimonId(savedName) && digimonData?.timeToEvolveSeconds != null) {
-                const tte = lazyUpdateBaseStats.timeToEvolveSeconds;
-                if (tte === undefined || tte === null || tte === 0 || Number.isNaN(tte)) {
-                  lazyUpdateBaseStats.timeToEvolveSeconds =
-                    digimonData.timeToEvolveSeconds;
-                }
-              }
-            }
-            
-            const prevLogCount = (lazyUpdateBaseStats.activityLogs || []).length;
-            const digimonSnapshot = buildDigimonLogSnapshot(
+            const runtimeState = buildLoadedSlotRuntimeState({
+              slotData,
               savedName,
-              evolutionDataForSlot,
+              savedStats,
+              rootSlotFields,
               dataMap,
               slotRuntimeDataMap,
-              ...Object.values(runtimeAdaptedDataMaps)
-            );
-            savedStats = normalizeGameTimingFields(
-              repairCareMistakeLedger(
-              applyLazyUpdate(lazyUpdateBaseStats, lastSavedAt, sleepSchedule, maxEnergy, {
-                digimonSnapshot,
-              }),
-              lazyUpdateBaseStats.activityLogs || []
-            ).nextStats
-            );
-            // 과거 재구성 시 추가된 로그를 서브컬렉션에 반영
-            const newLogs = (savedStats.activityLogs || []).slice(prevLogCount);
-            newLogs.forEach((log) => {
+              runtimeAdaptedDataMaps,
+              evolutionDataForSlot,
+            });
+            runtimeState.reconstructedLogsToPersist.forEach((log) => {
               if (log?.type) appendLogToSubcollection(log).catch(() => {});
             });
-
-            // proteinCount 필드 제거 (마이그레이션)
-            if (savedStats.proteinCount !== undefined) {
-              delete savedStats.proteinCount;
-            }
-            
-            // 스프라이트 값 동기화 확인 (데이터 일관성 보장, 버전별 데이터 맵 사용)
-            if (dataMap && savedName && dataMap[savedName]) {
-              const expectedSprite = dataMap[savedName].sprite;
-              if (expectedSprite !== undefined && savedStats.sprite !== expectedSprite) {
-                console.warn("[loadSlot] 스프라이트 불일치 감지 및 수정:", {
-                  selectedDigimon: savedName,
-                  savedSprite: savedStats.sprite,
-                  expectedSprite: expectedSprite,
-                });
-                savedStats.sprite = expectedSprite;
-              }
-            }
-
             hydrationResult = buildLoadedSlotHydrationResult({
               slotData,
               slotId,
@@ -889,7 +956,7 @@ export function useGameData({
               rootSlotFields,
               activityLogs: loadedActivityLogs,
               selectedDigimon: savedName,
-              digimonStats: savedStats,
+              digimonStats: runtimeState.digimonStats,
             });
             
             // 로드 직후에는 Firestore 쓰기 하지 않음 (Lazy Update는 메모리만 반영, 다음 액션 시 saveStats에서 저장)

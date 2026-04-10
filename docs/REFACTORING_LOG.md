@@ -4,6 +4,60 @@
 
 ---
 
+## [2026-04-11] `useGameData` 4차 분리: loaded collections 병합 helper 추출
+
+### 작업 유형
+- 🧩 `activityLogs`/`battleLogs` 병합과 proteinCount cleanup 힌트 helper 추출
+- 🧪 collections 병합 helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot` effect에서 로그 컬렉션 read 결과를 `savedStats`에 합치는 단계와 runtime 재구성 단계를 분리해, effect의 책임을 더 작게 나눈다.
+- **범위:** Firestore read 자체와 proteinCount 삭제용 `updateDoc`, reconstructed log 저장, setter 호출은 그대로 두고, `loadedActivityLogs`/`loadedBattleLogs`를 stats로 편입하는 계산만 `buildLoadedSlotCollectionsState`로 이동한다.
+- **내용:**
+  - `buildLoadedSlotCollectionsState`를 추가해 UI용 로그 순서와 runtime용 stats 내부 로그 순서 차이를 한 곳에서 처리했다.
+  - battle log timestamp normalize와 `proteinCount` 제거 여부를 helper가 같이 반환하도록 바꿔, effect 본문은 `needsProteinCountCleanup`만 보고 Firestore cleanup write를 수행하게 정리했다.
+  - `buildLoadedSlotRuntimeState`는 이제 이미 병합된 `savedStats`만 받아 lazy update 이후 runtime 상태를 계산하도록 입력이 더 단순해졌다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `loadSlot`은 `컬렉션 병합 -> runtime 재구성 -> hydration 결과 조립 -> setter 반영` 네 단계로 읽을 수 있게 됐다. 다음 단계에서는 Firestore `logs`/`battleLogs` read fallback 자체를 작은 loader helper로 옮기면 effect 본문이 더 명확해질 수 있다.
+
+## [2026-04-11] `useGameData` 3차 분리: 로드된 로그 기반 runtime 재구성 helper 추출
+
+### 작업 유형
+- 🧩 `loadSlot`의 non-empty stats 경로에서 runtime 재구성 helper 추출
+- 🧪 로그 병합 / starter TTE 보정 / sprite sync 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot` 안에 남아 있던 `activityLogs`/`battleLogs` 결합, lazy update 입력 조합, reconstructed log 계산을 순수 helper로 분리해 effect 본문을 더 작게 만든다.
+- **범위:** Firestore read, proteinCount 마이그레이션 write, reconstructed log의 서브컬렉션 저장, setter 호출은 그대로 유지하고, 기존 저장본을 메모리 runtime 상태로 복원하는 계산만 `buildLoadedSlotRuntimeState`로 이동한다.
+- **내용:**
+  - `buildLoadedSlotRuntimeState`를 추가해 loaded logs를 `digimonStats`에 반영하고, `resolveLazyUpdateBaseStats` + `applyLazyUpdate` + `repairCareMistakeLedger` + reconstructed log 계산을 한 곳으로 모았다.
+  - 스타터 디지몬의 `timeToEvolveSeconds` 보정과 sprite sync도 helper 경계 안으로 옮겨, `loadSlot`이 직접 계산하던 조건 분기를 줄였다.
+  - effect 본문에서는 helper 결과의 `reconstructedLogsToPersist`만 순회해 `appendLogToSubcollection`을 호출하고, 나머지는 기존 hydration helper에 넘기도록 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameData`의 `loadSlot` effect에는 `runtime 재구성`과 `setter 반영` 사이에 명시적인 helper 경계가 생겼다. 다음 단계에서는 `logs/battleLogs` read fallback 자체를 별도 helper로 정리하거나, `proteinCount` cleanup 같은 write 힌트를 helper 반환값으로 끌어올리는 방향이 자연스럽다.
+
 ## [2026-04-11] `useGameData` 2차 분리: 로드 hydration 결과 object helper 추출
 
 ### 작업 유형
