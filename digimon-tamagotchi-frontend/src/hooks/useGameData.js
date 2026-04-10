@@ -248,6 +248,50 @@ export function buildSlotDocumentUpdatePayload({
 }
 
 /**
+ * 슬롯 로드 결과를 setter 입력용 hydration object로 조립합니다.
+ * 이 단계에서는 setState를 하지 않고, 로드된 문서/로그를 어떤 상태로 반영할지만 계산합니다.
+ *
+ * @param {Object} params
+ * @param {Object} params.slotData
+ * @param {string|number} params.slotId
+ * @param {string} params.slotVersionLabel
+ * @param {{ isLightsOn: boolean, wakeUntil: number|null }} params.rootSlotFields
+ * @param {Array} [params.activityLogs]
+ * @param {string|null} [params.selectedDigimon]
+ * @param {Object} [params.digimonStats]
+ * @returns {Object}
+ */
+export function buildLoadedSlotHydrationResult({
+  slotData = {},
+  slotId,
+  slotVersionLabel = "Ver.1",
+  rootSlotFields = { isLightsOn: true, wakeUntil: null },
+  activityLogs = [],
+  selectedDigimon = null,
+  digimonStats = {},
+} = {}) {
+  const resolvedSelectedDigimon =
+    selectedDigimon || digimonStats?.selectedDigimon || null;
+
+  return {
+    slotName: slotData.slotName || `슬롯${slotId}`,
+    slotCreatedAt: slotData.createdAt || "",
+    slotDevice: slotData.device || "",
+    slotVersion: slotVersionLabel,
+    digimonNickname: slotData.digimonNickname || null,
+    rootSlotFields: { ...rootSlotFields },
+    backgroundSettings: slotData.backgroundSettings || { ...DEFAULT_BACKGROUND_SETTINGS },
+    immersiveSettings: normalizeImmersiveSettings(slotData.immersiveSettings),
+    activityLogs,
+    selectedDigimon: resolvedSelectedDigimon,
+    digimonStats: resolvedSelectedDigimon
+      ? { ...digimonStats, selectedDigimon: resolvedSelectedDigimon }
+      : digimonStats,
+    deathReason: digimonStats?.deathReason || null,
+  };
+}
+
+/**
  * 액션 직전 lazy update 계산용 기준 스탯을 조합합니다.
  * 저장 시각은 Firestore 문서를 기준으로 삼고, 최신 로그/루트 상태는 메모리 값을 우선합니다.
  *
@@ -684,31 +728,8 @@ export function useGameData({
             isLightsOn: true,
             wakeUntil: null,
           });
-          
-          setSlotName(slotData.slotName || `슬롯${slotId}`);
-          setSlotCreatedAt(slotData.createdAt || "");
-          setSlotDevice(slotData.device || "");
           const slotVersionLabel = normalizeDigimonVersionLabel(slotData.version || "Ver.1");
-          setSlotVersion(slotVersionLabel);
-          setDigimonNickname(slotData.digimonNickname || null);
-          setIsLightsOn(rootSlotFields.isLightsOn);
-          setWakeUntil(rootSlotFields.wakeUntil);
-          
-          // 배경화면 설정 로드
-          if (setBackgroundSettings) {
-            if (slotData.backgroundSettings) {
-              setBackgroundSettings(slotData.backgroundSettings);
-            } else {
-              // Firebase에 저장된 값이 없으면 기본값 사용
-              setBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
-            }
-          }
-
-          if (setImmersiveSettings) {
-            setImmersiveSettings(
-              normalizeImmersiveSettings(slotData.immersiveSettings)
-            );
-          }
+          let hydrationResult = null;
           
           // 버전별 데이터 맵 (로드 시점에 slotData.version 기준으로 선택 — slotVersion 상태는 아직 반영 전)
           const dataMap = getAdaptedDataMap(slotVersionLabel);
@@ -729,18 +750,15 @@ export function useGameData({
                 logsSnap.docs.map((d) => normalizeLogTimestamp({ id: d.id, ...d.data() })),
                 slotData.createdAt
               );
-              setActivityLogs(loadedActivityLogs);
             } else {
               loadedActivityLogs = initializeActivityLogs(
                 (savedStats.activityLogs || slotData.activityLogs || []).map(normalizeLogTimestamp)
               );
-              setActivityLogs(loadedActivityLogs);
             }
           } catch (_e) {
             loadedActivityLogs = initializeActivityLogs(
               (savedStats.activityLogs || slotData.activityLogs || []).map(normalizeLogTimestamp)
             );
-            setActivityLogs(loadedActivityLogs);
           }
           // 서브컬렉션은 timestamp desc이므로 오래된 순(이력 표시용)으로 뒤집어 digimonStats에 넣음
           savedStats.activityLogs = [...loadedActivityLogs].reverse();
@@ -777,8 +795,15 @@ export function useGameData({
             const ns = initializeStats(savedName, {}, dataMap);
             ns.birthTime = Date.now();
             ns.lastSavedAt = Date.now();
-            setSelectedDigimon(savedName);
-            setDigimonStats({ ...ns, selectedDigimon: savedName });
+            hydrationResult = buildLoadedSlotHydrationResult({
+              slotData,
+              slotId,
+              slotVersionLabel,
+              rootSlotFields,
+              activityLogs: loadedActivityLogs,
+              selectedDigimon: savedName,
+              digimonStats: ns,
+            });
           } else {
             const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
               savedStats,
@@ -856,17 +881,44 @@ export function useGameData({
                 savedStats.sprite = expectedSprite;
               }
             }
-            
-            setSelectedDigimon(savedName);
-            setDigimonStats({ ...savedStats, selectedDigimon: savedName });
-            
-            // deathReason 복원
-            if (savedStats.deathReason) {
-              setDeathReason(savedStats.deathReason);
-            }
+
+            hydrationResult = buildLoadedSlotHydrationResult({
+              slotData,
+              slotId,
+              slotVersionLabel,
+              rootSlotFields,
+              activityLogs: loadedActivityLogs,
+              selectedDigimon: savedName,
+              digimonStats: savedStats,
+            });
             
             // 로드 직후에는 Firestore 쓰기 하지 않음 (Lazy Update는 메모리만 반영, 다음 액션 시 saveStats에서 저장)
             // updatedAt이 불필요하게 자주 바뀌는 것과 비용 절감을 위해 제거
+          }
+
+          if (hydrationResult) {
+            setSlotName(hydrationResult.slotName);
+            setSlotCreatedAt(hydrationResult.slotCreatedAt);
+            setSlotDevice(hydrationResult.slotDevice);
+            setSlotVersion(hydrationResult.slotVersion);
+            setDigimonNickname(hydrationResult.digimonNickname);
+            setIsLightsOn(hydrationResult.rootSlotFields.isLightsOn);
+            setWakeUntil(hydrationResult.rootSlotFields.wakeUntil);
+            setActivityLogs(hydrationResult.activityLogs);
+            setSelectedDigimon(hydrationResult.selectedDigimon);
+            setDigimonStats(hydrationResult.digimonStats);
+
+            if (setBackgroundSettings) {
+              setBackgroundSettings(hydrationResult.backgroundSettings);
+            }
+
+            if (setImmersiveSettings) {
+              setImmersiveSettings(hydrationResult.immersiveSettings);
+            }
+
+            if (hydrationResult.deathReason) {
+              setDeathReason(hydrationResult.deathReason);
+            }
           }
         } else {
           // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값

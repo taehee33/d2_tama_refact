@@ -1,4 +1,5 @@
 import {
+  buildLoadedSlotHydrationResult,
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   resolveLastSavedAtSource,
@@ -6,6 +7,8 @@ import {
   resolveRootSlotFields,
   sanitizeDigimonStatsForSlotDocument,
 } from "./useGameData";
+import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
+import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 
 describe("resolveRootSlotFields", () => {
   test("newStats에 최신 조명/기상 값이 있으면 그 값을 우선 사용한다", () => {
@@ -194,6 +197,105 @@ describe("buildSlotDocumentUpdatePayload", () => {
       sceneId: "forest",
       parallaxEnabled: true,
     });
+  });
+});
+
+describe("buildLoadedSlotHydrationResult", () => {
+  test("로드된 슬롯 문서를 setter 입력용 hydration 결과로 조립한다", () => {
+    const result = buildLoadedSlotHydrationResult({
+      slotData: {
+        slotName: "내 슬롯",
+        createdAt: "2026-04-11",
+        device: "COLOR",
+        digimonNickname: "태희",
+        backgroundSettings: {
+          selectedId: "forest",
+          mode: "2",
+        },
+        immersiveSettings: {
+          layoutMode: "landscape",
+          skinId: "brick-ver1",
+          landscapeSide: "left",
+        },
+      },
+      slotId: 2,
+      slotVersionLabel: "Ver.2",
+      rootSlotFields: {
+        isLightsOn: false,
+        wakeUntil: 123456,
+      },
+      activityLogs: [{ type: "CARE", timestamp: 10 }],
+      selectedDigimon: "Agumon",
+      digimonStats: {
+        fullness: 4,
+      },
+    });
+
+    expect(result).toMatchObject({
+      slotName: "내 슬롯",
+      slotCreatedAt: "2026-04-11",
+      slotDevice: "COLOR",
+      slotVersion: "Ver.2",
+      digimonNickname: "태희",
+      rootSlotFields: {
+        isLightsOn: false,
+        wakeUntil: 123456,
+      },
+      backgroundSettings: {
+        selectedId: "forest",
+        mode: "2",
+      },
+      immersiveSettings: {
+        layoutMode: "landscape",
+        skinId: "brick-ver1",
+        landscapeSide: "left",
+      },
+      activityLogs: [{ type: "CARE", timestamp: 10 }],
+      selectedDigimon: "Agumon",
+      digimonStats: {
+        fullness: 4,
+        selectedDigimon: "Agumon",
+      },
+    });
+  });
+
+  test("배경화면과 몰입형 설정이 없으면 기본값으로 hydration 한다", () => {
+    const result = buildLoadedSlotHydrationResult({
+      slotData: {},
+      slotId: 3,
+      slotVersionLabel: "Ver.1",
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
+      digimonStats: {
+        fullness: 2,
+      },
+    });
+
+    expect(result.slotName).toBe("슬롯3");
+    expect(result.backgroundSettings).toEqual(DEFAULT_BACKGROUND_SETTINGS);
+    expect(result.immersiveSettings).toEqual(DEFAULT_IMMERSIVE_SETTINGS);
+  });
+
+  test("선택된 디지몬과 deathReason을 hydration 결과에 함께 복원한다", () => {
+    const result = buildLoadedSlotHydrationResult({
+      slotData: {},
+      slotId: 1,
+      rootSlotFields: {
+        isLightsOn: false,
+        wakeUntil: 999,
+      },
+      digimonStats: {
+        fullness: 0,
+        selectedDigimon: "Greymon",
+        deathReason: "굶주림",
+      },
+    });
+
+    expect(result.selectedDigimon).toBe("Greymon");
+    expect(result.digimonStats.selectedDigimon).toBe("Greymon");
+    expect(result.deathReason).toBe("굶주림");
   });
 });
 

@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-04-11] `useGameData` 2차 분리: 로드 hydration 결과 object helper 추출
+
+### 작업 유형
+- 🧩 `loadSlot` effect의 setter 입력용 hydration 결과 object helper 추출
+- 🧪 hydration 결과 기본값/복원 규칙 테스트 추가
+
+### 목적 및 영향
+- **목적:** `useGameData`의 `loadSlot` effect에서 “읽은 문서/로그를 어떤 React 상태로 반영할지” 계산과 실제 setter 호출을 분리한다.
+- **범위:** Firestore read, lazy update, 로그 재구성, 마이그레이션 write 타이밍은 그대로 유지하고, 최종 상태 조립만 `buildLoadedSlotHydrationResult`로 이동한다.
+- **내용:**
+  - `buildLoadedSlotHydrationResult`를 추가해 슬롯 메타, 루트 필드, 배경/몰입형 설정, activityLogs, `selectedDigimon`, `digimonStats`, `deathReason`을 setter 입력용 object로 조립하도록 했다.
+  - `loadSlot`에서는 로그를 읽고 lazy update를 적용한 뒤 helper 결과를 받아 `setSlotName`, `setSelectedDigimon`, `setDigimonStats`, `setBackgroundSettings`, `setImmersiveSettings`만 적용하도록 정리했다.
+  - 로드 경로에서 `backgroundSettings`와 `immersiveSettings` 기본값 fallback, deathReason 복원, `selectedDigimon` 포함 상태 조립 규칙을 테스트로 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `loadSlot`은 “데이터 읽기/재구성”과 “setter 반영” 사이에 명시적인 hydration 결과 경계가 생겼다. 다음 단계에서는 `logs` / `battleLogs` 로드와 lazy update 입력 조합을 별도 순수 helper로 좁혀 나가면, effect 본문을 더 안전하게 줄일 수 있다.
+
 ## [2026-04-10] `useGameData` 1차 분리: 슬롯 문서 update payload helper 추출
 
 ### 작업 유형
