@@ -23,6 +23,20 @@
 - 이번 작업은 저장 데이터나 lazy update 계산을 바꾸는 것이 아니라, 디지타마 단계의 센티널 값을 사람이 읽는 진단 문구로 바꾸는 표시 계층 문제이므로 공용 helper와 렌더링 레이어만 좁게 수정하는 편이 가장 안전합니다.
 - `999`를 모든 상황에서 숨기면 이후 실제 긴 주기 데이터까지 가릴 수 있으므로, 현재 단계가 `Digitama`인 경우에만 특수 처리하고 일반 단계 카운터 형식은 그대로 유지하는 쪽이 회귀 위험이 낮습니다.
 
+### StatsPopup 개발자 모드 NEW 탭 실시간 갱신 복구
+- `src/components/StatsPopup.jsx`는 그동안 개발자 모드가 켜져 있으면 NEW 탭도 `editableStats` 스냅샷을 계속 바라봐서, 실제 게임 루프가 `lifespanSeconds`, `timeToEvolveSeconds`를 갱신해도 팝업 안에서는 시간이 멈춘 것처럼 보일 수 있었습니다.
+- 이제 편집용 로컬 상태는 `OLD` 탭에서만 사용하고, NEW 탭은 항상 최신 `stats` props를 직접 렌더링하도록 바꿨습니다. 동시에 OLD 탭 밖에 있을 때는 `editableStats`를 최신 props로 다시 동기화해, 다시 OLD 탭으로 돌아가도 오래된 스냅샷을 붙잡지 않도록 정리했습니다.
+- `src/components/StatsPopup.test.jsx`에는 개발자 모드 NEW 탭에서 props rerender 시 `Lifespan`, `Time to Evolve`가 실제로 갱신되는 회귀 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `src/components/StatsPopup.jsx`
+- `src/components/StatsPopup.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이 버그는 게임 시간 계산이나 저장 로직이 아니라, 팝업이 어떤 state source를 기준으로 렌더링하느냐의 문제였으므로 `useGameRealtimeLoop`나 lazy update를 건드리지 않고 `StatsPopup` 내부 상태 선택 규칙만 국소적으로 수정하는 편이 가장 안전합니다.
+- 개발자 모드 편집 기능은 OLD 탭에서만 필요하므로, NEW 탭까지 편집 스냅샷을 공유하지 않게 분리하면 실시간 표시 정확성과 수동 편집 UX를 동시에 유지할 수 있습니다.
+
 ### 홈과 플레이 허브 이어하기 카드에 슬롯 메타/스프라이트 요약 추가
 - `src/pages/Home.jsx`의 `오늘 할 일` 카드는 이제 최근 슬롯 스프라이트를 함께 보여 주고, `슬롯 번호`, `성장 단계·기종·버전`, `슬롯 이름·생성일`을 카드 안에서 바로 확인할 수 있도록 확장했습니다.
 - 홈 하단 `최근 디지몬` 목록도 최신 활동 기준 슬롯을 우선 사용하고, 각 카드에 스프라이트와 슬롯 메타를 함께 노출해 이어하기 전 현재 슬롯 상태를 더 빨리 파악할 수 있게 정리했습니다.

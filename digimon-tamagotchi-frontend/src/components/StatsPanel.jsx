@@ -1,6 +1,7 @@
 // src/components/StatsPanel.jsx
 import React, { useState, useEffect } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
+import { getInternalCounterTimerDisplay } from "../utils/internalCounterTimerDisplay";
 import StatusHearts from "./StatusHearts";
 
 
@@ -34,17 +35,29 @@ function formatTimeToEvolve(sec=0){
   return `${d} day ${h} hour ${m} min ${s} sec`;
 }
 
-// 카운트다운 포맷 (초를 분:초로)
-function formatCountdown(sec=0){
-  const mm = Math.floor(sec / 60);
-  const ss = Math.floor(sec % 60);
-  return `${mm}:${ss.toString().padStart(2, '0')}`;
-}
-
 // timestamp 포맷팅은 utils/dateUtils에서 import
 const formatTimestamp = formatTimestampUtil;
 
 const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
+  const hungerTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage: stats.evolutionStage,
+    timerKind: "hunger",
+    timerMinutes: stats.hungerTimer,
+    countdownSeconds: stats.hungerCountdown,
+  });
+  const strengthTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage: stats.evolutionStage,
+    timerKind: "strength",
+    timerMinutes: stats.strengthTimer,
+    countdownSeconds: stats.strengthCountdown,
+  });
+  const poopTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage: stats.evolutionStage,
+    timerKind: "poop",
+    timerMinutes: stats.poopTimer,
+    countdownSeconds: stats.poopCountdown,
+  });
+
   // localStorage에서 접기/펼치기 상태 로드
   const loadAccordionState = (key, defaultValue) => {
     try {
@@ -201,9 +214,24 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
         />
         {showAdvanced && (
           <div className="text-xs space-y-0.5">
-            <p>HungerTimer: {stats.hungerTimer || 0} min (남은 시간: {formatCountdown(stats.hungerCountdown || 0)})</p>
-            <p>StrengthTimer: {stats.strengthTimer || 0} min (남은 시간: {formatCountdown(stats.strengthCountdown || 0)})</p>
-            <p>PoopTimer: {stats.poopTimer || 0} min (남은 시간: {formatCountdown(stats.poopCountdown || 0)})</p>
+            <p>
+              HungerTimer: {hungerTimerDisplay.label}
+              {hungerTimerDisplay.showCountdown
+                ? ` (남은 시간: ${hungerTimerDisplay.countdownLabel})`
+                : ""}
+            </p>
+            <p>
+              StrengthTimer: {strengthTimerDisplay.label}
+              {strengthTimerDisplay.showCountdown
+                ? ` (남은 시간: ${strengthTimerDisplay.countdownLabel})`
+                : ""}
+            </p>
+            <p>
+              PoopTimer: {poopTimerDisplay.label}
+              {poopTimerDisplay.showCountdown
+                ? ` (남은 시간: ${poopTimerDisplay.countdownLabel})`
+                : ""}
+            </p>
             <p>PoopCount: {stats.poopCount || 0}/8</p>
             <p>PoopReachedMaxAt: {formatTimestamp(stats.poopReachedMaxAt)}</p>
             <p>LastPoopPenaltyAt: {formatTimestamp(stats.lastPoopPenaltyAt)}</p>

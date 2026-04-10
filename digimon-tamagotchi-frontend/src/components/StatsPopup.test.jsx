@@ -196,4 +196,181 @@ describe("StatsPopup NEW 탭 케어미스/부상 안내", () => {
       screen.getByText(/이번 생 누적 부상 횟수와 표시 이력이 완전히 일치하지 않습니다/)
     ).toBeInTheDocument();
   });
+
+  test("디지타마 센티널 타이머는 사람이 읽는 상태 문구로 보여준다", () => {
+    render(
+      <StatsPopup
+        stats={{
+          fullness: 0,
+          maxOverfeed: 0,
+          timeToEvolveSeconds: 0,
+          lifespanSeconds: 10386,
+          age: 0,
+          sprite: 133,
+          evolutionStage: "Digitama",
+          weight: 0,
+          careMistakes: 0,
+          strength: 0,
+          effort: 0,
+          winRate: 0,
+          energy: 0,
+          poopCount: 0,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 0,
+          hungerCountdown: 0,
+          strengthTimer: 0,
+          strengthCountdown: 0,
+          poopTimer: 999,
+          poopCountdown: 58477,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 0 }}
+        digimonDataMap={{}}
+        selectedDigimonId="DigitamaV5"
+        slotVersion="Ver.5"
+        onClose={jest.fn()}
+        devMode={false}
+        onChangeStats={jest.fn()}
+        sleepStatus="AWAKE"
+        isLightsOn={false}
+      />
+    );
+
+    expect(screen.getByText("HungerTimer: 비활성")).toBeInTheDocument();
+    expect(screen.getByText("StrengthTimer: 비활성")).toBeInTheDocument();
+    expect(screen.getByText("PoopTimer: 알 단계 전용")).toBeInTheDocument();
+    expect(screen.queryByText(/974m 37s/)).not.toBeInTheDocument();
+  });
+
+  test("일반 단계 타이머는 기존 분/초 형식으로 유지한다", () => {
+    render(
+      <StatsPopup
+        stats={{
+          fullness: 1,
+          maxOverfeed: 3,
+          timeToEvolveSeconds: 3600,
+          lifespanSeconds: 0,
+          age: 0,
+          sprite: 100,
+          evolutionStage: "Child",
+          weight: 3,
+          careMistakes: 0,
+          strength: 1,
+          effort: 0,
+          winRate: 0,
+          energy: 0,
+          poopCount: 1,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 60,
+          hungerCountdown: 3600,
+          strengthTimer: 60,
+          strengthCountdown: 3600,
+          poopTimer: 60,
+          poopCountdown: 125,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 1 }}
+        digimonDataMap={{}}
+        selectedDigimonId="Agumon"
+        slotVersion="Ver.1"
+        onClose={jest.fn()}
+        devMode={false}
+        onChangeStats={jest.fn()}
+        sleepStatus="AWAKE"
+        isLightsOn={false}
+      />
+    );
+
+    expect(
+      screen.getByText("PoopTimer: 60 min (남은 시간: 2m 5s)")
+    ).toBeInTheDocument();
+  });
+
+  test("개발자 모드 NEW 탭은 props 갱신을 따라가며 시간이 멈춰 보이지 않는다", () => {
+    const { rerender } = render(
+      <StatsPopup
+        stats={{
+          fullness: 1,
+          maxOverfeed: 3,
+          timeToEvolveSeconds: 5,
+          lifespanSeconds: 1,
+          age: 0,
+          sprite: 100,
+          evolutionStage: "Child",
+          weight: 3,
+          careMistakes: 0,
+          strength: 1,
+          effort: 0,
+          winRate: 0,
+          energy: 0,
+          poopCount: 0,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 60,
+          hungerCountdown: 3600,
+          strengthTimer: 60,
+          strengthCountdown: 3600,
+          poopTimer: 60,
+          poopCountdown: 300,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 1 }}
+        digimonDataMap={{}}
+        selectedDigimonId="Agumon"
+        slotVersion="Ver.1"
+        onClose={jest.fn()}
+        devMode
+        onChangeStats={jest.fn()}
+        sleepStatus="AWAKE"
+        isLightsOn={false}
+      />
+    );
+
+    expect(screen.getByText("Lifespan: 0 day 0 hour 0 min 1 sec")).toBeInTheDocument();
+    expect(screen.getByText("Time to Evolve: 0 day 0 hour 0 min 5 sec")).toBeInTheDocument();
+
+    rerender(
+      <StatsPopup
+        stats={{
+          fullness: 1,
+          maxOverfeed: 3,
+          timeToEvolveSeconds: 4,
+          lifespanSeconds: 2,
+          age: 0,
+          sprite: 100,
+          evolutionStage: "Child",
+          weight: 3,
+          careMistakes: 0,
+          strength: 1,
+          effort: 0,
+          winRate: 0,
+          energy: 0,
+          poopCount: 0,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 60,
+          hungerCountdown: 3600,
+          strengthTimer: 60,
+          strengthCountdown: 3600,
+          poopTimer: 60,
+          poopCountdown: 300,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 1 }}
+        digimonDataMap={{}}
+        selectedDigimonId="Agumon"
+        slotVersion="Ver.1"
+        onClose={jest.fn()}
+        devMode
+        onChangeStats={jest.fn()}
+        sleepStatus="AWAKE"
+        isLightsOn={false}
+      />
+    );
+
+    expect(screen.getByText("Lifespan: 0 day 0 hour 0 min 2 sec")).toBeInTheDocument();
+    expect(screen.getByText("Time to Evolve: 0 day 0 hour 0 min 4 sec")).toBeInTheDocument();
+  });
 });

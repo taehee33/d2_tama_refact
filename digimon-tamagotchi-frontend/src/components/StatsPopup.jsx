@@ -12,6 +12,7 @@ import {
   buildCallStatusViewModel,
   normalizeSleepStatusForDisplay,
 } from "../utils/callStatusUtils";
+import { getInternalCounterTimerDisplay } from "../utils/internalCounterTimerDisplay";
 import { toEpochMs } from "../utils/time";
 
 /**
@@ -325,7 +326,8 @@ export default function StatsPopup({
 }){
   const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
   const [editableStats, setEditableStats] = useState(() => ({ ...(stats || {}) }));
-  const currentStats = devMode ? editableStats : stats;
+  const isUsingEditableStats = devMode && activeTab === "OLD";
+  const currentStats = isUsingEditableStats ? editableStats : stats;
   // 이력 표시: 틱에서 setActivityLogs로 갱신된 prop이 더 많거나 같으면 사용(즉시 반영), 아니면 stats.activityLogs
   const statsLogs = currentStats?.activityLogs ?? [];
   const displayActivityLogs = (activityLogsProp != null && activityLogsProp.length >= statsLogs.length)
@@ -342,6 +344,12 @@ export default function StatsPopup({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!isUsingEditableStats) {
+      setEditableStats({ ...(stats || {}) });
+    }
+  }, [isUsingEditableStats, stats]);
 
   const statsForCallUi = useMemo(
     () => ({
@@ -439,6 +447,24 @@ export default function StatsPopup({
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
   const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
+  const hungerTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage,
+    timerKind: "hunger",
+    timerMinutes: hungerTimer,
+    countdownSeconds: hungerCountdown,
+  });
+  const strengthTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage,
+    timerKind: "strength",
+    timerMinutes: strengthTimer,
+    countdownSeconds: strengthCountdown,
+  });
+  const poopTimerDisplay = getInternalCounterTimerDisplay({
+    evolutionStage,
+    timerKind: "poop",
+    timerMinutes: poopTimer,
+    countdownSeconds: poopCountdown,
+  });
   const currentStageStartedAt = currentStats?.evolutionStageStartedAt ?? null;
   const currentLifeStartedAt = currentStats?.birthTime ?? null;
 
@@ -602,14 +628,6 @@ export default function StatsPopup({
   for(let i=0; i<=maxEnergyValue; i++){
     possibleEnergy.push(i);
   }
-  
-  // 타이머 남은 시간 계산 (초 단위)
-  const formatCountdown = (countdown) => {
-    if (!countdown || countdown <= 0) return '0s';
-    const minutes = Math.floor(countdown / 60);
-    const seconds = countdown % 60;
-    return `${minutes}m ${seconds}s`;
-  };
   
   /**
    * 냉장고 시간을 제외한 경과 시간 계산
@@ -1420,9 +1438,27 @@ export default function StatsPopup({
           </div>
         )}
         <ul className="space-y-1">
-          <li>HungerTimer: {hungerTimer || 0} min (남은 시간: {formatCountdown(hungerCountdown)}) {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>StrengthTimer: {strengthTimer || 0} min (남은 시간: {formatCountdown(strengthCountdown)}) {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>PoopTimer: {poopTimer || 0} min (남은 시간: {formatCountdown(poopCountdown)}) {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
+          <li>
+            HungerTimer: {hungerTimerDisplay.label}
+            {hungerTimerDisplay.showCountdown
+              ? ` (남은 시간: ${hungerTimerDisplay.countdownLabel})`
+              : ""}
+            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
+          </li>
+          <li>
+            StrengthTimer: {strengthTimerDisplay.label}
+            {strengthTimerDisplay.showCountdown
+              ? ` (남은 시간: ${strengthTimerDisplay.countdownLabel})`
+              : ""}
+            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
+          </li>
+          <li>
+            PoopTimer: {poopTimerDisplay.label}
+            {poopTimerDisplay.showCountdown
+              ? ` (남은 시간: ${poopTimerDisplay.countdownLabel})`
+              : ""}
+            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
+          </li>
           <li>PoopCount: {poopCount}/8 {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
           <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
           <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
