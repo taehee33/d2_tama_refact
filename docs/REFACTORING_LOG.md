@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-04-10] `useEvolution` 10차 분리: 조그레스 성공 UI 피드백 helper 추출
+
+### 작업 유형
+- 🧩 guest 성공 alert / room-host modal close+alert를 UI helper로 추출
+- 🧪 성공 피드백 helper 단위 테스트 및 host-room 흐름 assertion 보강
+
+### 목적 및 영향
+- **목적:** `useEvolution`에 남아 있던 조그레스 성공 UI tail을 helper로 옮겨, 도메인 흐름과 UI 피드백을 더 분리한다.
+- **범위:** 성공 시 alert 문구와 room-host 모달 닫기만 helper로 이동하고, 저장/도감/archive/완료 상태 반영 순서는 그대로 유지한다.
+- **내용:**
+  - `jogressUiFeedbackHelpers`에 `showJogressSuccessFeedback`를 추가했다.
+  - guest 성공 경로는 alert 직접 호출 대신 helper를 사용하고, room-host 성공 경로는 `toggleModal("jogressRoomList", false)` + success alert를 helper로 묶었다.
+  - `useEvolution.test.js`에는 room-host 성공 alert assertion을 추가했고, helper 단위 테스트로 guest/host-room/`toggleModal` 없는 경우를 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressUiFeedbackHelpers.js`
+- `digimon-tamagotchi-frontend/src/hooks/jogressUiFeedbackHelpers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/jogressUiFeedbackHelpers.test.js src/hooks/evolutionEncyclopediaHelpers.test.js src/hooks/jogressCompletionHelpers.test.js src/hooks/useEvolution.test.js src/hooks/useJogressRoomLifecycle.test.js src/hooks/jogressPresentationHelpers.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/evolutionStateHelpers.test.js src/hooks/game-runtime/useJogressSubscriptions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useEvolution.js src/hooks/useEvolution.test.js src/hooks/jogressUiFeedbackHelpers.js src/hooks/jogressUiFeedbackHelpers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useEvolution`의 guest/host-room 성공 UI 후처리도 helper 경계가 생겼다. 남은 큰 정리 대상은 direct host 시작 시 `toggleModal("jogressOnlineSelect", false)` 같은 진입 UI 제어나, 더 이상 확장하지 않을 helper 이름/폴더 구조 정리 정도다.
+
 ## [2026-04-10] `useEvolution` 9차 분리: 일반 진화와 로컬 조그레스 encyclopedia 흐름도 helper로 통일
 
 ### 작업 유형
@@ -4572,3 +4601,34 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `digimon-tamagotchi-frontend/src/pages/Community.jsx`
 - `digimon-tamagotchi-frontend/src/index.css`
 - `docs/REFACTORING_LOG.md`
+
+### 버그제보 / QnA 보드를 자유게시판형 작성 게시판으로 전환
+
+- `support` 보드를 정적 FAQ 패널이 아니라 실제 작성형 텍스트 보드로 확장해, 로그인 사용자가 `버그 / 질문 / 해결` 말머리와 함께 글·댓글을 남길 수 있도록 바꿨다.
+- 자유게시판 전용이던 텍스트 보드 공용 흐름을 `free/support` 공용 구조로 정리하고, support 보드에는 `슬롯 번호`, `화면 경로`, `버전`, `이미지 1장` 입력과 상세 메타 표시를 추가했다.
+- `community_posts`에는 `support_context jsonb`를 저장하도록 마이그레이션을 추가하고, 게시판 shape 제약을 `showcase / free / support` 3종으로 확장해 support 글이 `slot_id/snapshot` 없이만 저장되도록 고정했다.
+- 클라이언트 `listCommunityPosts()`는 `payload?.posts ?? []`로 null-safe 처리해 support 전환 중 보이던 `Cannot read properties of null (reading 'posts')` 런타임 오류를 함께 막았다.
+- support 보드의 기존 FAQ/체크리스트는 삭제하지 않고, 자유게시판과 같은 `안내 카드 + 접기형 운영 메모` 안으로 재배치했다.
+
+**영향 파일**
+- `digimon-tamagotchi-frontend/src/pages/Community.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostRow.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.test.js`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
+- `api/_lib/community.js`
+- `api/_lib/community.test.js`
+- `digimon-tamagotchi-frontend/api/_lib/community.js`
+- `tests/community-lib.test.js`
+- `supabase/migrations/20260410_community_support_board.sql`
+- `docs/REFACTORING_LOG.md`
+
+**검증**
+- `node --test api/_lib/community.test.js tests/community-lib.test.js`
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/Community.test.jsx src/utils/communityApi.test.js`
+- `node -e "require('./api/_lib/community'); require('./digimon-tamagotchi-frontend/api/_lib/community'); console.log('community-api-ok');"`
+- `NODE_OPTIONS=--openssl-legacy-provider npm run build`

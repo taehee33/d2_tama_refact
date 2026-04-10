@@ -450,6 +450,12 @@ describe("useEvolution jogress flows", () => {
         },
       })
     );
+    expect(params.setEvolutionCompleteIsJogress).toHaveBeenCalledWith(true);
+    expect(params.setEvolvedDigimonName).toHaveBeenCalledWith("오메가몬");
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("complete");
     expect(params.toggleModal).toHaveBeenCalledWith("jogressRoomList", false);
+    expect(alertSpy).toHaveBeenCalledWith(
+      "조그레스 진화 완료! 오메가몬(으)로 진화했습니다."
+    );
   });
 });

@@ -21,6 +21,7 @@ import {
   buildJogressArchivePayload,
   buildJogressSummary,
 } from "./jogressPresentationHelpers";
+import { showJogressSuccessFeedback } from "./jogressUiFeedbackHelpers";
 import {
   isOnlineJogressSupported,
   useJogressRoomLifecycle,
@@ -611,7 +612,9 @@ export function useEvolution({
 
       await cancelOwnedWaitingJogressRoomsForSlot(guestSlot.id);
 
-      alert(`조그레스 진화 완료! ${resultName}(으)로 진화했습니다.`);
+      showJogressSuccessFeedback({
+        resultDisplayName: resultName,
+      });
     } catch (err) {
       console.error("[proceedJogressOnlineAsGuest] 오류:", err);
       alert("참가 처리 중 오류가 발생했습니다.");
@@ -867,8 +870,11 @@ export function useEvolution({
         setEvolvedDigimonName,
         setEvolutionStage,
       });
-      if (toggleModal) toggleModal("jogressRoomList", false);
-      alert(`조그레스 진화 완료! ${resultDisplayName}(으)로 진화했습니다.`);
+      showJogressSuccessFeedback({
+        resultDisplayName,
+        toggleModal,
+        closeModalName: "jogressRoomList",
+      });
     } catch (err) {
       console.error("[proceedJogressOnlineAsHostForRoom] 오류:", err);
       alert("조그레스 진화 처리 중 오류가 발생했습니다.");
