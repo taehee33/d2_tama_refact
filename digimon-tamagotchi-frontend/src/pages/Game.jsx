@@ -240,6 +240,7 @@ function Game({ immersive = false }){
   const {
     immersiveExperienceRef,
     showSkinPicker,
+    isLandscapeInfoOpen,
     isMobileControlsCollapsed,
     showVirtualLandscapePrompt,
     isVirtualLandscapeActive,
@@ -247,6 +248,7 @@ function Game({ immersive = false }){
     layoutMode: immersiveLayoutMode,
     skinId: immersiveSkinId,
     skin: immersiveSkin,
+    isImmersiveFullscreen,
     landscapeSidePreference,
     effectiveLandscapeSide,
     virtualLandscapeDirection,
@@ -256,9 +258,12 @@ function Game({ immersive = false }){
     orientationStatusTone,
     virtualLandscapePromptMessage,
     toggleMobileControls,
+    toggleLandscapeInfo,
+    closeLandscapeInfo,
     confirmVirtualLandscape,
     dismissVirtualLandscape,
     changeLayoutMode: handleLayoutModeChange,
+    toggleImmersiveFullscreen: handleToggleImmersiveFullscreen,
     cycleLandscapeSide: handleCycleLandscapeSide,
     toggleImmersiveChat: handleToggleImmersiveChat,
     closeImmersiveChat: handleCloseImmersiveChat,
@@ -941,9 +946,14 @@ function Game({ immersive = false }){
     [toggleModal]
   );
 
-  const renderSupportActionButtons = (containerClassName = "") => (
+  const renderSupportActionButtons = (
+    containerClassName = "",
+    { compact = false } = {}
+  ) => (
     <div
-      className={`flex items-center justify-center space-x-2 mt-1 pb-20 flex-wrap gap-2 ${containerClassName}`.trim()}
+      className={`flex items-center justify-center space-x-2 flex-wrap gap-2 ${
+        compact ? "mt-3 pb-0" : "mt-1 pb-20"
+      } ${containerClassName}`.trim()}
     >
       {(() => {
         const openJogressFlow = () => toggleModal("jogressModeSelect", true);
@@ -1116,6 +1126,11 @@ function Game({ immersive = false }){
       statusBadgesProps={sharedStatusBadgesProps}
     />
   );
+  const landscapeInfoSupportNode = renderSupportActionButtons(
+    "immersive-landscape-info-support",
+    { compact: true }
+  );
+  const shouldUseLandscapeInfoOverlay = isLandscapeImmersive;
 
   const portraitImmersiveSection = defaultGameSection;
 
@@ -1148,8 +1163,12 @@ function Game({ immersive = false }){
         headerDigimonLabel,
         isFrozen: digimonStats.isFrozen || false,
       }}
-      statusNode={landscapeStatusNode}
-      supportActionsNode={renderSupportActionButtons("immersive-landscape-support")}
+      statusNode={shouldUseLandscapeInfoOverlay ? null : landscapeStatusNode}
+      supportActionsNode={
+        shouldUseLandscapeInfoOverlay
+          ? null
+          : renderSupportActionButtons("immersive-landscape-support")
+      }
     />
   );
 
@@ -1211,14 +1230,21 @@ function Game({ immersive = false }){
     isMobile,
     isCollapsed: isMobileControlsCollapsed,
     layoutMode: immersiveLayoutMode,
+    isFullscreen: isImmersiveFullscreen,
+    isLandscapeInfoOpen,
     isChatOpen,
     unreadCount,
     presenceCount: presenceCount || 0,
+    showFullscreenButton: true,
+    showLandscapeInfoButton:
+      isLandscapeImmersive && shouldUseLandscapeInfoOverlay,
     showLandscapeSideToggle: isLandscapeImmersive,
     landscapeSidePreference,
     effectiveLandscapeSide,
     onToggleCollapsed: toggleMobileControls,
     onChangeLayoutMode: handleLayoutModeChange,
+    onToggleFullscreen: handleToggleImmersiveFullscreen,
+    onToggleLandscapeInfo: toggleLandscapeInfo,
     onToggleChat: handleToggleImmersiveChat,
     onCycleLandscapeSide: handleCycleLandscapeSide,
     onToggleSkinPicker: toggleSkinPicker,
@@ -1246,6 +1272,17 @@ function Game({ immersive = false }){
         landscapeSide: effectiveLandscapeSide,
         onClose: handleCloseImmersiveChat,
       }}
+      landscapeInfoOverlayProps={
+        shouldUseLandscapeInfoOverlay
+          ? {
+              isOpen: isLandscapeInfoOpen,
+              isMobile,
+              onClose: closeLandscapeInfo,
+              statusNode: landscapeStatusNode,
+              supportActionsNode: landscapeInfoSupportNode,
+            }
+          : null
+      }
       skinPickerProps={{
         isOpen: showSkinPicker,
         activeSkinId: immersiveSkinId,
