@@ -20,6 +20,7 @@ const {
   ACHIEVEMENT_VER1_MASTER,
   BASE_MAX_SLOTS,
   computeMaxSlotsFromAchievements,
+  ensureUserProfileMirror,
   getAchievementsAndMaxSlots,
   updateAchievementsAndMaxSlots,
 } = require("./userProfileUtils");
@@ -80,7 +81,9 @@ describe("userProfileUtils", () => {
   });
 
   test("칭호 저장은 루트와 profile/main에 동시에 반영한다", async () => {
-    mockGetDoc.mockResolvedValueOnce(createSnapshot({ displayName: "테스터" }));
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot({ displayName: "테스터" }))
+      .mockResolvedValueOnce(createSnapshot(null));
 
     await updateAchievementsAndMaxSlots("tester", [ACHIEVEMENT_VER1_MASTER]);
 
@@ -102,5 +105,32 @@ describe("userProfileUtils", () => {
       })
     );
     expect(mockSetDoc.mock.calls[0][2]).toEqual({ merge: true });
+  });
+
+  test("ensureUserProfileMirror는 루트 fallback 값을 profile/main에 보정한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(
+        createSnapshot({
+          achievements: [ACHIEVEMENT_VER1_MASTER],
+          maxSlots: 15,
+        })
+      )
+      .mockResolvedValueOnce(createSnapshot(null));
+
+    const result = await ensureUserProfileMirror("tester");
+
+    expect(result).toEqual({
+      achievements: [ACHIEVEMENT_VER1_MASTER],
+      maxSlots: 15,
+    });
+    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    expect(mockSetDoc.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        achievements: [ACHIEVEMENT_VER1_MASTER],
+        maxSlots: 15,
+        updatedAt: expect.any(Date),
+      })
+    );
   });
 });

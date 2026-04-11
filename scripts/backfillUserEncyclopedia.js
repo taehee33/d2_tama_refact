@@ -26,6 +26,13 @@ const BASE_MAX_SLOTS = 10;
 const SLOTS_PER_MASTER = 5;
 const ACHIEVEMENT_VER1_MASTER = "ver1_master";
 const ACHIEVEMENT_VER2_MASTER = "ver2_master";
+const ENCYCLOPEDIA_STRUCTURE = {
+  storageMode: "version-docs-with-root-mirror",
+  canonicalCollection: "encyclopedia",
+  canonicalDocStrategy: "version",
+  rootMirrorEnabled: true,
+  phase: "compat",
+};
 const FRONTEND_SRC_ROOT = path.resolve(__dirname, "../digimon-tamagotchi-frontend/src");
 const ORIGINAL_JS_LOADER = Module._extensions[".js"];
 
@@ -393,6 +400,17 @@ function buildMigrationMetadata(sourceSummary = {}) {
   };
 }
 
+function buildRootMirrorPayload(analysis = {}, adminModule) {
+  return {
+    encyclopedia: analysis.canonicalEncyclopedia,
+    encyclopediaStructure: ENCYCLOPEDIA_STRUCTURE,
+    encyclopediaMigration: {
+      ...analysis.migrationMetadata,
+      lastMigratedAt: adminModule.firestore.FieldValue.serverTimestamp(),
+    },
+  };
+}
+
 function analyzeUserEncyclopediaMigration(userSources = {}, dependencies) {
   const rootData = userSources?.rootData || {};
   const profileData = userSources?.profileData || {};
@@ -583,10 +601,6 @@ function queueUserMigrationWrites(batch, userDoc, analysis, dependencies, adminM
     versionWriteCount += 1;
   });
 
-  const migrationMetadata = {
-    ...analysis.migrationMetadata,
-    lastMigratedAt: adminModule.firestore.FieldValue.serverTimestamp(),
-  };
   const sharedProfilePayload = {
     achievements: analysis.achievements,
     maxSlots: analysis.maxSlots,
@@ -596,8 +610,8 @@ function queueUserMigrationWrites(batch, userDoc, analysis, dependencies, adminM
   batch.set(
     userDoc.ref,
     {
+      ...buildRootMirrorPayload(analysis, adminModule),
       ...sharedProfilePayload,
-      encyclopediaMigration: migrationMetadata,
     },
     { merge: true }
   );

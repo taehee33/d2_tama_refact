@@ -9,6 +9,7 @@ import { digimonDataVer2 } from "../data/v2modkor";
 import {
   getAchievementsAndMaxSlots,
   updateAchievementsAndMaxSlots,
+  ensureUserProfileMirror,
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
@@ -23,6 +24,13 @@ import encyclopediaMigrationCore from "../utils/encyclopediaMigrationCore";
 import { toEpochMs } from "../utils/time";
 
 const ENCYCLOPEDIA_VERSIONS = SUPPORTED_DIGIMON_VERSIONS;
+const ENCYCLOPEDIA_STRUCTURE = {
+  storageMode: "version-docs-with-root-mirror",
+  canonicalCollection: "encyclopedia",
+  canonicalDocStrategy: "version",
+  rootMirrorEnabled: true,
+  phase: "compat",
+};
 const VERSION_MASTER_ACHIEVEMENTS = {
   "Ver.1": ACHIEVEMENT_VER1_MASTER,
   "Ver.2": ACHIEVEMENT_VER2_MASTER,
@@ -35,6 +43,7 @@ const {
   normalizeVersionEntries,
 } = encyclopediaMigrationCore;
 const reportedLegacyFallbackKeys = new Set();
+const syncedEncyclopediaStructureKeys = new Set();
 
 function createEmptyEncyclopedia() {
   return createEmptyEncyclopediaBase(ENCYCLOPEDIA_VERSIONS);
@@ -54,6 +63,38 @@ function getUserRootRef(uid) {
 
 function getUserEncyclopediaRef(uid, version) {
   return doc(db, "users", uid, "encyclopedia", version);
+}
+
+function buildRootEncyclopediaMirrorPayload(encyclopedia) {
+  return {
+    encyclopedia,
+    encyclopediaStructure: ENCYCLOPEDIA_STRUCTURE,
+  };
+}
+
+function hasAnyEncyclopediaEntries(encyclopedia = {}) {
+  return ENCYCLOPEDIA_VERSIONS.some((version) => hasVersionEntries(encyclopedia?.[version]));
+}
+
+function shouldSyncCompatibilityStructure(encyclopedia, sourceSummary = {}, rootData = {}) {
+  if (!hasAnyEncyclopediaEntries(encyclopedia)) {
+    return false;
+  }
+
+  if (sourceSummary?.fallbackUsed) {
+    return true;
+  }
+
+  return rootData?.encyclopediaStructure?.storageMode !== ENCYCLOPEDIA_STRUCTURE.storageMode;
+}
+
+async function syncEncyclopediaCompatibilityStructure(currentUser, encyclopedia) {
+  if (!currentUser?.uid || !hasAnyEncyclopediaEntries(encyclopedia)) {
+    return;
+  }
+
+  await saveEncyclopedia(encyclopedia, currentUser);
+  await ensureUserProfileMirror(currentUser.uid);
 }
 
 function reportLegacyFallbackUsage(uid, sourceSummary = {}) {
@@ -362,10 +403,11 @@ export async function loadEncyclopedia(currentUser) {
       loadLegacySlotSources(currentUser.uid),
     ]);
 
-    const rootEncyclopedia =
+    const rootData =
       userSnapResult.status === "fulfilled" && userSnapResult.value.exists()
-        ? userSnapResult.value.data()?.encyclopedia
+        ? userSnapResult.value.data()
         : undefined;
+    const rootEncyclopedia = rootData?.encyclopedia;
     if (userSnapResult.status !== "fulfilled") {
       console.warn("[loadEncyclopedia] 루트 users 문서 로드 실패:", userSnapResult.reason);
     }
@@ -420,6 +462,27 @@ export async function loadEncyclopedia(currentUser) {
     });
 
     reportLegacyFallbackUsage(currentUser.uid, sourceSummary);
+    const shouldSync = shouldSyncCompatibilityStructure(
+      encyclopedia,
+      sourceSummary,
+      rootData
+    );
+    const syncKey = `${currentUser.uid}:${JSON.stringify({
+      fallbackSources: sourceSummary?.fallbackSources || [],
+      recoveredFromLogs: sourceSummary?.recoveredFromLogs || 0,
+      rootStructureMode: rootData?.encyclopediaStructure?.storageMode || "none",
+    })}`;
+
+    if (shouldSync && !syncedEncyclopediaStructureKeys.has(syncKey)) {
+      syncedEncyclopediaStructureKeys.add(syncKey);
+      try {
+        await syncEncyclopediaCompatibilityStructure(currentUser, encyclopedia);
+      } catch (syncError) {
+        syncedEncyclopediaStructureKeys.delete(syncKey);
+        console.warn("[loadEncyclopedia] 호환 구조 동기화 실패:", syncError);
+      }
+    }
+
     return encyclopedia;
   } catch (error) {
     console.error("도감 로드 오류 (Firebase):", error);
@@ -479,16 +542,29 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
   try {
     const normalizedEncyclopedia = normalizeEncyclopedia(encyclopedia);
     const saveTasks = [];
+    let hasCanonicalEntries = false;
 
     for (const version of ENCYCLOPEDIA_VERSIONS) {
       if (!hasVersionEntries(normalizedEncyclopedia[version])) {
         continue;
       }
 
+      hasCanonicalEntries = true;
+
       saveTasks.push(
         setDoc(
           getUserEncyclopediaRef(currentUser.uid, version),
           normalizedEncyclopedia[version]
+        )
+      );
+    }
+
+    if (hasCanonicalEntries) {
+      saveTasks.push(
+        setDoc(
+          getUserRootRef(currentUser.uid),
+          buildRootEncyclopediaMirrorPayload(normalizedEncyclopedia),
+          { merge: true }
         )
       );
     }

@@ -14,6 +14,7 @@ const mockCollection = jest.fn((parent, ...segments) => {
 });
 const mockGetAchievementsAndMaxSlots = jest.fn();
 const mockUpdateAchievementsAndMaxSlots = jest.fn();
+const mockEnsureUserProfileMirror = jest.fn();
 const TEST_DIGIMON_DATA_MAPS = {
   "Ver.1": {
     Digitama: { id: "Digitama", name: "디지타마" },
@@ -132,6 +133,7 @@ jest.mock("../utils/userProfileUtils", () => ({
   ACHIEVEMENT_VER2_MASTER: "ver2_master",
   getAchievementsAndMaxSlots: (...args) => mockGetAchievementsAndMaxSlots(...args),
   updateAchievementsAndMaxSlots: (...args) => mockUpdateAchievementsAndMaxSlots(...args),
+  ensureUserProfileMirror: (...args) => mockEnsureUserProfileMirror(...args),
 }));
 
 const {
@@ -183,7 +185,9 @@ describe("useEncyclopedia", () => {
     mockSetDoc.mockReset();
     mockGetAchievementsAndMaxSlots.mockReset();
     mockUpdateAchievementsAndMaxSlots.mockReset();
+    mockEnsureUserProfileMirror.mockReset();
     mockGetAchievementsAndMaxSlots.mockResolvedValue({ achievements: [], maxSlots: 10 });
+    mockEnsureUserProfileMirror.mockResolvedValue({ achievements: [], maxSlots: 10 });
     mockGetDocs.mockResolvedValue(createQuerySnapshot([]));
   });
 
@@ -215,7 +219,7 @@ describe("useEncyclopedia", () => {
 
     expect(mockGetDoc).toHaveBeenCalledTimes(6);
     expect(mockGetDocs).toHaveBeenCalledTimes(1);
-    expect(mockDoc.mock.calls).toEqual([
+    expect(mockDoc.mock.calls.slice(0, 6)).toEqual([
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.1"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.2"],
       [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.3"],
@@ -236,6 +240,8 @@ describe("useEncyclopedia", () => {
   });
 
   test("새 버전 문서가 없으면 루트 users 문서의 encyclopedia를 fallback으로 읽는다", async () => {
+    const uid = "tester-root-fallback";
+
     mockGetDoc
       .mockResolvedValueOnce(createSnapshot(null))
       .mockResolvedValueOnce(createSnapshot(null))
@@ -254,11 +260,25 @@ describe("useEncyclopedia", () => {
         })
       );
 
-    const result = await loadEncyclopedia({ uid: "tester" });
+    const result = await loadEncyclopedia({ uid });
 
     expect(mockGetDoc).toHaveBeenCalledTimes(6);
     expect(mockGetDocs).toHaveBeenCalledTimes(1);
-    expect(mockDoc.mock.calls[5]).toEqual([{ name: "test-db" }, "users", "tester"]);
+    expect(mockDoc.mock.calls[5]).toEqual([{ name: "test-db" }, "users", uid]);
+    expect(mockEnsureUserProfileMirror).toHaveBeenCalledWith(uid);
+    expect(mockSetDoc).toHaveBeenCalledTimes(6);
+    expect(mockSetDoc.mock.calls[0][1]).toEqual({ Agumon: { isDiscovered: true } });
+    expect(mockSetDoc.mock.calls[5][1]).toEqual(
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.1": { Agumon: { isDiscovered: true } },
+        }),
+        encyclopediaStructure: expect.objectContaining({
+          storageMode: "version-docs-with-root-mirror",
+        }),
+      })
+    );
+    expect(mockSetDoc.mock.calls[5][2]).toEqual({ merge: true });
     expect(result).toEqual({
       "Ver.1": { Agumon: { isDiscovered: true } },
       "Ver.2": { Gabumon: { isDiscovered: true } },
@@ -547,7 +567,7 @@ describe("useEncyclopedia", () => {
     });
   });
 
-  test("도감 저장은 버전 문서에만 기록하고 루트 users 문서는 쓰지 않는다", async () => {
+  test("도감 저장은 버전 문서와 루트 legacy mirror를 함께 유지한다", async () => {
     await saveEncyclopedia(
       {
         "Ver.1": { Agumon: { isDiscovered: true } },
@@ -556,7 +576,7 @@ describe("useEncyclopedia", () => {
       { uid: "tester" }
     );
 
-    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    expect(mockSetDoc).toHaveBeenCalledTimes(2);
     expect(mockDoc).toHaveBeenCalledWith(
       { name: "test-db" },
       "users",
@@ -565,6 +585,22 @@ describe("useEncyclopedia", () => {
       "Ver.1"
     );
     expect(mockSetDoc.mock.calls[0][1]).toEqual({ Agumon: { isDiscovered: true } });
+    expect(mockDoc).toHaveBeenCalledWith({ name: "test-db" }, "users", "tester");
+    expect(mockSetDoc.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.1": { Agumon: { isDiscovered: true } },
+        }),
+        encyclopediaStructure: {
+          storageMode: "version-docs-with-root-mirror",
+          canonicalCollection: "encyclopedia",
+          canonicalDocStrategy: "version",
+          rootMirrorEnabled: true,
+          phase: "compat",
+        },
+      })
+    );
+    expect(mockSetDoc.mock.calls[1][2]).toEqual({ merge: true });
   });
 
   test("버전별 업데이트는 다른 버전 데이터를 유지한 채 새 구조 문서에 저장한다", async () => {
@@ -624,13 +660,14 @@ describe("useEncyclopedia", () => {
       "Ver.1"
     );
 
-    expect(mockSetDoc).toHaveBeenCalledTimes(4);
+    expect(mockSetDoc).toHaveBeenCalledTimes(5);
     expect(mockDoc.mock.calls).toEqual(
       expect.arrayContaining([
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.1"],
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.2"],
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.3"],
         [{ name: "test-db" }, "users", "tester", "encyclopedia", "Ver.4"],
+        [{ name: "test-db" }, "users", "tester"],
       ])
     );
     expect(mockSetDoc.mock.calls[0][1]).toEqual(
@@ -666,6 +703,22 @@ describe("useEncyclopedia", () => {
         history: [],
       },
     });
+    expect(mockSetDoc.mock.calls[4][1]).toEqual(
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.1": expect.objectContaining({
+            Gabumon: expect.objectContaining({
+              isDiscovered: true,
+              raisedCount: 1,
+            }),
+          }),
+          "Ver.4": expect.objectContaining({
+            Yuramon: expect.any(Object),
+          }),
+        }),
+      })
+    );
+    expect(mockSetDoc.mock.calls[4][2]).toEqual({ merge: true });
   });
 
   test("누락 도감 보정은 디지몬 버전에 맞는 문서로 저장한다", async () => {
@@ -683,7 +736,7 @@ describe("useEncyclopedia", () => {
       added: ["Poyomon"],
       skipped: [],
     });
-    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    expect(mockSetDoc).toHaveBeenCalledTimes(2);
     expect(mockDoc).toHaveBeenCalledWith(
       { name: "test-db" },
       "users",
@@ -699,5 +752,19 @@ describe("useEncyclopedia", () => {
         }),
       })
     );
+    expect(mockDoc).toHaveBeenCalledWith({ name: "test-db" }, "users", "tester");
+    expect(mockSetDoc.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.3": expect.objectContaining({
+            Poyomon: expect.objectContaining({
+              isDiscovered: true,
+              raisedCount: 1,
+            }),
+          }),
+        }),
+      })
+    );
+    expect(mockSetDoc.mock.calls[1][2]).toEqual({ merge: true });
   });
 });

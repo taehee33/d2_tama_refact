@@ -347,8 +347,15 @@ test("runEncyclopediaMigration은 dry-run에서는 쓰지 않고 apply에서 ver
   assert.deepEqual(rootUser.achievements, [ACHIEVEMENT_VER1_MASTER]);
   assert.equal(rootUser.maxSlots, 15);
   assert.ok(rootUser.encyclopedia);
+  assert.deepEqual(Object.keys(rootUser.encyclopedia["Ver.1"]).sort(), [
+    "Agumon",
+    "Koromon",
+    "Patamon",
+  ]);
   assert.equal(rootUser.encyclopediaMigration.migrationVersion, "2026-04-10-encyclopedia-v1");
   assert.equal(rootUser.encyclopediaMigration.lastMigratedAt, "__SERVER_TIMESTAMP__");
+  assert.equal(rootUser.encyclopediaStructure.storageMode, "version-docs-with-root-mirror");
+  assert.equal(rootUser.encyclopediaStructure.phase, "compat");
 
   const profileMain = db.getData("users/u1/profile/main");
   assert.deepEqual(profileMain.achievements, [ACHIEVEMENT_VER1_MASTER]);

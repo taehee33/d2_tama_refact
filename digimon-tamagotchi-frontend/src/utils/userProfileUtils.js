@@ -24,6 +24,10 @@ export function getUserProfileRef(uid) {
   return doc(db, "users", uid, USER_PROFILE_COLLECTION, USER_PROFILE_DOC_ID);
 }
 
+function getUserRootRef(uid) {
+  return doc(db, "users", uid);
+}
+
 function hasOwnField(data, fieldName) {
   return !!data && Object.prototype.hasOwnProperty.call(data, fieldName);
 }
@@ -116,13 +120,38 @@ export async function getMaxSlots(uid) {
 export async function updateAchievementsAndMaxSlots(uid, achievements) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
   const maxSlots = computeMaxSlotsFromAchievements(achievements);
+  return ensureUserProfileMirror(uid, {
+    achievements: Array.isArray(achievements) ? achievements : [],
+    maxSlots,
+  });
+}
+
+/**
+ * 현재 계산된 프로필 값을 루트 users 문서와 profile/main에 함께 보정한다.
+ * 완전 이관 전 호환 단계에서 profile/main 생성과 root mirror 유지를 동시에 담당한다.
+ * @param {string} uid - 사용자 ID
+ * @param {{ achievements?: string[], maxSlots?: number }=} overrides - 강제 반영할 값
+ * @returns {Promise<{ achievements: string[], maxSlots: number }>}
+ */
+export async function ensureUserProfileMirror(uid, overrides = {}) {
+  if (!uid) throw new Error("사용자 ID가 필요합니다.");
   try {
-    const userRef = doc(db, "users", uid);
+    const userRef = getUserRootRef(uid);
     const profileRef = getUserProfileRef(uid);
     const userSnap = await getDoc(userRef);
+    const profileSnap = await getDoc(profileRef);
+    const rootData = userSnap.exists() ? userSnap.data() : null;
+    const profileData = profileSnap.exists() ? profileSnap.data() : null;
+    const achievements = Array.isArray(overrides?.achievements)
+      ? [...overrides.achievements]
+      : resolveAchievements(profileData, rootData);
+    const maxSlots =
+      typeof overrides?.maxSlots === "number" && overrides.maxSlots >= BASE_MAX_SLOTS
+        ? overrides.maxSlots
+        : resolveMaxSlots(profileData, rootData, achievements);
     const updates = {
-      achievements: Array.isArray(achievements) ? achievements : [],
-      maxSlots,
+      achievements,
+      maxSlots: typeof maxSlots === "number" ? maxSlots : BASE_MAX_SLOTS,
       updatedAt: new Date(),
     };
     if (userSnap.exists()) {
@@ -132,6 +161,10 @@ export async function updateAchievementsAndMaxSlots(uid, achievements) {
     }
 
     await setDoc(profileRef, updates, { merge: true });
+    return {
+      achievements: updates.achievements,
+      maxSlots: updates.maxSlots,
+    };
   } catch (error) {
     console.error("칭호/최대 슬롯 저장 오류:", error);
     throw error;
