@@ -767,4 +767,87 @@ describe("useEncyclopedia", () => {
     );
     expect(mockSetDoc.mock.calls[1][2]).toEqual({ merge: true });
   });
+
+  test("이미 발견된 디지몬을 다시 반영해도 구조 sync를 위해 저장을 수행한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          Elecmon: {
+            isDiscovered: true,
+            raisedCount: 2,
+            bestStats: {},
+            history: [],
+          },
+        })
+      )
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.2": {
+              Elecmon: {
+                isDiscovered: true,
+                raisedCount: 2,
+                bestStats: {},
+                history: [],
+              },
+            },
+          },
+        })
+      );
+
+    const result = await addMissingEncyclopediaEntries({ uid: "tester" }, ["Elecmon"], "Ver.2");
+
+    expect(result).toEqual({
+      added: [],
+      skipped: ["Elecmon"],
+    });
+    expect(mockSetDoc).toHaveBeenCalledTimes(4);
+    const versionDocWrites = mockSetDoc.mock.calls
+      .map((call) => call[1])
+      .filter((payload) => payload && Object.prototype.hasOwnProperty.call(payload, "Elecmon"));
+    const rootMirrorWrites = mockSetDoc.mock.calls
+      .map((call) => call[1])
+      .filter((payload) => payload && Object.prototype.hasOwnProperty.call(payload, "encyclopedia"));
+
+    expect(versionDocWrites).toEqual([
+      expect.objectContaining({
+        Elecmon: expect.objectContaining({
+          isDiscovered: true,
+          raisedCount: 2,
+        }),
+      }),
+      expect.objectContaining({
+        Elecmon: expect.objectContaining({
+          isDiscovered: true,
+          raisedCount: 2,
+        }),
+      }),
+    ]);
+    expect(rootMirrorWrites).toEqual([
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.2": expect.objectContaining({
+            Elecmon: expect.objectContaining({
+              isDiscovered: true,
+              raisedCount: 2,
+            }),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        encyclopedia: expect.objectContaining({
+          "Ver.2": expect.objectContaining({
+            Elecmon: expect.objectContaining({
+              isDiscovered: true,
+              raisedCount: 2,
+            }),
+          }),
+        }),
+      }),
+    ]);
+  });
 });

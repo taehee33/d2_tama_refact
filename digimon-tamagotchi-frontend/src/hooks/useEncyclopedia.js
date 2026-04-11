@@ -721,7 +721,7 @@ export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []
     added.push(id);
   }
 
-  if (added.length > 0) {
+  if (added.length > 0 || skipped.length > 0) {
     await saveEncyclopedia(encyclopedia, currentUser);
   }
 
