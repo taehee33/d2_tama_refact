@@ -273,11 +273,10 @@ describe("useEncyclopedia", () => {
     expect(mockSetDoc.mock.calls[0][1]).toEqual({ Agumon: { isDiscovered: true } });
     expect(mockSetDoc.mock.calls[5][1]).toEqual(
       expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.1": { Agumon: { isDiscovered: true } },
-        }),
         encyclopediaStructure: expect.objectContaining({
-          storageMode: "version-docs-with-root-mirror",
+          storageMode: "version-docs-with-root-metadata",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         }),
       })
     );
@@ -570,7 +569,7 @@ describe("useEncyclopedia", () => {
     });
   });
 
-  test("도감 저장은 버전 문서와 루트 legacy mirror를 함께 유지한다", async () => {
+  test("도감 저장은 버전 문서와 루트 메타데이터를 함께 유지한다", async () => {
     const result = await saveEncyclopedia(
       {
         "Ver.1": { Agumon: { isDiscovered: true } },
@@ -586,7 +585,7 @@ describe("useEncyclopedia", () => {
         skippedVersions: ["Ver.2", "Ver.3", "Ver.4", "Ver.5"],
       },
       compat: {
-        rootMirror: "success",
+        rootMetadata: "success",
         profileMirror: "success",
         failures: [],
       },
@@ -602,18 +601,15 @@ describe("useEncyclopedia", () => {
     expect(mockSetDoc.mock.calls[0][1]).toEqual({ Agumon: { isDiscovered: true } });
     expect(mockDoc).toHaveBeenCalledWith({ name: "test-db" }, "users", "tester");
     expect(mockSetDoc.mock.calls[1][1]).toEqual(
-      expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.1": { Agumon: { isDiscovered: true } },
-        }),
+      {
         encyclopediaStructure: {
-          storageMode: "version-docs-with-root-mirror",
+          storageMode: "version-docs-with-root-metadata",
           canonicalCollection: "encyclopedia",
           canonicalDocStrategy: "version",
-          rootMirrorEnabled: true,
-          phase: "compat",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         },
-      })
+      }
     );
     expect(mockSetDoc.mock.calls[1][2]).toEqual({ merge: true });
     expect(mockEnsureUserProfileMirror).toHaveBeenCalledWith("tester");
@@ -646,7 +642,7 @@ describe("useEncyclopedia", () => {
     expect(mockEnsureUserProfileMirror).not.toHaveBeenCalled();
   });
 
-  test("루트 mirror만 실패해도 canonical 저장은 성공으로 유지한다", async () => {
+  test("루트 메타데이터만 실패해도 canonical 저장은 성공으로 유지한다", async () => {
     mockSetDoc
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("root-write-failed"));
@@ -663,11 +659,11 @@ describe("useEncyclopedia", () => {
       wroteVersions: ["Ver.1"],
       skippedVersions: ["Ver.2", "Ver.3", "Ver.4", "Ver.5"],
     });
-    expect(result.compat.rootMirror).toBe("failed");
+    expect(result.compat.rootMetadata).toBe("failed");
     expect(result.compat.profileMirror).toBe("success");
     expect(result.compat.failures).toEqual([
       expect.objectContaining({
-        stage: "rootMirror",
+        stage: "rootMetadata",
       }),
     ]);
     expect(mockEnsureUserProfileMirror).toHaveBeenCalledWith("tester");
@@ -821,16 +817,10 @@ describe("useEncyclopedia", () => {
     });
     expect(mockSetDoc.mock.calls[4][1]).toEqual(
       expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.1": expect.objectContaining({
-            Gabumon: expect.objectContaining({
-              isDiscovered: true,
-              raisedCount: 1,
-            }),
-          }),
-          "Ver.4": expect.objectContaining({
-            Yuramon: expect.any(Object),
-          }),
+        encyclopediaStructure: expect.objectContaining({
+          storageMode: "version-docs-with-root-metadata",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         }),
       })
     );
@@ -878,13 +868,10 @@ describe("useEncyclopedia", () => {
     expect(mockDoc).toHaveBeenCalledWith({ name: "test-db" }, "users", "tester");
     expect(mockSetDoc.mock.calls[1][1]).toEqual(
       expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.3": expect.objectContaining({
-            Poyomon: expect.objectContaining({
-              isDiscovered: true,
-              raisedCount: 1,
-            }),
-          }),
+        encyclopediaStructure: expect.objectContaining({
+          storageMode: "version-docs-with-root-metadata",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         }),
       })
     );
@@ -939,9 +926,11 @@ describe("useEncyclopedia", () => {
     const versionDocWrites = mockSetDoc.mock.calls
       .map((call) => call[1])
       .filter((payload) => payload && Object.prototype.hasOwnProperty.call(payload, "Elecmon"));
-    const rootMirrorWrites = mockSetDoc.mock.calls
+    const rootMetadataWrites = mockSetDoc.mock.calls
       .map((call) => call[1])
-      .filter((payload) => payload && Object.prototype.hasOwnProperty.call(payload, "encyclopedia"));
+      .filter((payload) =>
+        payload && Object.prototype.hasOwnProperty.call(payload, "encyclopediaStructure")
+      );
 
     expect(versionDocWrites).toEqual([
       expect.objectContaining({
@@ -957,25 +946,19 @@ describe("useEncyclopedia", () => {
         }),
       }),
     ]);
-    expect(rootMirrorWrites).toEqual([
+    expect(rootMetadataWrites).toEqual([
       expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.2": expect.objectContaining({
-            Elecmon: expect.objectContaining({
-              isDiscovered: true,
-              raisedCount: 2,
-            }),
-          }),
+        encyclopediaStructure: expect.objectContaining({
+          storageMode: "version-docs-with-root-metadata",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         }),
       }),
       expect.objectContaining({
-        encyclopedia: expect.objectContaining({
-          "Ver.2": expect.objectContaining({
-            Elecmon: expect.objectContaining({
-              isDiscovered: true,
-              raisedCount: 2,
-            }),
-          }),
+        encyclopediaStructure: expect.objectContaining({
+          storageMode: "version-docs-with-root-metadata",
+          rootMirrorEnabled: false,
+          phase: "read-compat",
         }),
       }),
     ]);

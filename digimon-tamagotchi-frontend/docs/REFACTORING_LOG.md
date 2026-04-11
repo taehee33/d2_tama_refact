@@ -2,6 +2,20 @@
 
 ## 2026-04-11
 
+### 신규 도감 저장을 `version docs + root metadata` 구조로 조정
+- 신규 도감 저장은 이제 `users/{uid}/encyclopedia/{version}`를 정식 원본으로 기록하고, root `users/{uid}`에는 `encyclopediaStructure` 메타데이터만 갱신합니다.
+- 기존 root `users/{uid}.encyclopedia`와 slot legacy 도감은 삭제하지 않고 읽기 fallback으로만 유지합니다. 즉 과거 데이터 복구 경로는 그대로 두되, 신규 저장에서 더 이상 root encyclopedia mirror를 늘리지 않습니다.
+- 도감 패널은 저장 결과를 `canonical`, `rootMetadata`, `profileMirror` 단계 기준으로 안내하도록 문구를 정리했습니다.
+
+### 테스트 보강
+- `src/hooks/useEncyclopedia.test.js`에서 신규 저장 시 root `encyclopedia` mirror 대신 `encyclopediaStructure` 메타데이터만 갱신되는지 확인하도록 기대값을 갱신했습니다.
+
+### 영향받은 파일
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `src/components/panels/EncyclopediaPanel.jsx`
+- `docs/REFACTORING_LOG.md`
+
 ### 가이드 페이지를 현재 서비스 구조 기준의 안내 페이지로 재작성
 - `src/pages/Guide.jsx`는 더 이상 예전 게임 모달 본문을 그대로 서비스 페이지 안에 넣지 않고, 현재 사이트 흐름에 맞춘 전용 안내형 레이아웃을 렌더링하도록 바꿨습니다.
 - 새 `src/components/guide/GuideOverview.jsx`를 추가해 `홈 → 플레이 허브 → 게임 → 노트북 → 커뮤니티 → 테이머(설정)` 흐름, 현재 메뉴 묶음, 성장 포인트, 커뮤니티 보드 역할을 한 화면에서 읽히도록 다시 구성했습니다.

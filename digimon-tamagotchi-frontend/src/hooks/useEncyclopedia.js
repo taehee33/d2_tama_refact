@@ -25,11 +25,11 @@ import { toEpochMs } from "../utils/time";
 
 const ENCYCLOPEDIA_VERSIONS = SUPPORTED_DIGIMON_VERSIONS;
 const ENCYCLOPEDIA_STRUCTURE = {
-  storageMode: "version-docs-with-root-mirror",
+  storageMode: "version-docs-with-root-metadata",
   canonicalCollection: "encyclopedia",
   canonicalDocStrategy: "version",
-  rootMirrorEnabled: true,
-  phase: "compat",
+  rootMirrorEnabled: false,
+  phase: "read-compat",
 };
 const VERSION_MASTER_ACHIEVEMENTS = {
   "Ver.1": ACHIEVEMENT_VER1_MASTER,
@@ -44,7 +44,7 @@ const {
 } = encyclopediaMigrationCore;
 const reportedLegacyFallbackKeys = new Set();
 const syncedEncyclopediaStructureKeys = new Set();
-const COMPAT_SYNC_STAGE_ROOT = "rootMirror";
+const COMPAT_SYNC_STAGE_ROOT = "rootMetadata";
 const COMPAT_SYNC_STAGE_PROFILE = "profileMirror";
 const CANONICAL_SYNC_STAGE = "canonical";
 
@@ -109,9 +109,8 @@ function getUserEncyclopediaRef(uid, version) {
   return doc(db, "users", uid, "encyclopedia", version);
 }
 
-function buildRootEncyclopediaMirrorPayload(encyclopedia) {
+function buildRootEncyclopediaStructurePayload() {
   return {
-    encyclopedia,
     encyclopediaStructure: ENCYCLOPEDIA_STRUCTURE,
   };
 }
@@ -589,7 +588,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
         skippedVersions: [...ENCYCLOPEDIA_VERSIONS],
       },
       compat: {
-        rootMirror: "skipped",
+        rootMetadata: "skipped",
         profileMirror: "skipped",
         failures: [],
       },
@@ -654,7 +653,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
   }
 
   const compatFailures = [];
-  let rootMirrorStatus = "skipped";
+  let rootMetadataStatus = "skipped";
   let profileMirrorStatus = "skipped";
 
   if (wroteVersions.length > 0) {
@@ -662,19 +661,19 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
       await setDoc(
         getUserRootRef(currentUser.uid),
         sanitizeFirestoreValue(
-          buildRootEncyclopediaMirrorPayload(normalizedEncyclopedia)
+          buildRootEncyclopediaStructurePayload()
         ),
         { merge: true }
       );
-      rootMirrorStatus = "success";
+      rootMetadataStatus = "success";
     } catch (error) {
-      rootMirrorStatus = "failed";
+      rootMetadataStatus = "failed";
       compatFailures.push({
         stage: COMPAT_SYNC_STAGE_ROOT,
         message: error?.message || String(error),
         error,
       });
-      console.warn("[saveEncyclopedia] 루트 mirror 저장 실패:", error);
+      console.warn("[saveEncyclopedia] 루트 메타데이터 저장 실패:", error);
     }
 
     try {
@@ -699,7 +698,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
       skippedVersions,
     },
     compat: {
-      rootMirror: rootMirrorStatus,
+      rootMetadata: rootMetadataStatus,
       profileMirror: profileMirrorStatus,
       failures: compatFailures,
     },

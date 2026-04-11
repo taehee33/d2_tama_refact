@@ -150,7 +150,7 @@ function EncyclopediaPanel({
       const compatFailureStages = formatCompatFailureStages(syncResult);
       const compatFailureSuffix =
         compatFailureStages.length > 0
-          ? ` 단, 호환 구조 동기화 일부 실패(${compatFailureStages.join(", ")}).`
+          ? ` 단, 호환 구조 메타데이터 동기화 일부 실패(${compatFailureStages.join(", ")}).`
           : "";
 
       if (added.length > 0) {

@@ -17,8 +17,33 @@
   - `saveEncyclopedia()`는 이제 버전별 문서를 계속 저장하면서 루트 `users/{uid}.encyclopedia`에도 canonical mirror를 함께 기록한다.
   - 루트 문서에 `encyclopediaStructure.storageMode = version-docs-with-root-mirror`, `phase = compat` 메타데이터를 남겨 현재 계정이 호환 단계에 있음을 확인할 수 있게 했다.
   - 관리자용 `backfillUserEncyclopedia`도 root encyclopedia mirror와 구조 메타데이터를 같은 형식으로 기록하도록 맞췄다.
-  - `loadEncyclopedia()`는 legacy root/slot fallback으로 복구된 계정을 읽을 때, 같은 세션에서 한 번만 version docs/root mirror를 self-heal 저장하고 `profile/main`도 best effort로 생성해 관리자 키 없이도 구조가 점진적으로 최신 형태로 맞춰지도록 했다.
+- `loadEncyclopedia()`는 legacy root/slot fallback으로 복구된 계정을 읽을 때, 같은 세션에서 한 번만 version docs/root mirror를 self-heal 저장하고 `profile/main`도 best effort로 생성해 관리자 키 없이도 구조가 점진적으로 최신 형태로 맞춰지도록 했다.
 - **영향:** 운영에서 기존 계정은 root fallback으로 계속 복구 가능하고, 이후 앱 저장 또는 백필이 발생하면 새 구조와 legacy mirror가 함께 정렬된다.
+
+## [2026-04-11] 신규 도감 저장을 `version docs + root metadata`로 축소
+
+### 작업 유형
+- 🧩 신규 저장 경로 축소
+- ♻️ legacy root encyclopedia 읽기 호환 유지
+- 🧪 저장 결과/메시지 기준 정리
+
+### 목적 및 영향
+- **목적:** 신규 저장부터는 `users/{uid}.encyclopedia` root mirror를 더 이상 늘리지 않고, `users/{uid}/encyclopedia/{version}`를 정식 저장소로 고정한다.
+- **내용:**
+  - `saveEncyclopedia()`는 이제 version docs를 canonical로 저장하고, root 문서에는 `encyclopediaStructure` 메타데이터만 갱신한다.
+  - 기존 root `encyclopedia`와 slot legacy 도감은 읽기 fallback으로 그대로 남겨 두어, 과거 계정 복구 경로는 유지한다.
+  - 도감 패널의 저장 메시지는 `canonical`, `rootMetadata`, `profileMirror` 단계 기준으로 안내한다.
+- **영향:** 신규 저장은 서브컬렉션 중심으로 단순화되고, 기존 root encyclopedia는 더 이상 신규 저장으로 갱신되지 않는다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
+- `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+- `digimon-tamagotchi-frontend/docs/REFACTORING_LOG.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEncyclopedia.test.js src/components/panels/EncyclopediaPanel.test.jsx src/utils/userProfileUtils.test.js`
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
