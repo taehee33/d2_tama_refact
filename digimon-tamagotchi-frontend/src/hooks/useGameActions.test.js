@@ -5,10 +5,12 @@ import {
   buildBattleCostStats,
   buildBattleLogCommitState,
   buildBattleLogEntry,
+  buildFeedOutcome,
   buildFeedLogText,
   buildRecordedBattleStats,
   buildTrainingLogText,
   buildTrainingOutcome,
+  buildTrainingSkipOutcome,
   wakeForInteraction,
 } from "./useGameActions";
 
@@ -324,6 +326,63 @@ describe("buildFeedLogText", () => {
   });
 });
 
+describe("buildFeedOutcome", () => {
+  test("고기 거절 상태 아니오 선택은 스탯을 유지하고 거절 로그를 반환한다", () => {
+    const baseStats = {
+      fullness: 0,
+      weight: 12,
+      overfeeds: 1,
+      callStatus: {
+        hunger: { isActive: true, startedAt: 1, isLogged: true },
+      },
+    };
+
+    const result = buildFeedOutcome({
+      type: "meat",
+      baseStats,
+      isRefused: true,
+    });
+
+    expect(result.eatResult).toMatchObject({
+      fullnessIncreased: false,
+      canEatMore: false,
+      isOverfeed: false,
+    });
+    expect(result.updatedStats).toEqual(baseStats);
+    expect(result.logText).toBe("Feed: Refused (고기 거절, Overfeed 증가 없음)");
+  });
+
+  test("프로틴 결과는 hunger/strength 호출을 해제하고 로그까지 함께 반환한다", () => {
+    const baseStats = {
+      fullness: 2,
+      weight: 10,
+      strength: 3,
+      energy: 0,
+      maxEnergy: 5,
+      callStatus: {
+        hunger: { isActive: true, startedAt: 1, isLogged: true },
+        strength: { isActive: true, startedAt: 2, isLogged: true },
+      },
+    };
+
+    const result = buildFeedOutcome({
+      type: "protein",
+      baseStats,
+    });
+
+    expect(result.updatedStats.weight).toBe(12);
+    expect(result.updatedStats.strength).toBe(4);
+    expect(result.updatedStats.energy).toBe(1);
+    expect(result.updatedStats.callStatus.hunger.isActive).toBe(false);
+    expect(result.updatedStats.callStatus.strength.isActive).toBe(false);
+    expect(baseStats.callStatus.hunger.isActive).toBe(true);
+    expect(baseStats.callStatus.strength.isActive).toBe(true);
+    expect(result.logText).toBe(
+      "Feed: Protein (Wt +2g, Str +1, En +1) - Protein Bonus! (En +1, Overdose +1) => (Wt 10→12g, Str 3→4, En 0→1)"
+    );
+  });
+});
+
 describe("buildTrainingLogText", () => {
   test("훈련 성공 로그를 변화 전후 값으로 만든다", () => {
     const result = buildTrainingLogText({
@@ -432,6 +491,48 @@ describe("buildTrainingOutcome", () => {
     expect(result.logText).toBe(
       "훈련 실패. 힘 2→2, 무게 12→11g, 에너지 5→4, 훈련횟수 4→5"
     );
+  });
+});
+
+describe("buildTrainingSkipOutcome", () => {
+  test("체중 부족 사유면 체중 부족 로그와 안내 문구를 반환한다", () => {
+    const result = buildTrainingSkipOutcome({
+      reason: "underweight",
+      baseStats: {
+        weight: 0,
+        energy: 3,
+      },
+      timestamp: 1234,
+    });
+
+    expect(result).toEqual({
+      entry: {
+        type: "TRAIN",
+        text: "훈련 건너뜀(사유: 체중 부족). 무게: 0g",
+        timestamp: 1234,
+      },
+      alertMessage: "⚠️ 체중이 너무 낮습니다!\n먹이로 체중을 늘려 주세요.",
+    });
+  });
+
+  test("에너지 부족 사유면 에너지 부족 로그와 안내 문구를 반환한다", () => {
+    const result = buildTrainingSkipOutcome({
+      reason: "lowEnergy",
+      baseStats: {
+        weight: 9,
+        energy: 0,
+      },
+      timestamp: 5678,
+    });
+
+    expect(result).toEqual({
+      entry: {
+        type: "TRAIN",
+        text: "훈련 건너뜀(사유: 에너지 부족). 에너지: 0, 무게: 9g",
+        timestamp: 5678,
+      },
+      alertMessage: "⚠️ 에너지가 부족합니다!\n잠을 재워 에너지를 회복해 주세요.",
+    });
   });
 });
 

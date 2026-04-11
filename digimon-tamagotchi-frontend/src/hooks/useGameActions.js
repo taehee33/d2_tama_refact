@@ -53,6 +53,22 @@ function appendBattleLog(prevBattleLogs, entry) {
   return [{ ...entry, timestamp: entry.timestamp || Date.now() }, ...list].slice(0, MAX_BATTLE_LOGS);
 }
 
+function cloneStatsForCallStatusReset(stats = {}, callType) {
+  if (!stats.callStatus) {
+    return { ...stats };
+  }
+
+  return {
+    ...stats,
+    callStatus: {
+      ...stats.callStatus,
+      [callType]: stats.callStatus[callType]
+        ? { ...stats.callStatus[callType] }
+        : stats.callStatus[callType],
+    },
+  };
+}
+
 export function buildActivityLogCommitState({
   prevStats = {},
   nextStats = {},
@@ -145,17 +161,7 @@ export function buildTrainingOutcome({
 
   if ((finalStats.strength || 0) > 0) {
     finalStats = resetCallStatus(
-      finalStats.callStatus
-        ? {
-            ...finalStats,
-            callStatus: {
-              ...finalStats.callStatus,
-              strength: finalStats.callStatus.strength
-                ? { ...finalStats.callStatus.strength }
-                : finalStats.callStatus.strength,
-            },
-          }
-        : { ...finalStats },
+      cloneStatsForCallStatusReset(finalStats, "strength"),
       "strength"
     );
   }
@@ -167,6 +173,84 @@ export function buildTrainingOutcome({
       beforeStats: baseStats,
       finalStats,
     }),
+  };
+}
+
+export function buildFeedOutcome({
+  type,
+  baseStats = {},
+  isRefused = false,
+} = {}) {
+  let eatResult;
+  let updatedStats;
+
+  if (isRefused && type === "meat") {
+    updatedStats = baseStats;
+    eatResult = {
+      updatedStats,
+      fullnessIncreased: false,
+      canEatMore: false,
+      isOverfeed: false,
+    };
+  } else if (type === "meat") {
+    const wasRefusing = willRefuseMeat(baseStats);
+    eatResult = feedMeat(baseStats, wasRefusing && !isRefused);
+    updatedStats = eatResult.updatedStats;
+  } else {
+    eatResult = feedProtein(baseStats);
+    updatedStats = eatResult.updatedStats;
+  }
+
+  if ((updatedStats.fullness || 0) > 0) {
+    updatedStats = resetCallStatus(cloneStatsForCallStatusReset(updatedStats, "hunger"), "hunger");
+  }
+
+  if (type === "protein" && (updatedStats.strength || 0) > 0) {
+    updatedStats = resetCallStatus(
+      cloneStatsForCallStatusReset(updatedStats, "strength"),
+      "strength"
+    );
+  }
+
+  return {
+    eatResult,
+    updatedStats,
+    logText: buildFeedLogText({
+      type,
+      isRefused,
+      eatResult,
+      beforeStats: baseStats,
+      updatedStats,
+    }),
+  };
+}
+
+export function buildTrainingSkipOutcome({
+  reason,
+  baseStats = {},
+  timestamp = Date.now(),
+} = {}) {
+  const weight = baseStats.weight ?? 0;
+  const energy = baseStats.energy ?? 0;
+
+  if (reason === "underweight") {
+    return {
+      entry: {
+        type: "TRAIN",
+        text: `훈련 건너뜀(사유: 체중 부족). 무게: ${weight}g`,
+        timestamp,
+      },
+      alertMessage: "⚠️ 체중이 너무 낮습니다!\n먹이로 체중을 늘려 주세요.",
+    };
+  }
+
+  return {
+    entry: {
+      type: "TRAIN",
+      text: `훈련 건너뜀(사유: 에너지 부족). 에너지: ${energy}, 무게: ${weight}g`,
+      timestamp,
+    },
+    alertMessage: "⚠️ 에너지가 부족합니다!\n잠을 재워 에너지를 회복해 주세요.",
   };
 }
 
@@ -633,31 +717,13 @@ export function useGameActions({
       // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 currentStats 사용
       const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : currentStats;
 
-      // 먹이기 로직 실행 (결과 객체도 함께 받음)
-      let eatResult;
-      let updatedStats;
-      if (isRefused && type === "meat") {
-        // 거절 상태이고 "아니오"를 선택한 경우: feedMeat 호출하지 않음 (overfeed 증가 없음)
-        updatedStats = baseStats;
-        eatResult = { updatedStats, fullnessIncreased: false, canEatMore: false, isOverfeed: false };
-      } else if (type === "meat") {
-        // 거절 상태에서 "예"를 선택한 경우 forceFeed = true로 전달
-        const wasRefusing = willRefuseMeat(baseStats);
-        eatResult = feedMeat(baseStats, wasRefusing && !isRefused); // wasRefusing이 true이고 isRefused가 false면 forceFeed = true
-        updatedStats = eatResult.updatedStats;
-      } else {
-        eatResult = feedProtein(baseStats);
-        updatedStats = eatResult.updatedStats;
-      }
-      
-      // 호출 해제: fullness > 0이 되면 hunger 호출 리셋
-      if (updatedStats.fullness > 0) {
-        updatedStats = resetCallStatus(updatedStats, 'hunger');
-      }
-      // 단백질을 먹었고 strength > 0이 되면 strength 호출 리셋
-      if (type === "protein" && updatedStats.strength > 0) {
-        updatedStats = resetCallStatus(updatedStats, 'strength');
-      }
+      const feedOutcome = buildFeedOutcome({
+        type,
+        baseStats,
+        isRefused,
+      });
+      const eatResult = feedOutcome.eatResult;
+      const updatedStats = feedOutcome.updatedStats;
 
       // 디버깅: 오버피드 관련 변수 추적
       if (type === "meat") {
@@ -671,13 +737,7 @@ export function useGameActions({
         });
       }
 
-      const logText = buildFeedLogText({
-        type,
-        isRefused,
-        eatResult,
-        beforeStats: baseStats,
-        updatedStats,
-      });
+      const logText = feedOutcome.logText;
       setDigimonStats((prevStats) => {
         const newLog = { type: "FEED", text: logText, timestamp: Date.now() };
         const activityCommitState = buildActivityLogCommitState({
@@ -781,19 +841,19 @@ export function useGameActions({
     
     // Weight 체크: Weight가 0 이하면 훈련 불가
     if ((baseStats.weight || 0) <= 0) {
+      const trainingSkipOutcome = buildTrainingSkipOutcome({
+        reason: "underweight",
+        baseStats,
+      });
       setDigimonStats((prevStats) => {
-        const w = baseStats.weight ?? 0;
-        const newLog = {
-          type: "TRAIN",
-          text: `훈련 건너뜀(사유: 체중 부족). 무게: ${w}g`,
-          timestamp: Date.now(),
-        };
         const activityCommitState = buildActivityLogCommitState({
           prevStats,
           nextStats: baseStats,
-          entry: newLog,
+          entry: trainingSkipOutcome.entry,
         });
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+        if (appendLogToSubcollection) {
+          appendLogToSubcollection(trainingSkipOutcome.entry).catch(() => {});
+        }
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
           activityCommitState.updatedLogs
@@ -802,26 +862,25 @@ export function useGameActions({
         });
         return activityCommitState.statsWithLogs;
       });
-      alert("⚠️ 체중이 너무 낮습니다!\n먹이로 체중을 늘려 주세요.");
+      alert(trainingSkipOutcome.alertMessage);
       return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
     }
     
     // 에너지 부족 체크
     if ((baseStats.energy || 0) <= 0) {
+      const trainingSkipOutcome = buildTrainingSkipOutcome({
+        reason: "lowEnergy",
+        baseStats,
+      });
       setDigimonStats((prevStats) => {
-        const en = baseStats.energy ?? 0;
-        const w = baseStats.weight ?? 0;
-        const newLog = {
-          type: "TRAIN",
-          text: `훈련 건너뜀(사유: 에너지 부족). 에너지: ${en}, 무게: ${w}g`,
-          timestamp: Date.now(),
-        };
         const activityCommitState = buildActivityLogCommitState({
           prevStats,
           nextStats: baseStats,
-          entry: newLog,
+          entry: trainingSkipOutcome.entry,
         });
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+        if (appendLogToSubcollection) {
+          appendLogToSubcollection(trainingSkipOutcome.entry).catch(() => {});
+        }
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
           activityCommitState.updatedLogs
@@ -830,8 +889,7 @@ export function useGameActions({
         });
         return activityCommitState.statsWithLogs;
       });
-      // 에너지 부족 알림 가이드
-      alert("⚠️ 에너지가 부족합니다!\n잠을 재워 에너지를 회복해 주세요.");
+      alert(trainingSkipOutcome.alertMessage);
       return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
     }
     
