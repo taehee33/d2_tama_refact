@@ -1,6 +1,6 @@
 # Digimon Game Mechanics & Logic
 
-이 문서는 D2 Tamagotchi 프로젝트의 게임 메커니즘과 로직을 상세히 설명합니다.
+이 문서는 Digimon THamagotchi 프로젝트의 게임 메커니즘과 로직을 상세히 설명합니다.
 
 > 문서 상태: 참고용 문서
 >

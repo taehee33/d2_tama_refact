@@ -34,7 +34,7 @@ export function LandingTopBar({ tamerName = "" }) {
               />
             </span>
             <span className="landing-topbar__brand-copy">
-              <span className="landing-topbar__eyebrow">D2 TAMAGOTCHI</span>
+              <span className="landing-topbar__eyebrow">Digimon THamagotchi</span>
               <span className="landing-topbar__title">디지몬 키우기</span>
             </span>
           </Link>

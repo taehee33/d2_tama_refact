@@ -1,4 +1,4 @@
-# D2 Tamagotchi / Digimon Tamagotchi
+# Digimon THamagotchi
 
 디지털 몬스터 컬러 휴대용 기기에서 영감을 받은 디지몬 육성 웹 애플리케이션입니다.  
 실제 실행 앱은 [digimon-tamagotchi-frontend](./digimon-tamagotchi-frontend) 아래에 있습니다.

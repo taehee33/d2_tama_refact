@@ -160,6 +160,7 @@
   min-width: 0;
   position: relative;
   z-index: 1;
+  justify-self: center;
 }
 
 .landing-topbar__nav-group {
@@ -213,6 +214,19 @@
   gap: 0.65rem;
   position: relative;
   z-index: 1;
+  justify-self: end;
+}
+
+@media (min-width: 901px) {
+  .landing-topbar__surface {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .landing-topbar__brand {
+    justify-self: start;
+  }
 }
 
 .landing-topbar__mobile-home {

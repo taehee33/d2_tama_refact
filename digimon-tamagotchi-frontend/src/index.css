@@ -4890,6 +4890,7 @@ code {
   display: none;
   align-items: center;
   gap: 0.15rem;
+  justify-self: center;
 }
 
 .service-nav__item {
@@ -4982,6 +4983,7 @@ code {
   align-items: center;
   flex: 0 0 auto;
   gap: 0.6rem;
+  justify-self: end;
 }
 
 .service-topnav__mobile-menu {
@@ -6461,6 +6463,16 @@ code {
 
   .service-nav {
     display: flex;
+  }
+
+  .service-topnav__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .service-brand {
+    justify-self: start;
   }
 
   .service-topnav__mobile-menu {

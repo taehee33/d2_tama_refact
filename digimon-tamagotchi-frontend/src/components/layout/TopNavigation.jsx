@@ -141,7 +141,7 @@ function TopNavigation({ tamerName = "" }) {
             />
           </span>
           <span className="service-brand__copy">
-            <span className="service-brand__eyebrow">D2 TAMAGOTCHI</span>
+            <span className="service-brand__eyebrow">Digimon THamagotchi</span>
             <span className="service-brand__title">디지몬 키우기</span>
           </span>
         </Link>
