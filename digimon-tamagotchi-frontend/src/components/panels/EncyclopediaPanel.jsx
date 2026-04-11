@@ -57,6 +57,24 @@ function getDigimonList(version) {
     });
 }
 
+function formatSyncFailureStages(error) {
+  if (!Array.isArray(error?.details) || error.details.length === 0) {
+    return error?.stage ? [error.stage] : [];
+  }
+
+  return [...new Set(error.details.map((detail) => detail?.stage).filter(Boolean))];
+}
+
+function formatCompatFailureStages(syncResult) {
+  return [
+    ...new Set(
+      (syncResult?.compat?.failures || [])
+        .map((failure) => failure?.stage)
+        .filter(Boolean)
+    ),
+  ];
+}
+
 function EncyclopediaPanel({
   currentDigimonId,
   developerMode = false,
@@ -122,25 +140,35 @@ function EncyclopediaPanel({
     try {
       const digimonVersion = getDigimonVersionByDigimonId(currentDigimonId);
       const digimonData = getDigimonDataMapByVersion(digimonVersion)?.[currentDigimonId];
-      const { added, skipped } = await addMissingEncyclopediaEntries(
+      const { added, skipped, syncResult } = await addMissingEncyclopediaEntries(
         currentUser,
         [currentDigimonId],
         digimonVersion
       );
       const data = await loadEncyclopedia(currentUser);
       setEncyclopedia(data);
+      const compatFailureStages = formatCompatFailureStages(syncResult);
+      const compatFailureSuffix =
+        compatFailureStages.length > 0
+          ? ` 단, 호환 구조 동기화 일부 실패(${compatFailureStages.join(", ")}).`
+          : "";
 
       if (added.length > 0) {
         setFixingMessage(
-          `도감(${digimonVersion})에 ${digimonData?.name || currentDigimonId} 반영되었습니다.`
+          `도감(${digimonVersion})에 ${digimonData?.name || currentDigimonId} 반영되었습니다.${compatFailureSuffix}`
         );
       } else if (skipped.length > 0) {
-        setFixingMessage(`이미 도감(${digimonVersion})에 등록되어 있습니다.`);
+        setFixingMessage(
+          `이미 도감(${digimonVersion})에 등록되어 있습니다.${compatFailureSuffix}`
+        );
       } else {
         setFixingMessage("반영할 항목이 없습니다.");
       }
     } catch (error) {
-      setFixingMessage(`보정 실패: ${error.message || "알 수 없는 오류"}`);
+      const failedStages = formatSyncFailureStages(error);
+      const failureSuffix =
+        failedStages.length > 0 ? ` (${failedStages.join(", ")})` : "";
+      setFixingMessage(`보정 실패${failureSuffix}: ${error.message || "알 수 없는 오류"}`);
     }
 
     window.setTimeout(() => setFixingMessage(null), 4000);

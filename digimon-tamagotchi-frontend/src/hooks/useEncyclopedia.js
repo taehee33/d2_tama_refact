@@ -44,6 +44,9 @@ const {
 } = encyclopediaMigrationCore;
 const reportedLegacyFallbackKeys = new Set();
 const syncedEncyclopediaStructureKeys = new Set();
+const COMPAT_SYNC_STAGE_ROOT = "rootMirror";
+const COMPAT_SYNC_STAGE_PROFILE = "profileMirror";
+const CANONICAL_SYNC_STAGE = "canonical";
 
 function createEmptyEncyclopedia() {
   return createEmptyEncyclopediaBase(ENCYCLOPEDIA_VERSIONS);
@@ -55,6 +58,47 @@ function normalizeEncyclopedia(encyclopedia) {
 
 function hasVersionEntries(versionEntries) {
   return hasVersionEntriesBase(versionEntries);
+}
+
+function isPlainObject(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function sanitizeFirestoreValue(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => sanitizeFirestoreValue(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  return Object.entries(value).reduce((accumulator, [key, nestedValue]) => {
+    const sanitizedValue = sanitizeFirestoreValue(nestedValue);
+    if (sanitizedValue !== undefined) {
+      accumulator[key] = sanitizedValue;
+    }
+    return accumulator;
+  }, {});
+}
+
+function createEncyclopediaSaveError(message, stage, details = []) {
+  const error = new Error(message);
+  error.name = "EncyclopediaSaveError";
+  error.stage = stage;
+  error.details = Array.isArray(details) ? details : [];
+  return error;
 }
 
 function getUserRootRef(uid) {
@@ -93,8 +137,7 @@ async function syncEncyclopediaCompatibilityStructure(currentUser, encyclopedia)
     return;
   }
 
-  await saveEncyclopedia(encyclopedia, currentUser);
-  await ensureUserProfileMirror(currentUser.uid);
+  return saveEncyclopedia(encyclopedia, currentUser);
 }
 
 function reportLegacyFallbackUsage(uid, sourceSummary = {}) {
@@ -474,11 +517,13 @@ export async function loadEncyclopedia(currentUser) {
     })}`;
 
     if (shouldSync && !syncedEncyclopediaStructureKeys.has(syncKey)) {
-      syncedEncyclopediaStructureKeys.add(syncKey);
       try {
-        await syncEncyclopediaCompatibilityStructure(currentUser, encyclopedia);
+        const syncResult = await syncEncyclopediaCompatibilityStructure(currentUser, encyclopedia);
+        syncedEncyclopediaStructureKeys.add(syncKey);
+        if (syncResult?.compat?.failures?.length > 0) {
+          console.warn("[loadEncyclopedia] 호환 구조 동기화 일부 실패:", syncResult.compat.failures);
+        }
       } catch (syncError) {
-        syncedEncyclopediaStructureKeys.delete(syncKey);
         console.warn("[loadEncyclopedia] 호환 구조 동기화 실패:", syncError);
       }
     }
@@ -524,6 +569,7 @@ export async function checkAndGrantEncyclopediaMasters(currentUser, mergedEncycl
     }
   } catch (err) {
     console.error("도감 마스터 칭호 부여 오류:", err);
+    throw err;
   }
 }
 
@@ -536,47 +582,128 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
   // Firebase 로그인 필수
   if (!currentUser || !db) {
     console.warn("Firebase 로그인이 필요합니다.");
-    return;
+    return {
+      canonical: {
+        status: "skipped",
+        wroteVersions: [],
+        skippedVersions: [...ENCYCLOPEDIA_VERSIONS],
+      },
+      compat: {
+        rootMirror: "skipped",
+        profileMirror: "skipped",
+        failures: [],
+      },
+    };
   }
 
-  try {
-    const normalizedEncyclopedia = normalizeEncyclopedia(encyclopedia);
-    const saveTasks = [];
-    let hasCanonicalEntries = false;
+  const normalizedEncyclopedia = sanitizeFirestoreValue(
+    normalizeEncyclopedia(encyclopedia)
+  );
+  const canonicalTasks = [];
+  const wroteVersions = [];
+  const skippedVersions = [];
 
-    for (const version of ENCYCLOPEDIA_VERSIONS) {
-      if (!hasVersionEntries(normalizedEncyclopedia[version])) {
-        continue;
+  for (const version of ENCYCLOPEDIA_VERSIONS) {
+    if (!hasVersionEntries(normalizedEncyclopedia[version])) {
+      skippedVersions.push(version);
+      continue;
+    }
+
+    canonicalTasks.push({
+      stage: CANONICAL_SYNC_STAGE,
+      version,
+      promise: setDoc(
+        getUserEncyclopediaRef(currentUser.uid, version),
+        sanitizeFirestoreValue(normalizedEncyclopedia[version])
+      ),
+    });
+  }
+
+  if (canonicalTasks.length > 0) {
+    const canonicalResults = await Promise.allSettled(
+      canonicalTasks.map((task) => task.promise)
+    );
+    const canonicalFailures = [];
+
+    canonicalResults.forEach((result, index) => {
+      const task = canonicalTasks[index];
+      if (result.status === "fulfilled") {
+        wroteVersions.push(task.version);
+        return;
       }
 
-      hasCanonicalEntries = true;
+      canonicalFailures.push({
+        stage: task.stage,
+        version: task.version,
+        message: result.reason?.message || String(result.reason),
+        error: result.reason,
+      });
+    });
 
-      saveTasks.push(
-        setDoc(
-          getUserEncyclopediaRef(currentUser.uid, version),
-          normalizedEncyclopedia[version]
-        )
+    if (canonicalFailures.length > 0) {
+      const error = createEncyclopediaSaveError(
+        `도감 저장 실패 (${canonicalFailures
+          .map((failure) => `${failure.stage}:${failure.version}`)
+          .join(", ")})`,
+        CANONICAL_SYNC_STAGE,
+        canonicalFailures
       );
+      console.error("도감 저장 오류 (Firebase):", error);
+      throw error;
     }
-
-    if (hasCanonicalEntries) {
-      saveTasks.push(
-        setDoc(
-          getUserRootRef(currentUser.uid),
-          buildRootEncyclopediaMirrorPayload(normalizedEncyclopedia),
-          { merge: true }
-        )
-      );
-    }
-
-    if (saveTasks.length > 0) {
-      await Promise.all(saveTasks);
-    }
-
-    await checkAndGrantEncyclopediaMasters(currentUser, normalizedEncyclopedia);
-  } catch (error) {
-    console.error("도감 저장 오류 (Firebase):", error);
   }
+
+  const compatFailures = [];
+  let rootMirrorStatus = "skipped";
+  let profileMirrorStatus = "skipped";
+
+  if (wroteVersions.length > 0) {
+    try {
+      await setDoc(
+        getUserRootRef(currentUser.uid),
+        sanitizeFirestoreValue(
+          buildRootEncyclopediaMirrorPayload(normalizedEncyclopedia)
+        ),
+        { merge: true }
+      );
+      rootMirrorStatus = "success";
+    } catch (error) {
+      rootMirrorStatus = "failed";
+      compatFailures.push({
+        stage: COMPAT_SYNC_STAGE_ROOT,
+        message: error?.message || String(error),
+        error,
+      });
+      console.warn("[saveEncyclopedia] 루트 mirror 저장 실패:", error);
+    }
+
+    try {
+      await checkAndGrantEncyclopediaMasters(currentUser, normalizedEncyclopedia);
+      await ensureUserProfileMirror(currentUser.uid);
+      profileMirrorStatus = "success";
+    } catch (error) {
+      profileMirrorStatus = "failed";
+      compatFailures.push({
+        stage: COMPAT_SYNC_STAGE_PROFILE,
+        message: error?.message || String(error),
+        error,
+      });
+      console.warn("[saveEncyclopedia] profile/main 보정 실패:", error);
+    }
+  }
+
+  return {
+    canonical: {
+      status: wroteVersions.length > 0 ? "success" : "skipped",
+      wroteVersions,
+      skippedVersions,
+    },
+    compat: {
+      rootMirror: rootMirrorStatus,
+      profileMirror: profileMirrorStatus,
+      failures: compatFailures,
+    },
+  };
 }
 
 /**
@@ -685,9 +812,10 @@ export async function updateEncyclopedia(
 export async function addMissingEncyclopediaEntries(currentUser, digimonIds = [], version = null) {
   const added = [];
   const skipped = [];
+  let syncResult = null;
 
   if (!currentUser || !db || !Array.isArray(digimonIds) || digimonIds.length === 0) {
-    return { added, skipped };
+    return { added, skipped, syncResult };
   }
 
   const encyclopedia = await loadEncyclopedia(currentUser);
@@ -722,8 +850,8 @@ export async function addMissingEncyclopediaEntries(currentUser, digimonIds = []
   }
 
   if (added.length > 0 || skipped.length > 0) {
-    await saveEncyclopedia(encyclopedia, currentUser);
+    syncResult = await saveEncyclopedia(encyclopedia, currentUser);
   }
 
-  return { added, skipped };
+  return { added, skipped, syncResult };
 }

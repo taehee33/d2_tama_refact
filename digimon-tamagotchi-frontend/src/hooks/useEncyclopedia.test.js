@@ -175,9 +175,11 @@ function createQuerySnapshot(documents = []) {
 
 describe("useEncyclopedia", () => {
   let consoleWarnSpy;
+  let consoleErrorSpy;
 
   beforeEach(() => {
     consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockCollection.mockClear();
     mockDoc.mockClear();
     mockGetDoc.mockReset();
@@ -193,6 +195,7 @@ describe("useEncyclopedia", () => {
 
   afterEach(() => {
     consoleWarnSpy?.mockRestore();
+    consoleErrorSpy?.mockRestore();
   });
 
   test("버전 문서가 있어도 루트 legacy 도감과 병합해서 과거 발견 이력을 유지한다", async () => {
@@ -568,7 +571,7 @@ describe("useEncyclopedia", () => {
   });
 
   test("도감 저장은 버전 문서와 루트 legacy mirror를 함께 유지한다", async () => {
-    await saveEncyclopedia(
+    const result = await saveEncyclopedia(
       {
         "Ver.1": { Agumon: { isDiscovered: true } },
         "Ver.2": {},
@@ -576,6 +579,18 @@ describe("useEncyclopedia", () => {
       { uid: "tester" }
     );
 
+    expect(result).toEqual({
+      canonical: {
+        status: "success",
+        wroteVersions: ["Ver.1"],
+        skippedVersions: ["Ver.2", "Ver.3", "Ver.4", "Ver.5"],
+      },
+      compat: {
+        rootMirror: "success",
+        profileMirror: "success",
+        failures: [],
+      },
+    });
     expect(mockSetDoc).toHaveBeenCalledTimes(2);
     expect(mockDoc).toHaveBeenCalledWith(
       { name: "test-db" },
@@ -601,6 +616,107 @@ describe("useEncyclopedia", () => {
       })
     );
     expect(mockSetDoc.mock.calls[1][2]).toEqual({ merge: true });
+    expect(mockEnsureUserProfileMirror).toHaveBeenCalledWith("tester");
+  });
+
+  test("도감 저장은 canonical 쓰기 실패를 조용히 삼키지 않고 예외를 던진다", async () => {
+    mockSetDoc.mockRejectedValueOnce(new Error("permission-denied"));
+
+    await expect(
+      saveEncyclopedia(
+        {
+          "Ver.1": {
+            Agumon: { isDiscovered: true },
+          },
+        },
+        { uid: "tester" }
+      )
+    ).rejects.toMatchObject({
+      name: "EncyclopediaSaveError",
+      stage: "canonical",
+      details: [
+        expect.objectContaining({
+          stage: "canonical",
+          version: "Ver.1",
+        }),
+      ],
+    });
+
+    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    expect(mockEnsureUserProfileMirror).not.toHaveBeenCalled();
+  });
+
+  test("루트 mirror만 실패해도 canonical 저장은 성공으로 유지한다", async () => {
+    mockSetDoc
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("root-write-failed"));
+
+    const result = await saveEncyclopedia(
+      {
+        "Ver.1": { Agumon: { isDiscovered: true } },
+      },
+      { uid: "tester" }
+    );
+
+    expect(result.canonical).toEqual({
+      status: "success",
+      wroteVersions: ["Ver.1"],
+      skippedVersions: ["Ver.2", "Ver.3", "Ver.4", "Ver.5"],
+    });
+    expect(result.compat.rootMirror).toBe("failed");
+    expect(result.compat.profileMirror).toBe("success");
+    expect(result.compat.failures).toEqual([
+      expect.objectContaining({
+        stage: "rootMirror",
+      }),
+    ]);
+    expect(mockEnsureUserProfileMirror).toHaveBeenCalledWith("tester");
+  });
+
+  test("도감 저장 전 nested undefined 값을 제거해 Firestore payload를 정리한다", async () => {
+    await saveEncyclopedia(
+      {
+        "Ver.1": {
+          Agumon: {
+            isDiscovered: true,
+            bestStats: {
+              maxAge: 4,
+              maxWeight: undefined,
+            },
+            history: [
+              {
+                date: 1234,
+                result: "발견",
+                finalStats: {
+                  age: 4,
+                  winRate: undefined,
+                },
+              },
+              undefined,
+            ],
+          },
+        },
+      },
+      { uid: "tester" }
+    );
+
+    expect(mockSetDoc.mock.calls[0][1]).toEqual({
+      Agumon: {
+        isDiscovered: true,
+        bestStats: {
+          maxAge: 4,
+        },
+        history: [
+          {
+            date: 1234,
+            result: "발견",
+            finalStats: {
+              age: 4,
+            },
+          },
+        ],
+      },
+    });
   });
 
   test("버전별 업데이트는 다른 버전 데이터를 유지한 채 새 구조 문서에 저장한다", async () => {
@@ -732,10 +848,17 @@ describe("useEncyclopedia", () => {
 
     const result = await addMissingEncyclopediaEntries({ uid: "tester" }, ["Poyomon"]);
 
-    expect(result).toEqual({
-      added: ["Poyomon"],
-      skipped: [],
-    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        added: ["Poyomon"],
+        skipped: [],
+        syncResult: expect.objectContaining({
+          canonical: expect.objectContaining({
+            status: "success",
+          }),
+        }),
+      })
+    );
     expect(mockSetDoc).toHaveBeenCalledTimes(2);
     expect(mockDoc).toHaveBeenCalledWith(
       { name: "test-db" },
@@ -801,10 +924,17 @@ describe("useEncyclopedia", () => {
 
     const result = await addMissingEncyclopediaEntries({ uid: "tester" }, ["Elecmon"], "Ver.2");
 
-    expect(result).toEqual({
-      added: [],
-      skipped: ["Elecmon"],
-    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        added: [],
+        skipped: ["Elecmon"],
+        syncResult: expect.objectContaining({
+          canonical: expect.objectContaining({
+            status: "success",
+          }),
+        }),
+      })
+    );
     expect(mockSetDoc).toHaveBeenCalledTimes(4);
     const versionDocWrites = mockSetDoc.mock.calls
       .map((call) => call[1])
@@ -849,5 +979,43 @@ describe("useEncyclopedia", () => {
         }),
       }),
     ]);
+  });
+
+  test("self-heal 저장이 한 번 실패해도 다음 loadEncyclopedia 호출에서 다시 재시도한다", async () => {
+    const retryUid = "tester-retry";
+    const rootFallbackSnapshot = createSnapshot({
+      encyclopedia: {
+        "Ver.1": {
+          Agumon: {
+            isDiscovered: true,
+            raisedCount: 2,
+            bestStats: {},
+            history: [],
+          },
+        },
+      },
+    });
+
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(rootFallbackSnapshot)
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(rootFallbackSnapshot);
+    mockSetDoc
+      .mockRejectedValueOnce(new Error("permission-denied"))
+      .mockResolvedValue(undefined);
+
+    await loadEncyclopedia({ uid: retryUid });
+    await loadEncyclopedia({ uid: retryUid });
+
+    expect(mockSetDoc).toHaveBeenCalledTimes(3);
   });
 });

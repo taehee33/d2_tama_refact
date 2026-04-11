@@ -5087,9 +5087,16 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - 새 구조가 일부만 생성된 사용자를 나중에 정리할 수 있도록 `scripts/backfillUserEncyclopedia.js`와 `npm run encyclopedia:backfill` 스크립트를 추가했다.
 - 이번 단계에서는 루트 `users/{uid}.encyclopedia` 필드를 삭제하지 않고, 운영 백필과 안정화 이후 정리할 수 있게 남겨둔다.
 
+- 도감 저장 실패가 사용자에게 숨겨지지 않도록 `saveEncyclopedia()`를 canonical/version-doc 저장과 compat/root-profile 보정 단계로 분리했다.
+- Firestore write 전에 도감 payload를 재귀 sanitize해 중첩 객체 안 `undefined`로 인한 전체 저장 실패를 줄였고, canonical 실패는 예외로 다시 던지게 바꿨다.
+- `loadEncyclopedia()`의 self-heal은 canonical 저장이 실제로 성공했을 때만 완료 처리해, 한 번 실패한 계정도 같은 세션에서 다시 동기화할 수 있게 했다.
+- 도감 패널은 이제 보정 성공/부분 실패/실패를 분리해서 표시하고, 실패 시 `canonical`, `rootMirror`, `profileMirror` 단계를 함께 보여준다.
+
 **영향 파일**
 - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
 - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
+- `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
 - `firestore.rules`
 - `package.json`
 - `scripts/backfillUserEncyclopedia.js`
@@ -5132,7 +5139,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `api/_lib/community.test.js`
 - `digimon-tamagotchi-frontend/api/_lib/community.js`
 - `tests/community-lib.test.js`
-- `supabase/migrations/20260410_community_support_board.sql`
+- `supabase/migrations/20260411_community_support_board.sql`
 - `docs/REFACTORING_LOG.md`
 
 **검증**

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import EncyclopediaPanel from "./EncyclopediaPanel";
 
 jest.mock("../../contexts/AuthContext", () => ({
@@ -13,7 +13,10 @@ jest.mock("../../hooks/useEncyclopedia", () => ({
 }));
 
 const { useAuth } = require("../../contexts/AuthContext");
-const { loadEncyclopedia } = require("../../hooks/useEncyclopedia");
+const {
+  addMissingEncyclopediaEntries,
+  loadEncyclopedia,
+} = require("../../hooks/useEncyclopedia");
 
 describe("EncyclopediaPanel", () => {
   beforeEach(() => {
@@ -44,5 +47,36 @@ describe("EncyclopediaPanel", () => {
     expect(screen.getByTestId("encyclopedia-grid")).toHaveStyle({
       gridTemplateColumns: "repeat(auto-fit, minmax(8rem, 1fr))",
     });
+  });
+
+  it("도감 저장 실패 시 Firestore 단계 정보를 포함해 보여준다", async () => {
+    useAuth.mockReturnValue({
+      currentUser: { uid: "tester" },
+      isFirebaseAvailable: true,
+    });
+    addMissingEncyclopediaEntries.mockRejectedValueOnce({
+      message: "도감 저장 실패 (canonical:Ver.2)",
+      stage: "canonical",
+      details: [
+        {
+          stage: "canonical",
+          version: "Ver.2",
+        },
+      ],
+    });
+
+    render(<EncyclopediaPanel currentDigimonId="Elecmon" />);
+
+    await waitFor(() =>
+      expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
+    );
+
+    fireEvent.click(screen.getByText("현재 디지몬을 도감에 반영하기"));
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("보정 실패 (canonical): 도감 저장 실패 (canonical:Ver.2)")
+      ).toBeInTheDocument()
+    );
   });
 });

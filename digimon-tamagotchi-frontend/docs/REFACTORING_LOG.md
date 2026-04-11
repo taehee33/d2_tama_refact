@@ -24,6 +24,27 @@
 - 현재 가이드는 개별 디지몬 스펙 표보다 “어디서 무엇을 해야 하는지”가 더 중요한 페이지이므로, 정적 서비스 흐름과 최근 개선된 커뮤니티/노트북/설정 구조를 우선하는 편이 사용자 이해에 더 직접적입니다.
 - 처음 버전은 정보는 좋아졌지만 카드가 많아 시선이 분산될 수 있어, 이후 정제 단계에서는 정보량을 덜기보다 표현 밀도를 낮추고 접이식 상세 구조를 늘리는 편이 더 적절했습니다.
 
+### 도감 저장을 version docs + root mirror 호환 단계로 조정
+- 기존 복구는 `users/{uid}.encyclopedia` 루트 필드를 fallback으로 읽어 되살렸지만, 저장은 `users/{uid}/encyclopedia/{version}`에만 하고 있어서 기존 계정이 새 구조를 천천히 채우지 못하는 상태였습니다.
+- 이제 `src/hooks/useEncyclopedia.js`의 `saveEncyclopedia()`는 version docs를 정식 원본으로 계속 저장하면서도, 같은 canonical 도감을 루트 `users/{uid}.encyclopedia`에도 mirror로 함께 기록합니다.
+- 루트 문서에는 `encyclopediaStructure.storageMode = version-docs-with-root-mirror`, `phase = compat` 메타데이터를 남겨 현재가 완전 전환 전 호환 단계임을 구분할 수 있게 했습니다.
+- 관리자용 `scripts/backfillUserEncyclopedia.js`도 같은 구조 메타데이터와 root encyclopedia mirror를 함께 쓰도록 맞춰, 수동 백필과 앱 저장 결과가 같은 저장 계약을 따르도록 정리했습니다.
+- 추가로 `loadEncyclopedia()`는 legacy root/slot fallback으로 복구된 계정을 읽으면, 같은 세션에서 한 번만 version docs/root mirror를 self-heal 저장하고 `profile/main` mirror도 best effort로 생성해, 관리자 자격증명 없이도 계정 구조가 서서히 최신 형태를 갖추도록 바꿨습니다.
+
+### 테스트 보강
+- `src/hooks/useEncyclopedia.test.js`에서 도감 저장 시 version docs와 root mirror가 함께 갱신되는지, 버전별 업데이트와 누락 보정도 같은 저장 계약을 따르는지 확인하는 기대값으로 갱신했습니다.
+- `tests/encyclopedia-migration.test.js`에서 apply 이후 root users 문서에 canonical encyclopedia mirror와 `encyclopediaStructure` 메타데이터가 함께 기록되는지 검증했습니다.
+
+### 영향받은 파일
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `scripts/backfillUserEncyclopedia.js`
+- `tests/encyclopedia-migration.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 완전 이관 전에 legacy root 필드를 즉시 제거하면 운영 복구 경로가 다시 좁아질 수 있으므로, 현재 단계는 `version docs`를 정식 원본으로 유지하되 `root encyclopedia`를 호환용 mirror로 동시 유지하는 보수적 마이그레이션 단계가 더 안전합니다.
+
 ### 도감 로드에서 version docs 권한 오류가 root fallback까지 막던 문제 수정
 - 운영 Firestore에는 `users/{uid}.encyclopedia` 루트 도감 데이터가 남아 있었지만, 앱은 먼저 `users/{uid}/encyclopedia/{version}` 문서를 `Promise.all()`로 읽고 있어 한 버전이라도 권한/접근 오류가 나면 전체 `loadEncyclopedia()`가 catch로 빠지고 있었습니다.
 - 이제 `src/hooks/useEncyclopedia.js`는 버전 문서, 루트 users 문서, legacy slot 도감 로드를 각각 `allSettled` 또는 개별 예외 처리로 분리해, 특정 소스가 실패해도 나머지 소스로 canonical 병합을 계속 진행합니다.
@@ -1380,6 +1401,7 @@
 - 이후 같은 회전 안내 상태의 상단 여백은 기존 `2.9rem`의 `1.7배`인 `4.93rem`로 다시 늘려, 전역 버튼 줄과 상단 5버튼 줄이 더 확실히 분리되도록 미세 조정했습니다.
 - 마지막으로 모바일 `정보/진화` 버튼은 메뉴 FAB와 같은 네이비 계열 surface, 그림자, 라벨 구조를 공유하도록 다시 다듬어 두 버튼이 같은 전역 도구 세트처럼 보이게 맞췄습니다.
 - 이후 운영에서 일반 다마고치 가로 몰입형에 상태 카드가 계속 본문에 남아 있던 문제를 확인해, 브릭 프레임 스킨뿐 아니라 `모든 가로 몰입형`이 `정보/진화` 오버레이를 공통으로 쓰도록 `Game.jsx` 분기를 정리했습니다.
+- 이후 가상 가로 fallback과 실제 가로를 나눠 처리하던 정책은 다시 걷어내고, 모바일 가로 몰입형은 `휴대폰을 물리적으로 돌려서 보는 방식`으로 단순화했습니다. 이제 가상 회전 prompt나 가상 stage 없이, 가로 버튼은 fullscreen/orientation을 best effort로 시도하고 실패 시 직접 회전 안내만 유지합니다.
 
 ### 영향받은 파일
 - `src/index.css`
@@ -1396,3 +1418,78 @@
 - 모바일 전역 버튼은 세로 스택보다 가로 한 줄 배치가 상단 실제 게임 조작 줄과 충돌이 적고, 회전 안내 상태에서는 상단 콘텐츠 시작점도 함께 내려야 겹침을 줄일 수 있습니다.
 - `정보/진화`도 사실상 전역 FAB 역할을 하므로, 톤을 메뉴 버튼과 맞추는 편이 시각 계층과 조작 의미를 더 일관되게 전달합니다.
 - 가로 몰입형에서 보여야 하는 정보 구조는 스킨과 무관하게 같아야 하므로, `frame skin 여부`가 아니라 `가로 몰입형 여부`를 기준으로 오버레이 분기를 태우는 편이 운영/개발 환경 차이를 줄이고 회귀도 적습니다.
+- 웹에서 강제 회전은 브라우저별 편차가 크고, 가상 가로 fallback은 오히려 실제 가로 viewport에 맞춘 구성과 다른 스케일 문제를 만들 수 있어 모바일 UX를 단순하게 유지하려면 `직접 회전 + 회전 안내`가 더 예측 가능합니다.
+
+### 브릭 실제 가로 2/3 + 1/3 레이아웃
+- `벽돌 Ver.1`의 실제 가로 몰입형만 단일 컬럼에서 `왼쪽 디바이스 + 오른쪽 정보 패널` 2열 구조로 재구성했습니다.
+- 왼쪽은 상단 5버튼, 브릭 프레임, 하단 5버튼을 한 덩어리로 유지하면서 폭을 넓혔고, 오른쪽은 기존 `정보/진화` 오버레이를 inline side panel로 재사용해 슬롯 정보와 보조 버튼을 항상 보이게 했습니다.
+- 이 상태에서는 상단 `정보/진화` 버튼을 숨겨서 중복 진입점을 없앴고, 세로로 들고 있는 회전 안내 fallback과 다른 스킨의 landscape 레이아웃은 그대로 유지합니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveDeviceShell.jsx`
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.jsx`
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `src/pages/Game.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 브릭 가로 몰입형은 디바이스 프레임이 가장 중요한 시각 중심이므로, 상태 정보와 보조 액션을 오른쪽 고정 패널로 빼는 편이 디바이스를 더 크게 보여주면서도 정보 접근성을 잃지 않습니다.
+- 이미 있던 정보 오버레이를 inline variant로 확장하면 상태/보조 액션 조합을 중복 구현하지 않고, 브릭 실제 가로와 일반 가로의 정보 표현을 같은 컴포넌트 축으로 유지할 수 있습니다.
+- `brick-ver1 + 실제 landscape viewport`에만 레이아웃 변형을 제한하면 세로 회전 안내, 다른 스킨, 일반 landscape 패널 회귀를 최소화할 수 있습니다.
+
+### 브릭 가로 정보 패널을 다시 버튼형 오버레이로 복귀
+- `벽돌 Ver.1` 실제 가로에서 항상 보이던 오른쪽 고정 정보 패널은 다시 `정보/진화` 버튼으로 여는 오버레이 방식으로 돌렸습니다.
+- 브릭 가로도 다른 가로 몰입형과 동일하게 상단 `정보/진화` 버튼을 통해 상태/보조 액션을 열고 닫도록 맞췄고, 임시로 넣었던 inline side panel 전용 분기와 스타일은 제거했습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.jsx`
+- `src/components/layout/ImmersiveLandscapeInfoOverlay.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `src/components/layout/ImmersiveDeviceShell.jsx`
+- `src/pages/Game.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 브릭 실제 가로에서 정보 패널을 항상 열어두면 디바이스가 넓어지는 장점은 있지만, 모바일에서는 한 화면에 정보 카드와 프레임이 같이 들어오며 시선이 분산되고 오히려 조작 흐름이 무거워질 수 있습니다.
+- 가로 몰입형의 정보 표현을 다시 버튼형 오버레이로 통일하면 스킨별 동작 차이를 줄이고, 이후 실제 가로 전용 꽉찬 레이아웃을 다시 손볼 때도 전역 조작 체계를 더 단순하게 유지할 수 있습니다.
+
+### 브릭 가로 조작 버튼을 디바이스 오른편 세로 패널로 재배치
+- `벽돌 Ver.1`의 실제 가로 몰입형에서는 `상태`부터 `더보기`까지 10개 조작 버튼을 디바이스 위/아래 스트립 대신 오른편 고정 패널로 옮겼습니다.
+- 실제 landscape viewport에서는 브릭 프레임 옆에 `2열 x 5행` 버튼 그리드를 붙이고, 세로로 들고 있는 회전 안내 상태에서는 기존 상단/하단 5버튼 스트립을 그대로 유지합니다.
+- 버튼은 기존 메뉴 잠금 규칙을 그대로 따르면서, 모바일에서도 스크롤 없이 10개가 한눈에 보이도록 크기와 간격을 별도 조정했습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/components/layout/ImmersiveLandscapeControls.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 브릭 실제 가로에서는 디바이스 상하 공간이 제한돼 있어 상단/하단 스트립보다 오른쪽 고정 버튼군이 프레임을 더 크게 보이게 하고 조작 위치도 더 일관되게 느껴집니다.
+- 다만 세로 회전 안내 상태까지 같은 배치를 강제하면 폭이 너무 좁아지므로, `실제 가로일 때만 오른편 패널`, `세로 fallback은 기존 스트립`으로 나누는 편이 가장 안정적입니다.
+
+## 2026-04-11
+
+### 도감 저장 실패를 canonical/compat 단계로 분리하고 실패를 숨기지 않도록 수정
+- `saveEncyclopedia()`가 더 이상 Firestore 저장 실패를 조용히 삼키지 않고, `users/{uid}/encyclopedia/{version}` canonical 저장 실패는 예외로 다시 던지도록 바꿨다.
+- 도감 payload 저장 전 재귀 sanitize를 추가해 `bestStats`, `history[].finalStats` 같은 중첩 구조 안의 `undefined` 값을 제거하고 Firestore 전체 write 실패 가능성을 줄였다.
+- root `users/{uid}.encyclopedia` mirror와 `profile/main` 보정은 canonical 저장 성공 후 별도 compat 단계로 실행하고, compat 단계 실패는 서브컬렉션 저장 성공과 분리해 경고/결과에 남기도록 정리했다.
+- `loadEncyclopedia()`의 self-heal 동기화는 canonical 저장이 실제로 성공한 경우에만 완료로 기록해, 한 번 실패한 계정이 같은 세션에서 재시도 기회를 잃지 않게 했다.
+- 도감 패널의 `현재 디지몬을 도감에 반영하기`는 이제 실제 저장 결과를 받아 성공/부분 실패/실패를 구분해 보여주고, 실패 시 `canonical`, `rootMirror`, `profileMirror` 단계 정보를 함께 안내한다.
+
+### 영향받은 파일
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `src/components/panels/EncyclopediaPanel.jsx`
+- `src/components/panels/EncyclopediaPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEncyclopedia.test.js src/components/panels/EncyclopediaPanel.test.jsx src/utils/userProfileUtils.test.js`
