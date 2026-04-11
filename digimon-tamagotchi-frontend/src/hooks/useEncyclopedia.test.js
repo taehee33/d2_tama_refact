@@ -339,6 +339,75 @@ describe("useEncyclopedia", () => {
     });
   });
 
+  test("버전 문서 읽기가 일부 실패해도 루트 legacy 도감 fallback으로 계속 복구한다", async () => {
+    mockGetDoc
+      .mockRejectedValueOnce(new Error("permission-denied"))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.1": {
+              Agumon: { isDiscovered: true, raisedCount: 2 },
+            },
+          },
+        })
+      );
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: { isDiscovered: true, raisedCount: 2 },
+      },
+      "Ver.2": {},
+      "Ver.3": {},
+      "Ver.4": {},
+      "Ver.5": {},
+    });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[loadEncyclopedia] 버전 문서(Ver.1) 로드 실패, legacy fallback 계속 진행:"),
+      expect.any(Error)
+    );
+  });
+
+  test("슬롯 legacy 읽기가 실패해도 루트 users 문서 encyclopedia는 계속 사용한다", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(createSnapshot(null))
+      .mockResolvedValueOnce(
+        createSnapshot({
+          encyclopedia: {
+            "Ver.1": {
+              Agumon: { isDiscovered: true },
+            },
+          },
+        })
+      );
+    mockGetDocs.mockRejectedValueOnce(new Error("permission-denied"));
+
+    const result = await loadEncyclopedia({ uid: "tester" });
+
+    expect(result).toEqual({
+      "Ver.1": {
+        Agumon: { isDiscovered: true },
+      },
+      "Ver.2": {},
+      "Ver.3": {},
+      "Ver.4": {},
+      "Ver.5": {},
+    });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      "[loadEncyclopedia] 슬롯 legacy 도감 로드 실패:",
+      expect.any(Error)
+    );
+  });
+
   test("루트와 버전 문서가 모두 비어 있으면 예전 슬롯별 도감을 병합해서 읽는다", async () => {
     mockGetDoc
       .mockResolvedValueOnce(createSnapshot(null))

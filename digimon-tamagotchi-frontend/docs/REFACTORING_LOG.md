@@ -2,6 +2,23 @@
 
 ## 2026-04-11
 
+### 도감 로드에서 version docs 권한 오류가 root fallback까지 막던 문제 수정
+- 운영 Firestore에는 `users/{uid}.encyclopedia` 루트 도감 데이터가 남아 있었지만, 앱은 먼저 `users/{uid}/encyclopedia/{version}` 문서를 `Promise.all()`로 읽고 있어 한 버전이라도 권한/접근 오류가 나면 전체 `loadEncyclopedia()`가 catch로 빠지고 있었습니다.
+- 이제 `src/hooks/useEncyclopedia.js`는 버전 문서, 루트 users 문서, legacy slot 도감 로드를 각각 `allSettled` 또는 개별 예외 처리로 분리해, 특정 소스가 실패해도 나머지 소스로 canonical 병합을 계속 진행합니다.
+- 특히 version docs나 slot legacy가 막혀도 root `users/{uid}.encyclopedia`는 계속 반영되도록 바꿔, Firebase 콘솔에 남아 있는 기존 도감 이력이 화면에서 다시 보이게 하는 데 집중했습니다.
+
+### 테스트 보강
+- `src/hooks/useEncyclopedia.test.js`에 버전 문서 읽기 일부 실패 시에도 루트 fallback으로 복구되는 케이스와, 슬롯 legacy 읽기가 실패해도 root encyclopedia는 유지되는 케이스를 추가했습니다.
+
+### 영향받은 파일
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 장애는 “데이터 없음”보다 “첫 번째 소스(version docs) 실패가 전체 도감 로드를 중단시킨 것”에 가까웠으므로, 병합 코어를 바꾸기보다 각 데이터 소스의 실패를 격리하는 쪽이 가장 좁고 안전합니다.
+- 도감은 이미 root/slot/version docs 혼합 구조를 허용하는 전환 단계이기 때문에, 일부 경로 접근이 막혀도 다른 경로로 복구를 이어 가는 것이 실제 운영 복원성에 더 중요합니다.
+
 ### 도감 버전별 총 개수 계산 회귀 수정
 - `src/logic/encyclopediaMaster.js`의 `getRequiredDigimonIds()`가 원래 `Ver.1/Ver.2`용 3인자 호출만 전제로 작성돼 있었는데, 현재 도감 패널과 요약 로직은 `getRequiredDigimonIds("Ver.1")`처럼 버전 문자열 단독 호출도 사용하고 있었습니다.
 - 이 불일치 때문에 운영 번들에서는 `"Ver.1"` 문자열 자체를 `Object.keys()`로 세어 총 개수가 `5`로 잘못 계산되었고, 도감 UI가 `발견: 0 / 5`처럼 보이는 회귀가 발생했습니다.

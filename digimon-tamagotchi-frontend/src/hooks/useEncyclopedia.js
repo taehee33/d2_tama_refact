@@ -336,30 +336,63 @@ export async function loadEncyclopedia(currentUser) {
 
   try {
     const versionEncyclopedia = createEmptyEncyclopedia();
-    const versionSnapshots = await Promise.all(
+    const versionSnapshotResults = await Promise.allSettled(
       ENCYCLOPEDIA_VERSIONS.map((version) =>
         getDoc(getUserEncyclopediaRef(currentUser.uid, version))
       )
     );
 
-    versionSnapshots.forEach((snapshot, index) => {
-      if (snapshot.exists()) {
-        versionEncyclopedia[ENCYCLOPEDIA_VERSIONS[index]] = normalizeVersionEntries(snapshot.data());
+    versionSnapshotResults.forEach((result, index) => {
+      const version = ENCYCLOPEDIA_VERSIONS[index];
+      if (result.status !== "fulfilled") {
+        console.warn(`[loadEncyclopedia] 버전 문서(${version}) 로드 실패, legacy fallback 계속 진행:`, result.reason);
+        return;
+      }
+
+      if (result.value.exists()) {
+        versionEncyclopedia[version] = normalizeVersionEntries(result.value.data());
       }
     });
 
     // 도감 분리 저장 마이그레이션 동안에는 루트 users/{uid}.encyclopedia도 함께 읽어
     // 부분 이전 상태에서 과거 발견 이력이 가려지지 않도록 병합한다.
     const userRef = getUserRootRef(currentUser.uid);
-    const userSnap = await getDoc(userRef);
-    const rootEncyclopedia = userSnap.exists() ? userSnap.data()?.encyclopedia : undefined;
-    const { legacyEncyclopedia, slotSnapshots } = await loadLegacySlotSources(
-      currentUser.uid
-    );
-    const recoveredEncyclopedia = await recoverEncyclopediaFromSlotSnapshots(
-      currentUser.uid,
-      slotSnapshots
-    );
+    const [userSnapResult, legacySlotSourcesResult] = await Promise.allSettled([
+      getDoc(userRef),
+      loadLegacySlotSources(currentUser.uid),
+    ]);
+
+    const rootEncyclopedia =
+      userSnapResult.status === "fulfilled" && userSnapResult.value.exists()
+        ? userSnapResult.value.data()?.encyclopedia
+        : undefined;
+    if (userSnapResult.status !== "fulfilled") {
+      console.warn("[loadEncyclopedia] 루트 users 문서 로드 실패:", userSnapResult.reason);
+    }
+
+    const { legacyEncyclopedia, slotSnapshots } =
+      legacySlotSourcesResult.status === "fulfilled"
+        ? legacySlotSourcesResult.value
+        : {
+            legacyEncyclopedia: createEmptyEncyclopedia(),
+            slotSnapshots: [],
+          };
+    if (legacySlotSourcesResult.status !== "fulfilled") {
+      console.warn("[loadEncyclopedia] 슬롯 legacy 도감 로드 실패:", legacySlotSourcesResult.reason);
+    }
+
+    let recoveredEncyclopedia = createEmptyEncyclopedia();
+    if (slotSnapshots.length > 0) {
+      try {
+        recoveredEncyclopedia = await recoverEncyclopediaFromSlotSnapshots(
+          currentUser.uid,
+          slotSnapshots
+        );
+      } catch (recoveryError) {
+        console.warn("[loadEncyclopedia] 슬롯 로그 기반 도감 복구 실패:", recoveryError);
+      }
+    }
+
     const { encyclopedia, sourceSummary } = buildCanonicalEncyclopedia({
       versions: ENCYCLOPEDIA_VERSIONS,
       sources: [
