@@ -1,4 +1,16 @@
-import { buildArenaBattleArchiveWrite, wakeForInteraction } from "./useGameActions";
+import {
+  applyBattleInjuryOutcome,
+  buildArenaBattleArchiveWrite,
+  buildActivityLogCommitState,
+  buildBattleCostStats,
+  buildBattleLogCommitState,
+  buildBattleLogEntry,
+  buildFeedLogText,
+  buildRecordedBattleStats,
+  buildTrainingLogText,
+  buildTrainingOutcome,
+  wakeForInteraction,
+} from "./useGameActions";
 
 describe("wakeForInteraction", () => {
   test("자는 중 액션 1회는 sleepDisturbances를 올리고 wakeUntil을 설정하지만 careMistakes는 올리지 않는다", () => {
@@ -80,5 +92,439 @@ describe("buildArenaBattleArchiveWrite", () => {
       { type: "ATTACK", text: "공격 성공" },
     ]);
     expect(result.archivePayload.payload.result.logs).toHaveLength(2);
+  });
+});
+
+describe("buildBattleCostStats", () => {
+  test("배틀 공통 비용으로 무게 -4g, 에너지 -1을 적용하고 변화량을 반환한다", () => {
+    const result = buildBattleCostStats({
+      weight: 12,
+      energy: 5,
+    });
+
+    expect(result).toEqual({
+      battleStats: {
+        weight: 8,
+        energy: 4,
+      },
+      weightDelta: -4,
+      energyDelta: -1,
+    });
+  });
+
+  test("무게와 에너지는 0 아래로 내려가지 않는다", () => {
+    const result = buildBattleCostStats({
+      weight: 2,
+      energy: 0,
+    });
+
+    expect(result).toEqual({
+      battleStats: {
+        weight: 0,
+        energy: 0,
+      },
+      weightDelta: -2,
+      energyDelta: 0,
+    });
+  });
+});
+
+describe("buildActivityLogCommitState", () => {
+  test("새 활동 로그를 앞에 붙이고 nextStats에 activityLogs를 반영한다", () => {
+    const result = buildActivityLogCommitState({
+      prevStats: {
+        activityLogs: [{ type: "OLD", text: "old", timestamp: 1000 }],
+      },
+      nextStats: {
+        energy: 4,
+      },
+      entry: {
+        type: "TRAIN",
+        text: "new",
+        timestamp: 2000,
+      },
+    });
+
+    expect(result.updatedLogs).toEqual([
+      { type: "TRAIN", text: "new", timestamp: 2000 },
+      { type: "OLD", text: "old", timestamp: 1000 },
+    ]);
+    expect(result.statsWithLogs).toEqual({
+      energy: 4,
+      activityLogs: [
+        { type: "TRAIN", text: "new", timestamp: 2000 },
+        { type: "OLD", text: "old", timestamp: 1000 },
+      ],
+    });
+  });
+
+  test("기존 로그가 없어도 단일 활동 로그 배열을 만든다", () => {
+    const result = buildActivityLogCommitState({
+      prevStats: {},
+      nextStats: {
+        fullness: 3,
+      },
+      entry: {
+        type: "FEED",
+        text: "feed",
+        timestamp: 3000,
+      },
+    });
+
+    expect(result.updatedLogs).toEqual([
+      { type: "FEED", text: "feed", timestamp: 3000 },
+    ]);
+    expect(result.statsWithLogs).toEqual({
+      fullness: 3,
+      activityLogs: [{ type: "FEED", text: "feed", timestamp: 3000 }],
+    });
+  });
+});
+
+describe("buildBattleLogEntry", () => {
+  test("배틀 로그 공통 필드와 snapshot을 합치고 선택 필드만 포함한다", () => {
+    const result = buildBattleLogEntry({
+      mode: "quest",
+      text: "Quest: Defeated 베타몬",
+      win: true,
+      enemyName: "베타몬",
+      injury: false,
+      timestamp: 1234,
+      digimonSnapshot: {
+        digimonId: "Agumon",
+        digimonName: "아구몬",
+      },
+    });
+
+    expect(result).toEqual({
+      mode: "quest",
+      text: "Quest: Defeated 베타몬",
+      win: true,
+      enemyName: "베타몬",
+      injury: false,
+      timestamp: 1234,
+      digimonId: "Agumon",
+      digimonName: "아구몬",
+    });
+  });
+
+  test("선택 필드가 없으면 mode/text/timestamp와 snapshot만 남긴다", () => {
+    const result = buildBattleLogEntry({
+      mode: "skip",
+      text: "Battle: Skipped",
+      timestamp: 5678,
+      digimonSnapshot: {
+        digimonId: "Agumon",
+      },
+    });
+
+    expect(result).toEqual({
+      mode: "skip",
+      text: "Battle: Skipped",
+      timestamp: 5678,
+      digimonId: "Agumon",
+    });
+  });
+});
+
+describe("buildBattleLogCommitState", () => {
+  test("새 배틀 로그를 앞에 붙이고 nextStats에 battleLogs를 반영한다", () => {
+    const result = buildBattleLogCommitState({
+      prevStats: {
+        battleLogs: [{ mode: "quest", text: "old", timestamp: 1000 }],
+      },
+      nextStats: {
+        energy: 4,
+      },
+      entry: {
+        mode: "arena",
+        text: "new",
+        timestamp: 2000,
+      },
+    });
+
+    expect(result.updatedBattleLogs).toEqual([
+      { mode: "arena", text: "new", timestamp: 2000 },
+      { mode: "quest", text: "old", timestamp: 1000 },
+    ]);
+    expect(result.statsWithBattleLogs).toEqual({
+      energy: 4,
+      battleLogs: [
+        { mode: "arena", text: "new", timestamp: 2000 },
+        { mode: "quest", text: "old", timestamp: 1000 },
+      ],
+    });
+  });
+});
+
+describe("buildFeedLogText", () => {
+  test("고기 일반 섭취 로그를 변화량과 결과값으로 만든다", () => {
+    const result = buildFeedLogText({
+      type: "meat",
+      beforeStats: {
+        fullness: 2,
+        weight: 10,
+      },
+      updatedStats: {
+        fullness: 3,
+        weight: 11,
+      },
+      eatResult: {},
+    });
+
+    expect(result).toBe(
+      "Feed: Meat (Wt +1g, Hun +1) => (Wt 10→11g, Hun 2→3)"
+    );
+  });
+
+  test("고기 오버피드와 거절 로그를 구분한다", () => {
+    expect(
+      buildFeedLogText({
+        type: "meat",
+        eatResult: { isOverfeed: true },
+        beforeStats: {
+          overfeeds: 1,
+        },
+        updatedStats: {
+          overfeeds: 2,
+        },
+      })
+    ).toBe("Overfeed! (거절 상태, Overfeed 1→2)");
+
+    expect(
+      buildFeedLogText({
+        type: "meat",
+        isRefused: true,
+        eatResult: {},
+        beforeStats: {},
+        updatedStats: {},
+      })
+    ).toBe("Feed: Refused (고기 거절, Overfeed 증가 없음)");
+  });
+
+  test("프로틴 보너스 로그는 힘과 에너지 변화를 함께 포함한다", () => {
+    const result = buildFeedLogText({
+      type: "protein",
+      eatResult: { energyRestored: true },
+      beforeStats: {
+        weight: 10,
+        strength: 2,
+        energy: 1,
+      },
+      updatedStats: {
+        weight: 11,
+        strength: 3,
+        energy: 2,
+      },
+    });
+
+    expect(result).toBe(
+      "Feed: Protein (Wt +1g, Str +1, En +1) - Protein Bonus! (En +1, Overdose +1) => (Wt 10→11g, Str 2→3, En 1→2)"
+    );
+  });
+});
+
+describe("buildTrainingLogText", () => {
+  test("훈련 성공 로그를 변화 전후 값으로 만든다", () => {
+    const result = buildTrainingLogText({
+      result: { isSuccess: true },
+      beforeStats: {
+        weight: 12,
+        strength: 2,
+        energy: 5,
+        trainings: 4,
+      },
+      finalStats: {
+        weight: 11,
+        strength: 3,
+        energy: 4,
+        trainings: 5,
+      },
+    });
+
+    expect(result).toBe(
+      "훈련 성공! 힘 2→3, 무게 12→11g, 에너지 5→4, 훈련횟수 4→5"
+    );
+  });
+
+  test("훈련 실패 로그도 같은 형식으로 만든다", () => {
+    const result = buildTrainingLogText({
+      result: { isSuccess: false },
+      beforeStats: {
+        weight: 12,
+        strength: 2,
+        energy: 5,
+        trainings: 4,
+      },
+      finalStats: {
+        weight: 11,
+        strength: 2,
+        energy: 4,
+        trainings: 5,
+      },
+    });
+
+    expect(result).toBe(
+      "훈련 실패. 힘 2→2, 무게 12→11g, 에너지 5→4, 훈련횟수 4→5"
+    );
+  });
+});
+
+describe("buildTrainingOutcome", () => {
+  test("strength가 남아 있으면 호출 상태를 해제하고 성공 로그를 반환한다", () => {
+    const updatedStats = {
+      strength: 2,
+      callStatus: {
+        strength: { isActive: true },
+      },
+      weight: 11,
+      energy: 4,
+      trainings: 5,
+    };
+    const result = buildTrainingOutcome({
+      baseStats: {
+        strength: 0,
+        callStatus: {
+          strength: { isActive: true },
+        },
+        weight: 12,
+        energy: 5,
+        trainings: 4,
+      },
+      trainingResult: {
+        isSuccess: true,
+        updatedStats,
+      },
+    });
+
+    expect(result.finalStats.callStatus?.strength?.isActive).toBe(false);
+    expect(updatedStats.callStatus.strength.isActive).toBe(true);
+    expect(result.logText).toBe(
+      "훈련 성공! 힘 0→2, 무게 12→11g, 에너지 5→4, 훈련횟수 4→5"
+    );
+  });
+
+  test("실패 케이스에서도 finalStats와 로그를 함께 반환한다", () => {
+    const result = buildTrainingOutcome({
+      baseStats: {
+        strength: 2,
+        weight: 12,
+        energy: 5,
+        trainings: 4,
+      },
+      trainingResult: {
+        isSuccess: false,
+        updatedStats: {
+          strength: 2,
+          weight: 11,
+          energy: 4,
+          trainings: 5,
+        },
+      },
+    });
+
+    expect(result.finalStats).toMatchObject({
+      strength: 2,
+      weight: 11,
+      energy: 4,
+      trainings: 5,
+    });
+    expect(result.logText).toBe(
+      "훈련 실패. 힘 2→2, 무게 12→11g, 에너지 5→4, 훈련횟수 4→5"
+    );
+  });
+});
+
+describe("buildRecordedBattleStats", () => {
+  test("승리 시 현재/총 전적과 승률을 함께 갱신한다", () => {
+    const result = buildRecordedBattleStats(
+      {
+        battles: 4,
+        battlesWon: 2,
+        battlesLost: 2,
+        totalBattles: 10,
+        totalBattlesWon: 6,
+        totalBattlesLost: 4,
+      },
+      true
+    );
+
+    expect(result).toMatchObject({
+      battles: 5,
+      battlesWon: 3,
+      battlesLost: 2,
+      winRate: 60,
+      totalBattles: 11,
+      totalBattlesWon: 7,
+      totalBattlesLost: 4,
+      totalWinRate: 64,
+    });
+  });
+
+  test("패배 시 현재/총 패배 전적과 승률을 갱신한다", () => {
+    const result = buildRecordedBattleStats(
+      {
+        battles: 4,
+        battlesWon: 2,
+        battlesLost: 2,
+        totalBattles: 10,
+        totalBattlesWon: 6,
+        totalBattlesLost: 4,
+      },
+      false
+    );
+
+    expect(result).toMatchObject({
+      battles: 5,
+      battlesWon: 2,
+      battlesLost: 3,
+      winRate: 40,
+      totalBattles: 11,
+      totalBattlesWon: 6,
+      totalBattlesLost: 5,
+      totalWinRate: 55,
+    });
+  });
+});
+
+describe("applyBattleInjuryOutcome", () => {
+  test("확률에 걸리면 부상 상태와 관련 필드를 전투 부상 기준으로 세팅한다", () => {
+    const result = applyBattleInjuryOutcome({
+      finalStats: {
+        injuries: 2,
+        healedDosesCurrent: 3,
+      },
+      win: true,
+      proteinOverdose: 0,
+      randomValue: 0,
+      nowMs: 123456789,
+    });
+
+    expect(result.isInjured).toBe(true);
+    expect(result.finalStats).toMatchObject({
+      isInjured: true,
+      injuredAt: 123456789,
+      injuryFrozenDurationMs: 0,
+      injuries: 3,
+      healedDosesCurrent: 0,
+      injuryReason: "battle",
+    });
+  });
+
+  test("확률에 걸리지 않으면 스탯을 그대로 유지한다", () => {
+    const result = applyBattleInjuryOutcome({
+      finalStats: {
+        injuries: 1,
+      },
+      win: false,
+      proteinOverdose: 0,
+      randomValue: 0.99,
+      nowMs: 123456789,
+    });
+
+    expect(result.isInjured).toBe(false);
+    expect(result.finalStats).toEqual({
+      injuries: 1,
+    });
   });
 });

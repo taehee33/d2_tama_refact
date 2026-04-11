@@ -53,6 +53,232 @@ function appendBattleLog(prevBattleLogs, entry) {
   return [{ ...entry, timestamp: entry.timestamp || Date.now() }, ...list].slice(0, MAX_BATTLE_LOGS);
 }
 
+export function buildActivityLogCommitState({
+  prevStats = {},
+  nextStats = {},
+  entry,
+} = {}) {
+  const updatedLogs = [entry, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+
+  return {
+    updatedLogs,
+    statsWithLogs: {
+      ...nextStats,
+      activityLogs: updatedLogs,
+    },
+  };
+}
+
+export function buildFeedLogText({
+  type,
+  isRefused = false,
+  eatResult = {},
+  beforeStats = {},
+  updatedStats = {},
+} = {}) {
+  const oldFullness = beforeStats.fullness || 0;
+  const oldWeight = beforeStats.weight || 0;
+  const oldStrength = beforeStats.strength || 0;
+  const oldEnergy = beforeStats.energy || 0;
+  const oldOverfeeds = beforeStats.overfeeds || 0;
+
+  const newFullness = updatedStats.fullness || 0;
+  const newWeight = updatedStats.weight || 0;
+  const newStrength = updatedStats.strength || 0;
+  const newEnergy = updatedStats.energy || 0;
+  const newOverfeeds = updatedStats.overfeeds || 0;
+
+  const weightDelta = newWeight - oldWeight;
+  const fullnessDelta = newFullness - oldFullness;
+  const strengthDelta = newStrength - oldStrength;
+  const energyDelta = newEnergy - oldEnergy;
+
+  if (type === "meat") {
+    if (eatResult.isOverfeed) {
+      return `Overfeed! (거절 상태, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
+    }
+
+    if (isRefused) {
+      return "Feed: Refused (고기 거절, Overfeed 증가 없음)";
+    }
+
+    return `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
+  }
+
+  const strengthChanged = strengthDelta > 0;
+  const strengthText = strengthChanged ? `, Str +${strengthDelta}` : "";
+  const strengthResultText = `, Str ${oldStrength}→${newStrength}`;
+
+  if (eatResult.energyRestored) {
+    const energyText = energyDelta > 0 ? `, En +${energyDelta}` : "";
+    const energyResultText = energyDelta > 0 ? `, En ${oldEnergy}→${newEnergy}` : "";
+    return `Feed: Protein (Wt +${weightDelta}g${strengthText}${energyText}) - Protein Bonus! (En +1, Overdose +1) => (Wt ${oldWeight}→${newWeight}g${strengthResultText}${energyResultText})`;
+  }
+
+  return `Feed: Protein (Wt +${weightDelta}g${strengthText}) => (Wt ${oldWeight}→${newWeight}g${strengthResultText})`;
+}
+
+export function buildTrainingLogText({
+  result = {},
+  beforeStats = {},
+  finalStats = {},
+} = {}) {
+  const beforeW = beforeStats.weight ?? 0;
+  const beforeS = beforeStats.strength ?? 0;
+  const beforeE = beforeStats.energy ?? 0;
+  const beforeT = beforeStats.trainings ?? 0;
+  const afterW = finalStats.weight ?? 0;
+  const afterS = finalStats.strength ?? 0;
+  const afterE = finalStats.energy ?? 0;
+  const afterT = finalStats.trainings ?? 0;
+
+  return result.isSuccess
+    ? `훈련 성공! 힘 ${beforeS}→${afterS}, 무게 ${beforeW}→${afterW}g, 에너지 ${beforeE}→${afterE}, 훈련횟수 ${beforeT}→${afterT}`
+    : `훈련 실패. 힘 ${beforeS}→${afterS}, 무게 ${beforeW}→${afterW}g, 에너지 ${beforeE}→${afterE}, 훈련횟수 ${beforeT}→${afterT}`;
+}
+
+export function buildTrainingOutcome({
+  baseStats = {},
+  trainingResult = {},
+} = {}) {
+  let finalStats = trainingResult.updatedStats || baseStats;
+
+  if ((finalStats.strength || 0) > 0) {
+    finalStats = resetCallStatus(
+      finalStats.callStatus
+        ? {
+            ...finalStats,
+            callStatus: {
+              ...finalStats.callStatus,
+              strength: finalStats.callStatus.strength
+                ? { ...finalStats.callStatus.strength }
+                : finalStats.callStatus.strength,
+            },
+          }
+        : { ...finalStats },
+      "strength"
+    );
+  }
+
+  return {
+    finalStats,
+    logText: buildTrainingLogText({
+      result: trainingResult,
+      beforeStats: baseStats,
+      finalStats,
+    }),
+  };
+}
+
+export function buildBattleLogEntry({
+  mode,
+  text,
+  win,
+  enemyName,
+  injury,
+  timestamp = Date.now(),
+  digimonSnapshot = {},
+} = {}) {
+  return {
+    mode,
+    text,
+    ...(typeof win === "boolean" ? { win } : {}),
+    ...(enemyName ? { enemyName } : {}),
+    ...(typeof injury === "boolean" ? { injury } : {}),
+    timestamp,
+    ...(digimonSnapshot || {}),
+  };
+}
+
+export function buildBattleLogCommitState({
+  prevStats = {},
+  nextStats = {},
+  entry,
+} = {}) {
+  const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, entry);
+  return {
+    updatedBattleLogs,
+    statsWithBattleLogs: {
+      ...nextStats,
+      battleLogs: updatedBattleLogs,
+    },
+  };
+}
+
+export function buildBattleCostStats(baseStats = {}) {
+  const oldWeight = baseStats.weight || 0;
+  const oldEnergy = baseStats.energy || 0;
+  const battleStats = {
+    ...baseStats,
+    weight: Math.max(0, oldWeight - 4),
+    energy: Math.max(0, oldEnergy - 1),
+  };
+
+  return {
+    battleStats,
+    weightDelta: (battleStats.weight || 0) - oldWeight,
+    energyDelta: (battleStats.energy || 0) - oldEnergy,
+  };
+}
+
+export function buildRecordedBattleStats(battleStats = {}, win = false) {
+  const newBattles = (battleStats.battles || 0) + 1;
+  const newBattlesWon = (battleStats.battlesWon || 0) + (win ? 1 : 0);
+  const newBattlesLost = (battleStats.battlesLost || 0) + (win ? 0 : 1);
+  const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
+
+  const newTotalBattles = (battleStats.totalBattles || 0) + 1;
+  const newTotalBattlesWon = (battleStats.totalBattlesWon || 0) + (win ? 1 : 0);
+  const newTotalBattlesLost = (battleStats.totalBattlesLost || 0) + (win ? 0 : 1);
+  const newTotalWinRate =
+    newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
+
+  return {
+    ...battleStats,
+    battles: newBattles,
+    battlesWon: newBattlesWon,
+    battlesLost: newBattlesLost,
+    winRate: newWinRate,
+    totalBattles: newTotalBattles,
+    totalBattlesWon: newTotalBattlesWon,
+    totalBattlesLost: newTotalBattlesLost,
+    totalWinRate: newTotalWinRate,
+  };
+}
+
+export function applyBattleInjuryOutcome({
+  finalStats = {},
+  win = false,
+  proteinOverdose = 0,
+  randomValue = Math.random(),
+  nowMs = Date.now(),
+} = {}) {
+  const injuryChance = calculateInjuryChance(win, proteinOverdose);
+  const isInjured = randomValue * 100 < injuryChance;
+
+  if (!isInjured) {
+    return {
+      finalStats,
+      isInjured: false,
+      injuryChance,
+    };
+  }
+
+  return {
+    finalStats: {
+      ...finalStats,
+      isInjured: true,
+      injuredAt: nowMs,
+      injuryFrozenDurationMs: 0,
+      injuries: (finalStats.injuries || 0) + 1,
+      healedDosesCurrent: 0,
+      injuryReason: "battle",
+    },
+    isInjured: true,
+    injuryChance,
+  };
+}
+
 export function buildArenaBattleArchiveWrite({
   archiveId,
   currentUser,
@@ -317,13 +543,19 @@ export function useGameActions({
             text: proteinOverdose >= 7 ? "Feed: Refused (Protein Overdose max reached: 7/7)" : "Feed: Refused",
             timestamp: Date.now(),
           };
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+          const activityCommitState = buildActivityLogCommitState({
+            prevStats,
+            nextStats: updatedStats,
+            entry: newLog,
+          });
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-          const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
-          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+          setDigimonStatsAndSave(
+            activityCommitState.statsWithLogs,
+            activityCommitState.updatedLogs
+          ).catch((error) => {
             console.error("먹이 거부 로그 저장 오류:", error);
           });
-          return statsWithLogs;
+          return activityCommitState.statsWithLogs;
         });
         setTimeout(()=> setCurrentAnimation("idle"),2000);
         return;
@@ -382,25 +614,25 @@ export function useGameActions({
             if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
             const actionType = type === "meat" ? "고기" : "프로틴";
             const newLog = createSleepDisturbanceLog(`먹이 주기 - ${actionType}`);
-            const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+            const activityCommitState = buildActivityLogCommitState({
+              prevStats,
+              nextStats: statsAfterWake,
+              entry: newLog,
+            });
             if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-            const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-            setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+            setDigimonStatsAndSave(
+              activityCommitState.statsWithLogs,
+              activityCommitState.updatedLogs
+            ).catch((error) => {
               console.error("수면 방해 로그 저장 오류:", error);
             });
-            return statsWithLogs;
+            return activityCommitState.statsWithLogs;
           });
         }
       }
       // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 currentStats 사용
       const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : currentStats;
-      
-      const oldFullness = baseStats.fullness || 0;
-      const oldWeight = baseStats.weight || 0;
-      const oldStrength = baseStats.strength || 0;
-      const oldEnergy = baseStats.energy || 0;
-      const oldOverfeeds = baseStats.overfeeds || 0;
-      
+
       // 먹이기 로직 실행 (결과 객체도 함께 받음)
       let eatResult;
       let updatedStats;
@@ -426,67 +658,41 @@ export function useGameActions({
       if (type === "protein" && updatedStats.strength > 0) {
         updatedStats = resetCallStatus(updatedStats, 'strength');
       }
-      
-      // 상세 Activity Log 추가 (변경값 + 결과값 모두 포함)
-      const newFullness = updatedStats.fullness || 0;
-      const newWeight = updatedStats.weight || 0;
-      const newStrength = updatedStats.strength || 0;
-      const newEnergy = updatedStats.energy || 0;
-      const newOverfeeds = updatedStats.overfeeds || 0;
-      
+
       // 디버깅: 오버피드 관련 변수 추적
       if (type === "meat") {
         console.log("[eatCycle] 오버피드 변수 추적:", {
-          oldFullness,
-          newFullness,
-          oldOverfeeds,
-          newOverfeeds,
+          oldFullness: baseStats.fullness || 0,
+          newFullness: updatedStats.fullness || 0,
+          oldOverfeeds: baseStats.overfeeds || 0,
+          newOverfeeds: updatedStats.overfeeds || 0,
           isOverfeed: eatResult.isOverfeed,
           maxFullness: 5 + (baseStats.maxOverfeed || 0),
         });
       }
-      
-      // 델타 계산
-      const weightDelta = newWeight - oldWeight;
-      const fullnessDelta = newFullness - oldFullness;
-      const strengthDelta = newStrength - oldStrength;
-      const energyDelta = newEnergy - oldEnergy;
-      
-      let logText = '';
-      if (type === "meat") {
-        if (eatResult.isOverfeed) {
-          // 오버피드 발생 시: 거절 상태에서 고기를 주면 오버피드만 증가
-          logText = `Overfeed! (거절 상태, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
-        } else if (isRefused) {
-          // 거절 애니메이션만 (overfeed 증가 없음)
-          logText = `Feed: Refused (고기 거절, Overfeed 증가 없음)`;
-        } else {
-          logText = `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
-        }
-      } else {
-        // Protein 로그: Strength는 항상 표시
-        const strengthChanged = strengthDelta > 0;
-        const strengthText = strengthChanged ? `, Str +${strengthDelta}` : '';
-        const strengthResultText = `, Str ${oldStrength}→${newStrength}`;
-        
-        if (eatResult.energyRestored) {
-          // 4회 보너스 발생 시
-          const energyText = energyDelta > 0 ? `, En +${energyDelta}` : '';
-          const energyResultText = energyDelta > 0 ? `, En ${oldEnergy}→${newEnergy}` : '';
-          logText = `Feed: Protein (Wt +${weightDelta}g${strengthText}${energyText}) - Protein Bonus! (En +1, Overdose +1) => (Wt ${oldWeight}→${newWeight}g${strengthResultText}${energyResultText})`;
-        } else {
-          logText = `Feed: Protein (Wt +${weightDelta}g${strengthText}) => (Wt ${oldWeight}→${newWeight}g${strengthResultText})`;
-        }
-      }
+
+      const logText = buildFeedLogText({
+        type,
+        isRefused,
+        eatResult,
+        beforeStats: baseStats,
+        updatedStats,
+      });
       setDigimonStats((prevStats) => {
         const newLog = { type: "FEED", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+        const activityCommitState = buildActivityLogCommitState({
+          prevStats,
+          nextStats: updatedStats,
+          entry: newLog,
+        });
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+        setDigimonStatsAndSave(
+          activityCommitState.statsWithLogs,
+          activityCommitState.updatedLogs
+        ).catch((error) => {
           console.error("먹이 로그 저장 오류:", error);
         });
-        return statsWithLogs;
+        return activityCommitState.statsWithLogs;
       });
     }
     
@@ -552,13 +758,19 @@ export function useGameActions({
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const newLog = createSleepDisturbanceLog("훈련");
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+          const activityCommitState = buildActivityLogCommitState({
+            prevStats,
+            nextStats: statsAfterWake,
+            entry: newLog,
+          });
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-          const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+          setDigimonStatsAndSave(
+            activityCommitState.statsWithLogs,
+            activityCommitState.updatedLogs
+          ).catch((error) => {
             console.error("수면 방해 로그 저장 오류:", error);
           });
-          return statsWithLogs;
+          return activityCommitState.statsWithLogs;
         });
       }
     }
@@ -576,13 +788,19 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 체중 부족). 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+        const activityCommitState = buildActivityLogCommitState({
+          prevStats,
+          nextStats: baseStats,
+          entry: newLog,
+        });
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+        setDigimonStatsAndSave(
+          activityCommitState.statsWithLogs,
+          activityCommitState.updatedLogs
+        ).catch((error) => {
           console.error("체중 부족 로그 저장 오류:", error);
         });
-        return statsWithLogs;
+        return activityCommitState.statsWithLogs;
       });
       alert("⚠️ 체중이 너무 낮습니다!\n먹이로 체중을 늘려 주세요.");
       return null; // null 반환하여 TrainPopup에서 처리할 수 있도록
@@ -598,13 +816,19 @@ export function useGameActions({
           text: `훈련 건너뜀(사유: 에너지 부족). 에너지: ${en}, 무게: ${w}g`,
           timestamp: Date.now(),
         };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+        const activityCommitState = buildActivityLogCommitState({
+          prevStats,
+          nextStats: baseStats,
+          entry: newLog,
+        });
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...baseStats, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+        setDigimonStatsAndSave(
+          activityCommitState.statsWithLogs,
+          activityCommitState.updatedLogs
+        ).catch((error) => {
           console.error("에너지 부족 로그 저장 오류:", error);
         });
-        return statsWithLogs;
+        return activityCommitState.statsWithLogs;
       });
       // 에너지 부족 알림 가이드
       alert("⚠️ 에너지가 부족합니다!\n잠을 재워 에너지를 회복해 주세요.");
@@ -614,25 +838,12 @@ export function useGameActions({
     // userSelections: 길이5의 "U"/"D" 배열
     // doVer1Training -> stats 업데이트
     const result = doVer1Training(baseStats, userSelections);
-    let finalStats = result.updatedStats;
-    
-    // 호출 해제: strength > 0이 되면 strength 호출 리셋
-    if (finalStats.strength > 0) {
-      finalStats = resetCallStatus(finalStats, 'strength');
-    }
-    
-    // 훈련 로그: 변화 전·후 값 포함
-    const beforeW = baseStats.weight ?? 0;
-    const beforeS = baseStats.strength ?? 0;
-    const beforeE = baseStats.energy ?? 0;
-    const beforeT = baseStats.trainings ?? 0;
-    const afterW = finalStats.weight ?? 0;
-    const afterS = finalStats.strength ?? 0;
-    const afterE = finalStats.energy ?? 0;
-    const afterT = finalStats.trainings ?? 0;
-    const trainLogText = result.isSuccess
-      ? `훈련 성공! 힘 ${beforeS}→${afterS}, 무게 ${beforeW}→${afterW}g, 에너지 ${beforeE}→${afterE}, 훈련횟수 ${beforeT}→${afterT}`
-      : `훈련 실패. 힘 ${beforeS}→${afterS}, 무게 ${beforeW}→${afterW}g, 에너지 ${beforeE}→${afterE}, 훈련횟수 ${beforeT}→${afterT}`;
+    const trainingOutcome = buildTrainingOutcome({
+      baseStats,
+      trainingResult: result,
+    });
+    const finalStats = trainingOutcome.finalStats;
+    const trainLogText = trainingOutcome.logText;
 
     setDigimonStats((prev) => {
       const newLog = {
@@ -640,13 +851,19 @@ export function useGameActions({
         type: "TRAIN",
         timestamp: Date.now(),
       };
-      const updatedLogs = [newLog, ...(prev.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+      const activityCommitState = buildActivityLogCommitState({
+        prevStats: prev,
+        nextStats: finalStats,
+        entry: newLog,
+      });
       if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-      const finalStatsWithLogs = { ...finalStats, activityLogs: updatedLogs };
-      setDigimonStatsAndSave(finalStatsWithLogs, updatedLogs).catch((error) => {
+      setDigimonStatsAndSave(
+        activityCommitState.statsWithLogs,
+        activityCommitState.updatedLogs
+      ).catch((error) => {
         console.error("훈련 결과 저장 오류:", error);
       });
-      return finalStatsWithLogs;
+      return activityCommitState.statsWithLogs;
     });
     
     // 주의: 여기서 addActivityLog()를 또 부르지 마세요! 위에서 했으니까요.
@@ -695,13 +912,19 @@ export function useGameActions({
         // 똥 청소 시 부상 상태는 자동으로 회복되지 않음
         
         const newLog = { type: "CLEAN", text: logText, timestamp: Date.now() };
-        const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+        const activityCommitState = buildActivityLogCommitState({
+          prevStats,
+          nextStats: updatedStats,
+          entry: newLog,
+        });
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-        const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
-        setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+        setDigimonStatsAndSave(
+          activityCommitState.statsWithLogs,
+          activityCommitState.updatedLogs
+        ).catch((error) => {
           console.error("청소 상태 저장 오류:", error);
         });
-        return statsWithLogs;
+        return activityCommitState.statsWithLogs;
       });
       return;
     }
@@ -718,36 +941,27 @@ export function useGameActions({
     // Sparring 모드는 배틀 횟수에 반영하지 않고 로그만 남김
     if (battleType === 'sparring') {
       const updatedStats = await applyLazyUpdateBeforeAction();
-      
-      // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
-      const oldWeight = updatedStats.weight || 0;
-      const oldEnergy = updatedStats.energy || 0;
-      const battleStats = {
-        ...updatedStats,
-        weight: Math.max(0, (updatedStats.weight || 0) - 4),
-        energy: Math.max(0, (updatedStats.energy || 0) - 1),
-      };
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
+      const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(updatedStats);
       
       const sparringText = `Sparring: Practice Match (No Record) (Wt ${weightDelta}g, En ${energyDelta})`;
-      const sparringEntry = {
+      const sparringEntry = buildBattleLogEntry({
         mode: "sparring",
         text: sparringText,
         win: battleResult.win,
         timestamp: Date.now(),
-        ...currentDigimonSnapshot,
-      };
+        digimonSnapshot: currentDigimonSnapshot,
+      });
       setDigimonStats((prevStats) => {
-        const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, sparringEntry);
+        const battleCommitState = buildBattleLogCommitState({
+          prevStats,
+          nextStats: battleStats,
+          entry: sparringEntry,
+        });
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(sparringEntry).catch(() => {});
-        const statsWithBattleLogs = { ...battleStats, battleLogs: updatedBattleLogs };
-        setDigimonStatsAndSave(statsWithBattleLogs).catch((error) => {
+        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
           console.error("스파링 로그 저장 오류:", error);
         });
-        return statsWithBattleLogs;
+        return battleCommitState.statsWithBattleLogs;
       });
       
       if (battleResult.win) {
@@ -819,93 +1033,32 @@ export function useGameActions({
 
       // Arena 모드: 로컬 스탯 업데이트 (배틀 기록 + Activity Log)
       const updatedStats = await applyLazyUpdateBeforeAction();
-      const oldWeight = updatedStats.weight || 0;
-      const oldEnergy = updatedStats.energy || 0;
-      
-      // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
-      const battleStats = {
-        ...updatedStats,
-        weight: Math.max(0, (updatedStats.weight || 0) - 4),
-        energy: Math.max(0, (updatedStats.energy || 0) - 1),
-      };
-      
-      // 배틀 스탯 업데이트 (Quest 모드와 동일한 로직)
-      let finalStats;
-      if (battleResult.win) {
-        // 승리 시 배틀 기록 업데이트
-        // 현재 디지몬 값
-        const newBattles = (battleStats.battles || 0) + 1;
-        const newBattlesWon = (battleStats.battlesWon || 0) + 1;
-        const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
-        
-        // 총 토탈 값
-        const newTotalBattles = (battleStats.totalBattles || 0) + 1;
-        const newTotalBattlesWon = (battleStats.totalBattlesWon || 0) + 1;
-        const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
-        
-        finalStats = {
-          ...battleStats,
-          // 현재 디지몬 값
-          battles: newBattles,
-          battlesWon: newBattlesWon,
-          winRate: newWinRate,
-          // 총 토탈 값
-          totalBattles: newTotalBattles,
-          totalBattlesWon: newTotalBattlesWon,
-          totalWinRate: newTotalWinRate,
-        };
-      } else {
-        // 패배 시 배틀 기록 업데이트
-        // 현재 디지몬 값
-        const newBattles = (battleStats.battles || 0) + 1;
-        const newBattlesLost = (battleStats.battlesLost || 0) + 1;
-        const newBattlesWon = battleStats.battlesWon || 0;
-        const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
-        
-        // 총 토탈 값
-        const newTotalBattles = (battleStats.totalBattles || 0) + 1;
-        const newTotalBattlesLost = (battleStats.totalBattlesLost || 0) + 1;
-        const newTotalBattlesWon = battleStats.totalBattlesWon || 0;
-        const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
-        
-        finalStats = {
-          ...battleStats,
-          // 현재 디지몬 값
-          battles: newBattles,
-          battlesLost: newBattlesLost,
-          winRate: newWinRate,
-          // 총 토탈 값
-          totalBattles: newTotalBattles,
-          totalBattlesLost: newTotalBattlesLost,
-          totalWinRate: newTotalWinRate,
-        };
-      }
-      
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
+      const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(updatedStats);
+      const finalStats = buildRecordedBattleStats(battleStats, battleResult.win);
       
       const tamerName = arenaChallenger.tamerName || arenaChallenger.trainerName || "Unknown";
       const arenaText = battleResult.win
         ? `Arena: Won vs ${tamerName} (Rank UP) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Arena: Lost vs ${tamerName} (Wt ${weightDelta}g, En ${energyDelta})`;
-      const arenaEntry = {
+      const arenaEntry = buildBattleLogEntry({
         mode: "arena",
         text: arenaText,
         win: battleResult.win,
         enemyName: tamerName,
         timestamp: Date.now(),
-        ...currentDigimonSnapshot,
-      };
+        digimonSnapshot: currentDigimonSnapshot,
+      });
       setDigimonStats((prevStats) => {
-        const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, arenaEntry);
+        const battleCommitState = buildBattleLogCommitState({
+          prevStats,
+          nextStats: finalStats,
+          entry: arenaEntry,
+        });
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(arenaEntry).catch(() => {});
-        const statsWithBattleLogs = { ...finalStats, battleLogs: updatedBattleLogs };
-        setDigimonStatsAndSave(statsWithBattleLogs).catch((error) => {
+        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
           console.error("아레나 로그 저장 오류:", error);
         });
-        return statsWithBattleLogs;
+        return battleCommitState.statsWithBattleLogs;
       });
       
       console.log("✅ [Arena] 로컬 배틀 스탯 업데이트 완료:", {
@@ -931,19 +1084,22 @@ export function useGameActions({
     // 에너지 부족 체크 (배틀 시작 전)
     if ((updatedStats.energy || 0) <= 0) {
       setDigimonStats((prevStats) => {
-        const skipEntry = {
+        const skipEntry = buildBattleLogEntry({
           mode: "skip",
           text: "Battle: Skipped (Not enough Energy)",
           timestamp: Date.now(),
-          ...currentDigimonSnapshot,
-        };
-        const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, skipEntry);
+          digimonSnapshot: currentDigimonSnapshot,
+        });
+        const battleCommitState = buildBattleLogCommitState({
+          prevStats,
+          nextStats: updatedStats,
+          entry: skipEntry,
+        });
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(skipEntry).catch(() => {});
-        const statsWithBattleLogs = { ...updatedStats, battleLogs: updatedBattleLogs };
-        setDigimonStatsAndSave(statsWithBattleLogs).catch((error) => {
+        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
           console.error("에너지 부족 배틀 로그 저장 오류:", error);
         });
-        return statsWithBattleLogs;
+        return battleCommitState.statsWithBattleLogs;
       });
       alert("⚠️ 에너지가 부족합니다!\n💤 Sleep to restore Energy!");
       setShowBattleScreen(false);
@@ -977,95 +1133,62 @@ export function useGameActions({
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
           const newLog = createSleepDisturbanceLog(`배틀 - ${battleTypeText}`);
-          const updatedLogs = [newLog, ...(prevStats.activityLogs || [])].slice(0, MAX_ACTIVITY_LOGS);
+          const activityCommitState = buildActivityLogCommitState({
+            prevStats,
+            nextStats: statsAfterWake,
+            entry: newLog,
+          });
           if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
-          const statsWithLogs = { ...statsAfterWake, activityLogs: updatedLogs };
-          setDigimonStatsAndSave(statsWithLogs, updatedLogs).catch((error) => {
+          setDigimonStatsAndSave(
+            activityCommitState.statsWithLogs,
+            activityCommitState.updatedLogs
+          ).catch((error) => {
             console.error("수면 방해 로그 저장 오류:", error);
           });
-          return statsWithLogs;
+          return activityCommitState.statsWithLogs;
         });
       }
     }
     
     const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : updatedStats;
-    
-    // Ver.1 스펙: Weight -4g, Energy -1 (승패 무관)
-    const oldWeight = baseStats.weight || 0;
-    const oldEnergy = baseStats.energy || 0;
-    
-    const battleStats = {
-      ...baseStats,
-      weight: Math.max(0, (baseStats.weight || 0) - 4),
-      energy: Math.max(0, (baseStats.energy || 0) - 1),
-    };
+    const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(baseStats);
     
     const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';
     
     if (battleResult.win) {
-      // 승리 시 배틀 기록 업데이트
-      // 현재 디지몬 값
-      const newBattles = (battleStats.battles || 0) + 1;
-      const newBattlesWon = (battleStats.battlesWon || 0) + 1;
-      const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
-      
-      // 총 토탈 값
-      const newTotalBattles = (battleStats.totalBattles || 0) + 1;
-      const newTotalBattlesWon = (battleStats.totalBattlesWon || 0) + 1;
-      const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
-      
-      const finalStats = {
-        ...battleStats,
-        // 현재 디지몬 값
-        battles: newBattles,
-        battlesWon: newBattlesWon,
-        winRate: newWinRate,
-        // 총 토탈 값
-        totalBattles: newTotalBattles,
-        totalBattlesWon: newTotalBattlesWon,
-        totalWinRate: newTotalWinRate,
-      };
-      
-      // 부상 확률 체크 (승리 시 20%)
-      const proteinOverdose = battleStats.proteinOverdose || 0;
-      const injuryChance = calculateInjuryChance(true, proteinOverdose);
-      const isInjured = Math.random() * 100 < injuryChance;
-      
-      if (isInjured) {
-        finalStats.isInjured = true;
-        finalStats.injuredAt = Date.now();
-        finalStats.injuryFrozenDurationMs = 0;
-        finalStats.injuries = (battleStats.injuries || 0) + 1;
-        finalStats.healedDosesCurrent = 0;
-        finalStats.injuryReason = 'battle'; // 부상 원인 저장
-      }
-      
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
+      const recordedStats = buildRecordedBattleStats(battleStats, true);
+      const injuryResult = applyBattleInjuryOutcome({
+        finalStats: recordedStats,
+        win: true,
+        proteinOverdose: battleStats.proteinOverdose || 0,
+      });
+      const finalStats = injuryResult.finalStats;
+      const isInjured = injuryResult.isInjured;
       
       let questWinText = battleResult.isAreaClear
         ? `Quest: Defeated ${enemyName} (Stage Clear) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Quest: Defeated ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questWinText += " - Battle: Injured! (Chance hit)";
-      const questWinEntry = {
+      const questWinEntry = buildBattleLogEntry({
         mode: "quest",
         text: questWinText,
         win: true,
         enemyName,
         injury: isInjured,
         timestamp: Date.now(),
-        ...currentDigimonSnapshot,
-      };
+        digimonSnapshot: currentDigimonSnapshot,
+      });
       setDigimonStats((prevStats) => {
-        const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, questWinEntry);
+        const battleCommitState = buildBattleLogCommitState({
+          prevStats,
+          nextStats: finalStats,
+          entry: questWinEntry,
+        });
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questWinEntry).catch(() => {});
-        const statsWithBattleLogs = { ...finalStats, battleLogs: updatedBattleLogs };
-        setDigimonStatsAndSave(statsWithBattleLogs).catch((error) => {
+        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
           console.error("퀘스트 승리 로그 저장 오류:", error);
         });
-        return statsWithBattleLogs;
+        return battleCommitState.statsWithBattleLogs;
       });
 
       if (battleResult.isAreaClear) {
@@ -1077,69 +1200,37 @@ export function useGameActions({
         setCurrentQuestRound(prev => prev + 1);
       }
     } else {
-      // 패배 시 배틀 기록 업데이트
-      // 현재 디지몬 값
-      const newBattles = (battleStats.battles || 0) + 1;
-      const newBattlesLost = (battleStats.battlesLost || 0) + 1;
-      const newBattlesWon = battleStats.battlesWon || 0;
-      const newWinRate = newBattles > 0 ? Math.round((newBattlesWon / newBattles) * 100) : 0;
-      
-      // 총 토탈 값
-      const newTotalBattles = (battleStats.totalBattles || 0) + 1;
-      const newTotalBattlesLost = (battleStats.totalBattlesLost || 0) + 1;
-      const newTotalBattlesWon = battleStats.totalBattlesWon || 0;
-      const newTotalWinRate = newTotalBattles > 0 ? Math.round((newTotalBattlesWon / newTotalBattles) * 100) : 0;
-      
-      const finalStats = {
-        ...battleStats,
-        // 현재 디지몬 값
-        battles: newBattles,
-        battlesLost: newBattlesLost,
-        winRate: newWinRate,
-        // 총 토탈 값
-        totalBattles: newTotalBattles,
-        totalBattlesLost: newTotalBattlesLost,
-        totalWinRate: newTotalWinRate,
-      };
-      
-      // 부상 확률 체크 (패배 시 10% + 프로틴 과다 * 10%, 최대 80%)
-      const proteinOverdose = battleStats.proteinOverdose || 0;
-      const injuryChance = calculateInjuryChance(false, proteinOverdose);
-      const isInjured = Math.random() * 100 < injuryChance;
-      
-      if (isInjured) {
-        finalStats.isInjured = true;
-        finalStats.injuredAt = Date.now();
-        finalStats.injuryFrozenDurationMs = 0;
-        finalStats.injuries = (battleStats.injuries || 0) + 1;
-        finalStats.healedDosesCurrent = 0;
-        finalStats.injuryReason = 'battle'; // 부상 원인 저장
-      }
-      
-      const newWeight = battleStats.weight || 0;
-      const newEnergy = battleStats.energy || 0;
-      const weightDelta = newWeight - oldWeight;
-      const energyDelta = newEnergy - oldEnergy;
+      const recordedStats = buildRecordedBattleStats(battleStats, false);
+      const injuryResult = applyBattleInjuryOutcome({
+        finalStats: recordedStats,
+        win: false,
+        proteinOverdose: battleStats.proteinOverdose || 0,
+      });
+      const finalStats = injuryResult.finalStats;
+      const isInjured = injuryResult.isInjured;
       
       let questLoseText = `Quest: Defeated by ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questLoseText += " - Battle: Injured! (Chance hit)";
-      const questLoseEntry = {
+      const questLoseEntry = buildBattleLogEntry({
         mode: "quest",
         text: questLoseText,
         win: false,
         enemyName,
         injury: isInjured,
         timestamp: Date.now(),
-        ...currentDigimonSnapshot,
-      };
+        digimonSnapshot: currentDigimonSnapshot,
+      });
       setDigimonStats((prevStats) => {
-        const updatedBattleLogs = appendBattleLog(prevStats.battleLogs, questLoseEntry);
+        const battleCommitState = buildBattleLogCommitState({
+          prevStats,
+          nextStats: finalStats,
+          entry: questLoseEntry,
+        });
         if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questLoseEntry).catch(() => {});
-        const statsWithBattleLogs = { ...finalStats, battleLogs: updatedBattleLogs };
-        setDigimonStatsAndSave(statsWithBattleLogs).catch((error) => {
+        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
           console.error("퀘스트 패배 로그 저장 오류:", error);
         });
-        return statsWithBattleLogs;
+        return battleCommitState.statsWithBattleLogs;
       });
     }
   };

@@ -4,6 +4,276 @@
 
 ---
 
+## [2026-04-11] `useGameActions` 5차 분리: training outcome helper 추출
+
+### 작업 유형
+- 🧩 training 결과 상태/로그 helper 추출
+- 🧪 training outcome 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleTrainResult` 안의 `finalStats` 보정과 로그 문자열 조립을 하나의 순수 helper로 묶어, training action의 본문에서 저장/알림 흐름만 더 잘 보이게 만든다.
+- **범위:** `doVer1Training(...)` 호출 시점, 수면 방해 처리, train skip 분기, `setDigimonStatsAndSave`, alert 타이밍은 그대로 유지한다.
+- **내용:**
+  - `buildTrainingOutcome`를 추가해 `trainingResult.updatedStats`를 받아 `strength` 호출 상태 해제와 로그 문자열 조립을 한 번에 수행하도록 정리했다.
+  - helper 내부에서 `callStatus.strength`를 안전하게 복사한 뒤 `resetCallStatus("strength")`를 적용해 입력 객체를 직접 건드리지 않도록 맞췄다.
+  - `handleTrainResult`는 이제 `finalStats`와 `logText`를 helper에서 받아 activity log commit만 수행한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameActions`의 training 경로는 precheck/수면 방해/save sequencing은 그대로 두고, 결과 조립은 helper를 통해 지나간다. 다음 후보는 train skip payload나 feed outcome patch를 같은 패턴으로 정리하는 것이다.
+
+## [2026-04-11] `useGameActions` 4차 분리: feed/training 결과 문자열 helper 추출
+
+### 작업 유형
+- 🧩 feed/training 결과 로그 문자열 helper 추출
+- 🧪 feed/training log text 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** `eatCycle`과 `handleTrainResult`에 남아 있던 변화량 계산/문자열 조립을 순수 helper로 분리해, action 본문에서 실제 상태 전이와 저장 흐름만 더 잘 보이게 만든다.
+- **범위:** `feedMeat`/`feedProtein`/`doVer1Training` 실행 시점, 수면 방해 처리, `setDigimonStatsAndSave`, animation 타이밍은 그대로 유지한다.
+- **내용:**
+  - `buildFeedLogText`를 추가해 고기 일반 섭취, 오버피드, 거절, 프로틴 보너스 로그 문자열 조립을 한 곳으로 정리했다.
+  - `buildTrainingLogText`를 추가해 훈련 성공/실패 로그 문자열을 변화 전후 값 기준으로 공통화했다.
+  - `eatCycle`과 `handleTrainResult`는 이제 helper 결과를 받아 activity log 저장만 수행한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `useGameActions`는 이제 battle 결과/로그 helper뿐 아니라 feed/training log text helper도 갖게 됐다. 다음 단계는 train skip payload나 feed outcome patch처럼 결과 object 조립까지 helper로 옮길지, 아니면 이 체크포인트에서 커밋하고 다음 관심사로 넘어갈지 판단하는 것이다.
+
+## [2026-04-11] `useGameActions` 3차 분리: activity log commit helper 추출
+
+### 작업 유형
+- 🧩 feed/train/clean/sleep disturbance 공통 activity log commit helper 추출
+- 🧪 activity log helper 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** `useGameActions` 전반에 반복되던 `updatedLogs`와 `statsWithLogs` 조립을 한 곳으로 모아, action별 로그 저장 boilerplate를 줄인다.
+- **범위:** `appendLogToSubcollection`, `setDigimonStatsAndSave`, duplicate sleep disturbance suppression, alert, animation 타이밍은 그대로 유지한다.
+- **내용:**
+  - `buildActivityLogCommitState`를 추가해 `prevStats`, `nextStats`, `entry`만으로 다음 activityLogs와 저장 대상 stats를 조립하도록 정리했다.
+  - Protein 거부, feed 결과, train 수면 방해, train skip, train 결과, clean, quest battle 수면 방해 경로가 모두 같은 helper를 재사용하도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameActions`는 battle 쪽뿐 아니라 activity log commit 상태도 helper 경계를 갖게 됐다. 다음 단계는 feed/training 결과 문자열/patch 조립을 순수 helper로 옮기는 쪽이 가장 자연스럽다.
+
+## [2026-04-11] `useGameActions` 2차 분리: 배틀 로그 helper 추출
+
+### 작업 유형
+- 🧩 배틀 로그 entry / commit state helper 추출
+- 🧪 battle log helper 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleBattleComplete` 안에서 반복되던 battle log object 조립과 `battleLogs` 반영 패턴을 순수 helper로 분리해, 배틀 분기마다 남아 있던 boilerplate를 줄인다.
+- **범위:** `appendBattleLogToSubcollection`, `setDigimonStatsAndSave`, alert, 화면 닫기/상태 리셋, remote arena write 타이밍은 그대로 유지한다.
+- **내용:**
+  - `buildBattleLogEntry`를 추가해 `mode`, `text`, `win`, `enemyName`, `injury`, `timestamp`, digimon snapshot 조합을 한 곳에서 처리하도록 정리했다.
+  - `buildBattleLogCommitState`를 추가해 `appendBattleLog(...)`와 `statsWithBattleLogs` 조립을 helper로 묶었다.
+  - Sparring / Arena / Quest 승리 / Quest 패배 / Energy 부족 skip 경로가 모두 같은 helper를 사용하도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameActions`의 battle 쪽은 비용 차감, 전적 집계, 부상 적용, battle log entry/commit까지 helper 경계를 가지게 됐다. 다음 후보는 activity log commit state 공통화 또는 feed/training 결과 조립 helper다.
+
+## [2026-04-11] `useGameActions` 1차 분리: 배틀 결과 계산 helper 추출
+
+### 작업 유형
+- 🧩 `handleBattleComplete`의 순수 배틀 결과 계산 helper 추출
+- 🧪 배틀 비용/전적/부상 helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleBattleComplete` 안에 섞여 있던 Ver.1 배틀 비용 차감, 승패 전적 집계, 퀘스트 부상 적용을 순수 helper로 분리해 battle action orchestration을 더 읽기 쉽게 만든다.
+- **범위:** `completeArenaBattle` 호출 시점, `appendBattleLogToSubcollection`, alert, animation/UI 전환, `setDigimonStatsAndSave` 타이밍은 그대로 유지한다.
+- **내용:**
+  - `buildBattleCostStats`를 추가해 공통 배틀 피로(`weight -4`, `energy -1`)와 delta 계산을 한 곳에서 처리하도록 정리했다.
+  - `buildRecordedBattleStats`를 추가해 승패에 따른 현재/총 전적과 승률 계산을 Arena/Quest가 같이 쓰도록 맞췄다.
+  - `applyBattleInjuryOutcome`를 추가해 퀘스트 전투의 부상 확률 적용과 부상 필드 세팅을 순수 helper로 분리했다.
+  - `handleBattleComplete`는 helper 결과를 받아 로그 문자열과 저장 흐름만 조합하도록 단순화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `useGameActions`는 animation/save sequencing이 여전히 핵심 리스크라, 다음 단계도 setter/timeout은 유지한 채 계산 helper를 추가로 분리하는 방식이 안전하다. 현재 기준으로는 수면 방해 처리보다 battle 결과 조립이 훨씬 좋은 순수 helper 경계였다.
+
+## [2026-04-11] `useGameData` 9차 분리: loaded slot hydration plan helper 추출
+
+### 작업 유형
+- 🧩 `loadSlot`의 starter-init / saved-runtime 분기 helper 추출
+- 🧪 hydration plan wiring 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot`에 남아 있던 “빈 슬롯 초기화 vs 저장된 슬롯 runtime rebuild” 분기를 helper로 묶어, effect 본문을 Firestore read와 setter fan-out 중심으로 더 단순화한다.
+- **범위:** `Date.now()` 기반 starter 초기화, saved runtime rebuild, reconstructed log persistence 타이밍은 그대로 유지하고, 실제 `appendLogToSubcollection` 호출은 caller에 남긴다.
+- **내용:**
+  - `buildLoadedSlotHydrationPlan`을 추가해 starter-init 경로와 saved-runtime 경로를 공통 인터페이스(`hydrationResult`, `reconstructedLogsToPersist`)로 반환하도록 정리했다.
+  - `loadSlot`은 collections merge 이후 hydration plan만 받아 setter 적용과 reconstructed log persist만 수행하게 되었다.
+  - 테스트로 빈 슬롯 starter 조립과 저장된 stats의 runtime rebuild wiring을 각각 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `loadSlot`은 `slot read -> collections load -> collections merge -> hydration plan -> persistence hints -> setter fan-out` 순서로 읽힌다. 다음 단계는 setter fan-out을 그대로 두고, `useGameData`를 여기서 정리한 뒤 `useGameActions` 리팩터링으로 넘어갈지 판단하는 것이다.
+
+## [2026-04-11] `useGameData` 8차 분리: action lazy update runtime context helper 추출
+
+### 작업 유형
+- 🧩 `applyLazyUpdateForAction`의 runtime context 계산 helper 추출
+- 🧪 evolutionStage lookup / stage 기본 수면시간 테스트 추가
+
+### 목적 및 영향
+- **목적:** `applyLazyUpdateForAction`에 남아 있던 “현재 디지몬 기준 sleepSchedule / maxEnergy 계산”을 순수 helper로 분리해, action 경로의 Firestore I/O와 runtime metadata 계산 책임을 나눈다.
+- **범위:** 기존 evolutionStage 기반 현재 디지몬 탐색 규칙과 stage별 기본 수면시간 fallback은 그대로 유지하고, `updateDoc`, `appendLogToSubcollection`, death popup 처리 타이밍은 변경하지 않는다.
+- **내용:**
+  - `resolveActionLazyUpdateRuntimeContext`를 추가해 action 경로에서 사용할 `currentDigimonName`, `sleepSchedule`, `maxEnergy`를 한 번에 계산하도록 정리했다.
+  - `applyLazyUpdateForAction`은 이제 helper 결과를 받아 lazy update kernel만 호출하게 되어, 함수 본문이 더 명확하게 읽히도록 만들었다.
+  - 테스트로 evolutionStage 기반 lookup, stage 기본 수면시간 fallback, runtime data map 미존재 시 null context 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameData`는 `loadSlot`의 helper 경계뿐 아니라 action 직전 lazy update의 runtime context 계산도 순수 함수로 분리됐다. 다음 선택지는 load 경로의 starter-init vs saved-runtime 분기 자체를 helper plan으로 묶거나, `useGameData`를 여기서 멈추고 `useGameActions` 리팩터링으로 넘어가는 것이다.
+
+## [2026-04-11] `useGameData` 7차 분리: lazy update runtime 계산 코어 공통화
+
+### 작업 유형
+- 🧩 `loadSlot` / `applyLazyUpdateForAction` 공통 lazy update runtime helper 추출
+- 🧪 공통 helper 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot`과 action 직전 lazy update가 같은 `applyLazyUpdate + repairCareMistakeLedger + reconstructed log slice` 계산 코어를 쓰도록 맞춰, 두 경로의 의미를 한 곳에서 관리한다.
+- **범위:** sleepSchedule/maxEnergy 계산, Firestore read/write, death popup 처리, sprite sync는 각 caller에 그대로 두고, 공통 계산기만 `buildLazyUpdateRuntimeResult`로 추출한다.
+- **내용:**
+  - `buildLazyUpdateRuntimeResult`를 추가해 `baseStats`, `lastSavedAt`, sleep context, selectedDigimon, data maps를 받아 최종 `digimonStats`와 `reconstructedLogsToPersist`를 함께 반환하게 했다.
+  - `buildLoadedSlotRuntimeState`는 starter TTE 보정 이후 이 helper를 재사용하고, sprite sync만 후처리로 남겼다.
+  - `applyLazyUpdateForAction`도 같은 helper를 사용하도록 바꿔, action 경로와 load 경로의 ledger repair / new log slice 계산을 공통화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- 이제 `useGameData`는 저장 payload, hydration packaging, fallback init, collections read, collections merge, lazy-update runtime rebuild까지 helper 경계를 갖게 됐다. 다음 큰 선택지는 `useGameData`를 여기서 마무리하고 `useGameActions`로 넘어가거나, `applyLazyUpdateForAction`의 sleep context 계산까지 별도 helper로 올려 load/action 양쪽의 문맥 계산을 더 맞추는 것이다.
+
+## [2026-04-11] `useGameData` 6차 분리: fallback slot initializer helper 추출
+
+### 작업 유형
+- 🧩 `slot 없음` / `load 실패` 경로용 fallback hydration helper 추출
+- 🧪 fallback starter 및 기본 설정 조립 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot`의 실패 경로에서도 초기 상태 조립을 helper로 묶어, 성공/실패 모두 “결과 object를 만들고 setter로 반영한다”는 패턴을 더 맞춘다.
+- **범위:** 기존 동작을 바꾸지 않기 위해 helper는 fallback starter, 기본 background/immersive 설정, 슬롯 이름만 조립하고, 어떤 setter를 실제로 적용할지는 기존 분기에서 그대로 결정한다.
+- **내용:**
+  - `buildFallbackSlotHydrationResult`를 추가해 `getStarterDigimonIdFromDataMap` + `initializeStats` 기반 fallback starter 상태를 한 곳에서 만들도록 정리했다.
+  - `slot 문서 없음` 경로와 `load 실패` 경로는 같은 helper 결과를 재사용하되, 배경 설정 적용 여부 같은 분기별 차이는 그대로 유지했다.
+  - `loadSlotCollectionsState`도 fallback battle logs를 숫자 timestamp로 정규화해 helper 반환값 일관성을 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `useGameData`의 `loadSlot`은 이제 성공 경로의 logs read / collections merge / runtime rebuild / hydration packaging 뿐 아니라, 실패 경로 fallback 초기화도 helper 경계를 갖게 됐다. 다음 단계는 `applyLazyUpdateForAction` 쪽에서 `loadSlot`과 겹치는 reconstruction 패턴을 공통화하는 방향이 가장 자연스럽다.
+
+## [2026-04-11] `useGameData` 5차 분리: logs/battleLogs loader helper 추출
+
+### 작업 유형
+- 🧩 `loadSlot`의 logs/battleLogs Firestore read fallback helper 추출
+- 🧪 subcollection 우선 / legacy fallback 계약 테스트 추가
+
+### 목적 및 영향
+- **목적:** `loadSlot` effect에 남아 있던 Firestore `logs`/`battleLogs` read 분기를 helper로 이동해, effect 본문을 더 오케스트레이션 중심으로 만든다.
+- **범위:** 쿼리 조건(`timestamp desc`, activity max 100개, battle max 100개), `createdAt` filtering, activity fallback의 `initializeActivityLogs`, battle fallback의 legacy `digimonStats.battleLogs` 규칙은 그대로 유지한다.
+- **내용:**
+  - `loadSlotCollectionsState`를 추가해 `slotRef`를 기준으로 `logs`와 `battleLogs`를 읽고, 없거나 실패하면 legacy 배열로 fallback 하도록 정리했다.
+  - 테스트에서는 loader 콜백 주입 방식으로 subcollection 우선 사용과 빈 결과/실패 시 fallback 계약을 고정했다.
+  - `loadSlot`은 이제 `slot document read -> log collections load -> collections merge -> runtime reconstruction -> hydration result -> setter` 단계로 읽힌다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameData.js src/hooks/useGameData.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `useGameData`의 `loadSlot` effect는 이제 read/fallback, collections merge, runtime rebuild, hydration packaging, setter fan-out이 각각 helper 경계를 갖게 됐다. 다음 단계에서는 `slot 없음`/`load 실패` fallback initializer를 helper로 올리거나, `applyLazyUpdateForAction` 쪽 재구성 로직과 중복되는 부분을 공통화하는 방향이 자연스럽다.
+
 ## [2026-04-11] `useGameData` 4차 분리: loaded collections 병합 helper 추출
 
 ### 작업 유형

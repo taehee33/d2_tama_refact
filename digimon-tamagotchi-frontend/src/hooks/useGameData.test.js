@@ -1,9 +1,14 @@
 import {
+  buildFallbackSlotHydrationResult,
+  buildLazyUpdateRuntimeResult,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
+  buildLoadedSlotHydrationPlan,
   buildLoadedSlotRuntimeState,
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
+  loadSlotCollectionsState,
+  resolveActionLazyUpdateRuntimeContext,
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
   resolveRootSlotFields,
@@ -302,6 +307,75 @@ describe("buildLoadedSlotHydrationResult", () => {
   });
 });
 
+describe("buildFallbackSlotHydrationResult", () => {
+  test("fallback starter와 기본 설정을 함께 조립한다", () => {
+    const dataMap = {
+      Digitama: {
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Digitama",
+        evolutionStage: "Digitama",
+      },
+    };
+
+    const result = buildFallbackSlotHydrationResult({
+      slotId: 4,
+      dataMap,
+      slotVersionLabel: "Ver.1",
+    });
+
+    expect(result.slotName).toBe("슬롯4");
+    expect(result.slotVersion).toBe("Ver.1");
+    expect(result.selectedDigimon).toBe("Digitama");
+    expect(result.backgroundSettings).toEqual(DEFAULT_BACKGROUND_SETTINGS);
+    expect(result.immersiveSettings).toEqual(DEFAULT_IMMERSIVE_SETTINGS);
+    expect(result.digimonStats.birthTime).toBeDefined();
+  });
+});
+
+describe("loadSlotCollectionsState", () => {
+  test("subcollection loader가 값을 주면 그 결과를 우선 사용한다", async () => {
+    const result = await loadSlotCollectionsState({
+      slotCreatedAt: 1000,
+      legacyActivityLogs: [{ type: "LEGACY", timestamp: 500 }],
+      legacyBattleLogs: [{ mode: "legacy", text: "old", timestamp: 500 }],
+      loadActivityEntries: async () => [
+        { type: "CARE", timestamp: { seconds: 2, nanoseconds: 0 } },
+      ],
+      loadBattleEntries: async () => [
+        { mode: "quest", text: "승리", timestamp: { seconds: 3, nanoseconds: 0 } },
+      ],
+    });
+
+    expect(result.loadedActivityLogs).toEqual([
+      { type: "CARE", timestamp: 2000 },
+    ]);
+    expect(result.loadedBattleLogs).toEqual([
+      { mode: "quest", text: "승리", timestamp: 3000 },
+    ]);
+  });
+
+  test("subcollection 결과가 없거나 실패하면 legacy 로그로 fallback 한다", async () => {
+    const result = await loadSlotCollectionsState({
+      slotCreatedAt: 1000,
+      legacyActivityLogs: [{ type: "LEGACY", timestamp: { seconds: 2, nanoseconds: 0 } }],
+      legacyBattleLogs: [{ mode: "legacy", text: "old", timestamp: { seconds: 4, nanoseconds: 0 } }],
+      loadActivityEntries: async () => [],
+      loadBattleEntries: async () => {
+        throw new Error("battle read failed");
+      },
+    });
+
+    expect(result.loadedActivityLogs).toEqual([
+      { type: "LEGACY", timestamp: 2000 },
+    ]);
+    expect(result.loadedBattleLogs).toEqual([
+      { mode: "legacy", text: "old", timestamp: 4000 },
+    ]);
+  });
+});
+
 describe("buildLoadedSlotCollectionsState", () => {
   test("로드한 activity/battle logs를 저장된 stats에 합치고 cleanup 힌트를 반환한다", () => {
     const result = buildLoadedSlotCollectionsState({
@@ -329,6 +403,117 @@ describe("buildLoadedSlotCollectionsState", () => {
       "CARE",
     ]);
     expect(result.savedStats.battleLogs[0].timestamp).toBe(1500);
+  });
+});
+
+describe("buildLazyUpdateRuntimeResult", () => {
+  test("lazy update 결과와 새로 생긴 로그 목록을 함께 반환한다", () => {
+    const dataMap = {
+      Agumon: {
+        name: "아구몬",
+        sprite: 42,
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Child",
+        evolutionStage: "Child",
+        stats: {
+          maxEnergy: 10,
+          sleepSchedule: { start: 21, end: 7 },
+        },
+      },
+    };
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1000);
+
+    const result = buildLazyUpdateRuntimeResult({
+      baseStats: {
+        ...initializeStats("Agumon", {}, dataMap),
+        activityLogs: [{ type: "CARE", timestamp: 900 }],
+      },
+      lastSavedAt: 1000,
+      sleepSchedule: { start: 21, end: 7 },
+      maxEnergy: 10,
+      selectedDigimon: "Agumon",
+      evolutionDataForSlot: dataMap,
+      dataMap,
+      slotRuntimeDataMap: dataMap,
+      runtimeAdaptedDataMaps: { "Ver.1": dataMap },
+    });
+
+    expect(result.digimonStats.activityLogs).toEqual([
+      { type: "CARE", timestamp: 900 },
+    ]);
+    expect(result.reconstructedLogsToPersist).toEqual([]);
+
+    nowSpy.mockRestore();
+  });
+});
+
+describe("resolveActionLazyUpdateRuntimeContext", () => {
+  test("evolutionStage로 현재 디지몬을 찾아 sleepSchedule과 maxEnergy를 반환한다", () => {
+    const dataMap = {
+      Agumon: {
+        evolutionStage: "Child",
+        stage: "Child",
+        stats: {
+          maxEnergy: 10,
+          sleepSchedule: { start: 21, end: 7 },
+        },
+      },
+    };
+
+    const result = resolveActionLazyUpdateRuntimeContext({
+      digimonStats: {
+        evolutionStage: "Child",
+        maxEnergy: 4,
+      },
+      slotRuntimeDataMap: dataMap,
+    });
+
+    expect(result).toEqual({
+      currentDigimonName: "Agumon",
+      sleepSchedule: { start: 21, end: 7 },
+      maxEnergy: 10,
+    });
+  });
+
+  test("sleepSchedule이 없으면 stage 기본 수면시간으로 fallback 한다", () => {
+    const dataMap = {
+      Greymon: {
+        evolutionStage: "Adult",
+        stage: "Adult",
+        stats: {},
+      },
+    };
+
+    const result = resolveActionLazyUpdateRuntimeContext({
+      digimonStats: {
+        evolutionStage: "Adult",
+        maxStamina: 6,
+      },
+      slotRuntimeDataMap: dataMap,
+    });
+
+    expect(result).toEqual({
+      currentDigimonName: "Greymon",
+      sleepSchedule: { start: 22, end: 6 },
+      maxEnergy: 6,
+    });
+  });
+
+  test("런타임 데이터가 없으면 Digitama/null context를 반환한다", () => {
+    const result = resolveActionLazyUpdateRuntimeContext({
+      digimonStats: {
+        evolutionStage: "Child",
+      },
+      slotRuntimeDataMap: null,
+    });
+
+    expect(result).toEqual({
+      currentDigimonName: "Digitama",
+      sleepSchedule: null,
+      maxEnergy: null,
+    });
   });
 });
 
@@ -445,6 +630,102 @@ describe("buildLoadedSlotRuntimeState", () => {
 
     expect(result.digimonStats.timeToEvolveSeconds).toBe(600);
 
+    nowSpy.mockRestore();
+  });
+});
+
+describe("buildLoadedSlotHydrationPlan", () => {
+  test("저장된 stats가 없으면 starter hydration 결과를 조립한다", () => {
+    const dataMap = {
+      Digitama: {
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Digitama",
+        evolutionStage: "Digitama",
+      },
+    };
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(123456789);
+
+    const result = buildLoadedSlotHydrationPlan({
+      slotData: {
+        slotName: "빈 슬롯",
+      },
+      slotId: 1,
+      slotVersionLabel: "Ver.1",
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
+      loadedActivityLogs: [{ type: "CARE", timestamp: 1000 }],
+      savedName: "Digitama",
+      savedStats: {},
+      dataMap,
+    });
+
+    expect(result.reconstructedLogsToPersist).toEqual([]);
+    expect(result.hydrationResult.slotName).toBe("빈 슬롯");
+    expect(result.hydrationResult.selectedDigimon).toBe("Digitama");
+    expect(result.hydrationResult.activityLogs).toEqual([
+      { type: "CARE", timestamp: 1000 },
+    ]);
+    expect(result.hydrationResult.digimonStats.birthTime).toBe(123456789);
+    expect(result.hydrationResult.digimonStats.lastSavedAt).toBe(123456789);
+
+    nowSpy.mockRestore();
+  });
+
+  test("저장된 stats가 있으면 runtime rebuild를 거친 hydration 결과를 반환한다", () => {
+    const dataMap = {
+      Agumon: {
+        name: "아구몬",
+        sprite: 42,
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Child",
+        evolutionStage: "Child",
+        stats: {
+          maxEnergy: 10,
+          sleepSchedule: { start: 21, end: 7 },
+        },
+      },
+    };
+    const baseStats = initializeStats("Agumon", {}, dataMap);
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(1000);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = buildLoadedSlotHydrationPlan({
+      slotData: {
+        slotName: "저장 슬롯",
+        lastSavedAt: 1000,
+      },
+      slotId: 2,
+      slotVersionLabel: "Ver.1",
+      rootSlotFields: {
+        isLightsOn: false,
+        wakeUntil: null,
+      },
+      loadedActivityLogs: [{ type: "CARE", timestamp: 900 }],
+      savedName: "Agumon",
+      savedStats: {
+        ...baseStats,
+        sprite: 1,
+        activityLogs: [{ type: "CARE", timestamp: 900 }],
+        battleLogs: [],
+      },
+      dataMap,
+      slotRuntimeDataMap: dataMap,
+      runtimeAdaptedDataMaps: { "Ver.1": dataMap },
+      evolutionDataForSlot: dataMap,
+    });
+
+    expect(result.reconstructedLogsToPersist).toEqual([]);
+    expect(result.hydrationResult.slotName).toBe("저장 슬롯");
+    expect(result.hydrationResult.selectedDigimon).toBe("Agumon");
+    expect(result.hydrationResult.digimonStats.sprite).toBe(42);
+
+    warnSpy.mockRestore();
     nowSpy.mockRestore();
   });
 });
