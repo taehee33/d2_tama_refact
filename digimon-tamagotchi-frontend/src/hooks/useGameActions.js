@@ -225,6 +225,38 @@ export function buildFeedOutcome({
   };
 }
 
+export function buildCleanOutcome({
+  prevStats = {},
+  now = new Date(),
+} = {}) {
+  const oldPoopCount = prevStats.poopCount || 0;
+  const updatedStats = clearPoopOverflowState(prevStats, now);
+
+  return {
+    updatedStats,
+    logText: `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`,
+  };
+}
+
+export function buildSleepDisturbanceCommitState({
+  prevStats = {},
+  nextStats = {},
+  reason,
+  timestamp = Date.now(),
+} = {}) {
+  const entry = createSleepDisturbanceLog(reason, timestamp);
+  const activityCommitState = buildActivityLogCommitState({
+    prevStats,
+    nextStats,
+    entry,
+  });
+
+  return {
+    entry,
+    ...activityCommitState,
+  };
+}
+
 export function buildTrainingSkipOutcome({
   reason,
   baseStats = {},
@@ -697,20 +729,21 @@ export function useGameActions({
             // 레이스 컨디션 방지: 동일 액션이 연달아 호출되면 prev에 이미 로그가 있을 수 있음
             if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
             const actionType = type === "meat" ? "고기" : "프로틴";
-            const newLog = createSleepDisturbanceLog(`먹이 주기 - ${actionType}`);
-            const activityCommitState = buildActivityLogCommitState({
+            const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
               prevStats,
               nextStats: statsAfterWake,
-              entry: newLog,
+              reason: `먹이 주기 - ${actionType}`,
             });
-            if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+            if (appendLogToSubcollection) {
+              appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
+            }
             setDigimonStatsAndSave(
-              activityCommitState.statsWithLogs,
-              activityCommitState.updatedLogs
+              sleepDisturbanceCommitState.statsWithLogs,
+              sleepDisturbanceCommitState.updatedLogs
             ).catch((error) => {
               console.error("수면 방해 로그 저장 오류:", error);
             });
-            return activityCommitState.statsWithLogs;
+            return sleepDisturbanceCommitState.statsWithLogs;
           });
         }
       }
@@ -817,20 +850,21 @@ export function useGameActions({
         );
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
-          const newLog = createSleepDisturbanceLog("훈련");
-          const activityCommitState = buildActivityLogCommitState({
+          const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
             prevStats,
             nextStats: statsAfterWake,
-            entry: newLog,
+            reason: "훈련",
           });
-          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+          if (appendLogToSubcollection) {
+            appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
+          }
           setDigimonStatsAndSave(
-            activityCommitState.statsWithLogs,
-            activityCommitState.updatedLogs
+            sleepDisturbanceCommitState.statsWithLogs,
+            sleepDisturbanceCommitState.updatedLogs
           ).catch((error) => {
             console.error("수면 방해 로그 저장 오류:", error);
           });
-          return activityCommitState.statsWithLogs;
+          return sleepDisturbanceCommitState.statsWithLogs;
         });
       }
     }
@@ -957,22 +991,17 @@ export function useGameActions({
     if(step>3){
       setShowPoopCleanAnimation(false);
       setCleanStep(0);
-      const now = new Date();
       
       // 통합 업데이트: setDigimonStats 함수형 업데이트로 로그와 스탯을 한 번에 처리
       setDigimonStats((prevStats) => {
-        const oldPoopCount = prevStats.poopCount || 0;
-        
-        const updatedStats = clearPoopOverflowState(prevStats, now);
-        
-        // Activity Log 추가
-        let logText = `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
-        // 똥 청소 시 부상 상태는 자동으로 회복되지 않음
-        
-        const newLog = { type: "CLEAN", text: logText, timestamp: Date.now() };
+        const cleanOutcome = buildCleanOutcome({
+          prevStats,
+          now: new Date(),
+        });
+        const newLog = { type: "CLEAN", text: cleanOutcome.logText, timestamp: Date.now() };
         const activityCommitState = buildActivityLogCommitState({
           prevStats,
-          nextStats: updatedStats,
+          nextStats: cleanOutcome.updatedStats,
           entry: newLog,
         });
         if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
@@ -1190,20 +1219,21 @@ export function useGameActions({
         setDigimonStats((prevStats) => {
           if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
           const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
-          const newLog = createSleepDisturbanceLog(`배틀 - ${battleTypeText}`);
-          const activityCommitState = buildActivityLogCommitState({
+          const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
             prevStats,
             nextStats: statsAfterWake,
-            entry: newLog,
+            reason: `배틀 - ${battleTypeText}`,
           });
-          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
+          if (appendLogToSubcollection) {
+            appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
+          }
           setDigimonStatsAndSave(
-            activityCommitState.statsWithLogs,
-            activityCommitState.updatedLogs
+            sleepDisturbanceCommitState.statsWithLogs,
+            sleepDisturbanceCommitState.updatedLogs
           ).catch((error) => {
             console.error("수면 방해 로그 저장 오류:", error);
           });
-          return activityCommitState.statsWithLogs;
+          return sleepDisturbanceCommitState.statsWithLogs;
         });
       }
     }

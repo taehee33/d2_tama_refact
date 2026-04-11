@@ -5,9 +5,11 @@ import {
   buildBattleCostStats,
   buildBattleLogCommitState,
   buildBattleLogEntry,
+  buildCleanOutcome,
   buildFeedOutcome,
   buildFeedLogText,
   buildRecordedBattleStats,
+  buildSleepDisturbanceCommitState,
   buildTrainingLogText,
   buildTrainingOutcome,
   buildTrainingSkipOutcome,
@@ -380,6 +382,73 @@ describe("buildFeedOutcome", () => {
     expect(result.logText).toBe(
       "Feed: Protein (Wt +2g, Str +1, En +1) - Protein Bonus! (En +1, Overdose +1) => (Wt 10→12g, Str 3→4, En 0→1)"
     );
+  });
+});
+
+describe("buildCleanOutcome", () => {
+  test("청소 결과는 똥 관련 overflow 상태를 초기화하고 로그 문구를 반환한다", () => {
+    const now = new Date("2026-04-11T12:34:56.000Z");
+    const result = buildCleanOutcome({
+      prevStats: {
+        poopCount: 3,
+        poopReachedMaxAt: 1000,
+        lastPoopPenaltyAt: 2000,
+        poopPenaltyFrozenDurationMs: 3000,
+        lastSavedAt: 500,
+        isInjured: true,
+      },
+      now,
+    });
+
+    expect(result.logText).toBe("Cleaned Poop (Full flush, 3 → 0)");
+    expect(result.updatedStats).toMatchObject({
+      poopCount: 0,
+      poopReachedMaxAt: null,
+      lastPoopPenaltyAt: null,
+      poopPenaltyFrozenDurationMs: 0,
+      isInjured: true,
+      lastSavedAt: now.getTime(),
+    });
+  });
+});
+
+describe("buildSleepDisturbanceCommitState", () => {
+  test("수면 방해 로그 entry와 activity commit state를 함께 반환한다", () => {
+    const result = buildSleepDisturbanceCommitState({
+      prevStats: {
+        activityLogs: [{ type: "OLD", text: "old", timestamp: 1000 }],
+      },
+      nextStats: {
+        sleepDisturbances: 2,
+      },
+      reason: "훈련",
+      timestamp: 2000,
+    });
+
+    expect(result.entry).toEqual({
+      type: "SLEEP_DISTURBANCE",
+      text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
+      timestamp: 2000,
+    });
+    expect(result.updatedLogs).toEqual([
+      {
+        type: "SLEEP_DISTURBANCE",
+        text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
+        timestamp: 2000,
+      },
+      { type: "OLD", text: "old", timestamp: 1000 },
+    ]);
+    expect(result.statsWithLogs).toEqual({
+      sleepDisturbances: 2,
+      activityLogs: [
+        {
+          type: "SLEEP_DISTURBANCE",
+          text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
+          timestamp: 2000,
+        },
+        { type: "OLD", text: "old", timestamp: 1000 },
+      ],
+    });
   });
 });
 

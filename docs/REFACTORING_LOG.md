@@ -17,6 +17,7 @@
   - `saveEncyclopedia()`는 이제 버전별 문서를 계속 저장하면서 루트 `users/{uid}.encyclopedia`에도 canonical mirror를 함께 기록한다.
   - 루트 문서에 `encyclopediaStructure.storageMode = version-docs-with-root-mirror`, `phase = compat` 메타데이터를 남겨 현재 계정이 호환 단계에 있음을 확인할 수 있게 했다.
   - 관리자용 `backfillUserEncyclopedia`도 root encyclopedia mirror와 구조 메타데이터를 같은 형식으로 기록하도록 맞췄다.
+  - `loadEncyclopedia()`는 legacy root/slot fallback으로 복구된 계정을 읽을 때, 같은 세션에서 한 번만 version docs/root mirror를 self-heal 저장하고 `profile/main`도 best effort로 생성해 관리자 키 없이도 구조가 점진적으로 최신 형태로 맞춰지도록 했다.
 - **영향:** 운영에서 기존 계정은 root fallback으로 계속 복구 가능하고, 이후 앱 저장 또는 백필이 발생하면 새 구조와 legacy mirror가 함께 정렬된다.
 
 ### 영향받은 파일
@@ -30,6 +31,55 @@
 ### 검증
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEncyclopedia.test.js`
 - `node --test tests/encyclopedia-migration.test.js`
+
+## [2026-04-11] `useGameActions` 9차 분리: sleep disturbance commit helper 추출
+
+### 작업 유형
+- 🧩 공통 수면 방해 commit helper 추출
+- 🧪 수면 방해 entry/commit state 단위 테스트 추가
+
+### 목적 및 영향
+- **목적:** feed/train/battle에서 반복되던 `createSleepDisturbanceLog + buildActivityLogCommitState` 조합을 helper로 묶어, 액션별 수면 방해 후처리 블록을 더 짧고 동일한 형태로 맞춘다.
+- **범위:** duplicate suppression, `wakeForInteraction`, `appendLogToSubcollection`, `setDigimonStatsAndSave` 호출 순서와 동작은 그대로 유지한다.
+- **내용:**
+  - `buildSleepDisturbanceCommitState`를 추가해 reason과 다음 stats를 받아 수면 방해 로그 entry와 activity log commit state를 함께 반환하도록 정리했다.
+  - `eatCycle`, `handleTrainResult`, `handleBattleComplete`의 수면 방해 분기가 동일 helper를 사용하도록 맞췄다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-11] `useGameActions` 8차 분리: clean outcome helper 추출
+
+### 작업 유형
+- 🧩 똥 청소 결과 outcome helper 추출
+- 🧪 청소 후 overflow 상태 초기화 테스트 추가
+
+### 목적 및 영향
+- **목적:** `cleanCycle` 완료 분기에 남아 있던 poop overflow 초기화와 로그 문구 조립을 helper로 묶어, 청소 액션 본문에서는 애니메이션 종료와 저장 흐름만 더 잘 보이게 만든다.
+- **범위:** `setShowPoopCleanAnimation`, `setCleanStep`, `setDigimonStatsAndSave`, log append 순서와 청소 시 부상 상태를 회복하지 않는 기존 동작은 그대로 유지한다.
+- **내용:**
+  - `buildCleanOutcome`를 추가해 `clearPoopOverflowState` 결과와 `Cleaned Poop` 로그 문구를 함께 반환하도록 정리했다.
+  - `cleanCycle`의 완료 분기는 이제 helper 결과를 받아 activity log commit만 수행한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+### 아키텍처 메모
+- `useGameActions`는 이제 feed/training/clean 쪽 핵심 결과 조립을 helper 경계로 나눠 가지게 됐다. 다음 후보는 남아 있는 공통 수면 방해 post-action 분기나 sparring/arena/quest 완료 후 알림 tail을 더 줄이는 것이다.
 
 ## [2026-04-11] `useGameActions` 7차 분리: feed outcome helper 추출
 
