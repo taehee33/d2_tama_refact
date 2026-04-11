@@ -1,8 +1,8 @@
 // src/utils/userProfileUtils.js
 // 사용자 프로필: 도감 마스터 칭호(achievements), 최대 슬롯(maxSlots)
-// profile/main 우선 + users/{uid} fallback + dual-write 호환 단계
+// profile/main 우선 + users/{uid} fallback 읽기, profile/main 단일 쓰기 단계
 
-import { doc, getDoc, updateDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
 export const USER_PROFILE_COLLECTION = "profile";
@@ -22,10 +22,6 @@ export const ACHIEVEMENT_VER2_MASTER = "ver2_master";
 
 export function getUserProfileRef(uid) {
   return doc(db, "users", uid, USER_PROFILE_COLLECTION, USER_PROFILE_DOC_ID);
-}
-
-function getUserRootRef(uid) {
-  return doc(db, "users", uid);
 }
 
 function hasOwnField(data, fieldName) {
@@ -127,8 +123,8 @@ export async function updateAchievementsAndMaxSlots(uid, achievements) {
 }
 
 /**
- * 현재 계산된 프로필 값을 루트 users 문서와 profile/main에 함께 보정한다.
- * 완전 이관 전 호환 단계에서 profile/main 생성과 root mirror 유지를 동시에 담당한다.
+ * 현재 계산된 프로필 값을 profile/main 기준으로 보정한다.
+ * 읽기는 root users 문서를 fallback으로 허용하지만, 신규 저장은 profile/main에만 반영한다.
  * @param {string} uid - 사용자 ID
  * @param {{ achievements?: string[], maxSlots?: number }=} overrides - 강제 반영할 값
  * @returns {Promise<{ achievements: string[], maxSlots: number }>}
@@ -136,10 +132,9 @@ export async function updateAchievementsAndMaxSlots(uid, achievements) {
 export async function ensureUserProfileMirror(uid, overrides = {}) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
   try {
-    const userRef = getUserRootRef(uid);
     const profileRef = getUserProfileRef(uid);
-    const userSnap = await getDoc(userRef);
-    const profileSnap = await getDoc(profileRef);
+    const userRef = doc(db, "users", uid);
+    const [userSnap, profileSnap] = await Promise.all([getDoc(userRef), getDoc(profileRef)]);
     const rootData = userSnap.exists() ? userSnap.data() : null;
     const profileData = profileSnap.exists() ? profileSnap.data() : null;
     const achievements = Array.isArray(overrides?.achievements)
@@ -154,12 +149,6 @@ export async function ensureUserProfileMirror(uid, overrides = {}) {
       maxSlots: typeof maxSlots === "number" ? maxSlots : BASE_MAX_SLOTS,
       updatedAt: new Date(),
     };
-    if (userSnap.exists()) {
-      await updateDoc(userRef, updates);
-    } else {
-      await setDoc(userRef, updates);
-    }
-
     await setDoc(profileRef, updates, { merge: true });
     return {
       achievements: updates.achievements,

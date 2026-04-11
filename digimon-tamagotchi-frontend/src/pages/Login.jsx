@@ -39,7 +39,6 @@ function Login() {
       email: user.email || null,
       displayName: user.displayName || (isAnonymous ? `게스트_${user.uid.slice(0, 6)}` : null),
       photoURL: user.photoURL || null,
-      tamerName: null, // null이면 displayName 사용
       isAnonymous: isAnonymous,
       updatedAt: new Date(),
     };

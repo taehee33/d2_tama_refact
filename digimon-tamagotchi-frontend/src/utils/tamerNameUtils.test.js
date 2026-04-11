@@ -97,7 +97,7 @@ describe("tamerNameUtils", () => {
     expect(result.normalizedKey).toBe("a b");
   });
 
-  test("테이머명 저장은 트랜잭션으로 사용자 문서와 인덱스를 함께 갱신한다", async () => {
+  test("테이머명 저장은 트랜잭션으로 profile/main과 인덱스를 함께 갱신한다", async () => {
     const operations = [];
     const order = [];
     let getCount = 0;
@@ -154,13 +154,6 @@ describe("tamerNameUtils", () => {
 
     expect(operations.length).toBeGreaterThanOrEqual(2);
     expect(operations[0]).toMatchObject({
-      type: "update",
-      data: expect.objectContaining({
-        tamerName: "New Name",
-        updatedAt: expect.any(Date),
-      }),
-    });
-    expect(operations[1]).toMatchObject({
       type: "set",
       data: expect.objectContaining({
         tamerName: "New Name",
@@ -168,7 +161,7 @@ describe("tamerNameUtils", () => {
       }),
       options: { merge: true },
     });
-    expect(operations[2]).toMatchObject({
+    expect(operations[1]).toMatchObject({
       type: "set",
       data: expect.objectContaining({
         uid: "tester",
@@ -179,6 +172,7 @@ describe("tamerNameUtils", () => {
       }),
       options: { merge: true },
     });
+    expect(operations.find((entry) => entry.type === "update")).toBeUndefined();
     const orderTypes = order.map((entry) => entry.type);
     const firstWriteIndex = orderTypes.findIndex((type) => type !== "get");
     expect(firstWriteIndex).toBeGreaterThan(0);
@@ -231,6 +225,7 @@ describe("tamerNameUtils", () => {
     expect(firstWriteIndex).toBeGreaterThanOrEqual(1);
     expect(orderTypes.slice(0, firstWriteIndex).every((type) => type === "get")).toBe(true);
     expect(orderTypes.slice(firstWriteIndex).includes("get")).toBe(false);
+    expect(orderTypes).not.toContain("update");
   });
 
   test("테이머명 로드는 profile/main 값을 우선 사용한다", async () => {

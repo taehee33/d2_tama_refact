@@ -80,21 +80,14 @@ describe("userProfileUtils", () => {
     });
   });
 
-  test("칭호 저장은 루트와 profile/main에 동시에 반영한다", async () => {
+  test("칭호 저장은 profile/main에만 반영한다", async () => {
     mockGetDoc
       .mockResolvedValueOnce(createSnapshot({ displayName: "테스터" }))
       .mockResolvedValueOnce(createSnapshot(null));
 
     await updateAchievementsAndMaxSlots("tester", [ACHIEVEMENT_VER1_MASTER]);
 
-    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
-    expect(mockUpdateDoc.mock.calls[0][1]).toEqual(
-      expect.objectContaining({
-        achievements: [ACHIEVEMENT_VER1_MASTER],
-        maxSlots: computeMaxSlotsFromAchievements([ACHIEVEMENT_VER1_MASTER]),
-        updatedAt: expect.any(Date),
-      })
-    );
+    expect(mockUpdateDoc).not.toHaveBeenCalled();
 
     expect(mockSetDoc).toHaveBeenCalledTimes(1);
     expect(mockSetDoc.mock.calls[0][1]).toEqual(
@@ -123,7 +116,7 @@ describe("userProfileUtils", () => {
       achievements: [ACHIEVEMENT_VER1_MASTER],
       maxSlots: 15,
     });
-    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    expect(mockUpdateDoc).not.toHaveBeenCalled();
     expect(mockSetDoc).toHaveBeenCalledTimes(1);
     expect(mockSetDoc.mock.calls[0][1]).toEqual(
       expect.objectContaining({

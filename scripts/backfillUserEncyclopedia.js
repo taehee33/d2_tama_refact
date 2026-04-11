@@ -20,18 +20,18 @@ const {
   toEpochMs,
 } = encyclopediaMigrationCore;
 
-const MIGRATION_VERSION = "2026-04-10-encyclopedia-v1";
+const MIGRATION_VERSION = "2026-04-12-encyclopedia-v2";
 const WRITE_BATCH_LIMIT = 350;
 const BASE_MAX_SLOTS = 10;
 const SLOTS_PER_MASTER = 5;
 const ACHIEVEMENT_VER1_MASTER = "ver1_master";
 const ACHIEVEMENT_VER2_MASTER = "ver2_master";
 const ENCYCLOPEDIA_STRUCTURE = {
-  storageMode: "version-docs-with-root-mirror",
+  storageMode: "version-docs-with-root-metadata",
   canonicalCollection: "encyclopedia",
   canonicalDocStrategy: "version",
-  rootMirrorEnabled: true,
-  phase: "compat",
+  rootMirrorEnabled: false,
+  phase: "read-compat",
 };
 const FRONTEND_SRC_ROOT = path.resolve(__dirname, "../digimon-tamagotchi-frontend/src");
 const ORIGINAL_JS_LOADER = Module._extensions[".js"];
@@ -400,9 +400,8 @@ function buildMigrationMetadata(sourceSummary = {}) {
   };
 }
 
-function buildRootMirrorPayload(analysis = {}, adminModule) {
+function buildRootMetadataPayload(analysis = {}, adminModule) {
   return {
-    encyclopedia: analysis.canonicalEncyclopedia,
     encyclopediaStructure: ENCYCLOPEDIA_STRUCTURE,
     encyclopediaMigration: {
       ...analysis.migrationMetadata,
@@ -610,8 +609,7 @@ function queueUserMigrationWrites(batch, userDoc, analysis, dependencies, adminM
   batch.set(
     userDoc.ref,
     {
-      ...buildRootMirrorPayload(analysis, adminModule),
-      ...sharedProfilePayload,
+      ...buildRootMetadataPayload(analysis, adminModule),
     },
     { merge: true }
   );
@@ -654,7 +652,7 @@ async function runEncyclopediaMigration({
     usersWithVersionWrites: 0,
     versionDocWrites: 0,
     profileWrites: 0,
-    rootMirrorWrites: 0,
+    rootMetadataWrites: 0,
     achievementChanges: 0,
     fallbackUsers: 0,
     recoveredUsers: 0,
@@ -702,7 +700,7 @@ async function runEncyclopediaMigration({
     );
     batchedOperationCount += queuedWrites.operationCount;
     summary.profileWrites += 1;
-    summary.rootMirrorWrites += 1;
+    summary.rootMetadataWrites += 1;
 
     if (batchedOperationCount >= WRITE_BATCH_LIMIT) {
       summary.committedBatchCount += await commitBatch(batch, batchedOperationCount);
@@ -738,7 +736,7 @@ async function runEncyclopediaMigration({
     );
     if (!dryRun) {
       logger.log(
-        `[encyclopedia migration] profile/main 쓰기 ${summary.profileWrites}건 / root mirror 쓰기 ${summary.rootMirrorWrites}건 / 커밋 배치 ${summary.committedBatchCount}개`
+        `[encyclopedia migration] profile/main 쓰기 ${summary.profileWrites}건 / root metadata 쓰기 ${summary.rootMetadataWrites}건 / 커밋 배치 ${summary.committedBatchCount}개`
       );
     }
 

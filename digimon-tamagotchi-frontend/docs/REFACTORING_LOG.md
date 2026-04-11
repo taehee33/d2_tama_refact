@@ -1507,3 +1507,24 @@
 
 ### 검증
 - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useEncyclopedia.test.js src/components/panels/EncyclopediaPanel.test.jsx src/utils/userProfileUtils.test.js`
+
+## 2026-04-12
+
+### 프로필·테이머명 저장을 `profile/main` 기준으로 정리하고 legacy root는 읽기 fallback으로만 유지
+- `userProfileUtils`는 `achievements`, `maxSlots`를 더 이상 root `users/{uid}`에 새로 쓰지 않고 `users/{uid}/profile/main`만 갱신하도록 정리했습니다.
+- `tamerNameUtils`도 테이머명 저장과 초기화를 `profile/main` 기준으로 맞추고, root `users/{uid}.tamerName`는 과거 데이터 fallback으로만 읽도록 유지했습니다.
+- 로그인 후 사용자 초기화는 root `users/{uid}`에 일반 계정 정보만 저장하고, 테이머명 기본값은 `profile/main`에서 시작하도록 분리했습니다.
+- 도감 마이그레이션 스크립트도 현재 런타임 계약에 맞춰 `root encyclopedia mirror`를 다시 만들지 않고, root에는 `encyclopediaStructure`, `encyclopediaMigration` 메타데이터만 남기도록 맞췄습니다.
+- 현재 단계는 `신규 쓰기 = 새 구조`, `조회 = 새 구조 우선 + legacy fallback` 입니다.
+
+### 영향받은 파일
+- `src/utils/userProfileUtils.js`
+- `src/utils/userProfileUtils.test.js`
+- `src/utils/tamerNameUtils.js`
+- `src/utils/tamerNameUtils.test.js`
+- `src/pages/Login.jsx`
+- `src/hooks/useEncyclopedia.js`
+- `src/hooks/useEncyclopedia.test.js`
+- `../scripts/backfillUserEncyclopedia.js`
+- `../tests/encyclopedia-migration.test.js`
+- `docs/REFACTORING_LOG.md`

@@ -45,7 +45,7 @@ const {
 const reportedLegacyFallbackKeys = new Set();
 const syncedEncyclopediaStructureKeys = new Set();
 const COMPAT_SYNC_STAGE_ROOT = "rootMetadata";
-const COMPAT_SYNC_STAGE_PROFILE = "profileMirror";
+const COMPAT_SYNC_STAGE_PROFILE = "profileMain";
 const CANONICAL_SYNC_STAGE = "canonical";
 
 function createEmptyEncyclopedia() {
@@ -589,7 +589,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
       },
       compat: {
         rootMetadata: "skipped",
-        profileMirror: "skipped",
+        profileMain: "skipped",
         failures: [],
       },
     };
@@ -654,7 +654,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
 
   const compatFailures = [];
   let rootMetadataStatus = "skipped";
-  let profileMirrorStatus = "skipped";
+  let profileMainStatus = "skipped";
 
   if (wroteVersions.length > 0) {
     try {
@@ -679,9 +679,9 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
     try {
       await checkAndGrantEncyclopediaMasters(currentUser, normalizedEncyclopedia);
       await ensureUserProfileMirror(currentUser.uid);
-      profileMirrorStatus = "success";
+      profileMainStatus = "success";
     } catch (error) {
-      profileMirrorStatus = "failed";
+      profileMainStatus = "failed";
       compatFailures.push({
         stage: COMPAT_SYNC_STAGE_PROFILE,
         message: error?.message || String(error),
@@ -699,7 +699,7 @@ export async function saveEncyclopedia(encyclopedia, currentUser) {
     },
     compat: {
       rootMetadata: rootMetadataStatus,
-      profileMirror: profileMirrorStatus,
+      profileMain: profileMainStatus,
       failures: compatFailures,
     },
   };

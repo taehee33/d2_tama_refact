@@ -586,7 +586,7 @@ describe("useEncyclopedia", () => {
       },
       compat: {
         rootMetadata: "success",
-        profileMirror: "success",
+        profileMain: "success",
         failures: [],
       },
     });
@@ -660,7 +660,7 @@ describe("useEncyclopedia", () => {
       skippedVersions: ["Ver.2", "Ver.3", "Ver.4", "Ver.5"],
     });
     expect(result.compat.rootMetadata).toBe("failed");
-    expect(result.compat.profileMirror).toBe("success");
+    expect(result.compat.profileMain).toBe("success");
     expect(result.compat.failures).toEqual([
       expect.objectContaining({
         stage: "rootMetadata",

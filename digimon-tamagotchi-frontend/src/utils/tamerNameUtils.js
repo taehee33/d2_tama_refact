@@ -235,11 +235,6 @@ export async function updateTamerName(uid, newNickname, oldNickname = null) {
       : null;
 
     const now = new Date();
-    transaction.update(userRef, {
-      tamerName: normalizedNickname,
-      updatedAt: now,
-    });
-
     transaction.set(
       profileRef,
       {
@@ -317,11 +312,6 @@ export async function resetToDefaultTamerName(uid, authDisplayName, currentNickn
       ? await transaction.get(currentNicknameRef)
       : null;
 
-    transaction.update(userRef, {
-      tamerName: null,
-      updatedAt: new Date(),
-    });
-
     transaction.set(
       profileRef,
       {
@@ -387,10 +377,22 @@ export async function initializeTamerName(uid, displayName) {
     const profileRef = getUserProfileRef(uid);
     const [profileSnap, userSnap] = await Promise.all([getDoc(profileRef), getDoc(userRef)]);
 
+    const profileData = profileSnap.exists() ? profileSnap.data() : null;
+
     if (userSnap.exists()) {
       const userData = userSnap.data();
-      const profileData = profileSnap.exists() ? profileSnap.data() : null;
       const storedTamerName = resolveStoredTamerName(profileData, userData);
+
+      if (!profileSnap.exists() || !hasOwnField(profileData, "tamerName")) {
+        await setDoc(
+          profileRef,
+          {
+            tamerName: storedTamerName ?? null,
+            updatedAt: new Date(),
+          },
+          { merge: true }
+        );
+      }
 
       if (storedTamerName) {
         return storedTamerName;
@@ -399,13 +401,27 @@ export async function initializeTamerName(uid, displayName) {
       return resolveDisplayFallback(userData, displayName, uid);
     }
 
-    await setDoc(userRef, {
-      email: null,
-      displayName,
-      tamerName: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const now = new Date();
+    await Promise.all([
+      setDoc(
+        userRef,
+        {
+          email: null,
+          displayName,
+          createdAt: now,
+          updatedAt: now,
+        },
+        { merge: true }
+      ),
+      setDoc(
+        profileRef,
+        {
+          tamerName: null,
+          updatedAt: now,
+        },
+        { merge: true }
+      ),
+    ]);
 
     return displayName || `Trainer_${uid.slice(0, 6)}`;
   } catch (error) {

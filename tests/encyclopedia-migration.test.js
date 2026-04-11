@@ -270,7 +270,7 @@ test("analyzeUserEncyclopediaMigration은 root/version/slot/log 소스를 canoni
   assert.equal(analysis.maxSlots, 15);
 });
 
-test("runEncyclopediaMigration은 dry-run에서는 쓰지 않고 apply에서 version/profile/root mirror를 갱신한다", async () => {
+test("runEncyclopediaMigration은 dry-run에서는 쓰지 않고 apply에서 version/profile/root metadata를 갱신한다", async () => {
   const dependencies = createDependencies();
   const logger = { log() {} };
   const adminModule = {
@@ -338,24 +338,18 @@ test("runEncyclopediaMigration은 dry-run에서는 쓰지 않고 apply에서 ver
 
   assert.equal(applySummary.versionDocWrites, 1);
   assert.equal(applySummary.profileWrites, 1);
-  assert.equal(applySummary.rootMirrorWrites, 1);
+  assert.equal(applySummary.rootMetadataWrites, 1);
 
   const versionDoc = db.getData("users/u1/encyclopedia/Ver.1");
   assert.deepEqual(Object.keys(versionDoc).sort(), ["Agumon", "Koromon", "Patamon"]);
 
   const rootUser = db.getData("users/u1");
-  assert.deepEqual(rootUser.achievements, [ACHIEVEMENT_VER1_MASTER]);
-  assert.equal(rootUser.maxSlots, 15);
   assert.ok(rootUser.encyclopedia);
-  assert.deepEqual(Object.keys(rootUser.encyclopedia["Ver.1"]).sort(), [
-    "Agumon",
-    "Koromon",
-    "Patamon",
-  ]);
-  assert.equal(rootUser.encyclopediaMigration.migrationVersion, "2026-04-10-encyclopedia-v1");
+  assert.deepEqual(Object.keys(rootUser.encyclopedia["Ver.1"]).sort(), ["Agumon"]);
+  assert.equal(rootUser.encyclopediaMigration.migrationVersion, "2026-04-12-encyclopedia-v2");
   assert.equal(rootUser.encyclopediaMigration.lastMigratedAt, "__SERVER_TIMESTAMP__");
-  assert.equal(rootUser.encyclopediaStructure.storageMode, "version-docs-with-root-mirror");
-  assert.equal(rootUser.encyclopediaStructure.phase, "compat");
+  assert.equal(rootUser.encyclopediaStructure.storageMode, "version-docs-with-root-metadata");
+  assert.equal(rootUser.encyclopediaStructure.phase, "read-compat");
 
   const profileMain = db.getData("users/u1/profile/main");
   assert.deepEqual(profileMain.achievements, [ACHIEVEMENT_VER1_MASTER]);
