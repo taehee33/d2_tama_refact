@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import News from "./News";
 
 const mockAuthState = {
@@ -58,6 +58,7 @@ const newsPosts = [
     body: "저장 처리 안정화와 커뮤니티 이미지 개선을 적용했습니다.",
     authorUid: "editor-1",
     authorTamerName: "운영팀",
+    authorIsOperator: true,
     commentCount: 2,
     createdAt: "2026-04-12T03:00:00.000Z",
     canManage: true,
@@ -78,6 +79,7 @@ const newsPosts = [
     body: "커뮤니티 배포 점검이 예정되어 있습니다.",
     authorUid: "editor-1",
     authorTamerName: "운영팀",
+    authorIsOperator: true,
     commentCount: 0,
     createdAt: "2026-04-11T03:00:00.000Z",
     canManage: true,
@@ -160,7 +162,11 @@ describe("News", () => {
       expect(screen.getByText("저장 흐름 · 커뮤니티")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("저장 처리 안정화와 커뮤니티 이미지 개선")).toBeInTheDocument();
-    expect(screen.getByText("대표 소식")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "게시글 상세" });
+    await waitFor(() => {
+      expect(within(dialog).getByText("운영자")).toBeInTheDocument();
+    });
+    expect(within(dialog).getByText("저장 처리 안정화와 커뮤니티 이미지 개선")).toBeInTheDocument();
+    expect(screen.getAllByText("대표 소식").length).toBeGreaterThan(0);
   });
 });

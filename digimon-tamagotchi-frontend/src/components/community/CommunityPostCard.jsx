@@ -1,5 +1,6 @@
 import React from "react";
 import { formatTimestamp } from "../../utils/dateUtils";
+import OperatorBadge from "../common/OperatorBadge";
 import CommunitySnapshotScene from "./CommunitySnapshotScene";
 
 function CommunityPostCard({
@@ -40,7 +41,11 @@ function CommunityPostCard({
             aria-label="게시글 작성 정보"
           >
             <span className="community-post-card__meta-item">
-              작성자 : {post.authorTamerName}
+              작성자 :{" "}
+              <span className="community-post-card__author-line">
+                <span>{post.authorTamerName}</span>
+                {post.authorIsOperator ? <OperatorBadge compact /> : null}
+              </span>
             </span>
             <span className="community-post-card__meta-item">
               작성일 : {formatTimestamp(post.createdAt, "short")}
@@ -97,7 +102,9 @@ function CommunityPostCard({
                     className="community-post-card__comment-preview-item"
                   >
                     <strong className="community-post-card__comment-preview-author">
-                      {comment.authorTamerName || "익명"} :
+                      <span>{comment.authorTamerName || "익명"}</span>
+                      {comment.authorIsOperator ? <OperatorBadge compact /> : null}
+                      <span>:</span>
                     </strong>
                     <span className="community-post-card__comment-preview-body">
                       {comment.body?.trim() || "내용 없음"}

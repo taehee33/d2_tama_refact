@@ -1,4 +1,5 @@
 import React from "react";
+import OperatorBadge from "../common/OperatorBadge";
 import { getCommunityFreeBoardCategoryLabel } from "../../data/serviceContent";
 import { formatTimestamp } from "../../utils/dateUtils";
 
@@ -33,7 +34,10 @@ function CommunityFreePostRow({
         ) : null}
       </button>
 
-      <span className="community-free-post-row__author">{post.authorTamerName}</span>
+      <span className="community-free-post-row__author">
+        <span>{post.authorTamerName}</span>
+        {post.authorIsOperator ? <OperatorBadge compact /> : null}
+      </span>
       <span className="community-free-post-row__date">
         {formatTimestamp(post.createdAt, "short")}
       </span>

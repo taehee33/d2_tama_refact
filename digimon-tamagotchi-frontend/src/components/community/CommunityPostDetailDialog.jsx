@@ -5,6 +5,7 @@ import {
   getCommunitySupportCategoryLabel,
 } from "../../data/serviceContent";
 import { formatTimestamp } from "../../utils/dateUtils";
+import OperatorBadge from "../common/OperatorBadge";
 import CommunityDialog from "./CommunityDialog";
 import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
 import CommunitySnapshotScene from "./CommunitySnapshotScene";
@@ -136,7 +137,10 @@ function CommunityPostDetailDialog({
                 <span className="service-badge service-badge--accent">{boardBadgeLabel}</span>
                 <span className="community-meta-box community-meta-box--author">
                   <span className="community-meta-box__label">작성자</span>
-                  <strong className="community-meta-box__value">{post.authorTamerName}</strong>
+                  <strong className="community-meta-box__value community-meta-box__value--author">
+                    <span>{post.authorTamerName}</span>
+                    {post.authorIsOperator ? <OperatorBadge compact /> : null}
+                  </strong>
                 </span>
                 {isTextBoard ? (
                   <span className="community-meta-box community-meta-box--timestamp">
@@ -290,7 +294,10 @@ function CommunityPostDetailDialog({
                       return (
                         <div key={comment.id} className="community-comment-card">
                           <div className="community-comment-meta">
-                            <strong>{comment.authorTamerName}</strong>
+                            <span className="community-comment-meta__author">
+                              <strong>{comment.authorTamerName}</strong>
+                              {comment.authorIsOperator ? <OperatorBadge compact /> : null}
+                            </span>
                             <span>{formatTimestamp(comment.createdAt, "short")}</span>
                           </div>
 

@@ -607,6 +607,10 @@
 }
 
 .community-post-card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
   color: rgba(15, 23, 42, 0.72);
   font-size: 0.92rem;
   font-weight: 800;
@@ -775,6 +779,9 @@
 }
 
 .community-post-card__comment-preview-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
   flex-shrink: 0;
   color: rgba(120, 74, 28, 0.96);
   font-size: 0.86rem;
@@ -910,6 +917,13 @@
   font-size: 0.98rem;
   font-weight: 800;
   line-height: 1.2;
+}
+
+.community-meta-box__value--author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
 }
 
 .community-meta-box__value--subtle {
@@ -1694,6 +1708,14 @@
   color: rgba(15, 23, 42, 0.68);
 }
 
+.community-comment-meta__author,
+.community-post-card__author-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
+}
+
 .community-inline-actions {
   align-items: center;
 }
@@ -1827,6 +1849,13 @@
   color: rgba(15, 23, 42, 0.68);
   font-size: 0.92rem;
   white-space: nowrap;
+}
+
+.community-free-post-row__author {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-wrap: wrap;
 }
 
 .community-free-post-row__actions {
@@ -5886,6 +5915,25 @@ code {
 
 .service-badge--cool {
   background: var(--badge-cool-bg);
+}
+
+.operator-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.22rem 0.56rem;
+  border-radius: 999px;
+  background: rgba(46, 127, 104, 0.14);
+  color: rgba(26, 91, 71, 0.98);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.operator-badge--compact {
+  padding: 0.16rem 0.46rem;
+  font-size: 0.67rem;
 }
 
 .service-button,

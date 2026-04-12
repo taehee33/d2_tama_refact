@@ -148,6 +148,7 @@ const freePostsAll = [
     body: "케어 미스 기준이 헷갈립니다.",
     authorUid: "user-1",
     authorTamerName: "한솔",
+    authorIsOperator: true,
     commentCount: 3,
     createdAt: "2026-04-01T02:00:00.000Z",
   },
@@ -162,6 +163,7 @@ const freePostDetail = {
     body: "케어 미스 기준이 헷갈립니다.",
     authorUid: "user-1",
     authorTamerName: "한솔",
+    authorIsOperator: true,
     commentCount: 3,
     createdAt: "2026-04-01T02:00:00.000Z",
   },
@@ -171,6 +173,7 @@ const freePostDetail = {
       postId: "free-2",
       authorUid: "user-2",
       authorTamerName: "메탈그레이",
+      authorIsOperator: true,
       body: "성숙기 동안 누적 케어 미스를 먼저 보시면 됩니다.",
       createdAt: "2026-04-01T03:00:00.000Z",
       updatedAt: "2026-04-01T03:00:00.000Z",
@@ -406,6 +409,7 @@ describe("Community", () => {
     expect(generalRow.querySelector(".community-free-post-row__date")).not.toBeNull();
     expect(within(generalRow).getByRole("button", { name: "보기" })).toBeInTheDocument();
     expect(within(questionRow).getByText("질문")).toBeInTheDocument();
+    expect(within(questionRow).getByText("운영자")).toBeInTheDocument();
     expect(screen.getByText("메탈그레이")).toBeInTheDocument();
     expect(screen.getByText("한솔")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "안내 카드 펼치기 3개" })).toBeInTheDocument();
@@ -703,6 +707,7 @@ describe("Community", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "완전체 진화 조건 질문" });
     expect(within(dialog).getByText("질문")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("운영자").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("케어 미스 기준이 헷갈립니다.")).toBeInTheDocument();
     expect(
       within(dialog).getByText("성숙기 동안 누적 케어 미스를 먼저 보시면 됩니다.")

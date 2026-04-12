@@ -3,7 +3,7 @@
 const { randomUUID } = require("node:crypto");
 
 const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
-const { isOperatorIdentity } = require("./operatorConfig");
+const { isOperatorIdentity, listOperatorRoles } = require("./operatorConfig");
 
 const BOARD_ID_SHOWCASE = "showcase";
 const BOARD_ID_FREE = "free";
@@ -821,10 +821,36 @@ function mapCommentRow(row) {
     postId: row.post_id,
     authorUid: row.author_uid,
     authorTamerName: row.author_tamer_name,
+    authorIsOperator: false,
     body: row.body,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mapCommentWithOperatorFlag(comment, operatorUidSet) {
+  return {
+    ...comment,
+    authorIsOperator: Boolean(operatorUidSet?.has(comment.authorUid)),
+  };
+}
+
+async function buildOperatorUidSet(candidateUids = [], options = {}) {
+  const normalizedUids = [...new Set(candidateUids.map(normalizeString).filter(Boolean))];
+
+  if (normalizedUids.length === 0) {
+    return new Set();
+  }
+
+  const resolveOperatorRoles = options.listOperatorRolesFn || listOperatorRoles;
+  const operatorRoles = await resolveOperatorRoles(options);
+
+  return new Set(
+    (operatorRoles || [])
+      .filter((role) => Boolean(role?.isOperator) && normalizedUids.includes(normalizeString(role?.uid)))
+      .map((role) => normalizeString(role.uid))
+      .filter(Boolean)
+  );
 }
 
 function canManageCommunityPost({ boardId, row, viewerUid = "", viewerIsOperator = false }) {
@@ -898,6 +924,7 @@ function mapPostRow(row) {
     category: row.category || "",
     authorUid: row.author_uid,
     authorTamerName: row.author_tamer_name,
+    authorIsOperator: false,
     slotId: row.slot_id,
     title: row.title,
     body: row.body,
@@ -931,9 +958,13 @@ function mapPostRowWithImage(supabase, row, options = {}) {
   const imagePath = row.image_path || "";
   const viewerUid = normalizeString(options.viewerUid);
   const boardId = options.boardId || row.board_id || BOARD_ID_SHOWCASE;
+  const operatorUidSet = options.operatorUidSet || null;
 
   return {
-    ...mapPostRow(row),
+    ...{
+      ...mapPostRow(row),
+      authorIsOperator: Boolean(operatorUidSet?.has(row.author_uid)),
+    },
     imageUrl: imagePath ? resolveCommunityPostImageUrl(supabase, imagePath) : "",
     canManage: canManageCommunityPost({
       boardId,
@@ -1193,6 +1224,7 @@ async function listCommunityPosts({
   viewerUid = "",
   decodedToken = null,
   isOperatorIdentityFn = null,
+  listOperatorRolesFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const normalizedCategory =
@@ -1229,14 +1261,26 @@ async function listCommunityPosts({
     supabase,
     rows.map((row) => row.id)
   );
+  const operatorUidSet = await buildOperatorUidSet(
+    [
+      ...rows.map((row) => row.author_uid),
+      ...Object.values(previewCommentsByPostId).flatMap((comments) =>
+        comments.map((comment) => comment.authorUid)
+      ),
+    ],
+    { listOperatorRolesFn }
+  );
 
   return rows.map((row) => ({
     ...mapPostRowWithImage(supabase, row, {
       boardId: normalizedBoardId,
       viewerUid,
       viewerIsOperator: viewer.canCreate,
+      operatorUidSet,
     }),
-    previewComments: previewCommentsByPostId[row.id] || [],
+    previewComments: (previewCommentsByPostId[row.id] || []).map((comment) =>
+      mapCommentWithOperatorFlag(comment, operatorUidSet)
+    ),
   }));
 }
 
@@ -1247,6 +1291,7 @@ async function getCommunityPostDetail({
   viewerUid = "",
   decodedToken = null,
   isOperatorIdentityFn = null,
+  listOperatorRolesFn = null,
 }) {
   const postRow = await getPostRowOrThrow(supabase, boardId, postId);
   const viewer = await getCommunityBoardViewer({
@@ -1264,13 +1309,19 @@ async function getCommunityPostDetail({
     throw commentsError;
   }
 
+  const operatorUidSet = await buildOperatorUidSet(
+    [postRow.author_uid, ...(commentRows || []).map((row) => row.author_uid)],
+    { listOperatorRolesFn }
+  );
+
   return {
     post: mapPostRowWithImage(supabase, postRow, {
       boardId,
       viewerUid,
       viewerIsOperator: viewer.canCreate,
+      operatorUidSet,
     }),
-    comments: (commentRows || []).map(mapCommentRow),
+    comments: (commentRows || []).map((row) => mapCommentWithOperatorFlag(mapCommentRow(row), operatorUidSet)),
   };
 }
 
@@ -1283,6 +1334,7 @@ async function createCommunityPost({
   loadSlotSnapshot = loadUserSlotSnapshot,
   resolveAuthorName = resolveAuthorTamerName,
   isOperatorIdentityFn = null,
+  listOperatorRolesFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const validatedInput = validatePostInput(input, { boardId: normalizedBoardId });
@@ -1370,8 +1422,14 @@ async function createCommunityPost({
     throw error;
   }
 
+  const operatorUidSet = await buildOperatorUidSet([data.author_uid], {
+    listOperatorRolesFn,
+  });
+
   return {
-    ...mapPostRowWithImage(supabase, data),
+    ...mapPostRowWithImage(supabase, data, {
+      operatorUidSet,
+    }),
     comments: [],
   };
 }
@@ -1384,6 +1442,7 @@ async function updateCommunityPost({
   decodedToken = null,
   input,
   isOperatorIdentityFn = null,
+  listOperatorRolesFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const postRow = await getPostRowOrThrow(supabase, normalizedBoardId, postId);
@@ -1474,7 +1533,13 @@ async function updateCommunityPost({
     await removeCommunityPostImageQuietly(supabase, postRow.image_path);
   }
 
-  return mapPostRowWithImage(supabase, data);
+  const operatorUidSet = await buildOperatorUidSet([data.author_uid], {
+    listOperatorRolesFn,
+  });
+
+  return mapPostRowWithImage(supabase, data, {
+    operatorUidSet,
+  });
 }
 
 async function deleteCommunityPost({
@@ -1513,6 +1578,7 @@ async function createCommunityComment({
   decodedToken,
   postId,
   input,
+  listOperatorRolesFn = null,
 }) {
   await getPostRowOrThrow(supabase, boardId, postId);
   const { body } = validateCommentInput(input);
@@ -1534,9 +1600,12 @@ async function createCommunityComment({
   }
 
   const commentCount = await recalculateCommentCount(supabase, postId);
+  const operatorUidSet = await buildOperatorUidSet([uid], {
+    listOperatorRolesFn,
+  });
 
   return {
-    comment: mapCommentRow(data),
+    comment: mapCommentWithOperatorFlag(mapCommentRow(data), operatorUidSet),
     commentCount,
   };
 }
@@ -1547,6 +1616,7 @@ async function updateCommunityComment({
   uid,
   commentId,
   input,
+  listOperatorRolesFn = null,
 }) {
   const { body } = validateCommentInput(input);
   const commentRow = await getCommentRowOrThrow(supabase, commentId);
@@ -1570,8 +1640,12 @@ async function updateCommunityComment({
     throw error;
   }
 
+  const operatorUidSet = await buildOperatorUidSet([data.author_uid], {
+    listOperatorRolesFn,
+  });
+
   return {
-    comment: mapCommentRow(data),
+    comment: mapCommentWithOperatorFlag(mapCommentRow(data), operatorUidSet),
   };
 }
 
