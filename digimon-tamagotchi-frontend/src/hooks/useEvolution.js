@@ -33,6 +33,7 @@ import {
   getStarterDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
+import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 /** 맵 키 또는 entry.id로 한글 이름 조회 (슬롯에 id가 저장된 경우 대비) */
 function getDigimonDisplayName(maps, digimonId) {
@@ -476,7 +477,11 @@ export function useEvolution({
       if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
       if (setEvolvedDigimonName) setEvolvedDigimonName(resultDisplayName);
 
-      const tamerDisplay = tamerName || currentUser?.displayName || null;
+      const tamerDisplay = resolveTamerNamePriority({
+        tamerName,
+        currentUser,
+        fallback: null,
+      });
       await persistJogressLogWithArchive({
         currentUser,
         warningLabel: "[proceedJogressLocal]",
@@ -717,7 +722,11 @@ export function useEvolution({
         includePartnerDigimonName: true,
       });
       if (setEvolutionCompleteJogressSummary) setEvolutionCompleteJogressSummary(jogressSummary);
-      const tamerDisplay = tamerName || currentUser?.displayName || null;
+      const tamerDisplay = resolveTamerNamePriority({
+        tamerName,
+        currentUser,
+        fallback: null,
+      });
       await persistJogressLogWithArchive({
         currentUser,
         warningLabel: "[proceedJogressOnlineAsHost]",
@@ -835,7 +844,11 @@ export function useEvolution({
         archivePayload: buildJogressArchivePayload({
           mode: "online-room",
           hostUid: currentUser.uid,
-          hostTamerName: tamerName || currentUser?.displayName || null,
+          hostTamerName: resolveTamerNamePriority({
+            tamerName,
+            currentUser,
+            fallback: null,
+          }),
           hostSlotId: hostSlotId,
           hostDigimonName: newDigimonName,
           hostSlotVersion: hostVersion,

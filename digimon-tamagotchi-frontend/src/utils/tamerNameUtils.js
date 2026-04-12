@@ -12,6 +12,10 @@ function hasOwnField(data, fieldName) {
   return !!data && Object.prototype.hasOwnProperty.call(data, fieldName);
 }
 
+function normalizePreferredName(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function resolveStoredTamerName(profileData, rootData) {
   if (hasOwnField(profileData, "tamerName")) {
     return typeof profileData.tamerName === "string" ? profileData.tamerName : null;
@@ -26,6 +30,82 @@ function resolveStoredTamerName(profileData, rootData) {
 
 function resolveDisplayFallback(rootData, authDisplayName, uid) {
   return rootData?.displayName || authDisplayName || `Trainer_${uid.slice(0, 6)}`;
+}
+
+export function getAccountDisplayFallback(
+  currentUser,
+  {
+    fallback = "익명의 테이머",
+    includeTrainerId = true,
+  } = {}
+) {
+  const authDisplayName = normalizePreferredName(currentUser?.displayName);
+  if (authDisplayName) {
+    return authDisplayName;
+  }
+
+  const emailPrefix = normalizePreferredName(currentUser?.email?.split("@")[0]);
+  if (emailPrefix) {
+    return emailPrefix;
+  }
+
+  if (includeTrainerId && currentUser?.uid) {
+    return `Trainer_${String(currentUser.uid).slice(0, 6)}`;
+  }
+
+  return fallback;
+}
+
+export function resolveTamerNamePriority({
+  tamerName,
+  currentUser = null,
+  extraFallbacks = [],
+  fallback = "익명의 테이머",
+  includeTrainerId = true,
+} = {}) {
+  const preferredTamerName = normalizePreferredName(tamerName);
+  if (preferredTamerName) {
+    return preferredTamerName;
+  }
+
+  const authIdentityName = getAccountDisplayFallback(currentUser, {
+    fallback: null,
+    includeTrainerId: false,
+  });
+  if (authIdentityName) {
+    return authIdentityName;
+  }
+
+  for (const candidate of extraFallbacks) {
+    const normalizedCandidate = normalizePreferredName(candidate);
+    if (normalizedCandidate) {
+      return normalizedCandidate;
+    }
+  }
+
+  if (includeTrainerId && currentUser?.uid) {
+    return `Trainer_${String(currentUser.uid).slice(0, 6)}`;
+  }
+
+  return fallback;
+}
+
+export function resolveTamerNameInitial({
+  tamerName,
+  currentUser = null,
+  extraFallbacks = [],
+  fallback = "U",
+  includeTrainerId = true,
+} = {}) {
+  const resolvedName = resolveTamerNamePriority({
+    tamerName,
+    currentUser,
+    extraFallbacks,
+    fallback,
+    includeTrainerId,
+  });
+
+  return normalizePreferredName(resolvedName)?.[0] || fallback;
 }
 
 /**

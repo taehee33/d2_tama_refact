@@ -36,6 +36,27 @@ describe("jogressPersistenceHelpers", () => {
     });
   });
 
+  test("buildGuestPairingRoomUpdate는 테이머명이 비어 있으면 계정 fallback을 사용한다", () => {
+    const payload = buildGuestPairingRoomUpdate({
+      currentUser: {
+        uid: "user-2",
+        displayName: "",
+        email: "guest@example.com",
+      },
+      tamerName: "",
+      guestSlot: {
+        id: 3,
+        selectedDigimon: "Gabumon",
+        digimonNickname: "",
+      },
+      guestVersion: "Ver.1",
+      hostTargetId: "MetalGarurumon",
+      serverTimestampValue: "SERVER_TS",
+    });
+
+    expect(payload.guestTamerName).toBe("guest");
+  });
+
   test("buildCompletedJogressSlotUpdate는 기본적으로 jogressStatus를 비운다", () => {
     expect(
       buildCompletedJogressSlotUpdate({

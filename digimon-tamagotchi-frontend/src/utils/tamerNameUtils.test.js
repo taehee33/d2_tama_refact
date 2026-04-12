@@ -18,9 +18,12 @@ jest.mock("../firebase", () => ({
 
 const {
   checkNicknameAvailability,
+  getAccountDisplayFallback,
   getTamerName,
   normalizeNicknameInput,
   resetToDefaultTamerName,
+  resolveTamerNameInitial,
+  resolveTamerNamePriority,
   toNicknameKey,
   updateTamerName,
 } = require("./tamerNameUtils");
@@ -45,6 +48,58 @@ describe("tamerNameUtils", () => {
 
   test("닉네임 키는 정규화 후 영문 대소문자를 무시한다", () => {
     expect(toNicknameKey("  TaMer   Name  ")).toBe("tamer name");
+  });
+
+  test("우선순위 테이머명은 커스텀 tamerName을 최우선으로 사용한다", () => {
+    expect(
+      resolveTamerNamePriority({
+        tamerName: "  커스텀 테이머  ",
+        currentUser: {
+          uid: "tester",
+          displayName: "표시 이름",
+          email: "tester@example.com",
+        },
+      })
+    ).toBe("커스텀 테이머");
+  });
+
+  test("우선순위 테이머명은 displayName, email, 추가 fallback 순서로 내려간다", () => {
+    expect(
+      resolveTamerNamePriority({
+        currentUser: {
+          uid: "tester",
+          displayName: "",
+          email: "tester@example.com",
+        },
+        extraFallbacks: ["슬롯1"],
+      })
+    ).toBe("tester");
+
+    expect(
+      resolveTamerNamePriority({
+        currentUser: {
+          uid: "tester",
+          displayName: "",
+          email: "",
+        },
+        extraFallbacks: ["슬롯1"],
+      })
+    ).toBe("슬롯1");
+  });
+
+  test("계정 표시 fallback과 이니셜은 Trainer 기본값까지 일관되게 계산한다", () => {
+    const currentUser = {
+      uid: "tester123",
+      displayName: "",
+      email: "",
+    };
+
+    expect(getAccountDisplayFallback(currentUser)).toBe("Trainer_tester");
+    expect(
+      resolveTamerNameInitial({
+        currentUser,
+      })
+    ).toBe("T");
   });
 
   test("중복 확인은 정규화 안내와 함께 성공 결과를 반환한다", async () => {

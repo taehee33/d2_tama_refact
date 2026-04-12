@@ -15,6 +15,7 @@ import {
   getDigimonDataMapByVersion,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
+import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 export function isOnlineJogressSupported(versionLabel = "Ver.1") {
   const normalizedVersion = normalizeDigimonVersionLabel(versionLabel);
@@ -55,7 +56,11 @@ export function useJogressRoomLifecycle({
     }
 
     try {
-      const hostTamerName = tamerName || currentUser.displayName || null;
+      const hostTamerName = resolveTamerNamePriority({
+        tamerName,
+        currentUser,
+        fallback: null,
+      });
       const roomsRef = collection(db, "jogress_rooms");
       const docRef = await addDoc(roomsRef, {
         hostUid: currentUser.uid,
@@ -106,7 +111,11 @@ export function useJogressRoomLifecycle({
     }
 
     try {
-      const hostTamerName = tamerName || currentUser.displayName || null;
+      const hostTamerName = resolveTamerNamePriority({
+        tamerName,
+        currentUser,
+        fallback: null,
+      });
       const roomsRef = collection(db, "jogress_rooms");
       const docRef = await addDoc(roomsRef, {
         hostUid: currentUser.uid,

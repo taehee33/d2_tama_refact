@@ -19,7 +19,10 @@ import {
 import { db } from "../firebase";
 import { calculatePower } from "../logic/battle/hitrate";
 import { translateStage } from "../utils/stageTranslator";
-import { getTamerName } from "../utils/tamerNameUtils";
+import {
+  getTamerName,
+  resolveTamerNamePriority,
+} from "../utils/tamerNameUtils";
 import { getArenaBattleReplay } from "../utils/logArchiveApi";
 import {
   getDigimonDataMapByVersion,
@@ -311,11 +314,20 @@ export default function ArenaScreen({
     const loadTamerName = async () => {
       if (currentUser) {
         try {
-          const name = await getTamerName(currentUser.uid, currentUser.displayName);
+          const name = await getTamerName(
+            currentUser.uid,
+            resolveTamerNamePriority({
+              currentUser,
+            })
+          );
           setTamerName(name);
         } catch (error) {
           console.error("테이머명 로드 오류:", error);
-          setTamerName(currentUser.displayName || currentUser.email?.split('@')[0] || "익명의 테이머");
+          setTamerName(
+            resolveTamerNamePriority({
+              currentUser,
+            })
+          );
         }
       }
     };
@@ -866,7 +878,11 @@ export default function ArenaScreen({
       
       const snapshot = createDigimonSnapshot(slot);
       // 테이머명 가져오기 (커스텀 닉네임 또는 기본값)
-      const entryTamerName = tamerName || currentUser.displayName || slot.slotName || `슬롯${slot.id}`;
+      const entryTamerName = resolveTamerNamePriority({
+        tamerName,
+        currentUser,
+        extraFallbacks: [slot.slotName, `슬롯${slot.id}`],
+      });
       
       const entryData = {
         userId: currentUser.uid,

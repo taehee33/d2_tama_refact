@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-
-function getDisplayTamerName(currentUser, tamerName) {
-  return (
-    tamerName ||
-    currentUser?.displayName ||
-    currentUser?.email?.split("@")[0] ||
-    "익명의 테이머"
-  );
-}
+import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 export function useHeaderAccountMenu({ tamerName = "" } = {}) {
   const { currentUser, logout } = useAuth();
@@ -19,7 +11,10 @@ export function useHeaderAccountMenu({ tamerName = "" } = {}) {
   const [isLogoutLoading, setIsLogoutLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
   const accountMenuRef = useRef(null);
-  const displayTamerName = getDisplayTamerName(currentUser, tamerName);
+  const displayTamerName = resolveTamerNamePriority({
+    tamerName,
+    currentUser,
+  });
 
   useEffect(() => {
     setIsAccountMenuOpen(false);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { getTamerName } from "../utils/tamerNameUtils";
+import { getTamerName, resolveTamerNamePriority } from "../utils/tamerNameUtils";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -10,11 +10,7 @@ import {
 export const TAMER_PROFILE_REFRESH_EVENT = "d2:tamer-profile-refresh";
 
 function getFallbackTamerName(currentUser) {
-  return (
-    currentUser?.displayName ||
-    currentUser?.email?.split("@")[0] ||
-    "익명의 테이머"
-  );
+  return resolveTamerNamePriority({ currentUser });
 }
 
 export function emitTamerProfileRefresh(detail = {}) {
@@ -49,7 +45,7 @@ export function useTamerProfile() {
 
     try {
       const [resolvedTamerName, profile] = await Promise.all([
-        getTamerName(currentUser.uid, currentUser.displayName),
+        getTamerName(currentUser.uid, getFallbackTamerName(currentUser)),
         getAchievementsAndMaxSlots(currentUser.uid),
       ]);
 
@@ -100,7 +96,10 @@ export function useTamerProfile() {
     maxSlots,
     loading,
     refreshProfile,
-    displayTamerName: tamerName || getFallbackTamerName(currentUser),
+    displayTamerName: resolveTamerNamePriority({
+      tamerName,
+      currentUser,
+    }),
     hasVer1Master: achievements.includes(ACHIEVEMENT_VER1_MASTER),
     hasVer2Master: achievements.includes(ACHIEVEMENT_VER2_MASTER),
   };

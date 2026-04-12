@@ -22,6 +22,7 @@ import {
   normalizeSleepSchedule,
   shiftSleepScheduleByHours,
 } from "../utils/sleepUtils";
+import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
@@ -398,6 +399,7 @@ export function applyBattleInjuryOutcome({
 export function buildArenaBattleArchiveWrite({
   archiveId,
   currentUser,
+  tamerName = null,
   slotId,
   slotName,
   arenaChallenger,
@@ -408,7 +410,11 @@ export function buildArenaBattleArchiveWrite({
   userDigimonName,
   enemyDigimonName,
 }) {
-  const attackerName = currentUser.displayName || slotName || `슬롯${slotId}`;
+  const attackerName = resolveTamerNamePriority({
+    tamerName,
+    currentUser,
+    extraFallbacks: [slotName, `슬롯${slotId}`],
+  });
   const defenderName = arenaChallenger.tamerName || arenaChallenger.trainerName || "Unknown";
   const replayLogs = Array.isArray(battleResult.logs) ? battleResult.logs : [];
   const winnerUid = battleResult.win ? currentUser.uid : arenaChallenger.userId;

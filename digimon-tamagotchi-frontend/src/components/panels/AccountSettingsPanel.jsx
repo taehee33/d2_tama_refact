@@ -8,6 +8,7 @@ import {
   hasCollapsedSpaces,
   normalizeNicknameInput,
   resetToDefaultTamerName,
+  resolveTamerNamePriority,
   updateTamerName,
   withNormalizationNotice,
 } from "../../utils/tamerNameUtils";
@@ -25,11 +26,10 @@ import {
 } from "../../utils/userProfileUtils";
 
 function getDefaultTamerName(currentUser) {
-  return (
-    currentUser?.displayName ||
-    currentUser?.email?.split("@")[0] ||
-    `Trainer_${currentUser?.uid?.slice(0, 6) || "000000"}`
-  );
+  return resolveTamerNamePriority({
+    currentUser,
+    fallback: `Trainer_${currentUser?.uid?.slice(0, 6) || "000000"}`,
+  });
 }
 
 function getMessageClassName(message) {
@@ -102,7 +102,7 @@ function AccountSettingsPanel({
 
       try {
         const [resolvedTamerName, settings, profile] = await Promise.all([
-          getTamerName(currentUser.uid, currentUser.displayName),
+          getTamerName(currentUser.uid, getDefaultTamerName(currentUser)),
           getUserSettings(currentUser.uid),
           getAchievementsAndMaxSlots(currentUser.uid),
         ]);

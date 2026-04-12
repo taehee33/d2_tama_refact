@@ -1,3 +1,5 @@
+import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
+
 export function buildGuestPairingRoomUpdate({
   currentUser,
   tamerName,
@@ -9,7 +11,11 @@ export function buildGuestPairingRoomUpdate({
   return {
     status: "paired",
     guestUid: currentUser.uid,
-    guestTamerName: tamerName || currentUser?.displayName || null,
+    guestTamerName: resolveTamerNamePriority({
+      tamerName,
+      currentUser,
+      fallback: null,
+    }),
     guestSlotId: guestSlot.id,
     guestDigimonId: guestSlot.selectedDigimon,
     guestDigimonNickname:

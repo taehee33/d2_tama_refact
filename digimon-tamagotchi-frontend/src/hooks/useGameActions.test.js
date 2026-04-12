@@ -97,6 +97,36 @@ describe("buildArenaBattleArchiveWrite", () => {
     ]);
     expect(result.archivePayload.payload.result.logs).toHaveLength(2);
   });
+
+  test("공격자 이름은 테이머명 우선순위 구조를 따른다", () => {
+    const result = buildArenaBattleArchiveWrite({
+      archiveId: "arena_test_2",
+      currentUser: {
+        uid: "user-2",
+        displayName: "",
+        email: "",
+      },
+      slotId: 4,
+      slotName: "슬롯4",
+      tamerName: "",
+      arenaChallenger: {
+        userId: "enemy-2",
+        tamerName: "상대",
+      },
+      enemyEntryId: "enemy-entry-2",
+      myArenaEntryId: "my-entry-2",
+      battleResult: {
+        win: false,
+        logs: [],
+      },
+      currentSeasonId: "season-2",
+      userDigimonName: "아구몬",
+      enemyDigimonName: "파피몬",
+    });
+
+    expect(result.firestoreLogData.attackerName).toBe("슬롯4");
+    expect(result.archivePayload.attackerName).toBe("슬롯4");
+  });
 });
 
 describe("buildBattleCostStats", () => {

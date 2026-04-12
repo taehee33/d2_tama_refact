@@ -1,6 +1,10 @@
 import React from "react";
+import {
+  resolveTamerNameInitial,
+  resolveTamerNamePriority,
+} from "../../utils/tamerNameUtils";
 
-function renderAvatar(currentUser, avatarClassName, fallbackClassName) {
+function renderAvatar(currentUser, tamerName, avatarClassName, fallbackClassName) {
   if (currentUser?.photoURL) {
     return (
       <img
@@ -13,7 +17,10 @@ function renderAvatar(currentUser, avatarClassName, fallbackClassName) {
 
   return (
     <span className={fallbackClassName}>
-      {currentUser?.displayName?.[0] || currentUser?.email?.[0] || "U"}
+      {resolveTamerNameInitial({
+        tamerName,
+        currentUser,
+      })}
     </span>
   );
 }
@@ -49,8 +56,10 @@ function renderProfileMenu({
     return null;
   }
 
-  const displayName =
-    tamerName || currentUser.displayName || currentUser.email?.split("@")[0];
+  const displayName = resolveTamerNamePriority({
+    tamerName,
+    currentUser,
+  });
 
   return (
     <div className="relative">
@@ -64,6 +73,7 @@ function renderProfileMenu({
       >
         {renderAvatar(
           currentUser,
+          tamerName,
           compact ? "w-6 h-6 rounded-full" : "w-8 h-8 rounded-full",
           compact
             ? "w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-xs"
@@ -102,7 +112,7 @@ function renderProfileMenu({
                     : "text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1"
                 }
               >
-                <span>테이머: {tamerName || currentUser.displayName || currentUser.email}</span>
+                <span>테이머: {displayName}</span>
                 {renderMasterBadges({ hasVer1Master, hasVer2Master, compact })}
               </p>
               <p className="text-xs text-gray-500 truncate">{currentUser.email}</p>
@@ -185,7 +195,7 @@ function GamePageToolbar({
         {isFirebaseAvailable && currentUser ? (
           <div className="px-3 py-1.5 border-t border-gray-100 flex items-center gap-2 flex-wrap">
             <span className="text-xs text-gray-600">
-              테이머: {tamerName || currentUser.displayName || currentUser.email?.split("@")[0]}
+              테이머: {resolveTamerNamePriority({ tamerName, currentUser })}
             </span>
             {renderMasterBadges({ hasVer1Master, hasVer2Master })}
           </div>
