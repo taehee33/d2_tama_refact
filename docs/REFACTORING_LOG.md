@@ -59,6 +59,31 @@
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] 개발 운영 규칙 추가: 분리 우선 / 사용자 확인 기준 명문화
+
+### 작업 유형
+- 📘 `AGENTS.md`에 구조 분리 규칙 추가
+- 📘 대형 파일 작업 시 사용자 확인 기준 추가
+- 📘 커밋 운영 규칙 명문화
+
+### 목적 및 영향
+- **목적:** 앞으로 새 기능을 넣을 때 기존 대형 파일에 바로 누적하지 않고, 작은 helper / hook / presenter 경계로 먼저 나누도록 기본 규칙을 명시한다.
+- **범위:** Codex 작업 방식, 대형 파일 변경 기준, 사용자에게 먼저 물어봐야 하는 구조 변경 기준에 적용된다.
+- **내용:**
+  - `작은 변경은 바로 진행 / 중간 변경은 먼저 분리 / 큰 변경은 먼저 확인`의 3단계 기본 원칙을 추가했다.
+  - 화면 조립, 순수 계산, 저장 payload, 로그 문자열, 애니메이션 오케스트레이션, repository write의 책임 분리 기준을 문서화했다.
+  - `Game.jsx`, `useGameData.js`, `useGameActions.js`, `useGameLogic.js`, `useEvolution.js`를 대형 파일 우선 관리 대상으로 지정했다.
+  - 저장 계약, Firestore 경로, lazy update 규칙, 모달 key, route 구조가 바뀌는 경우에는 구현 전에 사용자 확인을 받도록 명시했다.
+  - 구조 분리 작업은 가능한 한 테스트/빌드가 녹색인 작은 체크포인트 단위로 커밋하도록 규칙을 추가했다.
+
+### 영향받은 파일
+- `AGENTS.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- 문서 변경만 수행했으며 별도 런타임 테스트는 실행하지 않음
+- 기존 코드 동작에는 영향 없음
+
 ## [2026-04-12] `useGameActions` 8차 분리: battle outcome helper 추출
 
 ### 작업 유형

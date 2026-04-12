@@ -204,6 +204,77 @@ digimon-tamagotchi-frontend/src/
 4. **두 모드 모두 테스트:** Firebase와 localStorage 양쪽에서 기능이 작동하는지 확인
 5. **변경사항 문서화:** 날짜, 설명, 영향받은 파일을 `docs/REFACTORING_LOG.md`에 업데이트
 
+### 구조 분리 및 사용자 확인 규칙
+
+앞으로 새 기능이나 리팩토링을 진행할 때는 아래 규칙을 기본값으로 사용합니다.
+
+#### 기본 원칙
+
+- **작은 변경은 바로 진행:** 기존 책임 경계를 해치지 않고, 단일 함수/단일 컴포넌트 안에서 끝나는 수정은 바로 구현합니다.
+- **중간 변경은 먼저 분리:** 기능을 넣는 과정에서 화면 조립, 상태 계산, 저장 로직, 로그 문구 조립이 섞이기 시작하면 먼저 helper / custom hook / presenter로 나눈 뒤 연결합니다.
+- **큰 변경은 먼저 확인:** 저장 계약, 데이터 스키마, 모달 구조, 페이지 구조, 여러 대형 hook의 책임 경계가 바뀌는 경우에는 구현 전에 사용자에게 방향을 먼저 확인합니다.
+
+#### 책임 분리 기준
+
+- **화면 조립:** page 또는 presenter 컴포넌트에서 처리합니다.
+- **순수 계산:** `/src/logic/` 또는 hook 바깥 pure helper로 둡니다.
+- **저장 payload 조립:** persistence helper 또는 repository 경계에서 처리합니다.
+- **로그 문자열 조립:** 가능하면 pure helper로 분리합니다.
+- **애니메이션 오케스트레이션:** animation hook 안에 두되, 결과 state/log 조립은 helper로 분리합니다.
+- **Firebase/localStorage write:** repository, `save*` helper, 또는 persistence hook 경계에서만 처리합니다.
+
+#### 자동으로 먼저 분리해야 하는 경우
+
+- 새 함수가 **80~100줄 이상**이 될 가능성이 보일 때
+- 기존 hook에 **새 책임이 2개 이상** 추가될 때
+- 하나의 변경이 **UI + 저장 + 비즈니스 로직**을 동시에 건드릴 때
+- `Game.jsx`, `useGameData.js`, `useGameActions.js`, `useGameLogic.js`, `useEvolution.js` 같은 대형 파일에 새 기능을 바로 넣어야 할 때
+- 동일한 로그 조립, outcome 조립, commit state 패턴이 **2번 이상 반복**될 때
+
+이 경우에는 바로 본문에 붙이지 말고, 먼저 아래 중 하나를 우선 검토합니다.
+
+- pure helper 추출
+- local commit helper 추출
+- presenter / section 컴포넌트 추출
+- domain-specific custom hook 추출
+- repository / persistence helper 경계 추출
+
+#### 반드시 사용자 확인이 필요한 경우
+
+- Firestore 경로, 저장 계약, lazy update 규칙이 바뀌는 경우
+- 기존 모달 key, route 구조, slot 문서 구조가 바뀌는 경우
+- 여러 대형 hook 사이에서 책임을 옮겨 **영향 범위가 넓은 구조 변경**이 생기는 경우
+- 기능 자체보다 **아키텍처 선택이 더 중요한 작업**인 경우
+
+이때는 구현 전에 아래 형식으로 짧게 정리한 뒤 확인을 받습니다.
+
+1. 무엇을 바꾸려는지
+2. 왜 지금 분리가 필요한지
+3. 바로 진행할지 / 먼저 쪼갤지 / 단계적으로 갈지
+
+#### 대형 파일 작업 규칙
+
+다음 파일들은 “바로 추가”보다 “먼저 경계 확인”을 우선합니다.
+
+- `src/pages/Game.jsx`
+- `src/hooks/useGameData.js`
+- `src/hooks/useGameActions.js`
+- `src/hooks/useGameLogic.js`
+- `src/hooks/useEvolution.js`
+
+이 파일들에 새 기능을 넣을 때는 아래 순서를 따릅니다.
+
+1. 기존 helper / presenter / hook 재사용 가능 여부 확인
+2. 새 책임이 기존 책임과 섞이는지 확인
+3. 섞이면 먼저 helper 또는 하위 hook로 분리
+4. 그래도 구조 영향이 크면 사용자에게 먼저 확인
+
+#### 커밋 운영 규칙
+
+- 구조 분리 작업은 가능하면 **작은 체크포인트 단위**로 끊어 커밋합니다.
+- 문서/가이드 변경과 런타임 코드 변경은 가능하면 분리합니다.
+- 빌드나 테스트가 녹색인 경계에서 먼저 커밋하고, 다음 라운드로 넘어갑니다.
+
 ### 코드 스타일 요구사항 (.cursorrules에서)
 
 1. **관심사의 분리:** 기능은 명확한 클래스/모듈로 분리 (예: StatusManager, FirebaseService)
