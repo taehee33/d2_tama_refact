@@ -118,6 +118,93 @@ export function buildAnimationHealOutcome({
   };
 }
 
+export function buildAnimationFeedLogText({
+  type,
+  eatResult = {},
+  beforeStats = {},
+  updatedStats = {},
+} = {}) {
+  const oldFullness = beforeStats.fullness || 0;
+  const oldWeight = beforeStats.weight || 0;
+  const oldStrength = beforeStats.strength || 0;
+  const oldEnergy = beforeStats.energy || 0;
+  const oldOverfeeds = beforeStats.overfeeds || 0;
+  const oldHungerCountdown = beforeStats.hungerCountdown || 0;
+
+  const newFullness = updatedStats.fullness || 0;
+  const newWeight = updatedStats.weight || 0;
+  const newStrength = updatedStats.strength || 0;
+  const newEnergy = updatedStats.energy || 0;
+  const newOverfeeds = updatedStats.overfeeds || 0;
+  const newHungerCountdown = updatedStats.hungerCountdown || 0;
+
+  const weightDelta = newWeight - oldWeight;
+  const fullnessDelta = newFullness - oldFullness;
+  const strengthDelta = newStrength - oldStrength;
+  const energyDelta = newEnergy - oldEnergy;
+  const overfeedsDelta = newOverfeeds - oldOverfeeds;
+  const hungerCountdownDelta = newHungerCountdown - oldHungerCountdown;
+
+  if (type === "meat") {
+    if (eatResult.isOverfeed) {
+      const hungerCycleMinutes = Math.floor(hungerCountdownDelta / 60);
+      return `Overfeed! Hunger drop delayed (Wt +${weightDelta}g, HungerCycle +${hungerCycleMinutes}min)`;
+    }
+
+    if (newOverfeeds > oldOverfeeds) {
+      return `Overfeed: Stuffed! (Wt +${weightDelta}g, Hun +${fullnessDelta}, Overfeed +${overfeedsDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness}, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
+    }
+
+    return `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
+  }
+
+  const strengthChanged = strengthDelta > 0;
+  const strengthText = strengthChanged ? `, Str +${strengthDelta}` : "";
+  const strengthResultText = `, Str ${oldStrength}→${newStrength}`;
+
+  if (eatResult.energyRestored) {
+    const energyText = energyDelta > 0 ? `, En +${energyDelta}` : "";
+    const energyResultText = energyDelta > 0 ? `, En ${oldEnergy}→${newEnergy}` : "";
+    return `Feed: Protein (Wt +${weightDelta}g${strengthText}${energyText}) - Protein Bonus! (En +1, Overdose +1) => (Wt ${oldWeight}→${newWeight}g${strengthResultText}${energyResultText})`;
+  }
+
+  return `Feed: Protein (Wt +${weightDelta}g${strengthText}) => (Wt ${oldWeight}→${newWeight}g${strengthResultText})`;
+}
+
+export function buildAnimationFeedOutcome({
+  type,
+  baseStats = {},
+} = {}) {
+  let eatResult;
+  let updatedStats;
+
+  if (type === "meat") {
+    eatResult = feedMeat(baseStats);
+    updatedStats = eatResult.updatedStats;
+  } else {
+    eatResult = feedProtein(baseStats);
+    updatedStats = eatResult.updatedStats;
+  }
+
+  if (updatedStats.fullness > 0) {
+    updatedStats = resetCallStatus(updatedStats, "hunger");
+  }
+  if (type === "protein" && updatedStats.strength > 0) {
+    updatedStats = resetCallStatus(updatedStats, "strength");
+  }
+
+  return {
+    eatResult,
+    updatedStats,
+    logText: buildAnimationFeedLogText({
+      type,
+      eatResult,
+      beforeStats: baseStats,
+      updatedStats,
+    }),
+  };
+}
+
 /**
  * useGameAnimations Hook
  * 애니메이션 사이클 로직을 관리하는 Custom Hook
@@ -183,75 +270,10 @@ export function useGameAnimations({
     if (step === 0) {
       // 최신 스탯 가져오기
       const currentStats = await applyLazyUpdateBeforeAction();
-      const oldFullness = currentStats.fullness || 0;
-      const oldWeight = currentStats.weight || 0;
-      const oldStrength = currentStats.strength || 0;
-      const oldEnergy = currentStats.energy || 0;
-      const oldOverfeeds = currentStats.overfeeds || 0;
-      const oldHungerCountdown = currentStats.hungerCountdown || 0;
-      
-      // 먹이기 로직 실행
-      let eatResult;
-      let updatedStats;
-      if (type === "meat") {
-        eatResult = feedMeat(currentStats);
-        updatedStats = eatResult.updatedStats;
-      } else {
-        eatResult = feedProtein(currentStats);
-        updatedStats = eatResult.updatedStats;
-      }
-      
-      // 호출 해제: fullness > 0이 되면 hunger 호출 리셋
-      if (updatedStats.fullness > 0) {
-        updatedStats = resetCallStatus(updatedStats, 'hunger');
-      }
-      // 단백질을 먹었고 strength > 0이 되면 strength 호출 리셋
-      if (type === "protein" && updatedStats.strength > 0) {
-        updatedStats = resetCallStatus(updatedStats, 'strength');
-      }
-      
-      // 상세 Activity Log 추가
-      const newFullness = updatedStats.fullness || 0;
-      const newWeight = updatedStats.weight || 0;
-      const newStrength = updatedStats.strength || 0;
-      const newEnergy = updatedStats.energy || 0;
-      const newOverfeeds = updatedStats.overfeeds || 0;
-      const newHungerCountdown = updatedStats.hungerCountdown || 0;
-      
-      // 델타 계산
-      const weightDelta = newWeight - oldWeight;
-      const fullnessDelta = newFullness - oldFullness;
-      const strengthDelta = newStrength - oldStrength;
-      const energyDelta = newEnergy - oldEnergy;
-      const overfeedsDelta = newOverfeeds - oldOverfeeds;
-      const hungerCountdownDelta = newHungerCountdown - oldHungerCountdown;
-      
-      let logText = '';
-      if (type === "meat") {
-        if (eatResult.isOverfeed) {
-          // 오버피드 발생 시
-          const hungerCycleMinutes = Math.floor(hungerCountdownDelta / 60);
-          logText = `Overfeed! Hunger drop delayed (Wt +${weightDelta}g, HungerCycle +${hungerCycleMinutes}min)`;
-        } else if (newOverfeeds > oldOverfeeds) {
-          logText = `Overfeed: Stuffed! (Wt +${weightDelta}g, Hun +${fullnessDelta}, Overfeed +${overfeedsDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness}, Overfeed ${oldOverfeeds}→${newOverfeeds})`;
-        } else {
-          logText = `Feed: Meat (Wt +${weightDelta}g, Hun +${fullnessDelta}) => (Wt ${oldWeight}→${newWeight}g, Hun ${oldFullness}→${newFullness})`;
-        }
-      } else {
-        // Protein 로그
-        const strengthChanged = strengthDelta > 0;
-        const strengthText = strengthChanged ? `, Str +${strengthDelta}` : '';
-        const strengthResultText = `, Str ${oldStrength}→${newStrength}`;
-        
-        if (eatResult.energyRestored) {
-          // 4회 보너스 발생 시
-          const energyText = energyDelta > 0 ? `, En +${energyDelta}` : '';
-          const energyResultText = energyDelta > 0 ? `, En ${oldEnergy}→${newEnergy}` : '';
-          logText = `Feed: Protein (Wt +${weightDelta}g${strengthText}${energyText}) - Protein Bonus! (En +1, Overdose +1) => (Wt ${oldWeight}→${newWeight}g${strengthResultText}${energyResultText})`;
-        } else {
-          logText = `Feed: Protein (Wt +${weightDelta}g${strengthText}) => (Wt ${oldWeight}→${newWeight}g${strengthResultText})`;
-        }
-      }
+      const { updatedStats, logText } = buildAnimationFeedOutcome({
+        type,
+        baseStats: currentStats,
+      });
       
       const currentLogs = updatedStats.activityLogs || activityLogs || [];
       const updatedLogs = addActivityLog(currentLogs, "FEED", logText);

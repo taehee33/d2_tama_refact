@@ -130,6 +130,31 @@
 - `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useFridge.js src/hooks/useFridge.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useGameAnimations` 2차 분리: eat outcome helper 추출
+
+### 작업 유형
+- 🧩 animation feed log text helper 추출
+- 🧩 animation feed outcome helper 추출
+- 🧪 `useGameAnimations` feed helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `eatCycle` 안에 남아 있던 먹이 결과 상태 조립과 로그 문자열 생성을 분리해, step 0 처리 블록을 더 짧고 읽기 쉽게 만든다.
+- **범위:** meat/protein 급여 로직, hunger/strength call reset 규칙, overfeed 및 protein bonus 문구 의미는 그대로 유지한다.
+- **내용:**
+  - `buildAnimationFeedLogText`를 추가해 meat/protein 급여 결과 문자열을 helper로 분리했다.
+  - `buildAnimationFeedOutcome`를 추가해 `feedMeat`/`feedProtein` 실행, call reset, animation용 log text 조립을 한 곳으로 모았다.
+  - helper 테스트를 추가해 overfeed 문구, hunger call reset, protein bonus와 strength call reset 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameAnimations.js src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameAnimations` 1차 분리: clean/heal outcome helper 추출
 
 ### 작업 유형

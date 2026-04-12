@@ -1,5 +1,7 @@
 import {
   buildAnimationCleanOutcome,
+  buildAnimationFeedLogText,
+  buildAnimationFeedOutcome,
   buildAnimationHealOutcome,
   buildHealTreatmentMessage,
 } from "./useGameAnimations";
@@ -34,6 +36,68 @@ describe("useGameAnimations helpers", () => {
     expect(result.logType).toBe("SLEEP_DISTURBANCE");
     expect(result.logText).toContain("수면 방해");
     expect(result.updatedStats.poopCount).toBe(0);
+  });
+
+  test("buildAnimationFeedLogText는 오버피드 meat 로그를 유지한다", () => {
+    const result = buildAnimationFeedLogText({
+      type: "meat",
+      eatResult: { isOverfeed: true },
+      beforeStats: {
+        weight: 10,
+        overfeeds: 0,
+        hungerCountdown: 120,
+      },
+      updatedStats: {
+        weight: 10,
+        overfeeds: 1,
+        hungerCountdown: 120,
+      },
+    });
+
+    expect(result).toBe("Overfeed! Hunger drop delayed (Wt +0g, HungerCycle +0min)");
+  });
+
+  test("buildAnimationFeedOutcome는 meat 섭취 후 hunger call을 리셋한다", () => {
+    const result = buildAnimationFeedOutcome({
+      type: "meat",
+      baseStats: {
+        fullness: 0,
+        maxOverfeed: 0,
+        weight: 10,
+        callStatus: {
+          hunger: { isActive: true, startedAt: 100, sleepStartAt: 200, isLogged: false },
+        },
+      },
+    });
+
+    expect(result.updatedStats.fullness).toBe(1);
+    expect(result.updatedStats.callStatus.hunger).toMatchObject({
+      isActive: false,
+      startedAt: null,
+    });
+    expect(result.logText).toContain("Feed: Meat");
+  });
+
+  test("buildAnimationFeedOutcome는 protein bonus와 strength call reset을 유지한다", () => {
+    const result = buildAnimationFeedOutcome({
+      type: "protein",
+      baseStats: {
+        strength: 3,
+        weight: 10,
+        energy: 0,
+        maxEnergy: 3,
+        callStatus: {
+          strength: { isActive: true, startedAt: 100, sleepStartAt: 200, isLogged: false },
+        },
+      },
+    });
+
+    expect(result.eatResult.energyRestored).toBe(true);
+    expect(result.updatedStats.callStatus.strength).toMatchObject({
+      isActive: false,
+      startedAt: null,
+    });
+    expect(result.logText).toContain("Protein Bonus!");
   });
 
   test("buildHealTreatmentMessage는 random value에 따라 치료 문구를 고른다", () => {
