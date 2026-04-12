@@ -491,6 +491,38 @@ function getActionSleepState({
   };
 }
 
+export function resolveActionSleepInteractionPlan({
+  digimonStats = {},
+  activityLogs = [],
+  selectedDigimon,
+  digimonData,
+  isLightsOn,
+  wakeUntil,
+  now = new Date(),
+} = {}) {
+  const actionSleepState = getActionSleepState({
+    digimonStats,
+    selectedDigimon,
+    digimonData,
+    isLightsOn,
+    wakeUntil,
+    now,
+  });
+
+  const timestamp = now instanceof Date ? now.getTime() : Date.now();
+  const hasDuplicateSleepDisturbance =
+    actionSleepState.isSleepingLike &&
+    hasDuplicateSleepDisturbanceLog(activityLogs, timestamp);
+
+  return {
+    actionSleepState,
+    timestamp,
+    hasDuplicateSleepDisturbance,
+    shouldWakeForInteraction:
+      actionSleepState.isSleepingLike && !hasDuplicateSleepDisturbance,
+  };
+}
+
 /**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트
  * 순수 함수로 동작하여 업데이트된 스탯을 반환합니다.
@@ -628,6 +660,31 @@ export function useGameActions({
       cleanCycle: () => {},
     };
   }
+
+  const commitSleepDisturbanceLog = ({ nextStats, reason, timestamp }) => {
+    setDigimonStats((prevStats) => {
+      if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], timestamp)) {
+        return prevStats;
+      }
+
+      const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
+        prevStats,
+        nextStats,
+        reason,
+        timestamp,
+      });
+      if (appendLogToSubcollection) {
+        appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
+      }
+      setDigimonStatsAndSave(
+        sleepDisturbanceCommitState.statsWithLogs,
+        sleepDisturbanceCommitState.updatedLogs
+      ).catch((error) => {
+        console.error("수면 방해 로그 저장 오류:", error);
+      });
+      return sleepDisturbanceCommitState.statsWithLogs;
+    });
+  };
   
   /**
    * 먹이 주기 핸들러
@@ -710,51 +767,34 @@ export function useGameActions({
       const currentStats = await applyLazyUpdateBeforeAction();
       
       // 수면 중 먹이 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-      const actionSleepState = getActionSleepState({
+      const sleepInteractionPlan = resolveActionSleepInteractionPlan({
         digimonStats: currentStats,
+        activityLogs: currentStats.activityLogs || [],
         selectedDigimon,
         digimonData,
         isLightsOn,
         wakeUntil,
       });
-      
-      // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+
       let statsAfterWake = currentStats;
-      if (actionSleepState.isSleepingLike) {
-        if (hasDuplicateSleepDisturbanceLog(currentStats.activityLogs || [], Date.now())) {
-          statsAfterWake = currentStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
-        } else {
-          statsAfterWake = wakeForInteraction(
-            currentStats,
-            setWakeUntil,
-            setDigimonStatsAndSave,
-            actionSleepState.shouldCountSleepDisturbance,
-            onSleepDisturbance
-          );
-          setDigimonStats((prevStats) => {
-            // 레이스 컨디션 방지: 동일 액션이 연달아 호출되면 prev에 이미 로그가 있을 수 있음
-            if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
-            const actionType = type === "meat" ? "고기" : "프로틴";
-            const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
-              prevStats,
-              nextStats: statsAfterWake,
-              reason: `먹이 주기 - ${actionType}`,
-            });
-            if (appendLogToSubcollection) {
-              appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
-            }
-            setDigimonStatsAndSave(
-              sleepDisturbanceCommitState.statsWithLogs,
-              sleepDisturbanceCommitState.updatedLogs
-            ).catch((error) => {
-              console.error("수면 방해 로그 저장 오류:", error);
-            });
-            return sleepDisturbanceCommitState.statsWithLogs;
-          });
-        }
+      if (sleepInteractionPlan.shouldWakeForInteraction) {
+        statsAfterWake = wakeForInteraction(
+          currentStats,
+          setWakeUntil,
+          setDigimonStatsAndSave,
+          sleepInteractionPlan.actionSleepState.shouldCountSleepDisturbance,
+          onSleepDisturbance
+        );
+        const actionType = type === "meat" ? "고기" : "프로틴";
+        commitSleepDisturbanceLog({
+          nextStats: statsAfterWake,
+          reason: `먹이 주기 - ${actionType}`,
+          timestamp: sleepInteractionPlan.timestamp,
+        });
       }
-      // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 currentStats 사용
-      const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : currentStats;
+      const baseStats = sleepInteractionPlan.actionSleepState.isSleepingLike
+        ? statsAfterWake
+        : currentStats;
 
       const feedOutcome = buildFeedOutcome({
         type,
@@ -833,50 +873,33 @@ export function useGameActions({
     const updatedStats = await applyLazyUpdateBeforeAction();
     
     // 수면 중 훈련 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const actionSleepState = getActionSleepState({
+    const sleepInteractionPlan = resolveActionSleepInteractionPlan({
       digimonStats: updatedStats,
+      activityLogs: updatedStats.activityLogs || [],
       selectedDigimon,
       digimonData,
       isLightsOn,
       wakeUntil,
     });
-    
-    // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+
     let statsAfterWake = updatedStats;
-    if (actionSleepState.isSleepingLike) {
-      if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
-        statsAfterWake = updatedStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
-      } else {
-        statsAfterWake = wakeForInteraction(
-          updatedStats,
-          setWakeUntil,
-          setDigimonStatsAndSave,
-          actionSleepState.shouldCountSleepDisturbance,
-          onSleepDisturbance
-        );
-        setDigimonStats((prevStats) => {
-          if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
-          const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
-            prevStats,
-            nextStats: statsAfterWake,
-            reason: "훈련",
-          });
-          if (appendLogToSubcollection) {
-            appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
-          }
-          setDigimonStatsAndSave(
-            sleepDisturbanceCommitState.statsWithLogs,
-            sleepDisturbanceCommitState.updatedLogs
-          ).catch((error) => {
-            console.error("수면 방해 로그 저장 오류:", error);
-          });
-          return sleepDisturbanceCommitState.statsWithLogs;
-        });
-      }
+    if (sleepInteractionPlan.shouldWakeForInteraction) {
+      statsAfterWake = wakeForInteraction(
+        updatedStats,
+        setWakeUntil,
+        setDigimonStatsAndSave,
+        sleepInteractionPlan.actionSleepState.shouldCountSleepDisturbance,
+        onSleepDisturbance
+      );
+      commitSleepDisturbanceLog({
+        nextStats: statsAfterWake,
+        reason: "훈련",
+        timestamp: sleepInteractionPlan.timestamp,
+      });
     }
-    
-    // 수면 방해로 깨어난 경우 statsAfterWake를 사용, 그렇지 않으면 updatedStats 사용
-    const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : updatedStats;
+    const baseStats = sleepInteractionPlan.actionSleepState.isSleepingLike
+      ? statsAfterWake
+      : updatedStats;
     setDigimonStats(baseStats);
     
     // Weight 체크: Weight가 0 이하면 훈련 불가
@@ -1201,50 +1224,42 @@ export function useGameActions({
     }
     
     // 수면 중 배틀 시도 시 수면 방해 처리 (실제 액션 수행 시점)
-    const actionSleepState = getActionSleepState({
+    const sleepInteractionPlan = resolveActionSleepInteractionPlan({
       digimonStats: updatedStats,
+      activityLogs: updatedStats.activityLogs || [],
       selectedDigimon,
       digimonData,
       isLightsOn,
       wakeUntil,
     });
-    
-    // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
+
     let statsAfterWake = updatedStats;
-    if (actionSleepState.isSleepingLike) {
-      if (hasDuplicateSleepDisturbanceLog(updatedStats.activityLogs || [], Date.now())) {
-        statsAfterWake = updatedStats; // 같은 강제 기상 창 내 중복 수면 방해 방지
-      } else {
-        statsAfterWake = wakeForInteraction(
-          updatedStats,
-          setWakeUntil,
-          setDigimonStatsAndSave,
-          actionSleepState.shouldCountSleepDisturbance,
-          onSleepDisturbance
-        );
-        setDigimonStats((prevStats) => {
-          if (hasDuplicateSleepDisturbanceLog(prevStats.activityLogs || [], Date.now())) return prevStats;
-          const battleTypeText = battleType === "quest" ? "퀘스트" : battleType === "sparring" ? "스파링" : battleType === "arena" ? "아레나" : "배틀";
-          const sleepDisturbanceCommitState = buildSleepDisturbanceCommitState({
-            prevStats,
-            nextStats: statsAfterWake,
-            reason: `배틀 - ${battleTypeText}`,
-          });
-          if (appendLogToSubcollection) {
-            appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
-          }
-          setDigimonStatsAndSave(
-            sleepDisturbanceCommitState.statsWithLogs,
-            sleepDisturbanceCommitState.updatedLogs
-          ).catch((error) => {
-            console.error("수면 방해 로그 저장 오류:", error);
-          });
-          return sleepDisturbanceCommitState.statsWithLogs;
-        });
-      }
+    if (sleepInteractionPlan.shouldWakeForInteraction) {
+      statsAfterWake = wakeForInteraction(
+        updatedStats,
+        setWakeUntil,
+        setDigimonStatsAndSave,
+        sleepInteractionPlan.actionSleepState.shouldCountSleepDisturbance,
+        onSleepDisturbance
+      );
+      const battleTypeText =
+        battleType === "quest"
+          ? "퀘스트"
+          : battleType === "sparring"
+            ? "스파링"
+            : battleType === "arena"
+              ? "아레나"
+              : "배틀";
+      commitSleepDisturbanceLog({
+        nextStats: statsAfterWake,
+        reason: `배틀 - ${battleTypeText}`,
+        timestamp: sleepInteractionPlan.timestamp,
+      });
     }
-    
-    const baseStats = actionSleepState.isSleepingLike ? statsAfterWake : updatedStats;
+
+    const baseStats = sleepInteractionPlan.actionSleepState.isSleepingLike
+      ? statsAfterWake
+      : updatedStats;
     const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(baseStats);
     
     const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';

@@ -51,6 +51,31 @@
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useGameActions` 6차 분리: sleep interaction helper 추출
+
+### 작업 유형
+- 🧩 action sleep interaction plan helper 추출
+- 🧩 수면 방해 activity log commit helper 공통화
+- 🧪 `useGameActions` sleep interaction helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `eatCycle`, `handleTrainResult`, `handleBattleComplete` 안에 반복되던 수면 상태 판정, 중복 수면 방해 로그 체크, wake 처리와 로그 저장 흐름을 공통 helper 패턴으로 정리한다.
+- **범위:** 수면 중 액션 시 깨우기 규칙, 중복 수면 방해 로그 skip, `sleepDisturbances` 증가 및 activity log 저장 순서는 그대로 유지한다.
+- **내용:**
+  - `resolveActionSleepInteractionPlan`를 추가해 액션 직전 수면 상태, 중복 로그 여부, 깨우기 필요 여부를 pure helper로 분리했다.
+  - 훅 내부 `commitSleepDisturbanceLog`를 추가해 `먹이 / 훈련 / 퀘스트 배틀`의 수면 방해 로그 저장 흐름을 한 곳으로 모았다.
+  - helper 테스트를 추가해 비수면 경로, 수면 중 깨우기 경로, 중복 수면 방해 로그 skip 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameAnimations` 3차 분리: sleep interaction helper 추출
 
 ### 작업 유형

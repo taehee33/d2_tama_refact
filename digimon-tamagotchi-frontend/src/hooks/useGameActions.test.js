@@ -9,6 +9,7 @@ import {
   buildFeedOutcome,
   buildFeedLogText,
   buildRecordedBattleStats,
+  resolveActionSleepInteractionPlan,
   buildSleepDisturbanceCommitState,
   buildTrainingLogText,
   buildTrainingOutcome,
@@ -53,6 +54,82 @@ describe("wakeForInteraction", () => {
     expect(result.careMistakes).toBe(1);
     expect(setWakeUntil).toHaveBeenCalledTimes(1);
     expect(onSleepDisturbance).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveActionSleepInteractionPlan", () => {
+  test("비수면 상태면 깨우기 계획 없이 그대로 통과시킨다", () => {
+    const result = resolveActionSleepInteractionPlan({
+      digimonStats: {
+        activityLogs: [],
+      },
+      activityLogs: [],
+      selectedDigimon: "Koromon",
+      digimonData: {
+        Koromon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now: new Date(2026, 3, 12, 12, 0, 0),
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(false);
+    expect(result.hasDuplicateSleepDisturbance).toBe(false);
+    expect(result.shouldWakeForInteraction).toBe(false);
+  });
+
+  test("수면 중이고 중복 로그가 없으면 깨우기 계획을 반환한다", () => {
+    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const result = resolveActionSleepInteractionPlan({
+      digimonStats: {
+        activityLogs: [],
+      },
+      activityLogs: [],
+      selectedDigimon: "Agumon",
+      digimonData: {
+        Agumon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now,
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(true);
+    expect(result.hasDuplicateSleepDisturbance).toBe(false);
+    expect(result.shouldWakeForInteraction).toBe(true);
+    expect(result.timestamp).toBe(now.getTime());
+  });
+
+  test("같은 강제 기상 창 안의 중복 수면 방해 로그는 깨우기 계획을 막는다", () => {
+    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const duplicateLog = {
+      type: "SLEEP_DISTURBANCE",
+      text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",
+      timestamp: now.getTime() - 60 * 1000,
+    };
+    const result = resolveActionSleepInteractionPlan({
+      digimonStats: {
+        activityLogs: [duplicateLog],
+      },
+      activityLogs: [duplicateLog],
+      selectedDigimon: "Agumon",
+      digimonData: {
+        Agumon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now,
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(true);
+    expect(result.hasDuplicateSleepDisturbance).toBe(true);
+    expect(result.shouldWakeForInteraction).toBe(false);
   });
 });
 
