@@ -685,6 +685,61 @@ export function initializeActivityLogs(existingLogs = []) {
   return Array.isArray(existingLogs) ? existingLogs : [];
 }
 
+export function resolveActivityLogInput(timestampInput) {
+  const isOptionsObject =
+    timestampInput != null &&
+    typeof timestampInput === "object" &&
+    !Array.isArray(timestampInput);
+  const extraFields = isOptionsObject ? { ...timestampInput } : {};
+  const timestamp =
+    typeof timestampInput === "number"
+      ? timestampInput
+      : isOptionsObject && typeof timestampInput.timestamp === "number"
+        ? timestampInput.timestamp
+        : Date.now();
+
+  delete extraFields.timestamp;
+
+  return {
+    timestamp,
+    extraFields,
+  };
+}
+
+export function buildActivityLogEntry(type, text, timestampInput) {
+  const { timestamp, extraFields } = resolveActivityLogInput(timestampInput);
+
+  return {
+    type,
+    text,
+    timestamp,
+    ...extraFields,
+  };
+}
+
+export function resolveActivityLogTimestampMs(log) {
+  if (!log) return null;
+  if (typeof log.timestamp === "number") {
+    return log.timestamp;
+  }
+  if (log.timestamp?.seconds != null) {
+    return log.timestamp.seconds * 1000;
+  }
+  return null;
+}
+
+export function buildActivityLogWithEventId(baseLog) {
+  const eventId = buildActivityLogEventId(baseLog);
+  return eventId ? { ...baseLog, eventId } : baseLog;
+}
+
+export function trimActivityLogs(logs, maxLogs = MAX_ACTIVITY_LOGS) {
+  if (logs.length > maxLogs) {
+    return logs.slice(-maxLogs);
+  }
+  return logs;
+}
+
 /**
  * Activity Log를 추가합니다.
  * @param {Array} currentLogs - 현재 로그 배열
@@ -712,7 +767,7 @@ export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windo
   const maxT = t + windowMs;
   return logs.some((log) => {
     if (!isSleepDisturbanceLog(log)) return false;
-    const logT = typeof log.timestamp === 'number' ? log.timestamp : (log.timestamp?.seconds != null ? log.timestamp.seconds * 1000 : null);
+    const logT = resolveActivityLogTimestampMs(log);
     if (logT == null) return false;
     return logT >= minT && logT <= maxT;
   });
@@ -720,31 +775,12 @@ export function hasDuplicateSleepDisturbanceLog(activityLogs, timestampMs, windo
 
 export function addActivityLog(currentLogs = [], type, text, timestampMs) {
   const logs = initializeActivityLogs(currentLogs);
-  const isOptionsObject =
-    timestampMs != null &&
-    typeof timestampMs === "object" &&
-    !Array.isArray(timestampMs);
-  const extraFields = isOptionsObject ? { ...timestampMs } : {};
-  const ts =
-    typeof timestampMs === "number"
-      ? timestampMs
-      : (isOptionsObject && typeof timestampMs.timestamp === "number"
-          ? timestampMs.timestamp
-          : Date.now());
-  delete extraFields.timestamp;
-  const baseLog = { type, text, timestamp: ts, ...extraFields };
-  const eventId = buildActivityLogEventId(baseLog);
+  const baseLog = buildActivityLogEntry(type, text, timestampMs);
 
   if (hasDuplicateActivityLogEvent(logs, baseLog)) {
     return logs;
   }
-  const newLog = eventId ? { ...baseLog, eventId } : baseLog;
-
-  const updatedLogs = [...logs, newLog];
-  if (updatedLogs.length > MAX_ACTIVITY_LOGS) {
-    return updatedLogs.slice(-MAX_ACTIVITY_LOGS);
-  }
-  return updatedLogs;
+  return trimActivityLogs([...logs, buildActivityLogWithEventId(baseLog)]);
 }
 
 export default getSleepStatus;

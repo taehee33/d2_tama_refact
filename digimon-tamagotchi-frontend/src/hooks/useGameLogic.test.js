@@ -1,6 +1,8 @@
 import {
   addActivityLog,
+  buildActivityLogWithEventId,
   buildInitialCallStatus,
+  buildActivityLogEntry,
   checkCalls,
   checkCallTimeouts,
   checkEvolutionAvailability,
@@ -10,8 +12,11 @@ import {
   hasDuplicateSleepDisturbanceLog,
   resolveNeedCallState,
   resolveNeedCallTimeout,
+  resolveActivityLogInput,
+  resolveActivityLogTimestampMs,
   resolveSleepLightWarningState,
   resolveSleepLightWarningTimeout,
+  trimActivityLogs,
 } from "./useGameLogic";
 
 function createBaseStats(overrides = {}) {
@@ -226,6 +231,58 @@ describe("useGameLogic evolution helpers", () => {
         "승률: 75.0% (현재 디지몬) / 80+% (진화기준) (부족 ❌)",
       ])
     );
+  });
+});
+
+describe("useGameLogic activity log helpers", () => {
+  test("resolveActivityLogInput는 object 입력에서 timestamp와 extraFields를 분리한다", () => {
+    expect(
+      resolveActivityLogInput({
+        timestamp: 1234,
+        source: "realtime",
+      })
+    ).toEqual({
+      timestamp: 1234,
+      extraFields: {
+        source: "realtime",
+      },
+    });
+  });
+
+  test("buildActivityLogEntry는 timestamp와 추가 필드를 포함한 base log를 만든다", () => {
+    expect(
+      buildActivityLogEntry("ACTION", "테스트 로그", {
+        timestamp: 5678,
+        source: "realtime",
+      })
+    ).toEqual({
+      type: "ACTION",
+      text: "테스트 로그",
+      timestamp: 5678,
+      source: "realtime",
+    });
+  });
+
+  test("resolveActivityLogTimestampMs는 number와 Firestore timestamp를 모두 읽는다", () => {
+    expect(resolveActivityLogTimestampMs({ timestamp: 1234 })).toBe(1234);
+    expect(resolveActivityLogTimestampMs({ timestamp: { seconds: 5 } })).toBe(5000);
+  });
+
+  test("buildActivityLogWithEventId는 eventId가 있으면 로그에 붙인다", () => {
+    const log = buildActivityLogWithEventId({
+      type: "CAREMISTAKE",
+      text: "케어미스(사유: 배고픔 콜 10분 무시): 0 → 1",
+      timestamp: new Date(2026, 3, 12, 10, 0, 0).getTime(),
+    });
+
+    expect(log.eventId).toBeTruthy();
+  });
+
+  test("trimActivityLogs는 최대 개수를 넘으면 뒤쪽 로그만 남긴다", () => {
+    expect(trimActivityLogs([{ id: 1 }, { id: 2 }, { id: 3 }], 2)).toEqual([
+      { id: 2 },
+      { id: 3 },
+    ]);
   });
 });
 
