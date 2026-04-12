@@ -103,6 +103,32 @@
 - `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useDeath.js src/hooks/useDeath.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useFridge` 1차 분리: fridge commit helper 추출
+
+### 작업 유형
+- 🧩 냉장고 넣기 commit state helper 추출
+- 🧩 냉장고 꺼내기 commit state helper 추출
+- 🧩 보관 시간 포맷/log text helper 추출
+- 🧪 `useFridge` helper 테스트 보강
+
+### 목적 및 영향
+- **목적:** `putInFridge`와 `takeOutFromFridge` 안에 섞여 있던 상태 조립과 보관 시간 문구 포맷을 분리해, 훅 본문을 “검사 → helper 결과 적용 → 저장” 흐름으로 단순화한다.
+- **범위:** 냉장고 보관/복귀 시 호출 창 이동 규칙, zero duration 누적, 저장 순서와 activity log 문구 의미는 그대로 유지한다.
+- **내용:**
+  - `buildPutInFridgeCommitState`를 추가해 냉장고 진입 시 frozen 상태와 callStatus 비활성화 조립을 분리했다.
+  - `buildTakeOutFridgeCommitState`를 추가해 보관 시간 계산, zero frozen duration 누적, 호출 창 이동, sleep call reset을 한 곳으로 모았다.
+  - `formatFridgeDurationText`, `buildTakeOutFridgeLogText`를 추가해 보관 시간 문구와 꺼내기 로그 텍스트 조립을 공통화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useFridge.js`
+- `digimon-tamagotchi-frontend/src/hooks/useFridge.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useFridge.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useFridge.js src/hooks/useFridge.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 3차 분리: evolution range requirement helper 추출
 
 ### 작업 유형

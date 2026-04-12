@@ -1,5 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
-import { useFridge } from "./useFridge";
+import {
+  buildPutInFridgeCommitState,
+  buildTakeOutFridgeCommitState,
+  buildTakeOutFridgeLogText,
+  formatFridgeDurationText,
+  useFridge,
+} from "./useFridge";
 
 function createCurrentStats(overrides = {}) {
   return {
@@ -101,6 +107,69 @@ describe("useFridge", () => {
     );
     expect(savedStats.strengthMistakeDeadline).toBe(
       currentStats.strengthMistakeDeadline + frozenDuration
+    );
+  });
+
+  test("buildPutInFridgeCommitState는 호출 상태를 비활성화하고 frozenAt을 기록한다", () => {
+    const currentStats = createCurrentStats({
+      isFrozen: false,
+      callStatus: {
+        hunger: { isActive: true, startedAt: 10, sleepStartAt: 20, isLogged: false },
+        strength: { isActive: true, startedAt: 30, sleepStartAt: 40, isLogged: false },
+        sleep: { isActive: true, startedAt: 50, isLogged: true },
+      },
+    });
+
+    expect(
+      buildPutInFridgeCommitState(currentStats, Date.parse("2026-04-07T12:00:00.000Z"))
+    ).toMatchObject({
+      isFrozen: true,
+      frozenAt: Date.parse("2026-04-07T12:00:00.000Z"),
+      callStatus: {
+        hunger: { isActive: false, sleepStartAt: null },
+        strength: { isActive: false, sleepStartAt: null },
+        sleep: { isActive: false, startedAt: null, isLogged: false },
+      },
+    });
+  });
+
+  test("formatFridgeDurationText는 초, 분, 시간 단위 문자열을 만든다", () => {
+    expect(formatFridgeDurationText(45)).toBe("45초");
+    expect(formatFridgeDurationText(180)).toBe("3분");
+    expect(formatFridgeDurationText(3900)).toBe("1시간 5분");
+  });
+
+  test("buildTakeOutFridgeCommitState는 냉동 보관 시간을 스탯에 반영한다", () => {
+    const currentStats = createCurrentStats({
+      strength: 0,
+      lastStrengthZeroAt: Date.parse("2026-04-07T11:45:00.000Z"),
+      strengthMistakeDeadline: Date.parse("2026-04-07T11:55:00.000Z"),
+      callStatus: {
+        hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+        strength: { isActive: false, startedAt: Date.parse("2026-04-07T11:45:00.000Z"), sleepStartAt: null, isLogged: false },
+        sleep: { isActive: true, startedAt: 1234, isLogged: true },
+      },
+    });
+
+    const result = buildTakeOutFridgeCommitState(
+      currentStats,
+      Date.parse("2026-04-07T12:00:00.000Z")
+    );
+
+    expect(result.frozenDurationSeconds).toBe(300);
+    expect(result.updatedStats.isFrozen).toBe(false);
+    expect(result.updatedStats.frozenAt).toBeNull();
+    expect(result.updatedStats.strengthZeroFrozenDurationMs).toBe(300000);
+    expect(result.updatedStats.callStatus.sleep).toMatchObject({
+      isActive: false,
+      startedAt: null,
+      isLogged: false,
+    });
+  });
+
+  test("buildTakeOutFridgeLogText는 보관 시간과 메시지를 함께 포맷한다", () => {
+    expect(buildTakeOutFridgeLogText(300, "잘 잤다!")).toBe(
+      "냉장고에서 꺼냈습니다. (5분 동안 보관) - 잘 잤다!"
     );
   });
 });

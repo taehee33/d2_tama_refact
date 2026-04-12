@@ -2,16 +2,10 @@
 // 냉장고(냉동수면) 기능 관리 Hook
 
 import { addActivityLog } from "./useGameLogic";
+import { toTimestamp } from "../utils/fridgeTime";
 
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
-
-function toTimestamp(value) {
-  if (value == null) return null;
-  if (typeof value === "number" && !Number.isNaN(value)) return value;
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
-}
 
 function shiftCallWindow(entry, deadline, frozenDurationMs, timeoutMs) {
   const safeEntry = entry || { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false };
@@ -43,6 +37,118 @@ function shiftCallWindow(entry, deadline, frozenDurationMs, timeoutMs) {
     },
     deadline: nextDeadline,
   };
+}
+
+export function buildPutInFridgeCommitState(currentStats, nowMs = Date.now()) {
+  return {
+    ...currentStats,
+    isFrozen: true,
+    frozenAt: nowMs,
+    callStatus: {
+      hunger: {
+        ...(currentStats.callStatus?.hunger || {}),
+        isActive: false,
+        sleepStartAt: null,
+      },
+      strength: {
+        ...(currentStats.callStatus?.strength || {}),
+        isActive: false,
+        sleepStartAt: null,
+      },
+      sleep: {
+        ...(currentStats.callStatus?.sleep || {}),
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
+    },
+  };
+}
+
+export function formatFridgeDurationText(frozenDurationSeconds) {
+  if (frozenDurationSeconds < 60) {
+    return `${frozenDurationSeconds}초`;
+  }
+
+  if (frozenDurationSeconds < 3600) {
+    return `${Math.floor(frozenDurationSeconds / 60)}분`;
+  }
+
+  const hours = Math.floor(frozenDurationSeconds / 3600);
+  const minutes = Math.floor((frozenDurationSeconds % 3600) / 60);
+  return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
+}
+
+export function buildTakeOutFridgeCommitState(currentStats, nowMs = Date.now()) {
+  const frozenTime = toTimestamp(currentStats.frozenAt) ?? nowMs;
+  const frozenDuration = Math.max(0, nowMs - frozenTime);
+  const frozenDurationSeconds = Math.floor(frozenDuration / 1000);
+
+  const nextHungerZeroFrozenDurationMs =
+    currentStats.fullness === 0 && currentStats.lastHungerZeroAt
+      ? (currentStats.hungerZeroFrozenDurationMs || 0) + frozenDuration
+      : (currentStats.hungerZeroFrozenDurationMs || 0);
+  const nextStrengthZeroFrozenDurationMs =
+    currentStats.strength === 0 && currentStats.lastStrengthZeroAt
+      ? (currentStats.strengthZeroFrozenDurationMs || 0) + frozenDuration
+      : (currentStats.strengthZeroFrozenDurationMs || 0);
+  const nextInjuryFrozenDurationMs =
+    currentStats.isInjured && currentStats.injuredAt
+      ? (currentStats.injuryFrozenDurationMs || 0) + frozenDuration
+      : (currentStats.injuryFrozenDurationMs || 0);
+  const nextPoopPenaltyFrozenDurationMs =
+    currentStats.poopCount >= 8 && currentStats.lastPoopPenaltyAt
+      ? (currentStats.poopPenaltyFrozenDurationMs || 0) + frozenDuration
+      : (currentStats.poopPenaltyFrozenDurationMs || 0);
+
+  const hungerWindow = shiftCallWindow(
+    currentStats.callStatus?.hunger,
+    currentStats.hungerMistakeDeadline,
+    frozenDuration,
+    HUNGER_CALL_TIMEOUT_MS
+  );
+  const strengthWindow = shiftCallWindow(
+    currentStats.callStatus?.strength,
+    currentStats.strengthMistakeDeadline,
+    frozenDuration,
+    STRENGTH_CALL_TIMEOUT_MS
+  );
+
+  return {
+    frozenDuration,
+    frozenDurationSeconds,
+    updatedStats: {
+      ...currentStats,
+      isFrozen: false,
+      frozenAt: null,
+      takeOutAt: nowMs,
+      lastSavedAt: new Date(nowMs),
+      lastHungerZeroAt: currentStats.lastHungerZeroAt,
+      lastStrengthZeroAt: currentStats.lastStrengthZeroAt,
+      hungerZeroFrozenDurationMs: nextHungerZeroFrozenDurationMs,
+      strengthZeroFrozenDurationMs: nextStrengthZeroFrozenDurationMs,
+      injuryFrozenDurationMs: nextInjuryFrozenDurationMs,
+      poopPenaltyFrozenDurationMs: nextPoopPenaltyFrozenDurationMs,
+      hungerMistakeDeadline: hungerWindow.deadline,
+      strengthMistakeDeadline: strengthWindow.deadline,
+      callStatus: {
+        hunger: hungerWindow.entry,
+        strength: strengthWindow.entry,
+        sleep: {
+          ...(currentStats.callStatus?.sleep || {}),
+          isActive: false,
+          startedAt: null,
+          isLogged: false,
+        },
+      },
+    },
+  };
+}
+
+export function buildTakeOutFridgeLogText(frozenDurationSeconds, message) {
+  return `냉장고에서 꺼냈습니다. (${formatFridgeDurationText(
+    frozenDurationSeconds
+  )} 동안 보관) - ${message}`;
 }
 
 /**
@@ -82,17 +188,7 @@ export function useFridge({
       return;
     }
     
-    const updatedStats = {
-      ...currentStats,
-      isFrozen: true,
-      frozenAt: Date.now(),
-      // 호출 상태 모두 비활성화
-      callStatus: {
-        hunger: { ...(currentStats.callStatus?.hunger || {}), isActive: false, sleepStartAt: null },
-        strength: { ...(currentStats.callStatus?.strength || {}), isActive: false, sleepStartAt: null },
-        sleep: { ...(currentStats.callStatus?.sleep || {}), isActive: false, startedAt: null, isLogged: false }
-      },
-    };
+    const updatedStats = buildPutInFridgeCommitState(currentStats);
     
     const updatedLogs = addActivityLog(
       activityLogs || [],
@@ -113,71 +209,8 @@ export function useFridge({
       return;
     }
     
-    // 냉장고에 넣은 시간 이후의 경과 시간 계산
-    const frozenTime = typeof currentStats.frozenAt === 'number'
-      ? currentStats.frozenAt
-      : new Date(currentStats.frozenAt).getTime();
-    const frozenDuration = Date.now() - frozenTime;
-    const frozenDurationSeconds = Math.floor(frozenDuration / 1000);
-    
-    const takenOutAt = Date.now();
-    const nextHungerZeroFrozenDurationMs =
-      currentStats.fullness === 0 && currentStats.lastHungerZeroAt
-        ? (currentStats.hungerZeroFrozenDurationMs || 0) + frozenDuration
-        : (currentStats.hungerZeroFrozenDurationMs || 0);
-    const nextStrengthZeroFrozenDurationMs =
-      currentStats.strength === 0 && currentStats.lastStrengthZeroAt
-        ? (currentStats.strengthZeroFrozenDurationMs || 0) + frozenDuration
-        : (currentStats.strengthZeroFrozenDurationMs || 0);
-    const nextInjuryFrozenDurationMs =
-      currentStats.isInjured && currentStats.injuredAt
-        ? (currentStats.injuryFrozenDurationMs || 0) + frozenDuration
-        : (currentStats.injuryFrozenDurationMs || 0);
-    const nextPoopPenaltyFrozenDurationMs =
-      currentStats.poopCount >= 8 && currentStats.lastPoopPenaltyAt
-        ? (currentStats.poopPenaltyFrozenDurationMs || 0) + frozenDuration
-        : (currentStats.poopPenaltyFrozenDurationMs || 0);
-
-    const hungerWindow = shiftCallWindow(
-      currentStats.callStatus?.hunger,
-      currentStats.hungerMistakeDeadline,
-      frozenDuration,
-      HUNGER_CALL_TIMEOUT_MS
-    );
-    const strengthWindow = shiftCallWindow(
-      currentStats.callStatus?.strength,
-      currentStats.strengthMistakeDeadline,
-      frozenDuration,
-      STRENGTH_CALL_TIMEOUT_MS
-    );
-
-    // 냉장고 상태 해제 (꺼내기 애니메이션을 위해 takeOutAt 기록)
-    const updatedStats = {
-      ...currentStats,
-      isFrozen: false,
-      frozenAt: null,
-      takeOutAt: takenOutAt, // 꺼내기 애니메이션 시작 시간 기록
-      // lastSavedAt을 현재 시간으로 업데이트하여 다음 Lazy Update가 정상 작동하도록
-      lastSavedAt: new Date(),
-      lastHungerZeroAt: currentStats.lastHungerZeroAt,
-      lastStrengthZeroAt: currentStats.lastStrengthZeroAt,
-      hungerZeroFrozenDurationMs: nextHungerZeroFrozenDurationMs,
-      strengthZeroFrozenDurationMs: nextStrengthZeroFrozenDurationMs,
-      injuryFrozenDurationMs: nextInjuryFrozenDurationMs,
-      poopPenaltyFrozenDurationMs: nextPoopPenaltyFrozenDurationMs,
-      hungerMistakeDeadline: hungerWindow.deadline,
-      strengthMistakeDeadline: strengthWindow.deadline,
-      callStatus: {
-        hunger: hungerWindow.entry,
-        strength: strengthWindow.entry,
-        sleep: {
-          ...(currentStats.callStatus?.sleep || {}),
-          isActive: false,
-          startedAt: null,
-          isLogged: false,
-        },
-      },
-    };
+    const { frozenDurationSeconds, updatedStats } =
+      buildTakeOutFridgeCommitState(currentStats);
     
     // 냉장고 전용 대사
     const messages = [
@@ -188,22 +221,10 @@ export function useFridge({
     ];
     const randomMessage = messages[Math.floor(Math.random() * messages.length)];
     
-    // 보관 시간 포맷팅
-    let durationText;
-    if (frozenDurationSeconds < 60) {
-      durationText = `${frozenDurationSeconds}초`;
-    } else if (frozenDurationSeconds < 3600) {
-      durationText = `${Math.floor(frozenDurationSeconds / 60)}분`;
-    } else {
-      const hours = Math.floor(frozenDurationSeconds / 3600);
-      const minutes = Math.floor((frozenDurationSeconds % 3600) / 60);
-      durationText = minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
-    }
-    
     const updatedLogs = addActivityLog(
       activityLogs || [],
       "FRIDGE",
-      `냉장고에서 꺼냈습니다. (${durationText} 동안 보관) - ${randomMessage}`
+      buildTakeOutFridgeLogText(frozenDurationSeconds, randomMessage)
     );
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     await setDigimonStatsAndSave(updatedStats, updatedLogs);
