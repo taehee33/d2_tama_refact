@@ -32,6 +32,7 @@ describe("UserDirectoryPanel", () => {
         operatorCount: 1,
         generalUserCount: 0,
       },
+      recentEvents: [],
       users: [
         {
           uid: "operator-1",
@@ -63,6 +64,22 @@ describe("UserDirectoryPanel", () => {
           operatorCount: 1,
           generalUserCount: 1,
         },
+        recentEvents: [
+          {
+            id: "event-1",
+            targetUid: "user-1",
+            targetEmail: "user@example.com",
+            targetName: "일반 사용자",
+            actedBy: "operator-1",
+            actedByEmail: "operator@example.com",
+            actedByName: "운영자",
+            beforeIsOperator: false,
+            afterIsOperator: true,
+            actedAt: "2026-04-12T12:00:00.000Z",
+            source: "user-directory",
+            actionLabel: "운영자 지정",
+          },
+        ],
         users: [
           {
             uid: "operator-1",
@@ -98,6 +115,22 @@ describe("UserDirectoryPanel", () => {
           operatorCount: 2,
           generalUserCount: 0,
         },
+        recentEvents: [
+          {
+            id: "event-2",
+            targetUid: "user-1",
+            targetEmail: "user@example.com",
+            targetName: "일반 사용자",
+            actedBy: "operator-1",
+            actedByEmail: "operator@example.com",
+            actedByName: "운영자",
+            beforeIsOperator: false,
+            afterIsOperator: true,
+            actedAt: "2026-04-12T12:30:00.000Z",
+            source: "user-directory",
+            actionLabel: "운영자 지정",
+          },
+        ],
         users: [
           {
             uid: "operator-1",
@@ -146,5 +179,8 @@ describe("UserDirectoryPanel", () => {
     await waitFor(() => expect(mockFetchArenaUserDirectory).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("button", { name: "운영자 지정" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "운영자 해제" })).toHaveLength(2);
+    expect(screen.getByText("최근 권한 변경")).toBeInTheDocument();
+    expect(screen.getByText("운영자 지정")).toBeInTheDocument();
+    expect(screen.getByText("변경 전 / 후")).toBeInTheDocument();
   });
 });

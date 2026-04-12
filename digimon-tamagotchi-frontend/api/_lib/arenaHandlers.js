@@ -31,6 +31,7 @@ const USER_COLLECTION = "users";
 const USER_PROFILE_SUBCOLLECTION = "profile";
 const USER_PROFILE_DOC_ID = "main";
 const MAX_ARENA_RESET_ENTRIES = 450;
+const MAX_OPERATOR_ROLE_EVENT_PREVIEW = 12;
 
 function resolveSupabaseClient(deps) {
   return deps.getSupabaseAdminClient ? deps.getSupabaseAdminClient() : getSupabaseAdmin();
@@ -133,6 +134,45 @@ function buildUserDirectoryItem(userDocument, profileData = {}, operatorRole = n
     roleLabel: formatUserRoleSummary({
       isOperator,
     }),
+  };
+}
+
+function formatOperatorRoleEventAction(afterIsOperator) {
+  return afterIsOperator ? "운영자 지정" : "운영자 해제";
+}
+
+function buildOperatorRoleEventItem(eventDocument, userDirectoryByUid = new Map()) {
+  const eventData = eventDocument?.data || {};
+  const targetUid = normalizeString(eventData.targetUid);
+  const actedBy = normalizeString(eventData.actedBy);
+  const targetUser = userDirectoryByUid.get(targetUid) || null;
+  const actorUser = userDirectoryByUid.get(actedBy) || null;
+  const actedAt = resolveUserTimestamp(eventData.actedAt);
+  const afterIsOperator = Boolean(eventData.afterIsOperator);
+
+  return {
+    id: normalizeString(eventDocument?.id),
+    targetUid,
+    targetEmail: normalizeString(eventData.targetEmail),
+    targetName:
+      targetUser?.tamerName ||
+      targetUser?.displayName ||
+      normalizeString(eventData.targetEmail) ||
+      targetUid ||
+      "알 수 없는 사용자",
+    actedBy,
+    actedByEmail: normalizeString(eventData.actedByEmail),
+    actedByName:
+      actorUser?.tamerName ||
+      actorUser?.displayName ||
+      normalizeString(eventData.actedByEmail) ||
+      actedBy ||
+      "알 수 없는 운영자",
+    beforeIsOperator: Boolean(eventData.beforeIsOperator),
+    afterIsOperator,
+    actedAt,
+    source: normalizeString(eventData.source, "user-directory"),
+    actionLabel: formatOperatorRoleEventAction(afterIsOperator),
   };
 }
 
@@ -617,12 +657,15 @@ function createArenaUserDirectoryHandler(deps = {}) {
       const decodedToken = await verifyUser(req);
       await assertUserDirectoryAccess(decodedToken, deps);
 
-      const [userDocuments, operatorRoles] = await Promise.all([
+      const [userDocuments, operatorRoles, operatorRoleEvents] = await Promise.all([
         listCollectionDocuments(USER_COLLECTION, {
           pageSize: 200,
         }),
         listOperatorRoles({
           listDocuments: listCollectionDocuments,
+        }),
+        listCollectionDocuments(OPERATOR_ROLE_EVENTS_COLLECTION, {
+          pageSize: 100,
         }),
       ]);
       const operatorRoleByUid = new Map(operatorRoles.map((role) => [role.uid, role]));
@@ -663,9 +706,20 @@ function createArenaUserDirectoryHandler(deps = {}) {
             "ko"
           );
         });
+      const userDirectoryByUid = new Map(users.map((user) => [user.uid, user]));
+      const recentEvents = operatorRoleEvents
+        .map((eventDocument) => buildOperatorRoleEventItem(eventDocument, userDirectoryByUid))
+        .filter((event) => event.id && event.actedAt)
+        .sort((left, right) => {
+          const leftTime = left.actedAt ? new Date(left.actedAt).getTime() : 0;
+          const rightTime = right.actedAt ? new Date(right.actedAt).getTime() : 0;
+          return rightTime - leftTime;
+        })
+        .slice(0, MAX_OPERATOR_ROLE_EVENT_PREVIEW);
 
       sendJson(res, 200, {
         users,
+        recentEvents,
         summary: {
           totalUsers: users.length,
           operatorCount: users.filter((item) => item.isOperator).length,

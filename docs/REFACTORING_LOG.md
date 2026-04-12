@@ -20,6 +20,7 @@
   - `operator_role_events/{eventId}` 감사 로그를 추가해 사용자 디렉터리에서 권한을 지정·해제할 때 누가 누구를 변경했는지 기록하도록 했다.
   - 기존 `api/arena/admin/config` 엔드포인트에 `action=set-operator`를 추가해 함수 수를 늘리지 않고 운영자 지정/해제를 처리하도록 확장했다.
   - 사용자 디렉터리 패널에 `운영자 지정 / 운영자 해제` 버튼, 마지막 운영자 보호 문구, Firestore 기준 역할 갱신 시각을 추가했다.
+  - 사용자 디렉터리 응답에 최근 `operator_role_events`를 함께 실어 보내고, 화면 아래쪽에서 최근 권한 변경 이력을 바로 확인할 수 있도록 추가했다.
   - 기존 `OPERATOR_*`, `ARENA_ADMIN_*`, `NEWS_EDITOR_*` 환경변수를 읽어 Firestore 역할 문서를 만드는 1회용 `operator:backfill` 스크립트를 추가했다.
 
 ### 영향받은 파일

@@ -33,6 +33,7 @@ function getUserRoleBadgeClassName(user) {
 export default function UserDirectoryPanel({ currentUser }) {
   const [userDirectory, setUserDirectory] = useState([]);
   const [userDirectorySummary, setUserDirectorySummary] = useState(createEmptyUserDirectorySummary());
+  const [recentRoleEvents, setRecentRoleEvents] = useState([]);
   const [userDirectoryLoading, setUserDirectoryLoading] = useState(false);
   const [userDirectoryError, setUserDirectoryError] = useState("");
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -64,6 +65,7 @@ export default function UserDirectoryPanel({ currentUser }) {
     if (!currentUser) {
       setUserDirectory([]);
       setUserDirectorySummary(createEmptyUserDirectorySummary());
+      setRecentRoleEvents([]);
       setUserDirectoryError("로그인이 필요합니다.");
       return;
     }
@@ -74,10 +76,12 @@ export default function UserDirectoryPanel({ currentUser }) {
       const payload = await fetchArenaUserDirectory(currentUser);
       setUserDirectory(Array.isArray(payload?.users) ? payload.users : []);
       setUserDirectorySummary(payload?.summary || createEmptyUserDirectorySummary());
+      setRecentRoleEvents(Array.isArray(payload?.recentEvents) ? payload.recentEvents : []);
     } catch (error) {
       console.error("사용자 목록 로드 오류:", error);
       setUserDirectory([]);
       setUserDirectorySummary(createEmptyUserDirectorySummary());
+      setRecentRoleEvents([]);
       setUserDirectoryError(error.message || "사용자 목록을 불러오지 못했습니다.");
     } finally {
       setUserDirectoryLoading(false);
@@ -287,6 +291,73 @@ export default function UserDirectoryPanel({ currentUser }) {
                 </article>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-bold">최근 권한 변경</h3>
+          <p className="text-xs text-gray-500">최근 {recentRoleEvents.length}건</p>
+        </div>
+
+        {userDirectoryLoading ? (
+          <p className="text-sm text-gray-500">권한 변경 이력을 불러오는 중입니다.</p>
+        ) : recentRoleEvents.length === 0 ? (
+          <p className="text-sm text-gray-500">아직 기록된 권한 변경 이력이 없습니다.</p>
+        ) : (
+          <div className="space-y-3">
+            {recentRoleEvents.map((event) => (
+              <article
+                key={event.id}
+                className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4"
+              >
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-bold ${
+                          event.afterIsOperator
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        {event.actionLabel}
+                      </span>
+                      <strong className="text-base text-gray-900">{event.targetName}</strong>
+                    </div>
+                    <div className="space-y-1 text-sm text-gray-600">
+                      <p>대상 UID: {event.targetUid || "기록 없음"}</p>
+                      <p>대상 이메일: {event.targetEmail || "미등록"}</p>
+                      <p>
+                        변경자: {event.actedByName}
+                        {event.actedByEmail ? ` (${event.actedByEmail})` : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 text-sm text-gray-600 sm:grid-cols-2 lg:min-w-[420px]">
+                    <div className="rounded-lg border border-white bg-white px-3 py-2">
+                      <p className="text-xs text-gray-500">변경 전 / 후</p>
+                      <p className="font-semibold text-gray-900">
+                        {event.beforeIsOperator ? "운영자" : "일반"} →{" "}
+                        {event.afterIsOperator ? "운영자" : "일반"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-white bg-white px-3 py-2">
+                      <p className="text-xs text-gray-500">변경 시각</p>
+                      <p className="font-semibold text-gray-900">
+                        {formatUserTimestamp(event.actedAt)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-white bg-white px-3 py-2 sm:col-span-2">
+                      <p className="text-xs text-gray-500">기록 출처</p>
+                      <p className="font-semibold text-gray-900">{event.source || "user-directory"}</p>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>

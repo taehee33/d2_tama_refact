@@ -382,6 +382,37 @@ test("arena user directory handler returns normalized users and role summary", a
         ];
       }
 
+      if (path === "operator_role_events") {
+        return [
+          {
+            id: "event-older",
+            data: {
+              targetUid: "news-1",
+              targetEmail: "news@example.com",
+              beforeIsOperator: false,
+              afterIsOperator: true,
+              actedBy: "admin-1",
+              actedByEmail: "admin@example.com",
+              actedAt: "2026-04-11T06:00:00.000Z",
+              source: "user-directory",
+            },
+          },
+          {
+            id: "event-latest",
+            data: {
+              targetUid: "user-1",
+              targetEmail: "user@example.com",
+              beforeIsOperator: true,
+              afterIsOperator: false,
+              actedBy: "admin-1",
+              actedByEmail: "admin@example.com",
+              actedAt: "2026-04-12T07:00:00.000Z",
+              source: "user-directory",
+            },
+          },
+        ];
+      }
+
       return [];
     },
     getDocument: async (path) => {
@@ -443,6 +474,13 @@ test("arena user directory handler returns normalized users and role summary", a
   assert.equal(res.body.users[0].roleUpdatedAt, "2026-04-12T06:00:00.000Z");
   assert.equal(res.body.users[1].roleLabel, "운영자");
   assert.equal(res.body.users[2].roleLabel, "일반");
+  assert.equal(res.body.recentEvents.length, 2);
+  assert.equal(res.body.recentEvents[0].id, "event-latest");
+  assert.equal(res.body.recentEvents[0].actionLabel, "운영자 해제");
+  assert.equal(res.body.recentEvents[0].targetName, "일반 유저");
+  assert.equal(res.body.recentEvents[0].actedByName, "관리자 테이머");
+  assert.equal(res.body.recentEvents[1].id, "event-older");
+  assert.equal(res.body.recentEvents[1].actionLabel, "운영자 지정");
 });
 
 test("arena set operator handler grants operator role and writes audit log", async () => {

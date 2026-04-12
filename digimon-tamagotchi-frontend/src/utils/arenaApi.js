@@ -142,6 +142,7 @@ export async function fetchArenaUserDirectory(currentUser) {
 
   return {
     users: Array.isArray(payload?.users) ? payload.users : [],
+    recentEvents: Array.isArray(payload?.recentEvents) ? payload.recentEvents : [],
     summary: payload?.summary || null,
   };
 }
