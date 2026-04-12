@@ -3,9 +3,12 @@ const assert = require("node:assert/strict");
 
 const {
   BOARD_ID_FREE,
+  BOARD_ID_NEWS,
   BOARD_ID_SUPPORT,
   buildCommunitySnapshot,
+  getCommunityBoardViewer,
   listCommunityPosts,
+  NEWS_BOARD_CATEGORY_PATCH,
   resolveStageLabel,
   SUPPORT_BOARD_CATEGORY_BUG,
   validateCommentPayload,
@@ -369,6 +372,53 @@ test("validatePostPayload supports support board category and supportContext val
   });
 });
 
+test("validatePostPayload supports news board category and newsContext validation", () => {
+  const invalidValidation = validatePostPayload(
+    {
+      category: "",
+      title: "패치 노트",
+      body: "",
+      newsContext: {
+        version: "x".repeat(41),
+      },
+    },
+    { boardId: BOARD_ID_NEWS }
+  );
+  const validValidation = validatePostPayload(
+    {
+      category: NEWS_BOARD_CATEGORY_PATCH,
+      title: "패치 노트",
+      body: "저장 안정화를 적용했습니다.",
+      newsContext: {
+        summary: "저장 처리 안정화",
+        version: "Ver.2.1.0",
+        scope: "저장 흐름",
+        startsAt: "2026-04-12T12:00:00.000Z",
+        endsAt: "2026-04-12T18:00:00.000Z",
+        featured: true,
+      },
+    },
+    { boardId: BOARD_ID_NEWS }
+  );
+
+  assert.equal(invalidValidation.isValid, false);
+  assert.deepEqual(invalidValidation.errors, [
+    "말머리를 선택해 주세요.",
+    "내용을 입력해 주세요.",
+    "버전은 40자 이하로 입력해 주세요.",
+  ]);
+  assert.equal(validValidation.isValid, true);
+  assert.equal(validValidation.value.category, "patch");
+  assert.deepEqual(validValidation.value.newsContext, {
+    summary: "저장 처리 안정화",
+    version: "Ver.2.1.0",
+    scope: "저장 흐름",
+    startsAt: "2026-04-12T12:00:00.000Z",
+    endsAt: "2026-04-12T18:00:00.000Z",
+    featured: true,
+  });
+});
+
 test("validateCommentPayload requires non-empty body", () => {
   const validation = validateCommentPayload({ body: " " });
 
@@ -530,4 +580,128 @@ test("listCommunityPosts filters by support board category when requested", asyn
 
   assert.equal(state.boardId, "support");
   assert.equal(state.category, "category:solved");
+});
+
+test("listCommunityPosts filters by news board category and marks editor permissions", async () => {
+  const state = {
+    boardId: "",
+    category: "",
+  };
+
+  const previousUids = process.env.NEWS_EDITOR_UIDS;
+  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
+  process.env.NEWS_EDITOR_UIDS = "editor-1";
+  process.env.NEWS_EDITOR_EMAILS = "";
+
+  const supabase = {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq(column, value) {
+                if (column === "board_id") {
+                  state.boardId = value;
+                  return {
+                    eq(nextColumn, nextValue) {
+                      state.category = `${nextColumn}:${nextValue}`;
+                      return {
+                        order() {
+                          return {
+                            limit: async () => ({
+                              data: [
+                                {
+                                  id: "news-1",
+                                  board_id: "news",
+                                  category: "patch",
+                                  author_uid: "editor-1",
+                                  author_tamer_name: "운영팀",
+                                  slot_id: null,
+                                  title: "패치 노트",
+                                  body: "본문",
+                                  snapshot: null,
+                                  support_context: null,
+                                  news_context: {
+                                    version: "Ver.2.1.0",
+                                  },
+                                  image_path: null,
+                                  comment_count: 0,
+                                  created_at: "2026-04-12T10:00:00.000Z",
+                                  updated_at: "2026-04-12T10:00:00.000Z",
+                                },
+                              ],
+                              error: null,
+                            }),
+                          };
+                        },
+                      };
+                    },
+                    order() {
+                      return {
+                        limit: async () => ({
+                          data: [],
+                          error: null,
+                        }),
+                      };
+                    },
+                  };
+                }
+
+                throw new Error(`Unexpected column: ${column}`);
+              },
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          select() {
+            return {
+              in() {
+                return {
+                  order: async () => ({
+                    data: [],
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+    storage: {
+      from() {
+        return {
+          getPublicUrl(path) {
+            return { data: { publicUrl: path } };
+          },
+        };
+      },
+    },
+  };
+
+  const posts = await listCommunityPosts({
+    supabase,
+    boardId: BOARD_ID_NEWS,
+    category: "patch",
+    viewerUid: "editor-1",
+    decodedToken: { uid: "editor-1", email: "editor@example.com" },
+  });
+
+  assert.equal(state.boardId, "news");
+  assert.equal(state.category, "category:patch");
+  assert.equal(posts[0].canManage, true);
+  assert.deepEqual(getCommunityBoardViewer({
+    boardId: BOARD_ID_NEWS,
+    decodedToken: { uid: "editor-1" },
+  }), {
+    canCreate: true,
+  });
+
+  process.env.NEWS_EDITOR_UIDS = previousUids;
+  process.env.NEWS_EDITOR_EMAILS = previousEmails;
 });

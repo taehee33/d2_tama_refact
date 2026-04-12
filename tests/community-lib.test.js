@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 
 const {
   BOARD_ID_FREE,
+  BOARD_ID_NEWS,
   BOARD_ID_SUPPORT,
   buildCommunitySnapshot,
   buildCommunitySnapshotFromPreview,
@@ -43,6 +44,7 @@ function createSupabaseInsertStub() {
           body: state.insertedPayload.body,
           snapshot: state.insertedPayload.snapshot,
           support_context: state.insertedPayload.support_context,
+          news_context: state.insertedPayload.news_context,
           image_path: state.insertedPayload.image_path,
           comment_count: state.insertedPayload.comment_count,
           created_at: "2026-04-01T12:00:00.000Z",
@@ -189,6 +191,7 @@ test("검증 헬퍼는 글/댓글 길이와 필수값을 확인한다", () => {
       category: "guide",
       title: "자유게시판 공략",
       body: "루틴 메모입니다.",
+      newsContext: null,
       supportContext: null,
     }
   );
@@ -212,6 +215,7 @@ test("검증 헬퍼는 글/댓글 길이와 필수값을 확인한다", () => {
       category: "bug",
       title: "버그 제보",
       body: "저장 후 화면이 멈춥니다.",
+      newsContext: null,
       supportContext: {
         slotNumber: "1",
         screenPath: "/play/1",
@@ -525,4 +529,92 @@ test("createCommunityPost는 support 글을 supportContext와 이미지와 함�
   assert.match(state.uploadedPaths[0], /^support\/user-1\/.+\.png$/);
   assert.equal(post.supportContext.screenPath, "/play/1");
   assert.equal(post.imagePath, state.uploadedPaths[0]);
+});
+
+test("createCommunityPost는 news 글을 newsContext와 이미지와 함께 저장한다", async () => {
+  const { supabase, state } = createSupabaseInsertStub();
+  const previousUids = process.env.NEWS_EDITOR_UIDS;
+  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
+  process.env.NEWS_EDITOR_UIDS = "editor-1";
+  process.env.NEWS_EDITOR_EMAILS = "";
+
+  const post = await createCommunityPost({
+    supabase,
+    boardId: BOARD_ID_NEWS,
+    uid: "editor-1",
+    decodedToken: {
+      uid: "editor-1",
+      email: "editor@example.com",
+      name: "운영팀",
+      idToken: "token-123",
+    },
+    input: {
+      category: "patch",
+      title: "패치 노트",
+      body: "저장 안정화 패치를 적용했습니다.",
+      newsContext: {
+        summary: "저장 처리 안정화",
+        version: "Ver.2.1.0",
+        scope: "저장 흐름",
+        startsAt: "2026-04-12T12:00",
+        endsAt: "2026-04-12T18:00",
+        featured: true,
+      },
+      image: {
+        fileName: "news-post.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZS1pbWFnZQ==",
+      },
+    },
+    resolveAuthorName: async () => "운영팀",
+  });
+
+  assert.equal(state.insertedPayload.board_id, "news");
+  assert.equal(state.insertedPayload.category, "patch");
+  assert.deepEqual(state.insertedPayload.news_context, {
+    summary: "저장 처리 안정화",
+    version: "Ver.2.1.0",
+    scope: "저장 흐름",
+    startsAt: "2026-04-12T03:00:00.000Z",
+    endsAt: "2026-04-12T09:00:00.000Z",
+    featured: true,
+  });
+  assert.match(state.uploadedPaths[0], /^news\/editor-1\/.+\.png$/);
+  assert.equal(post.newsContext.version, "Ver.2.1.0");
+  assert.equal(post.canManage, false);
+
+  process.env.NEWS_EDITOR_UIDS = previousUids;
+  process.env.NEWS_EDITOR_EMAILS = previousEmails;
+});
+
+test("createCommunityPost는 news 발행 권한이 없으면 거부한다", async () => {
+  const { supabase } = createSupabaseInsertStub();
+  const previousUids = process.env.NEWS_EDITOR_UIDS;
+  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
+  process.env.NEWS_EDITOR_UIDS = "";
+  process.env.NEWS_EDITOR_EMAILS = "";
+
+  await assert.rejects(
+    createCommunityPost({
+      supabase,
+      boardId: BOARD_ID_NEWS,
+      uid: "user-1",
+      decodedToken: {
+        uid: "user-1",
+        email: "user@example.com",
+        name: "일반유저",
+        idToken: "token-123",
+      },
+      input: {
+        category: "notice",
+        title: "공지",
+        body: "본문",
+      },
+      resolveAuthorName: async () => "일반유저",
+    }),
+    /소식 발행 권한이 없습니다\./
+  );
+
+  process.env.NEWS_EDITOR_UIDS = previousUids;
+  process.env.NEWS_EDITOR_EMAILS = previousEmails;
 });

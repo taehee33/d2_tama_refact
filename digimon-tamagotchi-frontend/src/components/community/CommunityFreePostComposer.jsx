@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   communityFreeBoardCategories,
+  newsCategories,
   communitySupportCategories,
   supportGameVersionOptions,
 } from "../../data/serviceContent";
@@ -16,6 +17,12 @@ function CommunityFreePostComposer({
   supportSlotNumber = "",
   supportScreenPath = "",
   supportGameVersion = "",
+  newsSummary = "",
+  newsVersion = "",
+  newsScope = "",
+  newsStartsAt = "",
+  newsEndsAt = "",
+  newsFeatured = false,
   imagePreviewUrl,
   imageName,
   imageErrorMessage,
@@ -29,6 +36,12 @@ function CommunityFreePostComposer({
   onSupportSlotNumberChange,
   onSupportScreenPathChange,
   onSupportGameVersionChange,
+  onNewsSummaryChange,
+  onNewsVersionChange,
+  onNewsScopeChange,
+  onNewsStartsAtChange,
+  onNewsEndsAtChange,
+  onNewsFeaturedChange,
   onImageChange,
   onRemoveImage,
   onSubmit,
@@ -40,26 +53,44 @@ function CommunityFreePostComposer({
   const [localImageName, setLocalImageName] = useState("");
   const [localImageErrorMessage, setLocalImageErrorMessage] = useState("");
   const isSupportBoard = boardId === "support";
+  const isNewsBoard = boardId === "news";
   const categoryOptions = (
-    isSupportBoard ? communitySupportCategories : communityFreeBoardCategories
+    isSupportBoard
+      ? communitySupportCategories
+      : isNewsBoard
+        ? newsCategories
+        : communityFreeBoardCategories
   ).filter((item) => item.id !== "all");
   const resolvedImagePreviewUrl = imagePreviewUrl || localImagePreviewUrl;
   const resolvedImageName = imageName || localImageName;
   const resolvedImageErrorMessage = imageErrorMessage || localImageErrorMessage;
   const hasVisibleImage = Boolean(resolvedImagePreviewUrl) || hasExistingImage;
-  const boardTitle = isSupportBoard ? "버그제보 / QnA" : "자유게시판";
+  const boardTitle = isSupportBoard
+    ? "버그제보 / QnA"
+    : isNewsBoard
+      ? "소식"
+      : "자유게시판";
   const introText = isSupportBoard
     ? "버그 제보와 QnA는 재현 정보가 많을수록 확인이 빨라집니다. 말머리와 추가 정보를 함께 적어 두면 같은 문제를 찾는 사람에게도 도움이 됩니다."
+    : isNewsBoard
+      ? "소식 탭은 운영팀이 발행하는 공식 피드입니다. 말머리, 한 줄 요약, 일정 정보를 함께 적어 두면 공지와 패치 흐름을 빠르게 읽을 수 있습니다."
     : "자유게시판은 텍스트 중심으로 빠르게 읽히는 흐름을 우선합니다. 말머리와 제목을 맞춰 두면 질문과 공략이 훨씬 잘 정리됩니다.";
   const titlePlaceholder = isSupportBoard
     ? "예: /play/1 진입 후 저장 상태가 반영되지 않습니다"
+    : isNewsBoard
+      ? "예: Ver.2 저장 처리 안정화 패치를 적용했습니다"
     : "예: 완전체 루트에서 실수 줄이는 팁 있나요?";
   const bodyPlaceholder = isSupportBoard
     ? "발생 상황, 재현 순서, 기대한 동작이나 현재 궁금한 점을 함께 적어 주세요."
+    : isNewsBoard
+      ? "이번 소식의 상세 변경점, 영향 범위, 주의 사항을 정리해 주세요."
     : "오늘 플레이 근황, 질문, 공략 메모를 자유롭게 남겨 주세요.";
   const imageNote = isSupportBoard
     ? "오류 화면이나 재현 상황 캡처를 1장만 첨부할 수 있습니다. 목록에는 이미지를 보여주지 않고 상세에서만 노출합니다."
+    : isNewsBoard
+      ? "대표 이미지나 공지 배너를 1장만 첨부할 수 있습니다. 목록에는 이미지를 노출하지 않고 상세에서만 보여 줍니다."
     : "JPG, PNG, WebP 이미지를 1장만 첨부할 수 있습니다. 텍스트 보드 흐름을 위해 목록에는 이미지를 보여주지 않고 상세에서만 노출합니다.";
+  const submitLabel = isNewsBoard ? "소식 발행" : "글 올리기";
 
   useEffect(() => {
     return () => {
@@ -240,6 +271,84 @@ function CommunityFreePostComposer({
           </div>
         ) : null}
 
+        {isNewsBoard ? (
+          <div className="community-composer-support-grid community-composer-support-grid--news">
+            <label className="community-field">
+              <span>한 줄 요약</span>
+              <input
+                className="community-input"
+                type="text"
+                value={newsSummary}
+                maxLength={140}
+                placeholder="대표 카드에 노출할 짧은 요약"
+                onChange={(event) => onNewsSummaryChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+
+            <label className="community-field">
+              <span>버전</span>
+              <input
+                className="community-input"
+                type="text"
+                value={newsVersion}
+                maxLength={40}
+                placeholder="예: Ver.2.1.0"
+                onChange={(event) => onNewsVersionChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+
+            <label className="community-field">
+              <span>영향 범위</span>
+              <input
+                className="community-input"
+                type="text"
+                value={newsScope}
+                maxLength={80}
+                placeholder="예: 저장 흐름 · 커뮤니티"
+                onChange={(event) => onNewsScopeChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+
+            <label className="community-field">
+              <span>시작 시각</span>
+              <input
+                className="community-input"
+                type="datetime-local"
+                value={newsStartsAt}
+                onChange={(event) => onNewsStartsAtChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+
+            <label className="community-field">
+              <span>종료 시각</span>
+              <input
+                className="community-input"
+                type="datetime-local"
+                value={newsEndsAt}
+                onChange={(event) => onNewsEndsAtChange(event.target.value)}
+                disabled={isSubmitting}
+              />
+            </label>
+
+            <div className="community-field community-field--checkbox">
+              <span>대표 소식</span>
+              <label className="community-checkbox">
+                <input
+                  type="checkbox"
+                  checked={newsFeatured}
+                  onChange={(event) => onNewsFeaturedChange(event.target.checked)}
+                  disabled={isSubmitting}
+                />
+                <span>상단 대표 소식으로 우선 노출</span>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
         <label className="community-field">
           <span>본문</span>
           <textarea
@@ -329,7 +438,7 @@ function CommunityFreePostComposer({
             className="service-button service-button--primary"
             disabled={isSubmitting}
           >
-            {isSubmitting ? "저장 중..." : isEditing ? "수정 저장" : "글 올리기"}
+            {isSubmitting ? "저장 중..." : isEditing ? "수정 저장" : submitLabel}
           </button>
         </div>
       </form>

@@ -3,6 +3,7 @@
 const { verifyRequestUser } = require("../../../_lib/auth");
 const {
   createCommunityPost,
+  getCommunityBoardViewer,
   listCommunityPosts,
   normalizeBoardId,
 } = require("../../../_lib/community");
@@ -34,9 +35,15 @@ module.exports = async function handler(req, res) {
         supabase,
         boardId: normalizedBoardId,
         category,
+        viewerUid: decodedToken.uid,
+        decodedToken,
+      });
+      const viewer = getCommunityBoardViewer({
+        boardId: normalizedBoardId,
+        decodedToken,
       });
 
-      return sendJson(res, 200, { posts });
+      return sendJson(res, 200, { posts, viewer });
     }
 
     const input = await parseJsonBody(req);

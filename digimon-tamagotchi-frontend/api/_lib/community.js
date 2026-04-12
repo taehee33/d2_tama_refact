@@ -7,8 +7,14 @@ const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
 const BOARD_ID_SHOWCASE = "showcase";
 const BOARD_ID_FREE = "free";
 const BOARD_ID_SUPPORT = "support";
+const BOARD_ID_NEWS = "news";
 const BOARD_ID = BOARD_ID_SHOWCASE;
-const SUPPORTED_BOARD_IDS = new Set([BOARD_ID_SHOWCASE, BOARD_ID_FREE, BOARD_ID_SUPPORT]);
+const SUPPORTED_BOARD_IDS = new Set([
+  BOARD_ID_SHOWCASE,
+  BOARD_ID_FREE,
+  BOARD_ID_SUPPORT,
+  BOARD_ID_NEWS,
+]);
 const FREE_BOARD_CATEGORY_GENERAL = "general";
 const FREE_BOARD_CATEGORY_QUESTION = "question";
 const FREE_BOARD_CATEGORY_GUIDE = "guide";
@@ -29,6 +35,17 @@ const SUPPORT_BOARD_CATEGORY_IDS = [
 const SUPPORT_BOARD_CATEGORY_SET = new Set(SUPPORT_BOARD_CATEGORY_IDS);
 const SUPPORT_GAME_VERSION_IDS = ["Ver.1", "Ver.2"];
 const SUPPORT_GAME_VERSION_SET = new Set(SUPPORT_GAME_VERSION_IDS);
+const NEWS_BOARD_CATEGORY_NOTICE = "notice";
+const NEWS_BOARD_CATEGORY_PATCH = "patch";
+const NEWS_BOARD_CATEGORY_EVENT = "event";
+const NEWS_BOARD_CATEGORY_MAINTENANCE = "maintenance";
+const NEWS_BOARD_CATEGORY_IDS = [
+  NEWS_BOARD_CATEGORY_NOTICE,
+  NEWS_BOARD_CATEGORY_PATCH,
+  NEWS_BOARD_CATEGORY_EVENT,
+  NEWS_BOARD_CATEGORY_MAINTENANCE,
+];
+const NEWS_BOARD_CATEGORY_SET = new Set(NEWS_BOARD_CATEGORY_IDS);
 const POSTS_TABLE = "community_posts";
 const COMMENTS_TABLE = "community_post_comments";
 const PREVIEW_COMMENT_LIMIT = 3;
@@ -37,6 +54,9 @@ const MAX_POST_BODY_LENGTH = 500;
 const MAX_COMMENT_LENGTH = 300;
 const MAX_SUPPORT_SLOT_NUMBER_LENGTH = 24;
 const MAX_SUPPORT_SCREEN_PATH_LENGTH = 120;
+const MAX_NEWS_SUMMARY_LENGTH = 140;
+const MAX_NEWS_VERSION_LENGTH = 40;
+const MAX_NEWS_SCOPE_LENGTH = 80;
 const MAX_POST_IMAGE_BYTES = 2 * 1024 * 1024;
 const COMMUNITY_IMAGE_BUCKET = "community-post-images";
 const POST_IMAGE_MIME_TYPE_TO_EXTENSION = {
@@ -256,6 +276,24 @@ function normalizeSupportBoardCategory(value, { required = true } = {}) {
   return normalizedCategory;
 }
 
+function normalizeNewsBoardCategory(value, { required = true } = {}) {
+  const normalizedCategory = normalizeString(value);
+
+  if (!normalizedCategory) {
+    if (required) {
+      throw createCommunityError(400, "말머리를 선택해 주세요.");
+    }
+
+    return "";
+  }
+
+  if (!NEWS_BOARD_CATEGORY_SET.has(normalizedCategory)) {
+    throw createCommunityError(400, "올바른 말머리를 선택해 주세요.");
+  }
+
+  return normalizedCategory;
+}
+
 function normalizeBoardCategory(boardId, value, { required = true } = {}) {
   const normalizedBoardId = normalizeBoardId(boardId);
 
@@ -265,6 +303,10 @@ function normalizeBoardCategory(boardId, value, { required = true } = {}) {
 
   if (normalizedBoardId === BOARD_ID_SUPPORT) {
     return normalizeSupportBoardCategory(value, { required });
+  }
+
+  if (normalizedBoardId === BOARD_ID_NEWS) {
+    return normalizeNewsBoardCategory(value, { required });
   }
 
   return "";
@@ -322,6 +364,85 @@ function normalizeSupportContext(input) {
   };
 }
 
+function normalizeOptionalIsoTimestamp(value, label) {
+  const normalizedValue = normalizeString(value);
+
+  if (!normalizedValue) {
+    return "";
+  }
+
+  const timestamp = new Date(normalizedValue);
+
+  if (Number.isNaN(timestamp.getTime())) {
+    throw createCommunityError(400, `${label} 형식이 올바르지 않습니다.`);
+  }
+
+  return timestamp.toISOString();
+}
+
+function normalizeOptionalIsoTimestampSafe(value) {
+  try {
+    return normalizeOptionalIsoTimestamp(value, "날짜");
+  } catch (_error) {
+    return "";
+  }
+}
+
+function normalizeNewsContext(input) {
+  if (input === undefined || input === null) {
+    return null;
+  }
+
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw createCommunityError(400, "소식 메타 정보 형식이 올바르지 않습니다.");
+  }
+
+  const summary = normalizeString(input.summary);
+  const version = normalizeString(input.version);
+  const scope = normalizeString(input.scope);
+  const startsAt = normalizeOptionalIsoTimestampSafe(input.startsAt);
+  const endsAt = normalizeOptionalIsoTimestampSafe(input.endsAt);
+  const featured = Boolean(input.featured);
+
+  if (summary.length > MAX_NEWS_SUMMARY_LENGTH) {
+    throw createCommunityError(
+      400,
+      `한 줄 요약은 ${MAX_NEWS_SUMMARY_LENGTH}자 이하로 입력해 주세요.`
+    );
+  }
+
+  if (version.length > MAX_NEWS_VERSION_LENGTH) {
+    throw createCommunityError(
+      400,
+      `버전은 ${MAX_NEWS_VERSION_LENGTH}자 이하로 입력해 주세요.`
+    );
+  }
+
+  if (scope.length > MAX_NEWS_SCOPE_LENGTH) {
+    throw createCommunityError(
+      400,
+      `영향 범위는 ${MAX_NEWS_SCOPE_LENGTH}자 이하로 입력해 주세요.`
+    );
+  }
+
+  if (startsAt && endsAt && new Date(startsAt).getTime() > new Date(endsAt).getTime()) {
+    throw createCommunityError(400, "종료 시각은 시작 시각보다 빠를 수 없습니다.");
+  }
+
+  if (!summary && !version && !scope && !startsAt && !endsAt && !featured) {
+    return null;
+  }
+
+  return {
+    ...(summary ? { summary } : {}),
+    ...(version ? { version } : {}),
+    ...(scope ? { scope } : {}),
+    ...(startsAt ? { startsAt } : {}),
+    ...(endsAt ? { endsAt } : {}),
+    ...(featured ? { featured: true } : {}),
+  };
+}
+
 function mapSupportContext(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return null;
@@ -341,6 +462,64 @@ function mapSupportContext(input) {
     ...(screenPath ? { screenPath } : {}),
     ...(gameVersion ? { gameVersion } : {}),
   };
+}
+
+function mapNewsContext(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
+  }
+
+  const summary = normalizeString(input.summary).slice(0, MAX_NEWS_SUMMARY_LENGTH);
+  const version = normalizeString(input.version).slice(0, MAX_NEWS_VERSION_LENGTH);
+  const scope = normalizeString(input.scope).slice(0, MAX_NEWS_SCOPE_LENGTH);
+  const startsAt = normalizeOptionalIsoTimestamp(input.startsAt, "시작 시각");
+  const endsAt = normalizeOptionalIsoTimestamp(input.endsAt, "종료 시각");
+  const featured = Boolean(input.featured);
+
+  if (!summary && !version && !scope && !startsAt && !endsAt && !featured) {
+    return null;
+  }
+
+  return {
+    ...(summary ? { summary } : {}),
+    ...(version ? { version } : {}),
+    ...(scope ? { scope } : {}),
+    ...(startsAt ? { startsAt } : {}),
+    ...(endsAt ? { endsAt } : {}),
+    ...(featured ? { featured: true } : {}),
+  };
+}
+
+function normalizeCommaSeparatedList(value) {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isNewsEditor(decodedToken) {
+  if (!decodedToken) {
+    return false;
+  }
+
+  const editorUids = normalizeCommaSeparatedList(process.env.NEWS_EDITOR_UIDS);
+  const editorEmails = normalizeCommaSeparatedList(process.env.NEWS_EDITOR_EMAILS);
+  const uid = normalizeString(decodedToken.uid).toLowerCase();
+  const email = normalizeString(decodedToken.email).toLowerCase();
+
+  return editorUids.includes(uid) || (email ? editorEmails.includes(email) : false);
+}
+
+function assertNewsEditor(decodedToken) {
+  if (!isNewsEditor(decodedToken)) {
+    throw createCommunityError(403, "소식 발행 권한이 없습니다.");
+  }
+
+  return decodedToken;
 }
 
 function normalizeImageAction(value) {
@@ -405,7 +584,7 @@ function parsePostImageInput(rawImage) {
 function normalizePostImageMutation(input = {}, options = {}) {
   const boardId = normalizeBoardId(options.boardId || BOARD_ID_SHOWCASE);
 
-  if (boardId !== BOARD_ID_FREE && boardId !== BOARD_ID_SUPPORT) {
+  if (boardId !== BOARD_ID_FREE && boardId !== BOARD_ID_SUPPORT && boardId !== BOARD_ID_NEWS) {
     if (input.image !== undefined || input.imageAction !== undefined) {
       throw createCommunityError(400, "이미지 첨부는 텍스트 게시판에서만 사용할 수 있습니다.");
     }
@@ -452,8 +631,8 @@ function validatePostInput(input = {}, options = {}) {
     throw createCommunityError(400, `게시글 본문은 ${MAX_POST_BODY_LENGTH}자 이하로 입력해 주세요.`);
   }
 
-  if (boardId === BOARD_ID_FREE || boardId === BOARD_ID_SUPPORT) {
-    if (boardId === BOARD_ID_SUPPORT && !body) {
+  if (boardId === BOARD_ID_FREE || boardId === BOARD_ID_SUPPORT || boardId === BOARD_ID_NEWS) {
+    if ((boardId === BOARD_ID_SUPPORT || boardId === BOARD_ID_NEWS) && !body) {
       throw createCommunityError(400, "게시글 내용을 입력해 주세요.");
     }
 
@@ -464,6 +643,8 @@ function validatePostInput(input = {}, options = {}) {
       body,
       supportContext:
         boardId === BOARD_ID_SUPPORT ? normalizeSupportContext(input.supportContext) : null,
+      newsContext:
+        boardId === BOARD_ID_NEWS ? normalizeNewsContext(input.newsContext) : null,
     };
   }
 
@@ -555,18 +736,25 @@ function validatePostPayload(
   const rawSlotId = normalizeString(input.slotId);
   const rawCategory = normalizeString(input.category);
   const hasSupportContext = input.supportContext !== undefined;
+  const hasNewsContext = input.newsContext !== undefined;
   let normalizedSupportContext = null;
+  let normalizedNewsContext = null;
 
   if (normalizedBoardId === BOARD_ID_SHOWCASE && requireSlotId && !rawSlotId) {
     errors.push("슬롯을 선택해 주세요.");
   }
 
-  if (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) {
+  if (
+    normalizedBoardId === BOARD_ID_FREE ||
+    normalizedBoardId === BOARD_ID_SUPPORT ||
+    normalizedBoardId === BOARD_ID_NEWS
+  ) {
     if (!rawCategory) {
       errors.push("말머리를 선택해 주세요.");
     } else if (
       (normalizedBoardId === BOARD_ID_FREE && !FREE_BOARD_CATEGORY_SET.has(rawCategory)) ||
-      (normalizedBoardId === BOARD_ID_SUPPORT && !SUPPORT_BOARD_CATEGORY_SET.has(rawCategory))
+      (normalizedBoardId === BOARD_ID_SUPPORT && !SUPPORT_BOARD_CATEGORY_SET.has(rawCategory)) ||
+      (normalizedBoardId === BOARD_ID_NEWS && !NEWS_BOARD_CATEGORY_SET.has(rawCategory))
     ) {
       errors.push("올바른 말머리를 선택해 주세요.");
     }
@@ -578,7 +766,7 @@ function validatePostPayload(
     errors.push(`제목은 ${MAX_POST_TITLE_LENGTH}자 이하로 입력해 주세요.`);
   }
 
-  if (normalizedBoardId === BOARD_ID_SUPPORT && !body) {
+  if ((normalizedBoardId === BOARD_ID_SUPPORT || normalizedBoardId === BOARD_ID_NEWS) && !body) {
     errors.push("내용을 입력해 주세요.");
   }
 
@@ -594,13 +782,23 @@ function validatePostPayload(
     }
   }
 
+  if (normalizedBoardId === BOARD_ID_NEWS && hasNewsContext) {
+    try {
+      normalizedNewsContext = normalizeNewsContext(input.newsContext);
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
     value: {
       boardId: normalizedBoardId,
       category:
-        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+        normalizedBoardId === BOARD_ID_FREE ||
+        normalizedBoardId === BOARD_ID_SUPPORT ||
+        normalizedBoardId === BOARD_ID_NEWS
           ? rawCategory
           : "",
       slotId: rawSlotId,
@@ -609,6 +807,10 @@ function validatePostPayload(
       supportContext:
         normalizedBoardId === BOARD_ID_SUPPORT
           ? normalizedSupportContext
+          : null,
+      newsContext:
+        normalizedBoardId === BOARD_ID_NEWS
+          ? normalizedNewsContext
           : null,
     },
   };
@@ -640,6 +842,24 @@ function mapCommentRow(row) {
     body: row.body,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function canManageCommunityPost({ boardId, row, viewerUid = "", decodedToken = null }) {
+  const normalizedBoardId = normalizeBoardId(boardId || row?.board_id || BOARD_ID_SHOWCASE);
+
+  if (normalizedBoardId === BOARD_ID_NEWS) {
+    return isNewsEditor(decodedToken);
+  }
+
+  return Boolean(viewerUid && row?.author_uid && row.author_uid === viewerUid);
+}
+
+function getCommunityBoardViewer({ boardId = BOARD_ID_SHOWCASE, decodedToken = null } = {}) {
+  const normalizedBoardId = normalizeBoardId(boardId);
+
+  return {
+    canCreate: normalizedBoardId === BOARD_ID_NEWS ? isNewsEditor(decodedToken) : true,
   };
 }
 
@@ -693,6 +913,7 @@ function mapPostRow(row) {
     body: row.body,
     snapshot: row.snapshot || null,
     supportContext: mapSupportContext(row.support_context),
+    newsContext: mapNewsContext(row.news_context),
     imagePath,
     imageUrl: "",
     imageAlt: imagePath ? `${row.title || "게시글"} 첨부 이미지` : "",
@@ -716,12 +937,20 @@ function resolveCommunityPostImageUrl(supabase, imagePath) {
   return data?.publicUrl || "";
 }
 
-function mapPostRowWithImage(supabase, row) {
+function mapPostRowWithImage(supabase, row, options = {}) {
   const imagePath = row.image_path || "";
+  const viewerUid = normalizeString(options.viewerUid);
+  const boardId = options.boardId || row.board_id || BOARD_ID_SHOWCASE;
 
   return {
     ...mapPostRow(row),
     imageUrl: imagePath ? resolveCommunityPostImageUrl(supabase, imagePath) : "",
+    canManage: canManageCommunityPost({
+      boardId,
+      row,
+      viewerUid,
+      decodedToken: options.decodedToken || null,
+    }),
   };
 }
 
@@ -966,10 +1195,19 @@ async function getCommentRowOrThrow(supabase, commentId) {
   return data;
 }
 
-async function listCommunityPosts({ supabase, boardId = BOARD_ID_SHOWCASE, category = "", limit = 24 }) {
+async function listCommunityPosts({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  category = "",
+  limit = 24,
+  viewerUid = "",
+  decodedToken = null,
+}) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const normalizedCategory =
-    normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+    normalizedBoardId === BOARD_ID_FREE ||
+    normalizedBoardId === BOARD_ID_SUPPORT ||
+    normalizedBoardId === BOARD_ID_NEWS
       ? normalizeBoardCategoryFilter(normalizedBoardId, category)
       : "";
 
@@ -997,12 +1235,22 @@ async function listCommunityPosts({ supabase, boardId = BOARD_ID_SHOWCASE, categ
   );
 
   return rows.map((row) => ({
-    ...mapPostRowWithImage(supabase, row),
+    ...mapPostRowWithImage(supabase, row, {
+      boardId: normalizedBoardId,
+      viewerUid,
+      decodedToken,
+    }),
     previewComments: previewCommentsByPostId[row.id] || [],
   }));
 }
 
-async function getCommunityPostDetail({ supabase, boardId = BOARD_ID_SHOWCASE, postId }) {
+async function getCommunityPostDetail({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  postId,
+  viewerUid = "",
+  decodedToken = null,
+}) {
   const postRow = await getPostRowOrThrow(supabase, boardId, postId);
   const { data: commentRows, error: commentsError } = await supabase
     .from(COMMENTS_TABLE)
@@ -1015,7 +1263,11 @@ async function getCommunityPostDetail({ supabase, boardId = BOARD_ID_SHOWCASE, p
   }
 
   return {
-    post: mapPostRowWithImage(supabase, postRow),
+    post: mapPostRowWithImage(supabase, postRow, {
+      boardId,
+      viewerUid,
+      decodedToken,
+    }),
     comments: (commentRows || []).map(mapCommentRow),
   };
 }
@@ -1043,6 +1295,7 @@ async function createCommunityPost({
   let slotId = null;
   let category = "";
   let supportContext = null;
+  let newsContext = null;
   let uploadedImagePath = "";
 
   if (normalizedBoardId === BOARD_ID_SHOWCASE) {
@@ -1066,9 +1319,15 @@ async function createCommunityPost({
       });
     }
   } else {
+    if (normalizedBoardId === BOARD_ID_NEWS) {
+      assertNewsEditor(decodedToken);
+    }
+
     category = validatedInput.category;
     supportContext =
       normalizedBoardId === BOARD_ID_SUPPORT ? validatedInput.supportContext : null;
+    newsContext =
+      normalizedBoardId === BOARD_ID_NEWS ? validatedInput.newsContext : null;
 
     if (imageMutation.kind === "replace") {
       const uploadResult = await uploadCommunityPostImage({
@@ -1096,6 +1355,7 @@ async function createCommunityPost({
       body,
       snapshot,
       support_context: supportContext,
+      news_context: newsContext,
       image_path: uploadedImagePath || null,
       comment_count: 0,
     })
@@ -1118,12 +1378,15 @@ async function updateCommunityPost({
   boardId = BOARD_ID_SHOWCASE,
   uid,
   postId,
+  decodedToken = null,
   input,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const postRow = await getPostRowOrThrow(supabase, normalizedBoardId, postId);
 
-  if (postRow.author_uid !== uid) {
+  if (normalizedBoardId === BOARD_ID_NEWS) {
+    assertNewsEditor(decodedToken);
+  } else if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 수정할 수 있습니다.");
   }
 
@@ -1133,6 +1396,8 @@ async function updateCommunityPost({
     category: postRow.category || input.category,
     supportContext:
       input.supportContext !== undefined ? input.supportContext : postRow.support_context,
+    newsContext:
+      input.newsContext !== undefined ? input.newsContext : postRow.news_context,
   }, { boardId: normalizedBoardId });
   const imageMutation = normalizePostImageMutation(input, {
     boardId: normalizedBoardId,
@@ -1140,7 +1405,11 @@ async function updateCommunityPost({
   let nextImagePath = postRow.image_path || null;
   let uploadedImagePath = "";
 
-  if (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) {
+  if (
+    normalizedBoardId === BOARD_ID_FREE ||
+    normalizedBoardId === BOARD_ID_SUPPORT ||
+    normalizedBoardId === BOARD_ID_NEWS
+  ) {
     if (imageMutation.kind === "replace") {
       const uploadResult = await uploadCommunityPostImage({
         supabase,
@@ -1161,15 +1430,21 @@ async function updateCommunityPost({
     .from(POSTS_TABLE)
     .update({
       category:
-        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+        normalizedBoardId === BOARD_ID_FREE ||
+        normalizedBoardId === BOARD_ID_SUPPORT ||
+        normalizedBoardId === BOARD_ID_NEWS
           ? validatedInput.category
           : null,
       title: validatedInput.title,
       body: validatedInput.body,
       support_context:
         normalizedBoardId === BOARD_ID_SUPPORT ? validatedInput.supportContext : null,
+      news_context:
+        normalizedBoardId === BOARD_ID_NEWS ? validatedInput.newsContext : null,
       image_path:
-        normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT
+        normalizedBoardId === BOARD_ID_FREE ||
+        normalizedBoardId === BOARD_ID_SUPPORT ||
+        normalizedBoardId === BOARD_ID_NEWS
           ? nextImagePath
           : null,
       updated_at: new Date().toISOString(),
@@ -1184,7 +1459,11 @@ async function updateCommunityPost({
   }
 
   if (
-    (normalizedBoardId === BOARD_ID_FREE || normalizedBoardId === BOARD_ID_SUPPORT) &&
+    (
+      normalizedBoardId === BOARD_ID_FREE ||
+      normalizedBoardId === BOARD_ID_SUPPORT ||
+      normalizedBoardId === BOARD_ID_NEWS
+    ) &&
     postRow.image_path &&
     postRow.image_path !== nextImagePath
   ) {
@@ -1194,10 +1473,18 @@ async function updateCommunityPost({
   return mapPostRowWithImage(supabase, data);
 }
 
-async function deleteCommunityPost({ supabase, boardId = BOARD_ID_SHOWCASE, uid, postId }) {
+async function deleteCommunityPost({
+  supabase,
+  boardId = BOARD_ID_SHOWCASE,
+  uid,
+  postId,
+  decodedToken = null,
+}) {
   const postRow = await getPostRowOrThrow(supabase, boardId, postId);
 
-  if (postRow.author_uid !== uid) {
+  if (normalizeBoardId(boardId) === BOARD_ID_NEWS) {
+    assertNewsEditor(decodedToken);
+  } else if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 삭제할 수 있습니다.");
   }
 
@@ -1371,6 +1658,7 @@ async function deleteShowcaseComment(options = {}) {
 module.exports = {
   BOARD_ID,
   BOARD_ID_FREE,
+  BOARD_ID_NEWS,
   BOARD_ID_SUPPORT,
   BOARD_ID_SHOWCASE,
   COMMENTS_TABLE,
@@ -1378,6 +1666,11 @@ module.exports = {
   FREE_BOARD_CATEGORY_GUIDE,
   FREE_BOARD_CATEGORY_IDS,
   FREE_BOARD_CATEGORY_QUESTION,
+  NEWS_BOARD_CATEGORY_EVENT,
+  NEWS_BOARD_CATEGORY_IDS,
+  NEWS_BOARD_CATEGORY_MAINTENANCE,
+  NEWS_BOARD_CATEGORY_NOTICE,
+  NEWS_BOARD_CATEGORY_PATCH,
   POSTS_TABLE,
   SUPPORT_BOARD_CATEGORY_BUG,
   SUPPORT_BOARD_CATEGORY_IDS,
@@ -1395,13 +1688,16 @@ module.exports = {
   deleteShowcaseComment,
   deleteShowcasePost,
   getCommunityPostDetail,
+  getCommunityBoardViewer,
   getShowcasePostDetail,
+  isNewsEditor,
   listCommunityPosts,
   listShowcasePosts,
   mapCommentRow,
   mapPostRow,
   normalizeBoardId,
   normalizeFreeBoardCategory,
+  normalizeNewsBoardCategory,
   normalizeSupportBoardCategory,
   normalizeSlotId,
   resolveStageLabel,

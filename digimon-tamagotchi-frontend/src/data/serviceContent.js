@@ -31,6 +31,55 @@ export const newsRoadmap = [
   "지원 페이지 FAQ와 문의 경로 고도화",
 ];
 
+export const newsCategories = [
+  { id: "all", label: "전체" },
+  { id: "notice", label: "공지" },
+  { id: "patch", label: "패치노트" },
+  { id: "event", label: "이벤트" },
+  { id: "maintenance", label: "점검" },
+];
+
+const newsCategoryLabels = Object.freeze({
+  notice: "공지",
+  patch: "패치노트",
+  event: "이벤트",
+  maintenance: "점검",
+});
+
+export function getNewsCategoryLabel(category) {
+  return newsCategoryLabels[category] || "공지";
+}
+
+export const newsPinnedPosts = [
+  {
+    id: "news-featured",
+    badge: "대표 소식",
+    title: "대표 소식은 featured 표시가 켜진 글을 우선 노출합니다",
+    description:
+      "중요 공지나 핵심 패치 노트 1건을 맨 위에서 먼저 읽을 수 있게 정리합니다. 대표 표시가 없으면 최신 글이 대신 노출됩니다.",
+  },
+  {
+    id: "news-category",
+    badge: "분류 규칙",
+    title: "공지 · 패치노트 · 이벤트 · 점검을 분리해 흐름을 유지합니다",
+    description:
+      "패치 버전, 일정, 영향 범위를 같이 적어 두면 같은 소식이라도 목적별로 다시 찾기 쉬워집니다.",
+  },
+  {
+    id: "news-comment",
+    badge: "댓글 안내",
+    title: "댓글은 상세에서만 열어 읽기 흐름을 해치지 않게 유지합니다",
+    description:
+      "목록은 빠르게 읽고, 상세에서만 반응과 질문을 확인하도록 분리해 공식 소식 피드 성격을 유지합니다.",
+  },
+];
+
+export const newsOperatorNotes = [
+  "공지에는 이용 변화나 운영 안내를 짧게 정리합니다.",
+  "패치노트에는 버전과 영향 범위를 함께 적어 두는 편이 가장 읽기 쉽습니다.",
+  "이벤트와 점검은 시작 시각과 종료 시각을 함께 남겨 일정 파악을 돕습니다.",
+];
+
 export const communityBoards = [
   {
     id: "free",

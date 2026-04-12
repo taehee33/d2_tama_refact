@@ -4,6 +4,45 @@
 
 ---
 
+## [2026-04-12] 소식 탭을 공식 소식 피드 구조로 전환
+
+### 작업 유형
+- 📰 공식 소식 피드 보드 추가
+- 🔐 운영 계정 화이트리스트 발행 권한 분리
+- 🧪 소식 보드 API/페이지 테스트 보강
+
+### 목적 및 영향
+- **목적:** 정적 카드 2개 수준이던 소식 페이지를 실제 운영 공지·패치 노트·이벤트·점검 피드로 올리고, 자유게시판/지원보드와는 다른 `발행형 구조`를 갖게 한다.
+- **내용:**
+  - 커뮤니티 공용 데이터 모델에 `board_id = news`와 `news_context jsonb`를 추가하고, `notice/patch/event/maintenance` 말머리 및 요약·버전·영향 범위·기간·대표 소식 메타를 저장하도록 확장했다.
+  - 소식 목록/상세는 로그인 후 읽을 수 있고 댓글은 그대로 허용하되, 글 작성/수정/삭제는 `NEWS_EDITOR_UIDS`, `NEWS_EDITOR_EMAILS` 화이트리스트 계정만 가능하도록 서버 권한을 분리했다.
+  - `News.jsx`는 대표 소식 히어로, 말머리 필터, 압축형 피드 목록, 접기형 운영 메모, 소식 전용 발행 모달과 상세 모달을 갖는 공식 피드 페이지로 재구성했다.
+  - 기존 정적 `newsHighlights`, `newsRoadmap`는 실제 피드 데이터로 대체하지 않고, 빈 상태와 운영 메모 영역에서만 보조 안내로 축소 유지했다.
+- **영향:** 소식 탭이 자유게시판과 같은 대화형 게시판이 아니라 운영팀 발행 피드로 역할이 분리되고, 향후 실제 운영 공지 축적과 댓글 반응 흐름을 같은 구조 안에서 이어갈 수 있게 됐다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/pages/News.jsx`
+- `digimon-tamagotchi-frontend/src/components/news/NewsPostRow.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostComposer.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
+- `digimon-tamagotchi-frontend/src/data/serviceContent.js`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.js`
+- `digimon-tamagotchi-frontend/src/utils/communityApi.test.js`
+- `digimon-tamagotchi-frontend/src/pages/News.test.jsx`
+- `digimon-tamagotchi-frontend/src/styles/news.css`
+- `api/_lib/community.js`
+- `api/_lib/community.test.js`
+- `api/community/[boardId]/posts/index.js`
+- `api/community/[boardId]/posts/[postId].js`
+- `tests/community-lib.test.js`
+- `supabase/migrations/20260412_community_news_board.sql`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/community.test.js tests/community-lib.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/News.test.jsx src/utils/communityApi.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-11] 도감 저장을 `version docs + root mirror` 호환 단계로 조정
 
 ### 작업 유형
@@ -5172,3 +5211,27 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/pages/Community.test.jsx src/utils/communityApi.test.js`
 - `node -e "require('./api/_lib/community'); require('./digimon-tamagotchi-frontend/api/_lib/community'); console.log('community-api-ok');"`
 - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] 프로필·테이머명도 새 구조 기준으로 정리
+
+- **목적:** 도감 저장이 `users/{uid}/encyclopedia/{version}` 기준으로 정리된 뒤, 주변 프로필 코드도 신규 쓰기 기준을 새 구조에 맞춘다.
+- **변경사항:**
+  - `userProfileUtils.js`는 `achievements`, `maxSlots`를 `users/{uid}/profile/main`에만 쓰고, root `users/{uid}`는 읽기 fallback으로만 남겼다.
+  - `tamerNameUtils.js`는 테이머명 저장·기본값 초기화를 `profile/main` 기준으로 바꾸고, root `tamerName`는 과거 데이터 fallback으로만 읽는다.
+  - `Login.jsx`는 root `users/{uid}`에 일반 계정 정보만 저장하고, 테이머명 기본 상태는 `initializeTamerName()`를 통해 `profile/main`에서 시작하도록 정리했다.
+  - `backfillUserEncyclopedia.js`는 현재 런타임 계약에 맞춰 root encyclopedia mirror를 다시 쓰지 않고, root에는 `encyclopediaStructure`, `encyclopediaMigration` 메타데이터만 남기도록 맞췄다.
+- **현재 상태:**
+  - 도감 저장: `users/{uid}/encyclopedia/{version}`
+  - 프로필 저장: `users/{uid}/profile/main`
+  - 조회: 새 구조 우선 + legacy root fallback
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/userProfileUtils.js`
+  - `digimon-tamagotchi-frontend/src/utils/userProfileUtils.test.js`
+  - `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+  - `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+  - `digimon-tamagotchi-frontend/src/pages/Login.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
+  - `scripts/backfillUserEncyclopedia.js`
+  - `tests/encyclopedia-migration.test.js`
+  - `docs/REFACTORING_LOG.md`

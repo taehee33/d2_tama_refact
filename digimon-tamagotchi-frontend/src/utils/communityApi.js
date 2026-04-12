@@ -1,5 +1,5 @@
 const COMMUNITY_API_BASE_URL = process.env.REACT_APP_COMMUNITY_API_BASE_URL || "";
-const COMMUNITY_BOARD_IDS = new Set(["showcase", "free", "support"]);
+const COMMUNITY_BOARD_IDS = new Set(["showcase", "free", "support", "news"]);
 
 function buildCommunityUrl(path) {
   return `${COMMUNITY_API_BASE_URL}${path}`;
@@ -121,6 +121,11 @@ export async function deleteShowcaseComment(currentUser, commentId) {
 }
 
 export async function listCommunityPosts(currentUser, boardId, options = {}) {
+  const payload = await getCommunityBoardFeed(currentUser, boardId, options);
+  return payload?.posts ?? [];
+}
+
+export async function getCommunityBoardFeed(currentUser, boardId, options = {}) {
   const params = new URLSearchParams();
   if (options.category) {
     params.set("category", options.category);
@@ -132,7 +137,10 @@ export async function listCommunityPosts(currentUser, boardId, options = {}) {
     `${buildBoardPath(boardId, "/posts")}${query ? `?${query}` : ""}`
   );
 
-  return payload?.posts ?? [];
+  return {
+    posts: payload?.posts ?? [],
+    viewer: payload?.viewer || {},
+  };
 }
 
 export async function getCommunityPostDetail(currentUser, boardId, postId) {

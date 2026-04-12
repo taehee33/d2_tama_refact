@@ -3,6 +3,7 @@
 const { verifyRequestUser } = require("../../../_lib/auth");
 const {
   deleteCommunityPost,
+  getCommunityBoardViewer,
   getCommunityPostDetail,
   normalizeBoardId,
   updateCommunityPost,
@@ -33,9 +34,15 @@ module.exports = async function handler(req, res) {
         supabase,
         boardId: normalizedBoardId,
         postId,
+        viewerUid: decodedToken.uid,
+        decodedToken,
+      });
+      const viewer = getCommunityBoardViewer({
+        boardId: normalizedBoardId,
+        decodedToken,
       });
 
-      return sendJson(res, 200, detail);
+      return sendJson(res, 200, { ...detail, viewer });
     }
 
     if (req.method === "PATCH") {
@@ -44,6 +51,7 @@ module.exports = async function handler(req, res) {
         supabase,
         boardId: normalizedBoardId,
         uid: decodedToken.uid,
+        decodedToken,
         postId,
         input,
       });
@@ -55,6 +63,7 @@ module.exports = async function handler(req, res) {
       supabase,
       boardId: normalizedBoardId,
       uid: decodedToken.uid,
+      decodedToken,
       postId,
     });
 

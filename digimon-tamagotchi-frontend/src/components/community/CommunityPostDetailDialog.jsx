@@ -1,6 +1,7 @@
 import React from "react";
 import {
   getCommunityFreeBoardCategoryLabel,
+  getNewsCategoryLabel,
   getCommunitySupportCategoryLabel,
 } from "../../data/serviceContent";
 import { formatTimestamp } from "../../utils/dateUtils";
@@ -8,6 +9,25 @@ import CommunityDialog from "./CommunityDialog";
 import CommunityPostStatsPanel from "./CommunityPostStatsPanel";
 import CommunitySnapshotScene from "./CommunitySnapshotScene";
 import CommunitySnapshotSummary from "./CommunitySnapshotSummary";
+
+function formatDateRange(startsAt, endsAt) {
+  const hasStartsAt = Boolean(startsAt);
+  const hasEndsAt = Boolean(endsAt);
+
+  if (hasStartsAt && hasEndsAt) {
+    return `${formatTimestamp(startsAt, "long")} ~ ${formatTimestamp(endsAt, "long")}`;
+  }
+
+  if (hasStartsAt) {
+    return `${formatTimestamp(startsAt, "long")}부터`;
+  }
+
+  if (hasEndsAt) {
+    return `${formatTimestamp(endsAt, "long")}까지`;
+  }
+
+  return "";
+}
 
 function CommunityPostDetailDialog({
   open,
@@ -36,17 +56,21 @@ function CommunityPostDetailDialog({
   const commentCount = post?.commentCount ?? comments.length;
   const isFreeBoard = boardId === "free";
   const isSupportBoard = boardId === "support";
-  const isTextBoard = isFreeBoard || isSupportBoard;
+  const isNewsBoard = boardId === "news";
+  const isTextBoard = isFreeBoard || isSupportBoard || isNewsBoard;
   const boardBadgeLabel = isFreeBoard
     ? getCommunityFreeBoardCategoryLabel(post?.category)
     : isSupportBoard
       ? getCommunitySupportCategoryLabel(post?.category)
+      : isNewsBoard
+        ? getNewsCategoryLabel(post?.category)
     : "내 디지몬 자랑";
   const formattedCreatedAt = post?.createdAt
     ? formatTimestamp(post.createdAt, "long")
     : "";
   const textBoardImageAlt = post?.imageAlt || `${post?.title || "게시글"} 첨부 이미지`;
   const supportContext = isSupportBoard ? post?.supportContext || null : null;
+  const newsContext = isNewsBoard ? post?.newsContext || null : null;
   const supportMetaItems = [
     supportContext?.slotNumber
       ? { id: "slotNumber", label: "슬롯 번호", value: supportContext.slotNumber }
@@ -58,12 +82,34 @@ function CommunityPostDetailDialog({
       ? { id: "gameVersion", label: "버전", value: supportContext.gameVersion }
       : null,
   ].filter(Boolean);
+  const newsMetaItems = [
+    newsContext?.version ? { id: "version", label: "버전", value: newsContext.version } : null,
+    newsContext?.scope ? { id: "scope", label: "영향 범위", value: newsContext.scope } : null,
+    newsContext?.startsAt || newsContext?.endsAt
+      ? {
+          id: "schedule",
+          label: "기간",
+          value: formatDateRange(newsContext?.startsAt, newsContext?.endsAt),
+        }
+      : null,
+    newsContext?.featured
+      ? { id: "featured", label: "대표 표시", value: "대표 소식" }
+      : null,
+  ].filter(Boolean);
 
   return (
     <CommunityDialog
       open={open}
       title={post?.title || "게시글 상세"}
-      eyebrow={isFreeBoard ? "자유게시판 상세" : isSupportBoard ? "버그제보 / QnA 상세" : "피드 상세"}
+      eyebrow={
+        isFreeBoard
+          ? "자유게시판 상세"
+          : isSupportBoard
+            ? "버그제보 / QnA 상세"
+            : isNewsBoard
+              ? "소식 상세"
+              : "피드 상세"
+      }
       onClose={onClose}
       size="xl"
       className="community-detail-modal"
@@ -122,6 +168,19 @@ function CommunityPostDetailDialog({
               </div>
             ) : null}
 
+            {newsMetaItems.length ? (
+              <div className="community-support-meta-grid">
+                {newsMetaItems.map((item) => (
+                  <span key={item.id} className="community-meta-box community-meta-box--support">
+                    <span className="community-meta-box__label">{item.label}</span>
+                    <strong className="community-meta-box__value community-meta-box__value--subtle">
+                      {item.value}
+                    </strong>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             <div
               className={`community-detail-summary__body${isTextBoard ? " community-detail-summary__body--free" : ""}`}
             >
@@ -163,6 +222,18 @@ function CommunityPostDetailDialog({
                 </section>
               ) : null}
 
+              {isNewsBoard && newsContext?.summary ? (
+                <section
+                  className="community-post-card__section community-post-card__section--free-title"
+                  aria-label="소식 요약"
+                >
+                  <span className="community-post-card__section-label">한 줄 요약</span>
+                  <p className="community-post-card__body community-post-card__body--free">
+                    {newsContext.summary}
+                  </p>
+                </section>
+              ) : null}
+
               <section
                 className={`community-post-card__section community-post-card__section--body${isTextBoard ? " community-post-card__section--free-body" : ""}`}
                 aria-label="게시글 내용"
@@ -193,6 +264,8 @@ function CommunityPostDetailDialog({
                     ? "자유글에 답글 남기기"
                     : isSupportBoard
                       ? "질문과 제보에 답글 남기기"
+                      : isNewsBoard
+                        ? "소식에 댓글 남기기"
                       : "기록에 반응 남기기"}
                 </h3>
               </div>
