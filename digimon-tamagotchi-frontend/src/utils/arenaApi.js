@@ -79,7 +79,7 @@ export async function saveArenaAdminConfig(currentUser, body) {
 }
 
 export async function endArenaSeason(currentUser, body) {
-  const payload = await requestArenaApi(currentUser, "/api/arena/admin/end-season", {
+  const payload = await requestArenaApi(currentUser, "/api/arena/admin/config?action=end-season", {
     method: "POST",
     body,
   });
@@ -136,7 +136,7 @@ export async function fetchArenaArchiveMonitoring(currentUser, options = {}) {
 }
 
 export async function fetchArenaUserDirectory(currentUser) {
-  const payload = await requestArenaApi(currentUser, "/api/arena/admin/users", {
+  const payload = await requestArenaApi(currentUser, "/api/arena/admin/config?view=user-directory", {
     method: "GET",
   });
 

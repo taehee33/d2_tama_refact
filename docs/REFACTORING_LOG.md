@@ -5494,3 +5494,20 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js`
   - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx`
   - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] Vercel Hobby 함수 수 제한에 맞춰 아레나 관리자 엔드포인트 통합
+
+- **목적:** Vercel Hobby 플랜의 Serverless Function 12개 제한에 걸리지 않도록, 아레나 관리자용 세부 엔드포인트를 하나의 진입점으로 줄인다.
+- **변경사항:**
+  - `digimon-tamagotchi-frontend/api/arena/admin/config.js`가 이제 설정 저장뿐 아니라 `action=end-season`, `view=user-directory` 분기까지 함께 처리하도록 통합했다.
+  - 프론트 클라이언트는 시즌 종료 요청을 `/api/arena/admin/config?action=end-season`, 사용자 디렉터리 조회를 `/api/arena/admin/config?view=user-directory`로 보내도록 바꿨다.
+  - 중복 함수 수를 만들던 `digimon-tamagotchi-frontend/api/arena/admin/end-season.js`, `digimon-tamagotchi-frontend/api/arena/admin/users.js`는 제거한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/arena/admin/config.js`
+  - `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+  - `tests/arena-entrypoints.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - `node --test tests/arena-entrypoints.test.js`
+  - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx src/utils/operatorApi.test.js`
+  - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
