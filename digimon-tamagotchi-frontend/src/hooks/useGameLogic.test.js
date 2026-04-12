@@ -1,9 +1,12 @@
 import {
   addActivityLog,
+  buildInitialCallStatus,
   checkCalls,
   checkCallTimeouts,
   getSleepStatus,
   hasDuplicateSleepDisturbanceLog,
+  resolveNeedCallState,
+  resolveNeedCallTimeout,
 } from "./useGameLogic";
 
 function createBaseStats(overrides = {}) {
@@ -25,6 +28,93 @@ function createBaseStats(overrides = {}) {
     ...overrides,
   };
 }
+
+describe("useGameLogic call helpers", () => {
+  test("buildInitialCallStatus는 기본 구조와 기존 값을 합친다", () => {
+    expect(
+      buildInitialCallStatus({
+        hunger: { isActive: true, startedAt: 1000 },
+      })
+    ).toEqual({
+      hunger: {
+        isActive: true,
+        startedAt: 1000,
+        sleepStartAt: null,
+        isLogged: false,
+      },
+      strength: {
+        isActive: false,
+        startedAt: null,
+        sleepStartAt: null,
+        isLogged: false,
+      },
+      sleep: {
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
+    });
+  });
+
+  test("resolveNeedCallState는 잠든 동안 deadline은 유지하고 sleepStartAt만 기록한다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const nowMs = new Date(2026, 2, 31, 23, 0, 0).getTime();
+
+    expect(
+      resolveNeedCallState({
+        currentValue: 0,
+        entry: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+        fallbackStartedAt: startedAt,
+        deadline: null,
+        nowMs,
+        isSleepingLike: true,
+        timeoutMs: 10 * 60 * 1000,
+      })
+    ).toEqual({
+      entry: {
+        isActive: true,
+        startedAt,
+        sleepStartAt: nowMs,
+        isLogged: false,
+      },
+      deadline: startedAt + 10 * 60 * 1000,
+      shouldClearResolvedMeta: false,
+    });
+  });
+
+  test("resolveNeedCallTimeout는 미처리 hunger timeout을 케어미스로 반영한다", () => {
+    const startedAt = new Date(2026, 2, 31, 11, 49, 0).getTime();
+    const result = resolveNeedCallTimeout({
+      stats: createBaseStats({
+        fullness: 0,
+        lastHungerZeroAt: startedAt,
+        callStatus: {
+          hunger: { isActive: true, startedAt, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      }),
+      callType: "hunger",
+      nowMs: new Date(2026, 2, 31, 12, 1, 0).getTime(),
+      timeoutMs: 10 * 60 * 1000,
+      isSleepingLike: false,
+      deadlineKey: "hungerMistakeDeadline",
+      reasonKey: "hunger_call",
+      reasonText: (careMistakes) =>
+        `케어미스(사유: 배고픔 콜 10분 무시): ${careMistakes} → ${careMistakes + 1}`,
+    });
+
+    expect(result.hasChanged).toBe(true);
+    expect(result.triggeredMistake).toBe(true);
+    expect(result.nextStats.careMistakes).toBe(1);
+    expect(result.nextStats.callStatus.hunger).toMatchObject({
+      isActive: false,
+      startedAt: null,
+      isLogged: true,
+    });
+    expect(result.nextStats.hungerMistakeDeadline).toBeNull();
+  });
+});
 
 describe("useGameLogic sleep-related warning rules", () => {
   test("수면 시간 + 불 켜짐이면 SLEEPING_LIGHT_ON 상태가 된다", () => {

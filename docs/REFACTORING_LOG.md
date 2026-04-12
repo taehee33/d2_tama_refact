@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameLogic` 1차 분리: hunger/strength call helper 추출
+
+### 작업 유형
+- 🧩 call 상태 초기화 helper 추출
+- 🧩 hunger/strength call 상태/timeout helper 추출
+- 🧪 `useGameLogic` helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `checkCalls`와 `checkCallTimeouts` 안에서 반복되던 hunger/strength 호출 로직을 공통 helper로 분리해, 수면 경고와 분리된 읽기 경계를 만든다.
+- **범위:** hunger/strength 호출 활성화/중지 규칙, sleep pause/resume 처리, timeout 후 care mistake 증가 규칙은 그대로 유지한다.
+- **내용:**
+  - `buildInitialCallStatus`를 추가해 callStatus 기본 구조와 저장값 병합을 한 곳으로 모았다.
+  - `resolveNeedCallState`를 추가해 hunger/strength 호출 상태 활성화, sleep pause/resume, deadline 조립을 공통화했다.
+  - `resolveNeedCallTimeout`를 추가해 hunger/strength timeout 후 care mistake 기록과 call 상태 정리를 공통화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameLogic.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useArenaLogic` 1차 분리: arena config/battle plan helper 추출
 
 ### 작업 유형
@@ -5331,4 +5356,61 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:**
   - `node --test api/_lib/arenaHandlers.test.js`
   - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx`
+  - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] 테이머명 표시 우선순위를 전역 공통 헬퍼로 통일
+
+- **목적:** `tamerName -> displayName/email -> 추가 fallback` 규칙이 화면과 저장 payload마다 다르게 흩어져 있던 부분을 공통 우선순위 구조로 맞춘다.
+- **변경사항:**
+  - `tamerNameUtils.js`에 `resolveTamerNamePriority()`, `getAccountDisplayFallback()`, `resolveTamerNameInitial()`를 추가해 테이머명, 계정 표시명, 아바타 이니셜 계산을 한 곳에서 처리하도록 정리했다.
+  - 헤더/툴바/계정 설정/아레나/조그레스 저장 payload가 모두 같은 우선순위 헬퍼를 사용하도록 맞췄다.
+  - `getTamerName()` 호출 시에도 `displayName`만 넘기지 않고, 현재 사용자 기준 기본 fallback을 함께 넘겨 profile/main이 비어 있어도 같은 기준으로 이름이 풀리게 맞췄다.
+  - 결과적으로 신규 저장과 주요 UI 표시가 `profile/main.tamerName`을 최우선으로 보고, 없을 때만 계정 기본 표시명과 email prefix, 슬롯 라벨 같은 보조 fallback으로 내려간다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.js`
+  - `digimon-tamagotchi-frontend/src/utils/tamerNameUtils.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useTamerProfile.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useHeaderAccountMenu.js`
+  - `digimon-tamagotchi-frontend/src/components/layout/GamePageToolbar.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/jogressPersistenceHelpers.js`
+  - `digimon-tamagotchi-frontend/src/hooks/jogressPersistenceHelpers.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useJogressRoomLifecycle.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/tamerNameUtils.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/useGameActions.test.js src/components/layout/GamePageToolbar.test.jsx src/components/panels/AccountSettingsPanel.test.jsx`
+
+## [2026-04-12] 운영자 전용 사용자 디렉터리를 상단 메뉴로 이동
+
+- **목적:** 게임 안 관리자 모달 깊숙한 곳에 있던 사용자 디렉터리를, 실제 서비스 운영 동선에 맞게 상단 메뉴에서 바로 접근할 수 있도록 옮긴다.
+- **변경사항:**
+  - 운영자 상태 조회 API `/api/operator/status`를 추가해 현재 로그인 계정의 `아레나 / 소식` 운영 권한을 프론트에서 안전하게 확인할 수 있게 했다.
+  - 상단 메뉴의 `소개` 오른쪽에 `사용자관리` 항목을 추가하고, 현재 운영 권한이 있는 계정에게만 보이도록 분기했다.
+  - 사용자 디렉터리 UI를 `UserDirectoryPanel` 공용 컴포넌트로 분리해, 운영자 전용 페이지와 기존 관리자 도구에서 같은 화면을 재사용하도록 정리했다.
+  - 사용자 디렉터리 조회 권한은 기존 `아레나 관리자` 전용에서 `아레나 운영자 또는 소식 운영자` 기준으로 확장해, 실제 운영 계정 전반이 사용할 수 있도록 맞췄다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/operatorAccess.js`
+  - `digimon-tamagotchi-frontend/api/_lib/operatorHandlers.js`
+  - `digimon-tamagotchi-frontend/api/operator/status.js`
+  - `api/operator/status.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+  - `digimon-tamagotchi-frontend/src/utils/operatorApi.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useOperatorStatus.js`
+  - `digimon-tamagotchi-frontend/src/data/headerNavigation.js`
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.test.jsx`
+  - `api/_lib/operatorHandlers.test.js`
+  - `api/_lib/arenaHandlers.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js`
+  - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx`
   - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
