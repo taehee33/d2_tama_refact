@@ -63,7 +63,7 @@ function getAnimationSleepState({
  * @param {boolean} params.isLightsOn - 조명 상태
  * @param {number} params.wakeUntil - 깨울 때까지 시간
  * @param {string} params.selectedDigimon - 선택된 디지몬 이름
- * @param {Object} params.newDigimonDataVer1 - 디지몬 데이터
+ * @param {Object} params.newDigimonDataVer1 - 현재 슬롯의 진화용 원본 데이터 맵
  * @returns {Object} 애니메이션 시작 함수들
  */
 export function useGameAnimations({
@@ -91,6 +91,8 @@ export function useGameAnimations({
   setHealModalStats,
   onSleepDisturbance = null,
 }) {
+  const slotEvolutionDataMap = newDigimonDataVer1;
+
   /**
    * 먹이기 애니메이션 사이클
    * 첫 번째 프레임에서 스탯을 즉시 증가시킴
@@ -208,7 +210,7 @@ export function useGameAnimations({
       const actionSleepState = getAnimationSleepState({
         digimonStats,
         selectedDigimon,
-        digimonData: newDigimonDataVer1,
+        digimonData: slotEvolutionDataMap,
         isLightsOn,
         wakeUntil,
         now,
@@ -279,14 +281,14 @@ export function useGameAnimations({
     const actionSleepState = getAnimationSleepState({
       digimonStats: currentStats,
       selectedDigimon,
-      digimonData: newDigimonDataVer1,
+      digimonData: slotEvolutionDataMap,
       isLightsOn,
       wakeUntil,
       now: new Date(),
     });
     
     // 치료 로직
-    const currentDigimonData = newDigimonDataVer1[selectedDigimon] || {};
+    const currentDigimonData = slotEvolutionDataMap?.[selectedDigimon] || {};
     const requiredDoses = currentDigimonData.stats?.healDoses || 1; // 기본값 1
     const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
     

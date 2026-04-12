@@ -9,6 +9,7 @@ import {
   formatSleepCountdown,
   getFallingAsleepRemainingSeconds,
 } from "../utils/sleepUtils";
+import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 
 const SICK_EMOJI_POOL = [
   "😷",
@@ -26,10 +27,10 @@ const SICK_EMOJI_POOL = [
 ];
 
 const SICK_EMOJI_POSITIONS = [
-  { key: "left-top", top: "30%", left: "10%", animationDelay: "0s" },
-  { key: "left-bottom", top: "70%", left: "10%", animationDelay: "0.5s" },
-  { key: "right-top", top: "30%", right: "10%", animationDelay: "1s" },
-  { key: "right-bottom", top: "70%", right: "10%", animationDelay: "1.5s" },
+  { key: "left-top", top: "22%", left: "10%", animationDelay: "0s" },
+  { key: "left-bottom", top: "62%", left: "10%", animationDelay: "0.5s" },
+  { key: "right-top", top: "22%", right: "10%", animationDelay: "1s" },
+  { key: "right-bottom", top: "62%", right: "10%", animationDelay: "1.5s" },
 ];
 
 const CALL_CARD_STYLES = {
@@ -111,8 +112,7 @@ const GameScreen = ({
   currentTime: currentTimeProp = null,
   }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
-  const isDigitama =
-    selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2";
+  const isDigitama = isStarterDigimonId(selectedDigimon);
   const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
   
   // 부상 상태일 때 11시/5시만 랜덤, 1시/7시는 주사기로 고정

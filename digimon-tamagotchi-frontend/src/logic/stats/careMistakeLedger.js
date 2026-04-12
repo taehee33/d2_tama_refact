@@ -1,9 +1,9 @@
-import { toTimestamp } from "../../utils/fridgeTime";
+import { toEpochMs } from "../../utils/time";
 
 export const CARE_MISTAKE_SYNC_TEXT = "[기록 동기화] 과거 케어미스 기록이 없어 카운터 기준으로 보정됨";
 
 function ensureTimestamp(value) {
-  return toTimestamp(value);
+  return toEpochMs(value);
 }
 
 function isSleepDisturbanceLike(log) {

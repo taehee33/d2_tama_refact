@@ -1,8 +1,13 @@
 // src/utils/masterDataUtils.js
 // 디지몬 마스터 데이터 전역 저장/비교/가져오기 유틸리티
 
-import { digimonDataVer1 } from "../data/v1/digimons";
-import { digimonDataVer2 } from "../data/v2modkor";
+import {
+  getDigimonDataMapByVersion,
+  getDigimonVersionKey,
+  getDigimonVersionLabelByKey,
+  SUPPORTED_DIGIMON_VERSIONS,
+  SUPPORTED_MASTER_DATA_VERSION_KEYS,
+} from "./digimonVersionUtils";
 
 export const MASTER_DATA_DOC_PATH = {
   collection: "game_settings",
@@ -10,15 +15,21 @@ export const MASTER_DATA_DOC_PATH = {
   snapshotSubcollection: "snapshots",
 };
 
-export const MASTER_DATA_VERSION_KEY_MAP = {
-  "Ver.1": "ver1",
-  "Ver.2": "ver2",
-};
+export const MASTER_DATA_VERSION_KEY_MAP = SUPPORTED_DIGIMON_VERSIONS.reduce(
+  (acc, versionLabel) => {
+    acc[versionLabel] = getDigimonVersionKey(versionLabel);
+    return acc;
+  },
+  {}
+);
 
-const MASTER_DATA_VERSION_LABEL_MAP = {
-  ver1: "Ver.1",
-  ver2: "Ver.2",
-};
+const MASTER_DATA_VERSION_LABEL_MAP = SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce(
+  (acc, versionKey) => {
+    acc[versionKey] = getDigimonVersionLabelByKey(versionKey);
+    return acc;
+  },
+  {}
+);
 
 export const MASTER_DATA_EDITABLE_FIELDS = [
   "name",
@@ -71,10 +82,21 @@ const DEFAULT_WAKE_TIME = "08:00";
 const DEFAULT_ALT_ATTACK_SPRITE = 65535;
 const MASTER_DATA_CACHE_KEY = "d2_tamagotchi_master_data_overrides";
 
-const ORIGINAL_MASTER_DATA = {
-  ver1: deepClonePlain(digimonDataVer1),
-  ver2: deepClonePlain(digimonDataVer2),
-};
+function buildEmptyMasterOverrideMap() {
+  return SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce((acc, versionKey) => {
+    acc[versionKey] = {};
+    return acc;
+  }, {});
+}
+
+const ORIGINAL_MASTER_DATA = SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce(
+  (acc, versionKey) => {
+    const versionLabel = getDigimonVersionLabelByKey(versionKey);
+    acc[versionKey] = deepClonePlain(getDigimonDataMapByVersion(versionLabel));
+    return acc;
+  },
+  {}
+);
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -146,7 +168,7 @@ function replaceObjectInPlace(target, source) {
 }
 
 function getMutableMasterDataMap(versionKey) {
-  return versionKey === "ver2" ? digimonDataVer2 : digimonDataVer1;
+  return getDigimonDataMapByVersion(getDigimonVersionLabelByKey(versionKey));
 }
 
 function parseInteger(value, fallback = 0) {
@@ -172,9 +194,7 @@ export function getMasterDataVersionLabel(versionKey = "ver1") {
 }
 
 export function getCurrentMasterDataMap(versionLabel = "Ver.1") {
-  return getMasterDataVersionKey(versionLabel) === "ver2"
-    ? digimonDataVer2
-    : digimonDataVer1;
+  return getDigimonDataMapByVersion(versionLabel);
 }
 
 export function getOriginalMasterDataMap(versionLabel = "Ver.1") {
@@ -182,30 +202,31 @@ export function getOriginalMasterDataMap(versionLabel = "Ver.1") {
 }
 
 export function normalizeMasterDataOverrides(rawOverrides = {}) {
-  const ver1 = rawOverrides.ver1Overrides || rawOverrides.ver1 || {};
-  const ver2 = rawOverrides.ver2Overrides || rawOverrides.ver2 || {};
-
-  return {
-    ver1: isPlainObject(ver1) ? deepClonePlain(ver1) : {},
-    ver2: isPlainObject(ver2) ? deepClonePlain(ver2) : {},
-  };
+  return SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce((acc, versionKey) => {
+    const overrideValue =
+      rawOverrides[`${versionKey}Overrides`] || rawOverrides[versionKey] || {};
+    acc[versionKey] = isPlainObject(overrideValue)
+      ? deepClonePlain(overrideValue)
+      : {};
+    return acc;
+  }, buildEmptyMasterOverrideMap());
 }
 
 export function readCachedMasterDataOverrides() {
   if (typeof window === "undefined" || !window.localStorage) {
-    return { ver1: {}, ver2: {} };
+    return buildEmptyMasterOverrideMap();
   }
 
   try {
     const raw = window.localStorage.getItem(MASTER_DATA_CACHE_KEY);
     if (!raw) {
-      return { ver1: {}, ver2: {} };
+      return buildEmptyMasterOverrideMap();
     }
 
     return normalizeMasterDataOverrides(JSON.parse(raw));
   } catch (error) {
     console.warn("[masterDataUtils] 캐시된 마스터 데이터 로드 실패:", error);
-    return { ver1: {}, ver2: {} };
+    return buildEmptyMasterOverrideMap();
   }
 }
 
@@ -225,7 +246,7 @@ export function writeCachedMasterDataOverrides(overrides = {}) {
 export function applyMasterDataOverrides(overrides = {}) {
   const normalized = normalizeMasterDataOverrides(overrides);
 
-  ["ver1", "ver2"].forEach((versionKey) => {
+  SUPPORTED_MASTER_DATA_VERSION_KEYS.forEach((versionKey) => {
     const originalMap = ORIGINAL_MASTER_DATA[versionKey];
     const mergedMap = deepClonePlain(originalMap);
     const versionOverrides = normalized[versionKey] || {};
@@ -680,14 +701,20 @@ export function getChangedDigimonIdsBetweenOverrides(beforeOverrides, afterOverr
       return JSON.stringify(beforeValue || null) !== JSON.stringify(afterValue || null);
     });
   };
-
-  const ver1Ids = buildChangedIds("ver1");
-  const ver2Ids = buildChangedIds("ver2");
+  const changeSummary = SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce(
+    (acc, versionKey) => {
+      acc[versionKey] = buildChangedIds(versionKey);
+      return acc;
+    },
+    {}
+  );
 
   return {
-    ver1: ver1Ids,
-    ver2: ver2Ids,
-    totalCount: ver1Ids.length + ver2Ids.length,
+    ...changeSummary,
+    totalCount: Object.values(changeSummary).reduce(
+      (sum, ids) => sum + ids.length,
+      0
+    ),
   };
 }
 

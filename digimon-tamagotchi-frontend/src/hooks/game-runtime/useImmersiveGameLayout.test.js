@@ -8,13 +8,17 @@ import {
 } from "../../data/immersiveSettings";
 import { useImmersiveGameLayout } from "./useImmersiveGameLayout";
 
+const mockEnterImmersiveFullscreen = jest.fn();
 const mockEnterImmersiveLandscapeMode = jest.fn();
+const mockExitImmersiveFullscreen = jest.fn();
 const mockExitImmersiveLandscapeMode = jest.fn();
 const mockGetImmersiveOrientationSupportState = jest.fn();
 const mockIsImmersiveFullscreenActive = jest.fn();
 
 jest.mock("../../utils/immersiveOrientation", () => ({
+  enterImmersiveFullscreen: (...args) => mockEnterImmersiveFullscreen(...args),
   enterImmersiveLandscapeMode: (...args) => mockEnterImmersiveLandscapeMode(...args),
+  exitImmersiveFullscreen: (...args) => mockExitImmersiveFullscreen(...args),
   exitImmersiveLandscapeMode: (...args) => mockExitImmersiveLandscapeMode(...args),
   getImmersiveOrientationSupportState: (...args) =>
     mockGetImmersiveOrientationSupportState(...args),
@@ -26,7 +30,9 @@ describe("useImmersiveGameLayout", () => {
   const originalInnerHeight = window.innerHeight;
 
   beforeEach(() => {
+    mockEnterImmersiveFullscreen.mockReset();
     mockEnterImmersiveLandscapeMode.mockReset();
+    mockExitImmersiveFullscreen.mockReset();
     mockExitImmersiveLandscapeMode.mockReset();
     mockGetImmersiveOrientationSupportState.mockReset();
     mockIsImmersiveFullscreenActive.mockReset();
@@ -36,12 +42,23 @@ describe("useImmersiveGameLayout", () => {
     });
 
     mockGetImmersiveOrientationSupportState.mockReturnValue({
+      fullscreenSupported: true,
       orientationLockSupported: true,
     });
     mockIsImmersiveFullscreenActive.mockReturnValue(false);
+    mockEnterImmersiveFullscreen.mockResolvedValue({
+      isFullscreen: true,
+      fullscreenSupported: true,
+      errorMessage: null,
+    });
     mockEnterImmersiveLandscapeMode.mockResolvedValue({
       isFullscreen: true,
       orientationLockSupported: true,
+      errorMessage: null,
+    });
+    mockExitImmersiveFullscreen.mockResolvedValue({
+      isFullscreen: false,
+      fullscreenSupported: true,
       errorMessage: null,
     });
     mockExitImmersiveLandscapeMode.mockResolvedValue({
@@ -98,6 +115,8 @@ describe("useImmersiveGameLayout", () => {
     expect(result.current.isLandscapeImmersive).toBe(true);
     expect(result.current.shouldShowRotateHint).toBe(true);
     expect(result.current.isMobileControlsCollapsed).toBe(true);
+    expect(result.current.isLandscapeInfoOpen).toBe(false);
+    expect(result.current.fullscreenSupported).toBe(true);
     expect(result.current.effectiveLandscapeSide).toBe(
       IMMERSIVE_LANDSCAPE_SIDES.RIGHT
     );
@@ -115,12 +134,93 @@ describe("useImmersiveGameLayout", () => {
     expect(result.current.showSkinPicker).toBe(true);
 
     act(() => {
+      result.current.toggleLandscapeInfo();
+    });
+
+    expect(result.current.isLandscapeInfoOpen).toBe(true);
+
+    act(() => {
       result.current.handleSkinSelect(nextSkinId);
     });
 
     expect(result.current.showSkinPicker).toBe(false);
+    expect(result.current.isLandscapeInfoOpen).toBe(false);
     expect(result.current.immersiveSkinId).toBe(nextSkinId);
     expect(result.current.immersiveSkin.id).toBe(nextSkinId);
+  });
+
+  test("fullscreen-only 토글이 세로 몰입형에서도 동작한다", async () => {
+    const initialSettings = {
+      layoutMode: IMMERSIVE_LAYOUT_MODES.PORTRAIT,
+      skinId: DEFAULT_IMMERSIVE_SETTINGS.skinId,
+      landscapeSide: DEFAULT_IMMERSIVE_SETTINGS.landscapeSide,
+    };
+
+    const { result } = renderHook(() => {
+      const [immersiveSettings, setImmersiveSettings] = useState(initialSettings);
+      const [isChatOpen, setIsChatOpen] = useState(false);
+
+      return useImmersiveGameLayout({
+        isImmersive: true,
+        immersiveSettings,
+        setImmersiveSettings,
+        isChatOpen,
+        setIsChatOpen,
+      });
+    });
+
+    await act(async () => {
+      await result.current.toggleImmersiveFullscreen();
+    });
+
+    expect(mockEnterImmersiveFullscreen).toHaveBeenCalledTimes(1);
+    expect(result.current.isImmersiveFullscreen).toBe(true);
+    expect(result.current.orientationStatusMessage).toBe("전체화면으로 보는 중");
+
+    await act(async () => {
+      await result.current.toggleImmersiveFullscreen();
+    });
+
+    expect(mockExitImmersiveFullscreen).toHaveBeenCalledTimes(1);
+    expect(result.current.isImmersiveFullscreen).toBe(false);
+  });
+
+  test("fullscreen-only 실패 시 안내 메시지를 노출한다", async () => {
+    const initialSettings = {
+      layoutMode: IMMERSIVE_LAYOUT_MODES.PORTRAIT,
+      skinId: DEFAULT_IMMERSIVE_SETTINGS.skinId,
+      landscapeSide: DEFAULT_IMMERSIVE_SETTINGS.landscapeSide,
+    };
+
+    mockEnterImmersiveFullscreen.mockResolvedValue({
+      isFullscreen: false,
+      fullscreenSupported: false,
+      errorMessage: "이 브라우저에서는 전체화면을 지원하지 않아요.",
+    });
+
+    const { result } = renderHook(() => {
+      const [immersiveSettings, setImmersiveSettings] = useState(initialSettings);
+      const [isChatOpen, setIsChatOpen] = useState(false);
+
+      return useImmersiveGameLayout({
+        isImmersive: true,
+        immersiveSettings,
+        setImmersiveSettings,
+        isChatOpen,
+        setIsChatOpen,
+      });
+    });
+
+    await act(async () => {
+      await result.current.toggleImmersiveFullscreen();
+    });
+
+    expect(result.current.fullscreenErrorMessage).toBe(
+      "이 브라우저에서는 전체화면을 지원하지 않아요."
+    );
+    expect(result.current.orientationStatusMessage).toBe(
+      "이 브라우저에서는 전체화면을 지원하지 않아요."
+    );
   });
 
   test("chat 토글이 동작하고 모바일 가로 요청 성공 시 전체화면 상태 메시지를 보여준다", async () => {
@@ -176,11 +276,9 @@ describe("useImmersiveGameLayout", () => {
     expect(result.current.immersiveLayoutMode).toBe(IMMERSIVE_LAYOUT_MODES.LANDSCAPE);
     expect(result.current.orientationStatusMessage).toBe("가로 전체화면으로 보는 중");
     expect(result.current.orientationStatusTone).toBe("success");
-    expect(result.current.showVirtualLandscapePrompt).toBe(false);
-    expect(result.current.isVirtualLandscapeActive).toBe(false);
   });
 
-  test("가로 요청 실패 시 prompt를 띄우고 승인하면 가상 가로를 활성화한다", async () => {
+  test("가로 요청 실패 시 prompt 없이 직접 회전 안내만 남긴다", async () => {
     const initialSettings = {
       layoutMode: IMMERSIVE_LAYOUT_MODES.PORTRAIT,
       skinId: DEFAULT_IMMERSIVE_SETTINGS.skinId,
@@ -212,20 +310,10 @@ describe("useImmersiveGameLayout", () => {
       );
     });
 
-    expect(result.current.showVirtualLandscapePrompt).toBe(true);
-    expect(result.current.orientationStatusMessage).toBeNull();
-    expect(result.current.virtualLandscapePromptMessage).toContain("가상 가로");
-
-    act(() => {
-      result.current.confirmVirtualLandscape();
-    });
-
-    expect(result.current.showVirtualLandscapePrompt).toBe(false);
-    expect(result.current.isVirtualLandscapeActive).toBe(true);
-    expect(result.current.orientationStatusMessage).toBe("가상 가로 모드로 보는 중");
+    expect(result.current.orientationStatusMessage).toContain("직접 회전");
   });
 
-  test("가상 가로를 취소하면 같은 세션 재시도에서 prompt를 다시 띄우지 않는다", async () => {
+  test("가로 요청 실패 후 재시도해도 가상 가로 없이 직접 회전 안내를 유지한다", async () => {
     const initialSettings = {
       layoutMode: IMMERSIVE_LAYOUT_MODES.PORTRAIT,
       skinId: DEFAULT_IMMERSIVE_SETTINGS.skinId,
@@ -257,21 +345,12 @@ describe("useImmersiveGameLayout", () => {
       );
     });
 
-    act(() => {
-      result.current.dismissVirtualLandscape();
-    });
-
-    expect(result.current.showVirtualLandscapePrompt).toBe(false);
-    expect(result.current.isVirtualLandscapeActive).toBe(false);
-
     await act(async () => {
       await result.current.handleLayoutModeChange(
         IMMERSIVE_LAYOUT_MODES.LANDSCAPE
       );
     });
 
-    expect(result.current.showVirtualLandscapePrompt).toBe(false);
-    expect(result.current.isVirtualLandscapeActive).toBe(false);
     expect(result.current.orientationStatusMessage).toContain("브라우저가 허용하지 않았어요");
   });
 });

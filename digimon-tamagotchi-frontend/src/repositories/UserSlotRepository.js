@@ -15,6 +15,7 @@ import {
   query,
   orderBy,
   limit,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { deleteSlotWithSubcollections } from '../utils/firestoreHelpers';
@@ -87,7 +88,7 @@ class UserSlotRepository {
       slotRef,
       {
         ...slotData,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
@@ -112,7 +113,7 @@ class UserSlotRepository {
     await updateDoc(slotRef, {
       digimonStats: statsWithoutProteinCount,
       'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     });
   }
 
@@ -131,7 +132,7 @@ class UserSlotRepository {
     const slotRef = doc(db, 'users', userId, 'slots', `slot${slotId}`);
     await updateDoc(slotRef, {
       selectedDigimon: digimonName,
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     });
   }
 
@@ -188,7 +189,7 @@ class UserSlotRepository {
       userRef,
       {
         ...userData,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
@@ -221,7 +222,6 @@ class UserSlotRepository {
 // 싱글톤 인스턴스
 export const userSlotRepository = new UserSlotRepository();
 export default userSlotRepository;
-
 
 
 

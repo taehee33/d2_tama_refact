@@ -16,6 +16,64 @@ function ImmersiveLandscapeControls({
   layout = "panel",
   groupId = null,
 }) {
+  if (layout === "sidebar") {
+    const menuGroups = getGroupedGameMenus(MENU_SURFACES.PRIMARY);
+
+    return (
+      <aside className="immersive-landscape-control-sidebar" aria-label="가로 조작 버튼">
+        <div className="immersive-landscape-control-sidebar__stack">
+          {menuGroups.map((menuGroup) => (
+            <section
+              key={menuGroup.id}
+              className="immersive-landscape-control-sidebar__group"
+              aria-labelledby={`immersive-landscape-control-sidebar-${menuGroup.id}`}
+            >
+              <div
+                id={`immersive-landscape-control-sidebar-${menuGroup.id}`}
+                className="immersive-landscape-control-sidebar__group-title"
+              >
+                {menuGroup.label}
+              </div>
+              <div
+                className="immersive-landscape-control-sidebar__group-grid"
+                role="group"
+                aria-label={menuGroup.label}
+              >
+                {menuGroup.menus.map((menu) => {
+                  const disabledState = getMenuDisabledState(menu.id, {
+                    isFrozen,
+                    isLightsOn,
+                  });
+
+                  return (
+                    <div
+                      key={menu.id}
+                      className="immersive-landscape-control-sidebar__cell"
+                    >
+                      <IconButton
+                        icon={menu.icon}
+                        onClick={() => onMenuClick(menu.id)}
+                        isActive={activeMenu === menu.id}
+                        disabled={disabledState.disabled}
+                        lockedReason={disabledState.message}
+                        width="100%"
+                        height={isMobile ? 38 : 48}
+                        className="icon-button--immersive-brick-side"
+                        label={menu.label}
+                        isMobile={isMobile}
+                        ariaLabel={menu.label}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      </aside>
+    );
+  }
+
   if (layout === "strip") {
     const isMobileGridLayout = isMobile;
     const group =

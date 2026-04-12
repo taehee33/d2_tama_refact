@@ -1,6 +1,8 @@
 // src/utils/sleepUtils.js
 // 수면 관련 공용 유틸리티
 
+import { toEpochMs } from "./time";
+
 function clampHour(value, fallback = 0) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) {
@@ -39,26 +41,7 @@ function buildScheduleDate(baseDate, hour, minute = 0, dayOffset = 0) {
 }
 
 function ensureTimestamp(value) {
-  if (value == null || value === "") {
-    return null;
-  }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (value instanceof Date) {
-    const time = value.getTime();
-    return Number.isFinite(time) ? time : null;
-  }
-
-  if (typeof value === "object" && "seconds" in value) {
-    const millis = value.seconds * 1000 + (value.nanoseconds || 0) / 1000000;
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
+  return toEpochMs(value);
 }
 
 function clampInterval(startMs, endMs, rangeStartMs, rangeEndMs) {

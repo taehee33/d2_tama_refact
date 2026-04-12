@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import { formatTimestamp } from "../utils/dateUtils";
+import { toEpochMs } from "../utils/time";
 
 const MODE_LABEL = { sparring: "스파링", arena: "아레나", quest: "퀘스트", skip: "건너뜀" };
 
@@ -22,7 +23,10 @@ export default function BattleLogModal({ battleLogs = [], onClose }) {
   const [activeTab, setActiveTab] = useState("all");
 
   const sorted = useMemo(
-    () => [...battleLogs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+    () =>
+      [...battleLogs].sort(
+        (a, b) => (toEpochMs(b?.timestamp) || 0) - (toEpochMs(a?.timestamp) || 0)
+      ),
     [battleLogs]
   );
 

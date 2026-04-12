@@ -5,7 +5,9 @@ import {
   IMMERSIVE_LAYOUT_MODES,
 } from "../../data/immersiveSettings";
 import {
+  enterImmersiveFullscreen,
   enterImmersiveLandscapeMode,
+  exitImmersiveFullscreen,
   exitImmersiveLandscapeMode,
   getImmersiveOrientationSupportState,
   isImmersiveFullscreenActive,
@@ -98,13 +100,10 @@ export function useImmersiveGameLayout({
 }) {
   const immersiveExperienceRef = useRef(null);
   const [showSkinPicker, setShowSkinPicker] = useState(false);
+  const [isLandscapeInfoOpen, setIsLandscapeInfoOpen] = useState(false);
   const [isMobileControlsCollapsed, setIsMobileControlsCollapsed] = useState(() =>
     getViewportSnapshot().isMobile
   );
-  const [showVirtualLandscapePrompt, setShowVirtualLandscapePrompt] = useState(false);
-  const [hasDeclinedVirtualLandscape, setHasDeclinedVirtualLandscape] = useState(false);
-  const [hasApprovedVirtualLandscape, setHasApprovedVirtualLandscape] = useState(false);
-  const [isVirtualLandscapeActive, setIsVirtualLandscapeActive] = useState(false);
   const [isMobile, setIsMobile] = useState(() => getViewportSnapshot().isMobile);
   const [isViewportPortrait, setIsViewportPortrait] = useState(
     () => getViewportSnapshot().isViewportPortrait
@@ -115,6 +114,8 @@ export function useImmersiveGameLayout({
   const [isImmersiveFullscreen, setIsImmersiveFullscreen] = useState(() =>
     typeof document === "undefined" ? false : isImmersiveFullscreenActive(document)
   );
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  const [fullscreenErrorMessage, setFullscreenErrorMessage] = useState(null);
   const [orientationLockSupported, setOrientationLockSupported] = useState(false);
   const [orientationLockError, setOrientationLockError] = useState(null);
 
@@ -139,45 +140,34 @@ export function useImmersiveGameLayout({
     landscapeSidePreference === IMMERSIVE_LANDSCAPE_SIDES.AUTO
       ? detectedLandscapeSide
       : landscapeSidePreference;
-  const virtualLandscapeDirection =
-    effectiveLandscapeSide === IMMERSIVE_LANDSCAPE_SIDES.LEFT
-      ? IMMERSIVE_LANDSCAPE_SIDES.LEFT
-      : IMMERSIVE_LANDSCAPE_SIDES.RIGHT;
   const shouldShowRotateHint =
     isLandscapeImmersive &&
     isMobile &&
-    isViewportPortrait &&
-    !isVirtualLandscapeActive;
-  const orientationStatusMessage =
-    isLandscapeImmersive && isMobile
-      ? showVirtualLandscapePrompt
-        ? null
-        : isVirtualLandscapeActive
-          ? "가상 가로 모드로 보는 중"
-          : (orientationLockError ||
-              (isImmersiveFullscreen && orientationLockSupported
-                ? "가로 전체화면으로 보는 중"
-                : null))
-      : null;
+    isViewportPortrait;
+  const orientationStatusMessage = fullscreenErrorMessage
+    ? fullscreenErrorMessage
+    : isLandscapeImmersive && isMobile
+      ? orientationLockError
+        ? orientationLockError
+        : isImmersiveFullscreen && orientationLockSupported
+          ? "가로 전체화면으로 보는 중"
+          : isImmersiveFullscreen
+            ? "전체화면으로 보는 중"
+            : null
+      : isImmersiveFullscreen
+        ? "전체화면으로 보는 중"
+        : null;
   const orientationStatusTone =
-    orientationLockError &&
-    isLandscapeImmersive &&
-    isMobile &&
-    !isVirtualLandscapeActive
+    fullscreenErrorMessage || (orientationLockError && isLandscapeImmersive && isMobile)
       ? "warning"
       : "success";
-  const virtualLandscapePromptMessage = orientationLockError
-    ? `${orientationLockError} 앱 화면을 가상 가로로 돌릴까요?`
-    : "브라우저가 실제 가로 고정을 지원하지 않아요. 앱 화면을 가상 가로로 돌릴까요?";
 
   useEffect(() => {
     if (!isImmersive) {
       setShowSkinPicker(false);
+      setIsLandscapeInfoOpen(false);
+      setFullscreenErrorMessage(null);
       setOrientationLockError(null);
-      setShowVirtualLandscapePrompt(false);
-      setHasDeclinedVirtualLandscape(false);
-      setHasApprovedVirtualLandscape(false);
-      setIsVirtualLandscapeActive(false);
       return undefined;
     }
 
@@ -237,23 +227,24 @@ export function useImmersiveGameLayout({
   }, []);
 
   useEffect(() => {
-    if (!isLandscapeImmersive || !isMobile || !isViewportPortrait) {
-      setIsVirtualLandscapeActive(false);
-      setShowVirtualLandscapePrompt(false);
+    if (!isLandscapeImmersive) {
+      setIsLandscapeInfoOpen(false);
     }
-  }, [isLandscapeImmersive, isMobile, isViewportPortrait]);
+  }, [isLandscapeImmersive]);
 
   useEffect(() => {
-    if (!isMobile) {
-      setOrientationLockSupported(false);
-      return;
+    if (isLandscapeImmersive && !isViewportPortrait) {
+      setOrientationLockError(null);
     }
+  }, [isLandscapeImmersive, isViewportPortrait]);
 
+  useEffect(() => {
     const supportState = getImmersiveOrientationSupportState({
       ...buildFullscreenSupportContext(),
       element: immersiveExperienceRef.current,
     });
 
+    setFullscreenSupported(supportState.fullscreenSupported);
     setOrientationLockSupported(supportState.orientationLockSupported);
   }, [isMobile, isImmersive]);
 
@@ -275,20 +266,52 @@ export function useImmersiveGameLayout({
     );
   }, []);
 
-  const confirmVirtualLandscape = useCallback(() => {
-    setHasApprovedVirtualLandscape(true);
-    setHasDeclinedVirtualLandscape(false);
-    setShowVirtualLandscapePrompt(false);
-    setIsVirtualLandscapeActive(true);
-    setOrientationLockError(null);
+  const toggleLandscapeInfo = useCallback(() => {
+    if (!isLandscapeImmersive) {
+      return;
+    }
+
+    setShowSkinPicker(false);
+    setIsChatOpen(false);
+    setIsLandscapeInfoOpen((previous) => !previous);
+  }, [isLandscapeImmersive, setIsChatOpen]);
+
+  const closeLandscapeInfo = useCallback(() => {
+    setIsLandscapeInfoOpen(false);
   }, []);
 
-  const dismissVirtualLandscape = useCallback(() => {
-    setHasDeclinedVirtualLandscape(true);
-    setHasApprovedVirtualLandscape(false);
-    setShowVirtualLandscapePrompt(false);
-    setIsVirtualLandscapeActive(false);
-  }, []);
+  const handleToggleImmersiveFullscreen = useCallback(async () => {
+    if (!isImmersive) {
+      return;
+    }
+
+    setFullscreenErrorMessage(null);
+
+    if (isImmersiveFullscreen) {
+      const result = await exitImmersiveFullscreen({
+        documentRef: document,
+        screenRef: window.screen,
+        userAgent: window.navigator?.userAgent || "",
+        vendor: window.navigator?.vendor || "",
+      });
+
+      setIsImmersiveFullscreen(result.isFullscreen);
+      setFullscreenSupported(result.fullscreenSupported);
+      return;
+    }
+
+    const result = await enterImmersiveFullscreen({
+      element: immersiveExperienceRef.current,
+      documentRef: document,
+      screenRef: window.screen,
+      userAgent: window.navigator?.userAgent || "",
+      vendor: window.navigator?.vendor || "",
+    });
+
+    setIsImmersiveFullscreen(result.isFullscreen);
+    setFullscreenSupported(result.fullscreenSupported);
+    setFullscreenErrorMessage(result.errorMessage);
+  }, [isImmersive, isImmersiveFullscreen]);
 
   const handleLayoutModeChange = useCallback(
     async (nextLayoutMode) => {
@@ -303,18 +326,16 @@ export function useImmersiveGameLayout({
       }
 
       if (!isImmersive || !isMobile) {
-        if (isSwitchingToPortrait) {
-          setOrientationLockError(null);
-        }
-        return;
+      if (isSwitchingToPortrait) {
+        setIsLandscapeInfoOpen(false);
+        setOrientationLockError(null);
+      }
+      return;
       }
 
       if (isSwitchingToPortrait) {
+        setIsLandscapeInfoOpen(false);
         setOrientationLockError(null);
-        setShowVirtualLandscapePrompt(false);
-        setHasDeclinedVirtualLandscape(false);
-        setHasApprovedVirtualLandscape(false);
-        setIsVirtualLandscapeActive(false);
 
         const result = await exitImmersiveLandscapeMode({
           documentRef: document,
@@ -343,7 +364,7 @@ export function useImmersiveGameLayout({
       }
 
       setOrientationLockError(null);
-      setShowVirtualLandscapePrompt(false);
+      setFullscreenErrorMessage(null);
 
       const result = await enterImmersiveLandscapeMode({
         element: immersiveExperienceRef.current,
@@ -366,42 +387,17 @@ export function useImmersiveGameLayout({
 
       if (!landscapeRequestFailed) {
         setOrientationLockError(null);
-        setShowVirtualLandscapePrompt(false);
-        setIsVirtualLandscapeActive(false);
         return;
       }
 
       const fallbackMessage =
         result.errorMessage ||
-        "브라우저가 실제 가로 고정을 지원하지 않아요. 직접 회전하거나 가상 가로를 사용할 수 있어요.";
+        "브라우저가 실제 가로 고정을 지원하지 않아요. 회전 잠금을 끄고 직접 돌려 주세요.";
 
       setOrientationLockError(fallbackMessage);
-
-      if (!latestViewportSnapshot.isViewportPortrait) {
-        setShowVirtualLandscapePrompt(false);
-        setIsVirtualLandscapeActive(false);
-        return;
-      }
-
-      if (hasApprovedVirtualLandscape) {
-        setShowVirtualLandscapePrompt(false);
-        setIsVirtualLandscapeActive(true);
-        return;
-      }
-
-      if (hasDeclinedVirtualLandscape) {
-        setShowVirtualLandscapePrompt(false);
-        setIsVirtualLandscapeActive(false);
-        return;
-      }
-
-      setShowVirtualLandscapePrompt(true);
-      setIsVirtualLandscapeActive(false);
       setIsMobileControlsCollapsed(true);
     },
     [
-      hasApprovedVirtualLandscape,
-      hasDeclinedVirtualLandscape,
       immersiveLayoutMode,
       isImmersive,
       isImmersiveFullscreen,
@@ -419,6 +415,7 @@ export function useImmersiveGameLayout({
   }, [landscapeSidePreference, updateImmersiveSettings]);
 
   const handleToggleImmersiveChat = useCallback(() => {
+    setIsLandscapeInfoOpen(false);
     setIsMobileControlsCollapsed(true);
     setIsChatOpen((previous) => !previous);
   }, [setIsChatOpen]);
@@ -431,12 +428,14 @@ export function useImmersiveGameLayout({
     (nextSkinId) => {
       updateImmersiveSettings({ skinId: nextSkinId });
       setShowSkinPicker(false);
+      setIsLandscapeInfoOpen(false);
       setIsMobileControlsCollapsed(true);
     },
     [updateImmersiveSettings]
   );
 
   const toggleSkinPicker = useCallback(() => {
+    setIsLandscapeInfoOpen(false);
     setIsMobileControlsCollapsed(true);
     setShowSkinPicker((previous) => !previous);
   }, []);
@@ -445,13 +444,14 @@ export function useImmersiveGameLayout({
     immersiveExperienceRef,
     showSkinPicker,
     setShowSkinPicker,
+    isLandscapeInfoOpen,
     isMobileControlsCollapsed,
-    showVirtualLandscapePrompt,
-    isVirtualLandscapeActive,
     isMobile,
     isViewportPortrait,
     detectedLandscapeSide,
     isImmersiveFullscreen,
+    fullscreenSupported,
+    fullscreenErrorMessage,
     orientationLockSupported,
     orientationLockError,
     normalizedImmersiveSettings,
@@ -460,19 +460,18 @@ export function useImmersiveGameLayout({
     immersiveSkin,
     landscapeSidePreference,
     effectiveLandscapeSide,
-    virtualLandscapeDirection,
     isLandscapeImmersive,
     shouldShowRotateHint,
     orientationStatusMessage,
     orientationStatusTone,
-    virtualLandscapePromptMessage,
     isChatOpen,
     layoutMode: immersiveLayoutMode,
     skinId: immersiveSkinId,
     skin: immersiveSkin,
     toggleMobileControls,
-    confirmVirtualLandscape,
-    dismissVirtualLandscape,
+    toggleLandscapeInfo,
+    closeLandscapeInfo,
+    toggleImmersiveFullscreen: handleToggleImmersiveFullscreen,
     changeLayoutMode: handleLayoutModeChange,
     cycleLandscapeSide: handleCycleLandscapeSide,
     toggleImmersiveChat: handleToggleImmersiveChat,
@@ -485,5 +484,6 @@ export function useImmersiveGameLayout({
     handleToggleImmersiveChat,
     handleCloseImmersiveChat,
     handleSkinSelect,
+    handleToggleImmersiveFullscreen,
   };
 }

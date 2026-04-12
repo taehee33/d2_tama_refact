@@ -1,14 +1,7 @@
-export function toTimestamp(value) {
-  if (value == null) return null;
-  if (typeof value === "number" && !Number.isNaN(value)) return value;
-  if (typeof value === "object" && value !== null && "seconds" in value) {
-    const seconds = Number(value.seconds);
-    const nanoseconds = value.nanoseconds != null ? Number(value.nanoseconds) : 0;
-    return Number.isNaN(seconds) ? null : seconds * 1000 + nanoseconds / 1e6;
-  }
+import { toEpochMs } from "./time";
 
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
+export function toTimestamp(value) {
+  return toEpochMs(value);
 }
 
 export function toDurationMs(value) {

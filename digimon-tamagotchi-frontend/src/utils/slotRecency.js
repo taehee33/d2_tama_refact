@@ -1,33 +1,7 @@
+import { toEpochMs } from "./time";
+
 function toMillisecondsFromTimestamp(value) {
-  if (value == null) {
-    return 0;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (typeof value === "string") {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-
-  if (typeof value?.toDate === "function") {
-    const converted = value.toDate();
-    return converted instanceof Date ? converted.getTime() : 0;
-  }
-
-  if (typeof value?.seconds === "number") {
-    const milliseconds = value.seconds * 1000;
-    const nanoseconds = typeof value.nanoseconds === "number" ? value.nanoseconds : 0;
-    return milliseconds + Math.floor(nanoseconds / 1000000);
-  }
-
-  return 0;
+  return toEpochMs(value) ?? 0;
 }
 
 export function getSlotRecentActivityAt(slot = {}) {
@@ -52,4 +26,3 @@ export function sortSlotsByRecentActivity(slots = []) {
     return leftOrder - rightOrder;
   });
 }
-

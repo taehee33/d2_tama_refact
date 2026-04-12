@@ -1,13 +1,12 @@
-import { digimonDataVer1 } from "../data/v1/digimons";
-import { digimonDataVer2 } from "../data/v2modkor";
 import { translateStage } from "./stageTranslator";
+import { getDigimonDataMapByVersion } from "./digimonVersionUtils";
 
 export function getSlotDigimonData(slot) {
   if (!slot) {
     return null;
   }
 
-  const digimonMap = slot.version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+  const digimonMap = getDigimonDataMapByVersion(slot.version);
   return digimonMap[slot.selectedDigimon] || null;
 }
 

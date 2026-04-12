@@ -162,12 +162,12 @@ describe("GameScreen 부상 이모지 오버레이", () => {
     expect(syringeOverlays).toHaveLength(2);
     expect(
       syringeOverlays.some(
-        (element) => element.style.top === "70%" && element.style.left === "10%"
+        (element) => element.style.top === "62%" && element.style.left === "10%"
       )
     ).toBe(true);
     expect(
       syringeOverlays.some(
-        (element) => element.style.top === "30%" && element.style.right === "10%"
+        (element) => element.style.top === "22%" && element.style.right === "10%"
       )
     ).toBe(true);
   });

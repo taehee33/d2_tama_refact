@@ -44,24 +44,45 @@ export default function ExtraMenuModal({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold mb-4 text-center">추가 기능</h2>
-        
-        <div className="flex flex-col space-y-4">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 p-3"
+      onClick={onClose}
+    >
+      <div
+        className="battle-modal battle-modal--interactive extra-menu-modal bg-white rounded-2xl shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="extra-menu-modal-title"
+      >
+        <div className="battle-modal__header">
+          <h2 id="extra-menu-modal-title" className="text-xl font-bold text-slate-900">
+            추가 기능
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="battle-modal__close"
+            aria-label="추가 기능 닫기"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="battle-modal__body extra-menu-modal__body flex flex-col space-y-4">
           {groupedMenus.map((group) => (
             <section
               key={group.id}
-              className={`rounded-xl border p-4 ${groupStyleMap[group.id] || "border-slate-200 bg-slate-50"}`}
+              className={`extra-menu-modal__section rounded-xl border p-4 ${groupStyleMap[group.id] || "border-slate-200 bg-slate-50"}`}
               aria-label={group.label}
             >
               <h3 className="mb-3 text-sm font-bold tracking-wide text-slate-700">{group.label}</h3>
-              <div className="flex flex-col gap-3">
+              <div className="extra-menu-modal__actions flex flex-col gap-3">
                 {group.menus.map((menu) => (
                   <button
                     key={menu.id}
                     onClick={() => handleSelect(menu.id)}
-                    className={`flex items-center justify-between gap-3 rounded-lg px-4 py-3 font-bold text-white transition-colors ${buttonStyleMap[group.id] || "bg-slate-600 hover:bg-slate-700"}`}
+                    className={`extra-menu-modal__action flex items-center justify-between gap-3 rounded-lg px-4 py-3 font-bold text-white transition-colors ${buttonStyleMap[group.id] || "bg-slate-600 hover:bg-slate-700"}`}
                   >
                     <span className="flex items-center gap-2">
                       <span className="text-lg" aria-hidden="true">

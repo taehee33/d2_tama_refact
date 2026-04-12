@@ -69,18 +69,96 @@ export function getImmersiveOrientationSupportState({
   };
 }
 
-function getUnsupportedMessage(isIosSafari) {
+function getLandscapeUnsupportedMessage(isIosSafari) {
   return isIosSafari
     ? "이 브라우저에서는 가로 고정을 지원하지 않아요. 회전 잠금을 끄고 직접 돌려 주세요."
     : "이 브라우저에서는 가로 고정을 지원하지 않아요. 직접 회전해 주세요.";
 }
 
-function getFullscreenFailureMessage() {
+function getLandscapeFullscreenFailureMessage() {
   return "가로 고정을 시도했지만 전체화면 전환이 허용되지 않았어요. 직접 회전해 주세요.";
 }
 
 function getLockFailureMessage() {
   return "가로 고정을 시도했지만 브라우저가 허용하지 않았어요.";
+}
+
+function getFullscreenUnsupportedMessage(isIosSafari) {
+  return isIosSafari
+    ? "이 브라우저에서는 전체화면을 지원하지 않아요. 현재 몰입형 화면으로 계속 사용할 수 있어요."
+    : "이 브라우저에서는 전체화면을 지원하지 않아요.";
+}
+
+function getFullscreenOnlyFailureMessage() {
+  return "전체화면 전환이 허용되지 않았어요.";
+}
+
+async function ensureImmersiveFullscreen({
+  targetElement,
+  documentRef,
+  supportState,
+  unsupportedMessage,
+  failureMessage,
+} = {}) {
+  if (isImmersiveFullscreenActive(documentRef)) {
+    return {
+      isFullscreen: true,
+      fullscreenSupported: supportState.fullscreenSupported,
+      errorMessage: null,
+    };
+  }
+
+  const requestFullscreen = getRequestFullscreenMethod(targetElement);
+
+  if (!requestFullscreen) {
+    return {
+      isFullscreen: isImmersiveFullscreenActive(documentRef),
+      fullscreenSupported: supportState.fullscreenSupported,
+      errorMessage: unsupportedMessage,
+    };
+  }
+
+  try {
+    await requestFullscreen();
+    return {
+      isFullscreen: isImmersiveFullscreenActive(documentRef),
+      fullscreenSupported: supportState.fullscreenSupported,
+      errorMessage: null,
+    };
+  } catch (_error) {
+    return {
+      isFullscreen: isImmersiveFullscreenActive(documentRef),
+      fullscreenSupported: supportState.fullscreenSupported,
+      errorMessage: failureMessage,
+    };
+  }
+}
+
+export async function enterImmersiveFullscreen({
+  element,
+  documentRef,
+  screenRef,
+  userAgent = "",
+  vendor = "",
+} = {}) {
+  const targetElement = element || documentRef?.documentElement || null;
+  const supportState = getImmersiveOrientationSupportState({
+    element: targetElement,
+    documentRef,
+    screenRef,
+    userAgent,
+    vendor,
+  });
+
+  return ensureImmersiveFullscreen({
+    targetElement,
+    documentRef,
+    supportState,
+    unsupportedMessage: getFullscreenUnsupportedMessage(
+      supportState.isProbablyIosSafari
+    ),
+    failureMessage: getFullscreenOnlyFailureMessage(),
+  });
 }
 
 export async function enterImmersiveLandscapeMode({
@@ -91,7 +169,6 @@ export async function enterImmersiveLandscapeMode({
   vendor = "",
 } = {}) {
   const targetElement = element || documentRef?.documentElement || null;
-  const requestFullscreen = getRequestFullscreenMethod(targetElement);
   const supportState = getImmersiveOrientationSupportState({
     element: targetElement,
     documentRef,
@@ -100,35 +177,33 @@ export async function enterImmersiveLandscapeMode({
     vendor,
   });
 
-  if (!isImmersiveFullscreenActive(documentRef)) {
-    if (!requestFullscreen) {
-      return {
-        isFullscreen: isImmersiveFullscreenActive(documentRef),
-        orientationLockSupported: supportState.orientationLockSupported,
-        errorMessage: supportState.orientationLockSupported
-          ? getFullscreenFailureMessage()
-          : getUnsupportedMessage(supportState.isProbablyIosSafari),
-      };
-    }
+  const fullscreenResult = await ensureImmersiveFullscreen({
+    targetElement,
+    documentRef,
+    supportState,
+    unsupportedMessage: supportState.orientationLockSupported
+      ? getLandscapeFullscreenFailureMessage()
+      : getLandscapeUnsupportedMessage(supportState.isProbablyIosSafari),
+    failureMessage: supportState.orientationLockSupported
+      ? getLandscapeFullscreenFailureMessage()
+      : getLandscapeUnsupportedMessage(supportState.isProbablyIosSafari),
+  });
 
-    try {
-      await requestFullscreen();
-    } catch (_error) {
-      return {
-        isFullscreen: isImmersiveFullscreenActive(documentRef),
-        orientationLockSupported: supportState.orientationLockSupported,
-        errorMessage: supportState.orientationLockSupported
-          ? getFullscreenFailureMessage()
-          : getUnsupportedMessage(supportState.isProbablyIosSafari),
-      };
-    }
+  if (fullscreenResult.errorMessage) {
+    return {
+      isFullscreen: fullscreenResult.isFullscreen,
+      orientationLockSupported: supportState.orientationLockSupported,
+      errorMessage: fullscreenResult.errorMessage,
+    };
   }
 
   if (!supportState.orientationLockSupported) {
     return {
       isFullscreen: isImmersiveFullscreenActive(documentRef),
       orientationLockSupported: false,
-      errorMessage: getUnsupportedMessage(supportState.isProbablyIosSafari),
+      errorMessage: getLandscapeUnsupportedMessage(
+        supportState.isProbablyIosSafari
+      ),
     };
   }
 
@@ -148,6 +223,38 @@ export async function enterImmersiveLandscapeMode({
   }
 }
 
+export async function exitImmersiveFullscreen({
+  documentRef,
+  screenRef,
+  userAgent = "",
+  vendor = "",
+} = {}) {
+  if (isImmersiveFullscreenActive(documentRef)) {
+    const exitFullscreen = getExitFullscreenMethod(documentRef);
+
+    if (exitFullscreen) {
+      try {
+        await exitFullscreen();
+      } catch (_error) {
+        // 사용자가 직접 빠져나간 경우나 브라우저 거부는 무시한다.
+      }
+    }
+  }
+
+  const supportState = getImmersiveOrientationSupportState({
+    documentRef,
+    screenRef,
+    userAgent,
+    vendor,
+  });
+
+  return {
+    isFullscreen: isImmersiveFullscreenActive(documentRef),
+    fullscreenSupported: supportState.fullscreenSupported,
+    errorMessage: null,
+  };
+}
+
 export async function exitImmersiveLandscapeMode({
   documentRef,
   screenRef,
@@ -161,15 +268,12 @@ export async function exitImmersiveLandscapeMode({
   }
 
   if (isImmersiveFullscreenActive(documentRef)) {
-    const exitFullscreen = getExitFullscreenMethod(documentRef);
-
-    if (exitFullscreen) {
-      try {
-        await exitFullscreen();
-      } catch (_error) {
-        // 사용자가 직접 빠져나간 경우나 브라우저 거부는 무시한다.
-      }
-    }
+    await exitImmersiveFullscreen({
+      documentRef,
+      screenRef,
+      userAgent,
+      vendor,
+    });
   }
 
   const supportState = getImmersiveOrientationSupportState({

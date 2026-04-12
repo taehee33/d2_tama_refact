@@ -14,7 +14,10 @@ import { useGameAnimations } from "../hooks/useGameAnimations";
 import { useArenaLogic } from "../hooks/useArenaLogic";
 import { useGamePageActionFlows } from "../hooks/game-runtime/useGamePageActionFlows";
 import { useGamePageEvolutionAvailability } from "../hooks/game-runtime/useGamePageEvolutionAvailability";
-import { useGameHandlers } from "../hooks/useGameHandlers";
+import {
+  resolvePrimaryMenuAction,
+  useGameHandlers,
+} from "../hooks/useGameHandlers";
 import { useGameData } from "../hooks/useGameData";
 import { useGameState } from "../hooks/useGameState";
 import { useFridge } from "../hooks/useFridge";
@@ -75,6 +78,12 @@ const ver1DigimonList = [
 ];
 
 const perfectStages = ["Perfect","Ultimate","SuperUltimate"];
+const LANDSCAPE_ACTION_MENU_IDS = new Set([
+  "status",
+  "train",
+  "communication",
+  "extra",
+]);
 
 function Game({ immersive = false }){
   const { slotId } = useParams();
@@ -242,8 +251,6 @@ function Game({ immersive = false }){
     showSkinPicker,
     isLandscapeInfoOpen,
     isMobileControlsCollapsed,
-    showVirtualLandscapePrompt,
-    isVirtualLandscapeActive,
     isMobile,
     layoutMode: immersiveLayoutMode,
     skinId: immersiveSkinId,
@@ -251,17 +258,13 @@ function Game({ immersive = false }){
     isImmersiveFullscreen,
     landscapeSidePreference,
     effectiveLandscapeSide,
-    virtualLandscapeDirection,
     isLandscapeImmersive,
     shouldShowRotateHint,
     orientationStatusMessage,
     orientationStatusTone,
-    virtualLandscapePromptMessage,
     toggleMobileControls,
     toggleLandscapeInfo,
     closeLandscapeInfo,
-    confirmVirtualLandscape,
-    dismissVirtualLandscape,
     changeLayoutMode: handleLayoutModeChange,
     toggleImmersiveFullscreen: handleToggleImmersiveFullscreen,
     cycleLandscapeSide: handleCycleLandscapeSide,
@@ -290,6 +293,7 @@ function Game({ immersive = false }){
 
   // 상태 상세 모달용 메시지 저장
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);
+  const [activeLandscapeAction, setActiveLandscapeAction] = useState(null);
   // 온라인 조그레스: 현재 슬롯의 jogressStatus (canEvolve 시 진화 버튼 노출)
   const [slotJogressStatus, setSlotJogressStatus] = useState(null);
 
@@ -735,6 +739,7 @@ function Game({ immersive = false }){
   const {
     headerDigimonLabel,
     currentTimeText,
+    sleepSchedule,
     statusBadgeProps,
     controlPanelProps,
     gameScreenDisplayProps,
@@ -758,6 +763,118 @@ function Game({ immersive = false }){
     },
     [setActiveMenu, toggleModal]
   );
+
+  const closeLandscapeActionViewer = useCallback(() => {
+    setActiveLandscapeAction(null);
+  }, []);
+
+  const openLandscapeActionViewer = useCallback(
+    (actionId) => {
+      setActiveMenu(actionId);
+      closeLandscapeInfo();
+      handleCloseImmersiveChat();
+      toggleModal("stats", false);
+      toggleModal("train", false);
+      toggleModal("interaction", false);
+      toggleModal("extra", false);
+      setActiveLandscapeAction(actionId);
+    },
+    [closeLandscapeInfo, handleCloseImmersiveChat, setActiveMenu, toggleModal]
+  );
+
+  const handleLandscapeMenuClick = useCallback(
+    (menu) => {
+      const menuAction = resolvePrimaryMenuAction({
+        menu,
+        digimonStats,
+        isLightsOn,
+      });
+
+      if (!menuAction) {
+        return;
+      }
+
+      if (
+        isLandscapeImmersive &&
+        !shouldShowRotateHint &&
+        LANDSCAPE_ACTION_MENU_IDS.has(menuAction.activeMenuId)
+      ) {
+        openLandscapeActionViewer(menuAction.activeMenuId);
+        return;
+      }
+
+      closeLandscapeActionViewer();
+      handleMenuClickFromHook(menu);
+    },
+    [
+      closeLandscapeActionViewer,
+      digimonStats,
+      handleMenuClickFromHook,
+      isLandscapeImmersive,
+      isLightsOn,
+      openLandscapeActionViewer,
+      shouldShowRotateHint,
+    ]
+  );
+
+  const handleLandscapeInteractionAction = useCallback(
+    (actionId) => {
+      closeLandscapeActionViewer();
+
+      const actionMap = {
+        diet: () => toggleModal("diet", true),
+        rest: () => toggleModal("rest", true),
+        detox: () => toggleModal("detox", true),
+        playOrSnack: () => toggleModal("playOrSnack", true),
+        tease: () => toggleModal("tease", true),
+      };
+
+      actionMap[actionId]?.();
+    },
+    [closeLandscapeActionViewer, toggleModal]
+  );
+
+  const handleLandscapeExtraAction = useCallback(
+    (menuId) => {
+      closeLandscapeActionViewer();
+
+      const actionMap = {
+        activityLog: () => toggleModal("activityLog", true),
+        battleLog: () => toggleModal("battleLog", true),
+        encyclopedia: () => toggleModal("encyclopedia", true),
+        fridge: () => toggleModal("fridge", true),
+        collection: () => toggleModal("collection", true),
+        settings: () => toggleModal("settings", true),
+      };
+
+      actionMap[menuId]?.();
+    },
+    [closeLandscapeActionViewer, toggleModal]
+  );
+
+  useEffect(() => {
+    if (!isLandscapeImmersive || shouldShowRotateHint) {
+      setActiveLandscapeAction(null);
+    }
+  }, [isLandscapeImmersive, shouldShowRotateHint]);
+
+  useEffect(() => {
+    if (isLandscapeInfoOpen || showSkinPicker || isChatOpen) {
+      setActiveLandscapeAction(null);
+    }
+  }, [isLandscapeInfoOpen, isChatOpen, showSkinPicker]);
+
+  useEffect(() => {
+    if (!isLandscapeImmersive) {
+      return;
+    }
+
+    ["stats", "train", "interaction", "extra"].forEach((modalName) => {
+      if (modals?.[modalName]) {
+        toggleModal(modalName, false);
+      }
+    });
+  }, [isLandscapeImmersive, modals, toggleModal]);
 
   const { handleOverfeedConfirm, handleOverfeedCancel, resetDigimon } =
     useGamePageActionFlows({
@@ -1148,7 +1265,7 @@ function Game({ immersive = false }){
       immersiveSkin={immersiveSkin}
       controlsProps={{
         activeMenu,
-        onMenuClick: handleMenuClickFromHook,
+        onMenuClick: handleLandscapeMenuClick,
         isFrozen: digimonStats.isFrozen || false,
         isLightsOn,
         isMobile,
@@ -1260,18 +1377,54 @@ function Game({ immersive = false }){
       orientationStatusMessage={orientationStatusMessage}
       orientationStatusTone={orientationStatusTone}
       isMobile={isMobile}
-      isVirtualLandscapeActive={isVirtualLandscapeActive}
-      virtualLandscapeDirection={virtualLandscapeDirection}
-      virtualLandscapePromptMessage={virtualLandscapePromptMessage}
-      showVirtualLandscapePrompt={showVirtualLandscapePrompt}
-      onConfirmVirtualLandscape={confirmVirtualLandscape}
-      onDismissVirtualLandscape={dismissVirtualLandscape}
       chatOverlayProps={{
         isOpen: isChatOpen,
         isMobile,
         landscapeSide: effectiveLandscapeSide,
         onClose: handleCloseImmersiveChat,
       }}
+      actionViewerProps={
+        isLandscapeImmersive
+          ? {
+              isOpen: Boolean(activeLandscapeAction) && !shouldShowRotateHint,
+              isMobile,
+              activeAction: activeLandscapeAction,
+              onClose: closeLandscapeActionViewer,
+              onSelectAction: openLandscapeActionViewer,
+              statusPanelProps: {
+                slotName,
+                slotVersion: normalizedSlotVersion,
+                digimonLabel: headerDigimonLabel,
+                currentTimeText,
+                digimonStats,
+                currentAnimation,
+                feedType,
+                canEvolve: isEvoEnabled,
+                sleepSchedule,
+                wakeUntil,
+                sleepLightOnStart: digimonStats.sleepLightOnStart || null,
+                deathReason,
+                sleepStatus,
+                currentTime: customTime,
+              },
+              trainPanelProps: {
+                onClose: closeLandscapeActionViewer,
+                digimonStats,
+                setDigimonStatsAndSave,
+                onTrainResult: handleTrainResultFromHook,
+                selectedDigimon,
+                digimonNickname,
+                digimonDataForSlot,
+              },
+              interactionPanelProps: {
+                onSelectAction: handleLandscapeInteractionAction,
+              },
+              extraPanelProps: {
+                onOpenMenu: handleLandscapeExtraAction,
+              },
+            }
+          : null
+      }
       landscapeInfoOverlayProps={
         shouldUseLandscapeInfoOverlay
           ? {

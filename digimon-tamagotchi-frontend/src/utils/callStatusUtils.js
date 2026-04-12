@@ -1,4 +1,5 @@
 import { formatTimestamp } from "./dateUtils";
+import { toEpochMs } from "./time";
 
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -47,19 +48,7 @@ function isSleepingLikeStatus(sleepStatus) {
 }
 
 function ensureTimestamp(value) {
-  if (value == null || value === "") return null;
-  if (typeof value === "number") return value;
-  if (value && typeof value === "object") {
-    if (typeof value.toMillis === "function") {
-      return value.toMillis();
-    }
-    if ("seconds" in value) {
-      return value.seconds * 1000 + (value.nanoseconds || 0) / 1000000;
-    }
-  }
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.getTime();
+  return toEpochMs(value);
 }
 
 function formatDurationMs(diffMs) {

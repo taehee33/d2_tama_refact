@@ -10,22 +10,32 @@ import {
 const MenuIconButtons = ({
   width,
   height,
+  buttonHeight: buttonHeightOverride,
   activeMenu,
   onMenuClick,
   isMobile = false,
   isFrozen = false,
   isLightsOn = true,
+  className = "",
+  buttonClassName = "",
 }) => {
   const groupedMenus = getGroupedGameMenus(MENU_SURFACES.PRIMARY);
   const containerStyle = !isMobile && width ? { width: `${width}px` } : undefined;
   const buttonWidth = "100%";
   const compactButtonHeight = isMobile ? 54 : 52;
-  const buttonHeight =
-    typeof height === "number" ? Math.min(height, compactButtonHeight) : compactButtonHeight;
+  const buttonHeight = (() => {
+    if (typeof buttonHeightOverride === "number") {
+      return buttonHeightOverride;
+    }
+
+    return typeof height === "number"
+      ? Math.min(height, compactButtonHeight)
+      : compactButtonHeight;
+  })();
 
   return (
     <div
-      className={`menu-icon-buttons ${isMobile ? "menu-icon-buttons--mobile" : ""}`}
+      className={`menu-icon-buttons ${isMobile ? "menu-icon-buttons--mobile" : ""} ${className}`.trim()}
       style={containerStyle}
     >
       {groupedMenus.map((group) => (
@@ -53,7 +63,7 @@ const MenuIconButtons = ({
                     lockedReason={disabledState.message}
                     width={buttonWidth}
                     height={buttonHeight}
-                    className={isMobile ? "icon-button-mobile touch-button" : ""}
+                    className={`${isMobile ? "icon-button-mobile touch-button" : ""} ${buttonClassName}`.trim()}
                     label={menu.label}
                     isMobile={isMobile}
                     ariaLabel={menu.label}

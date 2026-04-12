@@ -3,13 +3,19 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import TrainPopup from "./TrainPopup";
 
 const DEFAULT_VIEWPORT_WIDTH = 1024;
+const DEFAULT_VIEWPORT_HEIGHT = 768;
 
-function setViewportWidth(width) {
+function setViewportSize(width, height = DEFAULT_VIEWPORT_HEIGHT) {
   act(() => {
     Object.defineProperty(window, "innerWidth", {
       configurable: true,
       writable: true,
       value: width,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: height,
     });
     window.dispatchEvent(new Event("resize"));
   });
@@ -62,14 +68,14 @@ describe("TrainPopup UI", () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.spyOn(window, "alert").mockImplementation(() => {});
-    setViewportWidth(DEFAULT_VIEWPORT_WIDTH);
+    setViewportSize(DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT);
   });
 
   afterEach(() => {
     act(() => {
       jest.runOnlyPendingTimers();
     });
-    setViewportWidth(DEFAULT_VIEWPORT_WIDTH);
+    setViewportSize(DEFAULT_VIEWPORT_WIDTH, DEFAULT_VIEWPORT_HEIGHT);
     jest.useRealTimers();
     window.alert.mockRestore();
   });
@@ -144,7 +150,7 @@ describe("TrainPopup UI", () => {
   });
 
   test("모바일에서는 공격 버튼이 내 디지몬 아래 패널로 이동한다", async () => {
-    setViewportWidth(390);
+    setViewportSize(390, 844);
     renderTrainPopup();
 
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
@@ -160,6 +166,18 @@ describe("TrainPopup UI", () => {
     expect(dummyCard).not.toContainElement(mobileControls);
     expect(screen.getAllByRole("button", { name: /위/ })).toHaveLength(1);
     expect(screen.getAllByRole("button", { name: /아래/ })).toHaveLength(1);
+  });
+
+  test("짧은 가로 화면에서도 모바일 입력 패드를 유지한다", async () => {
+    setViewportSize(844, 390);
+    renderTrainPopup();
+
+    fireEvent.click(screen.getByRole("button", { name: "시작" }));
+
+    expect(screen.getByLabelText("내 디지몬")).toContainElement(
+      screen.getByLabelText("모바일 입력 패드")
+    );
+    expect(screen.queryByLabelText("내 디지몬과 공격 패드")).not.toBeInTheDocument();
   });
 
   test("입력 대기 중 남은 시간은 1초마다 감소한다", async () => {

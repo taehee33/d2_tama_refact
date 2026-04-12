@@ -1,12 +1,18 @@
 import digimonAnimations from "../../data/digimonAnimations";
 import { resolveIdleMotionTimeline } from "../../data/idleMotionTimeline";
 import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
+import {
+  isDeathFormDigimonId,
+  isStarterDigimonId,
+} from "../../utils/digimonVersionUtils";
 
 export const DEATH_FORM_IDS = [
   "Ohakadamon1",
   "Ohakadamon2",
   "Ohakadamon1V2",
   "Ohakadamon2V2",
+  "Ohakadamon1V3",
+  "Ohakadamon2V3",
 ];
 
 export function buildGameAnimationViewModel({
@@ -20,19 +26,18 @@ export function buildGameAnimationViewModel({
   const digimonData = digimonDataForSlot[selectedDigimon];
   const baseSprite = digimonData?.sprite ?? digimonStats.sprite;
   const digimonImageBase = digimonData?.spriteBasePath || "/images";
-  const isDigitama =
-    selectedDigimon === "Digitama" || selectedDigimon === "DigitamaV2";
+  const isDigitama = isStarterDigimonId(selectedDigimon);
   const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const safeBaseSprite = Number(baseSprite);
   const idleMotionTimeline =
     !Number.isFinite(safeBaseSprite) ||
     isDigitama ||
-    DEATH_FORM_IDS.includes(selectedDigimon)
+    isDeathFormDigimonId(selectedDigimon)
       ? []
       : resolveIdleMotionTimeline(safeBaseSprite);
 
-  if (DEATH_FORM_IDS.includes(selectedDigimon)) {
+  if (isDeathFormDigimonId(selectedDigimon)) {
     const fixedFrame = [`${baseSprite}`];
     return {
       digimonImageBase,

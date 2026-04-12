@@ -44,4 +44,24 @@ describe("ExtraMenuModal", () => {
     expect(onOpenActivityLog).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  test("상단 닫기 버튼으로 더보기 모달을 닫을 수 있다", () => {
+    const onClose = jest.fn();
+
+    render(
+      <ExtraMenuModal
+        onClose={onClose}
+        onOpenSettings={jest.fn()}
+        onOpenCollection={jest.fn()}
+        onOpenActivityLog={jest.fn()}
+        onOpenBattleLog={jest.fn()}
+        onOpenEncyclopedia={jest.fn()}
+        onOpenFridge={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "추가 기능 닫기" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

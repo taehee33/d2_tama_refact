@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { getFridgeRenderPolicy } from "./fridgeRenderPolicy";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
+import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
@@ -225,7 +226,7 @@ const Canvas = ({
         isSleepingLikeVisualState &&
         !isDead &&
         !isFrozen &&
-        selectedDigimon !== "Digitama"
+        !isStarterDigimonId(selectedDigimon)
       ){
         zzzSprites.forEach((src, idx)=>{
           imageSources[`zzz${idx}`]= src;
@@ -470,7 +471,7 @@ const Canvas = ({
         isSleepingLikeVisualState &&
         !isDead &&
         !isFrozen &&
-        selectedDigimon !== "Digitama"
+        !isStarterDigimonId(selectedDigimon)
       ){
         const zzzFrameIdx = Math.floor(frame/speed) % zzzSprites.length;
         const zzzKey = `zzz${zzzFrameIdx}`;

@@ -6,6 +6,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateStage } from "../utils/stageTranslator";
 import { getJogressResult } from "../logic/evolution/jogress";
+import { getDigimonDataMapByVersion } from "../utils/digimonVersionUtils";
 
 /**
  * 파트너 슬롯 선택 모달 (로컬 조그레스용)
@@ -13,8 +14,6 @@ import { getJogressResult } from "../logic/evolution/jogress";
  * @param {number} currentSlotId - 현재 플레이 중인 슬롯 ID (제외)
  * @param {string} currentDigimonId - 현재 슬롯 디지몬 ID (조그레스 가능 여부 판정용)
  * @param {string} currentSlotVersion - 현재 슬롯 버전 ("Ver.1" | "Ver.2")
- * @param {Object} digimonDataVer1 - v1 디지몬 데이터 맵
- * @param {Object} digimonDataVer2 - v2 디지몬 데이터 맵
  * @param {Function} onClose - 모달 닫기
  * @param {Function} onSelectPartner - 슬롯 선택 시 (slot) => void
  */
@@ -23,8 +22,6 @@ export default function JogressPartnerSlotModal({
   currentSlotId,
   currentDigimonId,
   currentSlotVersion,
-  digimonDataVer1 = {},
-  digimonDataVer2 = {},
   onClose,
   onSelectPartner,
 }) {
@@ -65,12 +62,12 @@ export default function JogressPartnerSlotModal({
   }, [currentUser?.uid, currentSlotId]);
 
   const getDigimonData = (slot) => {
-    const map = slot.version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const map = getDigimonDataMapByVersion(slot.version);
     return map?.[slot.selectedDigimon] || {};
   };
 
   // 현재 슬롯 버전 기준 데이터 맵 (조그레스 가능 여부 판정용)
-  const currentSlotDataMap = currentSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+  const currentSlotDataMap = getDigimonDataMapByVersion(currentSlotVersion);
 
   const isJogressPossible = (slot) => {
     if (!currentDigimonId || !slot?.selectedDigimon) return false;

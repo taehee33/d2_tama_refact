@@ -6,15 +6,32 @@ import "../styles/Battle.css";
 
 export default function CommunicationModal({ onClose, onSparringStart, onArenaStart }) {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50" style={{ padding: '20px' }}>
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl" style={{ 
-        width: '90%', 
-        maxWidth: '400px',
-        margin: 'auto'
-      }}>
-        <h2 className="text-2xl font-bold mb-4 text-center">온라인 배틀</h2>
-        
-        <div className="flex flex-col space-y-4">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 p-3"
+      onClick={onClose}
+    >
+      <div
+        className="battle-modal battle-modal--interactive bg-white rounded-2xl shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="communication-modal-title"
+      >
+        <div className="battle-modal__header">
+          <h2 id="communication-modal-title" className="text-xl font-bold text-slate-900">
+            온라인 배틀
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="battle-modal__close"
+            aria-label="온라인 배틀 닫기"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="battle-modal__body flex flex-col space-y-4">
           <button
             onClick={() => {
               onSparringStart();
@@ -55,4 +72,3 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
     </div>
   );
 }
-

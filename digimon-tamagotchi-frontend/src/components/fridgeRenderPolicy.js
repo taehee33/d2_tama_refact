@@ -1,5 +1,7 @@
 // src/components/fridgeRenderPolicy.js
 
+import { toEpochMs } from "../utils/time";
+
 export const FRIDGE_RENDER_TIMINGS = Object.freeze({
   freezeCoverStartMs: 1000,
   freezeHideDigimonAfterMs: 2500,
@@ -9,16 +11,7 @@ export const FRIDGE_RENDER_TIMINGS = Object.freeze({
 });
 
 function toAnimationTimestamp(value) {
-  if (typeof value === "number") {
-    return value;
-  }
-
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
+  return toEpochMs(value);
 }
 
 /**

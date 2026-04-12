@@ -6,6 +6,7 @@ import {
   getTimeUntilSleep,
 } from "../utils/sleepUtils";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
+import { toEpochMs } from "../utils/time";
 
 export const DIGIMON_STATUS_CATEGORY_ORDER = [
   "critical",
@@ -59,20 +60,7 @@ const DEATH_REASON_LABELS = {
 };
 
 function toTimestamp(value) {
-  if (value == null) {
-    return null;
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isNaN(parsed) ? null : parsed;
+  return toEpochMs(value);
 }
 
 function createStatusMessage(overrides) {

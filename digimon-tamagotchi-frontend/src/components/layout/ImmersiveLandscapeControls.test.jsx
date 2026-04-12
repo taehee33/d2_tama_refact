@@ -61,4 +61,22 @@ describe("ImmersiveLandscapeControls", () => {
       width: "100%",
     });
   });
+
+  test("브릭 sidebar 레이아웃은 상태부터 더보기까지 10개 버튼을 5+5 그룹으로 렌더한다", () => {
+    const { container } = render(
+      <ImmersiveLandscapeControls
+        layout="sidebar"
+        activeMenu="status"
+        onMenuClick={jest.fn()}
+        isMobile
+      />
+    );
+
+    expect(container.firstChild).toHaveClass("immersive-landscape-control-sidebar");
+    expect(screen.getByRole("group", { name: "기본 조작" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "케어·도구" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(10);
+    expect(screen.getByRole("button", { name: "상태" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "더보기" })).toBeInTheDocument();
+  });
 });

@@ -6,6 +6,121 @@
   max-width: 400px;
 }
 
+.battle-modal--interactive {
+  width: min(100%, 420px);
+  min-width: min(300px, 100%);
+  max-height: min(82dvh, calc(100dvh - 1.5rem));
+  overflow-y: auto;
+}
+
+.battle-modal__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.92));
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.battle-modal__body {
+  padding: 1rem;
+}
+
+.battle-modal__close {
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.extra-menu-modal__body {
+  gap: 0.9rem;
+}
+
+.extra-menu-modal__section {
+  padding: 0.9rem;
+}
+
+@media (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
+  .battle-modal--interactive {
+    width: min(100%, 26rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .battle-modal__header {
+    padding: 0.85rem 0.85rem 0.65rem;
+  }
+
+  .battle-modal__body {
+    padding: 0.85rem;
+  }
+
+  .battle-modal__close {
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    font-size: 0.95rem;
+  }
+
+  .battle-modal__body > .flex,
+  .battle-modal__body {
+    gap: 0.75rem;
+  }
+
+  .battle-modal__body button:not(.battle-modal__close) {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    font-size: 0.9rem;
+  }
+
+  .battle-modal__body button:not(.battle-modal__close) span.text-sm {
+    font-size: 0.7rem;
+  }
+
+  .extra-menu-modal__section {
+    padding: 0.72rem;
+  }
+
+  .extra-menu-modal__body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .extra-menu-modal__body > button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .extra-menu-modal__section h3 {
+    margin-bottom: 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .extra-menu-modal__actions {
+    gap: 0.55rem;
+  }
+
+  .extra-menu-modal__action {
+    min-height: 2.8rem;
+    padding: 0.65rem 0.8rem;
+    font-size: 0.82rem;
+  }
+
+  .extra-menu-modal__action span.text-lg {
+    font-size: 1rem;
+  }
+}
+
 .battle-mode-button {
   transition: transform 0.1s ease;
 }

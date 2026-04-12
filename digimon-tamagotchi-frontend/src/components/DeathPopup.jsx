@@ -5,7 +5,14 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
   if (!isOpen) return null;
 
   // 사망 폼(오하카다몬) 여부 — Ver.1: Ohakadamon1/2, Ver.2: Ohakadamon1V2/2V2
-  const DEATH_FORM_IDS = ["Ohakadamon1", "Ohakadamon2", "Ohakadamon1V2", "Ohakadamon2V2"];
+  const DEATH_FORM_IDS = [
+    "Ohakadamon1",
+    "Ohakadamon2",
+    "Ohakadamon1V2",
+    "Ohakadamon2V2",
+    "Ohakadamon1V3",
+    "Ohakadamon2V3",
+  ];
   const isOhakadamon = DEATH_FORM_IDS.includes(selectedDigimon);
   
   // digimonStats.deathReason을 우선 사용, 없으면 reason prop 사용
@@ -138,4 +145,3 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
     </div>
   );
 }
-

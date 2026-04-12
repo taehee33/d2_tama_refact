@@ -1,5 +1,7 @@
 import {
+  enterImmersiveFullscreen,
   enterImmersiveLandscapeMode,
+  exitImmersiveFullscreen,
   exitImmersiveLandscapeMode,
   getImmersiveOrientationSupportState,
   isProbablyIosSafari,
@@ -62,6 +64,79 @@ describe("immersiveOrientation utils", () => {
       orientationLockSupported: true,
       errorMessage: null,
     });
+  });
+
+  test("fullscreen-only 진입 성공 시 전체화면 상태를 돌려준다", async () => {
+    const documentRef = {
+      documentElement: {},
+      fullscreenElement: null,
+    };
+    const element = {
+      requestFullscreen: jest.fn(async () => {
+        documentRef.fullscreenElement = element;
+      }),
+    };
+
+    const result = await enterImmersiveFullscreen({
+      element,
+      documentRef,
+      screenRef: {},
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+      vendor: "Google Inc.",
+    });
+
+    expect(element.requestFullscreen).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      isFullscreen: true,
+      fullscreenSupported: true,
+      errorMessage: null,
+    });
+  });
+
+  test("fullscreen-only 미지원 브라우저에서는 안내 메시지를 돌려준다", async () => {
+    const documentRef = {
+      documentElement: {},
+      fullscreenElement: null,
+    };
+
+    const result = await enterImmersiveFullscreen({
+      element: {},
+      documentRef,
+      screenRef: {},
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      vendor: "Apple Computer, Inc.",
+    });
+
+    expect(result.isFullscreen).toBe(false);
+    expect(result.fullscreenSupported).toBe(false);
+    expect(result.errorMessage).toContain("전체화면");
+  });
+
+  test("fullscreen-only request가 거부되면 실패 안내 메시지를 돌려준다", async () => {
+    const documentRef = {
+      documentElement: {},
+      fullscreenElement: null,
+    };
+    const element = {
+      requestFullscreen: jest.fn(async () => {
+        throw new Error("fullscreen denied");
+      }),
+    };
+
+    const result = await enterImmersiveFullscreen({
+      element,
+      documentRef,
+      screenRef: {},
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+      vendor: "Google Inc.",
+    });
+
+    expect(result.isFullscreen).toBe(false);
+    expect(result.fullscreenSupported).toBe(true);
+    expect(result.errorMessage).toContain("전체화면 전환");
   });
 
   test("가로 고정이 미지원이면 fullscreen 이후 안내 메시지를 돌려준다", async () => {
@@ -147,5 +222,27 @@ describe("immersiveOrientation utils", () => {
     expect(documentRef.exitFullscreen).toHaveBeenCalledTimes(1);
     expect(result.errorMessage).toBeNull();
     expect(result.isFullscreen).toBe(false);
+  });
+
+  test("fullscreen-only 종료 시 exitFullscreen을 best effort로 호출한다", async () => {
+    const documentRef = {
+      fullscreenElement: {},
+      exitFullscreen: jest.fn(async () => {
+        documentRef.fullscreenElement = null;
+      }),
+    };
+
+    const result = await exitImmersiveFullscreen({
+      documentRef,
+      screenRef: {},
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+      vendor: "Google Inc.",
+    });
+
+    expect(documentRef.exitFullscreen).toHaveBeenCalledTimes(1);
+    expect(result.errorMessage).toBeNull();
+    expect(result.isFullscreen).toBe(false);
+    expect(result.fullscreenSupported).toBe(false);
   });
 });

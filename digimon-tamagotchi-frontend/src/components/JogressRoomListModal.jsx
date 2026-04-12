@@ -6,14 +6,15 @@ import { collection, getDocs, query, where, orderBy, limit } from "firebase/fire
 import { db } from "../firebase";
 import { translateStage } from "../utils/stageTranslator";
 import { getJogressResult } from "../logic/evolution/jogress";
-import { V2_SPRITE_BASE } from "../data/v2modkor";
+import {
+  getDigimonDataMapByVersion,
+  getSpriteBasePathByVersion,
+} from "../utils/digimonVersionUtils";
 
 /**
  * 방 목록 모달 (온라인 조그레스)
  * @param {Object} currentUser - Firebase 현재 유저
  * @param {number|null} [currentSlotId] - 참가 시 선택 가능한 슬롯(현재 플레이 중인 슬롯만 가능)
- * @param {Object} digimonDataVer1 - v1 디지몬 데이터 맵
- * @param {Object} digimonDataVer2 - v2 디지몬 데이터 맵
  * @param {Function} onClose - 모달 닫기
  * @param {Function} onSelectRoomAndSlot - (room, guestSlot) => void
  * @param {Function} onCreateRoom - 방 만들기(현재 슬롯, 레거시)
@@ -28,8 +29,6 @@ const MAX_MY_ROOMS = 3;
 export default function JogressRoomListModal({
   currentUser,
   currentSlotId = null,
-  digimonDataVer1 = {},
-  digimonDataVer2 = {},
   onClose,
   onSelectRoomAndSlot,
   onCreateRoom,
@@ -163,25 +162,25 @@ export default function JogressRoomListModal({
   }, [currentUser?.uid, myRooms.length, selectedRoomId]);
 
   const myWaitingRooms = myRooms.filter((r) => r.status === "waiting");
-  const hostMap = selectedRoom?.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+  const hostMap = getDigimonDataMapByVersion(selectedRoom?.hostSlotVersion);
   const getHostDigimonName = (room) => {
-    const map = room.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const map = getDigimonDataMapByVersion(room.hostSlotVersion);
     const baseName = map?.[room.hostDigimonId]?.name || room.hostDigimonId;
     const nickname = room.hostDigimonNickname && room.hostDigimonNickname.trim();
     return nickname ? `${nickname}(${baseName})` : baseName;
   };
   const getHostDigimonData = (room) => {
-    const map = room.hostSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const map = getDigimonDataMapByVersion(room.hostSlotVersion);
     return map?.[room.hostDigimonId] || {};
   };
   const getSpritePath = (room) => {
     const data = getHostDigimonData(room);
-    return data.spriteBasePath || (room.hostSlotVersion === "Ver.2" ? V2_SPRITE_BASE : "/images");
+    return data.spriteBasePath || getSpriteBasePathByVersion(room.hostSlotVersion);
   };
   const getSprite = (room) => getHostDigimonData(room).sprite ?? 0;
   /** 게스트 디지몬 이름 (room.guestDigimonId + 버전) */
   const getGuestDigimonName = (room) => {
-    const map = room.guestSlotVersion === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const map = getDigimonDataMapByVersion(room.guestSlotVersion);
     const entry = map?.[room.guestDigimonId];
     return entry?.name || room.guestDigimonId || "";
   };
@@ -194,7 +193,7 @@ export default function JogressRoomListModal({
     return `${tamer} / ${digimonPart}`;
   };
   const getDigimonData = (slot) => {
-    const map = slot.version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const map = getDigimonDataMapByVersion(slot.version);
     return map?.[slot.selectedDigimon] || {};
   };
   const isJogressPossible = (slot) => {
@@ -205,7 +204,7 @@ export default function JogressRoomListModal({
   /** 해당 슬롯 디지몬이 조그레스 진화 가능 여부 (등록 가능/불가 구분용) */
   const canRegisterJogress = (slot) => {
     if (!slot?.selectedDigimon) return false;
-    const dataMap = slot.version === "Ver.2" ? digimonDataVer2 : digimonDataVer1;
+    const dataMap = getDigimonDataMapByVersion(slot.version);
     const evolutions = dataMap[slot.selectedDigimon]?.evolutions || [];
     return evolutions.some((e) => e.jogress);
   };
@@ -337,7 +336,8 @@ export default function JogressRoomListModal({
                           ? `${slot.digimonNickname.trim()}(${baseName})`
                           : baseName;
                         const power = digimonData?.stats?.basePower ?? 0;
-                        const spritePath = digimonData.spriteBasePath || (slot.version === "Ver.2" ? V2_SPRITE_BASE : "/images");
+                        const spritePath =
+                          digimonData.spriteBasePath || getSpriteBasePathByVersion(slot.version);
                         const sprite = digimonData.sprite ?? 0;
                         const alreadyRegistered = isSlotAlreadyRegistered(slot.id);
                         const canRegister = canRegisterJogress(slot);

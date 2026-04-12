@@ -4,6 +4,7 @@ import {
   doc,
   getDocs,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -14,13 +15,14 @@ import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
 import { sortSlotsByRecentActivity } from "../utils/slotRecency";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
+import { toEpochMs } from "../utils/time";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
     .filter((slot) => slot.displayOrder === undefined)
     .sort((a, b) => {
-      const aTime = typeof a.createdAt === "number" ? a.createdAt : new Date(a.createdAt || 0).getTime();
-      const bTime = typeof b.createdAt === "number" ? b.createdAt : new Date(b.createdAt || 0).getTime();
+      const aTime = toEpochMs(a.createdAt) || 0;
+      const bTime = toEpochMs(b.createdAt) || 0;
       return bTime - aTime;
     });
 
@@ -121,7 +123,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
           reorderTargets.map((slot) =>
             updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`), {
               displayOrder: (slot.displayOrder || 0) + 1,
-              updatedAt: new Date(),
+              updatedAt: serverTimestamp(),
             })
           )
         );
@@ -136,11 +138,14 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         slotName: `슬롯${slotId}`,
         digimonNickname: null,
         createdAt,
+        createdAtServer: serverTimestamp(),
         device,
         version,
         immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
         displayOrder: 1,
-        updatedAt: new Date(),
+        lastSavedAt: createdAt,
+        lastSavedAtServer: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
       await loadSlots();
@@ -174,13 +179,11 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         where("hostSlotId", "==", slotId)
       );
       const snapshot = await getDocs(roomQuery);
-      const now = new Date();
-
       await Promise.all(
         snapshot.docs.map((room) =>
           updateDoc(doc(db, "jogress_rooms", room.id), {
             hostDigimonNickname: digimonNickname,
-            updatedAt: now,
+            updatedAt: serverTimestamp(),
           })
         )
       );
@@ -200,7 +203,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
 
       await updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
         digimonNickname: trimmedNickname || null,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
 
       await syncJogressRoomNickname(slotId, trimmedNickname || null);
@@ -217,7 +220,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
 
       await updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
         digimonNickname: null,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
 
       await syncJogressRoomNickname(slotId, null);
@@ -236,7 +239,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         orderedSlots.map((slot, index) =>
           updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`), {
             displayOrder: index + 1,
-            updatedAt: new Date(),
+            updatedAt: serverTimestamp(),
           })
         )
       );

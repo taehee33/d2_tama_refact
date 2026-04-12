@@ -5,6 +5,7 @@ import React, { useState, useMemo } from "react";
 import { formatTimestamp } from "../utils/dateUtils";
 import { isSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { normalizeCallLogText } from "../utils/callStatusUtils";
+import { toEpochMs } from "../utils/time";
 
 /** 수면 관련 로그: 잠듦/깨어남, 수면 방해, 불 켜짐/꺼짐 */
 function isSleepLog(log) {
@@ -75,8 +76,8 @@ export default function ActivityLogModal({
   const sortedLogs = useMemo(
     () =>
       [...(activityLogs || [])].sort((a, b) => {
-        const timeA = a.timestamp || 0;
-        const timeB = b.timestamp || 0;
+        const timeA = toEpochMs(a?.timestamp) || 0;
+        const timeB = toEpochMs(b?.timestamp) || 0;
         return timeB - timeA;
       }),
     [activityLogs]

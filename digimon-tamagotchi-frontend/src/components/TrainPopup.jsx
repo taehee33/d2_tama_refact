@@ -15,6 +15,16 @@ const TRAINING_LANES = [
   { key: "D", label: "하단", buttonLabel: "↓", assistiveLabel: "아래" },
 ];
 const MOBILE_BREAKPOINT = 720;
+const COMPACT_LANDSCAPE_WIDTH_BREAKPOINT = 960;
+const COMPACT_LANDSCAPE_HEIGHT_BREAKPOINT = 560;
+
+function shouldUseCompactTrainingLayout(width, height) {
+  return (
+    width <= MOBILE_BREAKPOINT ||
+    (width <= COMPACT_LANDSCAPE_WIDTH_BREAKPOINT &&
+      height <= COMPACT_LANDSCAPE_HEIGHT_BREAKPOINT)
+  );
+}
 
 function formatDirection(direction) {
   return direction === "U" ? "상단" : "하단";
@@ -121,6 +131,7 @@ export default function TrainPopup({
   selectedDigimon = "",
   digimonNickname = "",
   digimonDataForSlot = {},
+  renderMode = "modal",
 }) {
   const [phase, setPhase] = useState("ready");
   const [round, setRound] = useState(1);
@@ -132,7 +143,9 @@ export default function TrainPopup({
   const [chosenPattern, setChosenPattern] = useState([]);
   const [currentExchange, setCurrentExchange] = useState(null);
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth <= MOBILE_BREAKPOINT : false
+    typeof window !== "undefined"
+      ? shouldUseCompactTrainingLayout(window.innerWidth, window.innerHeight)
+      : false
   );
   const lifecycleTokenRef = useRef(0);
   const transitionTokenRef = useRef(0);
@@ -157,6 +170,7 @@ export default function TrainPopup({
   const digimonAttackSpriteSrc = `${digimonSpriteBasePath}/${digimonAttackSprite}.png`;
   const isAwaitingInput = phase === "battle" && interactionState === "awaiting-input";
   const shouldRevealDefense = phase === "final" || (phase === "battle" && interactionState !== "awaiting-input");
+  const isEmbedded = renderMode === "embedded";
   const exchangeResultLabel = currentExchange
     ? currentExchange.isHit
       ? "명중 성공"
@@ -198,7 +212,9 @@ export default function TrainPopup({
     if (typeof window === "undefined") return undefined;
 
     const syncLayoutMode = () => {
-      setIsMobileLayout(window.innerWidth <= MOBILE_BREAKPOINT);
+      setIsMobileLayout(
+        shouldUseCompactTrainingLayout(window.innerWidth, window.innerHeight)
+      );
     };
 
     syncLayoutMode();
@@ -406,8 +422,16 @@ export default function TrainPopup({
 
   if (phase === "ready") {
     return (
-      <div className="train-popup__overlay">
-        <div className="train-popup__shell train-popup__shell--ready">
+      <div
+        className={`train-popup__overlay ${
+          isEmbedded ? "train-popup__overlay--embedded" : ""
+        }`.trim()}
+      >
+        <div
+          className={`train-popup__shell train-popup__shell--ready ${
+            isEmbedded ? "train-popup__shell--embedded" : ""
+          }`.trim()}
+        >
           <div className="train-popup__ready-copy">
             <span className="train-popup__eyebrow">TRAINING MODE</span>
             <h2>훈련 시작</h2>
@@ -442,8 +466,16 @@ export default function TrainPopup({
   }
 
   return (
-    <div className="train-popup__overlay">
-      <div className="train-popup__shell">
+    <div
+      className={`train-popup__overlay ${
+        isEmbedded ? "train-popup__overlay--embedded" : ""
+      }`.trim()}
+    >
+      <div
+        className={`train-popup__shell ${
+          isEmbedded ? "train-popup__shell--embedded" : ""
+        }`.trim()}
+      >
         <header className="train-popup__header">
           <div className="train-popup__header-copy">
             <span className="train-popup__eyebrow">원작풍 상하 공격 훈련</span>

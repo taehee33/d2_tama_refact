@@ -5,6 +5,7 @@ import {
   getSlotDisplayName,
   getSlotStageLabel,
 } from "./slotViewUtils";
+import { getSpriteBasePathByVersion } from "./digimonVersionUtils";
 
 function normalizeInteger(value) {
   const parsed = Number(value);
@@ -92,7 +93,7 @@ function resolveCommunityScene(source, recordedAt = null) {
     source.spriteBasePath ||
     source.visual?.spriteBasePath ||
     digimonData.spriteBasePath ||
-    (version === "Ver.2" ? "/Ver2_Mod_Kor" : "/images");
+    getSpriteBasePathByVersion(version);
   const spriteNumber = normalizeInteger(
     source.spriteNumber ?? source.visual?.spriteNumber ?? digimonData.sprite ?? 0
   );

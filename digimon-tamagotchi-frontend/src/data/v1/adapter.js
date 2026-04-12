@@ -13,8 +13,14 @@ function normalizeTimeString(value, fallback = null) {
     return fallback;
   }
 
-  const hour = Math.max(0, Math.min(23, Number.parseInt(match[1], 10)));
-  const minute = Math.max(0, Math.min(59, Number.parseInt(match[2], 10)));
+  const rawHour = Number.parseInt(match[1], 10);
+  const rawMinute = Number.parseInt(match[2], 10);
+  if (rawHour === 24 && rawMinute === 0) {
+    return "24:00";
+  }
+
+  const hour = Math.max(0, Math.min(23, rawHour));
+  const minute = Math.max(0, Math.min(59, rawMinute));
 
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
@@ -27,8 +33,10 @@ function createSleepScheduleFromTimes(sleepTime, wakeTime) {
     return null;
   }
 
-  const [start, startMinute] = normalizedSleepTime.split(":").map(Number);
-  const [end, endMinute] = normalizedWakeTime.split(":").map(Number);
+  const [rawStart, startMinute] = normalizedSleepTime.split(":").map(Number);
+  const [rawEnd, endMinute] = normalizedWakeTime.split(":").map(Number);
+  const start = rawStart === 24 ? 0 : rawStart;
+  const end = rawEnd === 24 ? 0 : rawEnd;
 
   return {
     start,

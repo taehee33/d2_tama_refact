@@ -1,57 +1,6 @@
 // src/utils/dateUtils.js
 
-/**
- * 슬롯/디지몬 생성일 표시용 (Select 화면·Game 화면 공통)
- * 숫자(ms)는 로케일 포맷, 문자열(구 데이터)은 그대로 표시
- * @param {number|string|null|undefined} value - createdAt (ms) 또는 레거시 문자열
- * @returns {string}
- */
-export function formatSlotCreatedAt(value) {
-  if (value == null || value === "") return "";
-  if (typeof value === "number") return new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
-  return String(value);
-}
-
-/**
- * 타임스탬프를 읽기 쉬운 형식으로 포맷팅
- * @param {number|Date|string} timestamp - 밀리초 타임스탬프, Date 객체, 또는 ISO 문자열
- * @param {string} format - 포맷 옵션 ('short' | 'long' | 'time')
- * @returns {string} 포맷팅된 날짜 문자열
- */
-export function formatTimestamp(timestamp, format = 'short') {
-  if (!timestamp) return 'N/A';
-  
-  let date;
-  if (timestamp instanceof Date) {
-    date = timestamp;
-  } else if (typeof timestamp === 'number') {
-    date = new Date(timestamp);
-  } else if (typeof timestamp === 'string') {
-    date = new Date(timestamp);
-  } else {
-    return 'N/A';
-  }
-  
-  if (isNaN(date.getTime())) {
-    return 'N/A';
-  }
-  
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  const seconds = String(date.getSeconds()).padStart(2, '0');
-  
-  switch (format) {
-    case 'long':
-      return `${date.getFullYear()}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    case 'time':
-      return `${hours}:${minutes}:${seconds}`;
-    case 'short':
-    default:
-      return `${month}/${day} ${hours}:${minutes}`;
-  }
-}
+export { formatSlotCreatedAt, formatTimestamp } from "./time";
 
 /**
  * 경과 시간을 읽기 쉬운 형식으로 포맷팅
@@ -74,7 +23,6 @@ export function formatElapsedTime(seconds) {
   
   return parts.join(' ');
 }
-
 
 
 

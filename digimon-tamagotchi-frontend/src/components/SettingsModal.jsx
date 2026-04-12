@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { translateStage } from "../utils/stageTranslator";
+import {
+  getDigimonDataMapByVersion,
+  getStarterDigimonIdFromDataMap,
+} from "../utils/digimonVersionUtils";
 import DigimonMasterDataModal from "./DigimonMasterDataModal";
 
 const SettingsModal = ({
@@ -35,6 +39,8 @@ const SettingsModal = ({
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showMasterDataModal, setShowMasterDataModal] = useState(false);
+  const slotEvolutionDataMap = newDigimonDataVer1;
+  const slotRuntimeDataMap = digimonDataVer1;
   
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
@@ -147,7 +153,11 @@ const SettingsModal = ({
 
   // 디지몬을 stage별로 그룹화하여 정렬된 옵션 생성 (Ver.2 슬롯이면 v2 디지몬, 아니면 v1)
   const groupedDigimonOptions = React.useMemo(() => {
-    const dataMap = slotVersion === "Ver.2" ? digimonDataVer2 : newDigimonDataVer1;
+    const dataMap =
+      getDigimonDataMapByVersion(slotVersion) ||
+      slotEvolutionDataMap ||
+      slotRuntimeDataMap ||
+      digimonDataVer2;
     if (!dataMap || typeof dataMap !== 'object') return null;
 
     // Stage 순서 정의
@@ -186,7 +196,7 @@ const SettingsModal = ({
     });
 
     return { stageOrder, digimonByStage };
-  }, [slotVersion, newDigimonDataVer1, digimonDataVer2]);
+  }, [slotVersion, slotEvolutionDataMap, slotRuntimeDataMap, digimonDataVer2]);
 
   // Save
   const handleSave = () => {
@@ -302,16 +312,22 @@ const SettingsModal = ({
                   <select
                     onChange={(e) => {
                       const nm = e.target.value;
+                      const dataMap =
+                        getDigimonDataMapByVersion(slotVersion) ||
+                        slotEvolutionDataMap ||
+                        slotRuntimeDataMap ||
+                        digimonDataVer2;
                       if (!nm || nm.startsWith('--')) return; // 구분자 선택 무시
-                      if (!digimonDataVer1[nm]) {
+                      if (!dataMap?.[nm]) {
                         console.error(`No data for ${nm}`);
-                        const fallback = initializeStats("Digitama", digimonStats, digimonDataVer1);
+                        const fallbackStarterId = getStarterDigimonIdFromDataMap(dataMap);
+                        const fallback = initializeStats(fallbackStarterId, digimonStats, dataMap);
                         setDigimonStatsAndSave(fallback);
-                        setSelectedDigimonAndSave("Digitama");
+                        setSelectedDigimonAndSave(fallbackStarterId);
                         return;
                       }
                       const old = { ...digimonStats };
-                      const nx = initializeStats(nm, old, digimonDataVer1);
+                      const nx = initializeStats(nm, old, dataMap);
                       setDigimonStatsAndSave(nx);
                       setSelectedDigimonAndSave(nm);
                     }}

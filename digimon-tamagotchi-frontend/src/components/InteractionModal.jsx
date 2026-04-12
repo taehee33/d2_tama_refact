@@ -13,11 +13,32 @@ export default function InteractionModal({
   onTease
 }) {
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="battle-modal bg-white p-6 rounded-lg shadow-xl">
-        <h2 className="text-2xl font-bold mb-4 text-center">교감</h2>
-        
-        <div className="flex flex-col space-y-4">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 p-3"
+      onClick={onClose}
+    >
+      <div
+        className="battle-modal battle-modal--interactive bg-white rounded-2xl shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="interaction-modal-title"
+      >
+        <div className="battle-modal__header">
+          <h2 id="interaction-modal-title" className="text-xl font-bold text-slate-900">
+            교감
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="battle-modal__close"
+            aria-label="교감 닫기"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="battle-modal__body flex flex-col space-y-4">
           <button
             onClick={() => {
               if (onDiet) {

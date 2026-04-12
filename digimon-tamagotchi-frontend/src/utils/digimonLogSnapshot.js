@@ -1,3 +1,8 @@
+import {
+  getDigimonVersionByDigimonId,
+  getStarterDigimonId,
+} from "./digimonVersionUtils";
+
 function normalizeMaps(maps = []) {
   return maps.flat().filter((map) => map && typeof map === "object");
 }
@@ -74,13 +79,10 @@ export function buildDigimonLogSnapshot(digimonId, ...maps) {
 }
 
 export function getLifeStartDigimonId(slotVersion = "Ver.1", currentDigimonId = null) {
-  if (typeof slotVersion === "string" && slotVersion.includes("2")) {
-    return "DigitamaV2";
-  }
+  const resolvedVersion =
+    typeof slotVersion === "string" && slotVersion.trim()
+      ? slotVersion
+      : getDigimonVersionByDigimonId(currentDigimonId);
 
-  if (typeof currentDigimonId === "string" && currentDigimonId.includes("V2")) {
-    return "DigitamaV2";
-  }
-
-  return "Digitama";
+  return getStarterDigimonId(resolvedVersion);
 }

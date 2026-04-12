@@ -1,6 +1,7 @@
 import {
   createCommunityPost,
   createShowcasePost,
+  getCommunityBoardFeed,
   listCommunityPosts,
 } from "./communityApi";
 
@@ -93,6 +94,31 @@ describe("communityApi", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
         }),
+      })
+    );
+  });
+
+  it("소식 피드 조회는 viewer meta를 함께 돌려준다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: jest.fn().mockResolvedValue(
+        JSON.stringify({
+          posts: [{ id: "news-1", title: "공지" }],
+          viewer: { canCreate: true },
+        })
+      ),
+    });
+
+    await expect(getCommunityBoardFeed(currentUser, "news")).resolves.toEqual({
+      posts: [{ id: "news-1", title: "공지" }],
+      viewer: { canCreate: true },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/news/posts",
+      expect.objectContaining({
+        method: "GET",
       })
     );
   });
@@ -207,6 +233,58 @@ describe("communityApi", () => {
           },
           image: {
             fileName: "bug.png",
+            mimeType: "image/png",
+            dataUrl: "data:image/png;base64,ZmFrZQ==",
+          },
+        }),
+      })
+    );
+  });
+
+  it("소식 작성은 newsContext와 image payload를 함께 보낸다", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      text: jest.fn().mockResolvedValue(JSON.stringify({ post: { id: "news-1" } })),
+    });
+
+    await createCommunityPost(currentUser, "news", {
+      category: "patch",
+      title: "Ver.2.1.0 패치 안내",
+      body: "저장 안정화 패치를 적용했습니다.",
+      newsContext: {
+        summary: "저장 처리 안정화와 커뮤니티 이미지 개선",
+        version: "Ver.2.1.0",
+        scope: "저장 흐름 · 커뮤니티",
+        startsAt: "2026-04-12T12:00",
+        endsAt: "2026-04-12T18:00",
+        featured: true,
+      },
+      image: {
+        fileName: "patch.png",
+        mimeType: "image/png",
+        dataUrl: "data:image/png;base64,ZmFrZQ==",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/community/news/posts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          category: "patch",
+          title: "Ver.2.1.0 패치 안내",
+          body: "저장 안정화 패치를 적용했습니다.",
+          newsContext: {
+            summary: "저장 처리 안정화와 커뮤니티 이미지 개선",
+            version: "Ver.2.1.0",
+            scope: "저장 흐름 · 커뮤니티",
+            startsAt: "2026-04-12T12:00",
+            endsAt: "2026-04-12T18:00",
+            featured: true,
+          },
+          image: {
+            fileName: "patch.png",
             mimeType: "image/png",
             dataUrl: "data:image/png;base64,ZmFrZQ==",
           },

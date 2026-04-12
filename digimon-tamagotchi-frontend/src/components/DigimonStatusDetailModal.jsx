@@ -21,24 +21,24 @@ const DigimonStatusDetailModal = ({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+      className="digimon-status-detail-modal fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto pixel-art-modal"
+        className="digimon-status-detail-modal__surface bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto pixel-art-modal"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="p-6">
-          <div className="flex justify-between items-start gap-4 mb-5">
+        <div className="digimon-status-detail-modal__content p-6">
+          <div className="digimon-status-detail-modal__header flex justify-between items-start gap-4 mb-5">
             <div>
-              <h2 className="text-2xl font-bold text-slate-900">디지몬 상태 상세</h2>
-              <p className="text-sm text-slate-500 mt-1">
+              <h2 className="digimon-status-detail-modal__title text-2xl font-bold text-slate-900">디지몬 상태 상세</h2>
+              <p className="digimon-status-detail-modal__description text-sm text-slate-500 mt-1">
                 상단 요약에서 접힌 상태까지 모두 모아 보여드려요.
               </p>
             </div>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none"
+              className="digimon-status-detail-modal__close text-slate-400 hover:text-slate-700 text-2xl font-bold leading-none"
               aria-label="상태 상세 닫기"
             >
               ✕
@@ -46,15 +46,15 @@ const DigimonStatusDetailModal = ({
           </div>
 
           {groupedMessages.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-slate-500">
+            <div className="digimon-status-detail-modal__empty rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-slate-500">
               지금은 표시할 상태가 없어요.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="digimon-status-detail-modal__sections">
               {groupedMessages.map(({ category, meta, messages }) => (
                 <section
                   key={category}
-                  className={`rounded-2xl border px-4 py-4 ${meta.containerClass}`}
+                  className={`digimon-status-detail-modal__section rounded-2xl border px-4 py-4 ${meta.containerClass}`}
                 >
                   <div className="mb-3">
                     <h3 className={`text-base font-bold ${meta.titleClass}`}>{meta.title}</h3>
@@ -64,7 +64,7 @@ const DigimonStatusDetailModal = ({
                     {messages.map((message) => (
                       <article
                         key={message.id}
-                        className="rounded-xl border border-white/80 bg-white/80 px-3 py-3 shadow-sm"
+                        className="digimon-status-detail-modal__message rounded-xl border border-white/80 bg-white/80 px-3 py-3 shadow-sm"
                       >
                         <div className={`font-semibold ${message.color}`}>{message.text}</div>
                         {message.detailHint && (
@@ -80,7 +80,7 @@ const DigimonStatusDetailModal = ({
             </div>
           )}
 
-          <div className="mt-6 text-center">
+          <div className="digimon-status-detail-modal__footer mt-6 text-center">
             <button
               onClick={onClose}
               className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"

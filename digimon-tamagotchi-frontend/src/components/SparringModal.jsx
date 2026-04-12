@@ -8,6 +8,7 @@ import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
+import { getDigimonDataMapByVersion } from "../utils/digimonVersionUtils";
 import "../styles/Battle.css";
 
 const MAX_SLOTS = 10;
@@ -95,7 +96,11 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
         ) : (
           <div className="flex flex-col space-y-2 mb-4">
             {slots.map((slot) => {
-              const digimonData = (slot.version === "Ver.2" ? digimonDataVer2[slot.selectedDigimon] : digimonDataVer1[slot.selectedDigimon]) || digimonDataVer1[slot.selectedDigimon] || digimonDataVer2[slot.selectedDigimon];
+              const dataMap = getDigimonDataMapByVersion(slot.version);
+              const digimonData =
+                dataMap?.[slot.selectedDigimon] ||
+                digimonDataVer1[slot.selectedDigimon] ||
+                digimonDataVer2[slot.selectedDigimon];
               const actualPower = slot.digimonStats?.power 
                 || (digimonData ? calculatePower(slot.digimonStats || {}, digimonData) : 0)
                 || digimonData?.stats?.basePower 
@@ -133,4 +138,3 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
     </div>
   );
 }
-

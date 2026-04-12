@@ -18,6 +18,9 @@ function ImmersiveLandscapeSection({
     deviceShellProps.skinId || immersiveSkin?.id || "tama-default-none";
   const shellLandscapeSide = deviceShellProps.landscapeSide || "right";
   const shellLandscapeSideMode = deviceShellProps.landscapeSideMode || "auto";
+  const shouldRenderInlineInfo = !hasLandscapeFrameSkin;
+  const shouldUseFrameSideControls =
+    hasLandscapeFrameSkin && !deviceShellProps.showRotateHint;
 
   const slotId = slotMeta.slotId ?? slotMeta.slotNumber ?? null;
   const slotVersion = slotMeta.normalizedSlotVersion ?? slotMeta.slotVersion ?? null;
@@ -48,29 +51,42 @@ function ImmersiveLandscapeSection({
           }`.trim()}
         >
           {hasLandscapeFrameSkin ? (
-            <>
-              <ImmersiveLandscapeControls
-                {...controlsProps}
-                layout="strip"
-                groupId="basic"
-              />
-              <ImmersiveLandscapeFrameStage
-                skin={immersiveSkin}
-                renderScreen={renderLandscapeGameScreen}
-              />
-              <ImmersiveLandscapeControls
-                {...controlsProps}
-                layout="strip"
-                groupId="care"
-              />
-            </>
+            shouldUseFrameSideControls ? (
+              <div className="immersive-landscape-frame-shell">
+                <ImmersiveLandscapeFrameStage
+                  skin={immersiveSkin}
+                  renderScreen={renderLandscapeGameScreen}
+                />
+                <ImmersiveLandscapeControls
+                  {...controlsProps}
+                  layout="sidebar"
+                />
+              </div>
+            ) : (
+              <>
+                <ImmersiveLandscapeControls
+                  {...controlsProps}
+                  layout="strip"
+                  groupId="basic"
+                />
+                <ImmersiveLandscapeFrameStage
+                  skin={immersiveSkin}
+                  renderScreen={renderLandscapeGameScreen}
+                />
+                <ImmersiveLandscapeControls
+                  {...controlsProps}
+                  layout="strip"
+                  groupId="care"
+                />
+              </>
+            )
           ) : (
             <div className="immersive-landscape-display__lcd">
               {renderLandscapeGameScreen()}
             </div>
           )}
-          {statusNode}
-          {supportActionsNode}
+          {shouldRenderInlineInfo ? statusNode : null}
+          {shouldRenderInlineInfo ? supportActionsNode : null}
         </div>
         {!hasLandscapeFrameSkin ? (
           <ImmersiveLandscapeControls {...controlsProps} layout="panel" />

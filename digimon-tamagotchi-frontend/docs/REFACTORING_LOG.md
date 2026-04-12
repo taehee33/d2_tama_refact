@@ -1489,6 +1489,80 @@
 - 브릭 실제 가로에서는 디바이스 상하 공간이 제한돼 있어 상단/하단 스트립보다 오른쪽 고정 버튼군이 프레임을 더 크게 보이게 하고 조작 위치도 더 일관되게 느껴집니다.
 - 다만 세로 회전 안내 상태까지 같은 배치를 강제하면 폭이 너무 좁아지므로, `실제 가로일 때만 오른편 패널`, `세로 fallback은 기존 스트립`으로 나누는 편이 가장 안정적입니다.
 
+### 브릭 가로 오른쪽 조작 패널을 5+5 그룹 구조로 재정리
+- `벽돌 Ver.1` 실제 가로 몰입형의 오른쪽 조작 패널은 `상태~교감`, `화장실~더보기`를 각각 별도 섹션으로 나눠 다시 구성했습니다.
+- 기존 `10개 플랫 버튼 그리드` 대신 `기본 조작 5개 / 케어·도구 5개` 두 그룹 카드로 보여주고, 각 그룹 안에서는 컴팩트한 2열 배치로 한눈에 들어오게 맞췄습니다.
+- 세로로 들고 있는 회전 안내 상태의 상단/하단 5버튼 스트립 구조는 그대로 유지하고, 실제 가로 브릭에서만 오른쪽 그룹 패널 구성을 사용합니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/components/layout/ImmersiveLandscapeControls.test.jsx`
+- `src/components/layout/ImmersiveLandscapeSection.test.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 오른쪽 조작 패널을 `기본 5개 / 케어 5개`로 다시 묶으면 사용자가 실제 기기 기능군을 더 쉽게 인지할 수 있고, `상태부터 더보기까지`가 하나의 긴 목록처럼 보이던 문제도 줄일 수 있습니다.
+- 브릭 실제 가로는 디바이스와 버튼군이 분리돼 보여야 시선 흐름이 자연스러우므로, 버튼 위치는 유지하되 패널 내부 구조만 그룹형으로 바꾸는 편이 회귀 위험이 가장 적습니다.
+
+### 브릭 실제 가로를 왼쪽 2/3 + 오른쪽 5+5 가로줄 구조로 재조정
+- `벽돌 Ver.1`의 실제 가로 몰입형은 디바이스 본체가 더 커 보이도록 왼쪽 비중을 크게 늘리고, 오른쪽 버튼 패널은 `기본 조작 5개`, `케어·도구 5개`를 각각 한 줄씩 가로로 배치하도록 다시 조정했습니다.
+- 오른쪽 버튼군은 세로 카드형이 아니라 `5개 한 줄 + 5개 한 줄` 구조를 쓰고, 작은 모바일 폭에서도 한 화면에 들어오도록 버튼 높이·아이콘·라벨 크기를 함께 낮췄습니다.
+- 실제 가로 브릭은 shell 폭 계산도 다시 잡아, 회전 안내 fallback이 아닌 경우에는 viewport 너비를 더 적극적으로 써서 왼쪽 디바이스가 체감상 `2/3 영역`을 더 꽉 차게 사용하도록 맞췄습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 사용자가 원하는 `왼쪽은 기기, 오른쪽은 기능 버튼` 인지는 세로형 버튼 카드보다 `기기 크게 + 두 줄 버튼` 구조가 훨씬 직관적입니다.
+- 실제 가로에서는 세로 fallback과 달리 상하 스트립이 필요 없으므로, 오른쪽 1/3에 기능 버튼을 압축 배치하고 왼쪽 stage 폭을 키우는 편이 브릭 스킨의 존재감을 가장 잘 살립니다.
+
+### 브릭 실제 가로 오른쪽 버튼군 세로 중앙 정렬
+- 실제 가로 브릭의 오른쪽 `5개 + 5개` 버튼 패널은 위쪽에 붙지 않도록, 패널 전체를 세로 방향 가운데 기준으로 정렬했습니다.
+
+### 영향받은 파일
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 왼쪽 디바이스가 커진 상태에서는 오른쪽 버튼군이 상단에 붙어 있으면 시선 무게가 어색하게 쏠리므로, 패널 전체를 세로 중앙에 맞추는 편이 좌우 균형이 더 자연스럽습니다.
+
+### 브릭 실제 가로 오른쪽 버튼군 크기 확대
+- 실제 가로 브릭의 오른쪽 `5 + 5` 버튼군은 누르기 쉽게 한 단계 키웠습니다.
+- 버튼 높이, 아이콘 크기, 모바일 라벨 크기를 함께 올려서 작은 모바일 화면에서도 조작 인지가 더 잘 되게 맞췄습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 오른쪽 버튼군은 `5개 한 줄` 구조라 폭이 제한되므로, 패널 폭을 더 넓히기보다 버튼 높이와 아이콘 크기를 함께 올리는 편이 기존 2/3 + 1/3 구성과 충돌이 적습니다.
+
+### 브릭 실제 가로 버튼 확대 + 좌우 여백 축소
+- 실제 가로 브릭의 오른쪽 버튼군은 한 단계 더 키우고, 동시에 shell의 좌우 바깥 여백과 프레임 내부 좌우 패딩을 줄여 같은 viewport에서 전체 구성이 더 크게 보이도록 조정했습니다.
+- 모바일 기준으로 버튼 높이, 아이콘, 라벨 크기를 조금 더 올렸고, 실제 가로 브릭 shell 폭 budget도 더 공격적으로 쓰게 바꿔 왼쪽 디바이스와 오른쪽 버튼군이 함께 조금 더 크게 차도록 맞췄습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeControls.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이 레이아웃은 오른쪽 버튼군이 5열이라 패널 폭을 크게 늘리기 어렵기 때문에, `버튼 소폭 확대 + 좌우 여백 축소 + 프레임 패딩 축소`를 같이 적용하는 편이 전체 체감 크기를 올리기에 가장 효율적입니다.
+
+### 브릭 실제 가로 오른쪽 버튼 아이콘을 26px로 확대
+- 실제 가로 브릭의 오른쪽 버튼군은 모바일 기준 아이콘 크기를 `26px`로 올려 시인성을 더 강화했습니다.
+
+### 영향받은 파일
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 5열 버튼 구조에서는 버튼 자체보다 아이콘 인지가 더 중요하므로, 라벨보다 아이콘 크기를 먼저 키우는 편이 빠르게 체감 개선을 만들 수 있습니다.
+
 ## 2026-04-11
 
 ### 도감 저장 실패를 canonical/compat 단계로 분리하고 실패를 숨기지 않도록 수정
@@ -1510,6 +1584,30 @@
 
 ## 2026-04-12
 
+### 테이머명 표시 우선순위를 공통 헬퍼로 통일
+- `tamerNameUtils`에 `resolveTamerNamePriority`, `getAccountDisplayFallback`, `resolveTamerNameInitial`을 추가해 화면 표시, 저장 payload, 아바타 이니셜 계산이 모두 같은 우선순위를 따르도록 정리했습니다.
+- 헤더, 게임 툴바, 계정 설정, 아레나 등록, 조그레스 방/로그 저장이 `tamerName -> displayName/email -> 추가 fallback` 순서로 동일하게 이름을 선택하도록 맞췄습니다.
+- `getTamerName()` 호출도 현재 사용자 fallback을 함께 전달하도록 조정해, `profile/main`에 명시적 `tamerName`이 없을 때도 화면과 저장이 같은 기준으로 움직이게 했습니다.
+
+### 영향받은 파일
+- `src/utils/tamerNameUtils.js`
+- `src/utils/tamerNameUtils.test.js`
+- `src/hooks/useTamerProfile.js`
+- `src/hooks/useHeaderAccountMenu.js`
+- `src/components/layout/GamePageToolbar.jsx`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/hooks/jogressPersistenceHelpers.js`
+- `src/hooks/jogressPersistenceHelpers.test.js`
+- `src/hooks/useJogressRoomLifecycle.js`
+- `src/hooks/useEvolution.js`
+- `src/hooks/useGameActions.js`
+- `src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/utils/tamerNameUtils.test.js src/hooks/jogressPersistenceHelpers.test.js src/hooks/useGameActions.test.js src/components/layout/GamePageToolbar.test.jsx src/components/panels/AccountSettingsPanel.test.jsx`
+
 ### 프로필·테이머명 저장을 `profile/main` 기준으로 정리하고 legacy root는 읽기 fallback으로만 유지
 - `userProfileUtils`는 `achievements`, `maxSlots`를 더 이상 root `users/{uid}`에 새로 쓰지 않고 `users/{uid}/profile/main`만 갱신하도록 정리했습니다.
 - `tamerNameUtils`도 테이머명 저장과 초기화를 `profile/main` 기준으로 맞추고, root `users/{uid}.tamerName`는 과거 데이터 fallback으로만 읽도록 유지했습니다.
@@ -1528,3 +1626,76 @@
 - `../scripts/backfillUserEncyclopedia.js`
 - `../tests/encyclopedia-migration.test.js`
 - `docs/REFACTORING_LOG.md`
+
+### 가로 몰입형의 상태·훈련·교감·정보 오버레이를 모바일 가로 기준으로 축소
+- 훈련 팝업은 `짧은 가로 화면`도 모바일 레이아웃으로 판정하도록 바꿔, 가로 휴대폰에서 입력 패드가 데스크톱 3열 UI로 커지지 않게 정리했습니다.
+- 상태 상세 모달은 가로 모바일에서 상단 정렬, 더 작은 헤더, 2열 섹션 배치, sticky 닫기 영역을 쓰도록 조정해 `상태` 화면이 과도하게 커 보이는 문제를 줄였습니다.
+- 교감과 온라인 배틀 모달은 상단 닫기 버튼, backdrop 닫기, 내부 스크롤 가능한 shell을 추가해 짧은 화면에서도 빠져나오기 쉬운 구조로 바꿨습니다.
+- 가로 `정보/진화` 오버레이는 모바일 가로에서 top offset, 높이, 상태 카드, 보조 버튼 크기를 더 압축해 진화 정보 카드가 지나치게 크게 보이지 않도록 줄였습니다.
+
+### 영향받은 파일
+- `src/components/TrainPopup.jsx`
+- `src/styles/TrainPopup.css`
+- `src/components/TrainPopup.test.jsx`
+- `src/components/DigimonStatusDetailModal.jsx`
+- `src/components/InteractionModal.jsx`
+- `src/components/InteractionModal.test.jsx`
+- `src/components/CommunicationModal.jsx`
+- `src/components/CommunicationModal.test.jsx`
+- `src/styles/Battle.css`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 가로 몰입형의 문제는 한 군데 큰 레이아웃 버그보다 `각 화면이 서로 다른 모바일 기준`을 쓰는 데서 왔기 때문에, 전역 스케일을 억지로 줄이기보다 `훈련/상태/교감/정보` 각각에 가로 모바일 기준을 명시적으로 부여하는 편이 회귀를 줄이기에 안전합니다.
+
+### 가로 몰입형에서 상태·훈련·교감·더보기 팝업이 화면 아래로 넘치지 않도록 추가 압축
+- `StatsPopup` 본체에 가로 모바일 전용 compact shell을 추가해, 상태 탭과 본문이 더 넓고 낮은 카드 안에서 보이도록 조정했습니다.
+- `ExtraMenuModal`도 교감/온라인 배틀과 같은 interactive modal 패턴으로 옮기고, 가로 모바일에서는 섹션을 2열 grid로 재배치해 `더보기`가 너무 길게 내려가지 않도록 줄였습니다.
+- `TrainPopup`은 같은 가로 모바일 breakpoint 안에서 shell 높이, header, score card를 한 단계 더 압축해 훈련 화면도 화면 아래로 덜 넘치게 다듬었습니다.
+
+### 영향받은 파일
+- `src/components/StatsPopup.jsx`
+- `src/components/ExtraMenuModal.jsx`
+- `src/components/ExtraMenuModal.test.jsx`
+- `src/styles/Battle.css`
+- `src/styles/TrainPopup.css`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 가로 몰입형의 팝업 문제는 단순히 `max-height`만 줄여서는 해결되지 않고, `상단 헤더/탭/버튼 밀도`까지 같이 줄여야 체감이 좋아지기 때문에, 각 팝업에 가로 모바일 전용 compact shell을 따로 두는 방향을 선택했습니다.
+
+### 가로 몰입형의 상태·훈련·교감·더보기를 공통 `액션 뷰어`로 통합
+- 실제 가로 몰입형에서는 `상태`, `훈련`, `교감`, `더보기`가 더 이상 각각 작은 개별 모달로 열리지 않고, 하나의 큰 중앙 액션 뷰어 안에서 탭처럼 전환되도록 바꿨습니다.
+- `상태`는 핵심 수치와 경고 메시지를 먼저 보여주고, 세부 상태는 카테고리별 아코디언으로 펼쳐보는 `요약+자세히` 구조로 재구성했습니다.
+- `훈련`은 기존 `TrainPopup`을 inline 모드로 감싸 가로 액션 뷰어 안에서 직접 진행하도록 바꿔, 바깥 fixed overlay와 따로 노는 느낌을 줄였습니다.
+- `교감`과 `더보기`는 가로 전용 허브 화면으로 바꾸고, 세부 액션은 뷰어를 닫은 뒤 기존 기능 화면으로 넘어가도록 정리해 중첩 모달을 피했습니다.
+- `ImmersiveGameView`에 액션 뷰어 전용 overlay slot을 추가해, 가로 정보 오버레이·채팅·스킨 선택과 같은 다른 레이어와 역할을 분리했습니다.
+
+### 영향받은 파일
+- `src/pages/Game.jsx`
+- `src/components/layout/ImmersiveGameView.jsx`
+- `src/components/layout/ImmersiveGameView.test.jsx`
+- `src/components/layout/ImmersiveLandscapeActionViewer.jsx`
+- `src/components/layout/ImmersiveLandscapeActionViewer.test.jsx`
+- `src/components/TrainPopup.jsx`
+- `src/styles/TrainPopup.css`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 가로 몰입형 문제는 개별 팝업을 조금씩 줄이는 방식으로는 계속 회귀가 생기기 쉬워서, `가로 전용 진입점은 하나`, `내부 콘텐츠만 전환`이라는 공통 패턴으로 통일하는 편이 이후 유지보수와 UX 일관성 모두에 유리합니다.
+
+### 가로 액션 뷰어 상단 소개 블록 제거
+- 가로 액션 뷰어 상단의 `가로 액션 뷰어 / 상태 / 탭 4개` 소개 블록을 제거하고, 닫기 버튼만 남는 얇은 헤더로 정리했습니다.
+- 덕분에 실제 내용이 더 위에서 바로 시작되고, 가로 화면에서 불필요하게 큰 빈 영역이 줄어들었습니다.
+
+### 영향받은 파일
+- `src/components/layout/ImmersiveLandscapeActionViewer.jsx`
+- `src/components/layout/ImmersiveLandscapeActionViewer.test.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 가로 액션 뷰어는 이미 진입 버튼이 분리되어 있어서 뷰어 내부에 다시 큰 제목과 빠른 탭을 둘 필요가 낮고, 짧은 높이에서는 그 헤더 블록이 실제 콘텐츠보다 더 큰 부담이 되어 제거하는 편이 UX에 유리합니다.

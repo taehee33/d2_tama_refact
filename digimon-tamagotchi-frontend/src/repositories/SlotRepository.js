@@ -24,6 +24,7 @@ import {
   query,
   where,
   limit,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db as firestoreDb } from '../firebase';
 
@@ -61,7 +62,7 @@ class FirestoreSlotRepository {
     const docRef = doc(this.db, 'slots', `slot${slotId}`);
     await setDoc(docRef, {
       ...slotData,
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     }, { merge: true });
   }
 
@@ -69,7 +70,7 @@ class FirestoreSlotRepository {
     const docRef = doc(this.db, 'slots', `slot${slotId}`);
     await updateDoc(docRef, {
       digimonStats,
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     });
   }
 
@@ -77,7 +78,7 @@ class FirestoreSlotRepository {
     const docRef = doc(this.db, 'slots', `slot${slotId}`);
     await updateDoc(docRef, {
       selectedDigimon: digimonName,
-      updatedAt: new Date(),
+      updatedAt: serverTimestamp(),
     });
   }
 

@@ -2098,17 +2098,17 @@ export default function StatsPopup({
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="stats-popup-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
-        className="bg-white p-4 rounded shadow-xl w-96 relative modal-mobile stats-popup-mobile flex flex-col"
+        className="stats-popup-modal__surface bg-white p-4 rounded shadow-xl w-96 relative modal-mobile stats-popup-mobile flex flex-col"
         style={{ maxHeight: "80vh" }}
       >
         {/* 헤더 영역: 제목과 닫기 버튼 (상단 고정) */}
-        <div className="flex-shrink-0 flex justify-between items-center mb-2">
-          <h2 className="text-lg font-bold">Digimon Status</h2>
+        <div className="stats-popup-modal__header flex-shrink-0 flex justify-between items-center mb-2">
+          <h2 className="stats-popup-modal__title text-lg font-bold">Digimon Status</h2>
           <button
             onClick={onClose}
-            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-bold"
+            className="stats-popup-modal__close px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-bold"
             title="닫기"
           >
             ✕
@@ -2116,7 +2116,7 @@ export default function StatsPopup({
         </div>
         
         {/* 탭 UI (상단 고정) */}
-        <div className="flex-shrink-0 flex gap-2 mb-4 border-b">
+        <div className="stats-popup-modal__tabs flex-shrink-0 flex gap-2 mb-4 border-b">
           <button
             onClick={() => setActiveTab('OLD')}
             className={`px-4 py-2 font-bold ${
@@ -2140,7 +2140,7 @@ export default function StatsPopup({
         </div>
         
         {/* 탭 콘텐츠 (스크롤 영역만) */}
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="stats-popup-modal__content flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'OLD' && renderOldTab()}
           {activeTab === 'NEW' && renderNewTab()}
         </div>

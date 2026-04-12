@@ -1,27 +1,12 @@
+import { toEpochMs } from "./time";
+
 /**
  * Firestore Timestamp/Date/string/number를 비교 가능한 epoch ms로 변환합니다.
  * @param {unknown} value
  * @returns {number}
  */
 export function toComparableTimestampMs(value) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  if (value && typeof value.toMillis === "function") {
-    try {
-      return value.toMillis();
-    } catch (_error) {
-      return 0;
-    }
-  }
-
-  const parsed = new Date(value || 0).getTime();
-  return Number.isFinite(parsed) ? parsed : 0;
+  return toEpochMs(value) ?? 0;
 }
 
 /**
