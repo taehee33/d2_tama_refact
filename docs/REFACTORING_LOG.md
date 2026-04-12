@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameLogic` 4차 분리: activity log input helper 추출
+
+### 작업 유형
+- 🧩 activity log input 정규화 helper 추출
+- 🧩 activity log base entry builder 추출
+- 🧪 activity log helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `addActivityLog` 안에 섞여 있던 timestamp/options 입력 정규화와 base log 조립을 분리해, 로그 dedupe와 append 흐름을 더 읽기 쉽게 만든다.
+- **범위:** 기존 eventId 계산, dedupe 규칙, 최대 로그 수 제한은 그대로 유지한다.
+- **내용:**
+  - `resolveActivityLogInput`을 추가해 number/object 입력에서 `timestamp`와 추가 필드를 정규화했다.
+  - `buildActivityLogEntry`를 추가해 `addActivityLog`가 사용할 base log 조립을 분리했다.
+  - helper 테스트를 추가해 object 입력 분해와 base log 생성 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameLogic.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 3차 분리: evolution range requirement helper 추출
 
 ### 작업 유형
