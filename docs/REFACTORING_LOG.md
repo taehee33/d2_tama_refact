@@ -59,6 +59,31 @@
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useGameActions` 8차 분리: battle outcome helper 추출
+
+### 작업 유형
+- 🧩 arena local outcome helper 추출
+- 🧩 quest battle outcome helper 추출
+- 🧪 `useGameActions` battle outcome helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleBattleComplete` 안에 남아 있던 아레나 로컬 전적 반영과 퀘스트 승패/부상/log text 조립을 pure helper로 분리해 배틀 모드 분기를 더 읽기 쉽게 만든다.
+- **범위:** 승패 판정, 부상 확률 적용, 로그 문구, 전적 업데이트 순서와 저장 흐름은 그대로 유지한다.
+- **내용:**
+  - `buildArenaBattleLocalOutcome`를 추가해 아레나 승패에 따른 로컬 전적 반영과 로그 문구 조립을 공통화했다.
+  - `buildQuestBattleOutcome`를 추가해 퀘스트 승패, stage clear 문구, 부상 적용, 결과 log text 조립을 한 곳으로 모았다.
+  - helper 테스트를 추가해 아레나 승리 결과, 퀘스트 승리/패배 결과와 부상 반영 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameActions` 7차 분리: battle commit helper 추출
 
 ### 작업 유형

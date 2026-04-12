@@ -2,6 +2,7 @@ import {
   applyBattleInjuryOutcome,
   buildArenaBattleArchiveWrite,
   buildActivityLogCommitState,
+  buildArenaBattleLocalOutcome,
   buildBattleCommitPlan,
   buildBattleCostStats,
   buildBattleLogCommitState,
@@ -9,6 +10,7 @@ import {
   buildCleanOutcome,
   buildFeedOutcome,
   buildFeedLogText,
+  buildQuestBattleOutcome,
   buildRecordedBattleStats,
   resolveActionSleepInteractionPlan,
   buildSleepDisturbanceCommitState,
@@ -858,6 +860,110 @@ describe("applyBattleInjuryOutcome", () => {
     expect(result.isInjured).toBe(false);
     expect(result.finalStats).toEqual({
       injuries: 1,
+    });
+  });
+});
+
+describe("buildArenaBattleLocalOutcome", () => {
+  test("아레나 승리 결과는 전적 반영과 Rank UP 로그를 함께 만든다", () => {
+    const result = buildArenaBattleLocalOutcome({
+      battleStats: {
+        battles: 4,
+        battlesWon: 2,
+        battlesLost: 2,
+        totalBattles: 10,
+        totalBattlesWon: 6,
+        totalBattlesLost: 4,
+      },
+      win: true,
+      opponentName: "상대 테이머",
+      weightDelta: -4,
+      energyDelta: -1,
+    });
+
+    expect(result.enemyName).toBe("상대 테이머");
+    expect(result.text).toBe("Arena: Won vs 상대 테이머 (Rank UP) (Wt -4g, En -1)");
+    expect(result.finalStats).toMatchObject({
+      battles: 5,
+      battlesWon: 3,
+      battlesLost: 2,
+      totalBattles: 11,
+      totalBattlesWon: 7,
+      totalBattlesLost: 4,
+    });
+  });
+});
+
+describe("buildQuestBattleOutcome", () => {
+  test("퀘스트 승리 결과는 스테이지 클리어 문구와 부상 정보를 함께 만든다", () => {
+    const result = buildQuestBattleOutcome({
+      battleStats: {
+        battles: 1,
+        battlesWon: 1,
+        battlesLost: 0,
+        totalBattles: 3,
+        totalBattlesWon: 2,
+        totalBattlesLost: 1,
+        proteinOverdose: 0,
+      },
+      win: true,
+      enemyName: "베타몬",
+      weightDelta: -4,
+      energyDelta: -1,
+      isAreaClear: true,
+      proteinOverdose: 0,
+      randomValue: 0,
+      nowMs: 123456789,
+    });
+
+    expect(result.enemyName).toBe("베타몬");
+    expect(result.isInjured).toBe(true);
+    expect(result.text).toBe(
+      "Quest: Defeated 베타몬 (Stage Clear) (Wt -4g, En -1) - Battle: Injured! (Chance hit)"
+    );
+    expect(result.finalStats).toMatchObject({
+      battles: 2,
+      battlesWon: 2,
+      battlesLost: 0,
+      totalBattles: 4,
+      totalBattlesWon: 3,
+      totalBattlesLost: 1,
+      isInjured: true,
+      injuredAt: 123456789,
+      injuryReason: "battle",
+    });
+  });
+
+  test("퀘스트 패배 결과는 패배 문구를 유지하고 부상이 없으면 그대로 반환한다", () => {
+    const result = buildQuestBattleOutcome({
+      battleStats: {
+        battles: 1,
+        battlesWon: 0,
+        battlesLost: 1,
+        totalBattles: 3,
+        totalBattlesWon: 1,
+        totalBattlesLost: 2,
+        proteinOverdose: 0,
+      },
+      win: false,
+      enemyName: "가루몬",
+      weightDelta: -4,
+      energyDelta: -1,
+      proteinOverdose: 0,
+      randomValue: 0.99,
+      nowMs: 123456789,
+    });
+
+    expect(result.enemyName).toBe("가루몬");
+    expect(result.isInjured).toBe(false);
+    expect(result.text).toBe("Quest: Defeated by 가루몬 (Wt -4g, En -1)");
+    expect(result.finalStats).toMatchObject({
+      battles: 2,
+      battlesWon: 0,
+      battlesLost: 2,
+      totalBattles: 4,
+      totalBattlesWon: 1,
+      totalBattlesLost: 3,
     });
   });
 });

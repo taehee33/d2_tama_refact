@@ -428,6 +428,62 @@ export function applyBattleInjuryOutcome({
   };
 }
 
+export function buildArenaBattleLocalOutcome({
+  battleStats = {},
+  win = false,
+  opponentName = "Unknown",
+  weightDelta = 0,
+  energyDelta = 0,
+} = {}) {
+  return {
+    finalStats: buildRecordedBattleStats(battleStats, win),
+    enemyName: opponentName,
+    text: win
+      ? `Arena: Won vs ${opponentName} (Rank UP) (Wt ${weightDelta}g, En ${energyDelta})`
+      : `Arena: Lost vs ${opponentName} (Wt ${weightDelta}g, En ${energyDelta})`,
+  };
+}
+
+export function buildQuestBattleOutcome({
+  battleStats = {},
+  win = false,
+  enemyName = "Unknown Enemy",
+  weightDelta = 0,
+  energyDelta = 0,
+  isAreaClear = false,
+  proteinOverdose = 0,
+  randomValue = Math.random(),
+  nowMs = Date.now(),
+} = {}) {
+  const recordedStats = buildRecordedBattleStats(battleStats, win);
+  const injuryResult = applyBattleInjuryOutcome({
+    finalStats: recordedStats,
+    win,
+    proteinOverdose,
+    randomValue,
+    nowMs,
+  });
+  const finalStats = injuryResult.finalStats;
+  const isInjured = injuryResult.isInjured;
+
+  let text = win
+    ? isAreaClear
+      ? `Quest: Defeated ${enemyName} (Stage Clear) (Wt ${weightDelta}g, En ${energyDelta})`
+      : `Quest: Defeated ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`
+    : `Quest: Defeated by ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
+
+  if (isInjured) {
+    text += " - Battle: Injured! (Chance hit)";
+  }
+
+  return {
+    finalStats,
+    enemyName,
+    isInjured,
+    text,
+  };
+}
+
 export function buildArenaBattleArchiveWrite({
   archiveId,
   currentUser,
@@ -1208,21 +1264,23 @@ export function useGameActions({
       // Arena 모드: 로컬 스탯 업데이트 (배틀 기록 + Activity Log)
       const updatedStats = await applyLazyUpdateBeforeAction();
       const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(updatedStats);
-      const finalStats = buildRecordedBattleStats(battleStats, battleResult.win);
-      
       const tamerName = arenaChallenger.tamerName || arenaChallenger.trainerName || "Unknown";
-      const arenaText = battleResult.win
-        ? `Arena: Won vs ${tamerName} (Rank UP) (Wt ${weightDelta}g, En ${energyDelta})`
-        : `Arena: Lost vs ${tamerName} (Wt ${weightDelta}g, En ${energyDelta})`;
+      const arenaOutcome = buildArenaBattleLocalOutcome({
+        battleStats,
+        win: battleResult.win,
+        opponentName: tamerName,
+        weightDelta,
+        energyDelta,
+      });
       const timestamp = Date.now();
       setDigimonStats((prevStats) => {
         return commitBattleLog({
           prevStats,
-          nextStats: finalStats,
+          nextStats: arenaOutcome.finalStats,
           mode: "arena",
-          text: arenaText,
+          text: arenaOutcome.text,
           win: battleResult.win,
-          enemyName: tamerName,
+          enemyName: arenaOutcome.enemyName,
           timestamp,
           digimonSnapshot: currentDigimonSnapshot,
           errorMessage: "아레나 로그 저장 오류:",
@@ -1230,11 +1288,11 @@ export function useGameActions({
       });
       
       console.log("✅ [Arena] 로컬 배틀 스탯 업데이트 완료:", {
-        battles: finalStats.battles,
-        battlesWon: finalStats.battlesWon,
-        battlesLost: finalStats.battlesLost,
-        winRate: finalStats.winRate,
-        totalBattles: finalStats.totalBattles,
+        battles: arenaOutcome.finalStats.battles,
+        battlesWon: arenaOutcome.finalStats.battlesWon,
+        battlesLost: arenaOutcome.finalStats.battlesLost,
+        winRate: arenaOutcome.finalStats.winRate,
+        totalBattles: arenaOutcome.finalStats.totalBattles,
       });
 
       setShowBattleScreen(false);
@@ -1311,29 +1369,25 @@ export function useGameActions({
     const enemyName = battleResult.enemyName || battleResult.enemy?.name || currentQuestArea?.name || 'Unknown Enemy';
     
     if (battleResult.win) {
-      const recordedStats = buildRecordedBattleStats(battleStats, true);
-      const injuryResult = applyBattleInjuryOutcome({
-        finalStats: recordedStats,
+      const questOutcome = buildQuestBattleOutcome({
+        battleStats,
         win: true,
+        enemyName,
+        weightDelta,
+        energyDelta,
+        isAreaClear: battleResult.isAreaClear,
         proteinOverdose: battleStats.proteinOverdose || 0,
       });
-      const finalStats = injuryResult.finalStats;
-      const isInjured = injuryResult.isInjured;
-      
-      let questWinText = battleResult.isAreaClear
-        ? `Quest: Defeated ${enemyName} (Stage Clear) (Wt ${weightDelta}g, En ${energyDelta})`
-        : `Quest: Defeated ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
-      if (isInjured) questWinText += " - Battle: Injured! (Chance hit)";
       const timestamp = Date.now();
       setDigimonStats((prevStats) => {
         return commitBattleLog({
           prevStats,
-          nextStats: finalStats,
+          nextStats: questOutcome.finalStats,
           mode: "quest",
-          text: questWinText,
+          text: questOutcome.text,
           win: true,
-          enemyName,
-          injury: isInjured,
+          enemyName: questOutcome.enemyName,
+          injury: questOutcome.isInjured,
           timestamp,
           digimonSnapshot: currentDigimonSnapshot,
           errorMessage: "퀘스트 승리 로그 저장 오류:",
@@ -1349,27 +1403,24 @@ export function useGameActions({
         setCurrentQuestRound(prev => prev + 1);
       }
     } else {
-      const recordedStats = buildRecordedBattleStats(battleStats, false);
-      const injuryResult = applyBattleInjuryOutcome({
-        finalStats: recordedStats,
+      const questOutcome = buildQuestBattleOutcome({
+        battleStats,
         win: false,
+        enemyName,
+        weightDelta,
+        energyDelta,
         proteinOverdose: battleStats.proteinOverdose || 0,
       });
-      const finalStats = injuryResult.finalStats;
-      const isInjured = injuryResult.isInjured;
-      
-      let questLoseText = `Quest: Defeated by ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
-      if (isInjured) questLoseText += " - Battle: Injured! (Chance hit)";
       const timestamp = Date.now();
       setDigimonStats((prevStats) => {
         return commitBattleLog({
           prevStats,
-          nextStats: finalStats,
+          nextStats: questOutcome.finalStats,
           mode: "quest",
-          text: questLoseText,
+          text: questOutcome.text,
           win: false,
-          enemyName,
-          injury: isInjured,
+          enemyName: questOutcome.enemyName,
+          injury: questOutcome.isInjured,
           timestamp,
           digimonSnapshot: currentDigimonSnapshot,
           errorMessage: "퀘스트 패배 로그 저장 오류:",
