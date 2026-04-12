@@ -14,7 +14,7 @@ import { feedMeat } from "../logic/food/meat";
 import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule } from "./useGameHandlers";
 import { wakeForInteraction } from "./useGameActions";
-import { clearActiveInjuryState } from "../data/stats";
+import { clearActiveInjuryState, clearPoopOverflowState } from "../data/stats";
 
 function getAnimationSleepState({
   digimonStats,
@@ -38,6 +38,83 @@ function getAnimationSleepState({
     sleepStatus,
     isSleepingLike: isSleepStatusSleeping(sleepStatus),
     shouldCountSleepDisturbance: isSleepStatusDisturbanceSensitive(sleepStatus),
+  };
+}
+
+const HEAL_TREATMENT_TYPES = [
+  "수술 치료",
+  "약물 치료",
+  "방사선 치료",
+  "물리 치료",
+  "심리 치료",
+  "통합 치료",
+];
+
+export function buildAnimationCleanOutcome({
+  prevStats = {},
+  oldPoopCount = 0,
+  now = new Date(),
+  applySleepDisturbanceLog = false,
+} = {}) {
+  const updatedStats = clearPoopOverflowState(prevStats, now);
+
+  if (applySleepDisturbanceLog) {
+    return {
+      updatedStats,
+      logType: "SLEEP_DISTURBANCE",
+      logText: createSleepDisturbanceLog("화장실 청소").text,
+    };
+  }
+
+  return {
+    updatedStats,
+    logType: "CLEAN",
+    logText: `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`,
+  };
+}
+
+export function buildHealTreatmentMessage(randomValue = Math.random()) {
+  const safeRandom = Number.isFinite(randomValue) ? randomValue : 0;
+  const index = Math.min(
+    HEAL_TREATMENT_TYPES.length - 1,
+    Math.max(0, Math.floor(safeRandom * HEAL_TREATMENT_TYPES.length))
+  );
+  return `${HEAL_TREATMENT_TYPES[index]} 성공`;
+}
+
+export function buildAnimationHealOutcome({
+  prevStats = {},
+  requiredDoses = 1,
+  treatmentMessage,
+  applySleepDisturbanceLog = false,
+} = {}) {
+  const newHealedDoses = (prevStats.healedDosesCurrent || 0) + 1;
+  let updatedStats = {
+    ...prevStats,
+    healedDosesCurrent: newHealedDoses,
+  };
+
+  const isFullyHealed = newHealedDoses >= requiredDoses;
+  if (isFullyHealed) {
+    updatedStats = clearActiveInjuryState(updatedStats);
+  }
+
+  if (applySleepDisturbanceLog) {
+    return {
+      updatedStats,
+      isFullyHealed,
+      treatmentMessage,
+      logType: "SLEEP_DISTURBANCE",
+      logText: createSleepDisturbanceLog("치료").text,
+    };
+  }
+
+  return {
+    updatedStats,
+    isFullyHealed,
+    treatmentMessage,
+    logType: "HEAL",
+    logText: treatmentMessage,
   };
 }
 
@@ -216,16 +293,7 @@ export function useGameAnimations({
         now,
       });
       
-      let baseStats = {
-        ...digimonStats,
-        poopCount: 0,
-        poopReachedMaxAt: null,
-        lastPoopPenaltyAt: null,
-        poopPenaltyFrozenDurationMs: 0,
-        // 똥 청소 시 부상 상태는 해제하지 않음 (치료제로만 회복 가능)
-        // isInjured는 그대로 유지
-        lastSavedAt: now
-      };
+      let baseStats = clearPoopOverflowState(digimonStats, now);
       
       // wakeForInteraction에서 이미 sleepDisturbances가 증가된 스탯을 반환받음
       const sleepDisturbanceDuplicate =
@@ -242,20 +310,28 @@ export function useGameAnimations({
         );
       }
       
-      // Activity Log 추가 (중복 시 수면 방해 로그/카운트 없이 청소 로그만)
       const applySleepDisturbanceLog =
         actionSleepState.isSleepingLike && !sleepDisturbanceDuplicate;
-      const logText = applySleepDisturbanceLog
-        ? createSleepDisturbanceLog("화장실 청소").text
-        : `Cleaned Poop (Full flush, ${oldPoopCount} → 0)`;
-      const logType = applySleepDisturbanceLog ? "SLEEP_DISTURBANCE" : "CLEAN";
+      const cleanOutcome = buildAnimationCleanOutcome({
+        prevStats: updatedStats,
+        oldPoopCount,
+        now,
+        applySleepDisturbanceLog,
+      });
       
-      setDigimonStats(updatedStats);
+      setDigimonStats(cleanOutcome.updatedStats);
       setActivityLogs((prevLogs) => {
-        const currentLogs = updatedStats.activityLogs || prevLogs || [];
-        const updatedLogs = addActivityLog(currentLogs, logType, logText);
+        const currentLogs = cleanOutcome.updatedStats.activityLogs || prevLogs || [];
+        const updatedLogs = addActivityLog(
+          currentLogs,
+          cleanOutcome.logType,
+          cleanOutcome.logText
+        );
         if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-        setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs).catch((error) => {
+        setDigimonStatsAndSave(
+          { ...cleanOutcome.updatedStats, activityLogs: updatedLogs },
+          updatedLogs
+        ).catch((error) => {
           console.error("청소 상태 저장 오류:", error);
         });
         return updatedLogs;
@@ -292,17 +368,7 @@ export function useGameAnimations({
     const requiredDoses = currentDigimonData.stats?.healDoses || 1; // 기본값 1
     const newHealedDoses = (currentStats.healedDosesCurrent || 0) + 1;
     
-    // 랜덤 치료 종류 선택
-    const treatmentTypes = [
-      "수술 치료",
-      "약물 치료",
-      "방사선 치료",
-      "물리 치료",
-      "심리 치료",
-      "통합 치료"
-    ];
-    const randomTreatment = treatmentTypes[Math.floor(Math.random() * treatmentTypes.length)];
-    const treatmentMessage = `${randomTreatment} 성공`;
+    const treatmentMessage = buildHealTreatmentMessage();
     
     let baseStats = {
       ...currentStats,
@@ -326,21 +392,21 @@ export function useGameAnimations({
     
     const applySleepDisturbanceLog =
       actionSleepState.isSleepingLike && !sleepDisturbanceDuplicate;
-    const logType = applySleepDisturbanceLog ? "SLEEP_DISTURBANCE" : "HEAL";
-    const logText = applySleepDisturbanceLog ? createSleepDisturbanceLog("치료").text : treatmentMessage;
-    
-    // 필요 치료 횟수 충족 시 완전 회복
-    if (newHealedDoses >= requiredDoses) {
-      updatedStats = clearActiveInjuryState(updatedStats);
-      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
-      if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-    } else {
-      const updatedLogs = addActivityLog(updatedStats.activityLogs || [], logType, logText);
-      if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-      setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
-      // 추가 치료 필요 시 모달은 열어두고 "추가 치료가 필요합니다." 메시지 표시
-    }
+    const healOutcome = buildAnimationHealOutcome({
+      prevStats: updatedStats,
+      requiredDoses,
+      treatmentMessage,
+      applySleepDisturbanceLog,
+    });
+    updatedStats = healOutcome.updatedStats;
+
+    const updatedLogs = addActivityLog(
+      updatedStats.activityLogs || [],
+      healOutcome.logType,
+      healOutcome.logText
+    );
+    if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+    setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
     
     // 스탯 업데이트하여 모달이 최신 상태를 반영하도록 함
     setDigimonStats(updatedStats);
@@ -350,7 +416,7 @@ export function useGameAnimations({
     if (setHealModalStats) {
       const modalStatsWithMessage = {
         ...updatedStats,
-        treatmentMessage: treatmentMessage, // 치료 메시지를 스탯에 포함
+        treatmentMessage: healOutcome.treatmentMessage, // 치료 메시지를 스탯에 포함
       };
       setHealModalStats(modalStatsWithMessage);
       console.log('[healCycle] healModalStats 업데이트 (메시지 포함):', modalStatsWithMessage);
@@ -358,7 +424,7 @@ export function useGameAnimations({
     
     // treatmentMessage 상태도 별도로 업데이트 (호환성을 위해)
     if (setHealTreatmentMessage) {
-      setHealTreatmentMessage(treatmentMessage);
+      setHealTreatmentMessage(healOutcome.treatmentMessage);
     }
     // 모달은 열어두고 (닫지 않음) 최신 스탯으로 업데이트
   };

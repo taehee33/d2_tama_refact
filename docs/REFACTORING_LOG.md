@@ -129,6 +129,32 @@
 - `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useFridge.js src/hooks/useFridge.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useGameAnimations` 1차 분리: clean/heal outcome helper 추출
+
+### 작업 유형
+- 🧩 clean outcome helper 추출
+- 🧩 heal treatment message helper 추출
+- 🧩 heal outcome helper 추출
+- 🧪 `useGameAnimations` helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `cleanCycle`과 `healCycle` 안에 섞여 있던 결과 상태 조립과 로그 문구 결정을 분리해, 훅 본문을 애니메이션 진행과 저장 orchestration 중심으로 정리한다.
+- **범위:** 수면 방해 처리, 치료 완치 판정, 로그 타입/문구 의미, 저장 순서와 모달 업데이트 흐름은 그대로 유지한다.
+- **내용:**
+  - `buildAnimationCleanOutcome`를 추가해 일반 청소와 수면 방해 청소의 log type/text, poop 정리 상태를 helper로 분리했다.
+  - `buildHealTreatmentMessage`를 추가해 치료 종류 선택 문구를 deterministic helper로 만들었다.
+  - `buildAnimationHealOutcome`를 추가해 치료 횟수 증가, 완치 시 부상 해제, log type/text 조립을 한 곳으로 모았다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameAnimations.js src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 3차 분리: evolution range requirement helper 추출
 
 ### 작업 유형
