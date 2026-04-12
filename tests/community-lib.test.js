@@ -14,7 +14,7 @@ const {
   translateStageLabel,
   validateCommentInput,
   validatePostInput,
-} = require("../api/_lib/community");
+} = require("../digimon-tamagotchi-frontend/api/_lib/community");
 
 function createSupabaseInsertStub() {
   const state = {
@@ -533,10 +533,6 @@ test("createCommunityPost는 support 글을 supportContext와 이미지와 함�
 
 test("createCommunityPost는 news 글을 newsContext와 이미지와 함께 저장한다", async () => {
   const { supabase, state } = createSupabaseInsertStub();
-  const previousUids = process.env.NEWS_EDITOR_UIDS;
-  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
-  process.env.NEWS_EDITOR_UIDS = "editor-1";
-  process.env.NEWS_EDITOR_EMAILS = "";
 
   const post = await createCommunityPost({
     supabase,
@@ -567,6 +563,7 @@ test("createCommunityPost는 news 글을 newsContext와 이미지와 함께 저�
       },
     },
     resolveAuthorName: async () => "운영팀",
+    isOperatorIdentityFn: async () => true,
   });
 
   assert.equal(state.insertedPayload.board_id, "news");
@@ -582,17 +579,10 @@ test("createCommunityPost는 news 글을 newsContext와 이미지와 함께 저�
   assert.match(state.uploadedPaths[0], /^news\/editor-1\/.+\.png$/);
   assert.equal(post.newsContext.version, "Ver.2.1.0");
   assert.equal(post.canManage, false);
-
-  process.env.NEWS_EDITOR_UIDS = previousUids;
-  process.env.NEWS_EDITOR_EMAILS = previousEmails;
 });
 
 test("createCommunityPost는 news 발행 권한이 없으면 거부한다", async () => {
   const { supabase } = createSupabaseInsertStub();
-  const previousUids = process.env.NEWS_EDITOR_UIDS;
-  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
-  process.env.NEWS_EDITOR_UIDS = "";
-  process.env.NEWS_EDITOR_EMAILS = "";
 
   await assert.rejects(
     createCommunityPost({
@@ -611,10 +601,8 @@ test("createCommunityPost는 news 발행 권한이 없으면 거부한다", asyn
         body: "본문",
       },
       resolveAuthorName: async () => "일반유저",
+      isOperatorIdentityFn: async () => false,
     }),
-    /소식 발행 권한이 없습니다\./
+    /운영자 권한이 없습니다\./
   );
-
-  process.env.NEWS_EDITOR_UIDS = previousUids;
-  process.env.NEWS_EDITOR_EMAILS = previousEmails;
 });

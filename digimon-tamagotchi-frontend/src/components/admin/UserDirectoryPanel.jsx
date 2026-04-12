@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchArenaUserDirectory } from "../../utils/arenaApi";
+import { fetchArenaUserDirectory, setArenaUserOperatorRole } from "../../utils/arenaApi";
 
 function createEmptyUserDirectorySummary() {
   return {
@@ -36,6 +36,7 @@ export default function UserDirectoryPanel({ currentUser }) {
   const [userDirectoryLoading, setUserDirectoryLoading] = useState(false);
   const [userDirectoryError, setUserDirectoryError] = useState("");
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userActionUid, setUserActionUid] = useState("");
 
   const filteredUserDirectory = useMemo(() => {
     const query = String(userSearchQuery || "").trim().toLowerCase();
@@ -50,6 +51,14 @@ export default function UserDirectoryPanel({ currentUser }) {
         .some((value) => String(value).toLowerCase().includes(query))
     );
   }, [userDirectory, userSearchQuery]);
+
+  const operatorCount = useMemo(() => {
+    if (Number.isFinite(Number(userDirectorySummary.operatorCount))) {
+      return Number(userDirectorySummary.operatorCount);
+    }
+
+    return userDirectory.filter((user) => user.isOperator).length;
+  }, [userDirectory, userDirectorySummary.operatorCount]);
 
   const loadUserDirectory = useCallback(async () => {
     if (!currentUser) {
@@ -79,13 +88,58 @@ export default function UserDirectoryPanel({ currentUser }) {
     void loadUserDirectory();
   }, [loadUserDirectory]);
 
+  const isLastOperator = useCallback(
+    (user) => Boolean(user?.isOperator) && operatorCount <= 1,
+    [operatorCount]
+  );
+
+  const handleOperatorRoleChange = useCallback(
+    async (user, nextIsOperator) => {
+      if (!currentUser || !user?.uid) {
+        return;
+      }
+
+      if (!nextIsOperator && isLastOperator(user)) {
+        setUserDirectoryError("마지막 운영자 권한은 해제할 수 없습니다.");
+        return;
+      }
+
+      const actionLabel = nextIsOperator ? "부여" : "해제";
+      const targetLabel = user.tamerName || user.displayName || user.email || user.uid;
+      const shouldProceed =
+        typeof window === "undefined" || typeof window.confirm !== "function"
+          ? true
+          : window.confirm(`${targetLabel} 계정에 운영자 권한을 ${actionLabel}할까요?`);
+
+      if (!shouldProceed) {
+        return;
+      }
+
+      try {
+        setUserActionUid(user.uid);
+        setUserDirectoryError("");
+        await setArenaUserOperatorRole(currentUser, {
+          targetUid: user.uid,
+          isOperator: nextIsOperator,
+        });
+        await loadUserDirectory();
+      } catch (error) {
+        console.error("운영자 권한 변경 오류:", error);
+        setUserDirectoryError(error.message || "운영자 권한을 변경하지 못했습니다.");
+      } finally {
+        setUserActionUid("");
+      }
+    },
+    [currentUser, isLastOperator, loadUserDirectory]
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-800">전체 사용자 목록</p>
           <p className="text-xs text-gray-500">
-            운영자 여부는 현재 서버 환경변수 화이트리스트 기준으로 표시됩니다.
+            운영자 여부는 Firestore `operator_roles` 문서 기준으로 즉시 반영됩니다.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -140,53 +194,99 @@ export default function UserDirectoryPanel({ currentUser }) {
           <p className="text-sm text-gray-500">조건에 맞는 사용자가 없습니다.</p>
         ) : (
           <div className="space-y-3">
-            {filteredUserDirectory.map((user) => (
-              <article
-                key={user.uid}
-                className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4"
-              >
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="text-lg text-gray-900">{user.tamerName || "이름 없음"}</strong>
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-bold ${getUserRoleBadgeClassName(
-                          user
-                        )}`}
-                      >
-                        {user.isOperator ? "운영자" : "일반"}
-                      </span>
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <p>이메일: {user.email || "미등록"}</p>
-                      <p>UID: {user.uid}</p>
-                      <p>표시명: {user.displayName || "없음"}</p>
-                    </div>
-                  </div>
+            {filteredUserDirectory.map((user) => {
+              const isCurrentUser = currentUser?.uid === user.uid;
+              const disableDemote = userActionUid === user.uid || isLastOperator(user);
+              const disablePromote = userActionUid === user.uid;
 
-                  <div className="grid gap-3 text-sm text-gray-600 sm:grid-cols-2 lg:min-w-[340px]">
-                    <div className="rounded-lg border border-white bg-white px-3 py-2">
-                      <p className="text-xs text-gray-500">업적 / 최대 슬롯</p>
-                      <p className="font-semibold text-gray-900">
-                        {user.achievementCount}개 / {user.maxSlots}칸
-                      </p>
+              return (
+                <article
+                  key={user.uid}
+                  className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4"
+                >
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="text-lg text-gray-900">{user.tamerName || "이름 없음"}</strong>
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-bold ${getUserRoleBadgeClassName(
+                            user
+                          )}`}
+                        >
+                          {user.isOperator ? "운영자" : "일반"}
+                        </span>
+                        {isCurrentUser ? (
+                          <span className="rounded-full bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700">
+                            현재 계정
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="space-y-1 text-sm text-gray-600">
+                        <p>이메일: {user.email || "미등록"}</p>
+                        <p>UID: {user.uid}</p>
+                        <p>표시명: {user.displayName || "없음"}</p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {user.isOperator ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleOperatorRoleChange(user, false)}
+                            disabled={disableDemote}
+                            className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {userActionUid === user.uid ? "변경 중..." : "운영자 해제"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleOperatorRoleChange(user, true)}
+                            disabled={disablePromote}
+                            className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {userActionUid === user.uid ? "변경 중..." : "운영자 지정"}
+                          </button>
+                        )}
+                      </div>
+
+                      {user.isOperator && isLastOperator(user) ? (
+                        <p className="text-xs font-medium text-rose-600">
+                          마지막 운영자는 해제할 수 없습니다.
+                        </p>
+                      ) : null}
                     </div>
-                    <div className="rounded-lg border border-white bg-white px-3 py-2">
-                      <p className="text-xs text-gray-500">최근 갱신</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatUserTimestamp(user.updatedAt)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-white bg-white px-3 py-2 sm:col-span-2">
-                      <p className="text-xs text-gray-500">생성 시각</p>
-                      <p className="font-semibold text-gray-900">
-                        {formatUserTimestamp(user.createdAt)}
-                      </p>
+
+                    <div className="grid gap-3 text-sm text-gray-600 sm:grid-cols-2 lg:min-w-[420px]">
+                      <div className="rounded-lg border border-white bg-white px-3 py-2">
+                        <p className="text-xs text-gray-500">업적 / 최대 슬롯</p>
+                        <p className="font-semibold text-gray-900">
+                          {user.achievementCount}개 / {user.maxSlots}칸
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white bg-white px-3 py-2">
+                        <p className="text-xs text-gray-500">최근 갱신</p>
+                        <p className="font-semibold text-gray-900">
+                          {formatUserTimestamp(user.updatedAt)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white bg-white px-3 py-2">
+                        <p className="text-xs text-gray-500">권한 갱신</p>
+                        <p className="font-semibold text-gray-900">
+                          {formatUserTimestamp(user.roleUpdatedAt)}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-white bg-white px-3 py-2">
+                        <p className="text-xs text-gray-500">생성 시각</p>
+                        <p className="font-semibold text-gray-900">
+                          {formatUserTimestamp(user.createdAt)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>

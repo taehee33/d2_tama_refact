@@ -19,12 +19,12 @@ async function verifyRequestUser(req) {
   }
 }
 
-function isArenaAdmin(decodedToken) {
-  return isOperatorIdentity(decodedToken);
+async function isArenaAdmin(decodedToken, deps = {}) {
+  return isOperatorIdentity(decodedToken, deps);
 }
 
-function assertArenaAdmin(decodedToken) {
-  if (!isArenaAdmin(decodedToken)) {
+async function assertArenaAdmin(decodedToken, deps = {}) {
+  if (!(await isArenaAdmin(decodedToken, deps))) {
     throw createCommunityError(403, "운영자 권한이 없습니다.");
   }
 

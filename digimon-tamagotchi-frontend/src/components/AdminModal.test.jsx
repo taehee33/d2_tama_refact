@@ -9,6 +9,7 @@ const mockEndArenaSeason = jest.fn();
 const mockDeleteArenaArchive = jest.fn();
 const mockFetchArenaArchiveMonitoring = jest.fn();
 const mockFetchArenaUserDirectory = jest.fn();
+const mockSetArenaUserOperatorRole = jest.fn();
 
 jest.mock("../contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -24,6 +25,7 @@ jest.mock("../utils/arenaApi", () => ({
   deleteArenaArchive: (...args) => mockDeleteArenaArchive(...args),
   fetchArenaArchiveMonitoring: (...args) => mockFetchArenaArchiveMonitoring(...args),
   fetchArenaUserDirectory: (...args) => mockFetchArenaUserDirectory(...args),
+  setArenaUserOperatorRole: (...args) => mockSetArenaUserOperatorRole(...args),
 }));
 
 jest.mock("firebase/firestore", () => ({
@@ -315,7 +317,7 @@ describe("AdminModal", () => {
     );
 
     expect(screen.getByText("전체 사용자 목록")).toBeInTheDocument();
-    expect(screen.getByText("관리자 테이머")).toBeInTheDocument();
+    expect(await screen.findByText("관리자 테이머")).toBeInTheDocument();
     expect(screen.getByText("일반 테이머")).toBeInTheDocument();
     expect(screen.getAllByText("운영자").length).toBeGreaterThan(0);
     expect(screen.getAllByText("일반").length).toBeGreaterThan(0);

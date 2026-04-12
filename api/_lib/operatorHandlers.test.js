@@ -27,23 +27,10 @@ function createMockRes() {
   };
 }
 
-test("operator status handler returns operator flags for news editor", async () => {
-  const previousArenaUids = process.env.ARENA_ADMIN_UIDS;
-  const previousArenaEmails = process.env.ARENA_ADMIN_EMAILS;
-  const previousNewsUids = process.env.NEWS_EDITOR_UIDS;
-  const previousNewsEmails = process.env.NEWS_EDITOR_EMAILS;
-  const previousOperatorUids = process.env.OPERATOR_UIDS;
-  const previousOperatorEmails = process.env.OPERATOR_EMAILS;
-
-  process.env.ARENA_ADMIN_UIDS = "arena-admin";
-  process.env.ARENA_ADMIN_EMAILS = "arena@example.com";
-  process.env.NEWS_EDITOR_UIDS = "news-editor";
-  process.env.NEWS_EDITOR_EMAILS = "news@example.com";
-  process.env.OPERATOR_UIDS = "";
-  process.env.OPERATOR_EMAILS = "";
-
+test("operator status handler returns operator flags for firestore operator", async () => {
   const handler = createOperatorStatusHandler({
     verifyRequestUser: async () => ({ uid: "news-editor", email: "news@example.com" }),
+    isOperatorIdentity: async () => true,
   });
 
   const res = createMockRes();
@@ -60,11 +47,4 @@ test("operator status handler returns operator flags for news editor", async () 
     isOperator: true,
     canAccessUserDirectory: true,
   });
-
-  process.env.ARENA_ADMIN_UIDS = previousArenaUids;
-  process.env.ARENA_ADMIN_EMAILS = previousArenaEmails;
-  process.env.NEWS_EDITOR_UIDS = previousNewsUids;
-  process.env.NEWS_EDITOR_EMAILS = previousNewsEmails;
-  process.env.OPERATOR_UIDS = previousOperatorUids;
-  process.env.OPERATOR_EMAILS = previousOperatorEmails;
 });

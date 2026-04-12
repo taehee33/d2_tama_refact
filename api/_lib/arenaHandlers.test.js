@@ -7,6 +7,7 @@ const {
   createArenaArchiveMonitoringHandler,
   createArenaBattleCompleteHandler,
   createArenaSeasonEndHandler,
+  createArenaSetOperatorHandler,
   createArenaUserDirectoryHandler,
 } = require("./arenaHandlers");
 const {
@@ -37,28 +38,16 @@ function createMockRes() {
   };
 }
 
-function withArenaAdminEnv(callback) {
-  const previousUids = process.env.ARENA_ADMIN_UIDS;
-  const previousEmails = process.env.ARENA_ADMIN_EMAILS;
-  process.env.ARENA_ADMIN_UIDS = "admin-1";
-  process.env.ARENA_ADMIN_EMAILS = "admin@example.com";
-
-  return Promise.resolve()
-    .then(callback)
-    .finally(() => {
-      process.env.ARENA_ADMIN_UIDS = previousUids;
-      process.env.ARENA_ADMIN_EMAILS = previousEmails;
-    });
+function createOperatorDeps(operatorUids = ["admin-1"]) {
+  return {
+    isOperatorIdentity: async (decodedToken) => operatorUids.includes(decodedToken?.uid),
+  };
 }
 
 test("arena admin config handler rejects non-admin users", async () => {
-  const previousUids = process.env.ARENA_ADMIN_UIDS;
-  const previousEmails = process.env.ARENA_ADMIN_EMAILS;
-  process.env.ARENA_ADMIN_UIDS = "";
-  process.env.ARENA_ADMIN_EMAILS = "";
-
   const handler = createArenaAdminConfigHandler({
     verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com" }),
+    ...createOperatorDeps([]),
   });
 
   const res = createMockRes();
@@ -77,185 +66,175 @@ test("arena admin config handler rejects non-admin users", async () => {
 
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.error, "운영자 권한이 없습니다.");
-
-  process.env.ARENA_ADMIN_UIDS = previousUids;
-  process.env.ARENA_ADMIN_EMAILS = previousEmails;
 });
 
 test("arena admin config handler returns archive monitoring snapshot on GET", async () => {
-  await withArenaAdminEnv(async () => {
-    const mockSnapshot = {
-      summary: {
-        windowHours: 24,
-      },
-      events: [
-        {
-          id: "monitor-1",
-          source: "arena_archive_post",
-          outcome: "success",
-        },
-      ],
-    };
-
-    const handler = createArenaAdminConfigHandler({
-      verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
-      getSupabaseAdminClient: () => ({}),
-      getArchiveMonitoringSnapshot: async () => mockSnapshot,
-    });
-
-    const res = createMockRes();
-    await handler(
+  const mockSnapshot = {
+    summary: {
+      windowHours: 24,
+    },
+    events: [
       {
-        method: "GET",
-        headers: { authorization: "Bearer test-token" },
-        query: {
-          view: "archive-monitoring",
-          hours: "24",
-        },
+        id: "monitor-1",
+        source: "arena_archive_post",
+        outcome: "success",
       },
-      res
-    );
+    ],
+  };
 
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, mockSnapshot);
+  const handler = createArenaAdminConfigHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getSupabaseAdminClient: () => ({}),
+    getArchiveMonitoringSnapshot: async () => mockSnapshot,
+    ...createOperatorDeps(["admin-1"]),
   });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+      query: {
+        view: "archive-monitoring",
+        hours: "24",
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, mockSnapshot);
 });
 
 test("arena season end handler archives current season snapshot and resets entries", async () => {
-  await withArenaAdminEnv(async () => {
-    let capturedWrites = null;
-    const handler = createArenaSeasonEndHandler({
-      verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
-      getDocument: async (path) => {
-        if (path === "game_settings/arena_config") {
-          return {
-            data: {
-              currentSeasonId: 2,
-            },
-          };
-        }
-        return null;
-      },
-      listDocuments: async () => [
-        {
-          id: "entry-1",
+  let capturedWrites = null;
+  const handler = createArenaSeasonEndHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getDocument: async (path) => {
+      if (path === "game_settings/arena_config") {
+        return {
           data: {
-            userId: "user-1",
-            tamerName: "테스터A",
-            digimonSnapshot: {
-              digimonName: "Agumon",
-              stage: "Adult",
-            },
-            record: {
-              wins: 10,
-              losses: 4,
-              seasonWins: 3,
-              seasonLosses: 1,
-              seasonId: 2,
-            },
+            currentSeasonId: 2,
           },
-        },
-        {
-          id: "entry-2",
-          data: {
-            userId: "user-2",
-            tamerName: "테스터B",
-            digimonSnapshot: {
-              digimonName: "Gabumon",
-              stage: "Adult",
-            },
-            record: {
-              wins: 8,
-              losses: 6,
-              seasonWins: 2,
-              seasonLosses: 2,
-              seasonId: 2,
-            },
-          },
-        },
-      ],
-      commitWrites: async (writes) => {
-        capturedWrites = writes;
-        return { writeResults: [] };
-      },
-    });
-
-    const res = createMockRes();
-    await handler(
+        };
+      }
+      return null;
+    },
+    listDocuments: async () => [
       {
-        method: "POST",
-        headers: { authorization: "Bearer test-token" },
-        body: {
-          currentSeasonId: 2,
-          seasonName: "Season 2",
-          seasonDuration: "2026.04.01 ~ 04.30",
+        id: "entry-1",
+        data: {
+          userId: "user-1",
+          tamerName: "테스터A",
+          digimonSnapshot: {
+            digimonName: "Agumon",
+            stage: "Adult",
+          },
+          record: {
+            wins: 10,
+            losses: 4,
+            seasonWins: 3,
+            seasonLosses: 1,
+            seasonId: 2,
+          },
         },
       },
-      res
-    );
+      {
+        id: "entry-2",
+        data: {
+          userId: "user-2",
+          tamerName: "테스터B",
+          digimonSnapshot: {
+            digimonName: "Gabumon",
+            stage: "Adult",
+          },
+          record: {
+            wins: 8,
+            losses: 6,
+            seasonWins: 2,
+            seasonLosses: 2,
+            seasonId: 2,
+          },
+        },
+      },
+    ],
+    commitWrites: async (writes) => {
+      capturedWrites = writes;
+      return { writeResults: [] };
+    },
+    ...createOperatorDeps(["admin-1"]),
+  });
 
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.body.season.archiveId, "season_2");
-    assert.equal(res.body.season.archivedEntryCount, 2);
-    assert.equal(res.body.season.currentSeasonId, 3);
-    assert.equal(capturedWrites.length, 4);
+  const res = createMockRes();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+      body: {
+        currentSeasonId: 2,
+        seasonName: "Season 2",
+        seasonDuration: "2026.04.01 ~ 04.30",
+      },
+    },
+    res
+  );
 
-    const archiveDocument = parseFirestoreFields(capturedWrites[0].update.fields);
-    assert.equal(archiveDocument.seasonId, 2);
-    assert.equal(archiveDocument.entryCount, 2);
-    assert.equal(archiveDocument.entries[0].tamerName, "테스터A");
-    assert.deepEqual(archiveDocument.entries[0].record, {
-      wins: 10,
-      losses: 4,
-      seasonWins: 3,
-      seasonLosses: 1,
-      seasonId: 2,
-    });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.season.archiveId, "season_2");
+  assert.equal(res.body.season.archivedEntryCount, 2);
+  assert.equal(res.body.season.currentSeasonId, 3);
+  assert.equal(capturedWrites.length, 4);
+
+  const archiveDocument = parseFirestoreFields(capturedWrites[0].update.fields);
+  assert.equal(archiveDocument.seasonId, 2);
+  assert.equal(archiveDocument.entryCount, 2);
+  assert.equal(archiveDocument.entries[0].tamerName, "테스터A");
+  assert.deepEqual(archiveDocument.entries[0].record, {
+    wins: 10,
+    losses: 4,
+    seasonWins: 3,
+    seasonLosses: 1,
+    seasonId: 2,
   });
 });
 
 test("arena archive delete handler performs soft delete", async () => {
-  await withArenaAdminEnv(async () => {
-    let capturedWrites = null;
-    const handler = createArenaArchiveDeleteHandler({
-      verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
-      getDocument: async () => ({ data: { seasonId: 2 } }),
-      commitWrites: async (writes) => {
-        capturedWrites = writes;
-        return { writeResults: [] };
-      },
-    });
-
-    const res = createMockRes();
-    await handler(
-      {
-        method: "DELETE",
-        headers: { authorization: "Bearer test-token" },
-        query: { archiveId: "season_2" },
-      },
-      res
-    );
-
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body.archive, {
-      id: "season_2",
-      isDeleted: true,
-    });
-
-    const deleteUpdate = parseFirestoreFields(capturedWrites[0].update.fields);
-    assert.equal(deleteUpdate.isDeleted, true);
-    assert.equal(deleteUpdate.deletedBy, "admin-1");
+  let capturedWrites = null;
+  const handler = createArenaArchiveDeleteHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getDocument: async () => ({ data: { seasonId: 2 } }),
+    commitWrites: async (writes) => {
+      capturedWrites = writes;
+      return { writeResults: [] };
+    },
+    ...createOperatorDeps(["admin-1"]),
   });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "DELETE",
+      headers: { authorization: "Bearer test-token" },
+      query: { archiveId: "season_2" },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.archive, {
+    id: "season_2",
+    isDeleted: true,
+  });
+
+  const deleteUpdate = parseFirestoreFields(capturedWrites[0].update.fields);
+  assert.equal(deleteUpdate.isDeleted, true);
+  assert.equal(deleteUpdate.deletedBy, "admin-1");
 });
 
 test("arena archive monitoring handler rejects non-admin users", async () => {
-  const previousUids = process.env.ARENA_ADMIN_UIDS;
-  const previousEmails = process.env.ARENA_ADMIN_EMAILS;
-  process.env.ARENA_ADMIN_UIDS = "";
-  process.env.ARENA_ADMIN_EMAILS = "";
-
   const handler = createArenaArchiveMonitoringHandler({
     verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com" }),
+    ...createOperatorDeps([]),
   });
 
   const res = createMockRes();
@@ -270,73 +249,65 @@ test("arena archive monitoring handler rejects non-admin users", async () => {
 
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.error, "운영자 권한이 없습니다.");
-
-  process.env.ARENA_ADMIN_UIDS = previousUids;
-  process.env.ARENA_ADMIN_EMAILS = previousEmails;
 });
 
 test("arena archive monitoring handler returns summary and events for admin users", async () => {
-  await withArenaAdminEnv(async () => {
-    const mockSnapshot = {
-      summary: {
-        windowHours: 24,
-        sources: {
-          arena_archive_post: {
-            counts: {
-              success: 2,
-              bad_request: 0,
-              forbidden: 0,
-              not_found: 0,
-              error: 1,
-            },
-            totalCount: 3,
-            failureCount: 1,
-            lastSuccessAt: "2026-04-04T00:00:00.000Z",
-            lastFailureAt: "2026-04-04T01:00:00.000Z",
+  const mockSnapshot = {
+    summary: {
+      windowHours: 24,
+      sources: {
+        arena_archive_post: {
+          counts: {
+            success: 2,
+            bad_request: 0,
+            forbidden: 0,
+            not_found: 0,
+            error: 1,
           },
+          totalCount: 3,
+          failureCount: 1,
+          lastSuccessAt: "2026-04-04T00:00:00.000Z",
+          lastFailureAt: "2026-04-04T01:00:00.000Z",
         },
       },
-      events: [
-        {
-          id: "event-1",
-          source: "arena_archive_post",
-          outcome: "error",
-          statusCode: 500,
-          archiveId: "arena-1",
-          createdAt: "2026-04-04T01:00:00.000Z",
-        },
-      ],
-    };
-
-    const handler = createArenaArchiveMonitoringHandler({
-      verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
-      getSupabaseAdminClient: () => ({}),
-      getArchiveMonitoringSnapshot: async () => mockSnapshot,
-    });
-
-    const res = createMockRes();
-    await handler(
+    },
+    events: [
       {
-        method: "GET",
-        headers: { authorization: "Bearer test-token" },
-        query: { hours: "24", limit: "50" },
+        id: "event-1",
+        source: "arena_archive_post",
+        outcome: "error",
+        statusCode: 500,
+        archiveId: "arena-1",
+        createdAt: "2026-04-04T01:00:00.000Z",
       },
-      res
-    );
+    ],
+  };
 
-    assert.equal(res.statusCode, 200);
-    assert.deepEqual(res.body, mockSnapshot);
+  const handler = createArenaArchiveMonitoringHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getSupabaseAdminClient: () => ({}),
+    getArchiveMonitoringSnapshot: async () => mockSnapshot,
+    ...createOperatorDeps(["admin-1"]),
   });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+      query: { hours: "24", limit: "50" },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, mockSnapshot);
 });
 
 test("arena user directory handler rejects non-admin users", async () => {
-  const previousUids = process.env.ARENA_ADMIN_UIDS;
-  const previousEmails = process.env.ARENA_ADMIN_EMAILS;
-  process.env.ARENA_ADMIN_UIDS = "";
-  process.env.ARENA_ADMIN_EMAILS = "";
-
   const handler = createArenaUserDirectoryHandler({
     verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com" }),
+    ...createOperatorDeps([]),
   });
 
   const res = createMockRes();
@@ -351,58 +322,68 @@ test("arena user directory handler rejects non-admin users", async () => {
 
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.error, "운영자 권한이 없습니다.");
-
-  process.env.ARENA_ADMIN_UIDS = previousUids;
-  process.env.ARENA_ADMIN_EMAILS = previousEmails;
 });
 
 test("arena user directory handler returns normalized users and role summary", async () => {
-  const previousArenaUids = process.env.ARENA_ADMIN_UIDS;
-  const previousArenaEmails = process.env.ARENA_ADMIN_EMAILS;
-  const previousNewsUids = process.env.NEWS_EDITOR_UIDS;
-  const previousNewsEmails = process.env.NEWS_EDITOR_EMAILS;
-  const previousOperatorUids = process.env.OPERATOR_UIDS;
-  const previousOperatorEmails = process.env.OPERATOR_EMAILS;
-
-  process.env.ARENA_ADMIN_UIDS = "admin-1";
-  process.env.ARENA_ADMIN_EMAILS = "admin@example.com";
-  process.env.NEWS_EDITOR_UIDS = "news-1";
-  process.env.NEWS_EDITOR_EMAILS = "news@example.com";
-  process.env.OPERATOR_UIDS = "";
-  process.env.OPERATOR_EMAILS = "";
-
   const handler = createArenaUserDirectoryHandler({
     verifyRequestUser: async () => ({ uid: "news-1", email: "news@example.com" }),
-    listDocuments: async () => [
-      {
-        id: "admin-1",
-        data: {
-          email: "admin@example.com",
-          displayName: "Arena Admin",
-          createdAt: "2026-04-10T00:00:00.000Z",
-          updatedAt: "2026-04-12T01:00:00.000Z",
-          achievements: ["첫 로그인"],
-          maxSlots: 12,
-        },
-      },
-      {
-        id: "news-1",
-        data: {
-          email: "news@example.com",
-          displayName: "News Editor",
-          createdAt: "2026-04-09T00:00:00.000Z",
-          updatedAt: "2026-04-11T00:00:00.000Z",
-        },
-      },
-      {
-        id: "user-1",
-        data: {
-          email: "user@example.com",
-          displayName: "Normal User",
-          createdAt: "2026-04-08T00:00:00.000Z",
-        },
-      },
-    ],
+    listDocuments: async (path) => {
+      if (path === "users") {
+        return [
+          {
+            id: "admin-1",
+            data: {
+              email: "admin@example.com",
+              displayName: "Arena Admin",
+              createdAt: "2026-04-10T00:00:00.000Z",
+              updatedAt: "2026-04-12T01:00:00.000Z",
+              achievements: ["첫 로그인"],
+              maxSlots: 12,
+            },
+          },
+          {
+            id: "news-1",
+            data: {
+              email: "news@example.com",
+              displayName: "News Editor",
+              createdAt: "2026-04-09T00:00:00.000Z",
+              updatedAt: "2026-04-11T00:00:00.000Z",
+            },
+          },
+          {
+            id: "user-1",
+            data: {
+              email: "user@example.com",
+              displayName: "Normal User",
+              createdAt: "2026-04-08T00:00:00.000Z",
+            },
+          },
+        ];
+      }
+
+      if (path === "operator_roles") {
+        return [
+          {
+            id: "admin-1",
+            data: {
+              uid: "admin-1",
+              isOperator: true,
+              updatedAt: "2026-04-12T06:00:00.000Z",
+            },
+          },
+          {
+            id: "news-1",
+            data: {
+              uid: "news-1",
+              isOperator: true,
+              updatedAt: "2026-04-11T06:00:00.000Z",
+            },
+          },
+        ];
+      }
+
+      return [];
+    },
     getDocument: async (path) => {
       if (path === "users/admin-1/profile/main") {
         return {
@@ -434,6 +415,7 @@ test("arena user directory handler returns normalized users and role summary", a
 
       return null;
     },
+    ...createOperatorDeps(["admin-1", "news-1"]),
   });
 
   const res = createMockRes();
@@ -458,15 +440,159 @@ test("arena user directory handler returns normalized users and role summary", a
   assert.equal(res.body.users[0].maxSlots, 15);
   assert.equal(res.body.users[0].achievementCount, 2);
   assert.equal(res.body.users[0].roleLabel, "운영자");
+  assert.equal(res.body.users[0].roleUpdatedAt, "2026-04-12T06:00:00.000Z");
   assert.equal(res.body.users[1].roleLabel, "운영자");
   assert.equal(res.body.users[2].roleLabel, "일반");
+});
 
-  process.env.ARENA_ADMIN_UIDS = previousArenaUids;
-  process.env.ARENA_ADMIN_EMAILS = previousArenaEmails;
-  process.env.NEWS_EDITOR_UIDS = previousNewsUids;
-  process.env.NEWS_EDITOR_EMAILS = previousNewsEmails;
-  process.env.OPERATOR_UIDS = previousOperatorUids;
-  process.env.OPERATOR_EMAILS = previousOperatorEmails;
+test("arena set operator handler grants operator role and writes audit log", async () => {
+  let capturedWrites = null;
+  const handler = createArenaSetOperatorHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getDocument: async (path) => {
+      if (path === "users/user-1") {
+        return {
+          data: {
+            email: "user@example.com",
+            displayName: "Normal User",
+          },
+        };
+      }
+
+      if (path === "users/user-1/profile/main") {
+        return {
+          data: {
+            tamerName: "일반 유저",
+          },
+        };
+      }
+
+      if (path === "operator_roles/user-1") {
+        return null;
+      }
+
+      return null;
+    },
+    listDocuments: async (path) => {
+      if (path === "operator_roles") {
+        return [
+          {
+            id: "admin-1",
+            data: {
+              uid: "admin-1",
+              isOperator: true,
+            },
+          },
+        ];
+      }
+
+      return [];
+    },
+    commitWrites: async (writes) => {
+      capturedWrites = writes;
+      return { writeResults: [] };
+    },
+    ...createOperatorDeps(["admin-1"]),
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+      query: { action: "set-operator" },
+      body: {
+        targetUid: "user-1",
+        isOperator: true,
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.role.uid, "user-1");
+  assert.equal(res.body.role.isOperator, true);
+  assert.equal(capturedWrites.length, 2);
+
+  const roleDocument = parseFirestoreFields(capturedWrites[0].update.fields);
+  const eventDocument = parseFirestoreFields(capturedWrites[1].update.fields);
+  assert.equal(roleDocument.uid, "user-1");
+  assert.equal(roleDocument.isOperator, true);
+  assert.equal(roleDocument.displayName, "일반 유저");
+  assert.equal(eventDocument.targetUid, "user-1");
+  assert.equal(eventDocument.beforeIsOperator, false);
+  assert.equal(eventDocument.afterIsOperator, true);
+});
+
+test("arena set operator handler blocks removing the last operator", async () => {
+  const handler = createArenaSetOperatorHandler({
+    verifyRequestUser: async () => ({ uid: "admin-1", email: "admin@example.com" }),
+    getDocument: async (path) => {
+      if (path === "users/admin-1") {
+        return {
+          data: {
+            email: "admin@example.com",
+            displayName: "Arena Admin",
+          },
+        };
+      }
+
+      if (path === "users/admin-1/profile/main") {
+        return {
+          data: {
+            tamerName: "관리자 테이머",
+          },
+        };
+      }
+
+      if (path === "operator_roles/admin-1") {
+        return {
+          data: {
+            uid: "admin-1",
+            isOperator: true,
+            grantedBy: "seed",
+            grantedAt: "2026-04-01T00:00:00.000Z",
+            updatedAt: "2026-04-12T00:00:00.000Z",
+          },
+        };
+      }
+
+      return null;
+    },
+    listDocuments: async (path) => {
+      if (path === "operator_roles") {
+        return [
+          {
+            id: "admin-1",
+            data: {
+              uid: "admin-1",
+              isOperator: true,
+            },
+          },
+        ];
+      }
+
+      return [];
+    },
+    ...createOperatorDeps(["admin-1"]),
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "POST",
+      headers: { authorization: "Bearer test-token" },
+      query: { action: "set-operator" },
+      body: {
+        targetUid: "admin-1",
+        isOperator: false,
+      },
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, "마지막 운영자 권한은 해제할 수 없습니다.");
 });
 
 test("arena battle complete handler rejects foreign myEntryId", async () => {

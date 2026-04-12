@@ -11,6 +11,7 @@
     "nickname:backfill": "node scripts/backfillNicknameIndex.js",
     "nickname:verify": "node scripts/verifyNicknameIndex.js",
     "nickname:cleanup": "node scripts/cleanupLegacyNicknameMetadata.js",
+    "operator:backfill": "node scripts/migrateOperatorRoles.js",
     "test:notification-api": "node --test api/_lib/notificationReports.test.js tests/notification-entrypoints.test.js",
     "test:encyclopedia-migration": "node --test tests/encyclopedia-migration.test.js",
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",

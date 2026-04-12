@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
         viewerUid: decodedToken.uid,
         decodedToken,
       });
-      const viewer = getCommunityBoardViewer({
+      const viewer = await getCommunityBoardViewer({
         boardId: normalizedBoardId,
         decodedToken,
       });

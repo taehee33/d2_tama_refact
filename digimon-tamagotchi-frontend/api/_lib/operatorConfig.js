@@ -1,43 +1,131 @@
 "use strict";
 
-function normalizeCommaSeparatedList(value) {
-  if (typeof value !== "string") {
-    return [];
+const { getDocument, listDocuments } = require("./firestoreAdmin");
+
+const OPERATOR_ROLES_COLLECTION = "operator_roles";
+const OPERATOR_ROLE_EVENTS_COLLECTION = "operator_role_events";
+
+function normalizeString(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeOperatorRoleDocument(uid, data = {}) {
+  return {
+    uid: normalizeString(uid),
+    isOperator: Boolean(data.isOperator),
+    email: normalizeString(data.email),
+    displayName: normalizeString(data.displayName),
+    grantedBy: normalizeString(data.grantedBy),
+    grantedAt: normalizeString(data.grantedAt) || null,
+    updatedAt: normalizeString(data.updatedAt) || null,
+  };
+}
+
+function getOperatorRoleDocumentPath(uid = "") {
+  return `${OPERATOR_ROLES_COLLECTION}/${normalizeString(uid)}`;
+}
+
+async function getOperatorRole(uid, deps = {}) {
+  const normalizedUid = normalizeString(uid);
+
+  if (!normalizedUid) {
+    return null;
   }
 
-  return value
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  if (typeof deps.getOperatorRole === "function") {
+    return deps.getOperatorRole(normalizedUid, deps);
+  }
+
+  const getDocumentByPath = deps.getDocument || getDocument;
+  const document = await getDocumentByPath(getOperatorRoleDocumentPath(normalizedUid));
+
+  if (!document?.data) {
+    return null;
+  }
+
+  return normalizeOperatorRoleDocument(normalizedUid, document.data);
 }
 
-function collectOperatorIdentifiers(keys = []) {
-  const values = keys.flatMap((key) => normalizeCommaSeparatedList(process.env[key]));
-  return [...new Set(values)];
+async function listOperatorRoles(deps = {}) {
+  if (typeof deps.listOperatorRoles === "function") {
+    return deps.listOperatorRoles(deps);
+  }
+
+  const listCollectionDocuments = deps.listDocuments || listDocuments;
+  const documents = await listCollectionDocuments(OPERATOR_ROLES_COLLECTION, {
+    pageSize: 200,
+  });
+
+  return documents
+    .map((document) => normalizeOperatorRoleDocument(document?.id, document?.data || {}))
+    .filter((role) => role.uid);
 }
 
-function isOperatorIdentity(decodedToken) {
-  if (!decodedToken) {
+async function isOperatorIdentity(decodedToken, deps = {}) {
+  const uid = normalizeString(decodedToken?.uid);
+
+  if (!uid) {
     return false;
   }
 
-  const operatorUids = collectOperatorIdentifiers([
-    "OPERATOR_UIDS",
-    "ARENA_ADMIN_UIDS",
-    "NEWS_EDITOR_UIDS",
-  ]);
-  const operatorEmails = collectOperatorIdentifiers([
-    "OPERATOR_EMAILS",
-    "ARENA_ADMIN_EMAILS",
-    "NEWS_EDITOR_EMAILS",
-  ]);
-  const uid = typeof decodedToken.uid === "string" ? decodedToken.uid.trim().toLowerCase() : "";
-  const email = typeof decodedToken.email === "string" ? decodedToken.email.trim().toLowerCase() : "";
+  if (typeof deps.isOperatorIdentity === "function" && deps.isOperatorIdentity !== isOperatorIdentity) {
+    return Boolean(await deps.isOperatorIdentity(decodedToken, deps));
+  }
 
-  return operatorUids.includes(uid) || (email ? operatorEmails.includes(email) : false);
+  const role = await getOperatorRole(uid, deps);
+  return Boolean(role?.isOperator);
+}
+
+function createOperatorRolePayload({
+  uid,
+  isOperator,
+  email = "",
+  displayName = "",
+  grantedBy = "",
+  grantedAt = null,
+  updatedAt = null,
+} = {}) {
+  return {
+    uid: normalizeString(uid),
+    isOperator: Boolean(isOperator),
+    email: normalizeString(email),
+    displayName: normalizeString(displayName),
+    grantedBy: normalizeString(grantedBy),
+    ...(grantedAt ? { grantedAt } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+}
+
+function createOperatorRoleEventPayload({
+  targetUid,
+  targetEmail = "",
+  beforeIsOperator = false,
+  afterIsOperator = false,
+  actedBy = "",
+  actedByEmail = "",
+  actedAt = null,
+  source = "user-directory",
+} = {}) {
+  return {
+    targetUid: normalizeString(targetUid),
+    targetEmail: normalizeString(targetEmail),
+    beforeIsOperator: Boolean(beforeIsOperator),
+    afterIsOperator: Boolean(afterIsOperator),
+    actedBy: normalizeString(actedBy),
+    actedByEmail: normalizeString(actedByEmail),
+    ...(actedAt ? { actedAt } : {}),
+    source: normalizeString(source) || "user-directory",
+  };
 }
 
 module.exports = {
+  OPERATOR_ROLE_EVENTS_COLLECTION,
+  OPERATOR_ROLES_COLLECTION,
+  createOperatorRoleEventPayload,
+  createOperatorRolePayload,
+  getOperatorRole,
+  getOperatorRoleDocumentPath,
   isOperatorIdentity,
-  normalizeCommaSeparatedList,
+  listOperatorRoles,
+  normalizeOperatorRoleDocument,
 };

@@ -14,7 +14,7 @@ function createOperatorStatusHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      const access = getOperatorAccess(decodedToken);
+      const access = await getOperatorAccess(decodedToken, deps);
 
       sendJson(res, 200, {
         viewer: access,

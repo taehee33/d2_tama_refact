@@ -3,8 +3,8 @@
 const { createCommunityError } = require("./community");
 const { isOperatorIdentity } = require("./operatorConfig");
 
-function getOperatorAccess(decodedToken) {
-  const isOperator = isOperatorIdentity(decodedToken);
+async function getOperatorAccess(decodedToken, deps = {}) {
+  const isOperator = await isOperatorIdentity(decodedToken, deps);
 
   return {
     isOperator,
@@ -12,8 +12,8 @@ function getOperatorAccess(decodedToken) {
   };
 }
 
-function assertUserDirectoryAccess(decodedToken) {
-  const access = getOperatorAccess(decodedToken);
+async function assertUserDirectoryAccess(decodedToken, deps = {}) {
+  const access = await getOperatorAccess(decodedToken, deps);
 
   if (!access.canAccessUserDirectory) {
     throw createCommunityError(403, "운영자 권한이 없습니다.");

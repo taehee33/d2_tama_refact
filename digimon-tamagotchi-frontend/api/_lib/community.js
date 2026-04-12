@@ -491,12 +491,13 @@ function mapNewsContext(input) {
   };
 }
 
-function isNewsEditor(decodedToken) {
-  return isOperatorIdentity(decodedToken);
+async function isNewsEditor(decodedToken, options = {}) {
+  const resolveOperatorIdentity = options.isOperatorIdentityFn || isOperatorIdentity;
+  return resolveOperatorIdentity(decodedToken, options);
 }
 
-function assertNewsEditor(decodedToken) {
-  if (!isNewsEditor(decodedToken)) {
+async function assertNewsEditor(decodedToken, options = {}) {
+  if (!(await isNewsEditor(decodedToken, options))) {
     throw createCommunityError(403, "운영자 권한이 없습니다.");
   }
 
@@ -826,21 +827,29 @@ function mapCommentRow(row) {
   };
 }
 
-function canManageCommunityPost({ boardId, row, viewerUid = "", decodedToken = null }) {
+function canManageCommunityPost({ boardId, row, viewerUid = "", viewerIsOperator = false }) {
   const normalizedBoardId = normalizeBoardId(boardId || row?.board_id || BOARD_ID_SHOWCASE);
 
   if (normalizedBoardId === BOARD_ID_NEWS) {
-    return isNewsEditor(decodedToken);
+    return Boolean(viewerIsOperator);
   }
 
   return Boolean(viewerUid && row?.author_uid && row.author_uid === viewerUid);
 }
 
-function getCommunityBoardViewer({ boardId = BOARD_ID_SHOWCASE, decodedToken = null } = {}) {
+async function getCommunityBoardViewer({
+  boardId = BOARD_ID_SHOWCASE,
+  decodedToken = null,
+  isOperatorIdentityFn = null,
+} = {}) {
   const normalizedBoardId = normalizeBoardId(boardId);
+  const viewerIsOperator =
+    normalizedBoardId === BOARD_ID_NEWS
+      ? await isNewsEditor(decodedToken, { isOperatorIdentityFn })
+      : false;
 
   return {
-    canCreate: normalizedBoardId === BOARD_ID_NEWS ? isNewsEditor(decodedToken) : true,
+    canCreate: normalizedBoardId === BOARD_ID_NEWS ? viewerIsOperator : true,
   };
 }
 
@@ -930,7 +939,7 @@ function mapPostRowWithImage(supabase, row, options = {}) {
       boardId,
       row,
       viewerUid,
-      decodedToken: options.decodedToken || null,
+      viewerIsOperator: options.viewerIsOperator || false,
     }),
   };
 }
@@ -1183,6 +1192,7 @@ async function listCommunityPosts({
   limit = 24,
   viewerUid = "",
   decodedToken = null,
+  isOperatorIdentityFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const normalizedCategory =
@@ -1191,6 +1201,11 @@ async function listCommunityPosts({
     normalizedBoardId === BOARD_ID_NEWS
       ? normalizeBoardCategoryFilter(normalizedBoardId, category)
       : "";
+  const viewer = await getCommunityBoardViewer({
+    boardId: normalizedBoardId,
+    decodedToken,
+    isOperatorIdentityFn,
+  });
 
   let query = supabase
     .from(POSTS_TABLE)
@@ -1219,7 +1234,7 @@ async function listCommunityPosts({
     ...mapPostRowWithImage(supabase, row, {
       boardId: normalizedBoardId,
       viewerUid,
-      decodedToken,
+      viewerIsOperator: viewer.canCreate,
     }),
     previewComments: previewCommentsByPostId[row.id] || [],
   }));
@@ -1231,8 +1246,14 @@ async function getCommunityPostDetail({
   postId,
   viewerUid = "",
   decodedToken = null,
+  isOperatorIdentityFn = null,
 }) {
   const postRow = await getPostRowOrThrow(supabase, boardId, postId);
+  const viewer = await getCommunityBoardViewer({
+    boardId,
+    decodedToken,
+    isOperatorIdentityFn,
+  });
   const { data: commentRows, error: commentsError } = await supabase
     .from(COMMENTS_TABLE)
     .select("*")
@@ -1247,7 +1268,7 @@ async function getCommunityPostDetail({
     post: mapPostRowWithImage(supabase, postRow, {
       boardId,
       viewerUid,
-      decodedToken,
+      viewerIsOperator: viewer.canCreate,
     }),
     comments: (commentRows || []).map(mapCommentRow),
   };
@@ -1261,6 +1282,7 @@ async function createCommunityPost({
   input,
   loadSlotSnapshot = loadUserSlotSnapshot,
   resolveAuthorName = resolveAuthorTamerName,
+  isOperatorIdentityFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const validatedInput = validatePostInput(input, { boardId: normalizedBoardId });
@@ -1301,7 +1323,7 @@ async function createCommunityPost({
     }
   } else {
     if (normalizedBoardId === BOARD_ID_NEWS) {
-      assertNewsEditor(decodedToken);
+      await assertNewsEditor(decodedToken, { isOperatorIdentityFn });
     }
 
     category = validatedInput.category;
@@ -1361,12 +1383,13 @@ async function updateCommunityPost({
   postId,
   decodedToken = null,
   input,
+  isOperatorIdentityFn = null,
 }) {
   const normalizedBoardId = normalizeBoardId(boardId);
   const postRow = await getPostRowOrThrow(supabase, normalizedBoardId, postId);
 
   if (normalizedBoardId === BOARD_ID_NEWS) {
-    assertNewsEditor(decodedToken);
+    await assertNewsEditor(decodedToken, { isOperatorIdentityFn });
   } else if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 수정할 수 있습니다.");
   }
@@ -1460,11 +1483,12 @@ async function deleteCommunityPost({
   uid,
   postId,
   decodedToken = null,
+  isOperatorIdentityFn = null,
 }) {
   const postRow = await getPostRowOrThrow(supabase, boardId, postId);
 
   if (normalizeBoardId(boardId) === BOARD_ID_NEWS) {
-    assertNewsEditor(decodedToken);
+    await assertNewsEditor(decodedToken, { isOperatorIdentityFn });
   } else if (postRow.author_uid !== uid) {
     throw createCommunityError(403, "본인 게시글만 삭제할 수 있습니다.");
   }

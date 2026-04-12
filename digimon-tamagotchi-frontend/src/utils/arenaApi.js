@@ -146,6 +146,19 @@ export async function fetchArenaUserDirectory(currentUser) {
   };
 }
 
+export async function setArenaUserOperatorRole(currentUser, body) {
+  const payload = await requestArenaApi(
+    currentUser,
+    "/api/arena/admin/config?action=set-operator",
+    {
+      method: "POST",
+      body,
+    }
+  );
+
+  return payload?.role || null;
+}
+
 export async function completeArenaBattle(currentUser, body) {
   const payload = await requestArenaApi(currentUser, "/api/arena/battles/complete", {
     method: "POST",

@@ -3,7 +3,14 @@
 const { assertArenaAdmin, verifyRequestUser } = require("./auth");
 const { createCommunityError } = require("./community");
 const { assertUserDirectoryAccess } = require("./operatorAccess");
-const { isOperatorIdentity } = require("./operatorConfig");
+const {
+  OPERATOR_ROLE_EVENTS_COLLECTION,
+  OPERATOR_ROLES_COLLECTION,
+  createOperatorRoleEventPayload,
+  createOperatorRolePayload,
+  getOperatorRole,
+  listOperatorRoles,
+} = require("./operatorConfig");
 const {
   commitWrites,
   createSetWrite,
@@ -36,10 +43,6 @@ function normalizeInteger(value, fallback = 0) {
 
 function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function createArenaAdminError(message = "운영자 권한이 없습니다.") {
-  return createCommunityError(403, message);
 }
 
 function createArenaValidationError(message) {
@@ -102,15 +105,10 @@ function resolveUserDirectoryMaxSlots(rootData = {}, profileData = {}) {
   return rootSlots > 0 ? rootSlots : 10;
 }
 
-function buildUserDirectoryItem(userDocument, profileData = {}) {
+function buildUserDirectoryItem(userDocument, profileData = {}, operatorRole = null) {
   const rootData = userDocument?.data || {};
   const uid = normalizeString(userDocument?.id);
-  const email = normalizeString(rootData.email).toLowerCase();
-  const decodedTokenLike = {
-    uid,
-    email,
-  };
-  const isOperator = isOperatorIdentity(decodedTokenLike);
+  const isOperator = Boolean(operatorRole?.isOperator);
   const achievements = resolveUserDirectoryAchievements(rootData, profileData);
   const updatedAt = resolveUserTimestamp(
     profileData.updatedAt,
@@ -131,9 +129,35 @@ function buildUserDirectoryItem(userDocument, profileData = {}) {
     createdAt: resolveUserTimestamp(rootData.createdAt, profileData.createdAt),
     updatedAt,
     isOperator,
+    roleUpdatedAt: resolveUserTimestamp(operatorRole?.updatedAt, operatorRole?.grantedAt),
     roleLabel: formatUserRoleSummary({
       isOperator,
     }),
+  };
+}
+
+function createOperatorRoleEventId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `operator_role_${crypto.randomUUID()}`;
+  }
+
+  return `operator_role_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function ensureSetOperatorInput(input = {}) {
+  const targetUid = normalizeString(input.targetUid);
+
+  if (!targetUid) {
+    throw createArenaValidationError("대상 사용자 UID를 확인해 주세요.");
+  }
+
+  if (typeof input.isOperator !== "boolean") {
+    throw createArenaValidationError("운영자 권한 변경 값이 올바르지 않습니다.");
+  }
+
+  return {
+    targetUid,
+    isOperator: input.isOperator,
   };
 }
 
@@ -337,7 +361,7 @@ function createArenaAdminConfigHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      assertArenaAdmin(decodedToken);
+      await assertArenaAdmin(decodedToken, deps);
 
       if (req.method === "GET") {
         const snapshot = await getMonitoringSnapshot({
@@ -392,7 +416,7 @@ function createArenaSeasonEndHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      assertArenaAdmin(decodedToken);
+      await assertArenaAdmin(decodedToken, deps);
       const input = ensureSeasonConfigInput(await parseJsonBody(req));
       const configDocument = await getDocumentByPath(ARENA_CONFIG_PATH);
       const configData = configDocument?.data || {};
@@ -507,7 +531,7 @@ function createArenaArchiveDeleteHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      assertArenaAdmin(decodedToken);
+      await assertArenaAdmin(decodedToken, deps);
       const archiveId = normalizeString(req.query?.archiveId || req.query?.id);
 
       if (!archiveId) {
@@ -557,7 +581,7 @@ function createArenaArchiveMonitoringHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      assertArenaAdmin(decodedToken);
+      await assertArenaAdmin(decodedToken, deps);
 
       const snapshot = await getMonitoringSnapshot({
         supabase: resolveSupabaseClient(deps),
@@ -591,11 +615,17 @@ function createArenaUserDirectoryHandler(deps = {}) {
 
     try {
       const decodedToken = await verifyUser(req);
-      assertUserDirectoryAccess(decodedToken);
+      await assertUserDirectoryAccess(decodedToken, deps);
 
-      const userDocuments = await listCollectionDocuments(USER_COLLECTION, {
-        pageSize: 200,
-      });
+      const [userDocuments, operatorRoles] = await Promise.all([
+        listCollectionDocuments(USER_COLLECTION, {
+          pageSize: 200,
+        }),
+        listOperatorRoles({
+          listDocuments: listCollectionDocuments,
+        }),
+      ]);
+      const operatorRoleByUid = new Map(operatorRoles.map((role) => [role.uid, role]));
 
       const items = await Promise.all(
         userDocuments.map(async (userDocument) => {
@@ -606,7 +636,11 @@ function createArenaUserDirectoryHandler(deps = {}) {
               )
             : null;
 
-          return buildUserDirectoryItem(userDocument, profileDocument?.data || {});
+          return buildUserDirectoryItem(
+            userDocument,
+            profileDocument?.data || {},
+            operatorRoleByUid.get(uid) || null
+          );
         })
       );
 
@@ -636,6 +670,126 @@ function createArenaUserDirectoryHandler(deps = {}) {
           totalUsers: users.length,
           operatorCount: users.filter((item) => item.isOperator).length,
           generalUserCount: users.filter((item) => !item.isOperator).length,
+        },
+      });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
+function createArenaSetOperatorHandler(deps = {}) {
+  const verifyUser = deps.verifyRequestUser || verifyRequestUser;
+  const commit = deps.commitWrites || commitWrites;
+  const getDocumentByPath = deps.getDocument || getDocument;
+  const listCollectionDocuments = deps.listDocuments || listDocuments;
+
+  return async function arenaSetOperatorHandler(req, res) {
+    if (!allowMethods(req, res, ["POST"])) {
+      return;
+    }
+
+    try {
+      const decodedToken = await verifyUser(req);
+      await assertUserDirectoryAccess(decodedToken, deps);
+      const input = ensureSetOperatorInput(await parseJsonBody(req));
+
+      const [targetUserDocument, targetProfileDocument, existingRole, operatorRoles] =
+        await Promise.all([
+          getDocumentByPath(`${USER_COLLECTION}/${input.targetUid}`),
+          getDocumentByPath(
+            `${USER_COLLECTION}/${input.targetUid}/${USER_PROFILE_SUBCOLLECTION}/${USER_PROFILE_DOC_ID}`
+          ),
+          getOperatorRole(input.targetUid, {
+            getDocument: getDocumentByPath,
+          }),
+          listOperatorRoles({
+            listDocuments: listCollectionDocuments,
+          }),
+        ]);
+
+      if (!targetUserDocument?.data) {
+        throw createCommunityError(404, "대상 사용자를 찾을 수 없습니다.");
+      }
+
+      const beforeIsOperator = Boolean(existingRole?.isOperator);
+      const activeOperatorCount = operatorRoles.filter((role) => role.isOperator).length;
+
+      if (beforeIsOperator && !input.isOperator && activeOperatorCount <= 1) {
+        throw createArenaValidationError("마지막 운영자 권한은 해제할 수 없습니다.");
+      }
+
+      if (beforeIsOperator === input.isOperator && existingRole) {
+        sendJson(res, 200, {
+          role: {
+            ...existingRole,
+            roleLabel: formatUserRoleSummary(existingRole),
+          },
+        });
+        return;
+      }
+
+      if (!beforeIsOperator && !input.isOperator && !existingRole) {
+        sendJson(res, 200, {
+          role: {
+            uid: input.targetUid,
+            isOperator: false,
+            email: normalizeString(targetUserDocument.data.email),
+            displayName: resolveUserDirectoryName(
+              targetUserDocument.data,
+              targetProfileDocument?.data || {},
+              input.targetUid
+            ),
+            grantedBy: "",
+            grantedAt: null,
+            updatedAt: null,
+            roleLabel: "일반",
+          },
+        });
+        return;
+      }
+
+      const now = new Date();
+      const rootData = targetUserDocument.data || {};
+      const profileData = targetProfileDocument?.data || {};
+      const nextRole = createOperatorRolePayload({
+        uid: input.targetUid,
+        isOperator: input.isOperator,
+        email: normalizeString(rootData.email) || existingRole?.email || "",
+        displayName: resolveUserDirectoryName(rootData, profileData, input.targetUid),
+        grantedBy: input.isOperator
+          ? decodedToken.uid
+          : normalizeString(existingRole?.grantedBy),
+        grantedAt: input.isOperator
+          ? beforeIsOperator
+            ? existingRole?.grantedAt || now
+            : now
+          : existingRole?.grantedAt || null,
+        updatedAt: now,
+      });
+      const eventId = createOperatorRoleEventId();
+
+      await commit([
+        createSetWrite(`${OPERATOR_ROLES_COLLECTION}/${input.targetUid}`, nextRole),
+        createSetWrite(
+          `${OPERATOR_ROLE_EVENTS_COLLECTION}/${eventId}`,
+          createOperatorRoleEventPayload({
+            targetUid: input.targetUid,
+            targetEmail: nextRole.email,
+            beforeIsOperator,
+            afterIsOperator: input.isOperator,
+            actedBy: decodedToken.uid,
+            actedByEmail: normalizeString(decodedToken.email),
+            actedAt: now,
+            source: "user-directory",
+          })
+        ),
+      ]);
+
+      sendJson(res, 200, {
+        role: {
+          ...nextRole,
+          roleLabel: formatUserRoleSummary(nextRole),
         },
       });
     } catch (error) {
@@ -807,6 +961,7 @@ module.exports = {
   createArenaArchiveMonitoringHandler,
   createArenaBattleCompleteHandler,
   createArenaSeasonEndHandler,
+  createArenaSetOperatorHandler,
   createArenaUserDirectoryHandler,
   ensureSeasonConfigInput,
   normalizeArenaRecord,
