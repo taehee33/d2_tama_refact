@@ -51,6 +51,31 @@
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
+## [2026-04-12] `useGameAnimations` 3차 분리: sleep interaction helper 추출
+
+### 작업 유형
+- 🧩 animation sleep interaction helper 추출
+- 🧩 clean/heal 수면 방해 중복 처리 공통화
+- 🧪 `useGameAnimations` sleep interaction helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `cleanCycle`과 `healCycle` 안에 중복으로 들어 있던 수면 상태 판정, 중복 수면 방해 로그 체크, `wakeForInteraction` 호출, 수면 방해 로그 적용 여부 계산을 한 helper 계약으로 묶어 훅 본문을 더 읽기 쉽게 만든다.
+- **범위:** 수면 중 상호작용 시 깨우기, 중복 수면 방해 로그 skip, `sleepDisturbances` 증가 규칙, 기존 저장 순서는 그대로 유지한다.
+- **내용:**
+  - `resolveAnimationSleepInteraction`를 추가해 `getAnimationSleepState`, `hasDuplicateSleepDisturbanceLog`, `wakeForInteraction` 조합을 한 곳으로 모았다.
+  - `cleanCycle`, `healCycle`는 이제 helper 결과를 받아 각각의 outcome helper에 전달하는 구조로 단순화했다.
+  - helper 테스트를 추가해 비수면 경로, 수면 중 wake helper 호출, 중복 수면 방해 로그 skip 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameAnimations.js src/hooks/useGameAnimations.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 4차 분리: activity log helper 추출
 
 ### 작업 유형

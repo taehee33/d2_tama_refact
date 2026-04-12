@@ -4,6 +4,7 @@ import {
   buildAnimationFeedOutcome,
   buildAnimationHealOutcome,
   buildHealTreatmentMessage,
+  resolveAnimationSleepInteraction,
 } from "./useGameAnimations";
 
 describe("useGameAnimations helpers", () => {
@@ -36,6 +37,112 @@ describe("useGameAnimations helpers", () => {
     expect(result.logType).toBe("SLEEP_DISTURBANCE");
     expect(result.logText).toContain("수면 방해");
     expect(result.updatedStats.poopCount).toBe(0);
+  });
+
+  test("resolveAnimationSleepInteraction는 비수면 상태에서는 기존 스탯을 유지한다", () => {
+    const now = new Date(2026, 3, 12, 12, 0, 0);
+    const baseStats = {
+      sleepDisturbances: 0,
+      activityLogs: [],
+    };
+
+    const result = resolveAnimationSleepInteraction({
+      baseStats,
+      activityLogs: [],
+      selectedDigimon: "Koromon",
+      digimonData: {
+        Koromon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now,
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(false);
+    expect(result.sleepDisturbanceDuplicate).toBe(false);
+    expect(result.applySleepDisturbanceLog).toBe(false);
+    expect(result.updatedStats).toBe(baseStats);
+  });
+
+  test("resolveAnimationSleepInteraction는 수면 중 상호작용이면 wake helper를 호출한다", () => {
+    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const setWakeUntil = jest.fn();
+    const wakeInteraction = jest.fn(() => ({
+      sleepDisturbances: 1,
+      wakeUntil: now.getTime() + 10 * 60 * 1000,
+    }));
+
+    const result = resolveAnimationSleepInteraction({
+      baseStats: {
+        sleepDisturbances: 0,
+        activityLogs: [],
+      },
+      activityLogs: [],
+      selectedDigimon: "Agumon",
+      digimonData: {
+        Agumon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now,
+      setWakeUntil,
+      wakeInteraction,
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(true);
+    expect(result.sleepDisturbanceDuplicate).toBe(false);
+    expect(result.applySleepDisturbanceLog).toBe(true);
+    expect(wakeInteraction).toHaveBeenCalledWith(
+      expect.objectContaining({ sleepDisturbances: 0, activityLogs: [] }),
+      setWakeUntil,
+      null,
+      true,
+      null
+    );
+    expect(result.updatedStats).toEqual({
+      sleepDisturbances: 1,
+      wakeUntil: now.getTime() + 10 * 60 * 1000,
+    });
+  });
+
+  test("resolveAnimationSleepInteraction는 중복 수면 방해 로그가 있으면 wake helper를 건너뛴다", () => {
+    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const wakeInteraction = jest.fn();
+    const duplicateLog = {
+      type: "SLEEP_DISTURBANCE",
+      text: "수면 방해(사유: 청소): 10분 동안 깨어있음",
+      timestamp: now.getTime() - 60 * 1000,
+    };
+    const baseStats = {
+      sleepDisturbances: 0,
+      activityLogs: [duplicateLog],
+    };
+
+    const result = resolveAnimationSleepInteraction({
+      baseStats,
+      activityLogs: [duplicateLog],
+      selectedDigimon: "Agumon",
+      digimonData: {
+        Agumon: {
+          sleepSchedule: { start: 22, end: 6 },
+        },
+      },
+      isLightsOn: false,
+      wakeUntil: null,
+      now,
+      setWakeUntil: jest.fn(),
+      wakeInteraction,
+    });
+
+    expect(result.actionSleepState.isSleepingLike).toBe(true);
+    expect(result.sleepDisturbanceDuplicate).toBe(true);
+    expect(result.applySleepDisturbanceLog).toBe(false);
+    expect(wakeInteraction).not.toHaveBeenCalled();
+    expect(result.updatedStats).toBe(baseStats);
   });
 
   test("buildAnimationFeedLogText는 오버피드 meat 로그를 유지한다", () => {
