@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useArenaLogic` 1차 분리: arena config/battle plan helper 추출
+
+### 작업 유형
+- 🧩 arena config patch helper 추출
+- 🧩 arena battle plan helper 추출
+- 🧪 `useArenaLogic` 첫 테스트 파일 추가
+
+### 목적 및 영향
+- **목적:** 현재 워킹트리의 UI 변경과 충돌을 피하면서, 작은 훅인 `useArenaLogic`부터 읽기/계획/적용 경계를 분리한다.
+- **범위:** Firestore에서 arena 설정을 읽는 시점, arena battle 진입 순서, modal open/close 순서는 그대로 유지한다.
+- **내용:**
+  - `buildArenaConfigState`를 추가해 Firestore/admin 설정 객체를 setter 입력용 patch로 정리했다.
+  - `buildArenaBattlePlan`를 추가해 challenger 검증 뒤 필요한 arena battle setter 입력값과 modal toggle 순서를 한 곳에서 조립하도록 만들었다.
+  - `useArenaLogic.test.js`를 새로 추가해 arena config load, battle start, invalid challenger, admin config update 흐름을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useArenaLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useArenaLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useArenaLogic.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useArenaLogic.js src/hooks/useArenaLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameHandlers` 2차 분리: menu/heal plan helper 추출
 
 ### 작업 유형
@@ -5282,6 +5307,28 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/pages/Login.jsx`
   - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.js`
   - `digimon-tamagotchi-frontend/src/hooks/useEncyclopedia.test.js`
-  - `scripts/backfillUserEncyclopedia.js`
-  - `tests/encyclopedia-migration.test.js`
+- `scripts/backfillUserEncyclopedia.js`
+- `tests/encyclopedia-migration.test.js`
+- `docs/REFACTORING_LOG.md`
+
+## [2026-04-12] 관리자 도구에 전체 사용자 디렉터리 탭 추가
+
+- **목적:** 실제 화면에서 전체 사용자 목록을 한 번에 보고, 현재 운영자 화이트리스트 기준으로 `운영자 / 일반`을 구분할 수 있게 한다.
+- **변경사항:**
+  - 아레나 관리자 전용 API `/api/arena/admin/users`를 추가해 Firestore `users/{uid}`와 `users/{uid}/profile/main`을 함께 읽어 사용자 디렉터리를 반환하도록 했다.
+  - 역할 구분은 현재 서버 정책에 맞춰 `ARENA_ADMIN_UIDS / ARENA_ADMIN_EMAILS`, `NEWS_EDITOR_UIDS / NEWS_EDITOR_EMAILS` 화이트리스트를 기준으로 계산하도록 맞췄다.
+  - `AdminModal`에 `사용자` 탭을 추가하고, 검색·요약 카드·역할 배지·업적 수·최대 슬롯·최근 갱신 시각을 함께 보여 주는 관리자용 목록 화면으로 구성했다.
+  - 일반 사용자에게 공개하지 않고, 기존 아레나 관리자 권한 검증을 재사용해 운영 도구 안에서만 접근 가능하게 유지했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+  - `digimon-tamagotchi-frontend/api/arena/admin/users.js`
+  - `api/arena/admin/users.js`
+  - `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+  - `digimon-tamagotchi-frontend/src/components/AdminModal.jsx`
+  - `api/_lib/arenaHandlers.test.js`
+  - `digimon-tamagotchi-frontend/src/components/AdminModal.test.jsx`
   - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - `node --test api/_lib/arenaHandlers.test.js`
+  - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx`
+  - `NODE_OPTIONS=--openssl-legacy-provider npm run build`

@@ -5,6 +5,49 @@ import { useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 
+export function buildArenaConfigState(config = {}) {
+  const nextConfig = {};
+
+  if (config.currentSeasonId) {
+    nextConfig.currentSeasonId = config.currentSeasonId;
+  }
+
+  if (config.seasonName) {
+    nextConfig.seasonName = config.seasonName;
+  }
+
+  if (config.seasonDuration) {
+    nextConfig.seasonDuration = config.seasonDuration;
+  }
+
+  return nextConfig;
+}
+
+export function buildArenaBattlePlan({ challenger, myEntryId = null }) {
+  if (!challenger?.id) {
+    return null;
+  }
+
+  return {
+    challenger,
+    enemyId: challenger.id,
+    myArenaEntryId: myEntryId,
+    battleType: "arena",
+    currentQuestArea: null,
+    currentQuestRound: 0,
+    modalUpdates: [
+      { name: "battleScreen", isOpen: true },
+      { name: "arenaScreen", isOpen: false },
+    ],
+  };
+}
+
+function commitArenaConfigState(config, setters) {
+  if (config.currentSeasonId) setters.setCurrentSeasonId(config.currentSeasonId);
+  if (config.seasonName) setters.setSeasonName(config.seasonName);
+  if (config.seasonDuration) setters.setSeasonDuration(config.seasonDuration);
+}
+
 /**
  * useArenaLogic Hook
  * 아레나 관련 로직을 관리하는 Custom Hook
@@ -37,11 +80,8 @@ export function useArenaLogic({
   setSeasonName,
   seasonDuration,
   setSeasonDuration,
-  arenaChallenger,
   setArenaChallenger,
-  arenaEnemyId,
   setArenaEnemyId,
-  myArenaEntryId,
   setMyArenaEntryId,
   toggleModal,
   setBattleType,
@@ -60,13 +100,14 @@ export function useArenaLogic({
     const loadArenaConfig = async () => {
       if (!db) return;
       try {
-        const configRef = doc(db, 'game_settings', 'arena_config');
+        const configRef = doc(db, "game_settings", "arena_config");
         const snap = await getDoc(configRef);
         if (snap.exists()) {
-          const data = snap.data();
-          if (data.currentSeasonId) setCurrentSeasonId(data.currentSeasonId);
-          if (data.seasonName) setSeasonName(data.seasonName);
-          if (data.seasonDuration) setSeasonDuration(data.seasonDuration);
+          commitArenaConfigState(buildArenaConfigState(snap.data()), {
+            setCurrentSeasonId,
+            setSeasonName,
+            setSeasonDuration,
+          });
         }
       } catch (error) {
         console.error("Arena 설정 로드 오류:", error);
@@ -80,7 +121,7 @@ export function useArenaLogic({
    * 아레나 화면 모달을 엽니다.
    */
   const handleArenaStart = () => {
-    toggleModal('arenaScreen', true);
+    toggleModal("arenaScreen", true);
   };
 
   /**
@@ -91,19 +132,23 @@ export function useArenaLogic({
    * @param {string|null} myEntryId - 내 아레나 엔트리 ID
    */
   const handleArenaBattleStart = (challenger, myEntryId = null) => {
-    if (!challenger.id) {
+    const battlePlan = buildArenaBattlePlan({ challenger, myEntryId });
+
+    if (!battlePlan) {
       console.error("Arena Challenger에 Document ID가 없습니다:", challenger);
       alert("배틀을 시작할 수 없습니다. Challenger 데이터에 문제가 있습니다.");
       return;
     }
-    setArenaChallenger(challenger);
-    setArenaEnemyId(challenger.id); // 상대방의 Document ID 저장
-    setMyArenaEntryId(myEntryId); // 내 디지몬의 Document ID 저장
-    setBattleType('arena');
-    setCurrentQuestArea(null);
-    setCurrentQuestRound(0);
-    toggleModal('battleScreen', true);
-    toggleModal('arenaScreen', false); // ArenaScreen 닫기
+
+    setArenaChallenger(battlePlan.challenger);
+    setArenaEnemyId(battlePlan.enemyId);
+    setMyArenaEntryId(battlePlan.myArenaEntryId);
+    setBattleType(battlePlan.battleType);
+    setCurrentQuestArea(battlePlan.currentQuestArea);
+    setCurrentQuestRound(battlePlan.currentQuestRound);
+    battlePlan.modalUpdates.forEach(({ name, isOpen }) => {
+      toggleModal(name, isOpen);
+    });
   };
 
   /**
@@ -113,9 +158,11 @@ export function useArenaLogic({
    * @param {Object} config - 설정 객체
    */
   const handleAdminConfigUpdated = (config) => {
-    if (config.currentSeasonId) setCurrentSeasonId(config.currentSeasonId);
-    if (config.seasonName) setSeasonName(config.seasonName);
-    if (config.seasonDuration) setSeasonDuration(config.seasonDuration);
+    commitArenaConfigState(buildArenaConfigState(config), {
+      setCurrentSeasonId,
+      setSeasonName,
+      setSeasonDuration,
+    });
   };
 
   return {
@@ -130,6 +177,4 @@ export function useArenaLogic({
     },
   };
 }
-
-
 
