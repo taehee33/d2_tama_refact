@@ -270,6 +270,78 @@ export function resolveNeedCallTimeout({
   };
 }
 
+export function resolveSleepLightWarningState({
+  entry,
+  sleepLightOnStart,
+  isSleepLightWarning,
+}) {
+  const nextEntry = {
+    isActive: false,
+    startedAt: null,
+    isLogged: false,
+    ...(entry || {}),
+  };
+
+  if (!isSleepLightWarning) {
+    return {
+      ...nextEntry,
+      isActive: false,
+      startedAt: null,
+      isLogged: false,
+    };
+  }
+
+  return {
+    ...nextEntry,
+    isActive: true,
+    startedAt:
+      ensureTimestamp(nextEntry.startedAt) ?? ensureTimestamp(sleepLightOnStart),
+    isLogged: nextEntry.isLogged === undefined ? false : nextEntry.isLogged,
+  };
+}
+
+export function resolveSleepLightWarningTimeout({
+  stats,
+  nowMs,
+  timeoutMs,
+  isSleepLightWarning,
+}) {
+  const sleepEntry = stats.callStatus?.sleep;
+  const startedAt = ensureTimestamp(sleepEntry?.startedAt);
+
+  if (!isSleepLightWarning || startedAt == null) {
+    return { nextStats: stats, hasChanged: false, triggeredMistake: false };
+  }
+
+  const elapsed = nowMs - startedAt;
+  if (elapsed <= timeoutMs || sleepEntry?.isLogged === true) {
+    return { nextStats: stats, hasChanged: false, triggeredMistake: false };
+  }
+
+  const timeoutOccurredAt = startedAt + timeoutMs;
+  const { nextStats: mistakeStats } = appendCareMistakeEntry(stats, {
+    occurredAt: timeoutOccurredAt,
+    reasonKey: "sleep_light_warning",
+    text: `케어미스(사유: 수면 조명 경고 30분 방치): ${(stats.careMistakes || 0)} → ${(stats.careMistakes || 0) + 1}`,
+    source: "realtime",
+  });
+
+  return {
+    nextStats: {
+      ...mistakeStats,
+      callStatus: {
+        ...mistakeStats.callStatus,
+        sleep: {
+          ...mistakeStats.callStatus.sleep,
+          isLogged: true,
+        },
+      },
+    },
+    hasChanged: true,
+    triggeredMistake: true,
+  };
+}
+
 /**
  * 수면 상태를 계산한다.
  * @param {Object} params
@@ -760,19 +832,11 @@ export function checkCalls(
     updatedStats.strengthZeroFrozenDurationMs = 0;
   }
 
-  if (isSleepLightWarning) {
-    callStatus.sleep.isActive = true;
-    callStatus.sleep.startedAt =
-      ensureTimestamp(callStatus.sleep.startedAt) ??
-      ensureTimestamp(updatedStats.sleepLightOnStart);
-    if (callStatus.sleep.isLogged === undefined) {
-      callStatus.sleep.isLogged = false;
-    }
-  } else {
-    callStatus.sleep.isActive = false;
-    callStatus.sleep.startedAt = null;
-    callStatus.sleep.isLogged = false;
-  }
+  callStatus.sleep = resolveSleepLightWarningState({
+    entry: callStatus.sleep,
+    sleepLightOnStart: updatedStats.sleepLightOnStart,
+    isSleepLightWarning,
+  });
 
   return updatedStats;
 }
@@ -849,7 +913,6 @@ export function checkCallTimeouts(
     }
   };
 
-  let callStatus = updatedStats.callStatus;
   const nowMs = now.getTime();
   let hasChanged = false; // 변경 여부 추적
   const normalizedSleepStatus = normalizeSleepStatusValue(sleepStatus);
@@ -890,27 +953,16 @@ export function checkCallTimeouts(
   if (strengthTimeoutResult.triggeredMistake) {
     console.log("🔥 실시간 Strength 케어미스 발생! careMistakes:", updatedStats.careMistakes);
   }
-  callStatus = updatedStats.callStatus;
-
-  // 수면 조명 경고는 실제 수면 중에만 동작하며, 30분 경과 시 케어미스를 1회 올린다.
-  const sleepStartedAt = ensureTimestamp(callStatus.sleep.startedAt);
-  if (sleepStartedAt && isSleepLightWarning) {
-    const elapsed = nowMs - sleepStartedAt;
-    const alreadyLogged = callStatus.sleep.isLogged === true;
-    if (elapsed > SLEEP_LIGHT_WARNING_TIMEOUT_MS && !alreadyLogged) {
-      const timeoutOccurredAt = sleepStartedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS;
-      const { nextStats } = appendCareMistakeEntry(updatedStats, {
-        occurredAt: timeoutOccurredAt,
-        reasonKey: "sleep_light_warning",
-        text: `케어미스(사유: 수면 조명 경고 30분 방치): ${(updatedStats.careMistakes || 0)} → ${(updatedStats.careMistakes || 0) + 1}`,
-        source: "realtime",
-      });
-      updatedStats.careMistakes = nextStats.careMistakes;
-      updatedStats.careMistakeLedger = nextStats.careMistakeLedger;
-      callStatus.sleep.isLogged = true;
-      hasChanged = true;
-      console.log("💡 실시간 수면 조명 케어미스 발생! careMistakes:", updatedStats.careMistakes);
-    }
+  const sleepWarningTimeoutResult = resolveSleepLightWarningTimeout({
+    stats: updatedStats,
+    nowMs,
+    timeoutMs: SLEEP_LIGHT_WARNING_TIMEOUT_MS,
+    isSleepLightWarning,
+  });
+  updatedStats = sleepWarningTimeoutResult.nextStats;
+  hasChanged = hasChanged || sleepWarningTimeoutResult.hasChanged;
+  if (sleepWarningTimeoutResult.triggeredMistake) {
+    console.log("💡 실시간 수면 조명 케어미스 발생! careMistakes:", updatedStats.careMistakes);
   }
 
   // 변경되었을 때만 새 객체 반환, 아니면 기존 객체 그대로 반환 (리액트 최적화)

@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameLogic` 2차 분리: sleep light warning helper 추출
+
+### 작업 유형
+- 🧩 sleep warning state helper 추출
+- 🧩 sleep warning timeout helper 추출
+- 🧪 `useGameLogic` sleep warning helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `checkCalls`와 `checkCallTimeouts` 안의 수면 조명 경고 경로를 hunger/strength call helper와 같은 패턴으로 맞춰, 경고 상태 복원과 timeout 후처리를 분리한다.
+- **범위:** `sleepLightOnStart` 복원 규칙, 30분 초과 시 1회만 케어미스를 올리는 규칙, 기존 수면 경고 테스트 동작은 그대로 유지한다.
+- **내용:**
+  - `resolveSleepLightWarningState`를 추가해 수면 조명 경고 상태에서 `startedAt` 복원과 비경고 상태 reset을 공통화했다.
+  - `resolveSleepLightWarningTimeout`를 추가해 수면 조명 경고 30분 초과 시 care mistake 기록과 `isLogged` 갱신을 분리했다.
+  - helper 테스트를 추가해 저장된 시작 시각 복원과 timeout 후 1회 기록 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameLogic.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 1차 분리: hunger/strength call helper 추출
 
 ### 작업 유형
@@ -5409,6 +5434,34 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.test.jsx`
   - `api/_lib/operatorHandlers.test.js`
   - `api/_lib/arenaHandlers.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js`
+  - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx`
+  - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] 운영자 권한 체계를 단일 `운영자` 역할로 통합
+
+- **목적:** 소식 운영자와 아레나 관리자를 따로 구분하던 구조를 줄이고, 실제 운영 화면과 권한 판단을 하나의 `운영자` 기준으로 읽히게 정리한다.
+- **변경사항:**
+  - `OPERATOR_UIDS`, `OPERATOR_EMAILS`를 공통 운영자 기준 env로 추가하고, 기존 `ARENA_ADMIN_*`, `NEWS_EDITOR_*` 값도 함께 읽는 호환 레이어를 `operatorConfig.js`에 분리했다.
+  - 아레나 관리자 검증과 소식 발행 검증이 모두 같은 `isOperatorIdentity()`를 사용하도록 맞춰 서버 권한 기준을 하나로 통합했다.
+  - 운영자 상태 API, 사용자 디렉터리 요약 카드, 역할 배지, 운영자 페이지 헤더에서 `아레나 / 소식` 세부 역할 표기를 제거하고 `운영자` 단일 역할만 보여 주도록 정리했다.
+  - 사용자 디렉터리 요약도 `전체 사용자 / 운영자 / 일반 사용자` 3개 수치만 노출해 실제 화면에서 역할 구분이 더 단순하게 보이도록 정리했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/operatorConfig.js`
+  - `digimon-tamagotchi-frontend/api/_lib/auth.js`
+  - `digimon-tamagotchi-frontend/api/_lib/community.js`
+  - `digimon-tamagotchi-frontend/api/_lib/operatorAccess.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+  - `digimon-tamagotchi-frontend/src/utils/operatorApi.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useOperatorStatus.js`
+  - `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.jsx`
+  - `api/_lib/operatorHandlers.test.js`
+  - `api/_lib/arenaHandlers.test.js`
+  - `digimon-tamagotchi-frontend/src/components/AdminModal.test.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.test.jsx`
   - `docs/REFACTORING_LOG.md`
 - **검증:**
   - `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js`

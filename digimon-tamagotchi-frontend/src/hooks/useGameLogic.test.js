@@ -7,6 +7,8 @@ import {
   hasDuplicateSleepDisturbanceLog,
   resolveNeedCallState,
   resolveNeedCallTimeout,
+  resolveSleepLightWarningState,
+  resolveSleepLightWarningTimeout,
 } from "./useGameLogic";
 
 function createBaseStats(overrides = {}) {
@@ -113,6 +115,44 @@ describe("useGameLogic call helpers", () => {
       isLogged: true,
     });
     expect(result.nextStats.hungerMistakeDeadline).toBeNull();
+  });
+
+  test("resolveSleepLightWarningState는 저장된 시작 시각을 sleep warning 상태로 복원한다", () => {
+    const startedAt = new Date(2026, 2, 31, 22, 0, 0).getTime();
+
+    expect(
+      resolveSleepLightWarningState({
+        entry: { isActive: true, startedAt: null, isLogged: false },
+        sleepLightOnStart: startedAt,
+        isSleepLightWarning: true,
+      })
+    ).toEqual({
+      isActive: true,
+      startedAt,
+      isLogged: false,
+    });
+  });
+
+  test("resolveSleepLightWarningTimeout는 30분 초과 시 케어미스를 1회 반영한다", () => {
+    const startedAt = new Date(2026, 2, 31, 22, 0, 0).getTime();
+
+    const result = resolveSleepLightWarningTimeout({
+      stats: createBaseStats({
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false },
+          sleep: { isActive: true, startedAt, isLogged: false },
+        },
+      }),
+      nowMs: new Date(2026, 2, 31, 22, 31, 0).getTime(),
+      timeoutMs: 30 * 60 * 1000,
+      isSleepLightWarning: true,
+    });
+
+    expect(result.hasChanged).toBe(true);
+    expect(result.triggeredMistake).toBe(true);
+    expect(result.nextStats.careMistakes).toBe(1);
+    expect(result.nextStats.callStatus.sleep.isLogged).toBe(true);
   });
 });
 
