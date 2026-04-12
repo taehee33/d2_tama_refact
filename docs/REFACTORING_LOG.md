@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameHandlers` 2차 분리: menu/heal plan helper 추출
+
+### 작업 유형
+- 🧩 primary 메뉴 action helper 추출
+- 🧩 heal modal plan helper 추출
+- 🧪 helper 및 heal 핸들러 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleMenuClick`과 `handleHeal` 안의 판단 로직을 순수 helper로 분리해, 훅 본문이 “실행” 중심으로 더 읽히게 만든다.
+- **범위:** 메뉴 클릭 시 실제 modal open/clean action 호출, heal modal open 순서, lazy update 호출 시점은 그대로 유지한다.
+- **내용:**
+  - `resolvePrimaryMenuAction`를 추가해 메뉴 접근 가능 여부와 `actionKey` 결정을 helper로 분리했다.
+  - `buildHealModalPlan`를 추가해 heal modal을 열 수 있는지와 전달할 최신 stats를 helper에서 조립하도록 정리했다.
+  - `handleMenuClick`은 action plan을 적용하는 형태로, `handleHeal`은 plan 결과를 적용하는 형태로 단순화했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameHandlers.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameHandlers.js src/hooks/useGameHandlers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameHandlers` 1차 분리: 조명/퀘스트 선택 helper 추출
 
 ### 작업 유형

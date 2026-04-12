@@ -1,6 +1,8 @@
 import { renderHook, act } from "@testing-library/react";
 import {
+  buildHealModalPlan,
   buildQuestSelectionState,
+  resolvePrimaryMenuAction,
   buildSparringSelectionState,
   buildToggledLightsCommitState,
   shouldAdvanceClearedQuest,
@@ -95,6 +97,54 @@ describe("buildToggledLightsCommitState", () => {
     expect(result.statsWithLogs).toMatchObject({
       isLightsOn: false,
       activityLogs: result.updatedLogs,
+    });
+  });
+});
+
+describe("resolvePrimaryMenuAction", () => {
+  test("primary 메뉴면 activeMenuId와 actionKey를 반환한다", () => {
+    expect(
+      resolvePrimaryMenuAction({
+        menu: "battle",
+        digimonStats: {},
+        isLightsOn: true,
+      })
+    ).toEqual({
+      activeMenuId: "battle",
+      actionKey: "openBattleSelectionModal",
+    });
+  });
+
+  test("비활성 메뉴면 null을 반환한다", () => {
+    expect(
+      resolvePrimaryMenuAction({
+        menu: "battle",
+        digimonStats: { isFrozen: false },
+        isLightsOn: false,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("buildHealModalPlan", () => {
+  test("사망 상태면 heal modal plan을 만들지 않는다", () => {
+    expect(
+      buildHealModalPlan({
+        updatedStats: { isDead: true },
+      })
+    ).toBeNull();
+  });
+
+  test("생존 상태면 heal modal plan을 반환한다", () => {
+    const updatedStats = { isDead: false, isInjured: true };
+
+    expect(
+      buildHealModalPlan({
+        updatedStats,
+      })
+    ).toEqual({
+      stats: updatedStats,
+      modalName: "heal",
     });
   });
 });
@@ -236,5 +286,38 @@ describe("useGameHandlers handleMenuClick", () => {
     expect(params.setSparringEnemySlot).toHaveBeenCalledWith(null);
     expect(params.toggleModal).toHaveBeenNthCalledWith(1, "questSelection", false);
     expect(params.toggleModal).toHaveBeenNthCalledWith(2, "battleScreen", true);
+  });
+});
+
+describe("useGameHandlers handleHeal", () => {
+  test("사망 상태면 아무 모달도 열지 않는다", async () => {
+    const params = createDefaultParams({
+      applyLazyUpdateBeforeAction: jest.fn().mockResolvedValue({ isDead: true }),
+    });
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    await act(async () => {
+      await result.current.handleHeal();
+    });
+
+    expect(params.toggleModal).not.toHaveBeenCalledWith("heal", true);
+    expect(params.setDigimonStats).not.toHaveBeenCalled();
+    expect(params.setHealModalStats).not.toHaveBeenCalled();
+  });
+
+  test("생존 상태면 최신 stats를 modal에 전달하고 heal 모달을 연다", async () => {
+    const updatedStats = { isDead: false, isInjured: false, hp: 3 };
+    const params = createDefaultParams({
+      applyLazyUpdateBeforeAction: jest.fn().mockResolvedValue(updatedStats),
+    });
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    await act(async () => {
+      await result.current.handleHeal();
+    });
+
+    expect(params.setDigimonStats).toHaveBeenCalledWith(updatedStats);
+    expect(params.setHealModalStats).toHaveBeenCalledWith(updatedStats);
+    expect(params.toggleModal).toHaveBeenCalledWith("heal", true);
   });
 });

@@ -163,6 +163,67 @@ export function shouldAdvanceClearedQuest({
 }
 
 /**
+ * primary 메뉴 클릭 시 실제 실행할 액션을 결정한다.
+ * @param {Object} params
+ * @param {string} params.menu
+ * @param {Object} params.digimonStats
+ * @param {boolean} params.isLightsOn
+ * @returns {{activeMenuId:string,actionKey:string}|null}
+ */
+export function resolvePrimaryMenuAction({
+  menu,
+  digimonStats,
+  isLightsOn,
+}) {
+  const menuMeta = getGameMenuById(menu);
+  const disabledState = getMenuDisabledState(menu, {
+    isFrozen: Boolean(digimonStats?.isFrozen),
+    isLightsOn,
+  });
+
+  if (!menuMeta || menuMeta.surface !== "primary" || disabledState.disabled) {
+    return null;
+  }
+
+  const actionKeyMap = {
+    electric: "openLightsModal",
+    eat: "openFeedModal",
+    status: "openStatsModal",
+    bathroom: "cleanPoop",
+    train: "openTrainModal",
+    battle: "openBattleSelectionModal",
+    heal: "openHealModal",
+    callSign: "openCallModal",
+    communication: "openInteractionModal",
+    extra: "openExtraModal",
+  };
+
+  return {
+    activeMenuId: menuMeta.id,
+    actionKey: actionKeyMap[menuMeta.id] || null,
+  };
+}
+
+/**
+ * Heal 액션에서 모달을 열기 전에 반영할 상태를 조립한다.
+ * @param {Object} params
+ * @param {Object} params.updatedStats
+ * @returns {{stats:Object, modalName:string}|null}
+ */
+export function buildHealModalPlan({
+  updatedStats,
+}) {
+  if (updatedStats?.isDead) {
+    return null;
+  }
+
+  return {
+    stats: updatedStats,
+    modalName: "heal",
+  };
+}
+
+/**
  * 수면 중 인터랙션 시 10분 깨우기 + 수면방해 카운트 (현재 사용되지 않음)
  * @param {Object} digimonStats - 디지몬 스탯
  * @param {Function} setWakeUntilCb - wakeUntil 설정 함수
@@ -252,33 +313,31 @@ export function useGameHandlers({
    * @param {string} menu - 메뉴 타입
    */
   const handleMenuClick = (menu) => {
-    // 수면방해는 실제 액션 수행 시점에 처리됨 (메뉴 클릭 시점이 아님)
-    // 스탯(status), 호출(callSign), 조명(electric)은 수면방해 제외
-    const menuMeta = getGameMenuById(menu);
-    const disabledState = getMenuDisabledState(menu, {
-      isFrozen: Boolean(digimonStats?.isFrozen),
+    const menuAction = resolvePrimaryMenuAction({
+      menu,
+      digimonStats,
       isLightsOn,
     });
 
-    if (!menuMeta || menuMeta.surface !== "primary" || disabledState.disabled) {
+    if (!menuAction) {
       return;
     }
 
     const menuActionMap = {
-      electric: () => toggleModal("lights", true),
-      eat: () => toggleModal("feed", true),
-      status: () => toggleModal("stats", true),
-      bathroom: () => handleCleanPoopFromHook(),
-      train: () => toggleModal("train", true),
-      battle: () => toggleModal("battleSelection", true),
-      heal: () => handleHeal(),
-      callSign: () => toggleModal("call", true),
-      communication: () => toggleModal("interaction", true),
-      extra: () => toggleModal("extra", true),
+      openLightsModal: () => toggleModal("lights", true),
+      openFeedModal: () => toggleModal("feed", true),
+      openStatsModal: () => toggleModal("stats", true),
+      cleanPoop: () => handleCleanPoopFromHook(),
+      openTrainModal: () => toggleModal("train", true),
+      openBattleSelectionModal: () => toggleModal("battleSelection", true),
+      openHealModal: () => handleHeal(),
+      openCallModal: () => toggleModal("call", true),
+      openInteractionModal: () => toggleModal("interaction", true),
+      openExtraModal: () => toggleModal("extra", true),
     };
 
-    setActiveMenu(menuMeta.id);
-    menuActionMap[menuMeta.id]?.();
+    setActiveMenu(menuAction.activeMenuId);
+    menuActionMap[menuAction.actionKey]?.();
   };
 
   /**
@@ -287,17 +346,21 @@ export function useGameHandlers({
    */
   const handleHeal = async () => {
     const updatedStats = await applyLazyUpdateBeforeAction();
-    if (updatedStats.isDead) return;
-    setDigimonStats(updatedStats);
-    // HealModal에 전달할 최신 스탯 설정 (비동기 상태 업데이트 문제 해결)
-    setHealModalStats(updatedStats);
-    // 부상이 없으면 치료 불가 - 모달로 표시
-    if (!updatedStats.isInjured) {
-      toggleModal('heal', true);
+    const healModalPlan = buildHealModalPlan({
+      updatedStats,
+    });
+
+    if (!healModalPlan) {
       return;
     }
-    // 치료 모달 열기
-    toggleModal('heal', true);
+
+    setDigimonStats(healModalPlan.stats);
+    setHealModalStats(healModalPlan.stats);
+    if (!updatedStats.isInjured) {
+      toggleModal(healModalPlan.modalName, true);
+      return;
+    }
+    toggleModal(healModalPlan.modalName, true);
   };
 
   /**
