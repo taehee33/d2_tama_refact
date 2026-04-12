@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameHandlers` 1차 분리: 조명/퀘스트 선택 helper 추출
+
+### 작업 유형
+- 🧩 `handleToggleLights` 저장 helper 추출
+- 🧩 퀘스트/스파링 선택 상태 helper 추출
+- 🧪 helper 및 핸들러 테스트 추가
+
+### 목적 및 영향
+- **목적:** 현재 워킹트리의 UI 변경과 충돌을 피하기 위해, `useGameHandlers` 안에서만 끝나는 작은 상태 조립 경계를 먼저 분리한다.
+- **범위:** 메뉴 클릭 동작, 조명 토글 저장 순서, 퀘스트/스파링 진입 흐름, 모달 열기/닫기 순서는 그대로 유지한다.
+- **내용:**
+  - `buildToggledLightsCommitState`를 추가해 조명 토글 후 activity log와 저장 대상 stats 조립을 helper로 분리했다.
+  - `buildQuestSelectionState`, `buildSparringSelectionState`, `shouldAdvanceClearedQuest`를 추가해 퀘스트/스파링 진입과 클리어 해금 판단을 순수 helper로 정리했다.
+  - `handleSelectArea`, `handleSparringSlotSelect`, `handleQuestComplete`, `handleToggleLights`는 이제 helper 결과를 적용하는 오케스트레이션에 가깝게 읽힌다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameHandlers.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameHandlers.js src/hooks/useGameHandlers.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] 소식 탭을 공식 소식 피드 구조로 전환
 
 ### 작업 유형

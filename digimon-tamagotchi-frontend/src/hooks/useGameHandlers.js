@@ -12,12 +12,12 @@ import { getGameMenuById, getMenuDisabledState } from "../constants/gameMenus";
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
  * @param {string} name - 디지몬 이름
- * @param {Object} digimonDataVer1 - 디지몬 데이터
+ * @param {Object} digimonDataMap - 현재 슬롯의 디지몬 데이터 맵
  * @param {Object|null} digimonStats - 디지몬 스탯 (야행성 모드 확인용, 선택적)
  * @returns {Object} 수면 스케줄 객체 { start, end }
  */
-export const getSleepSchedule = (name, digimonDataVer1, digimonStats = null) => {
-  const data = digimonDataVer1[name] || {};
+export const getSleepSchedule = (name, digimonDataMap, digimonStats = null) => {
+  const data = digimonDataMap?.[name] || {};
   const baseSchedule = normalizeSleepSchedule(data.sleepSchedule || { start: 22, end: 6 });
   
   // 야행성 모드 확인
@@ -45,7 +45,7 @@ export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
  * @param {Object} params.digimonStats
  * @param {boolean} params.next
  * @param {string} params.selectedDigimon
- * @param {Object} params.digimonDataVer1
+ * @param {Object} params.digimonDataVer1 - 현재 슬롯의 런타임 데이터 맵
  * @param {number} [params.nowMs]
  * @param {Date} [params.nowDate]
  * @returns {Object}
@@ -54,7 +54,7 @@ export function buildToggledLightsStats({
   digimonStats,
   next,
   selectedDigimon,
-  digimonDataVer1,
+  digimonDataVer1: digimonDataMap,
   nowMs = Date.now(),
   nowDate = new Date(),
 }) {
@@ -67,7 +67,7 @@ export function buildToggledLightsStats({
     updatedStats = resetCallStatus(updatedStats, "sleep");
     updatedStats.fastSleepStart = nowMs;
 
-    const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, digimonStats);
+    const schedule = getSleepSchedule(selectedDigimon, digimonDataMap, digimonStats);
     const isSleepTime = isWithinSleepSchedule(schedule, nowDate);
 
     if (!isSleepTime) {
@@ -81,6 +81,85 @@ export function buildToggledLightsStats({
   }
 
   return updatedStats;
+}
+
+/**
+ * 조명 토글 저장 시 activity log와 저장 대상 stats를 함께 조립한다.
+ * @param {Object} params
+ * @param {Object} params.updatedStats
+ * @param {boolean} params.next
+ * @returns {{updatedLogs:Array, statsWithLogs:Object, logText:string}}
+ */
+export function buildToggledLightsCommitState({
+  updatedStats,
+  next,
+}) {
+  const currentLogs = updatedStats.activityLogs || [];
+  const logText = next ? "Lights: ON" : "Lights: OFF";
+  const updatedLogs = addActivityLog(currentLogs, "ACTION", logText);
+
+  return {
+    updatedLogs,
+    statsWithLogs: {
+      ...updatedStats,
+      activityLogs: updatedLogs,
+    },
+    logText,
+  };
+}
+
+/**
+ * 퀘스트 선택 시 적용할 상태를 조립한다.
+ * @param {Object} params
+ * @param {string} params.areaId
+ * @param {string} [params.version]
+ * @returns {{currentQuestArea:string,currentQuestRound:number,currentQuestVersion:string,battleType:string,sparringEnemySlot:null}}
+ */
+export function buildQuestSelectionState({
+  areaId,
+  version = "Ver.1",
+}) {
+  return {
+    currentQuestArea: areaId,
+    currentQuestRound: 0,
+    currentQuestVersion: version,
+    battleType: "quest",
+    sparringEnemySlot: null,
+  };
+}
+
+/**
+ * 스파링 상대 선택 시 적용할 상태를 조립한다.
+ * @param {Object} params
+ * @param {Object} params.enemySlot
+ * @returns {{sparringEnemySlot:Object,battleType:string,currentQuestArea:null,currentQuestRound:number}}
+ */
+export function buildSparringSelectionState({
+  enemySlot,
+}) {
+  return {
+    sparringEnemySlot: enemySlot,
+    battleType: "sparring",
+    currentQuestArea: null,
+    currentQuestRound: 0,
+  };
+}
+
+/**
+ * 퀘스트 완료 시 다음 영역 해금이 필요한지 판단한다.
+ * @param {Object} params
+ * @param {Array} params.quests
+ * @param {string|null} params.currentQuestArea
+ * @param {number} params.clearedQuestIndex
+ * @returns {boolean}
+ */
+export function shouldAdvanceClearedQuest({
+  quests,
+  currentQuestArea,
+  clearedQuestIndex,
+}) {
+  const currentAreaIndex = quests.findIndex((q) => q.areaId === currentQuestArea);
+  return currentAreaIndex === clearedQuestIndex;
 }
 
 /**
@@ -166,6 +245,8 @@ export function useGameHandlers({
   // Callbacks
   onSleepDisturbance = null, // 수면 방해 콜백
 }) {
+  const slotRuntimeDataMap = digimonDataVer1;
+
   /**
    * 메뉴 클릭 핸들러
    * @param {string} menu - 메뉴 타입
@@ -232,12 +313,16 @@ export function useGameHandlers({
    * @param {string} [version] - 퀘스트 버전 ("Ver.1" | "Ver.2")
    */
   const handleSelectArea = (areaId, version = "Ver.1") => {
-    setCurrentQuestArea(areaId);
-    setCurrentQuestRound(0);
-    setCurrentQuestVersion(version);
+    const questSelectionState = buildQuestSelectionState({
+      areaId,
+      version,
+    });
+    setCurrentQuestArea(questSelectionState.currentQuestArea);
+    setCurrentQuestRound(questSelectionState.currentQuestRound);
+    setCurrentQuestVersion(questSelectionState.currentQuestVersion);
     toggleModal('questSelection', false);
-    setBattleType('quest');
-    setSparringEnemySlot(null);
+    setBattleType(questSelectionState.battleType);
+    setSparringEnemySlot(questSelectionState.sparringEnemySlot);
     toggleModal('battleScreen', true);
   };
 
@@ -260,10 +345,13 @@ export function useGameHandlers({
    * @param {Object} enemySlot - 적 슬롯 정보
    */
   const handleSparringSlotSelect = (enemySlot) => {
-    setSparringEnemySlot(enemySlot);
-    setBattleType('sparring');
-    setCurrentQuestArea(null);
-    setCurrentQuestRound(0);
+    const sparringSelectionState = buildSparringSelectionState({
+      enemySlot,
+    });
+    setSparringEnemySlot(sparringSelectionState.sparringEnemySlot);
+    setBattleType(sparringSelectionState.battleType);
+    setCurrentQuestArea(sparringSelectionState.currentQuestArea);
+    setCurrentQuestRound(sparringSelectionState.currentQuestRound);
     toggleModal('battleScreen', true);
   };
 
@@ -271,9 +359,11 @@ export function useGameHandlers({
    * 퀘스트 완료 핸들러
    */
   const handleQuestComplete = () => {
-    // 현재 깬 Area가 clearedQuestIndex와 같으면 다음 Area 해금
-    const currentAreaIndex = quests.findIndex(q => q.areaId === currentQuestArea);
-    if (currentAreaIndex === clearedQuestIndex) {
+    if (shouldAdvanceClearedQuest({
+      quests,
+      currentQuestArea,
+      clearedQuestIndex,
+    })) {
       setClearedQuestIndex(prev => prev + 1);
     }
   };
@@ -288,15 +378,22 @@ export function useGameHandlers({
       digimonStats,
       next,
       selectedDigimon,
-      digimonDataVer1,
+      digimonDataVer1: slotRuntimeDataMap,
     });
-    
-    const currentLogs = updatedStats.activityLogs || [];
-    const logText = next ? "Lights: ON" : "Lights: OFF";
-    const updatedLogs = addActivityLog(currentLogs, "ACTION", logText);
-    updatedStats.activityLogs = updatedLogs;
-    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    const toggledLightsCommitState = buildToggledLightsCommitState({
+      updatedStats,
+      next,
+    });
+
+    if (appendLogToSubcollection) {
+      await appendLogToSubcollection(
+        toggledLightsCommitState.updatedLogs[toggledLightsCommitState.updatedLogs.length - 1]
+      ).catch(() => {});
+    }
+    await setDigimonStatsAndSave(
+      toggledLightsCommitState.statsWithLogs,
+      toggledLightsCommitState.updatedLogs
+    );
   };
 
   /**

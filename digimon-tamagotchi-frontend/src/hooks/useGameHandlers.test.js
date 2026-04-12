@@ -1,6 +1,11 @@
-import React from "react";
 import { renderHook, act } from "@testing-library/react";
-import { useGameHandlers } from "./useGameHandlers";
+import {
+  buildQuestSelectionState,
+  buildSparringSelectionState,
+  buildToggledLightsCommitState,
+  shouldAdvanceClearedQuest,
+  useGameHandlers,
+} from "./useGameHandlers";
 
 function createDefaultParams(overrides = {}) {
   return {
@@ -72,6 +77,84 @@ describe("useGameHandlers handleToggleLights", () => {
   });
 });
 
+describe("buildToggledLightsCommitState", () => {
+  test("조명 토글 로그와 저장용 stats를 함께 반환한다", () => {
+    const result = buildToggledLightsCommitState({
+      updatedStats: {
+        isLightsOn: false,
+        activityLogs: [{ type: "OLD", text: "old", timestamp: 1000 }],
+      },
+      next: false,
+    });
+
+    expect(result.logText).toBe("Lights: OFF");
+    expect(result.updatedLogs[result.updatedLogs.length - 1]).toMatchObject({
+      type: "ACTION",
+      text: "Lights: OFF",
+    });
+    expect(result.statsWithLogs).toMatchObject({
+      isLightsOn: false,
+      activityLogs: result.updatedLogs,
+    });
+  });
+});
+
+describe("buildQuestSelectionState", () => {
+  test("퀘스트 선택 시 초기 전투 상태를 조립한다", () => {
+    expect(
+      buildQuestSelectionState({
+        areaId: "area-2",
+        version: "Ver.2",
+      })
+    ).toEqual({
+      currentQuestArea: "area-2",
+      currentQuestRound: 0,
+      currentQuestVersion: "Ver.2",
+      battleType: "quest",
+      sparringEnemySlot: null,
+    });
+  });
+});
+
+describe("buildSparringSelectionState", () => {
+  test("스파링 선택 시 퀘스트 상태를 비우고 상대 슬롯을 담는다", () => {
+    const enemySlot = { slotId: "2", name: "enemy" };
+
+    expect(
+      buildSparringSelectionState({
+        enemySlot,
+      })
+    ).toEqual({
+      sparringEnemySlot: enemySlot,
+      battleType: "sparring",
+      currentQuestArea: null,
+      currentQuestRound: 0,
+    });
+  });
+});
+
+describe("shouldAdvanceClearedQuest", () => {
+  test("현재 깬 영역 인덱스가 clearedQuestIndex와 같으면 다음 영역을 해금한다", () => {
+    expect(
+      shouldAdvanceClearedQuest({
+        quests: [{ areaId: "a1" }, { areaId: "a2" }],
+        currentQuestArea: "a2",
+        clearedQuestIndex: 1,
+      })
+    ).toBe(true);
+  });
+
+  test("현재 영역 인덱스가 다르면 해금하지 않는다", () => {
+    expect(
+      shouldAdvanceClearedQuest({
+        quests: [{ areaId: "a1" }, { areaId: "a2" }],
+        currentQuestArea: "a2",
+        clearedQuestIndex: 0,
+      })
+    ).toBe(false);
+  });
+});
+
 describe("useGameHandlers handleMenuClick", () => {
   test("조명이 꺼져 있으면 조명 의존 메뉴를 열지 않는다", () => {
     const params = createDefaultParams({ isLightsOn: false });
@@ -136,5 +219,22 @@ describe("useGameHandlers handleMenuClick", () => {
     expect(params.toggleModal).toHaveBeenCalledWith("battleSelection", true);
     expect(params.setActiveMenu).toHaveBeenCalledTimes(1);
     expect(params.setActiveMenu).toHaveBeenCalledWith("battle");
+  });
+
+  test("퀘스트 영역 선택은 전투 상태를 초기화하고 battle screen을 연다", () => {
+    const params = createDefaultParams();
+    const { result } = renderHook(() => useGameHandlers(params));
+
+    act(() => {
+      result.current.handleSelectArea("area-3", "Ver.2");
+    });
+
+    expect(params.setCurrentQuestArea).toHaveBeenCalledWith("area-3");
+    expect(params.setCurrentQuestRound).toHaveBeenCalledWith(0);
+    expect(params.setCurrentQuestVersion).toHaveBeenCalledWith("Ver.2");
+    expect(params.setBattleType).toHaveBeenCalledWith("quest");
+    expect(params.setSparringEnemySlot).toHaveBeenCalledWith(null);
+    expect(params.toggleModal).toHaveBeenNthCalledWith(1, "questSelection", false);
+    expect(params.toggleModal).toHaveBeenNthCalledWith(2, "battleScreen", true);
   });
 });
