@@ -22,6 +22,7 @@
   - 사용자 디렉터리 패널에 `운영자 지정 / 운영자 해제` 버튼, 마지막 운영자 보호 문구, Firestore 기준 역할 갱신 시각을 추가했다.
   - 사용자 디렉터리 응답에 최근 `operator_role_events`를 함께 실어 보내고, 화면 아래쪽에서 최근 권한 변경 이력을 바로 확인할 수 있도록 추가했다.
   - 기존 `OPERATOR_*`, `ARENA_ADMIN_*`, `NEWS_EDITOR_*` 환경변수를 읽어 Firestore 역할 문서를 만드는 1회용 `operator:backfill` 스크립트를 추가했다.
+  - 커뮤니티와 소식 화면의 글 작성자·댓글 작성자 응답에 `authorIsOperator`를 함께 실어 보내고, 목록·상세·댓글 이름 옆에 작은 `운영자` 배지를 붙여 일반 화면에서도 운영 계정을 바로 구분할 수 있게 했다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/api/_lib/operatorConfig.js`
@@ -36,9 +37,16 @@
 - `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.jsx`
 - `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.test.jsx`
 - `digimon-tamagotchi-frontend/src/components/AdminModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/common/OperatorBadge.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityFreePostRow.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostCard.jsx`
+- `digimon-tamagotchi-frontend/src/components/community/CommunityPostDetailDialog.jsx`
 - `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
 - `digimon-tamagotchi-frontend/src/utils/operatorApi.js`
 - `digimon-tamagotchi-frontend/src/utils/operatorApi.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Community.test.jsx`
+- `digimon-tamagotchi-frontend/src/pages/News.test.jsx`
+- `digimon-tamagotchi-frontend/src/index.css`
 - `api/_lib/arenaHandlers.test.js`
 - `api/_lib/operatorHandlers.test.js`
 - `tests/community-lib.test.js`
@@ -49,6 +57,31 @@
 ### 검증
 - `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js tests/arena-entrypoints.test.js tests/community-lib.test.js`
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] `useGameActions` 7차 분리: battle commit helper 추출
+
+### 작업 유형
+- 🧩 battle commit plan helper 추출
+- 🧩 배틀 로그 저장 callback 공통화
+- 🧪 `useGameActions` battle commit helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `handleBattleComplete` 안에 반복되던 `entry 생성 → battleLogs 반영 → 저장` 흐름을 helper와 local commit 함수로 묶어 배틀 모드별 분기를 더 읽기 쉽게 만든다.
+- **범위:** 스파링/아레나/퀘스트의 로그 문구, 승패 판정, 저장 순서와 Firestore 반영 흐름은 그대로 유지한다.
+- **내용:**
+  - `buildBattleCommitPlan`를 추가해 `buildBattleLogEntry`와 `buildBattleLogCommitState` 조합을 한 번에 반환하도록 정리했다.
+  - 훅 내부 `commitBattleLog`를 추가해 스파링/아레나/퀘스트 승패/에너지 부족 분기의 저장 callback을 공통화했다.
+  - helper 테스트를 추가해 entry 생성과 battleLogs 반영 계약을 고정했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameActions.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameActions.js src/hooks/useGameActions.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
 ## [2026-04-12] `useGameActions` 6차 분리: sleep interaction helper 추출

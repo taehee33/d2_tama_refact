@@ -322,6 +322,38 @@ export function buildBattleLogCommitState({
   };
 }
 
+export function buildBattleCommitPlan({
+  prevStats = {},
+  nextStats = {},
+  mode,
+  text,
+  win,
+  enemyName,
+  injury,
+  timestamp = Date.now(),
+  digimonSnapshot = {},
+} = {}) {
+  const entry = buildBattleLogEntry({
+    mode,
+    text,
+    win,
+    enemyName,
+    injury,
+    timestamp,
+    digimonSnapshot,
+  });
+  const battleCommitState = buildBattleLogCommitState({
+    prevStats,
+    nextStats,
+    entry,
+  });
+
+  return {
+    entry,
+    ...battleCommitState,
+  };
+}
+
 export function buildBattleCostStats(baseStats = {}) {
   const oldWeight = baseStats.weight || 0;
   const oldEnergy = baseStats.energy || 0;
@@ -684,6 +716,38 @@ export function useGameActions({
       });
       return sleepDisturbanceCommitState.statsWithLogs;
     });
+  };
+
+  const commitBattleLog = ({
+    prevStats,
+    nextStats,
+    mode,
+    text,
+    win,
+    enemyName,
+    injury,
+    timestamp = Date.now(),
+    digimonSnapshot = {},
+    errorMessage = "배틀 로그 저장 오류:",
+  }) => {
+    const battleCommitPlan = buildBattleCommitPlan({
+      prevStats,
+      nextStats,
+      mode,
+      text,
+      win,
+      enemyName,
+      injury,
+      timestamp,
+      digimonSnapshot,
+    });
+    if (appendBattleLogToSubcollection) {
+      appendBattleLogToSubcollection(battleCommitPlan.entry).catch(() => {});
+    }
+    setDigimonStatsAndSave(battleCommitPlan.statsWithBattleLogs).catch((error) => {
+      console.error(errorMessage, error);
+    });
+    return battleCommitPlan.statsWithBattleLogs;
   };
   
   /**
@@ -1060,24 +1124,18 @@ export function useGameActions({
       const { battleStats, weightDelta, energyDelta } = buildBattleCostStats(updatedStats);
       
       const sparringText = `Sparring: Practice Match (No Record) (Wt ${weightDelta}g, En ${energyDelta})`;
-      const sparringEntry = buildBattleLogEntry({
-        mode: "sparring",
-        text: sparringText,
-        win: battleResult.win,
-        timestamp: Date.now(),
-        digimonSnapshot: currentDigimonSnapshot,
-      });
+      const timestamp = Date.now();
       setDigimonStats((prevStats) => {
-        const battleCommitState = buildBattleLogCommitState({
+        return commitBattleLog({
           prevStats,
           nextStats: battleStats,
-          entry: sparringEntry,
+          mode: "sparring",
+          text: sparringText,
+          win: battleResult.win,
+          timestamp,
+          digimonSnapshot: currentDigimonSnapshot,
+          errorMessage: "스파링 로그 저장 오류:",
         });
-        if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(sparringEntry).catch(() => {});
-        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
-          console.error("스파링 로그 저장 오류:", error);
-        });
-        return battleCommitState.statsWithBattleLogs;
       });
       
       if (battleResult.win) {
@@ -1156,25 +1214,19 @@ export function useGameActions({
       const arenaText = battleResult.win
         ? `Arena: Won vs ${tamerName} (Rank UP) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Arena: Lost vs ${tamerName} (Wt ${weightDelta}g, En ${energyDelta})`;
-      const arenaEntry = buildBattleLogEntry({
-        mode: "arena",
-        text: arenaText,
-        win: battleResult.win,
-        enemyName: tamerName,
-        timestamp: Date.now(),
-        digimonSnapshot: currentDigimonSnapshot,
-      });
+      const timestamp = Date.now();
       setDigimonStats((prevStats) => {
-        const battleCommitState = buildBattleLogCommitState({
+        return commitBattleLog({
           prevStats,
           nextStats: finalStats,
-          entry: arenaEntry,
+          mode: "arena",
+          text: arenaText,
+          win: battleResult.win,
+          enemyName: tamerName,
+          timestamp,
+          digimonSnapshot: currentDigimonSnapshot,
+          errorMessage: "아레나 로그 저장 오류:",
         });
-        if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(arenaEntry).catch(() => {});
-        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
-          console.error("아레나 로그 저장 오류:", error);
-        });
-        return battleCommitState.statsWithBattleLogs;
       });
       
       console.log("✅ [Arena] 로컬 배틀 스탯 업데이트 완료:", {
@@ -1199,23 +1251,17 @@ export function useGameActions({
     
     // 에너지 부족 체크 (배틀 시작 전)
     if ((updatedStats.energy || 0) <= 0) {
+      const timestamp = Date.now();
       setDigimonStats((prevStats) => {
-        const skipEntry = buildBattleLogEntry({
-          mode: "skip",
-          text: "Battle: Skipped (Not enough Energy)",
-          timestamp: Date.now(),
-          digimonSnapshot: currentDigimonSnapshot,
-        });
-        const battleCommitState = buildBattleLogCommitState({
+        return commitBattleLog({
           prevStats,
           nextStats: updatedStats,
-          entry: skipEntry,
+          mode: "skip",
+          text: "Battle: Skipped (Not enough Energy)",
+          timestamp,
+          digimonSnapshot: currentDigimonSnapshot,
+          errorMessage: "에너지 부족 배틀 로그 저장 오류:",
         });
-        if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(skipEntry).catch(() => {});
-        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
-          console.error("에너지 부족 배틀 로그 저장 오류:", error);
-        });
-        return battleCommitState.statsWithBattleLogs;
       });
       alert("⚠️ 에너지가 부족합니다!\n💤 Sleep to restore Energy!");
       setShowBattleScreen(false);
@@ -1278,26 +1324,20 @@ export function useGameActions({
         ? `Quest: Defeated ${enemyName} (Stage Clear) (Wt ${weightDelta}g, En ${energyDelta})`
         : `Quest: Defeated ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questWinText += " - Battle: Injured! (Chance hit)";
-      const questWinEntry = buildBattleLogEntry({
-        mode: "quest",
-        text: questWinText,
-        win: true,
-        enemyName,
-        injury: isInjured,
-        timestamp: Date.now(),
-        digimonSnapshot: currentDigimonSnapshot,
-      });
+      const timestamp = Date.now();
       setDigimonStats((prevStats) => {
-        const battleCommitState = buildBattleLogCommitState({
+        return commitBattleLog({
           prevStats,
           nextStats: finalStats,
-          entry: questWinEntry,
+          mode: "quest",
+          text: questWinText,
+          win: true,
+          enemyName,
+          injury: isInjured,
+          timestamp,
+          digimonSnapshot: currentDigimonSnapshot,
+          errorMessage: "퀘스트 승리 로그 저장 오류:",
         });
-        if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questWinEntry).catch(() => {});
-        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
-          console.error("퀘스트 승리 로그 저장 오류:", error);
-        });
-        return battleCommitState.statsWithBattleLogs;
       });
 
       if (battleResult.isAreaClear) {
@@ -1320,26 +1360,20 @@ export function useGameActions({
       
       let questLoseText = `Quest: Defeated by ${enemyName} (Wt ${weightDelta}g, En ${energyDelta})`;
       if (isInjured) questLoseText += " - Battle: Injured! (Chance hit)";
-      const questLoseEntry = buildBattleLogEntry({
-        mode: "quest",
-        text: questLoseText,
-        win: false,
-        enemyName,
-        injury: isInjured,
-        timestamp: Date.now(),
-        digimonSnapshot: currentDigimonSnapshot,
-      });
+      const timestamp = Date.now();
       setDigimonStats((prevStats) => {
-        const battleCommitState = buildBattleLogCommitState({
+        return commitBattleLog({
           prevStats,
           nextStats: finalStats,
-          entry: questLoseEntry,
+          mode: "quest",
+          text: questLoseText,
+          win: false,
+          enemyName,
+          injury: isInjured,
+          timestamp,
+          digimonSnapshot: currentDigimonSnapshot,
+          errorMessage: "퀘스트 패배 로그 저장 오류:",
         });
-        if (appendBattleLogToSubcollection) appendBattleLogToSubcollection(questLoseEntry).catch(() => {});
-        setDigimonStatsAndSave(battleCommitState.statsWithBattleLogs).catch((error) => {
-          console.error("퀘스트 패배 로그 저장 오류:", error);
-        });
-        return battleCommitState.statsWithBattleLogs;
       });
     }
   };

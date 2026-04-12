@@ -2,6 +2,7 @@ import {
   applyBattleInjuryOutcome,
   buildArenaBattleArchiveWrite,
   buildActivityLogCommitState,
+  buildBattleCommitPlan,
   buildBattleCostStats,
   buildBattleLogCommitState,
   buildBattleLogEntry,
@@ -362,6 +363,61 @@ describe("buildBattleLogCommitState", () => {
       energy: 4,
       battleLogs: [
         { mode: "arena", text: "new", timestamp: 2000 },
+        { mode: "quest", text: "old", timestamp: 1000 },
+      ],
+    });
+  });
+});
+
+describe("buildBattleCommitPlan", () => {
+  test("entry 생성과 battle log commit 결과를 한 번에 조립한다", () => {
+    const result = buildBattleCommitPlan({
+      prevStats: {
+        battleLogs: [{ mode: "quest", text: "old", timestamp: 1000 }],
+      },
+      nextStats: {
+        energy: 3,
+      },
+      mode: "arena",
+      text: "Arena: Won vs 상대",
+      win: true,
+      enemyName: "상대",
+      timestamp: 2000,
+      digimonSnapshot: {
+        digimonId: "Agumon",
+      },
+    });
+
+    expect(result.entry).toEqual({
+      mode: "arena",
+      text: "Arena: Won vs 상대",
+      win: true,
+      enemyName: "상대",
+      timestamp: 2000,
+      digimonId: "Agumon",
+    });
+    expect(result.updatedBattleLogs).toEqual([
+      {
+        mode: "arena",
+        text: "Arena: Won vs 상대",
+        win: true,
+        enemyName: "상대",
+        timestamp: 2000,
+        digimonId: "Agumon",
+      },
+      { mode: "quest", text: "old", timestamp: 1000 },
+    ]);
+    expect(result.statsWithBattleLogs).toEqual({
+      energy: 3,
+      battleLogs: [
+        {
+          mode: "arena",
+          text: "Arena: Won vs 상대",
+          win: true,
+          enemyName: "상대",
+          timestamp: 2000,
+          digimonId: "Agumon",
+        },
         { mode: "quest", text: "old", timestamp: 1000 },
       ],
     });
