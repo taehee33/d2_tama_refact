@@ -342,6 +342,52 @@ export function resolveSleepLightWarningTimeout({
   };
 }
 
+export function evaluateEvolutionRangeRequirement({
+  currentValue,
+  min,
+  max,
+  rangeSuffix = "",
+}) {
+  if (min === undefined && max === undefined) {
+    return null;
+  }
+
+  let isMet = true;
+  let rangeText = "";
+
+  if (min !== undefined && max !== undefined) {
+    rangeText = `${min}~${max}${rangeSuffix}`;
+    if (currentValue < min || currentValue > max) {
+      isMet = false;
+    }
+  } else if (min !== undefined) {
+    rangeText = `${min}+${rangeSuffix}`;
+    if (currentValue < min) {
+      isMet = false;
+    }
+  } else {
+    rangeText = `~${max}${rangeSuffix}`;
+    if (currentValue > max) {
+      isMet = false;
+    }
+  }
+
+  return {
+    isMet,
+    rangeText,
+  };
+}
+
+export function formatEvolutionRangeCondition({
+  label,
+  currentText,
+  currentScopeLabel,
+  rangeText,
+  isMet,
+}) {
+  return `${label}: ${currentText} (${currentScopeLabel}) / ${rangeText} (진화기준) ${isMet ? "(달성 ✅)" : "(부족 ❌)"}`;
+}
+
 /**
  * 수면 상태를 계산한다.
  * @param {Object} params
@@ -472,165 +518,120 @@ export function checkEvolutionAvailability(currentStats, requirements) {
   // 케어 미스 체크 (min과 max를 한 줄로 통합)
   if (requirements.minMistakes !== undefined || requirements.maxMistakes !== undefined) {
     const mistakes = currentStats.careMistakes || 0;
-    const min = requirements.minMistakes;
-    const max = requirements.maxMistakes;
-    let isMet = true;
-    let rangeText = '';
-    
-    if (min !== undefined && max !== undefined) {
-      rangeText = `${min}~${max}`;
-      if (mistakes < min || mistakes > max) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (min !== undefined) {
-      rangeText = `${min}+`;
-      if (mistakes < min) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (max !== undefined) {
-      rangeText = `~${max}`;
-      if (mistakes > max) {
-        isMet = false;
-        isAvailable = false;
-      }
+    const result = evaluateEvolutionRangeRequirement({
+      currentValue: mistakes,
+      min: requirements.minMistakes,
+      max: requirements.maxMistakes,
+    });
+
+    if (!result.isMet) {
+      isAvailable = false;
     }
-    
+
     missingConditions.push(
-      `케어 미스: ${mistakes} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      formatEvolutionRangeCondition({
+        label: "케어 미스",
+        currentText: mistakes,
+        currentScopeLabel: "현재",
+        rangeText: result.rangeText,
+        isMet: result.isMet,
+      })
     );
   }
 
   // 훈련 횟수 체크 (min과 max를 한 줄로 통합)
   if (requirements.minTrainings !== undefined || requirements.maxTrainings !== undefined) {
     const trainings = currentStats.trainings || 0;
-    const min = requirements.minTrainings;
-    const max = requirements.maxTrainings;
-    let isMet = true;
-    let rangeText = '';
-    
-    if (min !== undefined && max !== undefined) {
-      rangeText = `${min}~${max}`;
-      if (trainings < min || trainings > max) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (min !== undefined) {
-      rangeText = `${min}+`;
-      if (trainings < min) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (max !== undefined) {
-      rangeText = `~${max}`;
-      if (trainings > max) {
-        isMet = false;
-        isAvailable = false;
-      }
+    const result = evaluateEvolutionRangeRequirement({
+      currentValue: trainings,
+      min: requirements.minTrainings,
+      max: requirements.maxTrainings,
+    });
+
+    if (!result.isMet) {
+      isAvailable = false;
     }
-    
+
     missingConditions.push(
-      `훈련: ${trainings} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      formatEvolutionRangeCondition({
+        label: "훈련",
+        currentText: trainings,
+        currentScopeLabel: "현재",
+        rangeText: result.rangeText,
+        isMet: result.isMet,
+      })
     );
   }
 
   // 오버피드 체크 (min과 max를 한 줄로 통합)
   if (requirements.minOverfeeds !== undefined || requirements.maxOverfeeds !== undefined) {
     const overfeeds = currentStats.overfeeds || 0;
-    const min = requirements.minOverfeeds;
-    const max = requirements.maxOverfeeds;
-    let isMet = true;
-    let rangeText = '';
-    
-    if (min !== undefined && max !== undefined) {
-      rangeText = `${min}~${max}`;
-      if (overfeeds < min || overfeeds > max) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (min !== undefined) {
-      rangeText = `${min}+`;
-      if (overfeeds < min) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (max !== undefined) {
-      rangeText = `~${max}`;
-      if (overfeeds > max) {
-        isMet = false;
-        isAvailable = false;
-      }
+    const result = evaluateEvolutionRangeRequirement({
+      currentValue: overfeeds,
+      min: requirements.minOverfeeds,
+      max: requirements.maxOverfeeds,
+    });
+
+    if (!result.isMet) {
+      isAvailable = false;
     }
-    
+
     missingConditions.push(
-      `오버피드: ${overfeeds} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      formatEvolutionRangeCondition({
+        label: "오버피드",
+        currentText: overfeeds,
+        currentScopeLabel: "현재",
+        rangeText: result.rangeText,
+        isMet: result.isMet,
+      })
     );
   }
 
   // 수면 방해 체크 (min과 max를 한 줄로 통합)
   if (requirements.minSleepDisturbances !== undefined || requirements.maxSleepDisturbances !== undefined) {
     const disturbances = currentStats.sleepDisturbances || 0;
-    const min = requirements.minSleepDisturbances;
-    const max = requirements.maxSleepDisturbances;
-    let isMet = true;
-    let rangeText = '';
-    
-    if (min !== undefined && max !== undefined) {
-      rangeText = `${min}~${max}`;
-      if (disturbances < min || disturbances > max) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (min !== undefined) {
-      rangeText = `${min}+`;
-      if (disturbances < min) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (max !== undefined) {
-      rangeText = `~${max}`;
-      if (disturbances > max) {
-        isMet = false;
-        isAvailable = false;
-      }
+    const result = evaluateEvolutionRangeRequirement({
+      currentValue: disturbances,
+      min: requirements.minSleepDisturbances,
+      max: requirements.maxSleepDisturbances,
+    });
+
+    if (!result.isMet) {
+      isAvailable = false;
     }
-    
+
     missingConditions.push(
-      `수면 방해: ${disturbances} (현재) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      formatEvolutionRangeCondition({
+        label: "수면 방해",
+        currentText: disturbances,
+        currentScopeLabel: "현재",
+        rangeText: result.rangeText,
+        isMet: result.isMet,
+      })
     );
   }
 
   // 배틀 체크 (현재 디지몬 값만 사용)
   if (requirements.minBattles !== undefined || requirements.maxBattles !== undefined) {
     const currentBattles = (currentStats.battlesWon || 0) + (currentStats.battlesLost || 0);
-    const min = requirements.minBattles;
-    const max = requirements.maxBattles;
-    let isMet = true;
-    let rangeText = '';
-    
-    if (min !== undefined && max !== undefined) {
-      rangeText = `${min}~${max}`;
-      if (currentBattles < min || currentBattles > max) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (min !== undefined) {
-      rangeText = `${min}+`;
-      if (currentBattles < min) {
-        isMet = false;
-        isAvailable = false;
-      }
-    } else if (max !== undefined) {
-      rangeText = `~${max}`;
-      if (currentBattles > max) {
-        isMet = false;
-        isAvailable = false;
-      }
+    const result = evaluateEvolutionRangeRequirement({
+      currentValue: currentBattles,
+      min: requirements.minBattles,
+      max: requirements.maxBattles,
+    });
+
+    if (!result.isMet) {
+      isAvailable = false;
     }
-    
+
     missingConditions.push(
-      `배틀: ${currentBattles} (현재 디지몬) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+      formatEvolutionRangeCondition({
+        label: "배틀",
+        currentText: currentBattles,
+        currentScopeLabel: "현재 디지몬",
+        rangeText: result.rangeText,
+        isMet: result.isMet,
+      })
     );
   }
 
@@ -642,33 +643,25 @@ export function checkEvolutionAvailability(currentStats, requirements) {
       isAvailable = false;
     } else {
       const winRatio = ((currentStats.battlesWon || 0) / currentBattles) * 100;
-      const min = requirements.minWinRatio;
-      const max = requirements.maxWinRatio;
-      let isMet = true;
-      let rangeText = '';
-      
-      if (min !== undefined && max !== undefined) {
-        rangeText = `${min}~${max}%`;
-        if (winRatio < min || winRatio > max) {
-          isMet = false;
-          isAvailable = false;
-        }
-      } else if (min !== undefined) {
-        rangeText = `${min}+%`;
-        if (winRatio < min) {
-          isMet = false;
-          isAvailable = false;
-        }
-      } else if (max !== undefined) {
-        rangeText = `~${max}%`;
-        if (winRatio > max) {
-          isMet = false;
-          isAvailable = false;
-        }
+      const result = evaluateEvolutionRangeRequirement({
+        currentValue: winRatio,
+        min: requirements.minWinRatio,
+        max: requirements.maxWinRatio,
+        rangeSuffix: "%",
+      });
+
+      if (!result.isMet) {
+        isAvailable = false;
       }
-      
+
       missingConditions.push(
-        `승률: ${winRatio.toFixed(1)}% (현재 디지몬) / ${rangeText} (진화기준) ${isMet ? '(달성 ✅)' : '(부족 ❌)'}`
+        formatEvolutionRangeCondition({
+          label: "승률",
+          currentText: `${winRatio.toFixed(1)}%`,
+          currentScopeLabel: "현재 디지몬",
+          rangeText: result.rangeText,
+          isMet: result.isMet,
+        })
       );
     }
   }

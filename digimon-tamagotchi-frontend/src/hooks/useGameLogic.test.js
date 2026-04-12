@@ -3,6 +3,9 @@ import {
   buildInitialCallStatus,
   checkCalls,
   checkCallTimeouts,
+  checkEvolutionAvailability,
+  evaluateEvolutionRangeRequirement,
+  formatEvolutionRangeCondition,
   getSleepStatus,
   hasDuplicateSleepDisturbanceLog,
   resolveNeedCallState,
@@ -153,6 +156,76 @@ describe("useGameLogic call helpers", () => {
     expect(result.triggeredMistake).toBe(true);
     expect(result.nextStats.careMistakes).toBe(1);
     expect(result.nextStats.callStatus.sleep.isLogged).toBe(true);
+  });
+});
+
+describe("useGameLogic evolution helpers", () => {
+  test("evaluateEvolutionRangeRequirement는 min/max 범위를 공통 규칙으로 계산한다", () => {
+    expect(
+      evaluateEvolutionRangeRequirement({
+        currentValue: 3,
+        min: 2,
+        max: 4,
+      })
+    ).toEqual({
+      isMet: true,
+      rangeText: "2~4",
+    });
+
+    expect(
+      evaluateEvolutionRangeRequirement({
+        currentValue: 40,
+        min: 50,
+        rangeSuffix: "%",
+      })
+    ).toEqual({
+      isMet: false,
+      rangeText: "50+%",
+    });
+  });
+
+  test("formatEvolutionRangeCondition는 기존 조건 문자열 포맷을 유지한다", () => {
+    expect(
+      formatEvolutionRangeCondition({
+        label: "배틀",
+        currentText: 5,
+        currentScopeLabel: "현재 디지몬",
+        rangeText: "3~7",
+        isMet: true,
+      })
+    ).toBe("배틀: 5 (현재 디지몬) / 3~7 (진화기준) (달성 ✅)");
+  });
+
+  test("checkEvolutionAvailability는 range helper를 통해 동일한 설명을 만든다", () => {
+    const result = checkEvolutionAvailability(
+      {
+        careMistakes: 1,
+        trainings: 4,
+        overfeeds: 0,
+        sleepDisturbances: 2,
+        battlesWon: 3,
+        battlesLost: 1,
+      },
+      {
+        minMistakes: 0,
+        maxMistakes: 2,
+        minTrainings: 5,
+        maxTrainings: 7,
+        minBattles: 3,
+        maxBattles: 6,
+        minWinRatio: 80,
+      }
+    );
+
+    expect(result.isAvailable).toBe(false);
+    expect(result.missingConditions).toEqual(
+      expect.arrayContaining([
+        "케어 미스: 1 (현재) / 0~2 (진화기준) (달성 ✅)",
+        "훈련: 4 (현재) / 5~7 (진화기준) (부족 ❌)",
+        "배틀: 4 (현재 디지몬) / 3~6 (진화기준) (달성 ✅)",
+        "승률: 75.0% (현재 디지몬) / 80+% (진화기준) (부족 ❌)",
+      ])
+    );
   });
 });
 
