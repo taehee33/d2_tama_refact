@@ -7,6 +7,7 @@ const {
   createArenaArchiveMonitoringHandler,
   createArenaBattleCompleteHandler,
   createArenaSeasonEndHandler,
+  createArenaUserDirectoryHandler,
 } = require("./arenaHandlers");
 const {
   parseFirestoreFields,
@@ -75,7 +76,7 @@ test("arena admin config handler rejects non-admin users", async () => {
   );
 
   assert.equal(res.statusCode, 403);
-  assert.equal(res.body.error, "아레나 관리자 권한이 없습니다.");
+  assert.equal(res.body.error, "운영자 권한이 없습니다.");
 
   process.env.ARENA_ADMIN_UIDS = previousUids;
   process.env.ARENA_ADMIN_EMAILS = previousEmails;
@@ -268,7 +269,7 @@ test("arena archive monitoring handler rejects non-admin users", async () => {
   );
 
   assert.equal(res.statusCode, 403);
-  assert.equal(res.body.error, "아레나 관리자 권한이 없습니다.");
+  assert.equal(res.body.error, "운영자 권한이 없습니다.");
 
   process.env.ARENA_ADMIN_UIDS = previousUids;
   process.env.ARENA_ADMIN_EMAILS = previousEmails;
@@ -326,6 +327,146 @@ test("arena archive monitoring handler returns summary and events for admin user
     assert.equal(res.statusCode, 200);
     assert.deepEqual(res.body, mockSnapshot);
   });
+});
+
+test("arena user directory handler rejects non-admin users", async () => {
+  const previousUids = process.env.ARENA_ADMIN_UIDS;
+  const previousEmails = process.env.ARENA_ADMIN_EMAILS;
+  process.env.ARENA_ADMIN_UIDS = "";
+  process.env.ARENA_ADMIN_EMAILS = "";
+
+  const handler = createArenaUserDirectoryHandler({
+    verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com" }),
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+      query: {},
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.error, "운영자 권한이 없습니다.");
+
+  process.env.ARENA_ADMIN_UIDS = previousUids;
+  process.env.ARENA_ADMIN_EMAILS = previousEmails;
+});
+
+test("arena user directory handler returns normalized users and role summary", async () => {
+  const previousArenaUids = process.env.ARENA_ADMIN_UIDS;
+  const previousArenaEmails = process.env.ARENA_ADMIN_EMAILS;
+  const previousNewsUids = process.env.NEWS_EDITOR_UIDS;
+  const previousNewsEmails = process.env.NEWS_EDITOR_EMAILS;
+  const previousOperatorUids = process.env.OPERATOR_UIDS;
+  const previousOperatorEmails = process.env.OPERATOR_EMAILS;
+
+  process.env.ARENA_ADMIN_UIDS = "admin-1";
+  process.env.ARENA_ADMIN_EMAILS = "admin@example.com";
+  process.env.NEWS_EDITOR_UIDS = "news-1";
+  process.env.NEWS_EDITOR_EMAILS = "news@example.com";
+  process.env.OPERATOR_UIDS = "";
+  process.env.OPERATOR_EMAILS = "";
+
+  const handler = createArenaUserDirectoryHandler({
+    verifyRequestUser: async () => ({ uid: "news-1", email: "news@example.com" }),
+    listDocuments: async () => [
+      {
+        id: "admin-1",
+        data: {
+          email: "admin@example.com",
+          displayName: "Arena Admin",
+          createdAt: "2026-04-10T00:00:00.000Z",
+          updatedAt: "2026-04-12T01:00:00.000Z",
+          achievements: ["첫 로그인"],
+          maxSlots: 12,
+        },
+      },
+      {
+        id: "news-1",
+        data: {
+          email: "news@example.com",
+          displayName: "News Editor",
+          createdAt: "2026-04-09T00:00:00.000Z",
+          updatedAt: "2026-04-11T00:00:00.000Z",
+        },
+      },
+      {
+        id: "user-1",
+        data: {
+          email: "user@example.com",
+          displayName: "Normal User",
+          createdAt: "2026-04-08T00:00:00.000Z",
+        },
+      },
+    ],
+    getDocument: async (path) => {
+      if (path === "users/admin-1/profile/main") {
+        return {
+          data: {
+            tamerName: "관리자 테이머",
+            achievements: ["첫 로그인", "업적 둘"],
+            maxSlots: 15,
+            updatedAt: "2026-04-12T05:00:00.000Z",
+          },
+        };
+      }
+
+      if (path === "users/news-1/profile/main") {
+        return {
+          data: {
+            tamerName: "소식 운영자",
+            updatedAt: "2026-04-11T05:00:00.000Z",
+          },
+        };
+      }
+
+      if (path === "users/user-1/profile/main") {
+        return {
+          data: {
+            tamerName: "일반 유저",
+          },
+        };
+      }
+
+      return null;
+    },
+  });
+
+  const res = createMockRes();
+  await handler(
+    {
+      method: "GET",
+      headers: { authorization: "Bearer test-token" },
+      query: {},
+    },
+    res
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.summary.totalUsers, 3);
+  assert.equal(res.body.summary.operatorCount, 2);
+  assert.equal(res.body.summary.generalUserCount, 1);
+  assert.deepEqual(
+    res.body.users.map((user) => user.uid),
+    ["admin-1", "news-1", "user-1"]
+  );
+  assert.equal(res.body.users[0].tamerName, "관리자 테이머");
+  assert.equal(res.body.users[0].maxSlots, 15);
+  assert.equal(res.body.users[0].achievementCount, 2);
+  assert.equal(res.body.users[0].roleLabel, "운영자");
+  assert.equal(res.body.users[1].roleLabel, "운영자");
+  assert.equal(res.body.users[2].roleLabel, "일반");
+
+  process.env.ARENA_ADMIN_UIDS = previousArenaUids;
+  process.env.ARENA_ADMIN_EMAILS = previousArenaEmails;
+  process.env.NEWS_EDITOR_UIDS = previousNewsUids;
+  process.env.NEWS_EDITOR_EMAILS = previousNewsEmails;
+  process.env.OPERATOR_UIDS = previousOperatorUids;
+  process.env.OPERATOR_EMAILS = previousOperatorEmails;
 });
 
 test("arena battle complete handler rejects foreign myEntryId", async () => {

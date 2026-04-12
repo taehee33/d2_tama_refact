@@ -8,6 +8,7 @@ const mockSaveArenaAdminConfig = jest.fn();
 const mockEndArenaSeason = jest.fn();
 const mockDeleteArenaArchive = jest.fn();
 const mockFetchArenaArchiveMonitoring = jest.fn();
+const mockFetchArenaUserDirectory = jest.fn();
 
 jest.mock("../contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
@@ -22,6 +23,7 @@ jest.mock("../utils/arenaApi", () => ({
   endArenaSeason: (...args) => mockEndArenaSeason(...args),
   deleteArenaArchive: (...args) => mockDeleteArenaArchive(...args),
   fetchArenaArchiveMonitoring: (...args) => mockFetchArenaArchiveMonitoring(...args),
+  fetchArenaUserDirectory: (...args) => mockFetchArenaUserDirectory(...args),
 }));
 
 jest.mock("firebase/firestore", () => ({
@@ -116,6 +118,37 @@ describe("AdminModal", () => {
           archiveId: "arena-404",
           errorMessage: "배틀 다시보기를 찾을 수 없습니다.",
           createdAt: "2026-04-04T11:00:00.000Z",
+        },
+      ],
+    });
+    mockFetchArenaUserDirectory.mockResolvedValue({
+      summary: {
+        totalUsers: 2,
+        operatorCount: 1,
+        generalUserCount: 1,
+      },
+      users: [
+        {
+          uid: "admin-1",
+          tamerName: "관리자 테이머",
+          email: "admin@example.com",
+          displayName: "Arena Admin",
+          achievementCount: 3,
+          maxSlots: 15,
+          updatedAt: "2026-04-12T05:00:00.000Z",
+          createdAt: "2026-04-10T01:00:00.000Z",
+          isOperator: true,
+        },
+        {
+          uid: "user-1",
+          tamerName: "일반 테이머",
+          email: "user@example.com",
+          displayName: "Normal User",
+          achievementCount: 1,
+          maxSlots: 10,
+          updatedAt: "2026-04-11T02:00:00.000Z",
+          createdAt: "2026-04-09T01:00:00.000Z",
+          isOperator: false,
         },
       ],
     });
@@ -268,5 +301,24 @@ describe("AdminModal", () => {
     expect(screen.getByText("조그레스 archive")).toBeInTheDocument();
     expect(screen.getByText("최신 이벤트 50건")).toBeInTheDocument();
     expect(screen.getByText("배틀 다시보기를 찾을 수 없습니다.")).toBeInTheDocument();
+  });
+
+  test("사용자 탭에서 운영자와 일반 사용자를 구분해 표시한다", async () => {
+    renderAdminModal();
+
+    fireEvent.click(screen.getByRole("button", { name: "사용자" }));
+
+    await waitFor(() =>
+      expect(mockFetchArenaUserDirectory).toHaveBeenCalledWith(
+        expect.objectContaining({ uid: "admin-1" })
+      )
+    );
+
+    expect(screen.getByText("전체 사용자 목록")).toBeInTheDocument();
+    expect(screen.getByText("관리자 테이머")).toBeInTheDocument();
+    expect(screen.getByText("일반 테이머")).toBeInTheDocument();
+    expect(screen.getAllByText("운영자").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("일반").length).toBeGreaterThan(0);
+    expect(screen.getByText("현재 표시 2명")).toBeInTheDocument();
   });
 });

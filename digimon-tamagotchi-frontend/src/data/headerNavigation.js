@@ -13,12 +13,20 @@ const NEWS_NAV_ITEM = { key: "news", to: "/news", label: "소식" };
 const TAMER_NAV_ITEM = { key: "me", to: "/me", label: "테이머(설정)" };
 const NOTEBOOK_NAV_ITEM = { key: "notebook", to: "/notebook", label: "노트북" };
 const INTRO_NAV_ITEM = { key: "landing", to: "/landing", label: "소개", end: true };
+const OPERATOR_USERS_NAV_ITEM = {
+  key: "operator-users",
+  to: "/operators/users",
+  label: "사용자관리",
+};
 
 function cloneNavItems(items) {
   return items.map((item) => ({ ...item }));
 }
 
-export function getPrimaryHeaderNavItems({ includeTamer = false } = {}) {
+export function getPrimaryHeaderNavItems({
+  includeTamer = false,
+  includeOperatorDirectory = false,
+} = {}) {
   return cloneNavItems([
     HOME_NAV_ITEM,
     PLAY_NAV_ITEM,
@@ -28,6 +36,7 @@ export function getPrimaryHeaderNavItems({ includeTamer = false } = {}) {
     ...(includeTamer ? [TAMER_NAV_ITEM] : []),
     NOTEBOOK_NAV_ITEM,
     INTRO_NAV_ITEM,
+    ...(includeOperatorDirectory ? [OPERATOR_USERS_NAV_ITEM] : []),
   ]);
 }
 
@@ -47,12 +56,13 @@ export function getMobileBottomTabItems({
   ]);
 }
 
-export function getMobileServiceOverflowItems() {
+export function getMobileServiceOverflowItems({ includeOperatorDirectory = false } = {}) {
   return cloneNavItems([
     GUIDE_NAV_ITEM,
     NEWS_NAV_ITEM,
     NOTEBOOK_NAV_ITEM,
     INTRO_NAV_ITEM,
+    ...(includeOperatorDirectory ? [OPERATOR_USERS_NAV_ITEM] : []),
   ]);
 }
 

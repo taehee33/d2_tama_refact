@@ -3,6 +3,7 @@
 const { randomUUID } = require("node:crypto");
 
 const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
+const { isOperatorIdentity } = require("./operatorConfig");
 
 const BOARD_ID_SHOWCASE = "showcase";
 const BOARD_ID_FREE = "free";
@@ -490,33 +491,13 @@ function mapNewsContext(input) {
   };
 }
 
-function normalizeCommaSeparatedList(value) {
-  if (typeof value !== "string") {
-    return [];
-  }
-
-  return value
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function isNewsEditor(decodedToken) {
-  if (!decodedToken) {
-    return false;
-  }
-
-  const editorUids = normalizeCommaSeparatedList(process.env.NEWS_EDITOR_UIDS);
-  const editorEmails = normalizeCommaSeparatedList(process.env.NEWS_EDITOR_EMAILS);
-  const uid = normalizeString(decodedToken.uid).toLowerCase();
-  const email = normalizeString(decodedToken.email).toLowerCase();
-
-  return editorUids.includes(uid) || (email ? editorEmails.includes(email) : false);
+  return isOperatorIdentity(decodedToken);
 }
 
 function assertNewsEditor(decodedToken) {
   if (!isNewsEditor(decodedToken)) {
-    throw createCommunityError(403, "소식 발행 권한이 없습니다.");
+    throw createCommunityError(403, "운영자 권한이 없습니다.");
   }
 
   return decodedToken;

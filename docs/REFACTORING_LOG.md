@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-12] `useGameLogic` 3차 분리: evolution range requirement helper 추출
+
+### 작업 유형
+- 🧩 evolution range 판정 helper 추출
+- 🧩 evolution 조건 문자열 formatter 추출
+- 🧪 evolution helper 및 `checkEvolutionAvailability` 테스트 추가
+
+### 목적 및 영향
+- **목적:** `checkEvolutionAvailability` 안에서 반복되던 `min/max/range` 판정 로직을 공통 helper로 정리해, 실질적인 진화 조건 판단과 문구 포맷을 분리한다.
+- **범위:** 진화 조건 설명 문자열 포맷과 `isAvailable` 판정은 그대로 유지한다.
+- **내용:**
+  - `evaluateEvolutionRangeRequirement`를 추가해 `mistakes/trainings/overfeeds/sleepDisturbances/battles/winRatio`의 range 판정을 공통화했다.
+  - `formatEvolutionRangeCondition`를 추가해 기존 `(...현재...) / ... (진화기준)` 문자열 포맷을 공통 formatter로 분리했다.
+  - `checkEvolutionAvailability`는 이제 range helper 결과를 적용하는 구조로 단순화됐다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameLogic.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 2차 분리: sleep light warning helper 추출
 
 ### 작업 유형
@@ -5448,6 +5473,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - 아레나 관리자 검증과 소식 발행 검증이 모두 같은 `isOperatorIdentity()`를 사용하도록 맞춰 서버 권한 기준을 하나로 통합했다.
   - 운영자 상태 API, 사용자 디렉터리 요약 카드, 역할 배지, 운영자 페이지 헤더에서 `아레나 / 소식` 세부 역할 표기를 제거하고 `운영자` 단일 역할만 보여 주도록 정리했다.
   - 사용자 디렉터리 요약도 `전체 사용자 / 운영자 / 일반 사용자` 3개 수치만 노출해 실제 화면에서 역할 구분이 더 단순하게 보이도록 정리했다.
+  - `localhost` 개발환경에서는 `/api/operator/status`가 없거나 실패해도 `REACT_APP_OPERATOR_*` 기준으로 운영자 메뉴를 볼 수 있도록 클라이언트 fallback을 추가했다.
 - **영향 파일:**
   - `digimon-tamagotchi-frontend/api/_lib/operatorConfig.js`
   - `digimon-tamagotchi-frontend/api/_lib/auth.js`
@@ -5455,6 +5481,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/api/_lib/operatorAccess.js`
   - `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
   - `digimon-tamagotchi-frontend/src/utils/operatorApi.js`
+  - `digimon-tamagotchi-frontend/src/utils/operatorApi.test.js`
   - `digimon-tamagotchi-frontend/src/hooks/useOperatorStatus.js`
   - `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.jsx`
   - `digimon-tamagotchi-frontend/src/pages/OperatorUsers.jsx`

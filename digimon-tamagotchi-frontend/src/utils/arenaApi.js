@@ -135,6 +135,17 @@ export async function fetchArenaArchiveMonitoring(currentUser, options = {}) {
   };
 }
 
+export async function fetchArenaUserDirectory(currentUser) {
+  const payload = await requestArenaApi(currentUser, "/api/arena/admin/users", {
+    method: "GET",
+  });
+
+  return {
+    users: Array.isArray(payload?.users) ? payload.users : [],
+    summary: payload?.summary || null,
+  };
+}
+
 export async function completeArenaBattle(currentUser, body) {
   const payload = await requestArenaApi(currentUser, "/api/arena/battles/complete", {
     method: "POST",

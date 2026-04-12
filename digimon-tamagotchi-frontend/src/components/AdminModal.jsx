@@ -3,6 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, orderBy, query } from "firebase/firestore";
+import UserDirectoryPanel from "./admin/UserDirectoryPanel";
 import { useAuth } from "../contexts/AuthContext";
 import { db } from "../firebase";
 import {
@@ -500,6 +501,17 @@ export default function AdminModal({
           >
             로그 관측
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("users")}
+            className={`px-4 py-2 font-bold transition-colors ${
+              activeTab === "users"
+                ? "border-b-2 border-blue-500 text-blue-600"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            사용자
+          </button>
         </div>
 
         {activeTab === "season" && (
@@ -812,6 +824,10 @@ export default function AdminModal({
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === "users" && (
+          <UserDirectoryPanel currentUser={currentUser} />
         )}
       </div>
     </div>

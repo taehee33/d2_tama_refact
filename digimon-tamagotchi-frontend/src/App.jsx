@@ -29,6 +29,7 @@ import Game from "./pages/Game";
 import Me from "./pages/Me";
 import News from "./pages/News";
 import NotebookLanding from "./pages/NotebookLanding";
+import OperatorUsers from "./pages/OperatorUsers";
 import PlayFull from "./pages/PlayFull";
 import PlayHub from "./pages/PlayHub";
 import SelectScreen from "./pages/SelectScreen";
@@ -126,6 +127,7 @@ function AppContent() {
               <Route path="/me" element={<Me />} />
               <Route path="/me/collection" element={<Collection />} />
               <Route path="/me/settings" element={<Settings />} />
+              <Route path="/operators/users" element={<OperatorUsers />} />
             </Route>
           </Route>
 

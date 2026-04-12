@@ -2,6 +2,8 @@
 
 const { assertArenaAdmin, verifyRequestUser } = require("./auth");
 const { createCommunityError } = require("./community");
+const { assertUserDirectoryAccess } = require("./operatorAccess");
+const { isOperatorIdentity } = require("./operatorConfig");
 const {
   commitWrites,
   createSetWrite,
@@ -18,6 +20,9 @@ const ARENA_CONFIG_PATH = "game_settings/arena_config";
 const ARENA_ARCHIVE_COLLECTION = "season_archives";
 const ARENA_ENTRY_COLLECTION = "arena_entries";
 const ARENA_BATTLE_LOG_COLLECTION = "arena_battle_logs";
+const USER_COLLECTION = "users";
+const USER_PROFILE_SUBCOLLECTION = "profile";
+const USER_PROFILE_DOC_ID = "main";
 const MAX_ARENA_RESET_ENTRIES = 450;
 
 function resolveSupabaseClient(deps) {
@@ -33,12 +38,103 @@ function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
-function createArenaAdminError(message = "아레나 관리자 권한이 없습니다.") {
+function createArenaAdminError(message = "운영자 권한이 없습니다.") {
   return createCommunityError(403, message);
 }
 
 function createArenaValidationError(message) {
   return createCommunityError(400, message);
+}
+
+function formatUserRoleSummary({ isOperator }) {
+  if (!isOperator) {
+    return "일반";
+  }
+
+  return "운영자";
+}
+
+function resolveUserTimestamp(...values) {
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+
+  return null;
+}
+
+function resolveUserDirectoryName(rootData = {}, profileData = {}, uid = "") {
+  return (
+    normalizeString(profileData.tamerName) ||
+    normalizeString(rootData.tamerName) ||
+    normalizeString(rootData.displayName) ||
+    normalizeString(rootData.email).split("@")[0] ||
+    (uid ? `Trainer_${uid.slice(0, 6)}` : "이름 없음")
+  );
+}
+
+function normalizeAchievements(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.trim()) : [];
+}
+
+function resolveUserDirectoryAchievements(rootData = {}, profileData = {}) {
+  const profileAchievements = normalizeAchievements(profileData.achievements);
+  if (profileAchievements.length > 0) {
+    return profileAchievements;
+  }
+
+  return normalizeAchievements(rootData.achievements);
+}
+
+function resolveUserDirectoryMaxSlots(rootData = {}, profileData = {}) {
+  const profileSlots = normalizeInteger(profileData.maxSlots, 0);
+  if (profileSlots > 0) {
+    return profileSlots;
+  }
+
+  const rootSlots = normalizeInteger(rootData.maxSlots, 0);
+  return rootSlots > 0 ? rootSlots : 10;
+}
+
+function buildUserDirectoryItem(userDocument, profileData = {}) {
+  const rootData = userDocument?.data || {};
+  const uid = normalizeString(userDocument?.id);
+  const email = normalizeString(rootData.email).toLowerCase();
+  const decodedTokenLike = {
+    uid,
+    email,
+  };
+  const isOperator = isOperatorIdentity(decodedTokenLike);
+  const achievements = resolveUserDirectoryAchievements(rootData, profileData);
+  const updatedAt = resolveUserTimestamp(
+    profileData.updatedAt,
+    rootData.updatedAt,
+    profileData.createdAt,
+    rootData.createdAt
+  );
+
+  return {
+    uid,
+    email: normalizeString(rootData.email),
+    displayName: normalizeString(rootData.displayName),
+    tamerName: resolveUserDirectoryName(rootData, profileData, uid),
+    photoURL: normalizeString(rootData.photoURL),
+    maxSlots: resolveUserDirectoryMaxSlots(rootData, profileData),
+    achievements,
+    achievementCount: achievements.length,
+    createdAt: resolveUserTimestamp(rootData.createdAt, profileData.createdAt),
+    updatedAt,
+    isOperator,
+    roleLabel: formatUserRoleSummary({
+      isOperator,
+    }),
+  };
 }
 
 function ensureSeasonConfigInput(input = {}) {
@@ -483,6 +579,71 @@ function createArenaArchiveMonitoringHandler(deps = {}) {
   };
 }
 
+function createArenaUserDirectoryHandler(deps = {}) {
+  const verifyUser = deps.verifyRequestUser || verifyRequestUser;
+  const listCollectionDocuments = deps.listDocuments || listDocuments;
+  const getDocumentByPath = deps.getDocument || getDocument;
+
+  return async function arenaUserDirectoryHandler(req, res) {
+    if (!allowMethods(req, res, ["GET"])) {
+      return;
+    }
+
+    try {
+      const decodedToken = await verifyUser(req);
+      assertUserDirectoryAccess(decodedToken);
+
+      const userDocuments = await listCollectionDocuments(USER_COLLECTION, {
+        pageSize: 200,
+      });
+
+      const items = await Promise.all(
+        userDocuments.map(async (userDocument) => {
+          const uid = normalizeString(userDocument?.id);
+          const profileDocument = uid
+            ? await getDocumentByPath(
+                `${USER_COLLECTION}/${uid}/${USER_PROFILE_SUBCOLLECTION}/${USER_PROFILE_DOC_ID}`
+              )
+            : null;
+
+          return buildUserDirectoryItem(userDocument, profileDocument?.data || {});
+        })
+      );
+
+      const users = items
+        .filter((item) => item.uid)
+        .sort((left, right) => {
+          if (left.isOperator !== right.isOperator) {
+            return left.isOperator ? -1 : 1;
+          }
+
+          const leftUpdatedAt = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
+          const rightUpdatedAt = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
+
+          if (rightUpdatedAt !== leftUpdatedAt) {
+            return rightUpdatedAt - leftUpdatedAt;
+          }
+
+          return String(left.tamerName || left.displayName || left.uid).localeCompare(
+            String(right.tamerName || right.displayName || right.uid),
+            "ko"
+          );
+        });
+
+      sendJson(res, 200, {
+        users,
+        summary: {
+          totalUsers: users.length,
+          operatorCount: users.filter((item) => item.isOperator).length,
+          generalUserCount: users.filter((item) => !item.isOperator).length,
+        },
+      });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
 function createArenaBattleCompleteHandler(deps = {}) {
   const verifyUser = deps.verifyRequestUser || verifyRequestUser;
   const commit = deps.commitWrites || commitWrites;
@@ -646,6 +807,7 @@ module.exports = {
   createArenaArchiveMonitoringHandler,
   createArenaBattleCompleteHandler,
   createArenaSeasonEndHandler,
+  createArenaUserDirectoryHandler,
   ensureSeasonConfigInput,
   normalizeArenaRecord,
   sortArenaEntries,

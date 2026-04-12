@@ -11,6 +11,7 @@ import {
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
 import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
+import useOperatorStatus from "../../hooks/useOperatorStatus";
 import NotebookTopBar from "../home/NotebookTopBar";
 
 function TopNavigation({ tamerName = "" }) {
@@ -31,8 +32,14 @@ function TopNavigation({ tamerName = "" }) {
   const isCommunityRoute = location.pathname === "/community";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const homePath = currentUser ? "/" : "/landing";
-  const links = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
-  const mobileOverflowItems = getMobileServiceOverflowItems();
+  const { operatorStatus } = useOperatorStatus();
+  const links = getPrimaryHeaderNavItems({
+    includeTamer: Boolean(currentUser),
+    includeOperatorDirectory: Boolean(operatorStatus.canAccessUserDirectory),
+  });
+  const mobileOverflowItems = getMobileServiceOverflowItems({
+    includeOperatorDirectory: Boolean(operatorStatus.canAccessUserDirectory),
+  });
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const communityMenuRef = useRef(null);
