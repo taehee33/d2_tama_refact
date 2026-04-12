@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-04-12] Firestore 기반 운영자 권한 관리로 전환
+
+### 작업 유형
+- 🔐 운영자 권한 원천을 Firestore `operator_roles`로 전환
+- 🧾 `operator_role_events` 감사 로그 저장 추가
+- 👥 사용자 디렉터리에서 운영자 지정/해제 액션 추가
+- 🛠️ 기존 env 운영자 이관용 스크립트 추가
+
+### 목적 및 영향
+- **목적:** 운영자 권한을 Vercel 환경변수 화이트리스트에 묶어 두지 않고, 실제 운영 화면에서 바로 지정·해제할 수 있도록 권한 원천을 Firestore로 옮긴다.
+- **범위:** 상단 `사용자관리` 메뉴 노출, 아레나 관리자 판별, 소식 작성 운영자 판별, 사용자 디렉터리 권한 표시는 모두 단일 Firestore 운영자 역할 기준으로 통일한다.
+- **내용:**
+  - `operator_roles/{uid}` 문서를 읽어 런타임 운영자 여부를 판별하도록 `operatorConfig`와 관련 auth/access 경로를 재작성했다.
+  - `operator_role_events/{eventId}` 감사 로그를 추가해 사용자 디렉터리에서 권한을 지정·해제할 때 누가 누구를 변경했는지 기록하도록 했다.
+  - 기존 `api/arena/admin/config` 엔드포인트에 `action=set-operator`를 추가해 함수 수를 늘리지 않고 운영자 지정/해제를 처리하도록 확장했다.
+  - 사용자 디렉터리 패널에 `운영자 지정 / 운영자 해제` 버튼, 마지막 운영자 보호 문구, Firestore 기준 역할 갱신 시각을 추가했다.
+  - 기존 `OPERATOR_*`, `ARENA_ADMIN_*`, `NEWS_EDITOR_*` 환경변수를 읽어 Firestore 역할 문서를 만드는 1회용 `operator:backfill` 스크립트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/operatorConfig.js`
+- `digimon-tamagotchi-frontend/api/_lib/auth.js`
+- `digimon-tamagotchi-frontend/api/_lib/operatorAccess.js`
+- `digimon-tamagotchi-frontend/api/_lib/operatorHandlers.js`
+- `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+- `digimon-tamagotchi-frontend/api/_lib/community.js`
+- `digimon-tamagotchi-frontend/api/arena/admin/config.js`
+- `digimon-tamagotchi-frontend/api/community/[boardId]/posts/index.js`
+- `digimon-tamagotchi-frontend/api/community/[boardId]/posts/[postId].js`
+- `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.jsx`
+- `digimon-tamagotchi-frontend/src/components/admin/UserDirectoryPanel.test.jsx`
+- `digimon-tamagotchi-frontend/src/components/AdminModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+- `digimon-tamagotchi-frontend/src/utils/operatorApi.js`
+- `digimon-tamagotchi-frontend/src/utils/operatorApi.test.js`
+- `api/_lib/arenaHandlers.test.js`
+- `api/_lib/operatorHandlers.test.js`
+- `tests/community-lib.test.js`
+- `scripts/migrateOperatorRoles.js`
+- `package.json`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test api/_lib/arenaHandlers.test.js api/_lib/operatorHandlers.test.js tests/arena-entrypoints.test.js tests/community-lib.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/admin/UserDirectoryPanel.test.jsx src/components/AdminModal.test.jsx src/components/layout/TopNavigation.test.jsx src/pages/OperatorUsers.test.jsx src/utils/operatorApi.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
 ## [2026-04-12] `useGameLogic` 4차 분리: activity log helper 추출
 
 ### 작업 유형
@@ -29,6 +75,32 @@
 ### 검증
 - `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useGameLogic.test.js`
 - `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useGameLogic.js src/hooks/useGameLogic.test.js`
+- `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-12] `useDeath` 1차 분리: death reincarnation helper 추출
+
+### 작업 유형
+- 🧩 death form 선택 helper 추출
+- 🧩 환생 상태/로그 조립 helper 추출
+- 🧩 death encyclopedia 기록 여부 helper 추출
+- 🧪 `useDeath` helper 테스트 추가
+
+### 목적 및 영향
+- **목적:** `confirmDeath` 안에 섞여 있던 죽음 폼 결정, 환생 상태 조립, 도감 기록 여부 판단을 분리해 훅 본문을 오케스트레이션 중심으로 정리한다.
+- **범위:** 사망 후 환생 대상 결정, activity log 기록, 도감 업데이트 여부, 모달 닫기 순서는 그대로 유지한다.
+- **내용:**
+  - `resolveDeathReincarnationDigimonId`를 추가해 슬롯 버전과 완전체 여부에 따른 묘지 폼 선택 및 스타터 fallback을 공통화했다.
+  - `buildDeathReincarnationState`를 추가해 `initializeStats`와 환생 activity log 조립을 한 곳으로 모았다.
+  - `shouldRecordDeathEncyclopedia`를 추가해 스타터 디지몬 제외 규칙을 helper로 분리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/hooks/useDeath.test.js`
+- `cd digimon-tamagotchi-frontend && ./node_modules/.bin/eslint src/hooks/useDeath.js src/hooks/useDeath.test.js`
 - `cd digimon-tamagotchi-frontend && NODE_OPTIONS=--openssl-legacy-provider npm run build`
 
 ## [2026-04-12] `useGameLogic` 3차 분리: evolution range requirement helper 추출
