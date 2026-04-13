@@ -133,8 +133,12 @@ async function fetchFirestoreDocument(path, idToken) {
   return parseFirestoreFields(payload.fields || {});
 }
 
-async function fetchUserProfile(uid, idToken) {
+async function fetchUserRoot(uid, idToken) {
   return fetchFirestoreDocument(`users/${uid}`, idToken);
+}
+
+async function fetchUserProfile(uid, idToken) {
+  return fetchFirestoreDocument(`users/${uid}/profile/main`, idToken);
 }
 
 async function fetchUserSlot(uid, slotId, idToken) {
@@ -143,6 +147,7 @@ async function fetchUserSlot(uid, slotId, idToken) {
 
 module.exports = {
   fetchUserProfile,
+  fetchUserRoot,
   fetchUserSlot,
   getFirebaseConfig,
   verifyFirebaseIdToken,

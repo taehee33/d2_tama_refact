@@ -2,7 +2,7 @@
 
 const { randomUUID } = require("node:crypto");
 
-const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
+const { fetchUserProfile, fetchUserRoot, fetchUserSlot } = require("./firebaseAdmin");
 const { isOperatorIdentity, listOperatorRoles } = require("./operatorConfig");
 
 const BOARD_ID_SHOWCASE = "showcase";
@@ -1030,24 +1030,30 @@ function getFallbackAuthorTamerName(uid, decodedToken) {
   );
 }
 
+function resolveAuthorNameFromDocuments(profileData = {}, rootData = {}, uid = "", decodedToken = null) {
+  return (
+    normalizeString(profileData?.tamerName) ||
+    normalizeString(rootData?.tamerName) ||
+    normalizeString(rootData?.displayName) ||
+    getFallbackAuthorTamerName(uid, decodedToken)
+  );
+}
+
 async function resolveAuthorTamerName(uid, decodedToken) {
-  const fallbackName = getFallbackAuthorTamerName(uid, decodedToken);
-
   try {
-    const userData = (await fetchUserProfile(uid, decodedToken.idToken)) || {};
+    const [profileData, rootData] = await Promise.all([
+      fetchUserProfile(uid, decodedToken.idToken),
+      fetchUserRoot(uid, decodedToken.idToken),
+    ]);
 
-    return (
-      normalizeString(userData.tamerName) ||
-      normalizeString(userData.displayName) ||
-      fallbackName
-    );
+    return resolveAuthorNameFromDocuments(profileData, rootData, uid, decodedToken);
   } catch (error) {
     console.warn("[community-api] author profile fallback", {
       uid,
       message: error?.message || String(error),
     });
 
-    return fallbackName;
+    return getFallbackAuthorTamerName(uid, decodedToken);
   }
 }
 
@@ -1779,6 +1785,8 @@ module.exports = {
   normalizeNewsBoardCategory,
   normalizeSupportBoardCategory,
   normalizeSlotId,
+  resolveAuthorNameFromDocuments,
+  resolveAuthorTamerName,
   resolveStageLabel,
   translateStageLabel,
   updateCommunityComment,

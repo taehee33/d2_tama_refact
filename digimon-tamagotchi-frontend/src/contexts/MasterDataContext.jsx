@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
+import { getTamerName, resolveTamerNamePriority } from "../utils/tamerNameUtils";
 import {
   MASTER_DATA_DOC_PATH,
   applyMasterDataOverrides,
@@ -36,13 +37,25 @@ const EMPTY_OVERRIDES = Object.freeze(
 );
 const SNAPSHOT_LIMIT = 30;
 
-function buildActor(currentUser) {
+export async function resolveMasterDataActor(currentUser) {
   if (!currentUser) {
     return null;
   }
 
+  const fallbackName = resolveTamerNamePriority({ currentUser });
+  let tamerName = fallbackName || null;
+
+  if (currentUser.uid) {
+    try {
+      tamerName = (await getTamerName(currentUser.uid, fallbackName)) || fallbackName || null;
+    } catch (error) {
+      console.warn("마스터 데이터 저장자 이름 로드 오류:", error);
+    }
+  }
+
   return {
     uid: currentUser.uid,
+    tamerName,
     displayName: currentUser.displayName || null,
     email: currentUser.email || null,
   };
@@ -201,7 +214,7 @@ export function MasterDataProvider({ children }) {
       return normalizedAfter;
     }
 
-    const actor = buildActor(currentUser);
+    const actor = await resolveMasterDataActor(currentUser);
     const activeRef = doc(
       db,
       MASTER_DATA_DOC_PATH.collection,

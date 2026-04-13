@@ -1699,3 +1699,37 @@
 
 ### 아키텍처 결정 근거
 - 가로 액션 뷰어는 이미 진입 버튼이 분리되어 있어서 뷰어 내부에 다시 큰 제목과 빠른 탭을 둘 필요가 낮고, 짧은 높이에서는 그 헤더 블록이 실제 콘텐츠보다 더 큰 부담이 되어 제거하는 편이 UX에 유리합니다.
+
+## 2026-04-13
+
+### 자랑게시판 댓글 작성자명이 최신 테이머명 저장 위치를 우선 보도록 정리
+- 커뮤니티 API의 작성자명 해석이 루트 `users/{uid}` 문서의 `displayName`만 fallback처럼 보던 탓에, 자랑게시판 댓글이 현재 테이머 닉네임 대신 예전 표시 이름으로 저장되던 문제를 수정했습니다.
+- 이제 커뮤니티 작성자명은 `users/{uid}/profile/main`의 `tamerName`을 먼저 읽고, 없을 때만 루트 `tamerName`, `displayName` 순서로 내려가므로 계정 설정 화면과 댓글 표시 기준이 다시 일치합니다.
+
+### 테스트 보강
+- 서버 테스트에 `profile/main`의 `tamerName`이 루트 `displayName`보다 우선되는 회귀 케이스를 추가해, 댓글/게시글 작성자명이 다시 예전 표시 이름으로 저장되지 않도록 확인했습니다.
+
+### 영향받은 파일
+- `api/_lib/community.js`
+- `api/_lib/firebaseAdmin.js`
+- `tests/community-lib.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 현재 테이머 닉네임의 canonical source가 `users/{uid}/profile/main`인 상태에서 커뮤니티 API만 루트 `displayName`을 기준으로 보면 화면별 이름 규칙이 갈라지므로, 커뮤니티 저장 경로도 `profile/main 우선 + root fallback`으로 맞추는 편이 저장 계약 일관성과 사용자 기대 모두에 더 안전합니다.
+
+### 관리자 마스터데이터 저장 로그도 현재 테이머명 기준으로 정리
+- 마스터데이터 스냅샷/활성 메타의 `updatedBy`, `createdBy`가 Firebase Auth `displayName`만 저장하던 흐름을 정리하고, 저장 시점에 `profile/main` 기준 `tamerName`을 먼저 읽어 함께 기록하도록 바꿨습니다.
+- 마스터데이터 패널의 저장자 표시는 새 로그의 `tamerName`을 우선 보여주고, 과거 로그는 기존 `displayName/email/uid` fallback으로 그대로 읽도록 호환성을 유지했습니다.
+
+### 테스트 보강
+- `MasterDataContext.test.jsx`를 추가해 저장자 actor가 `getTamerName()` 결과를 우선 반영하는지, 조회 실패 시에도 기존 fallback 이름으로 안전하게 내려가는지 확인했습니다.
+
+### 영향받은 파일
+- `src/contexts/MasterDataContext.jsx`
+- `src/contexts/MasterDataContext.test.jsx`
+- `src/components/DigimonMasterDataPanel.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 관리자 로그도 커뮤니티/아레나와 같은 이름 우선순위를 따르지 않으면 동일 계정이 화면마다 다른 이름으로 남기 때문에, 저장 시 actor 메타에 `tamerName`을 명시적으로 함께 기록해 두는 편이 이후 조회 성능과 과거 로그 호환성 모두에 유리합니다.

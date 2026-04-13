@@ -62,12 +62,12 @@ const STAT_FIELDS = [
   { key: "basePower", type: "number" },
 ];
 
-function formatActor(actor) {
+export function formatMasterDataActor(actor) {
   if (!actor) {
     return "기록 없음";
   }
 
-  return actor.displayName || actor.email || actor.uid || "알 수 없음";
+  return actor.tamerName || actor.displayName || actor.email || actor.uid || "알 수 없음";
 }
 
 function formatValue(value) {
@@ -638,7 +638,7 @@ export default function DigimonMasterDataPanel() {
                 마지막 저장: {formatMasterTimestamp(masterDataMeta.updatedAt)}
               </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                저장자: {formatActor(masterDataMeta.updatedBy)}
+                저장자: {formatMasterDataActor(masterDataMeta.updatedBy)}
               </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
                 활성 오버라이드: {formatOverrideCounts(overrideCounts)}
@@ -1110,7 +1110,7 @@ export default function DigimonMasterDataPanel() {
                                 {formatMasterTimestamp(snapshot.createdAt)}
                               </p>
                               <p className="text-xs text-slate-400">
-                                저장자: {formatActor(snapshot.createdBy)}
+                                저장자: {formatMasterDataActor(snapshot.createdBy)}
                               </p>
                               <p className="text-xs text-slate-400">
                                 변경 행 수: {summary.totalCount || 0}개

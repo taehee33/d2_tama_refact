@@ -11,6 +11,7 @@ const {
   buildCommunitySnapshotFromPreview,
   createCommunityPost,
   normalizeSlotId,
+  resolveAuthorTamerName,
   translateStageLabel,
   validateCommentInput,
   validatePostInput,
@@ -605,4 +606,73 @@ test("createCommunityPost는 news 발행 권한이 없으면 거부한다", asyn
     }),
     /운영자 권한이 없습니다\./
   );
+});
+
+test("resolveAuthorTamerName는 profile/main의 테이머명을 root displayName보다 우선한다", async () => {
+  const previousProjectId = process.env.REACT_APP_FIREBASE_PROJECT_ID;
+  const previousApiKey = process.env.REACT_APP_FIREBASE_API_KEY;
+  const originalFetch = global.fetch;
+  const requestedUrls = [];
+
+  process.env.REACT_APP_FIREBASE_PROJECT_ID = "demo-project";
+  process.env.REACT_APP_FIREBASE_API_KEY = "demo-api-key";
+
+  global.fetch = async (url) => {
+    const normalizedUrl = String(url);
+    requestedUrls.push(normalizedUrl);
+
+    if (normalizedUrl.includes("/documents/users/user-1/profile/main")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          fields: {
+            tamerName: { stringValue: "태히히" },
+          },
+        }),
+      };
+    }
+
+    if (normalizedUrl.includes("/documents/users/user-1")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          fields: {
+            displayName: { stringValue: "한태희" },
+          },
+        }),
+      };
+    }
+
+    throw new Error(`Unexpected fetch URL: ${normalizedUrl}`);
+  };
+
+  try {
+    const authorName = await resolveAuthorTamerName("user-1", {
+      uid: "user-1",
+      email: "han@example.com",
+      name: "한태희",
+      idToken: "token-123",
+    });
+
+    assert.equal(authorName, "태히히");
+    assert.equal(requestedUrls.length, 2);
+    assert.match(requestedUrls[0], /\/documents\/users\/user-1\/profile\/main$/);
+    assert.match(requestedUrls[1], /\/documents\/users\/user-1$/);
+  } finally {
+    global.fetch = originalFetch;
+
+    if (previousProjectId === undefined) {
+      delete process.env.REACT_APP_FIREBASE_PROJECT_ID;
+    } else {
+      process.env.REACT_APP_FIREBASE_PROJECT_ID = previousProjectId;
+    }
+
+    if (previousApiKey === undefined) {
+      delete process.env.REACT_APP_FIREBASE_API_KEY;
+    } else {
+      process.env.REACT_APP_FIREBASE_API_KEY = previousApiKey;
+    }
+  }
 });
