@@ -5821,3 +5821,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `node --test tests/arena-entrypoints.test.js`
   - `CI=true NODE_OPTIONS=--openssl-legacy-provider npm test -- --watch=false --runInBand --runTestsByPath src/components/AdminModal.test.jsx src/utils/operatorApi.test.js`
   - `NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+## [2026-04-13] 중단 시점 handoff 문서 추가
+
+- **목적:** 결제/세션 종료 전에 현재 안정 중단 포인트와 다음 AI 시작 순서를 별도 문서로 남겨, 다음 세션에서 바로 이어서 작업할 수 있게 정리한다.
+- **변경사항:**
+  - `docs/NEXT_AI_HANDOFF_2026-04-13.md`를 추가해 안정 기준점, 현재 미커밋 WIP, 다음 우선순위, 시작 전 체크리스트를 정리했다.
+  - 특히 현재 워킹트리에 커뮤니티 작성자명 fallback 관련 작은 WIP가 남아 있다는 점과, 다음 큰 리팩터링 타깃이 `useGameData.saveStats`라는 점을 명확히 남겼다.
+- **영향 파일:**
+  - `docs/NEXT_AI_HANDOFF_2026-04-13.md`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - 문서 변경만 수행했으며 별도 런타임 테스트는 실행하지 않음
