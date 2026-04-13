@@ -3,7 +3,7 @@
 ## 한 줄 요약
 - 지금은 **멈춰도 안전한 시점**이다.
 - 안정 기준점은 원격 `main`의 `0ea65b3` `docs: add development workflow guardrails`까지다.
-- 다만 현재 워킹트리에는 **커뮤니티 작성자명 fallback 수정 WIP**와 `.DS_Store` 삭제가 남아 있으니, 다음 AI는 이 부분부터 먼저 정리해야 한다.
+- 다만 현재 워킹트리에는 **커뮤니티 작성자명 fallback 수정 WIP**가 남아 있으니, 다음 AI는 이 부분부터 먼저 정리해야 한다.
 
 ## 지금 멈춰도 되는 이유
 - 최근 대형 리팩터링은 의미 있는 체크포인트마다 커밋/푸시가 끝난 상태다.
@@ -17,7 +17,8 @@
   - [firebaseAdmin.js](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/digimon-tamagotchi-frontend/api/_lib/firebaseAdmin.js)
   - [REFACTORING_LOG.md](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/digimon-tamagotchi-frontend/docs/REFACTORING_LOG.md)
   - [community-lib.test.js](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/tests/community-lib.test.js)
-  - `.DS_Store` 삭제 1건
+- **정리 완료된 loose end:**
+  - `.DS_Store` 삭제는 handoff 문서 커밋에서 함께 정리됐다.
 
 ## 현재 미커밋 WIP의 의미
 - 목적은 **커뮤니티 작성자명 해석을 최신 테이머명 저장 구조와 맞추는 것**이다.
@@ -57,7 +58,7 @@
 - [useGameAnimations.js](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js): 506줄
 
 ## 다음 AI가 먼저 할 일
-1. `git status`로 현재 미커밋 변경이 커뮤니티 fallback WIP + `.DS_Store`인지 확인
+1. `git status`로 현재 미커밋 변경이 커뮤니티 fallback WIP 4파일인지 확인
 2. 이 커뮤니티 WIP를 **별도 작은 커밋으로 마무리할지**, 아니면 **stash/폐기하고 안정 기준점에서 다시 시작할지** 결정
 3. 그 다음 우선순위는 [useGameData.js](/Users/hantaehee/Desktop/파일/개발/프로젝트/디지몬/d2/d2_tama_refact/digimon-tamagotchi-frontend/src/hooks/useGameData.js)의 `saveStats` 분리
 
