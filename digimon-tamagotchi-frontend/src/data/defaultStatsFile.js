@@ -43,11 +43,11 @@ export const defaultStats = {
     // proteinCount 제거됨 - strength로 통합
     proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7, 4개당 +1)
     
-    // 배틀 관련: 총 토탈 (진화 시 유지)
-    totalBattles: 0, // 전체 생애 동안의 총 배틀 횟수
-    totalBattlesWon: 0, // 전체 생애 동안의 총 승리 횟수
-    totalBattlesLost: 0, // 전체 생애 동안의 총 패배 횟수
-    totalWinRate: 0, // 전체 생애 동안의 총 승률 (%)
+    // 배틀 관련: 이번 생애 누적 (진화 시 유지, 새로운 시작 시 초기화)
+    totalBattles: 0, // 이번 생애 동안의 총 배틀 횟수
+    totalBattlesWon: 0, // 이번 생애 동안의 총 승리 횟수
+    totalBattlesLost: 0, // 이번 생애 동안의 총 패배 횟수
+    totalWinRate: 0, // 이번 생애 동안의 총 승률 (%)
     
     // 배틀 관련: 현재 디지몬 (진화 시 리셋)
     battles: 0, // 현재 디지몬일 때의 배틀 횟수 (진화 조건용)

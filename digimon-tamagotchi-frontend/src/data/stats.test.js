@@ -91,6 +91,26 @@ describe("initializeStats", () => {
     expect(result.injuredAt).toBeNull();
   });
 
+  test("일반 진화에서는 이번 생애 누적 배틀 기록을 유지한다", () => {
+    const result = initializeStats(
+      "Agumon",
+      {
+        birthTime: Date.parse("2026-03-31T00:00:00.000Z"),
+        totalBattles: 7,
+        totalBattlesWon: 5,
+        totalBattlesLost: 2,
+        totalWinRate: 71,
+        totalReincarnations: 1,
+      },
+      initializeDataMap
+    );
+
+    expect(result.totalBattles).toBe(7);
+    expect(result.totalBattlesWon).toBe(5);
+    expect(result.totalBattlesLost).toBe(2);
+    expect(result.totalWinRate).toBe(71);
+  });
+
   test("새로운 시작에서는 누적 부상 횟수를 0으로 초기화한다", () => {
     const result = initializeStats(
       "Digitama",
@@ -99,6 +119,10 @@ describe("initializeStats", () => {
         injuries: 4,
         isInjured: true,
         injuredAt: Date.parse("2026-04-01T08:00:00.000Z"),
+        totalBattles: 9,
+        totalBattlesWon: 6,
+        totalBattlesLost: 3,
+        totalWinRate: 67,
         totalReincarnations: 2,
       },
       initializeDataMap
@@ -107,6 +131,10 @@ describe("initializeStats", () => {
     expect(result.injuries).toBe(0);
     expect(result.isInjured).toBe(false);
     expect(result.injuredAt).toBeNull();
+    expect(result.totalBattles).toBe(0);
+    expect(result.totalBattlesWon).toBe(0);
+    expect(result.totalBattlesLost).toBe(0);
+    expect(result.totalWinRate).toBe(0);
   });
 });
 

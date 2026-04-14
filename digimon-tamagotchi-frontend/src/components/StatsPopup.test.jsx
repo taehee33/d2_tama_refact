@@ -82,6 +82,54 @@ describe("StatsPopup OLD 탭 부상 상태 토글", () => {
 });
 
 describe("StatsPopup NEW 탭 케어미스/부상 안내", () => {
+  test("이번 생애 배틀 기록 문구와 누적 전적을 표시한다", () => {
+    render(
+      <StatsPopup
+        stats={{
+          fullness: 1,
+          maxOverfeed: 3,
+          timeToEvolveSeconds: 3600,
+          lifespanSeconds: 0,
+          age: 0,
+          sprite: 100,
+          evolutionStage: "child",
+          weight: 3,
+          careMistakes: 0,
+          strength: 1,
+          effort: 0,
+          winRate: 50,
+          battles: 2,
+          battlesWon: 1,
+          battlesLost: 1,
+          totalBattles: 5,
+          totalBattlesWon: 3,
+          totalBattlesLost: 2,
+          energy: 0,
+          poopCount: 0,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 60,
+          strengthTimer: 60,
+          poopTimer: 60,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 1 }}
+        digimonDataMap={{}}
+        selectedDigimonId="Agumon"
+        slotVersion="Ver.1"
+        onClose={jest.fn()}
+        devMode={false}
+        onChangeStats={jest.fn()}
+        sleepStatus="AWAKE"
+        isLightsOn={false}
+      />
+    );
+
+    expect(screen.getByText("배틀 기록 (이번 생애):")).toBeInTheDocument();
+    expect(screen.getByText("총 배틀: 5 (승: 3, 패: 2)")).toBeInTheDocument();
+    expect(screen.getByText("총 승률: 60%")).toBeInTheDocument();
+  });
+
   test("Care Mistakes를 현재 활성 기준으로 안내한다", () => {
     render(
       <StatsPopup

@@ -1411,7 +1411,7 @@ export default function StatsPopup({
           <li className="ml-2">배틀: {battles || 0} (승: {battlesWon || 0}, 패: {battlesLost || 0})</li>
           <li className="ml-2">승률: {battles > 0 ? Math.round((battlesWon / battles) * 100) : 0}%</li>
           <li className="mt-2 pt-1 border-t">
-            <strong>배틀 기록 (전체 생애):</strong>
+            <strong>배틀 기록 (이번 생애):</strong>
           </li>
           <li className="ml-2">총 배틀: {totalBattles || 0} (승: {totalBattlesWon || 0}, 패: {totalBattlesLost || 0})</li>
           <li className="ml-2">총 승률: {totalBattles > 0 ? Math.round((totalBattlesWon / totalBattles) * 100) : 0}%</li>

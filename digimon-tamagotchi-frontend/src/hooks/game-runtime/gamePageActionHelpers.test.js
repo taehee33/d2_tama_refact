@@ -22,6 +22,10 @@ describe("gamePageActionHelpers", () => {
         totalReincarnations: 2,
         normalReincarnations: 1,
         perfectReincarnations: 4,
+        totalBattles: 12,
+        totalBattlesWon: 8,
+        totalBattlesLost: 4,
+        totalWinRate: 67,
         isDead: true,
         age: 99,
         poopCount: 5,
@@ -47,6 +51,10 @@ describe("gamePageActionHelpers", () => {
     expect(nextStats.poopCount).toBe(0);
     expect(nextStats.isInjured).toBe(false);
     expect(nextStats.injuries).toBe(0);
+    expect(nextStats.totalBattles).toBe(0);
+    expect(nextStats.totalBattlesWon).toBe(0);
+    expect(nextStats.totalBattlesLost).toBe(0);
+    expect(nextStats.totalWinRate).toBe(0);
     expect(nextStats.lastSavedAt).toBeInstanceOf(Date);
   });
 

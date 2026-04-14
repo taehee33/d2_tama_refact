@@ -1,5 +1,30 @@
 # REFACTORING LOG
 
+## 2026-04-14
+
+### 환생 시 이번 생애 배틀 기록만 새로 시작하도록 정리
+- `src/data/stats.js`의 `initializeStats()`에서 스타터 디지타마로 돌아가는 `새로운 시작` 분기일 때만 `totalBattles`, `totalBattlesWon`, `totalBattlesLost`, `totalWinRate`를 `0`으로 초기화하도록 조정했습니다.
+- 일반 진화와 사망 직후 오하카다몬 전환에서는 기존처럼 누적 전적을 유지하고, `🥚 새로운 시작`을 눌러 디지타마로 다시 시작할 때만 이번 생애 기준으로 전적이 리셋되도록 의미를 맞췄습니다.
+- 상태창 `StatsPopup`의 섹션 제목도 `배틀 기록 (전체 생애)`에서 `배틀 기록 (이번 생애)`로 바꿔, 실제 저장 규칙과 UI 설명이 어긋나지 않게 정리했습니다.
+- 기본 스탯 주석도 이번 생애 기준 의미로 함께 수정해 이후 유지보수 시 필드 해석이 흔들리지 않도록 맞췄습니다.
+
+### 테스트 보강
+- `src/data/stats.test.js`에 일반 진화 시 `totalBattles*` 유지, 새로운 시작 시 `totalBattles*`와 `totalWinRate` 초기화 케이스를 추가했습니다.
+- `src/hooks/game-runtime/gamePageActionHelpers.test.js`에 `buildResetDigimonState()`가 새로운 시작 결과에서 누적 배틀 기록을 0으로 넘기는지 확인하는 기대값을 추가했습니다.
+- `src/components/StatsPopup.test.jsx`에 `배틀 기록 (이번 생애)` 문구와 누적 전적 표시를 검증하는 렌더 케이스를 추가했습니다.
+
+### 영향받은 파일
+- `src/data/defaultStatsFile.js`
+- `src/data/stats.js`
+- `src/data/stats.test.js`
+- `src/hooks/game-runtime/gamePageActionHelpers.test.js`
+- `src/components/StatsPopup.jsx`
+- `src/components/StatsPopup.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- `totalBattles*`는 진화 조건용 현재 디지몬 전적(`battles*`)과 달리 같은 생애 안에서는 누적되어야 하지만, 환생 이후까지 계속 남아 있으면 상태창 문구와 사용자의 기대가 어긋납니다. 그래서 저장 스키마 이름은 유지하되, “진화 동안 유지되고 새로운 시작에서만 초기화되는 이번 생애 누적값”으로 의미를 재정렬하는 편이 가장 좁고 안전한 수정입니다.
+
 ## 2026-04-11
 
 ### 신규 도감 저장을 `version docs + root metadata` 구조로 조정

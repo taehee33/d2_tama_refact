@@ -116,6 +116,11 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     // 새로운 시작: 기본 스탯 설정
     merged.fullness = 0;
     merged.strength = 0;
+    // 새로운 시작: 이번 생애 누적 배틀 기록 초기화
+    merged.totalBattles = 0;
+    merged.totalBattlesWon = 0;
+    merged.totalBattlesLost = 0;
+    merged.totalWinRate = 0;
     // 새로운 시작: 똥 초기화
     merged.poopCount = 0;
     merged.poopReachedMaxAt = null;
@@ -169,11 +174,19 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // Energy는 진화 시 리셋되므로, resetStats에서 이미 0으로 설정된 값을 사용
   merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
   
-  // 총 토탈 배틀 값 (진화 시 유지)
-  merged.totalBattles = oldStats.totalBattles !== undefined ? oldStats.totalBattles : (merged.totalBattles || 0);
-  merged.totalBattlesWon = oldStats.totalBattlesWon !== undefined ? oldStats.totalBattlesWon : (merged.totalBattlesWon || 0);
-  merged.totalBattlesLost = oldStats.totalBattlesLost !== undefined ? oldStats.totalBattlesLost : (merged.totalBattlesLost || 0);
-  merged.totalWinRate = oldStats.totalWinRate !== undefined ? oldStats.totalWinRate : (merged.totalWinRate || 0);
+  // 이번 생애 누적 배틀 값 (진화 시 유지, 새로운 시작 시 초기화)
+  merged.totalBattles = isNewStart
+    ? 0
+    : (oldStats.totalBattles !== undefined ? oldStats.totalBattles : (merged.totalBattles || 0));
+  merged.totalBattlesWon = isNewStart
+    ? 0
+    : (oldStats.totalBattlesWon !== undefined ? oldStats.totalBattlesWon : (merged.totalBattlesWon || 0));
+  merged.totalBattlesLost = isNewStart
+    ? 0
+    : (oldStats.totalBattlesLost !== undefined ? oldStats.totalBattlesLost : (merged.totalBattlesLost || 0));
+  merged.totalWinRate = isNewStart
+    ? 0
+    : (oldStats.totalWinRate !== undefined ? oldStats.totalWinRate : (merged.totalWinRate || 0));
   
   // 환생 횟수 (진화 시 유지)
   merged.totalReincarnations = oldStats.totalReincarnations !== undefined ? oldStats.totalReincarnations : (merged.totalReincarnations || 0);
