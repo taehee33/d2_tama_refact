@@ -24,6 +24,8 @@ import {
   SLOTS_PER_MASTER,
   getAchievementsAndMaxSlots,
 } from "../../utils/userProfileUtils";
+import HomeScreenInstallSection from "../HomeScreenInstallSection";
+import usePwaInstallPrompt from "../../hooks/usePwaInstallPrompt";
 
 function getDefaultTamerName(currentUser) {
   return resolveTamerNamePriority({
@@ -62,9 +64,12 @@ function AccountSettingsPanel({
   tamerName: parentTamerName = "",
   setTamerName: setTamerNameParent,
   refreshProfile,
+  installSectionId = "install",
+  focusSection = null,
 }) {
   const { currentUser } = useAuth();
   const { themeId, setTheme, isThemeLoading } = useTheme();
+  const installPrompt = usePwaInstallPrompt();
   const [loading, setLoading] = useState(true);
   const [tamerName, setTamerName] = useState(parentTamerName || "");
   const [tamerNameInput, setTamerNameInput] = useState(parentTamerName || "");
@@ -445,6 +450,19 @@ function AccountSettingsPanel({
           </p>
         )}
       </div>
+
+      <HomeScreenInstallSection
+        id={installSectionId}
+        autoFocusOnMount={focusSection === "install"}
+        sectionClassName="service-inline-panel"
+        headerClassName="service-field"
+        headingTag="span"
+        titleClassName="block font-semibold text-slate-700"
+        descriptionClassName="service-muted"
+        description="자주 쓰는 기기라면 앱처럼 빠르게 다시 열 수 있습니다. iPhone과 iPad에서는 수동 설치 방법을 안내합니다."
+        buttonClassName="service-button service-button--primary w-full sm:w-auto"
+        installState={installPrompt}
+      />
 
       <div className="service-inline-panel">
         <div className="service-field">

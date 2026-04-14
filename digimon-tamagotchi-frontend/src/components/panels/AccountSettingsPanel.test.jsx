@@ -12,6 +12,7 @@ const mockGetUserSettings = jest.fn();
 const mockGetAchievementsAndMaxSlots = jest.fn();
 const mockRefreshProfile = jest.fn();
 const mockSetTamerNameParent = jest.fn();
+const mockUsePwaInstallPrompt = jest.fn();
 let consoleErrorSpy;
 
 jest.mock("../../contexts/AuthContext", () => ({
@@ -32,6 +33,11 @@ jest.mock("../../contexts/ThemeContext", () => ({
 
 jest.mock("../../hooks/useTamerProfile", () => ({
   emitTamerProfileRefresh: jest.fn(),
+}));
+
+jest.mock("../../hooks/usePwaInstallPrompt", () => ({
+  __esModule: true,
+  default: () => mockUsePwaInstallPrompt(),
 }));
 
 jest.mock("../../utils/tamerNameUtils", () => {
@@ -61,13 +67,14 @@ jest.mock("../../utils/userProfileUtils", () => ({
   getAchievementsAndMaxSlots: (...args) => mockGetAchievementsAndMaxSlots(...args),
 }));
 
-function renderPanel() {
+function renderPanel(props = {}) {
   return render(
     <AccountSettingsPanel
       slotCount={1}
       tamerName="한솔"
       setTamerName={mockSetTamerNameParent}
       refreshProfile={mockRefreshProfile}
+      {...props}
     />
   );
 }
@@ -88,6 +95,7 @@ describe("AccountSettingsPanel", () => {
     mockRefreshProfile.mockReset();
     mockRefreshProfile.mockResolvedValue(undefined);
     mockSetTamerNameParent.mockReset();
+    mockUsePwaInstallPrompt.mockReset();
 
     mockGetTamerName.mockResolvedValue("한솔");
     mockGetUserSettings.mockResolvedValue({
@@ -98,6 +106,15 @@ describe("AccountSettingsPanel", () => {
     mockGetAchievementsAndMaxSlots.mockResolvedValue({
       achievements: [],
       maxSlots: 10,
+    });
+    mockUsePwaInstallPrompt.mockReturnValue({
+      isInstalled: false,
+      isInstallable: false,
+      isIOS: false,
+      isActionable: false,
+      showIOSInstructions: false,
+      openInstallPrompt: jest.fn(),
+      setShowIOSInstructions: jest.fn(),
     });
   });
 
@@ -113,6 +130,29 @@ describe("AccountSettingsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "한솔이의 노트북" }));
 
     await waitFor(() => expect(mockSetTheme).toHaveBeenCalledWith("notebook"));
+  });
+
+  test("설정 패널에 홈화면에 추가 섹션을 설치 anchor와 함께 렌더링한다", async () => {
+    mockUsePwaInstallPrompt.mockReturnValue({
+      isInstalled: false,
+      isInstallable: true,
+      isIOS: false,
+      isActionable: true,
+      showIOSInstructions: false,
+      openInstallPrompt: jest.fn(),
+      setShowIOSInstructions: jest.fn(),
+    });
+
+    const { container } = renderPanel({
+      installSectionId: "install",
+      focusSection: "install",
+    });
+
+    await waitFor(() => expect(screen.getByText("화면 테마")).toBeInTheDocument());
+
+    expect(screen.getByRole("region", { name: "홈화면에 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "📱 홈화면에 추가" })).toBeInTheDocument();
+    expect(container.querySelector("#install")).toBeInTheDocument();
   });
 
   test("중복 확인 시 연속 공백을 1칸으로 정규화하고 안내 문구를 보여준다", async () => {

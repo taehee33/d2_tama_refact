@@ -15,12 +15,14 @@ import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
+import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
 
 function Home() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const { displayTamerName, achievements, maxSlots } = useTamerProfile();
   const { slots, loading, recentSlot, recentSlots = [] } = useUserSlots({ maxSlots });
+  const { isActionable: isInstallActionable } = usePwaInstallPrompt();
   const visibleRecentSlots = recentSlots.length > 0 ? recentSlots : slots;
 
   if (!currentUser) {
@@ -121,6 +123,12 @@ function Home() {
               <strong>테이머(설정)</strong>
               <span>내 디지몬과 도감, 계정 설정으로 바로 이동</span>
             </Link>
+            {isInstallActionable ? (
+              <Link className="service-action-card" to="/me/settings#install">
+                <strong>홈화면에 추가</strong>
+                <span>설치 가능한 기기라면 앱처럼 빠르게 다시 열 수 있도록 안내를 확인합니다.</span>
+              </Link>
+            ) : null}
             <Link className="service-action-card" to="/guide">
               <strong>가이드</strong>
               <span>진화 루트와 게임 팁 다시 보기</span>

@@ -2,6 +2,38 @@
 
 ## 2026-04-14
 
+### 홈화면에 추가 노출을 계정 설정 중심으로 재배치
+- `플레이 > 설정` 모달에만 있던 `홈화면에 추가` UI를 `테이머(설정) > 계정 설정`에도 정식 섹션으로 올렸습니다.
+- 설치 가능 여부, iOS 수동 설치 안내, 설치 완료 상태 판단은 `src/hooks/usePwaInstallPrompt.js`로 공통화하고, 실제 렌더는 `src/components/HomeScreenInstallSection.jsx`에서 재사용하도록 정리했습니다.
+- `SettingsModal.jsx`는 기존 full UI를 유지하되 공통 hook/섹션을 사용하도록 바꿨고, `AccountSettingsPanel.jsx`는 화면 테마 다음에 같은 설치 섹션을 추가해 계정/기기 설정 문맥과 맞췄습니다.
+- `Settings.jsx`는 `/me/settings#install` deep link를 받아 설치 섹션으로 포커스할 수 있게 연결하고, 상단 설명도 `홈화면에 추가`를 포함하는 현재 정보 구조로 갱신했습니다.
+- `Home.jsx`의 `빠른 이동 > 다음 단계`에는 설치 가능한 브라우저(iOS 포함)에서만 보이는 보조 CTA를 추가하고, 클릭 시 설치 프롬프트를 직접 띄우지 않고 `/me/settings#install`로 안내하도록 정리했습니다.
+
+### 테스트 보강
+- `src/hooks/usePwaInstallPrompt.test.js`에 `beforeinstallprompt`, `appinstalled`, iOS Safari, iOS standalone, unsupported 브라우저 판정 케이스를 추가했습니다.
+- `src/components/HomeScreenInstallSection.test.jsx`에 설치 완료, 설치 가능, iOS 안내, unsupported 렌더 상태를 각각 검증하는 테스트를 추가했습니다.
+- `src/components/panels/AccountSettingsPanel.test.jsx`, `src/pages/Home.test.jsx`, `src/pages/Settings.test.jsx`를 갱신해 새 설치 섹션 렌더, 홈 보조 CTA 조건부 노출, settings hash 전달 경로를 확인했습니다.
+
+### 영향받은 파일
+- `src/hooks/usePwaInstallPrompt.js`
+- `src/hooks/usePwaInstallPrompt.test.js`
+- `src/components/HomeScreenInstallSection.jsx`
+- `src/components/HomeScreenInstallSection.test.jsx`
+- `src/components/SettingsModal.jsx`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `src/components/panels/AccountSettingsPanel.test.jsx`
+- `src/pages/Home.jsx`
+- `src/pages/Home.test.jsx`
+- `src/pages/Settings.jsx`
+- `src/pages/Settings.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- `홈화면에 추가`는 플레이 중 개별 슬롯 설정보다 계정/기기 차원의 성격이 더 강해서 서비스 설정에 정식 위치를 두는 편이 문맥상 자연스럽습니다.
+- 동시에 플레이 안에서도 사용자가 바로 찾을 수 있어야 하므로 기존 UI는 유지하되, 설치 상태 판정과 안내 문구를 공통 hook/컴포넌트로 묶어 중복 로직 없이 같은 동작을 보장하는 편이 더 안전합니다.
+
+## 2026-04-14
+
 ### 환생 시 이번 생애 배틀 기록만 새로 시작하도록 정리
 - `src/data/stats.js`의 `initializeStats()`에서 스타터 디지타마로 돌아가는 `새로운 시작` 분기일 때만 `totalBattles`, `totalBattlesWon`, `totalBattlesLost`, `totalWinRate`를 `0`으로 초기화하도록 조정했습니다.
 - 일반 진화와 사망 직후 오하카다몬 전환에서는 기존처럼 누적 전적을 유지하고, `🥚 새로운 시작`을 눌러 디지타마로 다시 시작할 때만 이번 생애 기준으로 전적이 리셋되도록 의미를 맞췄습니다.

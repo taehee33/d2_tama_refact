@@ -17,6 +17,7 @@ const mockUseUserSlots = jest.fn();
 const mockGetSlotDisplayName = jest.fn();
 const mockGetSlotStageLabel = jest.fn();
 const mockGetSlotSpriteSrc = jest.fn();
+const mockUsePwaInstallPrompt = jest.fn();
 
 jest.mock("react-router-dom", () => ({
   __esModule: true,
@@ -50,6 +51,11 @@ jest.mock("../hooks/useUserSlots", () => ({
   default: () => mockUseUserSlots(),
 }));
 
+jest.mock("../hooks/usePwaInstallPrompt", () => ({
+  __esModule: true,
+  default: () => mockUsePwaInstallPrompt(),
+}));
+
 jest.mock("../utils/slotViewUtils", () => ({
   getSlotDisplayName: (...args) => mockGetSlotDisplayName(...args),
   getSlotStageLabel: (...args) => mockGetSlotStageLabel(...args),
@@ -72,6 +78,9 @@ describe("Home 테마 진입점", () => {
       slots: [],
       loading: false,
       recentSlot: null,
+    });
+    mockUsePwaInstallPrompt.mockReturnValue({
+      isActionable: false,
     });
     mockGetSlotDisplayName.mockReturnValue("볼몬");
     mockGetSlotStageLabel.mockReturnValue("유아기");
@@ -155,5 +164,26 @@ describe("Home 테마 진입점", () => {
 
     const notebookLink = screen.getByRole("link", { name: /노트북/ });
     expect(notebookLink).toHaveAttribute("href", "/notebook");
+  });
+
+  test("홈에서는 설치 가능한 경우에만 홈화면에 추가 카드가 보인다", () => {
+    mockUsePwaInstallPrompt.mockReturnValue({
+      isActionable: true,
+    });
+
+    render(<Home />);
+
+    const installLink = screen.getByRole("link", { name: /홈화면에 추가/ });
+    expect(installLink).toHaveAttribute("href", "/me/settings#install");
+  });
+
+  test("홈에서는 이미 설치되었거나 지원되지 않으면 설치 카드를 숨긴다", () => {
+    mockUsePwaInstallPrompt.mockReturnValue({
+      isActionable: false,
+    });
+
+    render(<Home />);
+
+    expect(screen.queryByRole("link", { name: /홈화면에 추가/ })).not.toBeInTheDocument();
   });
 });

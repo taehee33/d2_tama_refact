@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AccountSettingsPanel from "../components/panels/AccountSettingsPanel";
 import { useAuth } from "../contexts/AuthContext";
 import useTamerProfile from "../hooks/useTamerProfile";
@@ -7,6 +7,7 @@ import useUserSlots from "../hooks/useUserSlots";
 
 function Settings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout } = useAuth();
   const {
     tamerName,
@@ -19,6 +20,7 @@ function Settings() {
   const [isLogoutConfirming, setIsLogoutConfirming] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [logoutError, setLogoutError] = useState("");
+  const focusSection = location.hash === "#install" ? "install" : null;
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -40,7 +42,7 @@ function Settings() {
         <div className="service-hero__content">
           <p className="service-section-label">설정</p>
           <h1>{displayTamerName}님의 계정 설정</h1>
-          <p>테이머명, 화면 테마, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다.</p>
+          <p>테이머명, 화면 테마, 홈화면에 추가, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다.</p>
           <div className="service-inline-actions">
             <span className="service-badge">{`슬롯 ${slots.length} / ${maxSlots}`}</span>
             <Link className="service-text-link" to="/me">
@@ -53,12 +55,14 @@ function Settings() {
       <div className="service-two-column">
         <div className="service-card service-card--soft">
           <p className="service-section-label">계정</p>
-          <h2>테이머 프로필과 알림</h2>
+          <h2>테이머 프로필과 기기 설정</h2>
           <AccountSettingsPanel
             slotCount={slots.length}
             tamerName={tamerName}
             setTamerName={setTamerName}
             refreshProfile={refreshProfile}
+            installSectionId="install"
+            focusSection={focusSection}
           />
         </div>
 

@@ -5,6 +5,8 @@ import {
   getStarterDigimonIdFromDataMap,
 } from "../utils/digimonVersionUtils";
 import DigimonMasterDataModal from "./DigimonMasterDataModal";
+import HomeScreenInstallSection from "./HomeScreenInstallSection";
+import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
 
 const SettingsModal = ({
   onClose,
@@ -32,15 +34,10 @@ const SettingsModal = ({
   digimonStats,
   slotVersion,
   }) => {
-  // PWA 설치 관련
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showMasterDataModal, setShowMasterDataModal] = useState(false);
   const slotEvolutionDataMap = newDigimonDataVer1;
   const slotRuntimeDataMap = digimonDataVer1;
+  const installPrompt = usePwaInstallPrompt();
   
   // 로컬 상태
   const [localWidth, setLocalWidth] = useState(width);
@@ -60,45 +57,6 @@ const SettingsModal = ({
     setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
     setAspectRatio(height / width); // 비율 업데이트
   }, [width, height, developerMode, encyclopediaShowQuestionMark, ignoreEvolutionTime]);
-
-  // PWA 설치 프롬프트 감지
-  useEffect(() => {
-    // iOS 감지
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    setIsIOS(iOS);
-    
-    // 이미 설치되었는지 확인
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOSStandalone = window.navigator.standalone === true;
-    
-    if (isStandalone || isIOSStandalone) {
-      setIsInstalled(true);
-      return;
-    }
-
-    // beforeinstallprompt 이벤트 감지 (Android Chrome 등)
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // appinstalled 이벤트 감지 (설치 완료)
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setIsInstallable(false);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener('appinstalled', handleAppInstalled);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-    };
-  }, []);
 
   // Width/Height 변경
   const handleLocalWidthChange = (e) => {
@@ -206,43 +164,6 @@ const SettingsModal = ({
     // TODO: timeMode, timeSpeed, customTime 등도 저장 로직
     onClose();
   };
-
-
-  // PWA 설치 처리
-  const handleInstall = async () => {
-    if (isIOS) {
-      // iOS는 수동 안내
-      setShowIOSInstructions(true);
-      return;
-    }
-
-    if (!deferredPrompt) {
-      alert("이 브라우저에서는 설치가 지원되지 않습니다.");
-      return;
-    }
-
-    try {
-      // 프롬프트 표시
-      await deferredPrompt.prompt();
-      
-      // 사용자 선택 대기
-      const { outcome } = await deferredPrompt.userChoice;
-      
-      if (outcome === 'accepted') {
-        console.log('PWA 설치 승인됨');
-        setIsInstalled(true);
-      } else {
-        console.log('PWA 설치 거부됨');
-      }
-      
-      setDeferredPrompt(null);
-      setIsInstallable(false);
-    } catch (error) {
-      console.error('PWA 설치 오류:', error);
-      alert('설치 중 오류가 발생했습니다.');
-    }
-  };
-
   return (
     <>
       <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -440,47 +361,10 @@ const SettingsModal = ({
             </div>
           </div>
 
-          {/* PWA 설치 */}
-          <div className="mb-4 pt-4 border-t border-gray-300">
-            <h3 className="font-semibold mb-2">홈화면에 추가</h3>
-            {isInstalled ? (
-              <div className="p-3 bg-green-100 border border-green-400 rounded text-sm">
-                <p className="text-green-800">✅ 앱이 설치되어 있습니다!</p>
-              </div>
-            ) : isInstallable || isIOS ? (
-              <div className="space-y-2">
-                <button
-                  onClick={handleInstall}
-                  className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold"
-                >
-                  {isIOS ? "📱 iOS 설치 안내" : "📱 홈화면에 추가"}
-                </button>
-                {showIOSInstructions && (
-                  <div className="p-3 bg-blue-50 border border-blue-300 rounded text-sm">
-                    <p className="font-semibold mb-2">iOS Safari 설치 방법:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-gray-700">
-                      <li>하단 공유 버튼(□↑) 탭</li>
-                      <li>"홈 화면에 추가" 선택</li>
-                      <li>"추가" 버튼 탭</li>
-                    </ol>
-                    <button
-                      onClick={() => setShowIOSInstructions(false)}
-                      className="mt-2 text-blue-600 hover:text-blue-800 underline text-xs"
-                    >
-                      닫기
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-3 bg-gray-100 border border-gray-300 rounded text-sm">
-                <p className="text-gray-600">이 브라우저에서는 설치가 지원되지 않습니다.</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Chrome, Edge, Safari 등 최신 브라우저에서 사용 가능합니다.
-                </p>
-              </div>
-            )}
-          </div>
+          <HomeScreenInstallSection
+            sectionClassName="mb-4 pt-4 border-t border-gray-300"
+            installState={installPrompt}
+          />
 
           {/* 디스코드 링크 */}
           <div className="mb-4 pt-4 border-t border-gray-300">
