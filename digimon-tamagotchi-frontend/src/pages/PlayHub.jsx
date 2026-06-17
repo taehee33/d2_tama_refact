@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ADS_ENABLED } from "../constants/ads";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import NewDigimonModal from "../components/play/NewDigimonModal";
@@ -368,10 +369,12 @@ function PlayHub() {
             </div>
           </div>
 
-          <div className="service-ad-stack hidden lg:grid">
-            <AdBanner />
-            <KakaoAd />
-          </div>
+          {ADS_ENABLED ? (
+            <div className="service-ad-stack hidden lg:grid">
+              <AdBanner />
+              <KakaoAd />
+            </div>
+          ) : null}
         </>
       ) : null}
 

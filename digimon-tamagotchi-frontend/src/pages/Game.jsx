@@ -30,6 +30,7 @@ import {
   buildGameAnimationViewModel,
   DEATH_FORM_IDS,
 } from "../hooks/game-runtime/gameAnimationViewModel";
+import { ADS_ENABLED } from "../constants/ads";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import AccountSettingsModal from "../components/AccountSettingsModal";
@@ -1490,7 +1491,7 @@ function Game({ immersive = false }){
 
       {modalsNode}
       
-      {!isImmersive ? (
+      {ADS_ENABLED && !isImmersive ? (
         <>
           {/* Google AdSense 광고 */}
           <AdBanner />

@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-06-16] 광고 기능 플래그 비활성화
+
+### 작업 유형
+- ⚙️ 광고 렌더링 기능 플래그 추가
+- 🚫 기본 광고 외부 스크립트 호출 차단
+
+### 목적 및 영향
+- **목적:** 카카오 애드핏과 Google AdSense 코드를 삭제하지 않고, `REACT_APP_ADS_ENABLED=true`일 때만 광고 영역과 외부 광고 스크립트가 동작하도록 비활성 기본값을 적용한다.
+- **범위:** `/play`, `/play/:slotId`의 광고 렌더링과 AdSense 스크립트 로드 경계에만 적용하며, 게임 상태/저장 계약/lazy update 로직은 변경하지 않는다.
+- **내용:**
+  - `ADS_ENABLED` 상수를 추가해 광고 표시 기준을 `REACT_APP_ADS_ENABLED === "true"`로 통일했다.
+  - `Game`과 `PlayHub`에서 광고 컴포넌트가 기본적으로 마운트되지 않도록 조건부 렌더링을 추가했다.
+  - `public/index.html`의 고정 AdSense 메타/스크립트를 제거하고, `AdBanner`가 렌더링될 때만 AdSense 스크립트를 동적으로 로드하도록 바꿨다.
+  - 향후 광고 재활성화 가능성을 남기기 위해 `KakaoAd`, `AdBanner`, `ads.txt`는 유지했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/constants/ads.js`
+- `digimon-tamagotchi-frontend/src/components/AdBanner.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/public/index.html`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `cd digimon-tamagotchi-frontend && npm test -- --watchAll=false PlayHub.test.jsx GamePageView.test.jsx`
+- `cd digimon-tamagotchi-frontend && npm run build`
+- 참고: `cd digimon-tamagotchi-frontend && npm test -- --watchAll=false`는 `ArenaScreen.test.jsx`의 `resolveTamerNamePriority` mock 누락으로 기존 2개 테스트가 실패했다.
+
 ## [2026-04-12] Firestore 기반 운영자 권한 관리로 전환
 
 ### 작업 유형
