@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-06-19] Ably API 키를 서버 토큰 인증으로 전환
+
+### 작업 유형
+- Ably 전체 API 키의 브라우저 번들 노출 제거
+- Firebase 인증 기반 제한 토큰 발급 API 추가
+- Ably 연결 자동 갱신 및 로그아웃 cleanup 보강
+
+### 목적 및 영향
+- **목적:** `REACT_APP_ABLY_KEY`가 CRA 번들에 포함되는 구조를 제거하고, 전체 키는 Vercel 서버 환경변수 `ABLY_API_KEY`에서만 사용한다.
+- **범위:** 채팅과 Presence의 인증 경계만 변경하며 채널명, 메시지 형식, Supabase 채팅 이력, 게임 저장 계약은 변경하지 않는다.
+- **내용:**
+  - Vercel Hobby 함수 12개 제한을 유지하기 위해 기존 `/api/operator/status` 진입점의 `POST ?action=ably-token` 분기가 Firebase ID 토큰을 검증하고 사용자 프로필에서 테이머명을 결정한다.
+  - 발급 토큰은 `tamer-lobby`의 `publish`, `subscribe`, `presence` 권한과 1시간 TTL만 가진다.
+  - 프런트는 Ably `authCallback`으로 토큰을 요청해 만료 시 자동 갱신한다.
+  - 로그아웃 또는 테이머명 제거 시 기존 Ably 연결을 즉시 닫도록 cleanup을 보강했다.
+  - 배포 환경변수는 `REACT_APP_ABLY_KEY`에서 서버 전용 `ABLY_API_KEY`로 변경해야 한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/ablyAuth.js`
+- `digimon-tamagotchi-frontend/api/_lib/ablyAuth.test.js`
+- `digimon-tamagotchi-frontend/api/operator/status.js`
+- `digimon-tamagotchi-frontend/src/utils/ablyAuthApi.js`
+- `digimon-tamagotchi-frontend/src/utils/ablyAuthApi.test.js`
+- `digimon-tamagotchi-frontend/src/contexts/AblyContext.jsx`
+- `digimon-tamagotchi-frontend/src/components/AblyWrapper.jsx`
+- `docs/ABLY_INTEGRATION.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- `node --test digimon-tamagotchi-frontend/api/_lib/ablyAuth.test.js`
+- `cd digimon-tamagotchi-frontend && CI=true npm test -- --runInBand --watchAll=false src/utils/ablyAuthApi.test.js src/App.test.js`
+- `cd digimon-tamagotchi-frontend && npm run build`
+
 ## [2026-06-16] 광고 기능 플래그 비활성화
 
 ### 작업 유형

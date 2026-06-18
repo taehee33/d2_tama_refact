@@ -4,6 +4,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import * as Ably from 'ably';
 import { AblyProvider } from 'ably/react';
+import { useAuth } from './AuthContext';
+import { createAblyAuthCallback } from '../utils/ablyAuthApi';
 import { isChatCursorNewer, normalizeChatCursor } from '../utils/chatUnreadUtils';
 
 const AblyContext = createContext(null);
@@ -32,12 +34,14 @@ export const usePresenceContext = () => {
 };
 
 export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => {
+  const { currentUser } = useAuth();
   const [ablyClient, setAblyClient] = useState(null);
   const [presenceData, setPresenceData] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastReadCursor, setLastReadCursor] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const clientRef = useRef(null);
+  const clientIdRef = useRef(null);
   const cleanupTimeoutRef = useRef(null);
   const presenceChannelRef = useRef(null);
   
@@ -107,21 +111,25 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   };
 
   useEffect(() => {
-    const ablyKey = process.env.REACT_APP_ABLY_KEY;
-
     // 이전 effect cleanup이 예약해 둔 종료 작업이 있으면 재사용 전에 취소한다.
     if (cleanupTimeoutRef.current) {
       clearTimeout(cleanupTimeoutRef.current);
       cleanupTimeoutRef.current = null;
     }
     
-    if (!ablyKey) {
-      console.warn('REACT_APP_ABLY_KEY가 설정되지 않았습니다. Ably 기능이 비활성화됩니다.');
-      setAblyClient(null);
-      return;
-    }
+    if (!currentUser || !clientId) {
+      if (clientRef.current) {
+        try {
+          clientRef.current.close();
+        } catch (error) {
+          if (!error.message?.includes('closed') && !error.message?.includes('Connection closed')) {
+            console.warn('로그아웃 중 Ably 클라이언트 종료 실패:', error);
+          }
+        }
+        clientRef.current = null;
+        clientIdRef.current = null;
+      }
 
-    if (!clientId) {
       console.log('⏭️ Ably 비활성화: 로그인 사용자용 clientId가 없습니다.');
       setAblyClient(null);
       setPresenceData([]);
@@ -136,7 +144,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
     // 기존 클라이언트가 있고 clientId가 같으면 재사용 (싱글톤 유지)
     if (clientRef.current) {
       try {
-        const currentClientId = clientRef.current.auth?.clientId;
+        const currentClientId = clientIdRef.current;
         const currentConnectionState = clientRef.current.connection?.state;
         if (
           currentClientId === clientId &&
@@ -192,6 +200,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
             }
           }
           clientRef.current = null;
+          clientIdRef.current = null;
           setAblyClient(null);
         }
       } catch (error) {
@@ -211,6 +220,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
           }
         }
         clientRef.current = null;
+        clientIdRef.current = null;
         setAblyClient(null);
       }
     }
@@ -221,13 +231,13 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
       
       // Ably 클라이언트 생성 (싱글톤으로 유지)
       const client = new Ably.Realtime({
-        key: ablyKey,
-        clientId: clientId, // Presence 기능을 위해 필수
+        authCallback: createAblyAuthCallback(currentUser),
         echoMessages: true, // 자신이 보낸 메시지도 수신 (실시간 업데이트 보장)
         autoConnect: true, // 자동 연결
       });
       
       clientRef.current = client;
+      clientIdRef.current = clientId;
       setAblyClient(client);
       console.log('✅ Ably 클라이언트 생성 완료:', clientId);
       console.log('🔍 초기 연결 상태:', client.connection.state);
@@ -310,6 +320,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
             if (connectionState === 'closed' || connectionState === 'failed') {
               console.log('⏭️ 클라이언트가 이미 닫힌 상태:', connectionState);
               clientRef.current = null;
+              clientIdRef.current = null;
               setAblyClient(null);
               return;
             }
@@ -347,6 +358,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
             // 클라이언트 참조 정리
             if (clientRef.current === client) {
               clientRef.current = null;
+              clientIdRef.current = null;
             }
             setAblyClient(null);
           }
@@ -356,7 +368,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
       console.error('❌ Ably 클라이언트 생성 실패:', error);
       setAblyClient(null);
     }
-  }, [clientId]); // tamerName 대신 clientId를 dependency로 사용
+  }, [clientId, currentUser]); // 인증 사용자 또는 테이머명이 바뀌면 연결을 갱신한다.
 
   // Presence 데이터 구독 (클라이언트가 준비된 후)
   useEffect(() => {
@@ -445,8 +457,7 @@ export const AblyContextProvider = ({ children, tamerName, renderChatRoom }) => 
   // Ably 클라이언트가 없으면 children만 렌더링 (AblyProvider 없이)
   // 하지만 renderChatRoom이 있으면 연결 중 메시지 표시
   if (!ablyClient) {
-    const ablyKey = process.env.REACT_APP_ABLY_KEY;
-    const hasKey = !!ablyKey;
+    const hasKey = !!currentUser;
     const hasTamerName = !!tamerName;
     
     return (

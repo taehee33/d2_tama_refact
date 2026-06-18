@@ -24,6 +24,9 @@
 ```
 AblyWrapper
   └─ AblyContextProvider
+      ├─ Firebase ID Token
+      ├─ POST /api/operator/status?action=ably-token
+      │   └─ Ably TokenRequest (tamer-lobby 제한 권한)
       └─ AblyProvider
           └─ ChannelProvider
               └─ ChatRoom
@@ -35,8 +38,9 @@ AblyWrapper
 
 1. **`src/contexts/AblyContext.jsx`**
    - Ably 클라이언트 생성 및 관리
+   - Firebase 인증 기반 Ably token auth 자동 갱신
    - AblyProvider 제공
-   - clientId 설정 (테이머명 사용)
+   - 서버가 확정한 테이머명을 clientId로 사용
 
 2. **`src/components/AblyWrapper.jsx`**
    - AblyContextProvider와 ChannelProvider 래핑
@@ -47,15 +51,22 @@ AblyWrapper
    - 접속자 목록 표시
    - Presence 상태 관리
 
+4. **`api/operator/status.js?action=ably-token`**
+   - Firebase ID 토큰 검증
+   - 사용자 프로필에서 clientId 결정
+   - `tamer-lobby`의 publish/subscribe/presence 권한만 가진 1시간 TokenRequest 발급
+
 ## 설정
 
 ### 환경 변수
 
-`.env` 파일에 다음 변수 추가:
+Vercel 서버 환경변수 또는 `vercel dev`가 읽는 로컬 환경 파일에 다음 변수를 추가:
 
 ```env
-REACT_APP_ABLY_KEY=your_ably_api_key
+ABLY_API_KEY=your_ably_api_key
 ```
+
+`REACT_APP_ABLY_KEY`는 브라우저 번들에 포함되므로 사용하지 않습니다.
 
 ### 패키지 설치
 
@@ -70,8 +81,7 @@ npm install ably
 ```javascript
 // AblyContext.jsx
 const client = new Ably.Realtime({
-  key: ablyKey,
-  clientId: clientId, // 테이머명 사용
+  authCallback: createAblyAuthCallback(currentUser),
 });
 ```
 
@@ -172,37 +182,42 @@ const { channel } = useChannel(CHANNEL_NAME, (message) => {
 
 1. **접속자 수가 0명으로 표시**
    - 브라우저 콘솔에서 `🔑 Ably clientId 설정` 로그 확인
-   - `REACT_APP_ABLY_KEY` 환경 변수 확인
-   - 개발 서버 재시작
+   - `/api/operator/status?action=ably-token` 응답 상태 확인
+   - 서버의 `ABLY_API_KEY` 환경 변수 확인
+   - `vercel dev` 재시작
 
 2. **ChannelProvider 오류**
    - `ChannelProvider`가 `AblyProvider` 내부에 있는지 확인
    - `usePresence`와 `useChannel`에 channelName 전달 확인
 
 3. **연결 실패**
-   - Ably API Key 권한 확인 (Root 키 사용 권장)
+   - 서버의 Ably API Key가 요청된 권한을 위임할 수 있는지 확인
+   - Firebase ID 토큰 검증 상태 확인
    - 네트워크 연결 확인
 
 ## 환경 변수
 
 ### 로컬 개발
 
-`.env` 파일을 생성하고 다음을 추가:
+`vercel dev`에서 읽는 서버 환경 파일에 다음을 추가:
 ```env
-REACT_APP_ABLY_KEY=your_ably_api_key_here
+ABLY_API_KEY=your_ably_api_key_here
 ```
 
-**⚠️ 보안 주의**: 실제 API 키를 코드나 문서에 직접 작성하지 마세요!
+일반 CRA 개발 서버(`npm start`)만 실행하면 `/api/ably/token` 서버리스 함수가 없으므로 채팅 인증은 동작하지 않습니다.
 
 ### 배포 환경 (Vercel)
 
 Vercel 대시보드 > Settings > Environment Variables에 추가:
-- Key: `REACT_APP_ABLY_KEY`
+- Key: `ABLY_API_KEY`
 - Value: Ably API Key (실제 키 값)
+
+기존 `REACT_APP_ABLY_KEY`는 Preview/Production 환경에서 제거합니다.
 
 ## API Key 권한
 
-**중요**: Presence 기능을 사용하려면 **Root 키** 또는 **Publish/Subscribe 권한이 있는 키**가 필요합니다.
+**중요**: 서버의 API 키는 `tamer-lobby`에 publish/subscribe/presence 권한을 위임할 수 있어야 합니다.
+브라우저에는 전체 API 키가 전달되지 않고, 서버가 발급한 1시간 제한 TokenRequest만 전달됩니다.
 
 Subscribe only 키를 사용하면:
 - 메시지 수신은 가능
