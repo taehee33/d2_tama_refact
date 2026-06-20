@@ -51,6 +51,7 @@ export const defaultStats = {
   
   // 사망 관련
   isDead: false,              // 사망 여부
+  diedAt: null,               // 실제 사망 조건을 충족한 시각(ms)
   lastHungerZeroAt: null,    // 배고픔이 0이 된 시간 (절대 기준점, DB 저장·값 있으면 now로 덮어쓰지 않음)
   hungerZeroFrozenDurationMs: 0, // 현재 배고픔 0 타이머에서 제외할 냉장고 누적 시간
   lastStrengthZeroAt: null,  // 힘이 0이 된 시간 (절대 기준점)

@@ -28,13 +28,14 @@ export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSlee
     s.hungerCountdown -= deltaSec;
     
     if (s.hungerCountdown <= 0) {
+      const zeroBoundaryAt = Date.now() + (s.hungerCountdown * 1000);
       // 정상적으로 배고픔 감소
       s.fullness = Math.max(0, s.fullness - 1);
       s.hungerCountdown = hungerCycle * 60;
       
       // 배고픔이 0이 되면 시간 기록
       if (s.fullness === 0 && !s.lastHungerZeroAt) {
-        s.lastHungerZeroAt = Date.now();
+        s.lastHungerZeroAt = zeroBoundaryAt;
         s.hungerZeroFrozenDurationMs = 0;
       }
     }

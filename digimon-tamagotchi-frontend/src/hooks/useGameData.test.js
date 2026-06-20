@@ -97,6 +97,7 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
         nanoseconds: 500000000,
       },
       injuredAt: new Date("2026-04-07T01:23:45.000Z"),
+      diedAt: new Date("2026-04-07T02:00:00.000Z"),
       callStatus: {
         hunger: {
           startedAt: "2026-04-07T03:00:00.000Z",
@@ -106,6 +107,7 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
 
     expect(result.birthTime).toBe(1712559600500);
     expect(result.injuredAt).toBe(Date.parse("2026-04-07T01:23:45.000Z"));
+    expect(result.diedAt).toBe(Date.parse("2026-04-07T02:00:00.000Z"));
     expect(result.callStatus.hunger.startedAt).toBe(
       Date.parse("2026-04-07T03:00:00.000Z")
     );
@@ -450,6 +452,33 @@ describe("buildLazyUpdateRuntimeResult", () => {
 });
 
 describe("resolveActionLazyUpdateRuntimeContext", () => {
+  test("같은 단계가 여러 개면 selectedDigimon 데이터를 우선 사용한다", () => {
+    const dataMap = {
+      Greymon: {
+        evolutionStage: "Adult",
+        stage: "Adult",
+        stats: { maxEnergy: 10, sleepSchedule: { start: 22, end: 6 } },
+      },
+      Devimon: {
+        evolutionStage: "Adult",
+        stage: "Adult",
+        stats: { maxEnergy: 14, sleepSchedule: { start: 1, end: 9 } },
+      },
+    };
+
+    const result = resolveActionLazyUpdateRuntimeContext({
+      digimonStats: { evolutionStage: "Adult" },
+      slotRuntimeDataMap: dataMap,
+      selectedDigimon: "Devimon",
+    });
+
+    expect(result).toEqual({
+      currentDigimonName: "Devimon",
+      sleepSchedule: { start: 1, end: 9 },
+      maxEnergy: 14,
+    });
+  });
+
   test("evolutionStage로 현재 디지몬을 찾아 sleepSchedule과 maxEnergy를 반환한다", () => {
     const dataMap = {
       Agumon: {

@@ -4,6 +4,42 @@
 
 ---
 
+## [2026-06-20] 사망 및 시간 경과 오류 복구 1단계
+
+### 작업 유형
+- 오프라인 사망 시각 계산 및 구 데이터 복구
+- 현재 디지몬 식별 우선순위 수정
+- 백그라운드 실시간 루프의 미처리 시간 보존
+- 사망 원인·시각 저장과 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 앱이 닫힌 동안 배고픔 또는 힘이 0이 된 시각을 정확히 복원하고, 사망 임계 시각과 백그라운드 경과 시간이 누락되지 않도록 한다.
+- **범위:** 기존 lazy update, 런타임 상태, 저장 payload 조립과 테스트 하네스만 수정한다. Firestore 경로·문서 구조와 1초 루프의 저장 구조는 변경하지 않는다.
+- **내용:**
+  - lazy update가 저장 당시 countdown과 수면 구간을 반영해 배고픔·힘이 0이 된 실제 벽시계 시각을 계산하도록 수정했다.
+  - 현재보다 미래인 `lastHungerZeroAt`, `lastStrengthZeroAt`과 관련 호출 시각을 마지막 저장 상태로 복구한다.
+  - 사망 판정 결과를 `{ isDead, reason, diedAt }`으로 확장하고, 시간 기반 사망은 임계점을 통과한 실제 시각을 기록한다. 기존 `deathReason`은 유지한다.
+  - lazy update와 실시간 루프에서 유효한 `selectedDigimon`을 우선 사용하고, 단계 기반 검색은 구 데이터 fallback으로만 유지한다.
+  - 실시간 루프가 한 번에 최대 60초만 처리하되 업데이트 기준 시각을 처리 완료 지점까지만 이동해, 스탯과 수면 경고가 동일한 비중복 구간으로 백그라운드 경과 시간을 모두 따라잡도록 수정했다.
+  - `ArenaScreen`의 불완전 mock과 빌드 경고를 발생시키던 중복 ARIA role을 테스트·빌드 하네스 범위에서 정리했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/logic/stats/death.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/hunger.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/strength.js`
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
+- `digimon-tamagotchi-frontend/src/data/v1/defaultStats.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gamePageActionHelpers.js`
+- 관련 회귀 테스트와 테스트 하네스 파일
+
+### 검증
+- 대상 회귀 테스트: 5개 스위트, 89개 테스트 통과
+- 프런트 전체 테스트: 129개 스위트, 636개 테스트 통과
+- `cd digimon-tamagotchi-frontend && CI=true npm run build` 성공
+
 ## [2026-06-19] Ably API 키를 서버 토큰 인증으로 전환
 
 ### 작업 유형

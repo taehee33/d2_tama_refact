@@ -113,6 +113,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.isInjured = false;
     merged.injuries = 0;
     merged.deathReason = null; // 새로운 시작이면 deathReason 리셋
+    merged.diedAt = null;
     // 새로운 시작: 기본 스탯 설정
     merged.fullness = 0;
     merged.strength = 0;
@@ -328,6 +329,9 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
     s.isDead = true;
     if (deathEvaluation.reason) {
       s.deathReason = deathEvaluation.reason;
+    }
+    if (deathEvaluation.diedAt != null) {
+      s.diedAt = deathEvaluation.diedAt;
     }
   }
 
@@ -669,6 +673,59 @@ function calculateSleepLikeSecondsInRange(startTime, endTime, stats, sleepSchedu
   return analyzeSleepStatesInRange(stats, startTime, endTime, sleepSchedule).sleepLikeSeconds;
 }
 
+function findWallTimeForActiveOffset(startMs, endMs, activeOffsetSeconds, stats, sleepSchedule) {
+  if (activeOffsetSeconds <= 0) return startMs;
+
+  let lowSeconds = 0;
+  let highSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+  while (lowSeconds < highSeconds) {
+    const middleSeconds = Math.floor((lowSeconds + highSeconds) / 2);
+    const middle = startMs + (middleSeconds * 1000);
+    const sleepSeconds = calculateSleepLikeSecondsInRange(
+      startMs,
+      middle,
+      stats,
+      sleepSchedule
+    );
+    const activeSeconds = Math.max(0, middleSeconds - sleepSeconds);
+
+    if (activeSeconds >= activeOffsetSeconds) {
+      highSeconds = middleSeconds;
+    } else {
+      lowSeconds = middleSeconds + 1;
+    }
+  }
+
+  return Math.min(endMs, startMs + (highSeconds * 1000));
+}
+
+function repairFutureZeroTiming(target, nowMs, lastSavedMs, config) {
+  const zeroAt = ensureTimestamp(target[config.zeroAtKey]);
+  if (zeroAt == null || zeroAt <= nowMs || target[config.statKey] !== 0) {
+    return;
+  }
+
+  const cycleSeconds = Math.max(0, Number(target[config.timerKey]) || 0) * 60;
+  const countdownSeconds = Math.min(
+    cycleSeconds,
+    Math.max(0, Number(target[config.countdownKey]) || 0)
+  );
+  const latestBoundaryAt = cycleSeconds > 0
+    ? lastSavedMs - ((cycleSeconds - countdownSeconds) * 1000)
+    : lastSavedMs;
+  const repairedZeroAt = Math.min(nowMs, lastSavedMs, latestBoundaryAt);
+
+  target[config.zeroAtKey] = repairedZeroAt;
+
+  const callEntry = target.callStatus?.[config.callKey];
+  if (callEntry && ensureTimestamp(callEntry.startedAt) > nowMs) {
+    callEntry.startedAt = repairedZeroAt;
+  }
+  if (ensureTimestamp(target[config.deadlineKey]) > nowMs) {
+    target[config.deadlineKey] = repairedZeroAt + (10 * 60 * 1000);
+  }
+}
+
 function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = null) {
   const nextStats = { ...stats };
   migrateLegacyPoopTimers(nextStats);
@@ -792,6 +849,22 @@ export function applyLazyUpdate(
   // 경과 시간만큼 한 번에 업데이트
   let updatedStats = { ...stats };
   migrateLegacyPoopTimers(updatedStats);
+  repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
+    statKey: "fullness",
+    timerKey: "hungerTimer",
+    countdownKey: "hungerCountdown",
+    zeroAtKey: "lastHungerZeroAt",
+    deadlineKey: "hungerMistakeDeadline",
+    callKey: "hunger",
+  });
+  repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
+    statKey: "strength",
+    timerKey: "strengthTimer",
+    countdownKey: "strengthCountdown",
+    zeroAtKey: "lastStrengthZeroAt",
+    deadlineKey: "strengthMistakeDeadline",
+    callKey: "strength",
+  });
   
   // birthTime이 없으면 현재 시간으로 설정
   if (!updatedStats.birthTime) {
@@ -812,6 +885,11 @@ export function applyLazyUpdate(
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.hungerTimer > 0) {
+    const initialFullness = Math.max(0, Number(updatedStats.fullness) || 0);
+    const rawHungerCountdown = Number(updatedStats.hungerCountdown);
+    const initialHungerCountdown = Number.isFinite(rawHungerCountdown)
+      ? Math.max(0, rawHungerCountdown)
+      : updatedStats.hungerTimer * 60;
     if (updatedStats.fullness > 0) {
       updatedStats.lastHungerZeroAt = null;
       updatedStats.hungerZeroFrozenDurationMs = 0;
@@ -841,9 +919,15 @@ export function applyLazyUpdate(
       
       // fullness가 0이 되면 lastHungerZeroAt 기록
       if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
-        // 마지막 저장 시간부터 fullness가 0이 된 시점 계산
-        const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.hungerCountdown) * 1000;
-        updatedStats.lastHungerZeroAt = timeToZero;
+        const activeOffsetSeconds = initialHungerCountdown +
+          (Math.max(0, initialFullness - 1) * updatedStats.hungerTimer * 60);
+        updatedStats.lastHungerZeroAt = findWallTimeForActiveOffset(
+          lastSaved.getTime(),
+          nowMs,
+          activeOffsetSeconds,
+          updatedStats,
+          sleepSchedule
+        );
         updatedStats.hungerZeroFrozenDurationMs = 0;
       }
     }
@@ -851,6 +935,11 @@ export function applyLazyUpdate(
 
   // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.strengthTimer > 0) {
+    const initialStrength = Math.max(0, Number(updatedStats.strength) || 0);
+    const rawStrengthCountdown = Number(updatedStats.strengthCountdown);
+    const initialStrengthCountdown = Number.isFinite(rawStrengthCountdown)
+      ? Math.max(0, rawStrengthCountdown)
+      : updatedStats.strengthTimer * 60;
     if (updatedStats.strength > 0) {
       updatedStats.lastStrengthZeroAt = null;
       updatedStats.strengthZeroFrozenDurationMs = 0;
@@ -881,8 +970,15 @@ export function applyLazyUpdate(
       
       // strength가 0이 되면 lastStrengthZeroAt 기록
       if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
-        const timeToZero = lastSaved.getTime() + (activeSeconds - updatedStats.strengthCountdown) * 1000;
-        updatedStats.lastStrengthZeroAt = timeToZero;
+        const activeOffsetSeconds = initialStrengthCountdown +
+          (Math.max(0, initialStrength - 1) * updatedStats.strengthTimer * 60);
+        updatedStats.lastStrengthZeroAt = findWallTimeForActiveOffset(
+          lastSaved.getTime(),
+          nowMs,
+          activeOffsetSeconds,
+          updatedStats,
+          sleepSchedule
+        );
         updatedStats.strengthZeroFrozenDurationMs = 0;
       }
     }
@@ -1017,6 +1113,9 @@ export function applyLazyUpdate(
       updatedStats.isDead = true;
       if (deathEvaluation.reason) {
         updatedStats.deathReason = deathEvaluation.reason;
+      }
+      if (deathEvaluation.diedAt != null) {
+        updatedStats.diedAt = deathEvaluation.diedAt;
       }
     }
   }

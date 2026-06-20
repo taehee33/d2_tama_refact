@@ -22,6 +22,24 @@ import { buildTickPoopInjuryLogs } from "../../logic/stats/injuryHistory";
 import { evaluateDeathConditions } from "../../logic/stats/death";
 import { buildDigimonLogSnapshot } from "../../utils/digimonLogSnapshot";
 
+export function resolveRealtimeTickWindow(previousTickTimeMs, nowMs, maxStepSeconds = 60) {
+  const availableSeconds = Math.floor((nowMs - previousTickTimeMs) / 1000);
+  if (availableSeconds <= 0) {
+    return {
+      availableSeconds: 0,
+      appliedSeconds: 0,
+      processedThroughMs: previousTickTimeMs,
+    };
+  }
+
+  const appliedSeconds = Math.min(availableSeconds, maxStepSeconds);
+  return {
+    availableSeconds,
+    appliedSeconds,
+    processedThroughMs: previousTickTimeMs + (appliedSeconds * 1000),
+  };
+}
+
 export function useGameRealtimeLoop({
   digimonStats,
   setDigimonStats,
@@ -96,25 +114,28 @@ export function useGameRealtimeLoop({
     const timer = setInterval(() => {
       const now = Date.now();
       const previousTickTimeMs = lastUpdateTimeRef.current;
-      const actualElapsedSeconds = Math.floor(
-        (now - previousTickTimeMs) / 1000
-      );
-      lastUpdateTimeRef.current = now;
+      const tickWindow = resolveRealtimeTickWindow(previousTickTimeMs, now);
+      const actualElapsedSeconds = tickWindow.availableSeconds;
 
       if (actualElapsedSeconds <= 0) {
         return;
       }
 
-      const safeElapsedSeconds = Math.min(actualElapsedSeconds, 60);
+      const safeElapsedSeconds = tickWindow.appliedSeconds;
+      lastUpdateTimeRef.current = tickWindow.processedThroughMs;
 
       setDigimonStats((prevStats) => {
         const live = runtimeRef.current;
 
         if (prevStats.isDead || prevStats.isFrozen) {
+          lastUpdateTimeRef.current = now;
           return prevStats;
         }
 
-        const currentDigimonName = prevStats.evolutionStage
+        const preferredDigimonId = live.selectedDigimon || prevStats.selectedDigimon || null;
+        const currentDigimonName = preferredDigimonId && live.digimonDataForSlot[preferredDigimonId]
+          ? preferredDigimonId
+          : prevStats.evolutionStage
           ? Object.keys(live.digimonDataForSlot).find(
               (key) =>
                 live.digimonDataForSlot[key]?.evolutionStage ===
@@ -130,7 +151,9 @@ export function useGameRealtimeLoop({
           live.digimonDataForSlot,
           prevStats
         );
-        const nowMs = Date.now();
+        // catch-up 중에는 실제 현재 시각이 아니라 이번에 처리한 구간의 끝을 사용한다.
+        // 그래야 수면 경고·낮잠·사망 판정도 스탯과 같은 60초 구간만 처리한다.
+        const nowMs = tickWindow.processedThroughMs;
         const nowDate = new Date(nowMs);
         const currentSleepStatus = getSleepStatus({
           sleepSchedule: schedule,
@@ -201,7 +224,7 @@ export function useGameRealtimeLoop({
             null;
           let nextSleepLightStart = null;
 
-          if (actualElapsedSeconds > 1) {
+          if (safeElapsedSeconds > 1) {
             const sleepLightWarningState =
               resolveSleepLightWarningStateInRange({
                 stats: {
@@ -265,12 +288,15 @@ export function useGameRealtimeLoop({
         setIsSleeping(isSleepingLike);
 
         if (!updatedStats.isDead) {
-          const deathEvaluation = evaluateDeathConditions(updatedStats, Date.now());
+          const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
           if (deathEvaluation.isDead) {
             updatedStats.isDead = true;
             if (deathEvaluation.reason) {
               updatedStats.deathReason = deathEvaluation.reason;
               setDeathReason(deathEvaluation.reason);
+            }
+            if (deathEvaluation.diedAt != null) {
+              updatedStats.diedAt = deathEvaluation.diedAt;
             }
           }
         }

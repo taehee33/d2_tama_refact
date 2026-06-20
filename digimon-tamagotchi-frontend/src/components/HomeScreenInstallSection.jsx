@@ -51,7 +51,6 @@ export default function HomeScreenInstallSection({
     <section
       id={id}
       ref={sectionRef}
-      role="region"
       aria-label={title}
       tabIndex={id || autoFocusOnMount ? -1 : undefined}
       className={sectionClassName}

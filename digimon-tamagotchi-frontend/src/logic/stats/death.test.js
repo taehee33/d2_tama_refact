@@ -34,6 +34,7 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: false,
       reason: null,
+      diedAt: null,
     });
   });
 
@@ -49,6 +50,7 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: true,
       reason: DEATH_REASONS.exhaustion,
+      diedAt: NOW_MS,
     });
   });
 
@@ -65,6 +67,7 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: true,
       reason: DEATH_REASONS.injuryOverload,
+      diedAt: Date.parse("2026-04-01T10:00:00.000Z"),
     });
   });
 
@@ -82,6 +85,7 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: false,
       reason: null,
+      diedAt: null,
     });
   });
 
@@ -100,6 +104,7 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: false,
       reason: null,
+      diedAt: null,
     });
   });
 
@@ -115,6 +120,23 @@ describe("evaluateDeathConditions", () => {
     expect(result).toEqual({
       isDead: true,
       reason: DEATH_REASONS.starvation,
+      diedAt: null,
+    });
+  });
+
+  test("시간 기반 사망은 임계점을 통과한 실제 시각을 반환한다", () => {
+    const result = evaluateDeathConditions(
+      createStats({
+        fullness: 0,
+        lastHungerZeroAt: Date.parse("2026-03-31T23:00:00.000Z"),
+      }),
+      NOW_MS
+    );
+
+    expect(result).toEqual({
+      isDead: true,
+      reason: DEATH_REASONS.starvation,
+      diedAt: Date.parse("2026-04-01T11:00:00.000Z"),
     });
   });
 });

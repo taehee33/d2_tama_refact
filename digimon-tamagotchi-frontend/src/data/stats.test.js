@@ -894,6 +894,10 @@ describe("applyLazyUpdate", () => {
         isInjured: true,
         injuredAt: poopReachedMaxAt,
         injuries: 1,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
       }),
       Date.parse("2026-03-31T03:54:00.000Z")
     );
@@ -1018,6 +1022,7 @@ describe("applyLazyUpdate", () => {
 
     expect(result.isDead).toBe(true);
     expect(result.deathReason).toBe("STARVATION (굶주림)");
+    expect(result.diedAt).toBe(Date.parse("2026-03-31T12:00:00.000Z"));
   });
 
   test("힘 0이 12시간 이상 지속되면 힘 소진 사망 처리한다", () => {
@@ -1031,6 +1036,7 @@ describe("applyLazyUpdate", () => {
 
     expect(result.isDead).toBe(true);
     expect(result.deathReason).toBe("EXHAUSTION (힘 소진)");
+    expect(result.diedAt).toBe(Date.parse("2026-03-31T12:00:00.000Z"));
   });
 
   test("부상이 15회 이상이면 부상 과다 사망 처리한다", () => {
@@ -1071,5 +1077,75 @@ describe("applyLazyUpdate", () => {
 
     expect(result.isDead).toBe(false);
     expect(result.deathReason).toBeUndefined();
+  });
+
+  test("13시간 오프라인 경과에서 배고픔 0 도달 시각과 사망 시각을 과거로 복원한다", () => {
+    const lastSavedAt = Date.parse("2026-03-30T23:00:00.000Z");
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 1,
+        hungerTimer: 60,
+        hungerCountdown: 60,
+        strength: 5,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+      }),
+      lastSavedAt
+    );
+
+    expect(result.lastHungerZeroAt).toBe(Date.parse("2026-03-30T23:01:00.000Z"));
+    expect(result.lastHungerZeroAt).toBeLessThanOrEqual(Date.parse(NOW_ISO));
+    expect(result.isDead).toBe(true);
+    expect(result.deathReason).toBe("STARVATION (굶주림)");
+    expect(result.diedAt).toBe(Date.parse("2026-03-31T11:01:00.000Z"));
+  });
+
+  test("13시간 오프라인 경과에서 힘 0 도달 시각과 사망 시각을 과거로 복원한다", () => {
+    const lastSavedAt = Date.parse("2026-03-30T23:00:00.000Z");
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 5,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strength: 1,
+        strengthTimer: 60,
+        strengthCountdown: 60,
+      }),
+      lastSavedAt
+    );
+
+    expect(result.lastStrengthZeroAt).toBe(Date.parse("2026-03-30T23:01:00.000Z"));
+    expect(result.isDead).toBe(true);
+    expect(result.deathReason).toBe("EXHAUSTION (힘 소진)");
+    expect(result.diedAt).toBe(Date.parse("2026-03-31T11:01:00.000Z"));
+  });
+
+  test("미래 zero timestamp와 호출 기준점을 현재 이전으로 복구한다", () => {
+    const nowMs = Date.parse(NOW_ISO);
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 0,
+        hungerTimer: 60,
+        hungerCountdown: 30 * 60,
+        lastHungerZeroAt: nowMs + (60 * 60 * 1000),
+        hungerMistakeDeadline: nowMs + (70 * 60 * 1000),
+        callStatus: {
+          hunger: { isActive: true, startedAt: nowMs + (60 * 60 * 1000), isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      nowMs - (60 * 60 * 1000)
+    );
+
+    expect(result.lastHungerZeroAt).toBeLessThanOrEqual(nowMs);
+    expect(
+      result.callStatus.hunger.startedAt == null ||
+      result.callStatus.hunger.startedAt <= nowMs
+    ).toBe(true);
+    expect(
+      result.hungerMistakeDeadline == null ||
+      result.hungerMistakeDeadline <= nowMs + (10 * 60 * 1000)
+    ).toBe(true);
   });
 });

@@ -47,6 +47,7 @@ const GAME_TIMESTAMP_KEYS = new Set([
   "frozenAt",
   "takeOutAt",
   "injuredAt",
+  "diedAt",
   "lastHungerZeroAt",
   "lastStrengthZeroAt",
   "hungerMistakeDeadline",
@@ -684,9 +685,13 @@ function resolveDefaultSleepScheduleByStage(stage = "Digitama") {
 export function resolveActionLazyUpdateRuntimeContext({
   digimonStats = {},
   slotRuntimeDataMap = null,
+  selectedDigimon = null,
 } = {}) {
+  const preferredDigimonId = selectedDigimon || digimonStats.selectedDigimon || null;
   const currentDigimonName = slotRuntimeDataMap
-    ? (digimonStats.evolutionStage
+    ? (preferredDigimonId && slotRuntimeDataMap[preferredDigimonId]
+        ? preferredDigimonId
+        : digimonStats.evolutionStage
         ? Object.keys(slotRuntimeDataMap).find(
             (key) => slotRuntimeDataMap[key]?.evolutionStage === digimonStats.evolutionStage
           ) || "Digitama"
@@ -865,6 +870,7 @@ export function useGameData({
       hungerCountdown: newStats.hungerCountdown !== undefined ? newStats.hungerCountdown : undefined,
       // 새로운 시작일 때 사망 관련 필드 보존
       isDead: isNewStart ? false : undefined,
+      diedAt: isNewStart ? null : undefined,
       lastHungerZeroAt: isNewStart ? null : undefined,
       hungerZeroFrozenDurationMs: isNewStart ? 0 : undefined,
       lastStrengthZeroAt: isNewStart ? null : undefined,
@@ -935,6 +941,7 @@ export function useGameData({
       // 새로운 시작일 때 사망 관련 필드 강제 보존
       ...(isNewStart ? {
         isDead: false,
+        diedAt: null,
         lastHungerZeroAt: null,
         hungerZeroFrozenDurationMs: 0,
         lastStrengthZeroAt: null,
@@ -1023,6 +1030,7 @@ export function useGameData({
     const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
       digimonStats,
       slotRuntimeDataMap,
+      selectedDigimon,
     });
 
     // Firebase 로그인 필수
@@ -1087,6 +1095,9 @@ export function useGameData({
       if (reason) {
         updated.deathReason = reason; // digimonStats에 저장
         setDeathReason(reason);
+      }
+      if (deathEvaluation.diedAt != null) {
+        updated.diedAt = deathEvaluation.diedAt;
       }
       // 사망 팝업 표시 (hasSeenDeathPopup은 useGameState에서 관리)
       toggleModal('deathModal', true);

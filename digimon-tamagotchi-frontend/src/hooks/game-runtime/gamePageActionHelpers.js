@@ -16,6 +16,7 @@ export function buildResetDigimonState({
     ...currentStats,
     totalReincarnations: (currentStats.totalReincarnations || 0) + 1,
     isDead: false,
+    diedAt: null,
     age: 0,
     birthTime: nowMs,
     lastHungerZeroAt: null,
@@ -47,6 +48,7 @@ export function buildResetDigimonState({
   );
 
   nextStats.isDead = false;
+  nextStats.diedAt = null;
   nextStats.age = 0;
   nextStats.birthTime = nowMs;
   nextStats.lastSavedAt = new Date(nowMs);

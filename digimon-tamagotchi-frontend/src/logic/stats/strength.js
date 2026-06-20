@@ -28,13 +28,14 @@ export function handleStrengthTick(currentStats, digimonData, deltaSec = 1, isSl
     s.strengthCountdown -= deltaSec;
     
     if (s.strengthCountdown <= 0) {
+      const zeroBoundaryAt = Date.now() + (s.strengthCountdown * 1000);
       // strength -1 (최소 0)
       s.strength = Math.max(0, (s.strength || 0) - 1);
       s.strengthCountdown = strengthCycle * 60;
       
       // 힘이 0이 되면 시간 기록
       if (s.strength === 0 && !s.lastStrengthZeroAt) {
-        s.lastStrengthZeroAt = Date.now();
+        s.lastStrengthZeroAt = zeroBoundaryAt;
         s.strengthZeroFrozenDurationMs = 0;
       }
     }

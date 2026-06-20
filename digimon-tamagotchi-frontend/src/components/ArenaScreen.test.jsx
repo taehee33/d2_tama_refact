@@ -22,6 +22,7 @@ jest.mock("../firebase", () => ({
 }));
 
 jest.mock("../utils/tamerNameUtils", () => ({
+  ...jest.requireActual("../utils/tamerNameUtils"),
   getTamerName: (...args) => mockGetTamerName(...args),
 }));
 

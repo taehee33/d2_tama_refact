@@ -26,6 +26,7 @@ export const defaultStats = {
     overfeeds: 0, // 오버피드 횟수 누적
     consecutiveMeatFed: 0, // 연속으로 먹은 고기 개수 (오버피드 체크용)
     isDead: false,
+    diedAt: null,
     lastHungerZeroAt: null,
     hungerZeroFrozenDurationMs: 0,
     lastStrengthZeroAt: null,

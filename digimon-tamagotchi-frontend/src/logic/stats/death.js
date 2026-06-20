@@ -13,6 +13,10 @@ export const DEATH_THRESHOLDS = {
   injuryOverloadCount: 15,
 };
 
+function buildDeathResult(isDead, reason = null, diedAt = null) {
+  return { isDead, reason, diedAt };
+}
+
 function getElapsedSince(startAt, stats, nowMs, extraExcludedMs = 0) {
   const startMs = toTimestamp(startAt);
   if (startMs == null) return 0;
@@ -26,6 +30,16 @@ function getElapsedSince(startAt, stats, nowMs, extraExcludedMs = 0) {
   );
 }
 
+function getTimedDeathAt(startAt, stats, nowMs, thresholdMs, elapsedMs) {
+  const startMs = toTimestamp(startAt);
+  if (startMs == null) return nowMs;
+
+  const frozenAtMs = stats?.isFrozen ? toTimestamp(stats?.frozenAt) : null;
+  const effectiveEndMs = frozenAtMs != null ? Math.min(nowMs, frozenAtMs) : nowMs;
+  const exceededByMs = Math.max(0, elapsedMs - thresholdMs);
+  return Math.max(startMs, effectiveEndMs - exceededByMs);
+}
+
 export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
   const safeNowMs = toTimestamp(nowMs) ?? Date.now();
 
@@ -37,7 +51,11 @@ export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
       stats?.hungerZeroFrozenDurationMs
     );
     if (elapsedSinceZero >= DEATH_THRESHOLDS.zeroStatMs) {
-      return { isDead: true, reason: DEATH_REASONS.starvation };
+      return buildDeathResult(
+        true,
+        DEATH_REASONS.starvation,
+        getTimedDeathAt(stats.lastHungerZeroAt, stats, safeNowMs, DEATH_THRESHOLDS.zeroStatMs, elapsedSinceZero)
+      );
     }
   }
 
@@ -49,12 +67,21 @@ export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
       stats?.strengthZeroFrozenDurationMs
     );
     if (elapsedSinceZero >= DEATH_THRESHOLDS.zeroStatMs) {
-      return { isDead: true, reason: DEATH_REASONS.exhaustion };
+      return buildDeathResult(
+        true,
+        DEATH_REASONS.exhaustion,
+        getTimedDeathAt(stats.lastStrengthZeroAt, stats, safeNowMs, DEATH_THRESHOLDS.zeroStatMs, elapsedSinceZero)
+      );
     }
   }
 
   if ((stats.injuries || 0) >= DEATH_THRESHOLDS.injuryOverloadCount) {
-    return { isDead: true, reason: DEATH_REASONS.injuryOverload };
+    const injuryOccurredAt = toTimestamp(stats.injuredAt);
+    return buildDeathResult(
+      true,
+      DEATH_REASONS.injuryOverload,
+      injuryOccurredAt != null && injuryOccurredAt <= safeNowMs ? injuryOccurredAt : safeNowMs
+    );
   }
 
   if (stats.isInjured && stats.injuredAt) {
@@ -65,13 +92,17 @@ export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
       stats?.injuryFrozenDurationMs
     );
     if (elapsedSinceInjury >= DEATH_THRESHOLDS.injuryNeglectMs) {
-      return { isDead: true, reason: DEATH_REASONS.injuryNeglect };
+      return buildDeathResult(
+        true,
+        DEATH_REASONS.injuryNeglect,
+        getTimedDeathAt(stats.injuredAt, stats, safeNowMs, DEATH_THRESHOLDS.injuryNeglectMs, elapsedSinceInjury)
+      );
     }
   }
 
   if (stats.isDead) {
-    return { isDead: true, reason: stats.deathReason ?? null };
+    return buildDeathResult(true, stats.deathReason ?? null, toTimestamp(stats.diedAt));
   }
 
-  return { isDead: false, reason: null };
+  return buildDeathResult(false);
 }
