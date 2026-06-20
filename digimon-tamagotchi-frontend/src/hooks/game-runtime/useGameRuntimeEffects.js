@@ -1,4 +1,5 @@
 import { useGameClock } from "./useGameClock";
+import { useGamePeriodicSync } from "./useGamePeriodicSync";
 import { useGameRealtimeLoop } from "./useGameRealtimeLoop";
 import { useGameSaveOnLeave } from "./useGameSaveOnLeave";
 import { useGameSleepStatusLoop } from "./useGameSleepStatusLoop";
@@ -8,6 +9,7 @@ export function useGameRuntimeEffects({
   setCustomTime,
   slotId,
   currentUser,
+  isLoadingSlot,
   digimonStats,
   selectedDigimon,
   digimonDataForSlot,
@@ -30,6 +32,14 @@ export function useGameRuntimeEffects({
   useGameSaveOnLeave({
     slotId,
     currentUser,
+    digimonStats,
+    setDigimonStatsAndSave,
+  });
+
+  useGamePeriodicSync({
+    slotId,
+    currentUser,
+    isLoadingSlot,
     digimonStats,
     setDigimonStatsAndSave,
   });

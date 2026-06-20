@@ -360,6 +360,7 @@ function Game({ immersive = false }){
     setCustomTime,
     slotId,
     currentUser,
+    isLoadingSlot,
     digimonStats,
     selectedDigimon,
     digimonDataForSlot,

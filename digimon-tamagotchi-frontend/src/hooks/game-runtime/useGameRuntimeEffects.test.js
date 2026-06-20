@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { useGameRuntimeEffects } from "./useGameRuntimeEffects";
 
 const mockUseGameClock = jest.fn();
+const mockUseGamePeriodicSync = jest.fn();
 const mockUseGameSaveOnLeave = jest.fn();
 const mockUseGameRealtimeLoop = jest.fn();
 const mockUseGameSleepStatusLoop = jest.fn();
@@ -9,6 +10,10 @@ const mockUseTakeOutCleanup = jest.fn();
 
 jest.mock("./useGameClock", () => ({
   useGameClock: (...args) => mockUseGameClock(...args),
+}));
+
+jest.mock("./useGamePeriodicSync", () => ({
+  useGamePeriodicSync: (...args) => mockUseGamePeriodicSync(...args),
 }));
 
 jest.mock("./useGameSaveOnLeave", () => ({
@@ -30,6 +35,7 @@ jest.mock("./useTakeOutCleanup", () => ({
 describe("useGameRuntimeEffects", () => {
   beforeEach(() => {
     mockUseGameClock.mockReset();
+    mockUseGamePeriodicSync.mockReset();
     mockUseGameSaveOnLeave.mockReset();
     mockUseGameRealtimeLoop.mockReset();
     mockUseGameSleepStatusLoop.mockReset();
@@ -41,6 +47,7 @@ describe("useGameRuntimeEffects", () => {
       setCustomTime: jest.fn(),
       slotId: "1",
       currentUser: { uid: "user-1" },
+      isLoadingSlot: false,
       digimonStats: {
         takeOutAt: 1234,
       },
@@ -64,6 +71,13 @@ describe("useGameRuntimeEffects", () => {
     renderHook(() => useGameRuntimeEffects(options));
 
     expect(mockUseGameClock).toHaveBeenCalledWith(options.setCustomTime);
+    expect(mockUseGamePeriodicSync).toHaveBeenCalledWith({
+      slotId: "1",
+      currentUser: options.currentUser,
+      isLoadingSlot: false,
+      digimonStats: options.digimonStats,
+      setDigimonStatsAndSave: options.setDigimonStatsAndSave,
+    });
     expect(mockUseGameSaveOnLeave).toHaveBeenCalledWith({
       slotId: "1",
       currentUser: options.currentUser,

@@ -1,5 +1,6 @@
 import {
   buildFallbackSlotHydrationResult,
+  createGameSaveQueue,
   buildLazyUpdateRuntimeResult,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
@@ -26,6 +27,48 @@ describe("raiseGameSaveError", () => {
 
     expect(() => raiseGameSaveError(error, setError)).toThrow(error);
     expect(setError).toHaveBeenCalledWith(error);
+  });
+});
+
+describe("createGameSaveQueue", () => {
+  test("겹친 저장을 호출 순서대로 직렬 실행한다", async () => {
+    const queue = createGameSaveQueue();
+    const order = [];
+    let releaseFirst;
+
+    const first = queue.enqueue(async () => {
+      order.push("first:start");
+      await new Promise((resolve) => {
+        releaseFirst = resolve;
+      });
+      order.push("first:end");
+    });
+    const second = queue.enqueue(async () => {
+      order.push("second");
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(queue.isBusy()).toBe(true);
+    expect(order).toEqual(["first:start"]);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(["first:start", "first:end", "second"]);
+    expect(queue.isBusy()).toBe(false);
+  });
+
+  test("앞 저장이 실패해도 다음 저장을 계속 실행한다", async () => {
+    const queue = createGameSaveQueue();
+    const nextTask = jest.fn();
+
+    await expect(
+      queue.enqueue(() => Promise.reject(new Error("첫 저장 실패")))
+    ).rejects.toThrow("첫 저장 실패");
+    await queue.enqueue(nextTask);
+
+    expect(nextTask).toHaveBeenCalledTimes(1);
   });
 });
 

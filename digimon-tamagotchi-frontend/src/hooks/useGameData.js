@@ -1,7 +1,7 @@
 // src/hooks/useGameData.js
 // Game.jsx의 데이터 저장/로딩 로직을 분리한 Custom Hook
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   doc,
   getDoc,
@@ -73,6 +73,26 @@ export function raiseGameSaveError(error, setError) {
     setError(error);
   }
   throw error;
+}
+
+export function createGameSaveQueue() {
+  let tail = Promise.resolve();
+  let pendingCount = 0;
+
+  return {
+    enqueue(task) {
+      pendingCount += 1;
+      const result = tail.catch(() => undefined).then(task);
+      const trackedResult = result.finally(() => {
+        pendingCount = Math.max(0, pendingCount - 1);
+      });
+      tail = trackedResult.catch(() => undefined);
+      return trackedResult;
+    },
+    isBusy() {
+      return pendingCount > 0;
+    },
+  };
 }
 
 /**
@@ -834,6 +854,10 @@ export function useGameData({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const saveQueueRef = useRef(null);
+  if (!saveQueueRef.current) {
+    saveQueueRef.current = createGameSaveQueue();
+  }
   const slotRuntimeDataMap = digimonDataVer1;
   const runtimeAdaptedDataMaps = useMemo(
     () => adaptedDataMapsByVersion || {},
@@ -851,7 +875,7 @@ export function useGameData({
    * @param {Object} newStats - 새로운 스탯
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
    */
-  async function saveStats(newStats, updatedLogs = null) {
+  async function executeSaveStats(newStats, updatedLogs = null) {
     // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
     const isNewStart = newStats.isDead === false && 
                        newStats.evolutionStage === "Digitama" && 
@@ -1025,6 +1049,13 @@ export function useGameData({
       setError(authError);
     }
   }
+
+  function saveStats(newStats, updatedLogs = null) {
+    return saveQueueRef.current.enqueue(() =>
+      executeSaveStats(newStats, updatedLogs)
+    );
+  }
+  saveStats.isInFlight = () => saveQueueRef.current.isBusy();
 
   /**
    * 액션 전에 Lazy Update 적용하는 헬퍼 함수

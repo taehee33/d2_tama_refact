@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-06-20] 15분 클라이언트 보정 및 저장 직렬화 3단계
+
+### 작업 유형
+- 게임 클라이언트 15분 주기 동기화
+- 온라인 복귀 동기화
+- 전체 게임 저장 단일 큐 직렬화
+
+### 목적 및 영향
+- **목적:** 중요 액션 사이의 장시간 플레이 상태를 최대 15분 간격으로 서버에 보정하고, 액션·이탈·주기 저장이 겹칠 때 오래된 스냅샷이 나중에 덮어쓰는 경쟁을 방지한다.
+- **범위:** 브라우저에서 게임 화면이 열린 동안만 실행한다. 서버 cron, outbox, 1초 루프 제거, Firestore 경로·payload 구조 변경은 포함하지 않는다.
+- **내용:**
+  - `useGamePeriodicSync`가 로그인된 슬롯의 최신 메모리 스탯을 15분마다 기존 `saveStats()` 경로로 저장한다.
+  - 숨김 탭과 슬롯 로딩 중에는 주기 저장을 건너뛰고, 브라우저 `online` 이벤트에서는 즉시 1회 보정을 시도한다.
+  - 주기 저장 자체는 single-flight로 동작하며, 중요 액션 저장 큐가 사용 중이면 해당 회차를 건너뛴다.
+  - `saveStats()`를 단일 Promise 큐로 직렬화해 액션 저장, 실시간 중요 사건 저장, 탭 이탈 저장, 주기 저장의 Firestore write 순서를 보장한다.
+  - 앞 저장이 실패해도 큐가 끊기지 않고 다음 저장을 계속 처리한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePeriodicSync.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePeriodicSync.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+
+### 검증
+- 주기 동기화·저장 큐 대상 테스트: 3개 스위트, 39개 테스트 통과
+- 프런트 전체 테스트: 131개 스위트, 650개 테스트 통과
+- `cd digimon-tamagotchi-frontend && CI=true npm run build` 성공
+
 ## [2026-06-20] 중요 상태 즉시 저장 및 실패 전달 2단계
 
 ### 작업 유형
