@@ -196,7 +196,11 @@ export function useFridge({
       "냉장고에 보관했습니다. 시간이 멈춥니다."
     );
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    try {
+      await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    } catch (saveError) {
+      console.error("냉장고 보관 상태 저장 오류:", saveError);
+    }
   }
   
   /**
@@ -227,7 +231,11 @@ export function useFridge({
       buildTakeOutFridgeLogText(frozenDurationSeconds, randomMessage)
     );
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    try {
+      await setDigimonStatsAndSave(updatedStats, updatedLogs);
+    } catch (saveError) {
+      console.error("냉장고 해제 상태 저장 오류:", saveError);
+    }
   }
   
   return {

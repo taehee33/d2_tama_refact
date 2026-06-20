@@ -1,4 +1,7 @@
-import { resolveRealtimeTickWindow } from "./useGameRealtimeLoop";
+import {
+  resolveRealtimeTickWindow,
+  shouldPersistRealtimeUpdate,
+} from "./useGameRealtimeLoop";
 
 describe("resolveRealtimeTickWindow", () => {
   test("60초 초과 지연은 한 번에 60초만 처리하고 나머지 기준 시각을 보존한다", () => {
@@ -43,5 +46,29 @@ describe("resolveRealtimeTickWindow", () => {
       [181000, 241000],
       [241000, 301000],
     ]);
+  });
+});
+
+describe("shouldPersistRealtimeUpdate", () => {
+  test("에너지 회복 시 즉시 저장한다", () => {
+    expect(
+      shouldPersistRealtimeUpdate(
+        { energy: 1, lastEnergyRecoveryAt: null },
+        { energy: 2, lastEnergyRecoveryAt: 1234 }
+      )
+    ).toBe(true);
+  });
+
+  test("수면 또는 낮잠 생명주기 전환 시 즉시 저장한다", () => {
+    expect(shouldPersistRealtimeUpdate({}, {}, true)).toBe(true);
+  });
+
+  test("일반적인 1초 수명 변화만으로는 저장하지 않는다", () => {
+    expect(
+      shouldPersistRealtimeUpdate(
+        { lifespanSeconds: 10, energy: 2 },
+        { lifespanSeconds: 11, energy: 2 }
+      )
+    ).toBe(false);
   });
 });

@@ -130,7 +130,9 @@ export function useGamePagePersistenceEffects({
     masterDataSyncSnapshotRef.current = currentSnapshot;
 
     if (setDigimonStatsAndSave) {
-      void setDigimonStatsAndSave(syncedStats, activityLogs);
+      void Promise.resolve(setDigimonStatsAndSave(syncedStats, activityLogs)).catch((error) => {
+        console.error("마스터 데이터 동기화 저장 오류:", error);
+      });
       return;
     }
 

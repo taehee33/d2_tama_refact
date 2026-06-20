@@ -12,11 +12,22 @@ import {
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
   resolveRootSlotFields,
+  raiseGameSaveError,
   sanitizeDigimonStatsForSlotDocument,
 } from "./useGameData";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { initializeStats } from "../data/stats";
+
+describe("raiseGameSaveError", () => {
+  test("저장 오류를 상태에 남기고 호출자에게 다시 전달한다", () => {
+    const error = new Error("저장 실패");
+    const setError = jest.fn();
+
+    expect(() => raiseGameSaveError(error, setError)).toThrow(error);
+    expect(setError).toHaveBeenCalledWith(error);
+  });
+});
 
 describe("resolveRootSlotFields", () => {
   test("newStats에 최신 조명/기상 값이 있으면 그 값을 우선 사용한다", () => {

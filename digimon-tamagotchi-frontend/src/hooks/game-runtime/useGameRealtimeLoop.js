@@ -40,6 +40,43 @@ export function resolveRealtimeTickWindow(previousTickTimeMs, nowMs, maxStepSeco
   };
 }
 
+export function shouldPersistRealtimeUpdate(
+  previousStats = {},
+  nextStats = {},
+  sleepLifecycleChanged = false
+) {
+  const zeroAtChanged =
+    nextStats.lastHungerZeroAt !== previousStats.lastHungerZeroAt ||
+    nextStats.lastStrengthZeroAt !== previousStats.lastStrengthZeroAt;
+  const deadlineChanged =
+    nextStats.hungerMistakeDeadline !== previousStats.hungerMistakeDeadline ||
+    nextStats.strengthMistakeDeadline !== previousStats.strengthMistakeDeadline;
+  const sleepWarningStateChanged =
+    nextStats.callStatus?.hunger?.sleepStartAt !== previousStats.callStatus?.hunger?.sleepStartAt ||
+    nextStats.callStatus?.strength?.sleepStartAt !== previousStats.callStatus?.strength?.sleepStartAt ||
+    nextStats.callStatus?.sleep?.isActive !== previousStats.callStatus?.sleep?.isActive ||
+    nextStats.callStatus?.sleep?.startedAt !== previousStats.callStatus?.sleep?.startedAt ||
+    nextStats.callStatus?.sleep?.isLogged !== previousStats.callStatus?.sleep?.isLogged ||
+    nextStats.sleepLightOnStart !== previousStats.sleepLightOnStart;
+  const careMistakeJustIncreased =
+    (nextStats.careMistakes || 0) > (previousStats.careMistakes || 0);
+  const injuryJustHappened =
+    (nextStats.poopCount || 0) > (previousStats.poopCount || 0) &&
+    nextStats.isInjured &&
+    (nextStats.poopCount || 0) >= 8;
+  const energyRecoveryChanged =
+    nextStats.energy !== previousStats.energy ||
+    nextStats.lastEnergyRecoveryAt !== previousStats.lastEnergyRecoveryAt;
+
+  return zeroAtChanged ||
+    deadlineChanged ||
+    sleepWarningStateChanged ||
+    careMistakeJustIncreased ||
+    injuryJustHappened ||
+    energyRecoveryChanged ||
+    sleepLifecycleChanged;
+}
+
 export function useGameRealtimeLoop({
   digimonStats,
   setDigimonStats,
@@ -533,41 +570,19 @@ export function useGameRealtimeLoop({
         updatedStats.isLightsOn = live.isLightsOn;
         updatedStats.wakeUntil = live.wakeUntil;
 
-        const zeroAtChanged =
-          updatedStats.lastHungerZeroAt !== prevStats.lastHungerZeroAt ||
-          updatedStats.lastStrengthZeroAt !== prevStats.lastStrengthZeroAt;
-        const deadlineChanged =
-          updatedStats.hungerMistakeDeadline !== prevStats.hungerMistakeDeadline ||
-          updatedStats.strengthMistakeDeadline !==
-            prevStats.strengthMistakeDeadline;
-        const sleepWarningStateChanged =
-          updatedStats.callStatus?.hunger?.sleepStartAt !==
-            prevStats.callStatus?.hunger?.sleepStartAt ||
-          updatedStats.callStatus?.strength?.sleepStartAt !==
-            prevStats.callStatus?.strength?.sleepStartAt ||
-          updatedStats.callStatus?.sleep?.isActive !==
-            prevStats.callStatus?.sleep?.isActive ||
-          updatedStats.callStatus?.sleep?.startedAt !==
-            prevStats.callStatus?.sleep?.startedAt ||
-          updatedStats.callStatus?.sleep?.isLogged !==
-            prevStats.callStatus?.sleep?.isLogged ||
-          updatedStats.sleepLightOnStart !== prevStats.sleepLightOnStart;
-        const careMistakeJustIncreased =
-          (updatedStats.careMistakes || 0) > (prevStats.careMistakes || 0);
-        const injuryJustHappened =
-          (updatedStats.poopCount || 0) > (prevStats.poopCount || 0) &&
-          updatedStats.isInjured &&
-          (updatedStats.poopCount || 0) >= 8;
+        const sleepLifecycleChanged =
+          wasSleepStatus !== null &&
+          (wasSleepingLike !== isSleepingLike || wasNapping !== isNapping);
 
         if (
           live.slotId &&
           live.currentUser &&
           live.setDigimonStatsAndSave &&
-          (zeroAtChanged ||
-            deadlineChanged ||
-            sleepWarningStateChanged ||
-            careMistakeJustIncreased ||
-            injuryJustHappened)
+          shouldPersistRealtimeUpdate(
+            prevStats,
+            updatedStats,
+            sleepLifecycleChanged
+          )
         ) {
           setTimeout(() => live.setDigimonStatsAndSave(updatedStats).catch(() => {}), 0);
         }

@@ -68,6 +68,13 @@ const GAME_TIMESTAMP_KEYS = new Set([
   "lastSavedAt",
 ]);
 
+export function raiseGameSaveError(error, setError) {
+  if (typeof setError === "function") {
+    setError(error);
+  }
+  throw error;
+}
+
 /**
  * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
  * @param {Object} obj - 1depth 객체 (중첩 객체/배열은 그대로 유지)
@@ -1009,12 +1016,13 @@ export function useGameData({
         });
       } catch (error) {
         console.error("스탯 저장 오류:", error);
-        setError(error);
+        raiseGameSaveError(error, setError);
       }
     } else if (slotId) {
       // Firebase 로그인 필수: 로그인하지 않은 경우 에러
+      const authError = new Error("Firebase 로그인이 필요합니다.");
       console.error("Firebase 로그인이 필요합니다.");
-      setError(new Error("Firebase 로그인이 필요합니다."));
+      setError(authError);
     }
   }
 

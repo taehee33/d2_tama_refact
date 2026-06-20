@@ -453,10 +453,14 @@ export function useGameHandlers({
         toggledLightsCommitState.updatedLogs[toggledLightsCommitState.updatedLogs.length - 1]
       ).catch(() => {});
     }
-    await setDigimonStatsAndSave(
-      toggledLightsCommitState.statsWithLogs,
-      toggledLightsCommitState.updatedLogs
-    );
+    try {
+      await setDigimonStatsAndSave(
+        toggledLightsCommitState.statsWithLogs,
+        toggledLightsCommitState.updatedLogs
+      );
+    } catch (saveError) {
+      console.error("조명 상태 저장 오류:", saveError);
+    }
   };
 
   /**

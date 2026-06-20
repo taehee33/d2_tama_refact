@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-06-20] 중요 상태 즉시 저장 및 실패 전달 2단계
+
+### 작업 유형
+- 에너지 회복·수면·낮잠 전환 즉시 저장
+- Firestore 저장 실패 Promise 전달
+- 비동기 액션 저장 실패 경계 보강
+
+### 목적 및 영향
+- **목적:** 앱이 열린 동안 발생한 중요 상태 전환을 다음 액션이나 탭 이탈까지 미루지 않고 저장하며, 실제 Firestore 실패가 성공처럼 처리되지 않게 한다.
+- **범위:** 기존 슬롯 문서 경로와 payload 구조를 유지한 채 저장 호출 조건과 오류 전달만 보강한다. outbox, 15분 서버 보정, 1초 루프 제거는 포함하지 않는다.
+- **내용:**
+  - 실시간 루프에서 `energy`/`lastEnergyRecoveryAt` 변경과 수면·낮잠 시작/종료를 중요 저장 사건으로 판정한다.
+  - 일반 lifespan 증가만으로는 저장하지 않아 매초 Firestore write가 발생하지 않도록 유지한다.
+  - `saveStats()`가 실제 Firestore `updateDoc()` 실패를 오류 상태에 기록한 뒤 호출자에게 다시 전달하도록 수정했다.
+  - 먹이·치료·마스터 데이터 동기화 fire-and-forget 경로는 rejection을 명시적으로 처리한다.
+  - 진화·환생은 스탯 저장이 실패하면 선택 디지몬 변경을 진행하지 않으며, 조명·냉장고 액션은 실패를 명시적으로 기록한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/hooks/useDeath.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameHandlers.js`
+- `digimon-tamagotchi-frontend/src/hooks/useFridge.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePagePersistenceEffects.js`
+- 관련 회귀 테스트
+
+### 검증
+- 대상 저장 경로 테스트: 8개 스위트, 108개 테스트 통과
+- 프런트 전체 테스트: 130개 스위트, 642개 테스트 통과
+- `cd digimon-tamagotchi-frontend && CI=true npm run build` 성공
+
 ## [2026-06-20] 사망 및 시간 경과 오류 복구 1단계
 
 ### 작업 유형

@@ -342,7 +342,12 @@ export function useEvolution({
       });
     }
     if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
+    try {
+      await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
+    } catch (saveError) {
+      console.error("진화 상태 저장 오류:", saveError);
+      return;
+    }
     await setSelectedDigimonAndSave(newName);
     
     await syncEvolutionEncyclopediaEntries({

@@ -139,7 +139,12 @@ export function useDeath({
       );
     }
     
-    await setDigimonStatsAndSave(committedStats, reincarnationLogs);
+    try {
+      await setDigimonStatsAndSave(committedStats, reincarnationLogs);
+    } catch (saveError) {
+      console.error("환생 상태 저장 오류:", saveError);
+      return;
+    }
     await setSelectedDigimonAndSave(reincarnationDigimonId);
     toggleModal('deathModal', false);
     setHasSeenDeathPopup(false); // 사망 팝업 플래그 초기화

@@ -326,7 +326,9 @@ export function useGameAnimations({
       const updatedLogs = addActivityLog(currentLogs, "FEED", logText);
       if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       const statsWithLogs = { ...updatedStats, activityLogs: updatedLogs };
-      setDigimonStatsAndSave(statsWithLogs, updatedLogs);
+      Promise.resolve(setDigimonStatsAndSave(statsWithLogs, updatedLogs)).catch((error) => {
+        console.error("먹이 상태 저장 오류:", error);
+      });
     }
     
     if (step >= frameCount) {
@@ -446,7 +448,14 @@ export function useGameAnimations({
       healOutcome.logText
     );
     if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-    setDigimonStatsAndSave({ ...updatedStats, activityLogs: updatedLogs }, updatedLogs);
+    Promise.resolve(
+      setDigimonStatsAndSave(
+        { ...updatedStats, activityLogs: updatedLogs },
+        updatedLogs
+      )
+    ).catch((error) => {
+      console.error("치료 상태 저장 오류:", error);
+    });
     
     // 스탯 업데이트하여 모달이 최신 상태를 반영하도록 함
     setDigimonStats(updatedStats);
