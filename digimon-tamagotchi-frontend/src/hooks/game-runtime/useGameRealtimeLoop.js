@@ -170,7 +170,8 @@ export function useGameRealtimeLoop({
         let updatedStats = updateLifespan(
           prevStats,
           safeElapsedSeconds,
-          isActuallySleeping
+          isActuallySleeping,
+          nowMs
         );
         const currentDigimonData =
           live.digimonDataForSlot[currentDigimonName] ||
@@ -180,13 +181,15 @@ export function useGameRealtimeLoop({
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
-          isActuallySleeping
+          isActuallySleeping,
+          nowMs
         );
         updatedStats = handleStrengthTick(
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
-          isActuallySleeping
+          isActuallySleeping,
+          nowMs
         );
 
         const maxEnergy =

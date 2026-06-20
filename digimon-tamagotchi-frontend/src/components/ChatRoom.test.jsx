@@ -39,7 +39,7 @@ jest.mock("ably/react", () => ({
   useChannel: () => ({ channel: mockChannel }),
   usePresence: () => mockUsePresence(),
   usePresenceListener: () => mockUsePresenceListener(),
-}), { virtual: true });
+}));
 
 jest.mock("../supabase", () => ({
   supabase: null,

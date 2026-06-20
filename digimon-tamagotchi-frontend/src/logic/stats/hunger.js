@@ -9,9 +9,10 @@
  * @param {Object} digimonData - 디지몬 데이터 (hungerCycle 정보 포함)
  * @param {number} deltaSec - 경과 시간 (초)
  * @param {boolean} isSleeping - 수면 중 여부 (수면 중에는 타이머 감소하지 않음)
+ * @param {number} referenceTimeMs - 이번 tick이 처리한 기준 시각
  * @returns {Object} 업데이트된 스탯
  */
-export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSleeping = false) {
+export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSleeping = false, referenceTimeMs = Date.now()) {
   if (currentStats.isDead) return currentStats;
   // 냉장고 상태에서는 모든 수치 고정 (시간 정지)
   if (currentStats.isFrozen) return currentStats;
@@ -28,7 +29,7 @@ export function handleHungerTick(currentStats, digimonData, deltaSec = 1, isSlee
     s.hungerCountdown -= deltaSec;
     
     if (s.hungerCountdown <= 0) {
-      const zeroBoundaryAt = Date.now() + (s.hungerCountdown * 1000);
+      const zeroBoundaryAt = referenceTimeMs + (s.hungerCountdown * 1000);
       // 정상적으로 배고픔 감소
       s.fullness = Math.max(0, s.fullness - 1);
       s.hungerCountdown = hungerCycle * 60;

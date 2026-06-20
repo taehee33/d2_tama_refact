@@ -248,7 +248,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   return merged;
 }
 
-export function updateLifespan(stats, deltaSec=1, isSleeping=false){
+export function updateLifespan(stats, deltaSec=1, isSleeping=false, referenceTimeMs=Date.now()){
   if(stats.isDead) return stats;
 
   const s= { ...stats };
@@ -281,7 +281,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
         s.poopCountdown = s.poopTimer*60;
 
         if (s.poopCount === 8 && !s.poopReachedMaxAt) {
-          const reachedMaxAt = Date.now();
+          const reachedMaxAt = referenceTimeMs;
           s.poopReachedMaxAt = reachedMaxAt;
           s.lastPoopPenaltyAt = reachedMaxAt;
           s.poopPenaltyFrozenDurationMs = 0;
@@ -289,7 +289,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
         }
       } else {
         if (!s.poopReachedMaxAt) {
-          const reachedMaxAt = Date.now();
+          const reachedMaxAt = referenceTimeMs;
           s.poopReachedMaxAt = reachedMaxAt;
           s.lastPoopPenaltyAt = reachedMaxAt;
           s.poopPenaltyFrozenDurationMs = 0;
@@ -300,14 +300,14 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
         } else {
           const elapsedSincePenalty = getElapsedTimeExcludingFridge(
             s.lastPoopPenaltyAt,
-            Date.now(),
+            referenceTimeMs,
             s.frozenAt,
             s.takeOutAt,
             s.poopPenaltyFrozenDurationMs
           ) / 1000;
           const periods = Math.floor(elapsedSincePenalty / 28800);
           if (periods >= 1) {
-            const penaltyTime = Date.now();
+            const penaltyTime = referenceTimeMs;
             applyPoopInjury(s, penaltyTime, periods);
             s.lastPoopPenaltyAt = penaltyTime;
             s.poopPenaltyFrozenDurationMs = 0;
@@ -324,7 +324,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false){
     s.poopPenaltyFrozenDurationMs = 0;
   }
 
-  const deathEvaluation = evaluateDeathConditions(s, Date.now());
+  const deathEvaluation = evaluateDeathConditions(s, referenceTimeMs);
   if (deathEvaluation.isDead) {
     s.isDead = true;
     if (deathEvaluation.reason) {

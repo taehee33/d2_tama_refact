@@ -21,12 +21,15 @@
   - 사망 판정 결과를 `{ isDead, reason, diedAt }`으로 확장하고, 시간 기반 사망은 임계점을 통과한 실제 시각을 기록한다. 기존 `deathReason`은 유지한다.
   - lazy update와 실시간 루프에서 유효한 `selectedDigimon`을 우선 사용하고, 단계 기반 검색은 구 데이터 fallback으로만 유지한다.
   - 실시간 루프가 한 번에 최대 60초만 처리하되 업데이트 기준 시각을 처리 완료 지점까지만 이동해, 스탯과 수면 경고가 동일한 비중복 구간으로 백그라운드 경과 시간을 모두 따라잡도록 수정했다.
+  - 재점검에서 실시간 배고픔·힘·배변·사망 helper가 catch-up 처리 시각 대신 실제 `Date.now()`를 사용하던 문제를 발견해, 모든 시간 판정에 동일한 처리 구간 끝 시각을 전달하도록 보정했다.
   - `ArenaScreen`의 불완전 mock과 빌드 경고를 발생시키던 중복 ARIA role을 테스트·빌드 하네스 범위에서 정리했다.
+  - 전체 테스트에서 간헐적으로 실제 Ably hook이 로드되던 `ChatRoom` mock의 잘못된 virtual 설정을 제거했다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/src/logic/stats/death.js`
 - `digimon-tamagotchi-frontend/src/logic/stats/hunger.js`
 - `digimon-tamagotchi-frontend/src/logic/stats/strength.js`
+- `digimon-tamagotchi-frontend/src/logic/stats/realtimeTiming.test.js`
 - `digimon-tamagotchi-frontend/src/data/stats.js`
 - `digimon-tamagotchi-frontend/src/data/defaultStatsFile.js`
 - `digimon-tamagotchi-frontend/src/data/v1/defaultStats.js`
@@ -37,7 +40,7 @@
 
 ### 검증
 - 대상 회귀 테스트: 5개 스위트, 89개 테스트 통과
-- 프런트 전체 테스트: 129개 스위트, 636개 테스트 통과
+- 프런트 전체 테스트: 130개 스위트, 638개 테스트 통과
 - `cd digimon-tamagotchi-frontend && CI=true npm run build` 성공
 
 ## [2026-06-19] Ably API 키를 서버 토큰 인증으로 전환
