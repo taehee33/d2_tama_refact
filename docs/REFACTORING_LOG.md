@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-06-21] IndexedDB 내구성 outbox 기반 4A
+
+### 작업 유형
+- 게임 상태·활동 로그·배틀 로그용 IndexedDB outbox
+- 로그 eventId 멱등성
+- 일반 FEED 로컬 보존 및 15분 요약 정책
+- outbox 재전송 스케줄
+
+### 목적 및 영향
+- **목적:** Firestore 저장 실패나 탭 종료 뒤에도 미전송 데이터를 브라우저에 유지하고, 재전송 시 로그가 중복 생성되지 않게 한다.
+- **아키텍처 결정:** 추가 패키지 없이 raw IndexedDB를 얇은 어댑터로 감싸며, uid와 slot을 복합 범위 키로 사용한다. 상태는 슬롯별 최신 snapshot 하나로 합치고 로그는 eventId별로 보존한다.
+- **내용:**
+  - state mutation은 같은 슬롯의 최신 항목만 유지하고, 성공한 mutationId가 현재 값과 일치할 때만 삭제한다.
+  - activity와 battle 로그는 내용·시각 기반의 안정적인 eventId를 문서 ID로 사용한다.
+  - 수면·낮잠·훈련·청소·교감 액션을 영구 로그 대상으로 확장한다.
+  - 일반 FEED는 로컬에서 개별 보존하고 15분 bucket 요약 대상으로 분류하며, 거부·과식·프로틴 과다는 개별 영구 로그 대상으로 유지한다.
+  - 재전송은 슬롯 로딩 완료, 온라인 복귀, 화면 재활성화, 15분 주기 및 단계적 backoff에서 실행할 수 있도록 독립 hook으로 분리한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/persistence/indexedDbOutbox.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameOutboxSync.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogEventId.js`
+- `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.js`
+- `digimon-tamagotchi-frontend/src/utils/battleLogPersistence.js`
+- 관련 단위 테스트
+
+### 검증
+- 4A 대상 테스트: IndexedDB, 재시도 hook, 로그 멱등성 및 FEED 정책 테스트 통과
+
 ## [2026-06-20] 15분 클라이언트 보정 및 저장 직렬화 3단계
 
 ### 작업 유형

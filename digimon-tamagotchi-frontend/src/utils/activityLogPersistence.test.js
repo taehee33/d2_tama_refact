@@ -1,6 +1,7 @@
 import {
   buildPersistentActivityLogPayload,
   getPersistentActivityLogDocId,
+  isImportantFeedActivityLog,
   PERSISTED_ACTIVITY_LOG_TYPES,
   shouldPersistActivityLog,
 } from "./activityLogPersistence";
@@ -14,12 +15,19 @@ describe("activityLogPersistence", () => {
     expect(PERSISTED_ACTIVITY_LOG_TYPES.has("FRIDGE")).toBe(true);
   });
 
-  test("반복성 높은 일반 액션 로그는 Firestore에 저장하지 않는다", () => {
-    expect(shouldPersistActivityLog({ type: "FEED" })).toBe(false);
-    expect(shouldPersistActivityLog({ type: "TRAIN" })).toBe(false);
-    expect(shouldPersistActivityLog({ type: "CLEAN" })).toBe(false);
-    expect(shouldPersistActivityLog({ type: "ACTION" })).toBe(false);
-    expect(shouldPersistActivityLog({ type: "PLAY_OR_SNACK" })).toBe(false);
+  test("확정된 사용자 액션 로그를 Firestore에 저장한다", () => {
+    expect(shouldPersistActivityLog({ type: "TRAIN" })).toBe(true);
+    expect(shouldPersistActivityLog({ type: "CLEAN" })).toBe(true);
+    expect(shouldPersistActivityLog({ type: "ACTION" })).toBe(true);
+    expect(shouldPersistActivityLog({ type: "PLAY_OR_SNACK" })).toBe(true);
+    expect(shouldPersistActivityLog({ type: "NAP_START" })).toBe(true);
+    expect(shouldPersistActivityLog({ type: "NAP_END" })).toBe(true);
+  });
+
+  test("일반 FEED는 요약 대상으로 두고 중요한 FEED만 개별 저장한다", () => {
+    expect(shouldPersistActivityLog({ type: "FEED", text: "Feed: Meat" })).toBe(false);
+    expect(isImportantFeedActivityLog({ type: "FEED", text: "Feed: Refused" })).toBe(true);
+    expect(isImportantFeedActivityLog({ type: "FEED", text: "Overfeed!" })).toBe(true);
   });
 
   test("잘못된 로그 입력은 저장 대상이 아니다", () => {
@@ -44,5 +52,20 @@ describe("activityLogPersistence", () => {
 
     expect(firstPayload.eventId).toBe(secondPayload.eventId);
     expect(persistedDocs.size).toBe(1);
+  });
+
+  test("일반 영구 로그도 내용 기반 eventId가 안정적으로 생성된다", () => {
+    const log = {
+      type: "TRAIN",
+      text: "훈련 성공",
+      timestamp: 123456789,
+      digimonId: "Agumon",
+    };
+
+    const first = buildPersistentActivityLogPayload(log);
+    const second = buildPersistentActivityLogPayload({ ...log });
+
+    expect(first.eventId).toBe(second.eventId);
+    expect(getPersistentActivityLogDocId(first)).toBe(first.eventId);
   });
 });

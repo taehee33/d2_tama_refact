@@ -32,13 +32,15 @@ describe("activityLogEventId", () => {
     ).toBe(buildPoopInjuryActivityEventId("poop_penalty", timestamp));
   });
 
-  test("일반 액션 로그는 eventId를 만들지 않는다", () => {
-    expect(
-      buildActivityLogEventId({
-        type: "FEED",
-        text: "고기를 먹였다",
-        timestamp: Date.parse("2026-04-09T00:54:00.000Z"),
-      })
-    ).toBeNull();
+  test("일반 액션 로그도 재전송 가능한 안정적인 eventId를 만든다", () => {
+    const log = {
+      type: "FEED",
+      text: "고기를 먹였다",
+      timestamp: Date.parse("2026-04-09T00:54:00.000Z"),
+    };
+
+    const first = buildActivityLogEventId(log);
+    expect(first).toMatch(/^activity:feed:/);
+    expect(buildActivityLogEventId({ ...log })).toBe(first);
   });
 });

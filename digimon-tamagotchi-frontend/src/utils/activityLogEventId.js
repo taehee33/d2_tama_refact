@@ -12,6 +12,15 @@ function normalizeLogText(text = "") {
   return typeof text === "string" ? text.trim() : "";
 }
 
+function hashEventIdentity(value = "") {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 export function ensureActivityLogTimestampMs(value) {
   return toTimestamp(value);
 }
@@ -77,5 +86,13 @@ export function buildActivityLogEventId(log = {}) {
     return buildPoopInjuryActivityEventId(poopKind, timestampMs);
   }
 
-  return null;
+  const identity = [
+    type,
+    timestampMs,
+    text,
+    log?.digimonId || "",
+    log?.digimonName || "",
+  ].join("|");
+
+  return `activity:${type.toLowerCase()}:${timestampMs}:${hashEventIdentity(identity)}`;
 }

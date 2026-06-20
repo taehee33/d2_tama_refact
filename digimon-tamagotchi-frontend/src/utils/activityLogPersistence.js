@@ -10,6 +10,8 @@ export const PERSISTED_ACTIVITY_LOG_TYPES = new Set([
   "SLEEP_DISTURBANCE",
   "SLEEP_START",
   "SLEEP_END",
+  "NAP_START",
+  "NAP_END",
   "POOP",
   "INJURY",
   "HEAL",
@@ -18,7 +20,23 @@ export const PERSISTED_ACTIVITY_LOG_TYPES = new Set([
   "NEW_START",
   "DEATH",
   "FRIDGE",
+  "ACTION",
+  "TRAIN",
+  "CLEAN",
+  "DIET",
+  "REST",
+  "DETOX",
+  "PLAY_OR_SNACK",
 ]);
+
+const IMPORTANT_FEED_PATTERNS = [
+  /refused/i,
+  /거절/,
+  /overfeed/i,
+  /과식/,
+  /overdose/i,
+  /과다/,
+];
 
 /**
  * Firestore 서브컬렉션에 남길 활동 로그인지 판별한다.
@@ -34,7 +52,20 @@ export function shouldPersistActivityLog(logEntry) {
     return false;
   }
 
+  if (logType === "FEED") {
+    const text = typeof logEntry?.text === "string" ? logEntry.text : "";
+    return IMPORTANT_FEED_PATTERNS.some((pattern) => pattern.test(text));
+  }
+
   return PERSISTED_ACTIVITY_LOG_TYPES.has(logType);
+}
+
+export function isFeedActivityLog(logEntry) {
+  return logEntry?.type === "FEED";
+}
+
+export function isImportantFeedActivityLog(logEntry) {
+  return isFeedActivityLog(logEntry) && shouldPersistActivityLog(logEntry);
 }
 
 export function buildPersistentActivityLogPayload(logEntry = {}) {
