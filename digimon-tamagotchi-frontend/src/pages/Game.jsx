@@ -39,6 +39,7 @@ import GameDefaultSection from "../components/layout/GameDefaultSection";
 import GameHeaderPanel from "../components/layout/GameHeaderPanel";
 import GamePageView from "../components/layout/GamePageView";
 import GamePageToolbar from "../components/layout/GamePageToolbar";
+import GameSyncConflictDialog from "../components/GameSyncConflictDialog";
 import ImmersiveGameView from "../components/layout/ImmersiveGameView";
 import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSection";
 import ImmersiveLandscapeStatusPanel from "../components/layout/ImmersiveLandscapeStatusPanel";
@@ -308,6 +309,10 @@ function Game({ immersive = false }){
     persistDeathSnapshot,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
+    syncStatus,
+    syncConflict,
+    resolveSyncConflict,
+    refreshGameRevision,
   } = useGameData({
     slotId,
     currentUser,
@@ -479,6 +484,7 @@ function Game({ immersive = false }){
     ignoreEvolutionTime,
     slotId,
     currentUser,
+    refreshGameRevision,
     setIsEvolving,
     setEvolutionStage,
     setEvolvedDigimonName,
@@ -1163,6 +1169,7 @@ function Game({ immersive = false }){
 
   const sharedStatusBadgesProps = {
     ...statusBadgeProps,
+    syncStatus,
     onOpenStatusDetail: handleOpenStatusDetail,
   };
 
@@ -1491,6 +1498,11 @@ function Game({ immersive = false }){
       />
 
       {modalsNode}
+
+      <GameSyncConflictDialog
+        conflict={syncConflict}
+        onResolve={resolveSyncConflict}
+      />
       
       {ADS_ENABLED && !isImmersive ? (
         <>

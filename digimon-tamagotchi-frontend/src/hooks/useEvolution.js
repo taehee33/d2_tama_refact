@@ -1,7 +1,7 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
-import { writeBatch, doc, updateDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { writeBatch, doc, updateDoc, getDoc, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
 import { getJogressResult } from "../logic/evolution/jogress";
@@ -118,6 +118,7 @@ export function useEvolution({
   tamerName,
   digimonNickname,
   currentUser,
+  refreshGameRevision,
   toggleModal,
   version = "Ver.1", // 슬롯 버전 (도감 관리용)
 }) {
@@ -433,14 +434,20 @@ export function useEvolution({
         lastSavedAt: nowMs,
         lastSavedAtServer: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        revision: increment(1),
       });
       batch.update(slotBRef, {
         digimonStats: partnerStatsForDb,
         lastSavedAt: nowMs,
         lastSavedAtServer: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        revision: increment(1),
       });
       await batch.commit();
+
+      if (refreshGameRevision) {
+        await refreshGameRevision(nxWithLogs);
+      }
 
       setDigimonStats(nxWithLogs);
       setSelectedDigimon(targetId);
@@ -599,17 +606,23 @@ export function useEvolution({
       );
       batch.update(
         guestSlotRef,
-        buildCompletedJogressSlotUpdate({
-          targetId: guestTargetId,
-          statsForDb,
-          nowMs,
-          serverTimestampValue,
-          clearJogressStatus: false,
-        })
+        {
+          ...buildCompletedJogressSlotUpdate({
+            targetId: guestTargetId,
+            statsForDb,
+            nowMs,
+            serverTimestampValue,
+            clearJogressStatus: false,
+          }),
+          revision: increment(1),
+        }
       );
       await batch.commit();
 
       const isCurrentSlot = slotId != null && String(guestSlot.id) === String(slotId);
+      if (isCurrentSlot && refreshGameRevision) {
+        await refreshGameRevision(nxWithLogs);
+      }
       await syncCurrentJogressSlot({
         isCurrentSlot,
         targetId: guestTargetId,
@@ -681,13 +694,19 @@ export function useEvolution({
       const serverTimestampValue = serverTimestamp();
       await updateDoc(
         slotRef,
-        buildCompletedJogressSlotUpdate({
-          targetId,
-          statsForDb,
-          nowMs,
-          serverTimestampValue,
-        })
+        {
+          ...buildCompletedJogressSlotUpdate({
+            targetId,
+            statsForDb,
+            nowMs,
+            serverTimestampValue,
+          }),
+          revision: increment(1),
+        }
       );
+      if (refreshGameRevision) {
+        await refreshGameRevision(nxWithLogs);
+      }
       await updateDoc(roomRef, buildCompletedJogressRoomUpdate(serverTimestampValue));
       await syncCurrentJogressSlot({
         isCurrentSlot: true,
@@ -818,12 +837,15 @@ export function useEvolution({
       const serverTimestampValue = serverTimestamp();
       await updateDoc(
         slotRef,
-        buildCompletedJogressSlotUpdate({
-          targetId,
-          statsForDb,
-          nowMs,
-          serverTimestampValue,
-        })
+        {
+          ...buildCompletedJogressSlotUpdate({
+            targetId,
+            statsForDb,
+            nowMs,
+            serverTimestampValue,
+          }),
+          revision: increment(1),
+        }
       );
       await updateDoc(roomRef, buildCompletedJogressRoomUpdate(serverTimestampValue));
       const hostVersion = room.hostSlotVersion || "Ver.1";
@@ -843,6 +865,9 @@ export function useEvolution({
       );
       const resultDisplayName = getDigimonDisplayName([digimonDataVer1, digimonDataVer2], targetId) || newDigimonName;
       const isCurrentSlot = slotId != null && String(hostSlotId) === String(slotId);
+      if (isCurrentSlot && refreshGameRevision) {
+        await refreshGameRevision(nxWithLogs);
+      }
       await persistJogressLogWithArchive({
         currentUser,
         warningLabel: "[proceedJogressOnlineAsHostForRoom]",

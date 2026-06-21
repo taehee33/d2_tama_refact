@@ -8,8 +8,6 @@ import {
   updateDoc,
   deleteField,
   collection,
-  addDoc,
-  setDoc,
   query,
   orderBy,
   limit,
@@ -25,11 +23,7 @@ import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
-import {
-  buildPersistentActivityLogPayload,
-  getPersistentActivityLogDocId,
-  shouldPersistActivityLog,
-} from "../utils/activityLogPersistence";
+import { useDurableGamePersistence } from "./game-persistence/useDurableGamePersistence";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
@@ -870,6 +864,62 @@ export function useGameData({
     [runtimeAdaptedDataMaps, slotRuntimeDataMap]
   );
 
+  const buildUpdateDataForSnapshot = useCallback((statsSnapshot, nowMs = Date.now()) => {
+    const effectiveSelectedDigimon =
+      statsSnapshot?.selectedDigimon || selectedDigimon || null;
+    const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
+      isLightsOn,
+      wakeUntil,
+    });
+
+    return buildSlotDocumentUpdatePayload({
+      stats: statsSnapshot,
+      rootSlotFields,
+      selectedDigimon: effectiveSelectedDigimon,
+      digimonNickname,
+      evolutionDataForSlot,
+      isLoadingSlot,
+      nowMs,
+    });
+  }, [
+    digimonNickname,
+    evolutionDataForSlot,
+    isLightsOn,
+    isLoadingSlot,
+    selectedDigimon,
+    wakeUntil,
+  ]);
+
+  const {
+    appendBattleLog: appendBattleLogToSubcollection,
+    appendLog: appendLogToSubcollection,
+    flushOutbox,
+    getPendingState,
+    persistStateSnapshot,
+    refreshGameRevision,
+    resolveSyncConflict,
+    setLoadedRevision,
+    syncConflict,
+    syncStatus,
+  } = useDurableGamePersistence({
+    slotId,
+    currentUser,
+    isFirebaseAvailable,
+    isLoadingSlot,
+    digimonStats,
+    activityLogs,
+    selectedDigimon,
+    isLightsOn,
+    wakeUntil,
+    setDigimonStats,
+    setSelectedDigimon,
+    setIsLightsOn,
+    setWakeUntil,
+    buildUpdateDataForSnapshot,
+    normalizeStats: normalizeGameTimingFields,
+    saveQueue: saveQueueRef.current,
+  });
+
   /**
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
    * @param {Object} newStats - 새로운 스탯
@@ -1018,26 +1068,16 @@ export function useGameData({
     // Firebase 로그인 필수
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        const updateData = buildSlotDocumentUpdatePayload({
-          stats: statsForState,
-          rootSlotFields,
-          selectedDigimon: effectiveSelectedDigimon,
-          digimonNickname,
-          evolutionDataForSlot,
-          isLoadingSlot,
-          backgroundSettings,
+        const didPersist = await persistStateSnapshot({
+          statsSnapshot: statsForState,
+          updatedLogs,
           nowMs,
         });
-        
-        // Activity Logs는 digimonStats 안에 이미 포함되어 있으므로 별도 저장 불필요
-        // (중복 저장 방지)
-        
-        // 기존 데이터에서도 proteinCount 제거 (마이그레이션)
-        await updateDoc(slotRef, {
-          ...updateData,
-          'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거
-        });
+        if (!didPersist) {
+          const conflictError = new Error("다른 기기의 변경사항 확인이 필요합니다.");
+          conflictError.code = "game/revision-conflict-pending";
+          throw conflictError;
+        }
       } catch (error) {
         console.error("스탯 저장 오류:", error);
         raiseGameSaveError(error, setError);
@@ -1219,6 +1259,31 @@ export function useGameData({
             evolutionDataForSlot,
           });
           hydrationResult = hydrationPlan.hydrationResult;
+          setLoadedRevision(
+            slotData.revision,
+            hydrationResult?.digimonStats || savedStats
+          );
+
+          {
+            const pendingState = await getPendingState();
+            if (pendingState?.state?.stateSnapshot) {
+              const pendingSnapshot = pendingState.state.stateSnapshot;
+              hydrationResult = {
+                ...hydrationResult,
+                selectedDigimon:
+                  pendingSnapshot.selectedDigimon || hydrationResult.selectedDigimon,
+                rootSlotFields: resolveRootSlotFields(
+                  pendingSnapshot,
+                  hydrationResult.rootSlotFields
+                ),
+                activityLogs:
+                  pendingSnapshot.activityLogs || hydrationResult.activityLogs,
+                digimonStats: pendingSnapshot,
+                deathReason:
+                  pendingSnapshot.deathReason || hydrationResult.deathReason,
+              };
+            }
+          }
           hydrationPlan.reconstructedLogsToPersist.forEach((log) => {
             if (log?.type) appendLogToSubcollection(log).catch(() => {});
           });
@@ -1251,6 +1316,7 @@ export function useGameData({
             }
           }
         } else {
+          setLoadedRevision(0, null);
           // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
           const fallbackDataMap = getAdaptedDataMap("Ver.1");
           const fallbackHydration = buildFallbackSlotHydrationResult({
@@ -1272,12 +1338,19 @@ export function useGameData({
       } catch (error) {
         console.error("슬롯 로드 오류:", error);
         setError(error);
+        const pendingState = await getPendingState().catch(() => null);
         const fallbackDataMap = getAdaptedDataMap("Ver.1");
         const fallbackHydration = buildFallbackSlotHydrationResult({
           slotId,
           dataMap: fallbackDataMap,
           slotVersionLabel: "Ver.1",
         });
+        if (pendingState?.state?.stateSnapshot) {
+          fallbackHydration.digimonStats = pendingState.state.stateSnapshot;
+          fallbackHydration.selectedDigimon =
+            pendingState.state.stateSnapshot.selectedDigimon ||
+            fallbackHydration.selectedDigimon;
+        }
         setSelectedDigimon(fallbackHydration.selectedDigimon);
         setDigimonStats(fallbackHydration.digimonStats);
         if (setImmersiveSettings) {
@@ -1342,65 +1415,6 @@ export function useGameData({
   }, [slotId, currentUser, isFirebaseAvailable]);
 
   /**
-   * 활동 로그 한 건을 서브컬렉션 logs에만 추가한다.
-   * eventId가 계산되는 케어미스/부상성 로그는 같은 사건을 다시 저장해도 같은 문서에 upsert한다.
-   * @param {{ type: string, text: string, timestamp?: number, eventId?: string, digimonId?: string, digimonName?: string }} logEntry
-   */
-  const appendLogToSubcollection = useCallback(
-    async (logEntry) => {
-      if (!slotId || !currentUser || !isFirebaseAvailable || !shouldPersistActivityLog(logEntry)) {
-        return;
-      }
-      try {
-        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-        const logsRef = collection(slotRef, "logs");
-        const payload = buildPersistentActivityLogPayload({
-          ...logEntry,
-          timestamp: toEpochMs(logEntry?.timestamp) ?? Date.now(),
-        });
-        const docId = getPersistentActivityLogDocId(payload);
-
-        if (docId) {
-          await setDoc(doc(logsRef, docId), payload, { merge: true });
-          return;
-        }
-
-        await addDoc(logsRef, payload);
-      } catch (error) {
-        console.error("[appendLogToSubcollection] 오류:", error);
-      }
-    },
-    [slotId, currentUser, isFirebaseAvailable]
-  );
-
-  /**
-   * 배틀 로그 한 건을 서브컬렉션 battleLogs에만 추가 (활동 로그와 동일 패턴)
-   * @param {{ timestamp?: number, mode: string, text: string, win?: boolean, enemyName?: string, injury?: boolean, digimonId?: string, digimonName?: string }} entry
-   */
-  const appendBattleLogToSubcollection = useCallback(
-    async (entry) => {
-      if (!slotId || !currentUser || !isFirebaseAvailable || !entry?.mode) return;
-      try {
-        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-        const battleLogsRef = collection(slotRef, "battleLogs");
-        await addDoc(battleLogsRef, {
-          timestamp: toEpochMs(entry.timestamp) ?? Date.now(),
-          mode: entry.mode,
-          text: entry.text ?? "",
-          ...(typeof entry.win === "boolean" && { win: entry.win }),
-          ...(entry.enemyName != null && entry.enemyName !== "" && { enemyName: entry.enemyName }),
-          ...(typeof entry.injury === "boolean" && { injury: entry.injury }),
-          ...(entry.digimonId ? { digimonId: entry.digimonId } : {}),
-          ...(entry.digimonName ? { digimonName: entry.digimonName } : {}),
-        });
-      } catch (error) {
-        console.error("[appendBattleLogToSubcollection] 오류:", error);
-      }
-    },
-    [slotId, currentUser, isFirebaseAvailable]
-  );
-
-  /**
    * 선택된 디지몬 이름과 표시명을 슬롯 루트 문서에 저장합니다.
    * UI 상태 반영은 호출 측에서 담당하고, 여기서는 영속화만 처리합니다.
    *
@@ -1447,52 +1461,12 @@ export function useGameData({
    *
    * @param {Object} statsSnapshot
    */
-  const persistDeathSnapshot = useCallback(
-    async (statsSnapshot) => {
-      if (!slotId || !currentUser || !isFirebaseAvailable || !statsSnapshot) {
-        return;
-      }
-
-      const effectiveSelectedDigimon =
-        statsSnapshot.selectedDigimon ||
-        digimonStats?.selectedDigimon ||
-        selectedDigimon ||
-        null;
-      const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
-        isLightsOn,
-        wakeUntil,
-      });
-      const updateData = buildSlotDocumentUpdatePayload({
-        stats: statsSnapshot,
-        rootSlotFields,
-        selectedDigimon: effectiveSelectedDigimon,
-        digimonNickname,
-        evolutionDataForSlot,
-        isLoadingSlot,
-      });
-
-      try {
-        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-        await updateDoc(slotRef, updateData);
-      } catch (saveError) {
-        console.error("사망 스냅샷 저장 오류:", saveError);
-        setError(saveError);
-        throw saveError;
-      }
-    },
-    [
-      slotId,
-      currentUser,
-      isFirebaseAvailable,
-      digimonStats?.selectedDigimon,
-      selectedDigimon,
-      isLightsOn,
-      wakeUntil,
-      isLoadingSlot,
-      digimonNickname,
-      evolutionDataForSlot,
-    ]
-  );
+  const persistDeathSnapshot = async (statsSnapshot) => {
+    if (!slotId || !currentUser || !isFirebaseAvailable || !statsSnapshot) {
+      return;
+    }
+    return saveQueueRef.current.enqueue(() => executeSaveStats(statsSnapshot));
+  };
 
   return {
     saveStats,
@@ -1503,6 +1477,11 @@ export function useGameData({
     persistDeathSnapshot,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
+    flushOutbox,
+    syncStatus,
+    syncConflict,
+    resolveSyncConflict,
+    refreshGameRevision,
     isLoading,
     error,
   };

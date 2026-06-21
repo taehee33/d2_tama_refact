@@ -7,6 +7,7 @@ const mockDoc = jest.fn();
 const mockGetDoc = jest.fn();
 const mockGetDocs = jest.fn();
 const mockLimit = jest.fn();
+const mockIncrement = jest.fn();
 const mockQuery = jest.fn();
 const mockServerTimestamp = jest.fn();
 const mockUpdateDoc = jest.fn();
@@ -27,6 +28,7 @@ jest.mock("firebase/firestore", () => ({
   getDoc: (...args) => mockGetDoc(...args),
   getDocs: (...args) => mockGetDocs(...args),
   limit: (...args) => mockLimit(...args),
+  increment: (...args) => mockIncrement(...args),
   query: (...args) => mockQuery(...args),
   serverTimestamp: (...args) => mockServerTimestamp(...args),
   updateDoc: (...args) => mockUpdateDoc(...args),
@@ -202,6 +204,7 @@ describe("useEvolution jogress flows", () => {
       tamerName: "내 테이머",
       digimonNickname: "아구",
       currentUser: { uid: "user-1", displayName: "유저원" },
+      refreshGameRevision: jest.fn().mockResolvedValue(1),
       toggleModal: jest.fn(),
       version: "Ver.1",
       ...overrides,
@@ -218,6 +221,7 @@ describe("useEvolution jogress flows", () => {
     mockLimit.mockImplementation((...args) => ({ type: "limit", args }));
     mockQuery.mockImplementation((...args) => ({ type: "query", args }));
     mockServerTimestamp.mockReturnValue("SERVER_TS");
+    mockIncrement.mockReturnValue("REVISION_INCREMENT");
     mockWriteBatch.mockReturnValue({
       update: mockBatchUpdate,
       commit: mockBatchCommit,
@@ -290,8 +294,10 @@ describe("useEvolution jogress flows", () => {
         lastSavedAt: 1700000000000,
         lastSavedAtServer: "SERVER_TS",
         updatedAt: "SERVER_TS",
+        revision: "REVISION_INCREMENT",
       })
     );
+    expect(params.refreshGameRevision).not.toHaveBeenCalled();
     expect(params.setDigimonStatsAndSave).not.toHaveBeenCalled();
     expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith(
@@ -354,6 +360,9 @@ describe("useEvolution jogress flows", () => {
         }),
       ])
     );
+    expect(params.refreshGameRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedDigimon: "Omegamon" })
+    );
     expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Omegamon");
     expect(mockUpdateDoc).toHaveBeenCalledWith("jogress_rooms/room-wait", {
       status: "cancelled",
@@ -415,7 +424,11 @@ describe("useEvolution jogress flows", () => {
         lastSavedAt: 1700000000000,
         lastSavedAtServer: "SERVER_TS",
         updatedAt: "SERVER_TS",
+        revision: "REVISION_INCREMENT",
       })
+    );
+    expect(params.refreshGameRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedDigimon: "Omegamon" })
     );
     expect(mockUpdateDoc).toHaveBeenNthCalledWith(2, "jogress_rooms/room-3", {
       status: "completed",

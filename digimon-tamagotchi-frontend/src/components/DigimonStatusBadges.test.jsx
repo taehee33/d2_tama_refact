@@ -41,3 +41,16 @@ describe("DigimonStatusBadges", () => {
     expect(allMessages.map((message) => message.id)).toContain("time-until-sleep");
   });
 });
+
+test("게임 저장 동기화 상태를 한국어 배지로 표시한다", () => {
+  render(
+    <DigimonStatusBadges
+      digimonStats={{}}
+      syncStatus="conflict"
+    />
+  );
+
+  expect(screen.getByTestId("game-sync-status")).toHaveTextContent(
+    "다른 기기의 변경사항 확인 필요"
+  );
+});

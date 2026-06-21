@@ -325,7 +325,7 @@ export function createIndexedDbOutbox(options = {}) {
         const withinRecentWindow = record.occurredAt >= cutoff;
         const withinCountWindow = index < maxCount;
 
-        if (withinRecentWindow || withinCountWindow) {
+        if (withinRecentWindow && withinCountWindow) {
           retainKeys.add(record.eventKey);
         }
       });

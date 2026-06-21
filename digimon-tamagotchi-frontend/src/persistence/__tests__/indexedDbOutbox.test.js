@@ -461,13 +461,13 @@ describe('indexedDbOutbox', () => {
     const remainingEventIds = new Set(remainingEvents.map((event) => event.eventId));
 
     expect(pruneResult).toEqual({
-      deletedCount: 3,
-      keptCount: 5000,
+      deletedCount: 5002,
+      keptCount: 1,
       pendingCount: 1,
     });
     expect(remainingEventIds.has('old-pending')).toBe(true);
     expect(remainingEventIds.has('recent-synced')).toBe(true);
-    expect(remainingEvents).toHaveLength(5001);
+    expect(remainingEvents).toHaveLength(2);
   });
 
   it('raw IndexedDB 어댑터 경로도 fake indexedDB로 동작한다', async () => {

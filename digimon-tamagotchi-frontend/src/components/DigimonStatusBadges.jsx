@@ -21,6 +21,7 @@ const DigimonStatusBadges = ({
   wakeUntil = null,
   sleepLightOnStart = null,
   deathReason = null,
+  syncStatus = null,
 }) => {
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -54,7 +55,15 @@ const DigimonStatusBadges = ({
     }
   };
 
-  if (displayMessages.length === 0) {
+  const syncStatusMeta = {
+    saving: { text: "저장 중", color: "text-blue-700", bgColor: "bg-blue-50" },
+    local: { text: "기기에 안전하게 저장됨", color: "text-amber-700", bgColor: "bg-amber-50" },
+    synced: { text: "서버 동기화 완료", color: "text-emerald-700", bgColor: "bg-emerald-50" },
+    conflict: { text: "다른 기기의 변경사항 확인 필요", color: "text-red-700", bgColor: "bg-red-50" },
+    unavailable: { text: "저장소 사용 불가", color: "text-red-700", bgColor: "bg-red-50" },
+  }[syncStatus];
+
+  if (displayMessages.length === 0 && !syncStatusMeta) {
     return null;
   }
 
@@ -69,6 +78,14 @@ const DigimonStatusBadges = ({
       aria-label={onOpenStatusDetail ? "모든 상태 보기" : undefined}
       disabled={!onOpenStatusDetail}
     >
+      {syncStatusMeta ? (
+        <span
+          data-testid="game-sync-status"
+          className={`text-xs font-semibold ${syncStatusMeta.color} px-2.5 py-1 rounded-full ${syncStatusMeta.bgColor} border border-slate-300 shadow-sm`}
+        >
+          {syncStatusMeta.text}
+        </span>
+      ) : null}
       {displayMessages.map((message) => (
         <span
           key={message.id}

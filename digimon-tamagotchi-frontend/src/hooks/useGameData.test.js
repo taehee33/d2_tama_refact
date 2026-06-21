@@ -16,6 +16,7 @@ import {
   raiseGameSaveError,
   sanitizeDigimonStatsForSlotDocument,
 } from "./useGameData";
+import { buildFeedSummaryUpdate } from "./game-persistence/useDurableGamePersistence";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { initializeStats } from "../data/stats";
@@ -27,6 +28,37 @@ describe("raiseGameSaveError", () => {
 
     expect(() => raiseGameSaveError(error, setError)).toThrow(error);
     expect(setError).toHaveBeenCalledWith(error);
+  });
+});
+
+describe("buildFeedSummaryUpdate", () => {
+  test("15분 bucket의 먹이 종류와 결과를 누적한다", () => {
+    const result = buildFeedSummaryUpdate({
+      bucketStartAt: 0,
+      events: [
+        { eventId: "feed-1", occurredAt: 100, payload: { kind: "meat", result: "accepted" } },
+        { eventId: "feed-2", occurredAt: 200, payload: { kind: "protein", result: "refused" } },
+      ],
+    });
+
+    expect(result.payload).toMatchObject({
+      type: "FEED_SUMMARY",
+      eventCount: 2,
+      countsByKind: { meat: 1, protein: 1 },
+      countsByResult: { accepted: 1, refused: 1 },
+      firstOccurredAt: 100,
+      lastOccurredAt: 200,
+    });
+  });
+
+  test("이미 반영된 eventId는 다시 집계하지 않는다", () => {
+    expect(buildFeedSummaryUpdate({
+      bucketStartAt: 0,
+      existing: { sourceEventIds: ["feed-1"], eventCount: 1 },
+      events: [
+        { eventId: "feed-1", occurredAt: 100, payload: { kind: "meat" } },
+      ],
+    })).toBeNull();
   });
 });
 

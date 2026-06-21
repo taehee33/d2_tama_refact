@@ -4,6 +4,41 @@
 
 ---
 
+## [2026-06-21] Revision 충돌 안전 동기화 4B
+
+### 작업 유형
+- 슬롯 revision transaction 저장
+- 안전 액션 결과 replay와 위험 전이 보류
+- 다중 기기 충돌 해결 UI
+- 조그레스 직접 writer revision 정렬
+
+### 목적 및 영향
+- **목적:** 오프라인 outbox가 재전송될 때 다른 기기의 최신 슬롯 상태를 조용히 덮어쓰지 않도록 한다.
+- **아키텍처 결정:** 슬롯 루트의 `revision`을 0부터 시작하는 안전 정수로 취급하고, 상태 저장 transaction에서 기준 revision이 같을 때만 1 증가시킨다. `schemaVersion`, `mutationId`, 로그 `eventId`는 revision과 별도 책임으로 유지한다.
+- **내용:**
+  - 먹이·훈련·청소·다이어트·휴식·디톡스·조명 액션은 결과 delta/set 연산을 outbox에 기록해 최신 서버 상태 위에 발생 순서대로 재생한다.
+  - 사망·진화·환생·조그레스 배틀·냉장고와 복합 케어 변경은 자동 병합하지 않고 충돌 상태로 보류한다.
+  - 사용자는 서버 상태 유지 또는 이 기기 상태 강제 저장을 추가 확인 후 선택할 수 있으며, 재충돌하면 다시 보류한다.
+  - 저장 상태를 `저장 중`, `기기에 안전하게 저장됨`, `서버 동기화 완료`, `다른 기기의 변경사항 확인 필요`, `저장소 사용 불가`로 표시한다.
+  - 조그레스의 직접 slot write도 revision을 원자 증가시키고 현재 슬롯 revision ref를 다시 읽어 이후 저장과 맞춘다.
+  - 내구성 동기화 책임은 `useDurableGamePersistence`로 분리해 `useGameData`에는 hydration과 payload 조립 책임만 남긴다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+- `digimon-tamagotchi-frontend/src/persistence/gameRevision.js`
+- `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+- `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+- `digimon-tamagotchi-frontend/src/components/GameSyncConflictDialog.jsx`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.jsx`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- 관련 회귀 테스트
+
+### 검증
+- 4A 전용 테스트: 6개 스위트, 24개 테스트 통과
+- 4B 전용 테스트: 6개 스위트, 59개 테스트 통과
+- 프론트 전체 테스트: 137개 스위트, 680개 테스트 통과
+- CI production build 성공
+
 ## [2026-06-21] IndexedDB 내구성 outbox 기반 4A
 
 ### 작업 유형
