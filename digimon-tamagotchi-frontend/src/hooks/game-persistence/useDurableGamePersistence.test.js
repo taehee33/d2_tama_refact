@@ -18,6 +18,7 @@ jest.mock("../../firebase", () => ({ db: "DB" }));
 
 function createMemoryOutbox(order) {
   let stateRecord = null;
+  let feedEvents = [];
   return {
     async getStateMutation() { return stateRecord; },
     async putStateMutation(input) {
@@ -36,12 +37,19 @@ function createMemoryOutbox(order) {
     },
     async listActivityEvents() { return []; },
     async listBattleEvents() { return []; },
-    async listFeedEvents() { return []; },
+    async listFeedEvents() { return feedEvents; },
     async putActivityEvent() {},
     async deleteActivityEvent() {},
     async putBattleEvent() {},
     async deleteBattleEvent() {},
-    async putFeedEvent() {},
+    async putFeedEvent(input) {
+      const next = { ...input };
+      feedEvents = [...feedEvents.filter((event) => event.eventId !== input.eventId), next];
+      return next;
+    },
+    async deleteFeedEvent({ eventId }) {
+      feedEvents = feedEvents.filter((event) => event.eventId !== eventId);
+    },
     async pruneSyncedFeedEvents() {},
   };
 }
@@ -73,7 +81,13 @@ describe("useDurableGamePersistence", () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   test("Firestore transaction 전에 상태를 outbox에 기록하고 성공 후 같은 mutation을 삭제한다", async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(1_000);
     const order = [];
     const outbox = createMemoryOutbox(order);
     mockRunTransaction.mockImplementation(async (_db, callback) => {
@@ -101,6 +115,33 @@ describe("useDurableGamePersistence", () => {
       "outbox:delete",
     ]);
     expect(await outbox.getStateMutation()).toBeNull();
+    expect(result.current.stateSyncStatus).toBe("synced");
+    expect(result.current.nextStateSyncAt).toBe(901_000);
+  });
+
+  test("일반 먹이 기록은 다음 15분 bucket까지 별도 대기 상태로 표시한다", async () => {
+    jest.useFakeTimers();
+    const now = new Date("2026-06-21T15:07:30+09:00").getTime();
+    jest.setSystemTime(now);
+    const outbox = createMemoryOutbox([]);
+    mockRunTransaction.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    await act(async () => {
+      await result.current.appendLog({
+        type: "FEED",
+        text: "Feed: Meat",
+        timestamp: now,
+      });
+    });
+
+    expect(result.current.recordSyncStatus).toBe("feed_pending");
+    expect(result.current.pendingRecordCount).toBe(1);
+    expect(result.current.nextRecordSyncAt).toBe(
+      new Date("2026-06-21T15:15:00+09:00").getTime()
+    );
   });
 
   test("Firestore 실패 시 outbox 상태를 유지하고 기기 저장 상태를 표시한다", async () => {
@@ -120,7 +161,8 @@ describe("useDurableGamePersistence", () => {
     });
 
     expect(await outbox.getStateMutation()).not.toBeNull();
-    expect(result.current.syncStatus).toBe("local");
+    expect(result.current.stateSyncStatus).toBe("local");
+    expect(result.current.nextStateSyncAt).toBeNull();
   });
 
   test("사망 같은 위험 전이의 revision 충돌은 자동 덮어쓰지 않고 보류한다", async () => {
@@ -149,7 +191,7 @@ describe("useDurableGamePersistence", () => {
 
     expect(didPersist).toBe(false);
     expect(update).not.toHaveBeenCalled();
-    expect(result.current.syncStatus).toBe("conflict");
+    expect(result.current.stateSyncStatus).toBe("conflict");
     expect(result.current.syncConflict).toMatchObject({
       expectedRevision: 0,
       actualRevision: 2,

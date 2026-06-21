@@ -26,12 +26,23 @@ import {
 import { buildPersistentBattleLogPayload } from "../../utils/battleLogPersistence";
 import { toEpochMs } from "../../utils/time";
 import { useGameOutboxSync } from "../game-runtime/useGameOutboxSync";
+import {
+  getFeedSummaryBucketEndAt,
+  getNextStateSyncAt,
+} from "../game-runtime/gameSyncSchedule";
 
 export const GAME_SYNC_STATUS = {
   SAVING: "saving",
   LOCAL: "local",
   SYNCED: "synced",
   CONFLICT: "conflict",
+  UNAVAILABLE: "unavailable",
+};
+
+export const GAME_RECORD_SYNC_STATUS = {
+  SYNCED: "synced",
+  LOCAL: "local",
+  FEED_PENDING: "feed_pending",
   UNAVAILABLE: "unavailable",
 };
 
@@ -143,7 +154,11 @@ export function useDurableGamePersistence({
   saveQueue,
   outboxOverride,
 }) {
-  const [syncStatus, setSyncStatus] = useState(GAME_SYNC_STATUS.SYNCED);
+  const [stateSyncStatus, setStateSyncStatus] = useState(GAME_SYNC_STATUS.SYNCED);
+  const [recordSyncStatus, setRecordSyncStatus] = useState(GAME_RECORD_SYNC_STATUS.SYNCED);
+  const [nextStateSyncAt, setNextStateSyncAt] = useState(null);
+  const [nextRecordSyncAt, setNextRecordSyncAt] = useState(null);
+  const [pendingRecordCount, setPendingRecordCount] = useState(0);
   const [syncConflict, setSyncConflict] = useState(null);
   const [outbox] = useState(() => {
     if (outboxOverride !== undefined) return outboxOverride;
@@ -158,16 +173,30 @@ export function useDurableGamePersistence({
   const conflictRef = useRef(null);
 
   useEffect(() => {
-    if (!outbox) setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+    if (!outbox) {
+      setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+      setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
+    }
   }, [outbox]);
+
+  useEffect(() => {
+    setStateSyncStatus(outbox ? GAME_SYNC_STATUS.SYNCED : GAME_SYNC_STATUS.UNAVAILABLE);
+    setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.SYNCED : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
+    setNextStateSyncAt(null);
+    setNextRecordSyncAt(null);
+    setPendingRecordCount(0);
+    conflictRef.current = null;
+    setSyncConflict(null);
+  }, [currentUser?.uid, outbox, slotId]);
 
   const refreshOutboxStatus = useCallback(async () => {
     if (!outbox || !currentUser?.uid || !slotId) {
-      setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+      setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+      setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return GAME_SYNC_STATUS.UNAVAILABLE;
     }
     if (conflictRef.current) {
-      setSyncStatus(GAME_SYNC_STATUS.CONFLICT);
+      setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
       return GAME_SYNC_STATUS.CONFLICT;
     }
 
@@ -177,13 +206,22 @@ export function useDurableGamePersistence({
       outbox.listBattleEvents({ uid: currentUser.uid, slotId }),
       outbox.listFeedEvents({ uid: currentUser.uid, slotId }),
     ]);
-    const hasPending = Boolean(
-      stateRecord || activityEvents.length || battleEvents.length ||
-      feedEvents.some((event) => event.syncStatus !== "synced")
-    );
-    const status = hasPending ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED;
-    setSyncStatus(status);
-    return status;
+    const pendingFeedEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
+    const recordCount = activityEvents.length + battleEvents.length + pendingFeedEvents.length;
+    setStateSyncStatus(stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED);
+    setPendingRecordCount(recordCount);
+    if (activityEvents.length || battleEvents.length) {
+      setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.LOCAL);
+    } else if (pendingFeedEvents.length) {
+      setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.FEED_PENDING);
+    } else {
+      setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.SYNCED);
+    }
+    const nextFeedAt = pendingFeedEvents.length
+      ? Math.min(...pendingFeedEvents.map((event) => getFeedSummaryBucketEndAt(event.occurredAt)))
+      : null;
+    setNextRecordSyncAt(nextFeedAt);
+    return stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED;
   }, [currentUser?.uid, outbox, slotId]);
 
   const holdRevisionConflict = useCallback((record, conflictError) => {
@@ -197,7 +235,7 @@ export function useDurableGamePersistence({
     };
     conflictRef.current = conflict;
     setSyncConflict(conflict);
-    setSyncStatus(GAME_SYNC_STATUS.CONFLICT);
+    setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
     return false;
   }, []);
 
@@ -217,6 +255,8 @@ export function useDurableGamePersistence({
       });
       revisionRef.current = result.revision;
       lastSyncedStatsRef.current = localSnapshot;
+      setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
+      setNextStateSyncAt(getNextStateSyncAt());
       if (outbox) {
         await outbox.deleteStateMutation({
           uid: currentUser.uid,
@@ -230,7 +270,7 @@ export function useDurableGamePersistence({
       return true;
     } catch (commitError) {
       if (!(commitError instanceof GameRevisionConflictError)) {
-        setSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
+        setStateSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
         throw commitError;
       }
 
@@ -268,6 +308,8 @@ export function useDurableGamePersistence({
       });
       revisionRef.current = replayCommit.revision;
       lastSyncedStatsRef.current = replayedSnapshot;
+      setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
+      setNextStateSyncAt(getNextStateSyncAt());
       setDigimonStats((previous) => ({
         ...replayedSnapshot,
         activityLogs: previous?.activityLogs || [],
@@ -337,15 +379,15 @@ export function useDurableGamePersistence({
   }, [activityLogs, currentUser, digimonStats, outbox, slotId]);
 
   const persistStateSnapshot = useCallback(async ({ statsSnapshot, updatedLogs, nowMs }) => {
-    setSyncStatus(GAME_SYNC_STATUS.SAVING);
+    setStateSyncStatus(GAME_SYNC_STATUS.SAVING);
     let record = null;
     if (outbox && currentUser?.uid && slotId) {
       try {
         record = await queueStateSnapshot({ statsSnapshot, updatedLogs, nowMs });
-        setSyncStatus(GAME_SYNC_STATUS.LOCAL);
+        setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } catch (error) {
         console.error("로컬 outbox 저장 오류:", error);
-        setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+        setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
       }
     }
 
@@ -393,10 +435,10 @@ export function useDurableGamePersistence({
             payload,
           });
         }
-        setSyncStatus(GAME_SYNC_STATUS.LOCAL);
+        await refreshOutboxStatus();
       } catch (error) {
         console.error("[appendLogToSubcollection] outbox 오류:", error);
-        setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+        setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       }
     }
     if (!shouldPersistActivityLog(payload)) return;
@@ -411,7 +453,7 @@ export function useDurableGamePersistence({
       return true;
     } catch (error) {
       console.error("[appendLogToSubcollection] 오류:", error);
-      setSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
+      setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return false;
     }
   }, [currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
@@ -430,10 +472,10 @@ export function useDurableGamePersistence({
           eventType: "BATTLE",
           payload,
         });
-        setSyncStatus(GAME_SYNC_STATUS.LOCAL);
+        await refreshOutboxStatus();
       } catch (error) {
         console.error("[appendBattleLogToSubcollection] outbox 오류:", error);
-        setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+        setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       }
     }
     try {
@@ -446,7 +488,7 @@ export function useDurableGamePersistence({
       return true;
     } catch (error) {
       console.error("[appendBattleLogToSubcollection] 오류:", error);
-      setSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
+      setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return false;
     }
   }, [currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
@@ -454,7 +496,12 @@ export function useDurableGamePersistence({
   const flushFeed = useCallback(async (slotRef) => {
     if (!outbox || !currentUser?.uid || !slotId) return;
     const feedEvents = await outbox.listFeedEvents({ uid: currentUser.uid, slotId });
-    const pendingEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
+    const now = Date.now();
+    const pendingEvents = feedEvents.filter(
+      (event) =>
+        event.syncStatus !== "synced" &&
+        getFeedSummaryBucketEndAt(event.occurredAt) <= now
+    );
     const bucketSizeMs = 15 * 60 * 1000;
     const buckets = new Map();
     pendingEvents.forEach((event) => {
@@ -495,7 +542,10 @@ export function useDurableGamePersistence({
 
   const flushOutboxInternal = useCallback(async () => {
     if (!outbox || !currentUser?.uid || !slotId || !isFirebaseAvailable) {
-      if (!outbox) setSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+      if (!outbox) {
+        setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+        setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
+      }
       return !outbox;
     }
     const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
@@ -519,7 +569,12 @@ export function useDurableGamePersistence({
       return true;
     } catch (error) {
       console.warn("[GameOutbox] 재전송 실패:", error);
-      setSyncStatus(GAME_SYNC_STATUS.LOCAL);
+      try {
+        await refreshOutboxStatus();
+      } catch (_statusError) {
+        setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
+        setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
+      }
       return false;
     }
   }, [commitStateRecord, currentUser, flushFeed, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
@@ -529,10 +584,11 @@ export function useDurableGamePersistence({
     [flushOutboxInternal, saveQueue]
   );
 
-  useGameOutboxSync({
+  const { retryAt } = useGameOutboxSync({
     enabled: Boolean(slotId && currentUser?.uid && isFirebaseAvailable),
     isLoadingSlot,
     flushOutbox,
+    nextFlushAt: nextRecordSyncAt,
   });
 
   const discardPendingEvents = useCallback(async () => {
@@ -622,6 +678,7 @@ export function useDurableGamePersistence({
       }
       conflictRef.current = null;
       setSyncConflict(null);
+      setNextStateSyncAt(getNextStateSyncAt());
       await refreshOutboxStatus();
       return true;
     });
@@ -653,18 +710,22 @@ export function useDurableGamePersistence({
     const revision = normalizeGameRevision(slotData.revision);
     revisionRef.current = revision;
     lastSyncedStatsRef.current = statsSnapshot || normalizeStats(slotData.digimonStats || {});
+    setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
+    setNextStateSyncAt(getNextStateSyncAt());
     return revision;
   }, [currentUser?.uid, isFirebaseAvailable, normalizeStats, slotId]);
 
   const setLoadedRevision = useCallback((revision, statsSnapshot) => {
     revisionRef.current = normalizeGameRevision(revision);
     lastSyncedStatsRef.current = statsSnapshot || null;
+    setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
+    setNextStateSyncAt(getNextStateSyncAt());
   }, []);
 
   const getPendingState = useCallback(async () => {
     if (!outbox || !currentUser?.uid || !slotId) return null;
     const pendingState = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
-    if (pendingState) setSyncStatus(GAME_SYNC_STATUS.LOCAL);
+    if (pendingState) setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
     return pendingState;
   }, [currentUser?.uid, outbox, slotId]);
 
@@ -678,6 +739,11 @@ export function useDurableGamePersistence({
     resolveSyncConflict,
     setLoadedRevision,
     syncConflict,
-    syncStatus,
+    nextRecordSyncAt,
+    nextStateSyncAt,
+    pendingRecordCount,
+    recordSyncStatus,
+    retryAt,
+    stateSyncStatus,
   };
 }

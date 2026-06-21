@@ -34,4 +34,24 @@ describe("GameHeaderMeta", () => {
     expect(screen.getByRole("button", { name: "정보 접기" })).toBeInTheDocument();
     expect(screen.getByText(/현재 시간:/)).toBeInTheDocument();
   });
+
+  test("현재 시간 아래에 분리된 저장 및 동기화 정보를 표시한다", () => {
+    localStorage.setItem(GAME_HEADER_INFO_COLLAPSED_KEY, "false");
+    render(
+      <GameHeaderMeta
+        {...defaultProps}
+        syncInfo={{
+          mode: "firebase",
+          stateSyncStatus: "synced",
+          recordSyncStatus: "feed_pending",
+          nextRecordSyncAt: Date.now() + 60_000,
+          pendingRecordCount: 1,
+        }}
+      />
+    );
+
+    expect(screen.getByText(/현재 시간:/)).toBeInTheDocument();
+    expect(screen.getByText("저장 및 동기화")).toBeInTheDocument();
+    expect(screen.getByText(/먹이 기록 요약 대기/)).toBeInTheDocument();
+  });
 });

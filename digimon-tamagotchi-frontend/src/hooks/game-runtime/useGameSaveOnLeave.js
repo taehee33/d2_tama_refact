@@ -8,6 +8,7 @@ export function useGameSaveOnLeave({
 }) {
   const latestStatsRef = useRef(digimonStats);
   const saveRef = useRef(setDigimonStatsAndSave);
+  const lastLeaveSaveAtRef = useRef(0);
 
   useEffect(() => {
     latestStatsRef.current = digimonStats;
@@ -20,23 +21,29 @@ export function useGameSaveOnLeave({
   useEffect(() => {
     if (!slotId || !currentUser || !saveRef.current) return;
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        saveRef.current(latestStatsRef.current).catch((err) =>
-          console.warn("[Game] 탭 이탈 시 저장 실패:", err)
-        );
-      }
+    const saveBeforeLeave = () => {
+      const now = Date.now();
+      if (now - lastLeaveSaveAtRef.current < 1_000) return;
+      lastLeaveSaveAtRef.current = now;
+      saveRef.current(latestStatsRef.current).catch((err) =>
+        console.warn("[Game] 탭 이탈 시 저장 실패:", err)
+      );
     };
 
-    const handleBeforeUnload = () => {
-      saveRef.current(latestStatsRef.current).catch(() => {});
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") saveBeforeLeave();
     };
+
+    const handleBeforeUnload = () => saveBeforeLeave();
+    const handlePageHide = () => saveBeforeLeave();
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [slotId, currentUser]);

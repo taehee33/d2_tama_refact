@@ -26,6 +26,7 @@ export function useGameRuntimeEffects({
   setIsSleeping,
   setDeathReason,
   setHasSeenDeathPopup,
+  nextStateSyncAt,
 }) {
   useGameClock(setCustomTime);
 
@@ -34,6 +35,7 @@ export function useGameRuntimeEffects({
     currentUser,
     digimonStats,
     setDigimonStatsAndSave,
+    nextSyncAt: nextStateSyncAt,
   });
 
   useGamePeriodicSync({

@@ -8,7 +8,7 @@ export function useGamePeriodicSync({
   isLoadingSlot = false,
   digimonStats,
   setDigimonStatsAndSave,
-  intervalMs = GAME_PERIODIC_SYNC_INTERVAL_MS,
+  nextSyncAt = null,
 }) {
   const latestStatsRef = useRef(digimonStats);
   const saveRef = useRef(setDigimonStatsAndSave);
@@ -52,18 +52,31 @@ export function useGamePeriodicSync({
       return undefined;
     }
 
-    const timer = window.setInterval(() => {
-      void syncLatestStats("15분 주기");
-    }, intervalMs);
+    const timer = nextSyncAt != null && Number.isFinite(Number(nextSyncAt))
+      ? window.setTimeout(() => {
+          void syncLatestStats("15분 주기");
+        }, Math.max(0, Number(nextSyncAt) - Date.now()))
+      : null;
     const handleOnline = () => {
       void syncLatestStats("온라인 복귀");
     };
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        nextSyncAt != null &&
+        Number(nextSyncAt) <= Date.now()
+      ) {
+        void syncLatestStats("화면 재활성화");
+      }
+    };
 
     window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.clearInterval(timer);
+      if (timer != null) window.clearTimeout(timer);
       window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentUser, intervalMs, isLoadingSlot, slotId, syncLatestStats]);
+  }, [currentUser, isLoadingSlot, nextSyncAt, slotId, syncLatestStats]);
 }

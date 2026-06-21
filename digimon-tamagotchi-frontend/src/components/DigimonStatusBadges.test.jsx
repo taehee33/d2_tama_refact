@@ -42,7 +42,7 @@ describe("DigimonStatusBadges", () => {
   });
 });
 
-test("게임 저장 동기화 상태를 한국어 배지로 표시한다", () => {
+test("게임 저장 동기화 상태를 상단 상태 배지에 표시하지 않는다", () => {
   render(
     <DigimonStatusBadges
       digimonStats={{}}
@@ -50,7 +50,5 @@ test("게임 저장 동기화 상태를 한국어 배지로 표시한다", () =>
     />
   );
 
-  expect(screen.getByTestId("game-sync-status")).toHaveTextContent(
-    "다른 기기의 변경사항 확인 필요"
-  );
+  expect(screen.queryByText("다른 기기의 변경사항 확인 필요")).not.toBeInTheDocument();
 });

@@ -309,7 +309,7 @@ function Game({ immersive = false }){
     persistDeathSnapshot,
     appendLogToSubcollection,
     appendBattleLogToSubcollection,
-    syncStatus,
+    syncInfo,
     syncConflict,
     resolveSyncConflict,
     refreshGameRevision,
@@ -382,6 +382,7 @@ function Game({ immersive = false }){
     setIsSleeping,
     setDeathReason,
     setHasSeenDeathPopup,
+    nextStateSyncAt: syncInfo?.nextStateSyncAt,
   });
 
   useGamePagePersistenceEffects({
@@ -1169,7 +1170,6 @@ function Game({ immersive = false }){
 
   const sharedStatusBadgesProps = {
     ...statusBadgeProps,
-    syncStatus,
     onOpenStatusDetail: handleOpenStatusDetail,
   };
 
@@ -1185,6 +1185,7 @@ function Game({ immersive = false }){
         slotDevice,
         slotVersion,
         currentTimeText,
+        syncInfo,
       }}
       statusHeartsProps={sharedStatusHeartsProps}
       statusBadgesProps={sharedStatusBadgesProps}
@@ -1247,6 +1248,7 @@ function Game({ immersive = false }){
       slotName={slotName}
       slotDevice={slotDevice}
       currentTimeText={currentTimeText}
+      syncInfo={syncInfo}
       isFrozen={digimonStats.isFrozen || false}
       statusHeartsProps={sharedStatusHeartsProps}
       statusBadgesProps={sharedStatusBadgesProps}
@@ -1405,6 +1407,7 @@ function Game({ immersive = false }){
                 slotVersion: normalizedSlotVersion,
                 digimonLabel: headerDigimonLabel,
                 currentTimeText,
+                syncInfo,
                 digimonStats,
                 currentAnimation,
                 feedType,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import GameSyncInfo from "./GameSyncInfo";
 
 export const GAME_HEADER_INFO_COLLAPSED_KEY = "game_header_info_collapsed";
 
@@ -18,6 +19,7 @@ function GameHeaderMeta({
   slotDevice,
   slotVersion,
   currentTimeText,
+  syncInfo,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(loadHeaderInfoCollapsed);
 
@@ -49,6 +51,7 @@ function GameHeaderMeta({
             기종: {slotDevice} / 버전: {slotVersion}
           </p>
           <p className="text-sm font-semibold text-blue-600">현재 시간: {currentTimeText}</p>
+          <GameSyncInfo syncInfo={syncInfo} />
         </div>
       ) : null}
     </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import TrainPopup from "../TrainPopup";
+import GameSyncInfo from "../GameSyncInfo";
 import {
   buildDigimonStatusMessages,
   DIGIMON_STATUS_CATEGORY_META,
@@ -203,6 +204,7 @@ function LandscapeStatusPanel({
   deathReason = null,
   sleepStatus = "AWAKE",
   currentTime = Date.now(),
+  syncInfo = null,
 }) {
   return (
     <div className="immersive-landscape-action-status">
@@ -226,6 +228,8 @@ function LandscapeStatusPanel({
           </div>
         </dl>
       </header>
+
+      <GameSyncInfo syncInfo={syncInfo} />
 
       <StatusSummaryCards digimonStats={digimonStats} />
       <StatusMessageSections

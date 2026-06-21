@@ -70,4 +70,28 @@ describe("useGameOutboxSync", () => {
 
     expect(flushOutbox).not.toHaveBeenCalled();
   });
+
+  test("먹이 기록의 실제 bucket deadline에 재전송한다", async () => {
+    jest.setSystemTime(10_000);
+    const flushOutbox = jest.fn().mockResolvedValue(true);
+    renderHook(() => useGameOutboxSync({
+      enabled: true,
+      flushOutbox,
+      nextFlushAt: 15_000,
+    }));
+    await act(async () => Promise.resolve());
+    flushOutbox.mockClear();
+
+    await act(async () => {
+      jest.advanceTimersByTime(4_999);
+      await Promise.resolve();
+    });
+    expect(flushOutbox).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+      await Promise.resolve();
+    });
+    expect(flushOutbox).toHaveBeenCalledWith("15분 기록 요약");
+  });
 });

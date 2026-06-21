@@ -1,6 +1,7 @@
 import React from "react";
 import StatusHearts from "../StatusHearts";
 import DigimonStatusBadges from "../DigimonStatusBadges";
+import GameSyncInfo from "../GameSyncInfo";
 
 function ImmersiveLandscapeStatusPanel({
   slotId,
@@ -9,6 +10,7 @@ function ImmersiveLandscapeStatusPanel({
   slotName,
   slotDevice,
   currentTimeText,
+  syncInfo,
   isFrozen = false,
   statusHeartsProps = {},
   statusBadgesProps = {},
@@ -31,6 +33,7 @@ function ImmersiveLandscapeStatusPanel({
       <span className="immersive-landscape-status__time">
         현재 시간 {currentTimeText}
       </span>
+      <GameSyncInfo syncInfo={syncInfo} compact />
       <div className="immersive-landscape-status__hearts">
         <StatusHearts
           {...statusHeartsProps}

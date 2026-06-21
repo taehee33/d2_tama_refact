@@ -25,6 +25,7 @@ describe("useGamePeriodicSync", () => {
         currentUser: { uid: "user-1" },
         digimonStats: stats,
         setDigimonStatsAndSave: save,
+        nextSyncAt: Date.now() + GAME_PERIODIC_SYNC_INTERVAL_MS,
       }),
       { initialProps: { stats: { energy: 1 } } }
     );
@@ -51,6 +52,7 @@ describe("useGamePeriodicSync", () => {
       currentUser: { uid: "user-1" },
       digimonStats: { energy: 2 },
       setDigimonStatsAndSave: save,
+      nextSyncAt: Date.now() + GAME_PERIODIC_SYNC_INTERVAL_MS,
     }));
 
     await act(async () => {
@@ -72,7 +74,7 @@ describe("useGamePeriodicSync", () => {
       currentUser: { uid: "user-1" },
       digimonStats: { energy: 2 },
       setDigimonStatsAndSave: save,
-      intervalMs: 1000,
+      nextSyncAt: Date.now() + 1_000,
     }));
 
     await act(async () => {
@@ -96,6 +98,7 @@ describe("useGamePeriodicSync", () => {
       currentUser: { uid: "user-1" },
       digimonStats: { energy: 2 },
       setDigimonStatsAndSave: save,
+      nextSyncAt: Date.now() + GAME_PERIODIC_SYNC_INTERVAL_MS,
     }));
 
     await act(async () => {
@@ -121,6 +124,34 @@ describe("useGamePeriodicSync", () => {
     });
 
     expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  test("숨겨진 동안 deadline이 지나면 화면 재활성화 시 동기화한다", async () => {
+    jest.setSystemTime(10_000);
+    const save = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    renderHook(() => useGamePeriodicSync({
+      slotId: "1",
+      currentUser: { uid: "user-1" },
+      digimonStats: { energy: 2 },
+      setDigimonStatsAndSave: save,
+      nextSyncAt: 15_000,
+    }));
+    jest.setSystemTime(16_000);
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledWith({ energy: 2 });
   });
 
   test("슬롯 로딩 중에는 온라인 복귀와 주기 저장을 등록하지 않는다", async () => {

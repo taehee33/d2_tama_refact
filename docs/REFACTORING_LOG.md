@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-06-21] 동기화 상태 분리 및 실제 남은 시간 표시
+
+### 작업 유형
+- 게임 상태와 활동 기록 동기화 상태 분리
+- 상태 저장·먹이 요약 deadline 기반 카운트다운
+- 앱 이탈 시 pagehide 저장 보강
+
+### 목적 및 영향
+- **목적:** 일반 먹이 기록의 15분 요약 대기 때문에 전체 상태가 `기기에 안전하게 저장됨`으로 보이던 혼동을 없애고, 실제 다음 서버 처리 시각을 사용자에게 설명한다.
+- **아키텍처 결정:** 게임 상태는 마지막 성공 저장부터 15분, 일반 먹이 기록은 매시 `00·15·30·45분` bucket 종료를 별도 deadline으로 관리한다. UI는 자체 타이머를 추측하지 않고 영속성 계층이 제공한 timestamp를 표시한다.
+- **내용:**
+  - 상단 디지몬 상태 배지에서 저장 상태를 제거하고 `정보 펼치기`의 현재 시간 아래로 이동했다.
+  - 기본 화면과 몰입형·가로 상태 화면에 게임 상태, 활동 기록, 남은 시간, 종료 복구 설명을 표시한다.
+  - `stateSyncStatus`, `recordSyncStatus`, `nextStateSyncAt`, `nextRecordSyncAt`, `retryAt`, `pendingRecordCount`를 독립적으로 제공한다.
+  - 일반 FEED는 열린 bucket 동안 IndexedDB에 유지하고 bucket 종료 후 요약 전송한다.
+  - `visibilitychange: hidden`, `pagehide`, `beforeunload`의 연속 이벤트를 중복 없이 처리하며 최신 snapshot 저장을 요청한다.
+  - 브라우저 종료 후 네트워크 실행을 보장하지 않고, 미전송 outbox를 다음 실행에 복구하는 계약을 UI에 명시한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/GameSyncInfo.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameSyncSchedule.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePeriodicSync.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameSaveOnLeave.js`
+- 관련 화면 연결 및 회귀 테스트
+
+### 검증
+- 동기화 UI·deadline·outbox·pagehide 대상 테스트: 12개 스위트, 66개 테스트 통과
+- 프론트 전체 테스트: 140개 스위트, 691개 테스트 통과
+- CI production build 성공
+
 ## [2026-06-21] Revision 충돌 안전 동기화 4B
 
 ### 작업 유형
