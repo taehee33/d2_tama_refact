@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-21] Apps Script 15분 Discord 전달 운영 5C
+
+### 작업 유형
+- 긴급 케어 Apps Script 실행 함수 및 15분 트리거 설치 함수
+- Discord 성공 delivery만 ack하는 전달 흐름
+- dryRun 및 운영 가이드
+
+### 목적 및 영향
+- **목적:** Apps Script를 계산·저장소로 사용하지 않고 신뢰 가능한 스케줄러와 Discord 전달자로만 사용한다.
+- **아키텍처 결정:** `prepare → Discord → 성공 ID ack` 순서를 고정한다. Discord 실패 건은 ack하지 않아 다음 cron에서 같은 pending을 재전송한다.
+- **내용:**
+  - 중복 트리거를 정리하고 15분 트리거 하나를 설치한다.
+  - Script Lock으로 겹친 실행을 방지한다.
+  - dryRun은 webhook을 노출하지 않고 사용자·슬롯·issue·메시지·집계만 반환한다.
+  - 로그에는 전송 수·실패 수·ack 수·계산 제외 수만 기록하고 비밀키와 webhook URL을 남기지 않는다.
+
+### 영향받은 파일
+- `scripts/apps-script/urgentDigimonCare.gs`
+- `docs/DISCORD_NOTIFICATION_API_GUIDE.md`
+- `docs/REFACTORING_LOG.md`
+
+### 검증
+- Apps Script 함수의 prepare·Discord·ack 순서와 실패 시 미ack 경로를 코드 검토
+- Vercel 실배포 및 Apps Script 수동 dryRun은 운영 환경변수 설정 후 수행 필요
+
 ## [2026-06-21] 긴급 케어 prepare/ack API 및 중복 방지 5B
 
 ### 작업 유형

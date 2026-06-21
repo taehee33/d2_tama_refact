@@ -162,3 +162,45 @@ API는 아래 규칙으로 리포트를 생성합니다.
 - Apps Script Script Properties 저장
 - 수동 실행으로 `summary.reportCount`와 Discord 전송 로그 확인
 - Firestore Rules는 변경하지 않음
+
+---
+
+## 8. 15분 긴급 케어 알림
+
+긴급 알림은 Google Sheet를 사용하지 않는다. Apps Script는 15분 스케줄 실행과 Discord 전송만 담당하고, 계산 및 중복 방지는 Vercel API와 Firestore 서버 전용 문서가 담당한다.
+
+### API
+
+- 준비: `POST /api/notifications/urgent-digimon-care/prepare`
+- 확인: `POST /api/notifications/urgent-digimon-care/ack`
+- 공통 헤더: `x-d2-scheduler-secret: {NOTIFICATION_API_SECRET}`
+
+`prepare`는 슬롯 문서와 revision을 수정하지 않는다. 프론트와 동일한 lazy update를 메모리에서 수행하고 새 issue 또는 미확인 pending delivery만 반환한다. Apps Script는 Discord 전송 성공 시에만 해당 `deliveryIds`를 `ack`한다.
+
+### Script Properties
+
+| 키 | 설명 |
+|----|------|
+| `DIGIMON_URGENT_PREPARE_API_URL` | `https://도메인/api/notifications/urgent-digimon-care/prepare` |
+| `DIGIMON_URGENT_ACK_API_URL` | `https://도메인/api/notifications/urgent-digimon-care/ack` |
+| `NOTIFICATION_API_SECRET` | Vercel과 동일한 비밀키 |
+
+Apps Script 편집기에 [`scripts/apps-script/urgentDigimonCare.gs`](../scripts/apps-script/urgentDigimonCare.gs)의 내용을 추가한다. 기존 일일 보고 함수와 트리거는 제거하지 않는다.
+
+### 설치 및 검증 순서
+
+1. Vercel 환경변수 설정 후 배포한다.
+2. Apps Script의 Script Properties 세 값을 저장한다.
+3. `dryRunUrgentDigimonCare()`를 수동 실행해 사용자·슬롯·issue와 집계를 확인한다. 이 함수는 delivery를 만들거나 Discord로 전송하지 않는다.
+4. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 성공 건만 ack되는지 확인한다.
+5. `installUrgentDigimonCareTrigger()`를 한 번 실행해 15분 트리거를 설치한다.
+6. Apps Script 실행 기록에서 `preparedReports`, `failedReports`, `acknowledged`, `projectionUnavailable`을 확인한다.
+
+webhook URL과 비밀키는 로그에 출력하지 않는다. Discord 성공 후 ack 호출만 실패하면 다음 cron에서 같은 메시지가 한 번 더 전송될 수 있다. 이는 전송과 Firestore ack가 서로 다른 외부 요청이기 때문에 남는 제한이다.
+
+### 계산 제외
+
+- 냉장·냉동 슬롯
+- `digimonStats.sleepSchedule`, `maxEnergy`, 배고픔·기력·배변 timer 또는 마지막 저장 시각이 없는 구 슬롯
+
+구 슬롯은 값을 추측하지 않는다. 사용자가 앱에서 슬롯을 다시 열고 저장하면 현재 payload에 runtime 값이 채워져 이후 알림 계산 대상이 된다.
