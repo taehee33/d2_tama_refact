@@ -4,6 +4,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { initializeApp, deleteApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
+const {
+  acknowledgeUrgentCareDeliveries,
+  prepareUrgentCareNotifications,
+} = require("../api/_lib/urgentCareNotifications");
+const {
+  commitWrites,
+  getDocument,
+  listDocuments,
+} = require("../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2tamarefact";
 
@@ -39,7 +48,7 @@ function createRuntimeStats(overrides = {}) {
   };
 }
 
-test("Firestore Emulator에서 revision과 eventId가 원자적·멱등적으로 동작한다", async (t) => {
+test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·멱등적으로 동작한다", async (t) => {
   assert.ok(process.env.FIRESTORE_EMULATOR_HOST, "Firebase Emulator를 통해 실행해야 합니다.");
   process.env.FIREBASE_PROJECT_ID = PROJECT_ID;
   const app = initializeApp({ projectId: PROJECT_ID }, `emulator-${Date.now()}`);
@@ -54,6 +63,10 @@ test("Firestore Emulator에서 revision과 eventId가 원자적·멱등적으로
   });
 
   await db.doc("users/emulator-user").set({ displayName: "테이머" });
+  await db.doc("users/emulator-user/settings/main").set({
+    isNotificationEnabled: true,
+    discordWebhookUrl: "https://discord.test/webhook",
+  });
   await slotRef.set({
     revision: 0,
     selectedDigimon: "Agumon",
@@ -82,4 +95,32 @@ test("Firestore Emulator에서 revision과 eventId가 원자적·멱등적으로
   await eventRef.set({ eventId: "event-fixed", type: "TRAIN" });
   assert.equal((await slotRef.collection("logs").get()).size, 1);
 
+  const prepareArgs = {
+    users: await listDocuments("users"),
+    getDocumentByPath: getDocument,
+    listCollectionDocuments: listDocuments,
+    commit: commitWrites,
+    currentTime: new Date(now),
+  };
+  const first = await prepareUrgentCareNotifications(prepareArgs);
+  const second = await prepareUrgentCareNotifications(prepareArgs);
+  assert.equal(first.summary.newDeliveries, 1);
+  assert.equal(second.summary.reusedDeliveries, 1);
+  assert.equal(first.reports[0].deliveryIds[0], second.reports[0].deliveryIds[0]);
+
+  const deliveryId = first.reports[0].deliveryIds[0];
+  const firstAck = await acknowledgeUrgentCareDeliveries({
+    deliveryIds: [deliveryId],
+    getDocumentByPath: getDocument,
+    commit: commitWrites,
+    currentTime: new Date(now + 1000),
+  });
+  const secondAck = await acknowledgeUrgentCareDeliveries({
+    deliveryIds: [deliveryId],
+    getDocumentByPath: getDocument,
+    commit: commitWrites,
+    currentTime: new Date(now + 2000),
+  });
+  assert.equal(firstAck.acknowledged, 1);
+  assert.equal(secondAck.alreadyAcknowledged, 1);
 });

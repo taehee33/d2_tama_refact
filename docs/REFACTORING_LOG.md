@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-06-21] 긴급 케어 prepare/ack API 및 중복 방지 5B
+
+### 작업 유형
+- 서버 전용 긴급 케어 projection과 issue 판정
+- pending delivery 재사용 및 ack 기반 중복 방지
+- scheduler secret 인증과 7일 delivery 정리
+
+### 목적 및 영향
+- **목적:** 슬롯 상태와 revision을 수정하지 않고 새로 발생한 긴급 상태만 Discord 전송 대상으로 준비한다.
+- **아키텍처 결정:** 알림 발생 상태는 슬롯과 분리된 `notificationState`와 `notification_deliveries`에만 기록한다. Discord 전송 성공 전에는 pending을 유지하고 Apps Script의 ack 이후에만 issue를 활성 상태로 확정한다.
+- **내용:**
+  - 배고픔·기력 호출, 수면 조명, 똥 6~7/8, 부상, 사망 issue를 판정한다.
+  - 사망 시 하위 케어 issue를 숨기며 냉장·냉동 슬롯과 runtime 불충분 구 슬롯을 안전하게 제외한다.
+  - 같은 pending은 재사용하고 해결 후 재발은 마지막 ack 시각을 발생 세대로 사용해 새 delivery ID를 만든다.
+  - `prepare`의 dryRun은 메시지와 집계만 반환하고 문서를 쓰지 않는다.
+  - `ack`는 실제 pending ID만 승인하며 재호출은 멱등적으로 처리한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+- `digimon-tamagotchi-frontend/api/notifications/urgent-digimon-care/prepare.js`
+- `digimon-tamagotchi-frontend/api/notifications/urgent-digimon-care/ack.js`
+- 루트 Vercel API wrapper 및 Node 회귀 테스트
+- `tests/firestore-emulator.test.js`
+
+### 검증
+- 긴급 알림·기존 일일 보고·API entrypoint: 15개 이상 Node 테스트 통과
+- Emulator delivery 통합 테스트는 Java runtime 준비 후 최종 검증 예정
+
 ## [2026-06-21] 서버 lazy update 공용 projection 및 Emulator 기반 5A
 
 ### 작업 유형

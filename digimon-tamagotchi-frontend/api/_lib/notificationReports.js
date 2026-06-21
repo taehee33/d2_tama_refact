@@ -376,4 +376,5 @@ module.exports = {
   resolveNotificationSettings,
   resolveSlotIssues,
   resolveTamerName,
+  verifySchedulerSecret,
 };
