@@ -48,8 +48,9 @@ function createRuntimeStats(overrides = {}) {
   };
 }
 
-test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·멱등적으로 동작한다", async (t) => {
-  assert.ok(process.env.FIRESTORE_EMULATOR_HOST, "Firebase Emulator를 통해 실행해야 합니다.");
+test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·멱등적으로 동작한다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
   process.env.FIREBASE_PROJECT_ID = PROJECT_ID;
   const app = initializeApp({ projectId: PROJECT_ID }, `emulator-${Date.now()}`);
   const db = getFirestore(app);
