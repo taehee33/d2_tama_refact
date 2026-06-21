@@ -50,6 +50,8 @@
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+- `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+- `digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery.js`
 - `digimon-tamagotchi-frontend/api/notifications/urgent-digimon-care/prepare.js`
 - `digimon-tamagotchi-frontend/api/notifications/urgent-digimon-care/ack.js`
 - 루트 Vercel API wrapper 및 Node 회귀 테스트
