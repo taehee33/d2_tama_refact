@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	// The require scope
 /******/ 	var __webpack_require__ = {};
-/******/ 	
+/******/
 /************************************************************************/
 /******/ 	/* webpack/runtime/define property getters */
 /******/ 	(() => {
@@ -15,12 +15,12 @@
 /******/ 			}
 /******/ 		};
 /******/ 	})();
-/******/ 	
+/******/
 /******/ 	/* webpack/runtime/hasOwnProperty shorthand */
 /******/ 	(() => {
 /******/ 		__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
 /******/ 	})();
-/******/ 	
+/******/
 /******/ 	/* webpack/runtime/make namespace object */
 /******/ 	(() => {
 /******/ 		// define __esModule on exports
@@ -31,7 +31,7 @@
 /******/ 			Object.defineProperty(exports, '__esModule', { value: true });
 /******/ 		};
 /******/ 	})();
-/******/ 	
+/******/
 /************************************************************************/
 var __webpack_exports__ = {};
 // ESM COMPAT FLAG
@@ -57,16 +57,16 @@ const defaultStatsFile_defaultStats = {
     fullness: 0,
     careMistakes: 0,
     careMistakeLedger: [],
-  
+
     lifespanSeconds: 0,
     timeToEvolveSeconds: 0,
-  
+
     hungerTimer: 0,
     hungerCountdown: 0,
     strengthTimer: 0,
     strengthCountdown: 0,
     poopTimer: 0,
-  
+
     maxOverfeed: 0,
     overfeeds: 0, // 오버피드 횟수 누적
     consecutiveMeatFed: 0, // 연속으로 먹은 고기 개수 (오버피드 체크용)
@@ -76,7 +76,7 @@ const defaultStatsFile_defaultStats = {
     hungerZeroFrozenDurationMs: 0,
     lastStrengthZeroAt: null,
     strengthZeroFrozenDurationMs: 0,
-  
+
     maxStamina: 0,
     minWeight: 0,
     healing: 0,
@@ -84,17 +84,17 @@ const defaultStatsFile_defaultStats = {
     power: 0,
     attackSprite: 0,
     altAttackSprite: 65535,
-    
+
     // 매뉴얼 기반 추가 필드
     // proteinCount 제거됨 - strength로 통합
     proteinOverdose: 0, // 프로틴 과다 복용 횟수 (최대 7, 4개당 +1)
-    
+
     // 배틀 관련: 이번 생애 누적 (진화 시 유지, 새로운 시작 시 초기화)
     totalBattles: 0, // 이번 생애 동안의 총 배틀 횟수
     totalBattlesWon: 0, // 이번 생애 동안의 총 승리 횟수
     totalBattlesLost: 0, // 이번 생애 동안의 총 패배 횟수
     totalWinRate: 0, // 이번 생애 동안의 총 승률 (%)
-    
+
     // 배틀 관련: 현재 디지몬 (진화 시 리셋)
     battles: 0, // 현재 디지몬일 때의 배틀 횟수 (진화 조건용)
     battlesWon: 0, // 현재 디지몬일 때의 승리 횟수 (진화 조건용)
@@ -117,7 +117,7 @@ const defaultStatsFile_defaultStats = {
     fastSleepStart: null,
     napUntil: null,
     sleepLightOnStart: null,
-    
+
     // 냉장고(냉동수면) 관련
     isFrozen: false,    // 냉장고 보관 여부
     frozenAt: null,     // 냉장고에 넣은 시간 (timestamp)
@@ -825,7 +825,7 @@ function fridgeTime_getElapsedTimeExcludingFridge(
 
 /**
  * 디지몬 데이터 스키마
- * 
+ *
  * @typedef {Object} DigimonData
  * @property {string} id - 디지몬 고유 ID
  * @property {string} name - 디지몬 이름
@@ -5604,7 +5604,7 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
     digiName = getStarterDigimonIdFromDataMap(dataMap); // fallback
   }
   const custom = dataMap[digiName] || {};
-  
+
   let merged= { ...defaultStats, ...custom };
 
   // 원본 v1 데이터(evolutionCriteria 내 timeToEvolveSeconds)를 쓰는 경로 대비: 진화까지 시간 반영
@@ -5619,7 +5619,7 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
   const isNewStart =
     isStarterDigimonId(digiName) &&
     oldStats.totalReincarnations !== undefined;
-  
+
   // 기존 이어받기 (나이, 수명)
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
   if (isNewStart) {
@@ -5658,7 +5658,7 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
     // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
     // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
   }
-  
+
   merged.weight = oldStats.weight !== undefined ? oldStats.weight : merged.weight;
   merged.lifespanSeconds = Number.isFinite(oldStats.lifespanSeconds)
     ? oldStats.lifespanSeconds
@@ -5694,12 +5694,12 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.fastSleepStart = null;
   merged.napUntil = null;
   merged.sleepLightOnStart = null;
-  
+
   // 매뉴얼 기반 필드 초기화
-  
+
   // Energy는 진화 시 리셋되므로, resetStats에서 이미 0으로 설정된 값을 사용
   merged.energy = oldStats.energy !== undefined ? oldStats.energy : (merged.energy || 0);
-  
+
   // 이번 생애 누적 배틀 값 (진화 시 유지, 새로운 시작 시 초기화)
   merged.totalBattles = isNewStart
     ? 0
@@ -5713,12 +5713,12 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.totalWinRate = isNewStart
     ? 0
     : (oldStats.totalWinRate !== undefined ? oldStats.totalWinRate : (merged.totalWinRate || 0));
-  
+
   // 환생 횟수 (진화 시 유지)
   merged.totalReincarnations = oldStats.totalReincarnations !== undefined ? oldStats.totalReincarnations : (merged.totalReincarnations || 0);
   merged.normalReincarnations = oldStats.normalReincarnations !== undefined ? oldStats.normalReincarnations : (merged.normalReincarnations || 0);
   merged.perfectReincarnations = oldStats.perfectReincarnations !== undefined ? oldStats.perfectReincarnations : (merged.perfectReincarnations || 0);
-  
+
   // 현재 디지몬 배틀 값 (진화 시 리셋)
   // resetStats에서 이미 0으로 설정되거나, 없으면 기본값 0 사용
   merged.battles = oldStats.battles !== undefined ? oldStats.battles : 0;
@@ -5734,17 +5734,17 @@ function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.poopCount = (oldStats.poopCount !== undefined)
     ? oldStats.poopCount
     : 0;
-  merged.poopTimer = merged.poopTimer || 0; 
-  
+  merged.poopTimer = merged.poopTimer || 0;
+
   // poopCountdown 초기화: poopTimer가 변경되었거나 poopCountdown이 잘못된 값이면 초기화
   const oldPoopTimer = oldStats.poopTimer || 0;
   const newPoopTimer = merged.poopTimer || 0;
   const maxValidCountdown = newPoopTimer * 60; // 최대 유효한 countdown 값
-  
+
   if (oldStats.poopCountdown !== undefined) {
     // poopTimer가 변경되었거나 poopCountdown이 잘못된 값이면 초기화
-    if (oldPoopTimer !== newPoopTimer || 
-        oldStats.poopCountdown < 0 || 
+    if (oldPoopTimer !== newPoopTimer ||
+        oldStats.poopCountdown < 0 ||
         oldStats.poopCountdown > maxValidCountdown ||
         isNaN(oldStats.poopCountdown)) {
       merged.poopCountdown = maxValidCountdown;
@@ -6297,7 +6297,7 @@ function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = nu
 /**
  * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
  * 스탯(배고픔, 수명 등)을 한 번에 차감
- * 
+ *
  * @param {Object} stats - 현재 디지몬 스탯
  * @param {Date|number|string|Object} lastSavedAt - 마지막 저장 시간 (Date, timestamp, ISO string, 또는 Firestore Timestamp)
  * @param {Object} sleepSchedule - 수면 스케줄 (선택적)
@@ -6330,16 +6330,16 @@ function applyLazyUpdate(
     ? Number(options.nowMs)
     : Date.now();
   const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
-  
+
   // 냉장고 시간을 제외한 경과 시간 계산
   let elapsedSeconds;
   if (stats.isFrozen && stats.frozenAt) {
     // 냉장고 상태: 냉장고에 넣은 시간 이후의 시간만 제외
-    const frozenTime = typeof stats.frozenAt === 'number' 
-      ? stats.frozenAt 
+    const frozenTime = typeof stats.frozenAt === 'number'
+      ? stats.frozenAt
       : new Date(stats.frozenAt).getTime();
     const lastSavedTime = lastSaved.getTime();
-    
+
     // 냉장고에 넣은 시간이 마지막 저장 시간보다 이후인 경우
     if (frozenTime > lastSavedTime) {
       // 냉장고에 넣기 전의 시간만 계산 (냉장고에 넣은 이후의 시간은 제외)
@@ -6350,7 +6350,7 @@ function applyLazyUpdate(
       // 냉장고에 넣은 이후의 시간은 모두 제외하므로 경과 시간 = 0
       elapsedSeconds = 0;
     }
-    
+
     // 경과 시간이 0이면 스탯 변경 없음
     if (elapsedSeconds <= 0) {
       // 냉장고에 넣은 이후의 시간만 있었으므로 스탯 변경 없음
@@ -6392,14 +6392,14 @@ function applyLazyUpdate(
     deadlineKey: "strengthMistakeDeadline",
     callKey: "strength",
   });
-  
+
   // birthTime이 없으면 현재 시간으로 설정
   if (!updatedStats.birthTime) {
     updatedStats.birthTime = nowMs;
   }
-  
+
   // 나이는 updateAge 함수에서 자정에만 증가하도록 처리 (여기서는 계산하지 않음)
-  
+
   // updateLifespan을 경과 시간만큼 호출
   // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
   const currentLifespan = typeof updatedStats.lifespanSeconds === 'number' && !Number.isNaN(updatedStats.lifespanSeconds)
@@ -6433,17 +6433,17 @@ function applyLazyUpdate(
       );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
-    
+
     // 활동 시간만큼만 hungerCountdown 감소
     if (activeSeconds > 0) {
       updatedStats.hungerCountdown -= activeSeconds;
     }
-    
+
     // countdown이 0 이하가 되면 fullness 감소
     while (updatedStats.hungerCountdown <= 0) {
       updatedStats.fullness = Math.max(0, updatedStats.fullness - 1);
       updatedStats.hungerCountdown += updatedStats.hungerTimer * 60;
-      
+
       // fullness가 0이 되면 lastHungerZeroAt 기록
       if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
         const activeOffsetSeconds = initialHungerCountdown +
@@ -6483,18 +6483,18 @@ function applyLazyUpdate(
       );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
-    
+
     // 활동 시간만큼만 strengthCountdown 감소
     if (activeSeconds > 0) {
       updatedStats.strengthCountdown -= activeSeconds;
     }
-    
+
     // countdown이 0 이하가 되면 strength 감소
     while (updatedStats.strengthCountdown <= 0) {
       // strength -1 (최소 0)
       updatedStats.strength = Math.max(0, updatedStats.strength - 1);
       updatedStats.strengthCountdown += updatedStats.strengthTimer * 60;
-      
+
       // strength가 0이 되면 lastStrengthZeroAt 기록
       if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
         const activeOffsetSeconds = initialStrengthCountdown +
@@ -6514,17 +6514,17 @@ function applyLazyUpdate(
   // 배변 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.poopTimer > 0) {
     const maxValidCountdown = updatedStats.poopTimer * 60;
-    
+
     // poopCountdown 초기화 체크 (undefined, null, NaN, 음수, 또는 잘못된 값)
-    if (updatedStats.poopCountdown === undefined || 
-        updatedStats.poopCountdown === null || 
-        isNaN(updatedStats.poopCountdown) || 
+    if (updatedStats.poopCountdown === undefined ||
+        updatedStats.poopCountdown === null ||
+        isNaN(updatedStats.poopCountdown) ||
         updatedStats.poopCountdown < 0 ||
         updatedStats.poopCountdown > maxValidCountdown) {
       // 초기화: poopTimer * 60 (초 단위)
       updatedStats.poopCountdown = maxValidCountdown;
     }
-    
+
     // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
     let activeSeconds = elapsedSeconds;
     if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
@@ -6536,12 +6536,12 @@ function applyLazyUpdate(
       );
       activeSeconds = elapsedSeconds - sleepSeconds;
     }
-    
+
     // 활동 시간만큼만 poopCountdown 감소
     if (activeSeconds > 0) {
       updatedStats.poopCountdown -= activeSeconds;
     }
-    
+
     while (updatedStats.poopCountdown <= 0) {
       const poopEventTime = nowMs + (updatedStats.poopCountdown * 1000);
 

@@ -1,5 +1,6 @@
 "use strict";
 
+const fs = require("node:fs");
 const path = require("node:path");
 const webpack = require(path.resolve(
   __dirname,
@@ -41,6 +42,10 @@ compiler.run((error, stats) => {
     process.exitCode = 1;
     return;
   }
+  const outputPath = path.join(frontendDir, "api/_generated/gameProjection.cjs");
+  const normalizedOutput = fs.readFileSync(outputPath, "utf8")
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\n*$/, "\n");
+  fs.writeFileSync(outputPath, normalizedOutput);
   console.log("서버 게임 projection bundle 생성 완료");
 });
-
