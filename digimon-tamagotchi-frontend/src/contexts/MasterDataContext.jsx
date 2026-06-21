@@ -37,6 +37,10 @@ const EMPTY_OVERRIDES = Object.freeze(
 );
 const SNAPSHOT_LIMIT = 30;
 
+export function canLoadRemoteMasterData(database, currentUser) {
+  return Boolean(database && currentUser);
+}
+
 export async function resolveMasterDataActor(currentUser) {
   if (!currentUser) {
     return null;
@@ -118,7 +122,7 @@ export function MasterDataProvider({ children }) {
   const loadMasterData = async () => {
     setMasterDataError(null);
 
-    if (!db) {
+    if (!canLoadRemoteMasterData(db, currentUser)) {
       applyLoadedState(EMPTY_OVERRIDES, buildEmptyMeta(), []);
       return normalizeMasterDataOverrides(EMPTY_OVERRIDES);
     }

@@ -6180,3 +6180,17 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/REFACTORING_LOG.md`
 - **검증:**
   - 문서 변경만 수행했으며 별도 런타임 테스트는 실행하지 않음
+# 2026-06-21 — 공개 화면 마스터 데이터 권한 오류 제거
+
+- **내용:** 비로그인 공개 화면에서도 관리자 전용 마스터 데이터 Firestore 문서를 조회해 권한 오류가 반복되던 문제를 수정했다. Firebase 연결과 로그인 사용자가 모두 있을 때만 원격 override를 읽고, 비로그인 또는 로컬 모드에서는 기본 마스터 데이터를 즉시 사용한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.jsx`
+  - `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.regression.test.jsx`
+- **근거:** 공개 페이지의 콘솔 오류를 제거하면서 로그인 게임과 관리자 저장 경계는 유지한다.
+
+## [2026-06-21] Firestore Emulator Admin REST 인증 보정
+
+- **내용:** 서버 전용 Firestore REST 어댑터가 Emulator에서 인증 없이 요청해 클라이언트 Security Rules에 차단되던 문제를 수정했다. Emulator에서만 공식 Admin 토큰인 `owner`를 사용하며 운영 환경의 서비스 계정 OAuth 흐름은 변경하지 않는다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/firestoreAdmin.js`
+- **검증:** 실제 Firestore Emulator에서 revision 충돌, eventId 멱등성, 알림 delivery 생성·재사용·ack 통합 테스트를 실행한다.

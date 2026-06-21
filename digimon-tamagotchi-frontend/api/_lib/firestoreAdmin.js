@@ -170,7 +170,8 @@ function buildFirestoreRestUrl(resourcePath = "") {
 
 async function fireAdminRequest(resourcePath, options = {}) {
   const accessToken = process.env.FIRESTORE_EMULATOR_HOST
-    ? null
+    // Emulator REST API에서도 서버 Admin 요청임을 표시해 클라이언트 Rules를 우회한다.
+    ? "owner"
     : await fetchFirestoreAccessToken();
   const response = await fetch(buildFirestoreRestUrl(resourcePath), {
     method: options.method || "GET",
