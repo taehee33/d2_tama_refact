@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-06-21] 서버 lazy update 공용 projection 및 Emulator 기반 5A
+
+### 작업 유형
+- 프론트 단일 원본에서 Node.js용 CommonJS projection bundle 자동 생성
+- 결정적 기준 시각 주입과 프론트·서버 parity 회귀 테스트
+- Firestore Emulator 설정 및 통합 테스트 기반 추가
+
+### 목적 및 영향
+- **목적:** 긴급 알림 서버가 디지몬별 수면·에너지 규칙을 복사하지 않고, 프론트와 동일한 lazy update 결과만 읽도록 한다.
+- **아키텍처 결정:** `src/data/stats.js`를 유일한 계산 원본으로 유지하고 Webpack으로 서버 bundle을 생성한다. 서버 검증 시각은 `options.nowMs`로 주입하며 일반 프론트 호출은 기존 `Date.now()` 동작을 유지한다.
+- **내용:**
+  - 서버 projection 진입점과 생성 스크립트를 추가했다.
+  - 13시간 경과, 냉장고, 부상 방치 fixture로 원본과 생성 bundle의 결과를 비교한다.
+  - Firestore REST 어댑터가 `FIRESTORE_EMULATOR_HOST`를 인식하도록 하되 실환경 인증 경로는 유지한다.
+  - Emulator에서 revision 충돌과 동일 eventId 문서 멱등성을 검증하는 통합 테스트를 추가했다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/stats.js`
+- `digimon-tamagotchi-frontend/src/server/gameProjectionEntry.js`
+- `digimon-tamagotchi-frontend/src/server/gameProjectionParity.test.js`
+- `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`
+- `digimon-tamagotchi-frontend/api/_lib/firestoreAdmin.js`
+- `scripts/buildServerGameProjection.js`
+- `tests/firestore-emulator.test.js`
+- `firebase.json`
+- `package.json`
+
+### 검증
+- projection·stats 회귀 테스트: 2개 스위트, 46개 테스트 통과
+- Firestore Emulator 통합 테스트는 로컬 Java 런타임 부재를 확인했으며 임시 JRE 준비 후 실행 예정
+
 ## [2026-06-21] 동기화 상태 분리 및 실제 남은 시간 표시
 
 ### 작업 유형

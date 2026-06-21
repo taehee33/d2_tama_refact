@@ -801,7 +801,9 @@ export function applyLazyUpdate(
     return finalizeNoElapsedLazyUpdate(stats, Date.now());
   }
 
-  const nowMs = Date.now();
+  const nowMs = Number.isFinite(Number(options?.nowMs))
+    ? Number(options.nowMs)
+    : Date.now();
   const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
   
   // 냉장고 시간을 제외한 경과 시간 계산

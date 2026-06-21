@@ -157,17 +157,25 @@ async function fetchFirestoreAccessToken() {
 
 function buildFirestoreRestUrl(resourcePath = "") {
   const projectId = getFirestoreProjectId();
+  const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
+  if (emulatorHost) {
+    return `http://${emulatorHost}/v1/projects/${encodeURIComponent(
+      projectId
+    )}/databases/(default)/${resourcePath}`;
+  }
   return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
     projectId
   )}/databases/(default)/${resourcePath}`;
 }
 
 async function fireAdminRequest(resourcePath, options = {}) {
-  const accessToken = await fetchFirestoreAccessToken();
+  const accessToken = process.env.FIRESTORE_EMULATOR_HOST
+    ? null
+    : await fetchFirestoreAccessToken();
   const response = await fetch(buildFirestoreRestUrl(resourcePath), {
     method: options.method || "GET",
     headers: {
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {}),
     },
