@@ -203,7 +203,11 @@ async function prepareUrgentCareNotifications({
       if (isStoredInCareStorage(slotData)) {
         summary.frozenSlots += 1;
         if (activeIssueKeys.length && !dryRun) {
-          writes.push(createSetWrite(statePath, { activeIssueKeys: [], updatedAt: nowMs }));
+          writes.push(createSetWrite(statePath, {
+            activeIssueKeys: [],
+            lastAcknowledgedAt: stateDocument?.data?.lastAcknowledgedAt || null,
+            updatedAt: nowMs,
+          }));
         }
         continue;
       }
@@ -231,14 +235,23 @@ async function prepareUrgentCareNotifications({
       const pendingKey = `${uid}:${slotId}`;
       const reusable = pendingBySlot.get(pendingKey);
       let deliveryId;
-      if (reusable && newIssues.every((issue) => reusable.data.issueKeys?.includes(issue.key))) {
+      const nextIssueKeys = newIssues.map((issue) => issue.key).sort();
+      const reusableIssueKeys = [...(reusable?.data?.issueKeys || [])].sort();
+      if (reusable && JSON.stringify(nextIssueKeys) === JSON.stringify(reusableIssueKeys)) {
         deliveryId = reusable.id;
         summary.reusedDeliveries += 1;
       } else {
+        if (reusable && !dryRun) {
+          writes.push(createSetWrite(`notification_deliveries/${reusable.id}`, {
+            ...reusable.data,
+            status: "cancelled",
+            cancelledAt: nowMs,
+          }));
+        }
         deliveryId = buildDeliveryId(
           uid,
           slotId,
-          newIssues.map((issue) => issue.key),
+          nextIssueKeys,
           stateDocument?.data?.lastAcknowledgedAt || 0
         );
         summary.newDeliveries += 1;
@@ -246,7 +259,7 @@ async function prepareUrgentCareNotifications({
           writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
             uid,
             slotId,
-            issueKeys: newIssues.map((issue) => issue.key),
+            issueKeys: nextIssueKeys,
             issues: newIssues,
             slotIssues: [{ slotId, issues: newIssues }],
             status: "pending",

@@ -45,6 +45,8 @@
   - 같은 pending은 재사용하고 해결 후 재발은 마지막 ack 시각을 발생 세대로 사용해 새 delivery ID를 만든다.
   - `prepare`의 dryRun은 메시지와 집계만 반환하고 문서를 쓰지 않는다.
   - `ack`는 실제 pending ID만 승인하며 재호출은 멱등적으로 처리한다.
+  - 서버에서 Discord 공식 HTTPS webhook 호스트를 재검증해 Apps Script의 임의 URL 호출을 차단한다.
+  - pending issue 구성이 바뀌면 기존 delivery를 취소하고 새 delivery를 만들며 냉장고 전환에도 마지막 ack 세대를 보존한다.
 
 ### 영향받은 파일
 - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
@@ -54,7 +56,7 @@
 - `tests/firestore-emulator.test.js`
 
 ### 검증
-- 긴급 알림·기존 일일 보고·API entrypoint: 15개 이상 Node 테스트 통과
+- 긴급 알림·기존 일일 보고·Apps Script·API entrypoint: 20개 Node 테스트 통과
 - Emulator delivery 통합 테스트는 Java runtime 준비 후 최종 검증 예정
 
 ## [2026-06-21] 서버 lazy update 공용 projection 및 Emulator 기반 5A

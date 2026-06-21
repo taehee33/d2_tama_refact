@@ -5,6 +5,7 @@ const {
   NOTIFICATION_SECRET_HEADER,
   createDailyDigimonReportHandler,
   formatKstDate,
+  normalizeDiscordWebhookUrl,
 } = require("./notificationReports");
 
 function createMockRes() {
@@ -30,6 +31,15 @@ function createMockRes() {
     },
   };
 }
+
+test("Discord webhook은 공식 HTTPS 호스트만 허용한다", () => {
+  assert.equal(
+    normalizeDiscordWebhookUrl("https://discord.com/api/webhooks/id/token"),
+    "https://discord.com/api/webhooks/id/token"
+  );
+  assert.equal(normalizeDiscordWebhookUrl("http://discord.com/api/webhooks/id/token"), null);
+  assert.equal(normalizeDiscordWebhookUrl("https://example.com/api/webhooks/id/token"), null);
+});
 
 test("daily digimon report handler rejects unsupported methods", async () => {
   const handler = createDailyDigimonReportHandler({

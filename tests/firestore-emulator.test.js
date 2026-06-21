@@ -65,7 +65,7 @@ test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·
   await db.doc("users/emulator-user").set({ displayName: "테이머" });
   await db.doc("users/emulator-user/settings/main").set({
     isNotificationEnabled: true,
-    discordWebhookUrl: "https://discord.test/webhook",
+    discordWebhookUrl: "https://discord.com/api/webhooks/test/token",
   });
   await slotRef.set({
     revision: 0,

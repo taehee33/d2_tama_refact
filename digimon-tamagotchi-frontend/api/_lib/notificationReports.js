@@ -21,6 +21,20 @@ function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function normalizeDiscordWebhookUrl(value) {
+  const normalized = normalizeString(value);
+  if (!normalized) return null;
+  try {
+    const url = new URL(normalized);
+    const allowedHost = url.hostname === "discord.com" || url.hostname === "discordapp.com";
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const validPath = pathParts[0] === "api" && pathParts[1] === "webhooks" && pathParts.length >= 3;
+    return url.protocol === "https:" && allowedHost && validPath ? normalized : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 function normalizeNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -65,9 +79,11 @@ function formatKstDate(date = new Date()) {
 }
 
 function resolveNotificationSettings(settingsData, rootData) {
-  const discordWebhookUrl = hasOwnField(settingsData, "discordWebhookUrl")
-    ? normalizeString(settingsData.discordWebhookUrl) || null
-    : normalizeString(rootData?.discordWebhookUrl) || null;
+  const discordWebhookUrl = normalizeDiscordWebhookUrl(
+    hasOwnField(settingsData, "discordWebhookUrl")
+      ? settingsData.discordWebhookUrl
+      : rootData?.discordWebhookUrl
+  );
   const isNotificationEnabled = hasOwnField(settingsData, "isNotificationEnabled")
     ? settingsData.isNotificationEnabled === true
     : rootData?.isNotificationEnabled === true;
@@ -374,6 +390,7 @@ module.exports = {
   formatKstDate,
   resolveDigimonDisplayName,
   resolveNotificationSettings,
+  normalizeDiscordWebhookUrl,
   resolveSlotIssues,
   resolveTamerName,
   verifySchedulerSecret,

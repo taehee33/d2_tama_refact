@@ -55,7 +55,7 @@ function createRuntimeStats(overrides = {}) {
 function createStore(slotData) {
   const documents = new Map([
     ["users/user-1", { id: "user-1", data: { displayName: "테이머" } }],
-    ["users/user-1/settings/main", { id: "main", data: { isNotificationEnabled: true, discordWebhookUrl: "https://discord.test/webhook" } }],
+    ["users/user-1/settings/main", { id: "main", data: { isNotificationEnabled: true, discordWebhookUrl: "https://discord.com/api/webhooks/test/token" } }],
     ["users/user-1/profile/main", { id: "main", data: { tamerName: "한솔" } }],
     ["users/user-1/slots/slot1", { id: "slot1", data: slotData }],
   ]);
