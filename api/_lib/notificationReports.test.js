@@ -88,49 +88,27 @@ test("daily digimon report handler rejects mismatched scheduler secret", async (
   assert.equal(res.body.error, "스케줄러 인증에 실패했습니다.");
 });
 
-test("daily digimon report handler builds reports with settings/main priority and root fallback", async () => {
+test("daily digimon report handler는 공용 활성 구독자 조회 결과만 처리한다", async () => {
   const handler = createDailyDigimonReportHandler({
     getSchedulerSecret: () => "top-secret",
     getCurrentTime: () => new Date("2026-04-08T05:00:00.000Z"),
+    listNotificationSubscribers: async () => [
+      {
+        uid: "user-1",
+        data: {
+          isNotificationEnabled: true,
+          discordWebhookUrl: "https://discord.com/api/webhooks/active-user-1/token",
+        },
+      },
+      {
+        uid: "user-2",
+        data: {
+          isNotificationEnabled: true,
+          discordWebhookUrl: "https://discord.com/api/webhooks/active-user-2/token",
+        },
+      },
+    ],
     listDocuments: async (path) => {
-      if (path === "users") {
-        return [
-          {
-            id: "user-1",
-            data: {
-              displayName: "루트표시명",
-              tamerName: "루트 테이머",
-              isNotificationEnabled: false,
-              discordWebhookUrl: "https://discord.com/api/webhooks/root-disabled",
-            },
-          },
-          {
-            id: "user-2",
-            data: {
-              displayName: "루트 fallback",
-              tamerName: "루트 fallback 테이머",
-              isNotificationEnabled: true,
-              discordWebhookUrl: "https://discord.com/api/webhooks/root-fallback",
-            },
-          },
-          {
-            id: "user-3",
-            data: {
-              displayName: "비활성 유저",
-              isNotificationEnabled: false,
-              discordWebhookUrl: "https://discord.com/api/webhooks/disabled",
-            },
-          },
-          {
-            id: "user-4",
-            data: {
-              displayName: "웹훅 없음",
-              isNotificationEnabled: true,
-            },
-          },
-        ];
-      }
-
       if (path === "users/user-1/slots") {
         return [
           {
@@ -188,14 +166,7 @@ test("daily digimon report handler builds reports with settings/main priority an
       throw new Error(`Unexpected listDocuments path: ${path}`);
     },
     getDocument: async (path) => {
-      if (path === "users/user-1/settings/main") {
-        return {
-          data: {
-            isNotificationEnabled: true,
-            discordWebhookUrl: "https://discord.com/api/webhooks/active-user-1",
-          },
-        };
-      }
+      if (path === "users/user-1") return { data: { displayName: "루트표시명" } };
       if (path === "users/user-1/profile/main") {
         return {
           data: {
@@ -203,27 +174,9 @@ test("daily digimon report handler builds reports with settings/main priority an
           },
         };
       }
-      if (path === "users/user-2/settings/main") {
-        return null;
-      }
+      if (path === "users/user-2") return { data: { displayName: "루트 fallback" } };
       if (path === "users/user-2/profile/main") {
         return null;
-      }
-      if (path === "users/user-3/settings/main") {
-        return {
-          data: {
-            isNotificationEnabled: false,
-            discordWebhookUrl: "https://discord.com/api/webhooks/user-3",
-          },
-        };
-      }
-      if (path === "users/user-4/settings/main") {
-        return {
-          data: {
-            isNotificationEnabled: true,
-            discordWebhookUrl: null,
-          },
-        };
       }
 
       return null;
@@ -245,15 +198,15 @@ test("daily digimon report handler builds reports with settings/main priority an
   assert.equal(res.body.ok, true);
   assert.equal(res.body.generatedAt, formatKstDate("2026-04-08T05:00:00.000Z"));
   assert.deepEqual(res.body.summary, {
-    totalUsers: 4,
+    totalUsers: 2,
     activeNotificationUsers: 2,
     reportCount: 1,
-    skippedUsers: 3,
+    skippedUsers: 1,
     totalSlots: 3,
     skippedUsersByReason: {
       invalidUser: 0,
-      notificationDisabled: 1,
-      missingWebhook: 1,
+      notificationDisabled: 0,
+      missingWebhook: 0,
       noSlots: 1,
     },
   });
@@ -261,7 +214,7 @@ test("daily digimon report handler builds reports with settings/main priority an
   assert.deepEqual(res.body.reports[0], {
     uid: "user-1",
     tamerName: "프로필 테이머",
-    webhookUrl: "https://discord.com/api/webhooks/active-user-1",
+    webhookUrl: "https://discord.com/api/webhooks/active-user-1/token",
     messageContent:
       "━━━━━━━━━━━━━━━━━━\n" +
       "📊 **디지몬 상태 일일 보고**\n\n" +

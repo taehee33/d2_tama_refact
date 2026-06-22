@@ -25,6 +25,7 @@ const {
   projectSlotForUrgentCare,
   resolveUrgentIssues,
 } = require("./urgentCareProjection");
+const { listNotificationSubscribers } = require("./notificationSubscribers");
 
 const DELIVERY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -33,7 +34,7 @@ function normalizeString(value, fallback = "") {
 }
 
 async function prepareUrgentCareNotifications({
-  users,
+  subscribers = [],
   getDocumentByPath,
   listCollectionDocuments,
   commit,
@@ -59,7 +60,7 @@ async function prepareUrgentCareNotifications({
 
   const reports = [];
   const summary = {
-    totalUsers: users.length,
+    totalUsers: subscribers.length,
     activeUsers: 0,
     totalSlots: 0,
     projectedSlots: 0,
@@ -70,18 +71,18 @@ async function prepareUrgentCareNotifications({
     expiredDeliveries: writes.length,
   };
 
-  for (const userDocument of users) {
-    const uid = normalizeString(userDocument?.id || userDocument?.name?.split("/").pop());
+  for (const subscriber of subscribers) {
+    const uid = normalizeString(subscriber?.uid || subscriber?.id);
     if (!uid) continue;
-    const rootData = userDocument?.data || {};
-    const settingsDocument = await getDocumentByPath(`users/${uid}/settings/main`);
-    const settings = resolveNotificationSettings(settingsDocument?.data, rootData);
+    const settings = resolveNotificationSettings(subscriber?.data, {});
     if (!settings.isNotificationEnabled || !settings.discordWebhookUrl) continue;
     summary.activeUsers += 1;
-    const [profileDocument, slots] = await Promise.all([
+    const [rootDocument, profileDocument, slots] = await Promise.all([
+      getDocumentByPath(`users/${uid}`),
       getDocumentByPath(`users/${uid}/profile/main`),
       listCollectionDocuments(`users/${uid}/slots`),
     ]);
+    const rootData = rootDocument?.data || {};
     summary.totalSlots += slots.length;
     const slotAlerts = [];
 
@@ -240,7 +241,7 @@ function createUrgentCarePrepareHandler(deps = {}) {
     try {
       verifySchedulerSecret(req, (deps.getSchedulerSecret || (() => process.env.NOTIFICATION_API_SECRET || ""))());
       const payload = await prepareUrgentCareNotifications({
-        users: await (deps.listDocuments || listDocuments)("users"),
+        subscribers: await (deps.listNotificationSubscribers || listNotificationSubscribers)(),
         getDocumentByPath: deps.getDocument || getDocument,
         listCollectionDocuments: deps.listDocuments || listDocuments,
         commit: deps.commitWrites || commitWrites,

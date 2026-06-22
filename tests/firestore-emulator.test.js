@@ -13,6 +13,9 @@ const {
   getDocument,
   listDocuments,
 } = require("../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");
+const {
+  listNotificationSubscribers,
+} = require("../digimon-tamagotchi-frontend/api/_lib/notificationSubscribers");
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2tamarefact";
 
@@ -96,8 +99,16 @@ test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·
   await eventRef.set({ eventId: "event-fixed", type: "TRAIN" });
   assert.equal((await slotRef.collection("logs").get()).size, 1);
 
+  const initialSubscribers = await listNotificationSubscribers();
+  assert.deepEqual(initialSubscribers.map((subscriber) => subscriber.uid), ["emulator-user"]);
+  await db.doc("users/emulator-user/settings/main").update({ isNotificationEnabled: false });
+  assert.equal((await listNotificationSubscribers()).length, 0);
+  await db.doc("users/emulator-user/settings/main").update({ isNotificationEnabled: true });
+  const restoredSubscribers = await listNotificationSubscribers();
+  assert.deepEqual(restoredSubscribers.map((subscriber) => subscriber.uid), ["emulator-user"]);
+
   const prepareArgs = {
-    users: await listDocuments("users"),
+    subscribers: restoredSubscribers,
     getDocumentByPath: getDocument,
     listCollectionDocuments: listDocuments,
     commit: commitWrites,

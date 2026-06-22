@@ -177,6 +177,22 @@ API는 아래 규칙으로 리포트를 생성합니다.
 
 `prepare`는 슬롯 문서와 revision을 수정하지 않는다. 프론트와 동일한 lazy update를 메모리에서 수행하고 새 issue 또는 미확인 pending delivery만 반환한다. Apps Script는 Discord 전송 성공 시에만 해당 `deliveryIds`를 `ack`한다.
 
+### 알림 대상 조회
+
+- 알림 설정의 단일 원본은 `users/{uid}/settings/main`이다.
+- 서버는 `settings.isNotificationEnabled == true` collection-group 인덱스로 활성 사용자만 조회한다.
+- 사용자가 알림을 끄거나 켜면 Firestore 인덱스가 자동 갱신되어 다음 15분 실행부터 반영된다.
+- 별도 구독자 문서나 Cloud Function은 사용하지 않는다.
+- 구 루트 문서에만 설정이 남은 사용자는 배포 전 아래 순서로 보완한다.
+
+```bash
+npm run notification-subscribers:audit
+npm run notification-subscribers:backfill
+npm run notification-subscribers:audit
+```
+
+첫 audit에서 대상이 있을 때만 backfill을 실행하며, 마지막 audit의 `plannedWrites`는 0이어야 한다.
+
 ### Script Properties
 
 | 키 | 설명 |
@@ -189,12 +205,16 @@ Apps Script 편집기에 [`scripts/apps-script/urgentDigimonCare.gs`](../scripts
 
 ### 설치 및 검증 순서
 
-1. Vercel 환경변수 설정 후 배포한다.
-2. Apps Script의 Script Properties 세 값을 저장한다.
-3. `dryRunUrgentDigimonCare()`를 수동 실행해 사용자·슬롯·issue와 집계를 확인한다. 이 함수는 delivery를 만들거나 Discord로 전송하지 않는다.
-4. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 성공 건만 ack되는지 확인한다.
-5. `installUrgentDigimonCareTrigger()`를 한 번 실행해 15분 트리거를 설치한다.
-6. Apps Script 실행 기록에서 `preparedReports`, `failedReports`, `acknowledged`, `projectionUnavailable`을 확인한다.
+1. `firestore.indexes.json`을 배포하고 인덱스가 준비됐는지 확인한다.
+2. 구 설정 audit·필요 시 backfill·재-audit을 완료한다.
+3. Vercel 환경변수 설정 후 배포한다.
+4. Apps Script의 Script Properties 세 값을 저장한다.
+5. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 성공 건만 ack되는지 확인한다.
+6. 즉시 재실행해 동일 issue가 중복 전송되지 않는지 확인한다.
+7. `installUrgentDigimonCareTrigger()`를 한 번 실행해 15분 트리거를 설치한다.
+8. Apps Script 실행 기록에서 `preparedReports`, `failedReports`, `acknowledged`, `projectionUnavailable`을 확인한다.
+
+기존 `dryRunUrgentDigimonCare()` 함수는 유지하지만 현재 운영 설치 절차에서는 사용하지 않는다.
 
 webhook URL과 비밀키는 로그에 출력하지 않는다. Discord 성공 후 ack 호출만 실패하면 다음 cron에서 같은 메시지가 한 번 더 전송될 수 있다. 이는 전송과 Firestore ack가 서로 다른 외부 요청이기 때문에 남는 제한이다.
 

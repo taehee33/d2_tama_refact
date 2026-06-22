@@ -2,6 +2,10 @@
 
 const { getDocument, listDocuments } = require("./firestoreAdmin");
 const { allowMethods, handleApiError, sendJson } = require("./http");
+const {
+  listNotificationSubscribers,
+  normalizeDiscordWebhookUrl,
+} = require("./notificationSubscribers");
 
 const KST_TIME_ZONE = "Asia/Seoul";
 const NOTIFICATION_SECRET_HEADER = "x-d2-scheduler-secret";
@@ -19,20 +23,6 @@ function hasOwnField(data, fieldName) {
 
 function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function normalizeDiscordWebhookUrl(value) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-  try {
-    const url = new URL(normalized);
-    const allowedHost = url.hostname === "discord.com" || url.hostname === "discordapp.com";
-    const pathParts = url.pathname.split("/").filter(Boolean);
-    const validPath = pathParts[0] === "api" && pathParts[1] === "webhooks" && pathParts.length >= 3;
-    return url.protocol === "https:" && allowedHost && validPath ? normalized : null;
-  } catch (error) {
-    return null;
-  }
 }
 
 function normalizeNumber(value, fallback = 0) {
@@ -228,7 +218,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
 }
 
 async function buildDailyDigimonReportPayload({
-  users = [],
+  subscribers = [],
   getDocumentByPath,
   listCollectionDocuments,
   currentTime = new Date(),
@@ -237,7 +227,7 @@ async function buildDailyDigimonReportPayload({
     throw new TypeError("알림 리포트 생성에 필요한 Firestore 헬퍼가 없습니다.");
   }
 
-  const userDocuments = Array.isArray(users) ? users : [];
+  const subscriberDocuments = Array.isArray(subscribers) ? subscribers : [];
   const generatedAt = formatKstDate(currentTime);
   const skippedUsersByReason = {
     invalidUser: 0,
@@ -247,9 +237,8 @@ async function buildDailyDigimonReportPayload({
   };
 
   const userResults = await Promise.all(
-    userDocuments.map(async (userDocument) => {
-      const uid = normalizeString(userDocument?.id || userDocument?.name?.split("/").pop());
-      const rootData = userDocument?.data && typeof userDocument.data === "object" ? userDocument.data : {};
+    subscriberDocuments.map(async (subscriber) => {
+      const uid = normalizeString(subscriber?.uid || subscriber?.id);
 
       if (!uid) {
         return {
@@ -259,8 +248,7 @@ async function buildDailyDigimonReportPayload({
         };
       }
 
-      const settingsDocument = await getDocumentByPath(`users/${uid}/settings/main`);
-      const settings = resolveNotificationSettings(settingsDocument?.data, rootData);
+      const settings = resolveNotificationSettings(subscriber?.data, {});
 
       if (settings.isNotificationEnabled !== true) {
         return {
@@ -278,10 +266,14 @@ async function buildDailyDigimonReportPayload({
         };
       }
 
-      const [profileDocument, slotDocuments] = await Promise.all([
+      const [rootDocument, profileDocument, slotDocuments] = await Promise.all([
+        getDocumentByPath(`users/${uid}`),
         getDocumentByPath(`users/${uid}/profile/main`),
         listCollectionDocuments(`users/${uid}/slots`),
       ]);
+      const rootData = rootDocument?.data && typeof rootDocument.data === "object"
+        ? rootDocument.data
+        : {};
       const safeSlotDocuments = Array.isArray(slotDocuments) ? slotDocuments : [];
 
       if (safeSlotDocuments.length === 0) {
@@ -331,10 +323,10 @@ async function buildDailyDigimonReportPayload({
     ok: true,
     generatedAt,
     summary: {
-      totalUsers: userDocuments.length,
+      totalUsers: subscriberDocuments.length,
       activeNotificationUsers,
       reportCount: reports.length,
-      skippedUsers: userDocuments.length - reports.length,
+      skippedUsers: subscriberDocuments.length - reports.length,
       totalSlots,
       skippedUsersByReason,
     },
@@ -356,6 +348,7 @@ function verifySchedulerSecret(req, schedulerSecret) {
 
 function createDailyDigimonReportHandler(deps = {}) {
   const listCollectionDocuments = deps.listDocuments || listDocuments;
+  const listSubscribers = deps.listNotificationSubscribers || listNotificationSubscribers;
   const getDocumentByPath = deps.getDocument || getDocument;
   const getCurrentTime = deps.getCurrentTime || (() => new Date());
   const getSchedulerSecret = deps.getSchedulerSecret || (() => process.env.NOTIFICATION_API_SECRET || "");
@@ -368,9 +361,9 @@ function createDailyDigimonReportHandler(deps = {}) {
     try {
       verifySchedulerSecret(req, getSchedulerSecret());
 
-      const users = await listCollectionDocuments("users");
+      const subscribers = await listSubscribers();
       const payload = await buildDailyDigimonReportPayload({
-        users,
+        subscribers,
         getDocumentByPath,
         listCollectionDocuments,
         currentTime: getCurrentTime(),

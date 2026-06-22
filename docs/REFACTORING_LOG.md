@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-22] 자동 알림 구독자 인덱스 및 구 설정 호환 5D
+
+### 작업 유형
+- `settings/main` collection-group 활성 구독자 조회
+- 긴급 알림과 일일 보고의 공용 구독자 경계
+- 구 루트 알림 설정 audit·백필
+
+### 목적 및 영향
+- **목적:** 15분 실행마다 전체 사용자 문서를 읽지 않고 알림을 켠 사용자만 조회하며, 설정 변경을 다음 실행부터 자동 반영한다.
+- **아키텍처 결정:** `users/{uid}/settings/main`을 단일 원본으로 유지하고 Firestore 인덱스만 사용한다. 별도 구독자 문서와 Cloud Function은 만들지 않는다.
+- **내용:**
+  - Firestore REST `runQuery`와 활성 설정 collection-group 조회 helper를 추가했다.
+  - 긴급 알림과 기존 일일 보고가 동일한 활성 구독자 목록을 사용한다.
+  - 운영의 기존 복합·단일 필드 인덱스를 보존하면서 `settings.isNotificationEnabled` collection-group 인덱스를 추가했다.
+  - 루트 문서에만 남은 유효한 활성 알림 설정을 `settings/main`에 merge하는 멱등적 audit·backfill 명령을 추가했다.
+
+### 검증
+- 활성·비활성 전환, 경로·webhook 검증, 백필 dry-run·apply 회귀 테스트
+- Firestore Emulator에서 collection-group 조회와 기존 revision·eventId·delivery 멱등성 검증
+
+
 ## [2026-06-21] Apps Script 15분 Discord 전달 운영 5C
 
 ### 작업 유형

@@ -356,6 +356,31 @@ async function listDocuments(collectionPath, options = {}) {
   return documents;
 }
 
+async function runQuery(structuredQuery, parentPath = "") {
+  if (!structuredQuery || typeof structuredQuery !== "object") {
+    throw new TypeError("Firestore structuredQuery가 필요합니다.");
+  }
+
+  const normalizedParent = typeof parentPath === "string"
+    ? parentPath.replace(/^\/+|\/+$/g, "")
+    : "";
+  const resourcePath = normalizedParent
+    ? `documents/${normalizedParent}:runQuery`
+    : "documents:runQuery";
+  const payload = await fireAdminRequest(resourcePath, {
+    method: "POST",
+    body: { structuredQuery },
+  });
+
+  return (Array.isArray(payload) ? payload : [])
+    .filter((entry) => entry?.document)
+    .map((entry) => ({
+      id: entry.document.name?.split("/").pop() || null,
+      name: entry.document.name,
+      data: parseFirestoreFields(entry.document.fields || {}),
+    }));
+}
+
 function createSetWrite(documentPath, data) {
   return {
     update: {
@@ -398,4 +423,5 @@ module.exports = {
   getDocumentName,
   listDocuments,
   parseFirestoreFields,
+  runQuery,
 };
