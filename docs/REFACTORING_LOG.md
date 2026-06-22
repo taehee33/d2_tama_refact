@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-23] Vercel Hobby 알림 API 함수 통합
+
+### 작업 유형
+- 알림 API 물리 Serverless Function 통합
+- 기존 URL 호환 rewrite 추가
+
+### 목적 및 영향
+- **목적:** 5D 배포에서 확인된 Vercel Hobby 최대 12개 함수 제한을 충족한다.
+- **아키텍처 결정:** 일일 보고·긴급 prepare·긴급 ack의 외부 URL은 유지하고, 내부에서는 `api/notifications/[operation].js` 한 함수로 라우팅한다.
+- **영향:** 배포 함수 수가 14개에서 12개로 줄어든다. Apps Script URL, scheduler secret, Firestore 저장 계약은 변경하지 않는다.
+
+### 검증
+- operation별 라우팅과 미지원 operation 404 테스트
+- 알림 API 회귀 테스트, production build, Vercel Production 실제 배포
+
+
 ## [2026-06-22] 자동 알림 구독자 인덱스 및 구 설정 호환 5D
 
 ### 작업 유형

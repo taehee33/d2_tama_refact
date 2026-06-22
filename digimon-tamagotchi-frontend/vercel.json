@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/api/notifications/daily-digimon-report",
+      "destination": "/api/notifications/daily"
+    },
+    {
+      "source": "/api/notifications/urgent-digimon-care/prepare",
+      "destination": "/api/notifications/prepare"
+    },
+    {
+      "source": "/api/notifications/urgent-digimon-care/ack",
+      "destination": "/api/notifications/ack"
+    }
+  ]
+}

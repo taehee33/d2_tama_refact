@@ -1,3 +1,7 @@
 "use strict";
 
-module.exports = require("../../../digimon-tamagotchi-frontend/api/notifications/urgent-digimon-care/prepare");
+const {
+  createUrgentCarePrepareHandler,
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications");
+
+module.exports = createUrgentCarePrepareHandler();

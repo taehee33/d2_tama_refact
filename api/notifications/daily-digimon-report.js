@@ -1,3 +1,7 @@
 "use strict";
 
-module.exports = require("../../digimon-tamagotchi-frontend/api/notifications/daily-digimon-report");
+const {
+  createDailyDigimonReportHandler,
+} = require("../../digimon-tamagotchi-frontend/api/_lib/notificationReports");
+
+module.exports = createDailyDigimonReportHandler();
