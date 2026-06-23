@@ -192,6 +192,144 @@
   position: relative;
 }
 
+.digimon-sprite.hit-impact {
+  animation-duration: 0.38s;
+  animation-timing-function: steps(2, end);
+  animation-fill-mode: both;
+}
+
+.digimon-sprite.hit-impact-user {
+  animation-name: hitImpactUser;
+}
+
+.digimon-sprite.hit-impact-enemy {
+  animation-name: hitImpactEnemy;
+}
+
+.digimon-sprite.hit-impact::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 22%, rgba(255, 76, 76, 0.68) 23% 55%, rgba(255, 0, 0, 0) 56%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(255, 30, 30, 0.25));
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 20;
+  animation: hitImpactFlash 0.38s steps(2, end) both;
+}
+
+.digimon-sprite.hit-impact img {
+  animation: hitSpriteFlash 0.38s steps(2, end) both;
+}
+
+.battle-area.hit-impact-screen {
+  animation: battleImpactShake 0.32s steps(2, end) both;
+}
+
+@keyframes hitImpactUser {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-14px) translateY(-2px);
+  }
+  42% {
+    transform: translateX(9px) translateY(1px);
+  }
+  64% {
+    transform: translateX(-7px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes hitImpactEnemy {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(14px) translateY(-2px);
+  }
+  42% {
+    transform: translateX(-9px) translateY(1px);
+  }
+  64% {
+    transform: translateX(7px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes hitImpactFlash {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+  46% {
+    opacity: 0.65;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes hitSpriteFlash {
+  0% {
+    opacity: 1;
+    filter: none;
+  }
+  16% {
+    opacity: 0.35;
+    filter: brightness(2.6) contrast(1.5) saturate(0.4);
+  }
+  32% {
+    opacity: 1;
+    filter: brightness(1.5) contrast(1.4) saturate(1.8) drop-shadow(0 0 10px rgba(255, 0, 0, 0.85));
+  }
+  52% {
+    opacity: 0.45;
+    filter: brightness(2.1) contrast(1.2);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@keyframes battleImpactShake {
+  0% {
+    transform: translate(0, 0);
+  }
+  14% {
+    transform: translate(-8px, 3px);
+  }
+  28% {
+    transform: translate(7px, -2px);
+  }
+  42% {
+    transform: translate(-5px, -2px);
+  }
+  56% {
+    transform: translate(4px, 2px);
+  }
+  74% {
+    transform: translate(-2px, 1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
 /* 플레이어 디지몬 좌우 반전 */
 .player-digimon img,
 .player-sprite {
@@ -853,5 +991,17 @@
     padding-top: 80px; /* 상단 고정 메뉴 공간 확보 */
     align-items: flex-start; /* 상단 정렬 */
     padding-bottom: 20px; /* 하단 여백 */
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-area.hit-impact-screen,
+  .digimon-sprite.hit-impact {
+    animation-name: none;
+  }
+
+  .digimon-sprite.hit-impact::after,
+  .digimon-sprite.hit-impact img {
+    animation-duration: 0.22s;
   }
 }

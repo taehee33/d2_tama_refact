@@ -105,6 +105,30 @@ export function resolveEnemyProjectileSprite({
   );
 }
 
+export function resolveHitImpactTarget(log = {}) {
+  if (!log.hit) {
+    return null;
+  }
+
+  return log.attacker === "user" ? "enemy" : "user";
+}
+
+export function buildBattleAreaClassName(baseClassName, hitImpactTarget) {
+  return [
+    baseClassName,
+    hitImpactTarget ? "hit-impact-screen" : "",
+    hitImpactTarget ? `hit-impact-${hitImpactTarget}` : "",
+  ].filter(Boolean).join(" ");
+}
+
+export function buildDigimonImpactClassName(baseClassName, hitImpactTarget, target) {
+  return [
+    baseClassName,
+    hitImpactTarget === target ? "hit-impact" : "",
+    hitImpactTarget === target ? `hit-impact-${target}` : "",
+  ].filter(Boolean).join(" ");
+}
+
 export default function BattleScreen({
   userDigimon,
   userStats,
@@ -139,12 +163,31 @@ export default function BattleScreen({
   const [projectile, setProjectile] = useState(null); // { type: "user" | "enemy", sprite: number }
   const [hitText, setHitText] = useState(null); // { target: "user" | "enemy" } - 타격 텍스트
   const [missText, setMissText] = useState(null); // { target: "user" | "enemy" }
+  const [hitImpactTarget, setHitImpactTarget] = useState(null); // { "user" | "enemy" | null } - 추가 피격 연출 대상
   
   const userDigimonRef = useRef(null);
   const userDigimonImgRef = useRef(null);
   const enemyDigimonRef = useRef(null);
   const enemyDigimonImgRef = useRef(null);
   const battleAreaRef = useRef(null);
+  const hitImpactTimerRef = useRef(null);
+
+  const clearHitImpact = () => {
+    if (hitImpactTimerRef.current) {
+      clearTimeout(hitImpactTimerRef.current);
+      hitImpactTimerRef.current = null;
+    }
+    setHitImpactTarget(null);
+  };
+
+  const triggerHitImpact = (target) => {
+    clearHitImpact();
+    setHitImpactTarget(target);
+    hitImpactTimerRef.current = setTimeout(() => {
+      setHitImpactTarget(null);
+      hitImpactTimerRef.current = null;
+    }, 380);
+  };
 
   // 모달이 열렸을 때 배경 스크롤 방지
   useEffect(() => {
@@ -155,6 +198,9 @@ export default function BattleScreen({
     // 컴포넌트가 언마운트될 때 원래대로 복구
     return () => {
       document.body.style.overflow = originalOverflow;
+      if (hitImpactTimerRef.current) {
+        clearTimeout(hitImpactTimerRef.current);
+      }
     };
   }, []);
 
@@ -325,6 +371,7 @@ export default function BattleScreen({
       setProjectile(null);
       setHitText(null);
       setMissText(null);
+      clearHitImpact();
       
       // 라운드 준비 모달 표시
       setShowReadyModal(true);
@@ -463,6 +510,9 @@ export default function BattleScreen({
           setProjectile(null); // 발사체 제거
           
           if (log.hit) {
+            const impactTarget = resolveHitImpactTarget(log);
+            triggerHitImpact(impactTarget);
+
             // 타격 처리 - HIT! 텍스트 표시
             if (log.attacker === "user") {
               setHitText({ target: "enemy" });
@@ -578,6 +628,7 @@ export default function BattleScreen({
     setProjectile(null);
     setHitText(null);
     setMissText(null);
+    clearHitImpact();
     // battleResult는 나중에 useEffect에서 설정되므로 여기서는 null로 설정
     setBattleResult(null);
     // 마지막에 battleState를 "loading"으로 설정하여 useEffect가 다시 실행되도록 함
@@ -673,7 +724,7 @@ export default function BattleScreen({
         {/* 배틀 영역 */}
         <div 
           ref={battleAreaRef}
-          className="battle-area flex justify-between items-center mb-4"
+          className={buildBattleAreaClassName("battle-area flex justify-between items-center mb-4", hitImpactTarget)}
           style={{ position: "relative" }}
         >
           {/* 유저 디지몬 */}
@@ -684,7 +735,7 @@ export default function BattleScreen({
             </div>
             <div
               ref={userDigimonRef}
-              className="digimon-sprite player-digimon"
+              className={buildDigimonImpactClassName("digimon-sprite player-digimon", hitImpactTarget, "user")}
               style={{ position: "relative" }}
             >
               <img
@@ -831,7 +882,7 @@ export default function BattleScreen({
             </div>
             <div
               ref={enemyDigimonRef}
-              className="digimon-sprite enemy-digimon"
+              className={buildDigimonImpactClassName("digimon-sprite enemy-digimon", hitImpactTarget, "enemy")}
               style={{ position: "relative" }}
             >
               <img

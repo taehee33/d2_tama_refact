@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-06-23] 배틀 명중 피격감 보강
+
+### 작업 유형
+- 배틀 화면 시각 효과 개선
+
+### 목적 및 영향
+- **목적:** 명중 순간에 기존 HIT 텍스트와 히트 마커만으로는 피격감이 약해 보이는 문제를 줄이고, 디지몬 깜빡임과 배틀 영역 흔들림으로 명중 피드백을 강화한다.
+- **아키텍처 결정:** 배틀 계산, 저장 계약, 로그 포맷은 변경하지 않고 `BattleScreen` 내부 재생 상태와 CSS 클래스만 추가한다.
+- **영향:** 퀘스트·스파링·아레나의 기존 HIT/MISS, 발사체, 회피, 히트 카운터 흐름은 유지하며 명중 로그에만 추가 피격 연출을 얹는다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/styles/Battle.css`
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
+
+### 검증
+- 피격 대상 매핑 및 클래스 조립 회귀 테스트 추가
+- `BattleScreen` 및 배틀 계산 테스트 실행
+
+
 ## [2026-06-23] 진화 버튼 데이터 lookup 복구
 
 ### 작업 유형

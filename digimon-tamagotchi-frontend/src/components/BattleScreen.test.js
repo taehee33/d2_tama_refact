@@ -1,6 +1,9 @@
 import {
+  buildBattleAreaClassName,
   buildArenaEnemyBattleData,
+  buildDigimonImpactClassName,
   getDigimonDataByVersionFallback,
+  resolveHitImpactTarget,
   resolveEnemyProjectileSprite,
 } from "./BattleScreen";
 
@@ -235,5 +238,25 @@ describe("BattleScreen arena helper", () => {
         },
       })
     ).toBe(111);
+  });
+
+  test("명중 로그만 피격 효과 대상에 매핑한다", () => {
+    expect(resolveHitImpactTarget({ attacker: "user", hit: true })).toBe("enemy");
+    expect(resolveHitImpactTarget({ attacker: "enemy", hit: true })).toBe("user");
+    expect(resolveHitImpactTarget({ attacker: "user", hit: false })).toBeNull();
+  });
+
+  test("피격 클래스는 기존 배틀 영역과 대상 디지몬 클래스에 추가만 한다", () => {
+    expect(buildBattleAreaClassName("battle-area flex", "user")).toBe(
+      "battle-area flex hit-impact-screen hit-impact-user"
+    );
+    expect(buildBattleAreaClassName("battle-area flex", null)).toBe("battle-area flex");
+
+    expect(buildDigimonImpactClassName("digimon-sprite player-digimon", "user", "user")).toBe(
+      "digimon-sprite player-digimon hit-impact hit-impact-user"
+    );
+    expect(buildDigimonImpactClassName("digimon-sprite enemy-digimon", "user", "enemy")).toBe(
+      "digimon-sprite enemy-digimon"
+    );
   });
 });
