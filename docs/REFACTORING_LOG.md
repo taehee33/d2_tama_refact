@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-23] Vercel 배포용 projection build script 내부화
+
+### 작업 유형
+- Vercel Production 배포 실패 복구
+
+### 목적 및 영향
+- **목적:** Vercel 프로젝트의 `rootDirectory`가 `digimon-tamagotchi-frontend`라 상위 `../scripts/buildServerGameProjection.js`를 배포 빌드에서 찾지 못하는 문제를 해결한다.
+- **아키텍처 결정:** 프론트 배포 루트 내부에 동일한 projection bundle 생성 스크립트를 두고 `prebuild`가 내부 경로를 호출하게 한다.
+- **영향:** 서버 projection 생성 결과와 API 동작은 동일하며, 배포 패키징 경계만 안정화한다.
+
+### 검증
+- 알림 API 테스트
+- `CI=true NODE_OPTIONS=--openssl-legacy-provider npm run build`
+
+
 ## [2026-06-23] Discord 긴급 케어 메시지 가독성 개선
 
 ### 작업 유형
