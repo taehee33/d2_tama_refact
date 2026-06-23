@@ -4,6 +4,9 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { parseFirestoreFields } = require("../../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");
 const {
+  buildUrgentMessage,
+} = require("../../digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery");
+const {
   acknowledgeUrgentCareDeliveries,
   createUrgentCareAckHandler,
   createUrgentCarePrepareHandler,
@@ -102,6 +105,45 @@ function createMockRes() {
     },
   };
 }
+
+test("긴급 Discord 메시지는 대상 수와 디지몬별 상태를 읽기 쉽게 표시한다", () => {
+  const message = buildUrgentMessage("한솔", [
+    {
+      slotId: "slot1",
+      digimonName: "아구몬",
+      issues: [
+        { key: "hunger_call", label: "🍖 배고픔 호출" },
+        { key: "poop_warning", label: "💩 똥 6개 경고" },
+      ],
+    },
+    {
+      slotId: "slot3",
+      digimonName: "파피몬",
+      issues: [{ key: "injury", label: "🩹 부상 상태" }],
+    },
+  ], "2026. 6. 23. AM 1:00:00");
+
+  assert.equal(message, [
+    "━━━━━━━━━━━━━━━━━━",
+    "🚨 **디지몬 긴급 케어 알림**",
+    "지금 확인이 필요한 상태가 발생했습니다.",
+    "",
+    "👤 **테이머**: 한솔",
+    "⚠️ **긴급 대상**: 2마리 · 3건",
+    "",
+    "🐾 **아구몬** · `슬롯 1`",
+    "> 🍖 배고픔 호출",
+    "> 💩 똥 6개 경고",
+    "",
+    "🐾 **파피몬** · `슬롯 3`",
+    "> 🩹 부상 상태",
+    "",
+    "📱 앱을 열어 현재 상태를 확인해 주세요.",
+    "",
+    "⏰ **확인 시간**: 2026. 6. 23. AM 1:00:00",
+    "━━━━━━━━━━━━━━━━━━",
+  ].join("\n"));
+});
 
 test("13시간 오프라인 상태를 서버에서 계산해 사망을 판정한다", () => {
   const now = Date.parse("2026-06-21T13:00:00.000Z");
