@@ -4,6 +4,39 @@ import { getStarterDigimonId } from "../../utils/digimonVersionUtils";
 
 const PERFECT_STAGES = ["Perfect", "Ultimate", "SuperUltimate"];
 
+export function normalizeDigimonLookupId(digimonId) {
+  return typeof digimonId === "string" ? digimonId.trim() : digimonId;
+}
+
+export function resolveDigimonDataFromMap(dataMap = {}, digimonId) {
+  const normalizedId = normalizeDigimonLookupId(digimonId);
+
+  if (!normalizedId || !dataMap || typeof dataMap !== "object") {
+    return null;
+  }
+
+  if (dataMap[normalizedId]) {
+    return {
+      key: normalizedId,
+      data: dataMap[normalizedId],
+    };
+  }
+
+  const matchedKey = Object.keys(dataMap).find((key) => {
+    const entry = dataMap[key];
+    return entry?.id === normalizedId;
+  });
+
+  if (matchedKey) {
+    return {
+      key: matchedKey,
+      data: dataMap[matchedKey],
+    };
+  }
+
+  return null;
+}
+
 export function buildResetDigimonState({
   currentStats,
   normalizedSlotVersion,
@@ -94,7 +127,12 @@ export function shouldEnableEvolutionButton({
     return true;
   }
 
-  const currentDigimonData = evolutionDataForSlot[selectedDigimon];
+  const resolvedCurrentDigimon = resolveDigimonDataFromMap(
+    evolutionDataForSlot,
+    selectedDigimon
+  );
+  const currentDigimonData = resolvedCurrentDigimon?.data;
+  const currentDigimonKey = resolvedCurrentDigimon?.key || selectedDigimon;
 
   if (ignoreEvolutionTime && currentDigimonData?.evolutions?.length > 0) {
     const hasNonJogress = currentDigimonData.evolutions.some((evolution) => {
@@ -110,7 +148,7 @@ export function shouldEnableEvolutionButton({
     const evolutionResult = checkEvolutionFn(
       digimonStats,
       currentDigimonData,
-      selectedDigimon,
+      currentDigimonKey,
       evolutionDataForSlot
     );
 

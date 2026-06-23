@@ -34,16 +34,18 @@ import {
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
 import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
+import { resolveDigimonDataFromMap } from "./game-runtime/gamePageActionHelpers";
 
 /** 맵 키 또는 entry.id로 한글 이름 조회 (슬롯에 id가 저장된 경우 대비) */
 function getDigimonDisplayName(maps, digimonId) {
-  if (!digimonId) return digimonId;
+  const lookupId = typeof digimonId === "string" ? digimonId.trim() : digimonId;
+  if (!lookupId) return digimonId;
   const mapList = Array.isArray(maps) ? maps : [maps];
   for (const map of mapList) {
     if (!map || typeof map !== "object") continue;
-    const byKey = map[digimonId]?.name;
+    const byKey = map[lookupId]?.name;
     if (byKey) return byKey;
-    const entry = Object.values(map).find((e) => e && e.id === digimonId);
+    const entry = Object.values(map).find((e) => e && e.id === lookupId);
     if (entry?.name) return entry.name;
   }
   return digimonId;
@@ -205,7 +207,12 @@ export function useEvolution({
       Object.keys(slotEvolutionDataMap).find(key => slotEvolutionDataMap[key]?.stage === updatedStats.evolutionStage) : 
       "Digitama");
     
-    const currentDigimonData = slotEvolutionDataMap[digimonName];
+    const resolvedCurrentDigimon = resolveDigimonDataFromMap(
+      slotEvolutionDataMap,
+      digimonName
+    );
+    const currentDigimonData = resolvedCurrentDigimon?.data;
+    const currentDigimonKey = resolvedCurrentDigimon?.key || digimonName;
     if (!currentDigimonData) {
       console.error(`No data for ${digimonName} in slotEvolutionDataMap!`);
       console.error('Available keys:', Object.keys(slotEvolutionDataMap));
@@ -223,7 +230,7 @@ export function useEvolution({
         alert("진화 가능한 형태가 없습니다.");
         return;
       }
-      const targetData = slotEvolutionDataMap[targetId];
+      const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
       const evolvedName = targetData?.name || targetData?.id || targetId;
       setEvolvedDigimonName(evolvedName);
       if (developerMode) {
@@ -250,11 +257,16 @@ export function useEvolution({
     const statsForCheck = developerMode
       ? { ...updatedStats, timeToEvolveSeconds: 0 }
       : updatedStats;
-    const evolutionResult = checkEvolution(statsForCheck, currentDigimonData, digimonName, slotEvolutionDataMap);
+    const evolutionResult = checkEvolution(
+      statsForCheck,
+      currentDigimonData,
+      currentDigimonKey,
+      slotEvolutionDataMap
+    );
     
     if (evolutionResult.success) {
       const targetId = evolutionResult.targetId;
-      const targetData = slotEvolutionDataMap[targetId];
+      const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
       const evolvedName = targetData?.name || targetData?.id || targetId;
       setEvolvedDigimonName(evolvedName);
       if (developerMode) {

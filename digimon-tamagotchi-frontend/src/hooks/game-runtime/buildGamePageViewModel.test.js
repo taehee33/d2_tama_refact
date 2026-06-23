@@ -78,6 +78,61 @@ describe("buildGamePageViewModel", () => {
     });
   });
 
+  test("저장된 selectedDigimon에 공백이 있어도 표시명과 진화 버튼을 복구한다", () => {
+    const viewModel = buildGamePageViewModel({
+      selectedDigimon: " Digitama ",
+      digimonNickname: "",
+      evolutionDataForSlot: {
+        Digitama: {
+          id: "Digitama",
+          name: "디지타마",
+          evolutions: [{ targetId: "Botamon" }],
+        },
+      },
+      digimonStats: {
+        isDead: false,
+        isFrozen: false,
+        poopCount: 0,
+      },
+      activityLogs: [],
+      digimonDataForSlot: {
+        Digitama: {
+          sleepSchedule: null,
+        },
+      },
+      customTime: new Date("2026-04-07T12:34:56.000Z"),
+      slotJogressStatus: null,
+      currentAnimation: "idle",
+      feedType: "meat",
+      isEvoEnabled: true,
+      isEvolving: false,
+      width: 320,
+      height: 240,
+      backgroundNumber: 162,
+      modals: {
+        food: false,
+        poopCleanAnimation: false,
+        healAnimation: false,
+        call: false,
+      },
+      feedStep: 0,
+      foodSizeScale: 0.4,
+      cleanStep: 0,
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      evolutionStage: "Digitama",
+      developerMode: false,
+      wakeUntil: null,
+      deathReason: null,
+    });
+
+    expect(viewModel.headerDigimonLabel).toBe("디지타마");
+    expect(viewModel.jogressControls).toMatchObject({
+      hasNormalEvolution: true,
+      showEvolutionButton: true,
+    });
+  });
+
   test("Ver.3 이후 크로스 버전 파트너가 추가되면 로컬 전용 조그레스 버튼을 연다", () => {
     const viewModel = buildGamePageViewModel({
       selectedDigimon: "BanchoLeomon",

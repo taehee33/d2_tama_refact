@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-23] 진화 버튼 데이터 lookup 복구
+
+### 작업 유형
+- 운영 UI 회귀 수정
+
+### 목적 및 영향
+- **목적:** 저장된 `selectedDigimon` 값에 앞뒤 공백 또는 구 데이터 형태가 섞여도 현재 디지몬 데이터를 찾고, 진화 버튼과 한글 표시명을 정상 표시한다.
+- **원인:** 진화 버튼 표시와 헤더 표시가 `evolutionDataForSlot[selectedDigimon]`의 정확한 key 일치에 의존해, `" Digitama "` 같은 값에서 데이터 lookup이 실패할 수 있었다.
+- **아키텍처 결정:** Firestore 값을 강제로 수정하지 않고, UI/view model과 진화 실행 경계에서 lookup만 `trim + entry.id fallback`으로 보강한다.
+- **영향:** 저장 계약과 진화 조건은 변경하지 않고, 구/오염 슬롯 데이터에 대한 읽기 호환성을 높인다.
+
+### 검증
+- 공백 포함 `selectedDigimon`의 진화 버튼 표시 회귀 테스트
+- 공백 포함 `selectedDigimon`의 한글 표시명 복구 회귀 테스트
+- 전체 프론트 테스트 및 production build
+
+
 ## [2026-06-23] Vercel 배포용 projection build script 내부화
 
 ### 작업 유형

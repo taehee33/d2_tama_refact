@@ -1,5 +1,6 @@
 import { getSleepSchedule } from "../useGameHandlers";
 import { isJogressPartnerSupportedInApp } from "../../utils/jogressUtils";
+import { resolveDigimonDataFromMap } from "./gamePageActionHelpers";
 
 function formatCurrentTime(customTime) {
   return customTime.toLocaleString("ko-KR", {
@@ -17,8 +18,12 @@ function buildHeaderDigimonLabel({
   digimonNickname,
   evolutionDataForSlot,
 }) {
+  const resolvedDigimon = resolveDigimonDataFromMap(
+    evolutionDataForSlot,
+    selectedDigimon
+  );
   const digimonName =
-    evolutionDataForSlot?.[selectedDigimon]?.name || selectedDigimon;
+    resolvedDigimon?.data?.name || resolvedDigimon?.data?.id || selectedDigimon;
   const nickname = typeof digimonNickname === "string" ? digimonNickname.trim() : "";
 
   return nickname ? `${nickname}(${digimonName})` : digimonName;
@@ -69,7 +74,8 @@ export function buildGamePageViewModel({
     digimonDataForSlot,
     digimonStats
   );
-  const currentDigimonDataForEvo = evolutionDataForSlot?.[selectedDigimon];
+  const currentDigimonDataForEvo =
+    resolveDigimonDataFromMap(evolutionDataForSlot, selectedDigimon)?.data;
   const supportsOnlineJogress =
     slotVersion === "Ver.1" || slotVersion === "Ver.2";
   const canJogressEvolve = Boolean(

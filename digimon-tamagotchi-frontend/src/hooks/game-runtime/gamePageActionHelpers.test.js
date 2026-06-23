@@ -1,5 +1,6 @@
 import {
   buildResetDigimonState,
+  resolveDigimonDataFromMap,
   shouldEnableEvolutionButton,
 } from "./gamePageActionHelpers";
 
@@ -99,6 +100,61 @@ describe("gamePageActionHelpers", () => {
         },
       })
     ).toBe(true);
+  });
+
+  test("shouldEnableEvolutionButton은 저장된 디지몬 ID의 앞뒤 공백을 무시한다", () => {
+    checkEvolution.mockReturnValue({ success: true });
+
+    expect(
+      shouldEnableEvolutionButton({
+        isLoadingSlot: false,
+        digimonStats: { isDead: false },
+        developerMode: false,
+        ignoreEvolutionTime: false,
+        selectedDigimon: " Digitama ",
+        evolutionDataForSlot: {
+          Digitama: {
+            id: "Digitama",
+            evolutions: [{ targetId: "Botamon" }],
+          },
+        },
+      })
+    ).toBe(true);
+
+    expect(checkEvolution).toHaveBeenCalledWith(
+      { isDead: false },
+      {
+        id: "Digitama",
+        evolutions: [{ targetId: "Botamon" }],
+      },
+      "Digitama",
+      {
+        Digitama: {
+          id: "Digitama",
+          evolutions: [{ targetId: "Botamon" }],
+        },
+      }
+    );
+  });
+
+  test("resolveDigimonDataFromMap은 key가 달라도 entry.id로 디지몬 데이터를 찾는다", () => {
+    expect(
+      resolveDigimonDataFromMap(
+        {
+          egg: {
+            id: "Digitama",
+            name: "디지타마",
+          },
+        },
+        "Digitama"
+      )
+    ).toEqual({
+      key: "egg",
+      data: {
+        id: "Digitama",
+        name: "디지타마",
+      },
+    });
   });
 
   test("shouldEnableEvolutionButton은 checkEvolution 성공 결과를 따른다", () => {
