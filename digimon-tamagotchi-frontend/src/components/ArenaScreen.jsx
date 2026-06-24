@@ -212,6 +212,7 @@ export default function ArenaScreen({
   onStartBattle,
   currentSlotId,
   currentSeasonId = CURRENT_SEASON_ID,
+  refreshKey = 0,
   seasonName = `Season ${currentSeasonId || CURRENT_SEASON_ID}`,
   seasonDuration = "",
   isDevMode = false,
@@ -371,6 +372,31 @@ export default function ArenaScreen({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentUser, isFirebaseAvailable, leaderboardMode, selectedArchiveId]);
+
+  useEffect(() => {
+    if (!refreshKey || !isFirebaseAvailable || !currentUser) {
+      return;
+    }
+
+    loadMyEntries();
+    loadChallengers();
+
+    if (activeTab === 'battleLog') {
+      loadBattleLogs();
+    }
+
+    if (activeTab === 'leaderboard') {
+      if (leaderboardMode === 'past') {
+        if (selectedArchiveId) {
+          loadArchiveEntries(selectedArchiveId);
+        }
+      } else {
+        setSelectedArchiveMeta(null);
+        loadLeaderboard(leaderboardMode);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const closeBattleLogReview = () => {
     setShowBattleLogReview(false);

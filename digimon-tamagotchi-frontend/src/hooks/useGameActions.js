@@ -735,6 +735,7 @@ export function useGameActions({
   setCurrentQuestArea,
   setCurrentQuestRound,
   toggleModal, // 과식 확인 모달용
+  onArenaBattleCommitted,
 }) {
   // 기본값 제공 및 에러 방지
   if (!digimonStats || !setDigimonStats || !setDigimonStatsAndSave || !applyLazyUpdateBeforeAction) {
@@ -1235,12 +1236,13 @@ export function useGameActions({
         alert("⚠️ 경고: 내 엔트리 ID를 찾을 수 없어 내 승패 기록이 업데이트되지 않을 수 있습니다.\n\n현재 슬롯이 아레나에 등록되어 있는지 확인해주세요.");
       }
 
+      let remoteBattleResult = null;
       try {
         if (!myArenaEntryId) {
           throw new Error("현재 슬롯의 아레나 등록 정보를 찾지 못해 승패를 저장할 수 없습니다.");
         }
 
-        const remoteBattleResult = await completeArenaBattle(currentUser, {
+        remoteBattleResult = await completeArenaBattle(currentUser, {
           myEntryId: myArenaEntryId,
           defenderEntryId: enemyEntryId,
           currentSeasonId: Number(currentSeasonId) || 0,
@@ -1258,7 +1260,7 @@ export function useGameActions({
           challengerId: enemyEntryId,
           myArenaEntryId,
         });
-        alert(`❌ 배틀 결과 저장 실패:\n${error.message || error.code || "알 수 없는 오류"}`);
+        throw error;
       }
 
       // Arena 모드: 로컬 스탯 업데이트 (배틀 기록 + Activity Log)
@@ -1300,8 +1302,11 @@ export function useGameActions({
       setArenaChallenger(null);
       setArenaEnemyId(null);
       setMyArenaEntryId(null);
+      if (onArenaBattleCommitted) {
+        onArenaBattleCommitted(remoteBattleResult);
+      }
       setShowArenaScreen(true);
-      return;
+      return remoteBattleResult;
     }
 
     // Quest 모드: Ver.1 스펙 적용

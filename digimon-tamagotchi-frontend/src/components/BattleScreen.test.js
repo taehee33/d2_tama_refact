@@ -5,6 +5,7 @@ import {
   getDigimonDataByVersionFallback,
   resolveHitImpactTarget,
   resolveEnemyProjectileSprite,
+  shouldCompleteArenaBattleBeforeAction,
 } from "./BattleScreen";
 
 describe("BattleScreen arena helper", () => {
@@ -258,5 +259,29 @@ describe("BattleScreen arena helper", () => {
     expect(buildDigimonImpactClassName("digimon-sprite enemy-digimon", "user", "enemy")).toBe(
       "digimon-sprite enemy-digimon"
     );
+  });
+
+  test("아레나 결과만 저장 전 액션 전에 확정 저장 대상으로 판단한다", () => {
+    expect(
+      shouldCompleteArenaBattleBeforeAction({
+        battleType: "arena",
+        battleResult: { win: true },
+        hasCompleted: false,
+      })
+    ).toBe(true);
+    expect(
+      shouldCompleteArenaBattleBeforeAction({
+        battleType: "arena",
+        battleResult: { win: true },
+        hasCompleted: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldCompleteArenaBattleBeforeAction({
+        battleType: "quest",
+        battleResult: { win: true },
+        hasCompleted: false,
+      })
+    ).toBe(false);
   });
 });

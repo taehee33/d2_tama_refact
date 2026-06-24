@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-24] 아레나 승패 즉시 반영 보강
+
+### 작업 유형
+- 아레나 배틀 결과 확정 흐름 수정
+- 아레나 화면 재조회 트리거 추가
+
+### 목적 및 영향
+- **목적:** 아레나 배틀 후 새로고침 없이 승패, 배틀 로그, 리더보드가 최신 결과를 반영하게 한다.
+- **원인:** 결과 모달 표시 시점과 실제 저장 시점이 분리되어 있었고, `재전투`는 직전 결과를 저장하지 않고 새 전투를 시작할 수 있었다.
+- **아키텍처 결정:** 서버 API와 Firestore 저장 계약은 유지하고, 클라이언트에서 결과 저장을 `await`한 뒤 아레나 refresh key로 화면 데이터를 다시 읽는다.
+- **영향:** 아레나 `Return to Arena`와 `재전투` 모두 직전 결과를 먼저 저장하며, 저장 실패 시 다음 동작을 진행하지 않는다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+- `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+- `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`
+- `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+- 관련 회귀 테스트
+
+### 검증
+- `BattleScreen`, `ArenaScreen`, `useGameActions` 회귀 테스트
+- production build
+
+
 ## [2026-06-23] 배틀 명중 피격감 보강
 
 ### 작업 유형

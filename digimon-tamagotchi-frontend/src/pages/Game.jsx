@@ -296,6 +296,7 @@ function Game({ immersive = false }){
   // 상태 상세 모달용 메시지 저장
   const [statusDetailMessages, setStatusDetailMessages] = useState([]);
   const [activeLandscapeAction, setActiveLandscapeAction] = useState(null);
+  const [arenaRefreshKey, setArenaRefreshKey] = useState(0);
   // 온라인 조그레스: 현재 슬롯의 jogressStatus (canEvolve 시 진화 버튼 노출)
   const [slotJogressStatus, setSlotJogressStatus] = useState(null);
 
@@ -451,6 +452,9 @@ function Game({ immersive = false }){
     setCurrentQuestArea,
     setCurrentQuestRound,
     toggleModal, // 과식 확인 모달용
+    onArenaBattleCommitted: () => {
+      setArenaRefreshKey((prev) => prev + 1);
+    },
     onSleepDisturbance: () => {
       // 수면 방해 토스트 표시
       toggleModal('sleepDisturbanceToast', true);
@@ -1472,6 +1476,7 @@ function Game({ immersive = false }){
         gameState={{
           ...gameState,
           isLightsOn,
+          arenaRefreshKey,
         }}
         handlers={handlers}
         data={data}

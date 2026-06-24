@@ -129,6 +129,14 @@ export function buildDigimonImpactClassName(baseClassName, hitImpactTarget, targ
   ].filter(Boolean).join(" ");
 }
 
+export function shouldCompleteArenaBattleBeforeAction({
+  battleType,
+  battleResult,
+  hasCompleted,
+} = {}) {
+  return battleType === "arena" && Boolean(battleResult) && !hasCompleted;
+}
+
 export default function BattleScreen({
   userDigimon,
   userStats,
@@ -156,6 +164,7 @@ export default function BattleScreen({
   const [showUserPowerDetails, setShowUserPowerDetails] = useState(false); // 유저 파워 상세 정보 표시 여부
   const [showEnemyPowerDetails, setShowEnemyPowerDetails] = useState(false); // 상대방 파워 상세 정보 표시 여부
   const [showBattleGuide, setShowBattleGuide] = useState(false); // 배틀 가이드 표시 여부
+  const [isCompletingBattle, setIsCompletingBattle] = useState(false); // 아레나 결과 저장 중 여부
   // Start를 누르기 전까지는 상대방 정보를 숨김
   const hideEnemyInfo = !hasRoundStarted;
   
@@ -171,6 +180,8 @@ export default function BattleScreen({
   const enemyDigimonImgRef = useRef(null);
   const battleAreaRef = useRef(null);
   const hitImpactTimerRef = useRef(null);
+  const completedBattleRef = useRef(null);
+  const isMountedRef = useRef(false);
 
   const clearHitImpact = () => {
     if (hitImpactTimerRef.current) {
@@ -191,12 +202,14 @@ export default function BattleScreen({
 
   // 모달이 열렸을 때 배경 스크롤 방지
   useEffect(() => {
+    isMountedRef.current = true;
     // 컴포넌트가 마운트될 때 body 스크롤 막기
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     
     // 컴포넌트가 언마운트될 때 원래대로 복구
     return () => {
+      isMountedRef.current = false;
       document.body.style.overflow = originalOverflow;
       if (hitImpactTimerRef.current) {
         clearTimeout(hitImpactTimerRef.current);
@@ -372,6 +385,8 @@ export default function BattleScreen({
       setHitText(null);
       setMissText(null);
       clearHitImpact();
+      completedBattleRef.current = null;
+      setIsCompletingBattle(false);
       
       // 라운드 준비 모달 표시
       setShowReadyModal(true);
@@ -600,22 +615,60 @@ export default function BattleScreen({
     }
   };
 
-  // 배틀 종료
-  const handleExit = () => {
-    // Arena/퀘스트 모드: 결과가 있으면 배틀 기록 저장 후 종료
-    if (battleResult && onBattleComplete) {
-      if (battleType === 'arena') {
-        console.log("🔍 [BattleScreen] Arena 모드 종료 - onBattleComplete 호출");
+  const completeArenaBattleOnce = async () => {
+    if (!shouldCompleteArenaBattleBeforeAction({
+      battleType,
+      battleResult,
+      hasCompleted: Boolean(completedBattleRef.current),
+    })) {
+      return true;
+    }
+
+    if (isCompletingBattle) {
+      return false;
+    }
+
+    try {
+      setIsCompletingBattle(true);
+      if (onBattleComplete) {
+        const completionResult = await onBattleComplete(battleResult);
+        completedBattleRef.current = completionResult || true;
+      } else {
+        completedBattleRef.current = true;
       }
+      return true;
+    } catch (error) {
+      console.error("Arena 배틀 결과 저장 실패:", error);
+      alert(`❌ 배틀 결과 저장 실패:\n${error.message || "알 수 없는 오류"}`);
+      return false;
+    } finally {
+      if (isMountedRef.current) {
+        setIsCompletingBattle(false);
+      }
+    }
+  };
+
+  // 배틀 종료
+  const handleExit = async () => {
+    if (battleType === 'arena') {
+      const completed = await completeArenaBattleOnce();
+      if (!completed) return;
+      return;
+    }
+
+    // Arena 외 모드: 결과가 있으면 배틀 기록 저장 후 종료
+    if (battleResult && onBattleComplete) {
       onBattleComplete(battleResult);
     }
     onClose();
   };
 
   // 재전투 (아레나 전용)
-  const handleRematch = () => {
+  const handleRematch = async () => {
+    const completed = await completeArenaBattleOnce();
+    if (!completed) return;
+
     console.log("🔍 [BattleScreen] 재전투 시작 - 상태 초기화");
-    // 주의: onBattleComplete를 호출하지 않음 (재전투 시에는 결과 저장하지 않음)
     // 배틀 상태만 리셋하여 새로운 배틀 시작
     // 모든 배틀 관련 상태 초기화
     setShowLogReview(false);
@@ -631,6 +684,7 @@ export default function BattleScreen({
     clearHitImpact();
     // battleResult는 나중에 useEffect에서 설정되므로 여기서는 null로 설정
     setBattleResult(null);
+    completedBattleRef.current = null;
     // 마지막에 battleState를 "loading"으로 설정하여 useEffect가 다시 실행되도록 함
     // 이렇게 하면 useEffect의 의존성 배열에 battleState가 포함되어 있어서 다시 실행됨
     console.log("🔍 [BattleScreen] 재전투 - battleState를 loading으로 설정");
@@ -638,12 +692,15 @@ export default function BattleScreen({
   };
 
   // 패배 처리
-  const handleDefeat = () => {
-    // Arena/퀘스트 모드: 패배 결과를 배틀 기록에 저장
+  const handleDefeat = async () => {
+    if (battleType === 'arena') {
+      const completed = await completeArenaBattleOnce();
+      if (!completed) return;
+      return;
+    }
+
+    // Arena 외 모드: 패배 결과를 배틀 기록에 저장
     if (battleResult && onBattleComplete) {
-      if (battleType === 'arena') {
-        console.log("🔍 [BattleScreen] Arena 모드 패배 - onBattleComplete 호출");
-      }
       onBattleComplete(battleResult);
     }
     onClose();
@@ -1272,26 +1329,29 @@ export default function BattleScreen({
               ) : battleType === 'arena' ? (
                 <>
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
-                  <p className="text-gray-700 mb-4">Rank Updated!</p>
+                  <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
                   <p className="text-sm text-gray-600 mb-6">Arena 전투에서 승리했습니다!</p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button
                       onClick={() => setShowLogReview(true)}
+                      disabled={isCompletingBattle}
                       className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                     >
                       Review Log
                     </button>
                     <button
                       onClick={handleRematch}
-                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px]"
+                      disabled={isCompletingBattle}
+                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      재전투
+                      {isCompletingBattle ? "저장 중..." : "재전투"}
                     </button>
                     <button
                       onClick={handleExit}
-                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors text-base min-h-[44px]"
+                      disabled={isCompletingBattle}
+                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Return to Arena
+                      {isCompletingBattle ? "저장 중..." : "Return to Arena"}
                     </button>
                   </div>
                 </>
@@ -1371,11 +1431,12 @@ export default function BattleScreen({
               <div className="battle-result text-center pb-4">
                 <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
                 {battleType === 'arena' && (
-                  <p className="text-gray-700 mb-4">Rank Updated!</p>
+                  <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
                 )}
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
                     onClick={() => setShowLogReview(true)}
+                    disabled={isCompletingBattle}
                     className="px-4 sm:px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
                   >
                     Review Log
@@ -1383,20 +1444,24 @@ export default function BattleScreen({
                   {battleType === 'arena' && (
                     <button
                       onClick={handleRematch}
-                      className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px]"
+                      disabled={isCompletingBattle}
+                      className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      재전투
+                      {isCompletingBattle ? "저장 중..." : "재전투"}
                     </button>
                   )}
                   <button
                     onClick={handleDefeat}
+                    disabled={isCompletingBattle}
                     className={`px-4 sm:px-6 py-3 rounded-lg font-bold transition-colors text-base min-h-[44px] ${
                       battleType === 'arena'
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                        ? 'bg-blue-500 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60'
                         : 'bg-red-500 text-white hover:bg-red-600'
                     }`}
                   >
-                    {battleType === 'arena' ? 'Return to Arena' : '돌아가기'}
+                    {battleType === 'arena'
+                      ? isCompletingBattle ? '저장 중...' : 'Return to Arena'
+                      : '돌아가기'}
                   </button>
                 </div>
               </div>

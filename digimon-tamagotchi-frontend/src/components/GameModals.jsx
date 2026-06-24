@@ -103,6 +103,7 @@ export default function GameModals({
     battleType,
     sparringEnemySlot,
     arenaChallenger,
+    arenaRefreshKey,
     currentSeasonId,
     activityLogs,
     deathReason,
@@ -577,6 +578,7 @@ export default function GameModals({
           onStartBattle={handleArenaBattleStart}
           currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
           currentSeasonId={currentSeasonId}
+          refreshKey={arenaRefreshKey}
           seasonName={seasonName}
           seasonDuration={seasonDuration}
           isDevMode={developerMode}

@@ -68,12 +68,13 @@ function queueArenaScreenLoad(logDocs) {
     .mockResolvedValueOnce({ docs: [] });
 }
 
-function renderArenaScreen() {
+function renderArenaScreen(props = {}) {
   return render(
     <ArenaScreen
       onClose={jest.fn()}
       onStartBattle={jest.fn()}
       currentSlotId={null}
+      {...props}
     />
   );
 }
@@ -201,6 +202,26 @@ describe("ArenaScreen replay 상태", () => {
         "arena_archive_1"
       )
     );
+  });
+
+  test("refreshKey가 바뀌면 아레나 목록을 다시 조회한다", async () => {
+    mockGetDocs.mockResolvedValue({ docs: [] });
+
+    const { rerender } = renderArenaScreen({ refreshKey: 0 });
+
+    await waitFor(() => expect(screen.getByText("테이머: 테스터")).toBeInTheDocument());
+    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(3));
+
+    rerender(
+      <ArenaScreen
+        onClose={jest.fn()}
+        onStartBattle={jest.fn()}
+        currentSlotId={null}
+        refreshKey={1}
+      />
+    );
+
+    await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(5));
   });
 });
 
