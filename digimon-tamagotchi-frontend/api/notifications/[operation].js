@@ -5,6 +5,10 @@ const {
   createUrgentCareAckHandler,
   createUrgentCarePrepareHandler,
 } = require("../_lib/urgentCareNotifications");
+const {
+  createNotificationStatusHandler,
+  createTestNotificationHandler,
+} = require("../_lib/userNotifications");
 
 function normalizeOperation(value) {
   const candidate = Array.isArray(value) ? value[0] : value;
@@ -27,6 +31,8 @@ function createNotificationRouter(deps = {}) {
     daily: deps.dailyHandler || createDailyDigimonReportHandler(),
     prepare: deps.prepareHandler || createUrgentCarePrepareHandler(),
     ack: deps.ackHandler || createUrgentCareAckHandler(),
+    status: deps.statusHandler || createNotificationStatusHandler(),
+    test: deps.testHandler || createTestNotificationHandler(),
   };
 
   return async function notificationRouter(req, res) {

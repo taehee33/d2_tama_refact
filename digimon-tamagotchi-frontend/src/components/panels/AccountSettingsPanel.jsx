@@ -18,6 +18,10 @@ import {
   saveUserSettings,
 } from "../../utils/userSettingsUtils";
 import {
+  getNotificationStatus,
+  sendTestNotification,
+} from "../../utils/notificationApi";
+import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
   BASE_MAX_SLOTS,
@@ -59,6 +63,68 @@ function getMessageClassName(message) {
   return "text-sm text-gray-600";
 }
 
+function getDefaultNotificationStatus() {
+  return {
+    settings: {
+      isNotificationEnabled: false,
+      hasDiscordWebhook: false,
+    },
+    projection: {
+      totalSlots: 0,
+      projectedSlots: 0,
+      frozenSlots: 0,
+      unavailableSlots: [],
+      projectionUnavailable: 0,
+    },
+    delivery: {
+      activeIssueSlotCount: 0,
+      recentDeliveries: [],
+      lastDiscordResult: null,
+    },
+    recentNotifications: [],
+  };
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "기록 없음";
+  }
+
+  const parsed = typeof value === "number" ? new Date(value) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "기록 없음";
+  }
+
+  return parsed.toLocaleString("ko-KR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+function getDiscordResultLabel(result) {
+  if (!result) {
+    return "전송 이력 없음";
+  }
+
+  if (result.status === "sent" || result.status === "acknowledged") {
+    return "성공";
+  }
+
+  if (result.status === "failed") {
+    return "실패";
+  }
+
+  if (result.status === "pending") {
+    return "대기 중";
+  }
+
+  if (result.status === "cancelled") {
+    return "취소됨";
+  }
+
+  return result.status || "기록 없음";
+}
+
 function AccountSettingsPanel({
   slotCount,
   tamerName: parentTamerName = "",
@@ -82,6 +148,9 @@ function AccountSettingsPanel({
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
   const [discordSettingsLoading, setDiscordSettingsLoading] = useState(false);
   const [discordSettingsMessage, setDiscordSettingsMessage] = useState("");
+  const [notificationStatus, setNotificationStatus] = useState(getDefaultNotificationStatus);
+  const [notificationStatusMessage, setNotificationStatusMessage] = useState("");
+  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
   const [themeMessage, setThemeMessage] = useState("");
 
@@ -106,10 +175,14 @@ function AccountSettingsPanel({
       setLoading(true);
 
       try {
-        const [resolvedTamerName, settings, profile] = await Promise.all([
+        const [resolvedTamerName, settings, profile, loadedNotificationStatus] = await Promise.all([
           getTamerName(currentUser.uid, getDefaultTamerName(currentUser)),
           getUserSettings(currentUser.uid),
           getAchievementsAndMaxSlots(currentUser.uid),
+          getNotificationStatus(currentUser).catch((error) => {
+            console.warn("알림 상태 로드 오류:", error);
+            return null;
+          }),
         ]);
 
         if (!isMounted) {
@@ -123,6 +196,10 @@ function AccountSettingsPanel({
         setIsNotificationEnabled(settings.isNotificationEnabled === true);
         setAchievements(profile.achievements || []);
         setMaxSlots(profile.maxSlots ?? 10);
+        setNotificationStatus(loadedNotificationStatus || getDefaultNotificationStatus());
+        setNotificationStatusMessage(
+          loadedNotificationStatus ? "" : "알림 상태를 불러오지 못했습니다."
+        );
       } catch (error) {
         console.error("계정 설정 패널 로드 오류:", error);
         if (!isMounted) {
@@ -134,6 +211,8 @@ function AccountSettingsPanel({
         setTamerNameInput(fallbackName);
         setAchievements([]);
         setMaxSlots(10);
+        setNotificationStatus(getDefaultNotificationStatus());
+        setNotificationStatusMessage("알림 상태를 불러오지 못했습니다.");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -292,10 +371,37 @@ function AccountSettingsPanel({
         isNotificationEnabled,
       });
       setDiscordSettingsMessage("Discord 알림 설정이 저장되었습니다.");
+      const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+      if (nextNotificationStatus) {
+        setNotificationStatus(nextNotificationStatus);
+        setNotificationStatusMessage("");
+      }
     } catch (error) {
       setDiscordSettingsMessage(error.message || "저장 중 오류가 발생했습니다.");
     } finally {
       setDiscordSettingsLoading(false);
+    }
+  };
+
+  const handleSendTestNotification = async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    setIsSendingTestNotification(true);
+    setNotificationStatusMessage("");
+
+    try {
+      await sendTestNotification(currentUser);
+      const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+      if (nextNotificationStatus) {
+        setNotificationStatus(nextNotificationStatus);
+      }
+      setNotificationStatusMessage("테스트 알림을 보냈습니다.");
+    } catch (error) {
+      setNotificationStatusMessage(error.message || "테스트 알림을 보내지 못했습니다.");
+    } finally {
+      setIsSendingTestNotification(false);
     }
   };
 
@@ -321,6 +427,9 @@ function AccountSettingsPanel({
   const normalizedCurrentTamerName = normalizeNicknameInput(tamerName);
   const isSameAsCurrentTamerName =
     Boolean(normalizedInputValue) && normalizedInputValue === normalizedCurrentTamerName;
+  const projectionSummary = notificationStatus.projection || getDefaultNotificationStatus().projection;
+  const lastDiscordResult = notificationStatus.delivery?.lastDiscordResult || null;
+  const hasUnavailableSlots = Number(projectionSummary.projectionUnavailable || 0) > 0;
 
   if (!currentUser) {
     return (
@@ -506,6 +615,81 @@ function AccountSettingsPanel({
             className="service-button service-button--primary"
           >
             {discordSettingsLoading ? "저장 중..." : "알림 설정 저장"}
+          </button>
+        </div>
+      </div>
+
+      <div className="service-inline-panel">
+        <div className="service-field">
+          <span>알림 상태</span>
+          <p className="service-muted">
+            게임 긴급 알림과 커뮤니티 댓글 알림의 연결 상태를 확인합니다.
+          </p>
+        </div>
+
+        <div className="service-settings-summary md:grid-cols-2">
+          <div className="service-key-value">
+            <p className="service-section-label">수신 설정</p>
+            <strong>
+              {isNotificationEnabled ? "알림 켜짐" : "알림 꺼짐"}
+            </strong>
+            <p className="service-muted">
+              Discord 웹훅: {discordWebhookUrl.trim() ? "연결됨" : "미연결"}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">마지막 Discord 결과</p>
+            <strong>{getDiscordResultLabel(lastDiscordResult)}</strong>
+            <p className="service-muted">
+              {formatDateTime(lastDiscordResult?.at)}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">15분 계산 대상</p>
+            <strong>
+              {projectionSummary.projectedSlots || 0} / {projectionSummary.totalSlots || 0} 슬롯
+            </strong>
+            <p className="service-muted">
+              보관함 제외 {projectionSummary.frozenSlots || 0}개
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">최근 인앱 알림</p>
+            <strong>{notificationStatus.recentNotifications?.length || 0}개</strong>
+            <p className="service-muted">
+              읽지 않음 표시는 다음 단계에서 연결됩니다.
+            </p>
+          </div>
+        </div>
+
+        {hasUnavailableSlots ? (
+          <div className="service-alert">
+            <strong>계산 제외 슬롯 {projectionSummary.projectionUnavailable}개</strong>
+            <p>
+              {projectionSummary.unavailableSlots.join(", ")} 슬롯의 15분 알림 계산 데이터가 오래되었습니다.
+              해당 슬롯을 한 번 열고 저장하면 긴급 알림 대상에 포함됩니다.
+            </p>
+          </div>
+        ) : (
+          <p className="service-muted">
+            현재 계산 제외 슬롯이 없습니다.
+          </p>
+        )}
+
+        {notificationStatusMessage ? (
+          <p className={getMessageClassName(notificationStatusMessage)}>
+            {notificationStatusMessage}
+          </p>
+        ) : null}
+
+        <div className="service-inline-actions">
+          <button
+            type="button"
+            onClick={handleSendTestNotification}
+            disabled={isSendingTestNotification}
+            className="service-button service-button--ghost"
+          >
+            {isSendingTestNotification ? "전송 중..." : "테스트 알림 보내기"}
           </button>
         </div>
       </div>

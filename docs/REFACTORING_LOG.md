@@ -4,6 +4,52 @@
 
 ---
 
+## [2026-06-24] 시스템 알림 가시화 및 댓글 알림 기반 구축
+
+### 작업 유형
+- 사용자별 인앱 알림 저장소 추가
+- Discord/인앱 알림 상태 API 추가
+- 커뮤니티 댓글 알림 연결
+- 계정 설정 알림 상태 UI 추가
+
+### 목적 및 영향
+- **목적:** 긴급 케어 알림과 댓글 알림이 왜 전송되었는지, 왜 빠졌는지 사용자가 설정 화면에서 직접 확인할 수 있게 한다.
+- **아키텍처 결정:** 알림 설정 원본은 기존 `users/{uid}/settings/main`으로 유지하고, 사용자별 알림 인박스만 `users/{uid}/notifications/{notificationId}`에 추가한다. 커뮤니티 원본은 Supabase에 유지하며 댓글 작성 성공 후 게시글 작성자에게 best-effort 알림을 생성한다.
+- **영향:** Discord 알림 실패가 댓글 작성 자체를 실패시키지 않는다. iPhone Web Push는 이번 단계에서 발송하지 않고 `channelState.webPush = not_configured`로 확장 지점만 둔다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/userNotifications.js`
+- `digimon-tamagotchi-frontend/api/_lib/community.js`
+- `digimon-tamagotchi-frontend/api/notifications/[operation].js`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `digimon-tamagotchi-frontend/src/utils/notificationApi.js`
+- 관련 루트 API wrapper 및 회귀 테스트
+
+### 검증
+- 알림 helper 및 커뮤니티 댓글 알림 node:test
+- `AccountSettingsPanel` React Testing Library 회귀 테스트
+
+
+## [2026-06-24] 훈련 명중 피격감 보강
+
+### 작업 유형
+- 훈련 화면 시각 효과 개선
+
+### 목적 및 영향
+- **목적:** 훈련에서 샌드백 명중 시 기존 피격 이미지와 텍스트에 더해 화면 흔들림과 샌드백 플래시를 추가해 타격감을 명확히 한다.
+- **아키텍처 결정:** 훈련 판정, 저장 계약, 로그 포맷은 변경하지 않고 `TrainPopup`의 결과 표시 상태와 CSS 클래스만 추가한다.
+- **영향:** 명중 결과가 공개된 짧은 구간에만 피격 효과가 표시되며, 방어당한 라운드와 최종 결과 화면에는 새 흔들림 효과를 적용하지 않는다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/TrainPopup.jsx`
+- `digimon-tamagotchi-frontend/src/styles/TrainPopup.css`
+- `digimon-tamagotchi-frontend/src/components/TrainPopup.test.jsx`
+
+### 검증
+- `TrainPopup` 회귀 테스트
+- production build
+
+
 ## [2026-06-24] 아레나 승패 즉시 반영 보강
 
 ### 작업 유형

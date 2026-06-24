@@ -6,6 +6,7 @@ const {
   BOARD_ID_NEWS,
   BOARD_ID_SUPPORT,
   buildCommunitySnapshot,
+  createCommunityComment,
   getCommunityBoardViewer,
   listCommunityPosts,
   NEWS_BOARD_CATEGORY_PATCH,
@@ -14,6 +15,84 @@ const {
   validateCommentPayload,
   validatePostPayload,
 } = require("./community");
+
+function createCommentSupabaseMock({ postAuthorUid = "post-owner" } = {}) {
+  return {
+    from(table) {
+      if (table === "community_posts") {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  eq() {
+                    return {
+                      maybeSingle: async () => ({
+                        data: {
+                          id: "post-1",
+                          board_id: "free",
+                          author_uid: postAuthorUid,
+                          author_tamer_name: "작성자",
+                          title: "댓글 받을 글",
+                          body: "본문",
+                          comment_count: 0,
+                          created_at: "2026-06-24T00:00:00.000Z",
+                          updated_at: "2026-06-24T00:00:00.000Z",
+                        },
+                        error: null,
+                      }),
+                    };
+                  },
+                };
+              },
+            };
+          },
+          update() {
+            return {
+              eq: async () => ({ error: null }),
+            };
+          },
+        };
+      }
+
+      if (table === "community_post_comments") {
+        return {
+          insert() {
+            return {
+              select() {
+                return {
+                  single: async () => ({
+                    data: {
+                      id: "comment-1",
+                      post_id: "post-1",
+                      author_uid: "commenter",
+                      author_tamer_name: "댓글러",
+                      body: "댓글",
+                      created_at: "2026-06-24T00:01:00.000Z",
+                      updated_at: "2026-06-24T00:01:00.000Z",
+                    },
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+          select(_columns, options = {}) {
+            if (options.head) {
+              return {
+                eq: async () => ({ count: 1, error: null }),
+              };
+            }
+
+            throw new Error("Unexpected comment select");
+          },
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+}
 
 test("buildCommunitySnapshot generates normalized post snapshot", () => {
   const snapshot = buildCommunitySnapshot(
@@ -301,6 +380,55 @@ test("listCommunityPosts resolves free board image url when image_path exists", 
     posts[0].imageUrl,
     "https://example.com/storage/free/user-1/post-1/image.png"
   );
+});
+
+test("createCommunityComment notifies post author when another user comments", async () => {
+  const notifications = [];
+
+  const result = await createCommunityComment({
+    supabase: createCommentSupabaseMock(),
+    boardId: BOARD_ID_FREE,
+    uid: "commenter",
+    decodedToken: {
+      uid: "commenter",
+      name: "댓글러",
+      idToken: "token",
+    },
+    postId: "post-1",
+    input: { body: "댓글" },
+    notifyCommunityCommentFn: async (payload) => {
+      notifications.push(payload);
+    },
+  });
+
+  assert.equal(result.comment.id, "comment-1");
+  assert.equal(result.commentCount, 1);
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].recipientUid, "post-owner");
+  assert.equal(notifications[0].commenterUid, "commenter");
+  assert.equal(notifications[0].postTitle, "댓글 받을 글");
+});
+
+test("createCommunityComment skips notification for own post comments", async () => {
+  const notifications = [];
+
+  await createCommunityComment({
+    supabase: createCommentSupabaseMock({ postAuthorUid: "commenter" }),
+    boardId: BOARD_ID_FREE,
+    uid: "commenter",
+    decodedToken: {
+      uid: "commenter",
+      name: "댓글러",
+      idToken: "token",
+    },
+    postId: "post-1",
+    input: { body: "내 글 댓글" },
+    notifyCommunityCommentFn: async (payload) => {
+      notifications.push(payload);
+    },
+  });
+
+  assert.equal(notifications.length, 0);
 });
 
 test("resolveStageLabel supports legacy stage aliases", () => {

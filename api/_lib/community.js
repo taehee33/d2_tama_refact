@@ -3,6 +3,7 @@
 const { randomUUID } = require("node:crypto");
 
 const { fetchUserProfile, fetchUserSlot } = require("./firebaseAdmin");
+const { notifyCommunityComment } = require("./userNotifications");
 
 const BOARD_ID_SHOWCASE = "showcase";
 const BOARD_ID_FREE = "free";
@@ -1508,8 +1509,9 @@ async function createCommunityComment({
   decodedToken,
   postId,
   input,
+  notifyCommunityCommentFn = notifyCommunityComment,
 }) {
-  await getPostRowOrThrow(supabase, boardId, postId);
+  const postRow = await getPostRowOrThrow(supabase, boardId, postId);
   const { body } = validateCommentInput(input);
   const authorTamerName = await resolveAuthorTamerName(uid, decodedToken);
 
@@ -1529,6 +1531,25 @@ async function createCommunityComment({
   }
 
   const commentCount = await recalculateCommentCount(supabase, postId);
+  if (postRow.author_uid && postRow.author_uid !== uid && typeof notifyCommunityCommentFn === "function") {
+    try {
+      await notifyCommunityCommentFn({
+        recipientUid: postRow.author_uid,
+        commenterUid: uid,
+        boardId,
+        postId,
+        postTitle: postRow.title,
+        commentId: data.id,
+        commentAuthorName: authorTamerName,
+      });
+    } catch (error) {
+      console.warn("[community-api] comment notification failed", {
+        postId,
+        commentId: data.id,
+        message: error?.message || String(error),
+      });
+    }
+  }
 
   return {
     comment: mapCommentRow(data),

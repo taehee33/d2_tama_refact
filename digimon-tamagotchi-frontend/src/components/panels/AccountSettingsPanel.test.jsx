@@ -9,6 +9,8 @@ const mockGetTamerName = jest.fn();
 const mockResetToDefaultTamerName = jest.fn();
 const mockUpdateTamerName = jest.fn();
 const mockGetUserSettings = jest.fn();
+const mockGetNotificationStatus = jest.fn();
+const mockSendTestNotification = jest.fn();
 const mockGetAchievementsAndMaxSlots = jest.fn();
 const mockRefreshProfile = jest.fn();
 const mockSetTamerNameParent = jest.fn();
@@ -59,6 +61,11 @@ jest.mock("../../utils/userSettingsUtils", () => ({
   saveUserSettings: jest.fn(),
 }));
 
+jest.mock("../../utils/notificationApi", () => ({
+  getNotificationStatus: (...args) => mockGetNotificationStatus(...args),
+  sendTestNotification: (...args) => mockSendTestNotification(...args),
+}));
+
 jest.mock("../../utils/userProfileUtils", () => ({
   ACHIEVEMENT_VER1_MASTER: "ver1",
   ACHIEVEMENT_VER2_MASTER: "ver2",
@@ -91,6 +98,8 @@ describe("AccountSettingsPanel", () => {
     mockResetToDefaultTamerName.mockReset();
     mockUpdateTamerName.mockReset();
     mockGetUserSettings.mockReset();
+    mockGetNotificationStatus.mockReset();
+    mockSendTestNotification.mockReset();
     mockGetAchievementsAndMaxSlots.mockReset();
     mockRefreshProfile.mockReset();
     mockRefreshProfile.mockResolvedValue(undefined);
@@ -102,6 +111,28 @@ describe("AccountSettingsPanel", () => {
       discordWebhookUrl: null,
       isNotificationEnabled: false,
       siteTheme: "default",
+    });
+    mockGetNotificationStatus.mockResolvedValue({
+      settings: {
+        isNotificationEnabled: false,
+        hasDiscordWebhook: false,
+      },
+      projection: {
+        totalSlots: 1,
+        projectedSlots: 1,
+        frozenSlots: 0,
+        unavailableSlots: [],
+        projectionUnavailable: 0,
+      },
+      delivery: {
+        activeIssueSlotCount: 0,
+        recentDeliveries: [],
+        lastDiscordResult: null,
+      },
+      recentNotifications: [],
+    });
+    mockSendTestNotification.mockResolvedValue({
+      id: "test-notification",
     });
     mockGetAchievementsAndMaxSlots.mockResolvedValue({
       achievements: [],
@@ -153,6 +184,60 @@ describe("AccountSettingsPanel", () => {
     expect(screen.getByRole("region", { name: "홈화면에 추가" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "📱 홈화면에 추가" })).toBeInTheDocument();
     expect(container.querySelector("#install")).toBeInTheDocument();
+  });
+
+  test("설정 패널에 알림 상태와 테스트 알림 버튼을 렌더링한다", async () => {
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("알림 상태")).toBeInTheDocument());
+
+    expect(screen.getByText("알림 꺼짐")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1 슬롯")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "테스트 알림 보내기" })).toBeInTheDocument();
+  });
+
+  test("projectionUnavailable 슬롯이 있으면 복구 안내를 보여준다", async () => {
+    mockGetNotificationStatus.mockResolvedValue({
+      settings: {
+        isNotificationEnabled: true,
+        hasDiscordWebhook: true,
+      },
+      projection: {
+        totalSlots: 2,
+        projectedSlots: 1,
+        frozenSlots: 0,
+        unavailableSlots: ["slot2"],
+        projectionUnavailable: 1,
+      },
+      delivery: {
+        activeIssueSlotCount: 0,
+        recentDeliveries: [],
+        lastDiscordResult: {
+          status: "sent",
+          at: 1760000000000,
+        },
+      },
+      recentNotifications: [{ id: "n1" }],
+    });
+
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("계산 제외 슬롯 1개")).toBeInTheDocument());
+    expect(screen.getByText(/slot2 슬롯의 15분 알림 계산 데이터가 오래되었습니다/)).toBeInTheDocument();
+    expect(screen.getByText("성공")).toBeInTheDocument();
+    expect(screen.getByText("1개")).toBeInTheDocument();
+  });
+
+  test("테스트 알림 버튼을 누르면 테스트 전송 후 상태를 새로고침한다", async () => {
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("알림 상태")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "테스트 알림 보내기" }));
+
+    await waitFor(() => expect(mockSendTestNotification).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetNotificationStatus).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("테스트 알림을 보냈습니다.")).toBeInTheDocument();
   });
 
   test("중복 확인 시 연속 공백을 1칸으로 정규화하고 안내 문구를 보여준다", async () => {
