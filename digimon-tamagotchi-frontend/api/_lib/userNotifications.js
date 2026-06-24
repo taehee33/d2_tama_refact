@@ -20,6 +20,12 @@ const {
 
 const MAX_RECENT_NOTIFICATIONS = 10;
 const MAX_RECENT_DELIVERIES = 10;
+const COMMUNITY_BOARD_LABELS = {
+  showcase: "자랑게시판",
+  free: "자유게시판",
+  support: "문의/버그 게시판",
+  news: "소식",
+};
 
 function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -185,16 +191,18 @@ async function createUserNotification({
 }
 
 function buildCommunityCommentNotification({ boardId, postId, postTitle, commentAuthorName }) {
+  const safeBoardId = normalizeString(boardId, "showcase");
+  const boardLabel = COMMUNITY_BOARD_LABELS[safeBoardId] || "게시판";
   const safeTitle = normalizeString(postTitle, "게시글");
   const safeAuthor = normalizeString(commentAuthorName, "테이머");
 
   return {
     type: "community_comment",
-    title: "게시글에 새 댓글이 달렸습니다.",
-    body: `${safeAuthor}님이 "${safeTitle}" 글에 댓글을 남겼습니다.`,
-    targetPath: `/community?board=${encodeURIComponent(boardId)}`,
+    title: `${boardLabel}에 새 댓글이 달렸습니다.`,
+    body: `${safeAuthor}님이 ${boardLabel}의 "${safeTitle}" 글에 댓글을 남겼습니다.`,
+    targetPath: `/community?board=${encodeURIComponent(safeBoardId)}`,
     source: {
-      boardId,
+      boardId: safeBoardId,
       postId,
     },
   };

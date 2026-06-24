@@ -1,5 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
-import { useGamePagePersistenceEffects } from "./useGamePagePersistenceEffects";
+import {
+  buildProjectionRuntimeSelfHealStats,
+  useGamePagePersistenceEffects,
+} from "./useGamePagePersistenceEffects";
 
 const mockGetMasterDataSnapshotForSync = jest.fn();
 
@@ -14,6 +17,13 @@ function createBaseOptions(overrides = {}) {
     isLoadingSlot: false,
     selectedDigimon: "Agumon",
     digimonStats: {
+      hungerTimer: 10,
+      strengthTimer: 15,
+      poopTimer: 30,
+      maxEnergy: 100,
+      maxStamina: 100,
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      lastSavedAt: 1710000000000,
       hungerCountdown: 550,
       strengthCountdown: 900,
       poopCountdown: 1700,
@@ -41,6 +51,65 @@ describe("useGamePagePersistenceEffects", () => {
     mockGetMasterDataSnapshotForSync.mockReset();
     localStorage.clear();
     jest.useRealTimers();
+  });
+
+  test("계산 런타임 필드가 빠진 슬롯은 마스터 데이터로 한 번 보강 저장한다", () => {
+    const snapshot = {
+      digimonId: "Agumon",
+      versionLabel: "Ver.1",
+      sprite: 100,
+      hungerTimer: 10,
+      strengthTimer: 20,
+      poopTimer: 30,
+      maxEnergy: 120,
+      sleepSchedule: { start: 21, end: 7, startMinute: 0, endMinute: 0 },
+    };
+    const setDigimonStatsAndSave = jest.fn(() => Promise.resolve());
+    const options = createBaseOptions({
+      slotId: "2",
+      digimonStats: {
+        hungerCountdown: 300,
+        strengthCountdown: 400,
+        poopCountdown: 500,
+      },
+      setDigimonStatsAndSave,
+    });
+
+    mockGetMasterDataSnapshotForSync.mockReturnValue(snapshot);
+
+    renderHook((props) => useGamePagePersistenceEffects(props), {
+      initialProps: options,
+    });
+
+    expect(setDigimonStatsAndSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hungerCountdown: 300,
+        strengthCountdown: 400,
+        poopCountdown: 500,
+        hungerTimer: 10,
+        strengthTimer: 20,
+        poopTimer: 30,
+        maxEnergy: 120,
+        maxStamina: 120,
+        sleepSchedule: { start: 21, end: 7, startMinute: 0, endMinute: 0 },
+      }),
+      options.activityLogs
+    );
+  });
+
+  test("계산 런타임 필드가 이미 있으면 보강 payload를 만들지 않는다", () => {
+    const healedStats = buildProjectionRuntimeSelfHealStats({
+      digimonStats: createBaseOptions().digimonStats,
+      currentSnapshot: {
+        hungerTimer: 10,
+        strengthTimer: 20,
+        poopTimer: 30,
+        maxEnergy: 120,
+        sleepSchedule: { start: 21, end: 7 },
+      },
+    });
+
+    expect(healedStats).toBeNull();
   });
 
   test("master data snapshot이 바뀌면 countdown을 보정해 저장 경로를 우선 호출한다", () => {

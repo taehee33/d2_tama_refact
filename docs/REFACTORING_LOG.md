@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-24] 댓글 알림 문맥 및 계산 제외 슬롯 복구 보강
+
+### 작업 유형
+- 댓글 알림 Discord/인앱 메시지 문구 개선
+- 슬롯 로드 시 긴급 알림 계산 런타임 필드 보강 저장
+
+### 목적 및 영향
+- **목적:** 댓글 알림에서 어느 게시판의 어떤 글인지 바로 알 수 있게 하고, 오래된 슬롯을 열었을 때 `projectionUnavailable` 상태가 자동으로 줄어들 수 있게 한다.
+- **아키텍처 결정:** 댓글 알림은 기존 사용자 알림 생성 경로를 유지하고 payload 문구만 보강한다. 슬롯 복구는 게임 화면 로드 직후 계산용 필드가 비어 있을 때만 기존 `setDigimonStatsAndSave` 저장 큐를 한 번 사용한다.
+- **영향:** 실시간 Firestore 쓰기나 서버 보정 저장은 추가하지 않는다. 15분 긴급 알림 서버는 여전히 저장된 슬롯 문서를 읽어 계산만 수행한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/userNotifications.js`
+- `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePagePersistenceEffects.js`
+- 관련 회귀 테스트
+
+### 검증
+- 알림 helper node:test
+- `useGamePagePersistenceEffects` React Hook 회귀 테스트
+
+
 ## [2026-06-24] 시스템 알림 가시화 및 댓글 알림 기반 구축
 
 ### 작업 유형

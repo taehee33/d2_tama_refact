@@ -72,9 +72,10 @@ test("댓글 알림 payload는 게시글 상세로 이동할 수 있는 targetPa
   });
 
   assert.equal(payload.type, "community_comment");
-  assert.equal(payload.title, "게시글에 새 댓글이 달렸습니다.");
-  assert.match(payload.body, /한솔님/);
+  assert.equal(payload.title, "자유게시판에 새 댓글이 달렸습니다.");
+  assert.equal(payload.body, '한솔님이 자유게시판의 "첫 글" 글에 댓글을 남겼습니다.');
   assert.equal(payload.targetPath, "/community?board=free");
+  assert.equal(payload.source.boardId, "free");
 });
 
 test("Discord가 꺼져 있어도 인앱 알림은 저장한다", async () => {

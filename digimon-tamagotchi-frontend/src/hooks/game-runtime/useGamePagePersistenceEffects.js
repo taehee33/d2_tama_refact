@@ -22,6 +22,64 @@ function syncRemainingByElapsed(previousTotal, nextTotal, currentRemaining) {
   return Math.max(0, Math.min(safeNextTotal, safeNextTotal - elapsed));
 }
 
+function isFiniteNumberLike(value) {
+  return Number.isFinite(Number(value));
+}
+
+function hasObjectValue(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function needsProjectionRuntimeSelfHeal(digimonStats = {}) {
+  if (!digimonStats || typeof digimonStats !== "object") {
+    return false;
+  }
+
+  return (
+    !isFiniteNumberLike(digimonStats.hungerTimer) ||
+    !isFiniteNumberLike(digimonStats.strengthTimer) ||
+    !isFiniteNumberLike(digimonStats.poopTimer) ||
+    !isFiniteNumberLike(digimonStats.maxEnergy) ||
+    !hasObjectValue(digimonStats.sleepSchedule)
+  );
+}
+
+export function buildProjectionRuntimeSelfHealStats({
+  digimonStats,
+  currentSnapshot,
+}) {
+  if (!needsProjectionRuntimeSelfHeal(digimonStats) || !currentSnapshot) {
+    return null;
+  }
+
+  const nextStats = { ...digimonStats };
+  let changed = false;
+
+  [
+    "hungerTimer",
+    "strengthTimer",
+    "poopTimer",
+    "maxEnergy",
+  ].forEach((key) => {
+    if (!isFiniteNumberLike(nextStats[key]) && isFiniteNumberLike(currentSnapshot[key])) {
+      nextStats[key] = currentSnapshot[key];
+      changed = true;
+    }
+  });
+
+  if (!isFiniteNumberLike(nextStats.maxStamina) && isFiniteNumberLike(currentSnapshot.maxEnergy)) {
+    nextStats.maxStamina = currentSnapshot.maxEnergy;
+    changed = true;
+  }
+
+  if (!hasObjectValue(nextStats.sleepSchedule) && hasObjectValue(currentSnapshot.sleepSchedule)) {
+    nextStats.sleepSchedule = currentSnapshot.sleepSchedule;
+    changed = true;
+  }
+
+  return changed ? nextStats : null;
+}
+
 export function useGamePagePersistenceEffects({
   slotId,
   isLoadingSlot,
@@ -42,6 +100,7 @@ export function useGamePagePersistenceEffects({
   setDigimonStatsAndSave,
 }) {
   const masterDataSyncSnapshotRef = useRef(null);
+  const projectionRuntimeSelfHealKeyRef = useRef(null);
   const backgroundSettingsLoadedRef = useRef(false);
   const immersiveSettingsLoadedRef = useRef(false);
 
@@ -146,6 +205,57 @@ export function useGamePagePersistenceEffects({
     setDigimonStatsAndSave,
     slotVersion,
     masterDataRevision,
+  ]);
+
+  useEffect(() => {
+    if (!slotId || !selectedDigimon || !digimonStats || isLoadingSlot) {
+      return;
+    }
+
+    if (!needsProjectionRuntimeSelfHeal(digimonStats)) {
+      return;
+    }
+
+    const versionLabel = normalizeDigimonVersionLabel(slotVersion);
+    const selfHealKey = `${slotId}:${versionLabel}:${selectedDigimon}`;
+
+    if (projectionRuntimeSelfHealKeyRef.current === selfHealKey) {
+      return;
+    }
+
+    const currentSnapshot = getMasterDataSnapshotForSync(
+      versionLabel,
+      selectedDigimon
+    );
+    const healedStats = buildProjectionRuntimeSelfHealStats({
+      digimonStats,
+      currentSnapshot,
+    });
+
+    if (!healedStats) {
+      return;
+    }
+
+    projectionRuntimeSelfHealKeyRef.current = selfHealKey;
+
+    if (setDigimonStatsAndSave) {
+      void Promise.resolve(setDigimonStatsAndSave(healedStats, activityLogs)).catch((error) => {
+        projectionRuntimeSelfHealKeyRef.current = null;
+        console.error("알림 계산 런타임 보강 저장 오류:", error);
+      });
+      return;
+    }
+
+    setDigimonStats(healedStats);
+  }, [
+    activityLogs,
+    digimonStats,
+    isLoadingSlot,
+    selectedDigimon,
+    setDigimonStats,
+    setDigimonStatsAndSave,
+    slotId,
+    slotVersion,
   ]);
 
   useEffect(() => {
