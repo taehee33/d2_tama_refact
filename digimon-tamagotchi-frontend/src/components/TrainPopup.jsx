@@ -26,6 +26,18 @@ function shouldUseCompactTrainingLayout(width, height) {
   );
 }
 
+export function shouldShowTrainingHitImpact({
+  phase,
+  interactionState,
+  currentExchange,
+} = {}) {
+  return (
+    phase === "battle" &&
+    interactionState === "revealed" &&
+    currentExchange?.isHit === true
+  );
+}
+
 function formatDirection(direction) {
   return direction === "U" ? "상단" : "하단";
 }
@@ -170,6 +182,11 @@ export default function TrainPopup({
   const digimonAttackSpriteSrc = `${digimonSpriteBasePath}/${digimonAttackSprite}.png`;
   const isAwaitingInput = phase === "battle" && interactionState === "awaiting-input";
   const shouldRevealDefense = phase === "final" || (phase === "battle" && interactionState !== "awaiting-input");
+  const shouldShowHitImpact = shouldShowTrainingHitImpact({
+    phase,
+    interactionState,
+    currentExchange,
+  });
   const isEmbedded = renderMode === "embedded";
   const exchangeResultLabel = currentExchange
     ? currentExchange.isHit
@@ -531,7 +548,12 @@ export default function TrainPopup({
           </div>
         </section>
 
-        <section className="train-popup__arena" aria-label="훈련 전투 무대">
+        <section
+          className={`train-popup__arena ${
+            shouldShowHitImpact ? "is-hit-impact" : ""
+          }`.trim()}
+          aria-label="훈련 전투 무대"
+        >
           <section
             className="train-popup__player-panel"
             aria-label={isMobileLayout ? "내 디지몬" : "내 디지몬과 공격 패드"}
@@ -645,6 +667,8 @@ export default function TrainPopup({
               <div
                 className={`train-popup__dummy-puppet ${
                   shouldRevealDefense && currentExchange?.isHit ? "is-hit" : ""
+                } ${
+                  shouldShowHitImpact ? "is-impact-flash" : ""
                 } ${
                   shouldRevealDefense && currentExchange?.isHit && currentExchange.attack === "U"
                     ? "is-upper-hit"

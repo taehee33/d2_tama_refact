@@ -1,6 +1,6 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import TrainPopup from "./TrainPopup";
+import TrainPopup, { shouldShowTrainingHitImpact } from "./TrainPopup";
 
 const DEFAULT_VIEWPORT_WIDTH = 1024;
 const DEFAULT_VIEWPORT_HEIGHT = 768;
@@ -106,6 +106,7 @@ describe("TrainPopup UI", () => {
     expect(screen.getByText(/방어당함/)).toBeInTheDocument();
     expect(screen.getByAltText("공격 스프라이트")).toHaveAttribute("src", "/images/211.png");
     expect(screen.queryByTestId("train-hit-effect")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("훈련 전투 무대")).not.toHaveClass("is-hit-impact");
   });
 
   test("하단 명중이면 122/123 피격 이펙트가 샌드백 하단에 표시된다", async () => {
@@ -123,6 +124,7 @@ describe("TrainPopup UI", () => {
     expect(screen.getByText(/명중 성공/)).toBeInTheDocument();
     expect(screen.getAllByText(/피격/).length).toBeGreaterThan(0);
     expect(screen.queryByLabelText("방패 방어")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("훈련 전투 무대")).toHaveClass("is-hit-impact");
     expect(hitEffect).toHaveClass("is-lower");
     expect(screen.getByTestId("train-hit-effect-122")).toHaveAttribute("src", "/images/122.png");
     expect(screen.getByTestId("train-hit-effect-123")).toHaveAttribute("src", "/images/123.png");
@@ -208,6 +210,37 @@ describe("TrainPopup UI", () => {
     await waitFor(() => {
       expect(screen.getByText(/3초/)).toHaveClass("is-urgent");
     });
+  });
+
+  test("훈련 피격 효과는 명중 결과가 공개된 배틀 구간에서만 켜진다", () => {
+    expect(
+      shouldShowTrainingHitImpact({
+        phase: "battle",
+        interactionState: "revealed",
+        currentExchange: { isHit: true },
+      })
+    ).toBe(true);
+    expect(
+      shouldShowTrainingHitImpact({
+        phase: "battle",
+        interactionState: "attacking",
+        currentExchange: { isHit: true },
+      })
+    ).toBe(false);
+    expect(
+      shouldShowTrainingHitImpact({
+        phase: "battle",
+        interactionState: "revealed",
+        currentExchange: { isHit: false },
+      })
+    ).toBe(false);
+    expect(
+      shouldShowTrainingHitImpact({
+        phase: "final",
+        interactionState: "revealed",
+        currentExchange: { isHit: true },
+      })
+    ).toBe(false);
   });
 
   test("5라운드가 끝나면 최종 훈련 결과 팝업과 한번 더/닫기 버튼이 열린다", async () => {
