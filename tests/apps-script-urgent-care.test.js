@@ -20,6 +20,7 @@ function response(status, payload = {}) {
 
 function createContext(fetchImplementation) {
   const logs = [];
+  const triggerCalls = [];
   const context = {
     PropertiesService: {
       getScriptProperties: () => ({
@@ -37,7 +38,22 @@ function createContext(fetchImplementation) {
     ScriptApp: {
       getProjectTriggers: () => [],
       deleteTrigger: () => {},
-      newTrigger: () => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => {} }) }) }),
+      newTrigger: (handlerFunction) => {
+        const triggerCall = { handlerFunction };
+        triggerCalls.push(triggerCall);
+        return {
+          timeBased: () => ({
+            everyMinutes: (minutes) => {
+              triggerCall.minutes = minutes;
+              return {
+                create: () => {
+                  triggerCall.created = true;
+                },
+              };
+            },
+          }),
+        };
+      },
     },
     Logger: { log: (message) => logs.push(message) },
     JSON,
@@ -45,7 +61,7 @@ function createContext(fetchImplementation) {
   };
   vm.createContext(context);
   vm.runInContext(scriptSource, context);
-  return { context, logs };
+  return { context, logs, triggerCalls };
 }
 
 test("Apps Script는 Discord 성공 delivery만 ack한다", () => {
@@ -120,4 +136,17 @@ test("dryRun은 prepare만 호출하고 webhook을 결과에서 제거한다", (
   assert.equal(calls.length, 1);
   assert.equal(JSON.parse(calls[0].options.payload).dryRun, true);
   assert.equal("webhookUrl" in result.reports[0], false);
+});
+
+test("긴급 케어 트리거는 10분 간격으로 설치한다", () => {
+  const { context, logs, triggerCalls } = createContext(() => response(200, { ok: true }));
+
+  context.installUrgentDigimonCareTrigger();
+
+  assert.deepEqual(triggerCalls, [{
+    handlerFunction: "notifyUrgentDigimonCare",
+    minutes: 10,
+    created: true,
+  }]);
+  assert.equal(logs.at(-1), "notifyUrgentDigimonCare 10분 트리거를 설치했습니다.");
 });

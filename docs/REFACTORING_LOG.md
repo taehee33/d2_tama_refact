@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-06-25] 긴급 케어 Apps Script 실행 간격 10분 조정
+
+### 작업 유형
+- 긴급 케어 Apps Script 시간 기반 트리거 간격 변경
+- 운영 문서 및 회귀 테스트 갱신
+
+### 목적 및 영향
+- **목적:** 배고픔/기력 호출의 10분 케어미스 구간에 맞춰 긴급 알림 확인 주기를 15분에서 10분으로 줄인다.
+- **아키텍처 결정:** Vercel API와 Firestore 저장 계약은 그대로 유지하고, Apps Script의 설치 트리거 간격만 변경한다.
+- **영향:** 저장된 슬롯 계산 로직, 중복 방지, delivery ack 흐름은 변경하지 않는다. 실제 Apps Script 프로젝트에서는 수정된 스크립트 반영 후 `installUrgentDigimonCareTrigger()`를 다시 실행해야 기존 트리거가 교체된다.
+
+### 영향받은 파일
+- `scripts/apps-script/urgentDigimonCare.gs`
+- `tests/apps-script-urgent-care.test.js`
+- `docs/DISCORD_NOTIFICATION_API_GUIDE.md`
+
+### 검증
+- Apps Script 긴급 케어 회귀 테스트
+
+
 ## [2026-06-25] 전역 인앱 알림 센터 추가
 
 ### 작업 유형

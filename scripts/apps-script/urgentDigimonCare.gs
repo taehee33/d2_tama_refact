@@ -49,7 +49,7 @@ function sendUrgentDiscordReport_(report) {
 }
 
 /**
- * 15분 시간 기반 트리거에서 실행한다.
+ * 10분 시간 기반 트리거에서 실행한다.
  * Discord 전송에 성공한 delivery만 ack하므로 실패 건은 다음 실행에서 재전송된다.
  */
 function notifyUrgentDigimonCare() {
@@ -121,7 +121,7 @@ function dryRunUrgentDigimonCare() {
   return result;
 }
 
-/** 같은 함수의 기존 트리거를 정리하고 15분 트리거 하나를 만든다. */
+/** 같은 함수의 기존 트리거를 정리하고 10분 트리거 하나를 만든다. */
 function installUrgentDigimonCareTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() === "notifyUrgentDigimonCare") {
@@ -130,7 +130,7 @@ function installUrgentDigimonCareTrigger() {
   });
   ScriptApp.newTrigger("notifyUrgentDigimonCare")
     .timeBased()
-    .everyMinutes(15)
+    .everyMinutes(10)
     .create();
-  Logger.log("notifyUrgentDigimonCare 15분 트리거를 설치했습니다.");
+  Logger.log("notifyUrgentDigimonCare 10분 트리거를 설치했습니다.");
 }

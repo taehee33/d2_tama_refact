@@ -165,9 +165,9 @@ API는 아래 규칙으로 리포트를 생성합니다.
 
 ---
 
-## 8. 15분 긴급 케어 알림
+## 8. 10분 긴급 케어 알림
 
-긴급 알림은 Google Sheet를 사용하지 않는다. Apps Script는 15분 스케줄 실행과 Discord 전송만 담당하고, 계산 및 중복 방지는 Vercel API와 Firestore 서버 전용 문서가 담당한다.
+긴급 알림은 Google Sheet를 사용하지 않는다. Apps Script는 10분 스케줄 실행과 Discord 전송만 담당하고, 계산 및 중복 방지는 Vercel API와 Firestore 서버 전용 문서가 담당한다.
 
 ### API
 
@@ -181,7 +181,7 @@ API는 아래 규칙으로 리포트를 생성합니다.
 
 - 알림 설정의 단일 원본은 `users/{uid}/settings/main`이다.
 - 서버는 `settings.isNotificationEnabled == true` collection-group 인덱스로 활성 사용자만 조회한다.
-- 사용자가 알림을 끄거나 켜면 Firestore 인덱스가 자동 갱신되어 다음 15분 실행부터 반영된다.
+- 사용자가 알림을 끄거나 켜면 Firestore 인덱스가 자동 갱신되어 다음 10분 실행부터 반영된다.
 - 별도 구독자 문서나 Cloud Function은 사용하지 않는다.
 - 구 루트 문서에만 설정이 남은 사용자는 배포 전 아래 순서로 보완한다.
 
@@ -211,7 +211,7 @@ Apps Script 편집기에 [`scripts/apps-script/urgentDigimonCare.gs`](../scripts
 4. Apps Script의 Script Properties 세 값을 저장한다.
 5. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 성공 건만 ack되는지 확인한다.
 6. 즉시 재실행해 동일 issue가 중복 전송되지 않는지 확인한다.
-7. `installUrgentDigimonCareTrigger()`를 한 번 실행해 15분 트리거를 설치한다.
+7. `installUrgentDigimonCareTrigger()`를 한 번 실행해 10분 트리거를 설치한다.
 8. Apps Script 실행 기록에서 `preparedReports`, `failedReports`, `acknowledged`, `projectionUnavailable`을 확인한다.
 
 기존 `dryRunUrgentDigimonCare()` 함수는 유지하지만 현재 운영 설치 절차에서는 사용하지 않는다.
