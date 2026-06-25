@@ -78,7 +78,7 @@ function PlayHub() {
     const slotId = slot.id;
     const displayName = getSlotDisplayName(slot);
     const typedName = window.prompt(
-      `슬롯 ${slotId}의 ${displayName}을 삭제하려면 디지몬 이름을 정확히 입력하세요.`
+      `슬롯 ${slotId}의 ${displayName}을 삭제하려면 디지몬 이름을 정확히 입력하세요.\n"${displayName}"`
     );
 
     if (typedName == null) {

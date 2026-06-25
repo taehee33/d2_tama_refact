@@ -164,7 +164,7 @@ describe("PlayHub", () => {
     fireEvent.click(screen.getByRole("button", { name: "슬롯 1 삭제" }));
 
     expect(window.prompt).toHaveBeenCalledWith(
-      "슬롯 1의 뿔몬을 삭제하려면 디지몬 이름을 정확히 입력하세요."
+      '슬롯 1의 뿔몬을 삭제하려면 디지몬 이름을 정확히 입력하세요.\n"뿔몬"'
     );
     expect(mockDeleteSlot).toHaveBeenCalledWith(1);
 
