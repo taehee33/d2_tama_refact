@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { deleteSlotWithSubcollections } from '../utils/firestoreHelpers';
+import { resolveSlotNotificationEligible } from '../utils/notificationEligibility';
 
 class UserSlotRepository {
   /**
@@ -88,6 +89,11 @@ class UserSlotRepository {
       slotRef,
       {
         ...slotData,
+        notificationEligible: resolveSlotNotificationEligible({
+          selectedDigimon: slotData?.selectedDigimon,
+          stats: slotData?.digimonStats,
+          slotData,
+        }),
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -113,6 +119,10 @@ class UserSlotRepository {
     await updateDoc(slotRef, {
       digimonStats: statsWithoutProteinCount,
       'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
+      notificationEligible: resolveSlotNotificationEligible({
+        selectedDigimon: digimonStats?.selectedDigimon,
+        stats: statsWithoutProteinCount,
+      }),
       updatedAt: serverTimestamp(),
     });
   }
@@ -222,9 +232,4 @@ class UserSlotRepository {
 // 싱글톤 인스턴스
 export const userSlotRepository = new UserSlotRepository();
 export default userSlotRepository;
-
-
-
-
-
 

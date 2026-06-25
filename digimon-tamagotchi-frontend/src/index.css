@@ -6743,6 +6743,7 @@ code {
   color: #475a52;
   font-size: 0.82rem;
   line-height: 1.45;
+  white-space: pre-line;
 }
 
 .global-notification-center__meta {

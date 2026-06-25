@@ -6439,3 +6439,26 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **영향 파일:**
   - `digimon-tamagotchi-frontend/api/_lib/firestoreAdmin.js`
 - **검증:** 실제 Firestore Emulator에서 revision 충돌, eventId 멱등성, 알림 delivery 생성·재사용·ack 통합 테스트를 실행한다.
+
+## [2026-06-25] notificationEligible 기반 긴급 알림 슬롯 읽기 최적화
+
+- **내용:** 슬롯 문서 루트에 `notificationEligible` 저장 필드를 추가하고, 15분 긴급 알림 prepare 서버가 eligible 슬롯만 조회하도록 변경했다. 빈 슬롯, 보관함, 냉장 슬롯은 저장 시점에 알림 대상에서 제외되며, 서버에서도 보관 상태를 한 번 더 방어적으로 확인한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/notificationEligibility.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/repositories/UserSlotRepository.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
+- **근거:** Apps Script 주기 자체는 유지하면서 Firestore 슬롯 읽기 수를 알림 대상 슬롯으로 좁힌다. 기존 슬롯 중 `notificationEligible`이 없는 문서는 한 번 저장되기 전까지 알림 대상에서 제외된다.
+
+## [2026-06-25] 수면 오알림 방지 및 긴급 알림 시간 안내 개선
+
+- **내용:** 서버 긴급 알림에서 수면 조명 경고를 KST 기준 실제 수면 시간일 때만 보내도록 보강했다. 배고픔/기력/수면 조명 이슈에는 호출 시작 시각, 케어미스 예정 시각, 남은 시간 또는 케어미스 발생 구간을 함께 표시한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** Vercel 서버의 기본 시간대와 게임의 한국 시간 기준 수면 스케줄이 어긋나 낮 시간대 수면 알림이 발생할 수 있어, 알림 판정 단계에서 KST 기준을 명시한다.

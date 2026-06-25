@@ -26,6 +26,7 @@ import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
 import { useDurableGamePersistence } from "./game-persistence/useDurableGamePersistence";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
+import { resolveSlotNotificationEligible } from "../utils/notificationEligibility";
 import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 import {
@@ -248,6 +249,12 @@ export function buildSlotDocumentUpdatePayload({
     digimonStats: sanitizeDigimonStatsForSlotDocument(stats),
     ...rootSlotFields,
     dailySleepMistake: deleteField(),
+    notificationEligible: resolveSlotNotificationEligible({
+      selectedDigimon,
+      stats,
+      slotData: rootSlotFields,
+      isLoadingSlot,
+    }),
     lastSavedAt: toEpochMs(stats.lastSavedAt) ?? nowMs,
     lastSavedAtServer: serverTimestamp(),
     updatedAt: serverTimestamp(),

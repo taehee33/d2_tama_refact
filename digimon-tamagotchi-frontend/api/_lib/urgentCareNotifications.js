@@ -5,6 +5,7 @@ const {
   createSetWrite,
   getDocument,
   listDocuments,
+  runQuery,
 } = require("./firestoreAdmin");
 const { allowMethods, handleApiError, sendJson } = require("./http");
 const {
@@ -15,6 +16,7 @@ const {
 } = require("./notificationReports");
 const {
   buildDeliveryId,
+  buildUrgentNotificationBody,
   buildUrgentMessage,
   commitInBatches,
   formatKstDate,
@@ -33,10 +35,37 @@ function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 
+function createEligibleSlotsQuery() {
+  return {
+    from: [{ collectionId: "slots" }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "notificationEligible" },
+        op: "EQUAL",
+        value: { booleanValue: true },
+      },
+    },
+  };
+}
+
+async function listEligibleNotificationSlots(uid, queryDocuments = runQuery) {
+  return queryDocuments(createEligibleSlotsQuery(), `users/${uid}`);
+}
+
+function buildUrgentNotificationPath(uid, deliveryId) {
+  return `users/${uid}/notifications/urgent_${deliveryId}`;
+}
+
+function buildSlotTargetPath(slotId) {
+  const numericSlotId = String(slotId || "").match(/\d+/)?.[0];
+  return numericSlotId ? `/play/${numericSlotId}` : "/play";
+}
+
 async function prepareUrgentCareNotifications({
   subscribers = [],
   getDocumentByPath,
   listCollectionDocuments,
+  listEligibleSlotDocuments = listEligibleNotificationSlots,
   commit,
   currentTime = new Date(),
   dryRun = false,
@@ -80,7 +109,7 @@ async function prepareUrgentCareNotifications({
     const [rootDocument, profileDocument, slots] = await Promise.all([
       getDocumentByPath(`users/${uid}`),
       getDocumentByPath(`users/${uid}/profile/main`),
-      listCollectionDocuments(`users/${uid}/slots`),
+      listEligibleSlotDocuments(uid),
     ]);
     const rootData = rootDocument?.data || {};
     summary.totalSlots += slots.length;
@@ -113,7 +142,7 @@ async function prepareUrgentCareNotifications({
         continue;
       }
       summary.projectedSlots += 1;
-      const issues = resolveUrgentIssues(projection.stats, slotData);
+      const issues = resolveUrgentIssues(projection.stats, slotData, nowMs);
       const currentKeys = issues.map((issue) => issue.key);
       const retainedActiveKeys = activeIssueKeys.filter((key) => currentKeys.includes(key));
       const newIssues = issues.filter((issue) => !retainedActiveKeys.includes(issue.key));
@@ -151,6 +180,7 @@ async function prepareUrgentCareNotifications({
         );
         summary.newDeliveries += 1;
         if (!dryRun) {
+          const digimonName = resolveDigimonDisplayName(slotData);
           writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
             uid,
             slotId,
@@ -160,6 +190,26 @@ async function prepareUrgentCareNotifications({
             status: "pending",
             createdAt: nowMs,
             expiresAt: nowMs + DELIVERY_TTL_MS,
+          }));
+          writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
+            type: "urgent_care",
+            title: "디지몬 긴급 케어 알림",
+            body: buildUrgentNotificationBody(slotId, digimonName, newIssues),
+            targetPath: buildSlotTargetPath(slotId),
+            source: {
+              kind: "urgent_delivery",
+              deliveryId,
+              slotId,
+              issueKeys: nextIssueKeys,
+            },
+            channelState: {
+              discord: { status: "skipped", reason: "urgent_delivery", sentAt: null },
+              inApp: { status: "stored" },
+              webPush: { status: "not_configured" },
+            },
+            readAt: null,
+            createdAt: nowMs,
+            updatedAt: nowMs,
           }));
         }
       }
@@ -244,6 +294,8 @@ function createUrgentCarePrepareHandler(deps = {}) {
         subscribers: await (deps.listNotificationSubscribers || listNotificationSubscribers)(),
         getDocumentByPath: deps.getDocument || getDocument,
         listCollectionDocuments: deps.listDocuments || listDocuments,
+        listEligibleSlotDocuments: deps.listEligibleSlotDocuments || ((uid) =>
+          listEligibleNotificationSlots(uid, deps.runQuery || runQuery)),
         commit: deps.commitWrites || commitWrites,
         currentTime: (deps.getCurrentTime || (() => new Date()))(),
         dryRun: req?.body?.dryRun === true,
@@ -276,9 +328,11 @@ function createUrgentCareAckHandler(deps = {}) {
 module.exports = {
   acknowledgeUrgentCareDeliveries,
   buildDeliveryId,
+  createEligibleSlotsQuery,
   createUrgentCareAckHandler,
   createUrgentCarePrepareHandler,
   hasProjectionRuntime,
+  listEligibleNotificationSlots,
   prepareUrgentCareNotifications,
   projectSlotForUrgentCare,
   resolveUrgentIssues,

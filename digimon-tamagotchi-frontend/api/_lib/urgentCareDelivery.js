@@ -29,7 +29,12 @@ function buildUrgentMessage(tamerName, slotAlerts, generatedAt) {
     const issues = Array.isArray(slot?.issues) ? slot.issues : [];
     return [
       `🐾 **${slot?.digimonName || "알 수 없는 디지몬"}** · \`${slotLabel}\``,
-      ...issues.map((issue) => `> ${issue.label}`),
+      ...issues.flatMap((issue) => [
+        `> ${issue.label}`,
+        ...(Array.isArray(issue?.detailLines)
+          ? issue.detailLines.map((line) => `> ${line}`)
+          : []),
+      ]),
       "",
     ];
   });
@@ -50,6 +55,18 @@ function buildUrgentMessage(tamerName, slotAlerts, generatedAt) {
   ].join("\n");
 }
 
+function buildUrgentNotificationBody(slotId, digimonName, issues = []) {
+  const slotLabel = String(slotId || "slot?").replace(/^slot\s*/i, "슬롯 ");
+  const issueLines = (Array.isArray(issues) ? issues : []).flatMap((issue) => [
+    issue?.label || "확인 필요",
+    ...(Array.isArray(issue?.detailLines) ? issue.detailLines : []),
+  ]);
+  return [
+    `${digimonName || "알 수 없는 디지몬"} · ${slotLabel}`,
+    ...issueLines,
+  ].filter(Boolean).join("\n");
+}
+
 function formatKstDate(nowMs) {
   return new Intl.DateTimeFormat("ko-KR", {
     timeZone: "Asia/Seoul",
@@ -60,6 +77,7 @@ function formatKstDate(nowMs) {
 
 module.exports = {
   buildDeliveryId,
+  buildUrgentNotificationBody,
   buildUrgentMessage,
   commitInBatches,
   formatKstDate,

@@ -230,6 +230,7 @@ describe("buildSlotDocumentUpdatePayload", () => {
     expect(result.lastSavedAtServer).toBeDefined();
     expect(result.updatedAt).toBeDefined();
     expect(result.backgroundSettings).toBeUndefined();
+    expect(result.notificationEligible).toBe(false);
     expect(result.selectedDigimon).toBeUndefined();
     expect(result.digimonDisplayName).toBeUndefined();
   });
@@ -253,6 +254,7 @@ describe("buildSlotDocumentUpdatePayload", () => {
 
     expect(loadedResult.selectedDigimon).toBe("Agumon");
     expect(loadedResult.digimonDisplayName).toBe("태희(아구몬)");
+    expect(loadedResult.notificationEligible).toBe(true);
 
     const loadingResult = buildSlotDocumentUpdatePayload({
       stats: {
@@ -272,6 +274,44 @@ describe("buildSlotDocumentUpdatePayload", () => {
 
     expect(loadingResult.selectedDigimon).toBeUndefined();
     expect(loadingResult.digimonDisplayName).toBeUndefined();
+    expect(loadingResult.notificationEligible).toBe(false);
+  });
+
+  test("보관함/냉장 상태와 빈 슬롯은 알림 대상에서 제외한다", () => {
+    const emptyResult = buildSlotDocumentUpdatePayload({
+      stats: { fullness: 4 },
+      isLoadingSlot: false,
+    });
+    const frozenResult = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+        isFrozen: true,
+      },
+      selectedDigimon: "Agumon",
+      isLoadingSlot: false,
+    });
+    const refrigeratedResult = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+        isRefrigerated: true,
+      },
+      selectedDigimon: "Agumon",
+      isLoadingSlot: false,
+    });
+    const restoredResult = buildSlotDocumentUpdatePayload({
+      stats: {
+        fullness: 4,
+        isFrozen: false,
+        isRefrigerated: false,
+      },
+      selectedDigimon: "Agumon",
+      isLoadingSlot: false,
+    });
+
+    expect(emptyResult.notificationEligible).toBe(false);
+    expect(frozenResult.notificationEligible).toBe(false);
+    expect(refrigeratedResult.notificationEligible).toBe(false);
+    expect(restoredResult.notificationEligible).toBe(true);
   });
 
   test("배경화면 설정은 전달된 경우에만 포함한다", () => {
