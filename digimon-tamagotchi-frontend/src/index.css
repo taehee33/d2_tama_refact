@@ -6569,6 +6569,188 @@ code {
   gap: 0.75rem;
 }
 
+.global-notification-center {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+  right: 1rem;
+  z-index: 60;
+}
+
+.global-notification-center__button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgba(67, 84, 73, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 250, 243, 0.96);
+  color: #254b3d;
+  box-shadow: 0 16px 34px rgba(30, 42, 35, 0.16);
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+
+.global-notification-center__button--open {
+  background: #2d5f4c;
+  color: #fffdf8;
+}
+
+.global-notification-center__icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.global-notification-center__badge {
+  position: absolute;
+  top: -0.42rem;
+  right: -0.38rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: #f06b5f;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.global-notification-center__panel {
+  position: absolute;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  width: min(390px, calc(100vw - 2rem));
+  max-height: min(72vh, 620px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(67, 84, 73, 0.16);
+  border-radius: 1.15rem;
+  background: rgba(255, 250, 243, 0.98);
+  box-shadow: 0 30px 70px rgba(30, 42, 35, 0.22);
+  backdrop-filter: blur(14px);
+}
+
+.global-notification-center__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.8rem;
+  border-bottom: 1px solid rgba(67, 84, 73, 0.12);
+}
+
+.global-notification-center__header h3 {
+  margin: 0;
+  color: #1f332d;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.global-notification-center__refresh {
+  min-height: 2.2rem;
+  border: 1px solid rgba(67, 84, 73, 0.16);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #254b3d;
+  padding: 0 0.8rem;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.global-notification-center__refresh:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.global-notification-center__error {
+  margin: 0.75rem 1rem 0;
+  border: 1px solid rgba(190, 70, 64, 0.22);
+  border-radius: 0.75rem;
+  background: rgba(255, 235, 232, 0.84);
+  color: #9b3430;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.global-notification-center__empty {
+  margin: 0;
+  padding: 1.2rem 1rem 1.4rem;
+  color: #66746d;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.global-notification-center__list {
+  display: grid;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding: 0.7rem;
+}
+
+.global-notification-center__item {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  border: 1px solid rgba(67, 84, 73, 0.1);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: #273832;
+  padding: 0.78rem 0.85rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.global-notification-center__item--unread {
+  border-color: rgba(31, 122, 95, 0.28);
+  background: rgba(235, 249, 243, 0.9);
+}
+
+.global-notification-center__item-topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.global-notification-center__item-topline strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #1f332d;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-notification-center__item-topline span {
+  color: #7c8a82;
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.global-notification-center__body {
+  color: #475a52;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.global-notification-center__meta {
+  color: #6d7b73;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
 .play-chat-fab {
   position: fixed;
   right: 1rem;

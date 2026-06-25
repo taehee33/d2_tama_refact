@@ -66,3 +66,12 @@ export async function sendTestNotification(currentUser) {
 
   return payload.notification || null;
 }
+
+export async function markNotificationsRead(currentUser, body = {}) {
+  const payload = await requestNotification(currentUser, "read", {
+    method: "POST",
+    body,
+  });
+
+  return payload.result || null;
+}

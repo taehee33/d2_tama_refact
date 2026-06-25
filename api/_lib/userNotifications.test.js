@@ -8,6 +8,7 @@ const {
   buildCommunityCommentNotification,
   createUserNotification,
   getUserNotificationStatus,
+  markUserNotificationsRead,
 } = require("./userNotifications");
 
 process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2-test";
@@ -54,9 +55,16 @@ function createStore(documents = {}) {
       writes.forEach((write) => {
         const name = write.update.name;
         const path = name.slice(name.indexOf("/documents/") + "/documents/".length);
+        const nextData = parseFirestoreFields(write.update.fields || {});
+        const previous = store.get(path) || {
+          id: path.split("/").pop(),
+          data: {},
+        };
         store.set(path, {
           id: path.split("/").pop(),
-          data: parseFirestoreFields(write.update.fields || {}),
+          data: write.updateMask
+            ? { ...previous.data, ...nextData }
+            : nextData,
         });
       });
     },
@@ -157,4 +165,82 @@ test("알림 상태는 projectionUnavailable 슬롯을 요약한다", async () =
   assert.equal(status.projection.projectedSlots, 1);
   assert.deepEqual(status.projection.unavailableSlots, ["slot2"]);
   assert.equal(status.delivery.lastDiscordResult.status, "acknowledged");
+});
+
+test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async () => {
+  const now = Date.parse("2026-06-25T00:00:00.000Z");
+  const store = createStore({
+    "users/user-1/notifications/n1": {
+      id: "n1",
+      data: {
+        title: "첫 알림",
+        body: "본문",
+        readAt: null,
+        createdAt: now - 1000,
+      },
+    },
+    "users/user-2/notifications/n1": {
+      id: "n1",
+      data: {
+        title: "다른 사용자 알림",
+        readAt: null,
+        createdAt: now - 1000,
+      },
+    },
+  });
+
+  const result = await markUserNotificationsRead({
+    uid: "user-1",
+    notificationIds: ["n1"],
+    listCollectionDocuments: store.list,
+    commit: store.commit,
+    currentTime: new Date(now),
+  });
+
+  assert.equal(result.markedCount, 1);
+  assert.equal(store.store.get("users/user-1/notifications/n1").data.readAt, now);
+  assert.equal(store.store.get("users/user-1/notifications/n1").data.title, "첫 알림");
+  assert.equal(store.store.get("users/user-2/notifications/n1").data.readAt, null);
+});
+
+test("알림 읽음 처리는 빈 notificationIds를 안전하게 무시한다", async () => {
+  const store = createStore();
+  const result = await markUserNotificationsRead({
+    uid: "user-1",
+    notificationIds: [],
+    listCollectionDocuments: store.list,
+    commit: async () => {
+      throw new Error("commit should not be called");
+    },
+    currentTime: new Date("2026-06-25T00:00:00.000Z"),
+  });
+
+  assert.equal(result.markedCount, 0);
+  assert.deepEqual(result.notificationIds, []);
+});
+
+test("allVisible 읽음 처리는 최근 unread 알림만 갱신한다", async () => {
+  const now = Date.parse("2026-06-25T00:00:00.000Z");
+  const store = createStore({
+    "users/user-1/notifications/n1": {
+      id: "n1",
+      data: { title: "읽지 않음", readAt: null, createdAt: now - 1000 },
+    },
+    "users/user-1/notifications/n2": {
+      id: "n2",
+      data: { title: "이미 읽음", readAt: now - 500, createdAt: now - 2000 },
+    },
+  });
+
+  const result = await markUserNotificationsRead({
+    uid: "user-1",
+    allVisible: true,
+    listCollectionDocuments: store.list,
+    commit: store.commit,
+    currentTime: new Date(now),
+  });
+
+  assert.deepEqual(result.notificationIds, ["n1"]);
+  assert.equal(store.store.get("users/user-1/notifications/n1").data.readAt, now);
+  assert.equal(store.store.get("users/user-1/notifications/n2").data.readAt, now - 500);
 });

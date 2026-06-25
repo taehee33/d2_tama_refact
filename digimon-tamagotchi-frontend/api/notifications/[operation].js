@@ -6,6 +6,7 @@ const {
   createUrgentCarePrepareHandler,
 } = require("../_lib/urgentCareNotifications");
 const {
+  createNotificationReadHandler,
   createNotificationStatusHandler,
   createTestNotificationHandler,
 } = require("../_lib/userNotifications");
@@ -33,6 +34,7 @@ function createNotificationRouter(deps = {}) {
     ack: deps.ackHandler || createUrgentCareAckHandler(),
     status: deps.statusHandler || createNotificationStatusHandler(),
     test: deps.testHandler || createTestNotificationHandler(),
+    read: deps.readHandler || createNotificationReadHandler(),
   };
 
   return async function notificationRouter(req, res) {

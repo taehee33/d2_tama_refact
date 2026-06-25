@@ -5,6 +5,7 @@ const { randomUUID } = require("node:crypto");
 const {
   commitWrites,
   createSetWrite,
+  createUpdateWrite,
   getDocument,
   listDocuments,
   runQuery,
@@ -275,6 +276,69 @@ function mapNotificationDocument(document) {
   };
 }
 
+function normalizeNotificationIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [...new Set(value.map((id) => normalizeString(id)).filter(Boolean))];
+}
+
+async function markUserNotificationsRead({
+  uid,
+  notificationIds = [],
+  allVisible = false,
+  listCollectionDocuments = listDocuments,
+  commit = commitWrites,
+  currentTime = new Date(),
+}) {
+  if (!uid) {
+    throw new Error("알림을 읽음 처리할 사용자 ID가 필요합니다.");
+  }
+
+  const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  const requestedIds = normalizeNotificationIds(notificationIds);
+  let targetIds = requestedIds;
+
+  if (allVisible) {
+    const notificationDocuments = await listCollectionDocuments(`users/${uid}/notifications`).catch(() => []);
+    targetIds = notificationDocuments
+      .map(mapNotificationDocument)
+      .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt))
+      .slice(0, MAX_RECENT_NOTIFICATIONS)
+      .filter((notification) => !notification.readAt)
+      .map((notification) => notification.id);
+  }
+
+  const safeTargetIds = normalizeNotificationIds(targetIds);
+  if (safeTargetIds.length === 0) {
+    return {
+      markedCount: 0,
+      notificationIds: [],
+      readAt: nowMs,
+    };
+  }
+
+  const writes = safeTargetIds.map((notificationId) =>
+    createUpdateWrite(
+      `users/${uid}/notifications/${notificationId}`,
+      {
+        readAt: nowMs,
+        updatedAt: nowMs,
+      },
+      ["readAt", "updatedAt"]
+    )
+  );
+
+  await commit(writes);
+
+  return {
+    markedCount: safeTargetIds.length,
+    notificationIds: safeTargetIds,
+    readAt: nowMs,
+  };
+}
+
 function summarizeLastDiscordResult(notifications = [], deliveries = []) {
   const notificationWithDiscord = notifications.find((notification) => {
     const status = notification?.channelState?.discord?.status;
@@ -440,15 +504,40 @@ function createTestNotificationHandler(deps = {}) {
   };
 }
 
+function createNotificationReadHandler(deps = {}) {
+  return async function notificationReadHandler(req, res) {
+    if (!allowMethods(req, res, ["POST"])) return;
+
+    try {
+      const { verifyRequestUser } = require("./auth");
+      const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
+      const result = await markUserNotificationsRead({
+        uid: decodedToken.uid,
+        notificationIds: req.body?.notificationIds,
+        allVisible: req.body?.allVisible === true,
+        listCollectionDocuments: deps.listDocuments || listDocuments,
+        commit: deps.commitWrites || commitWrites,
+        currentTime: (deps.getCurrentTime || (() => new Date()))(),
+      });
+
+      sendJson(res, 200, { ok: true, result });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
 module.exports = {
   buildCommunityCommentNotification,
   buildNotificationId,
   buildProjectionSummary,
   buildUserNotification,
+  createNotificationReadHandler,
   createNotificationStatusHandler,
   createTestNotificationHandler,
   createUserNotification,
   getUserNotificationStatus,
+  markUserNotificationsRead,
   maybeSendDiscordNotification,
   notifyCommunityComment,
 };

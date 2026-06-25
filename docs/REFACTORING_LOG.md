@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-06-25] 전역 인앱 알림 센터 추가
+
+### 작업 유형
+- 전역 알림 플로팅 버튼 및 드롭다운 추가
+- 사용자 알림 읽음 처리 API 추가
+
+### 목적 및 영향
+- **목적:** 댓글/시스템 알림이 저장된 뒤 사용자가 어느 화면에서든 확인하고 unread 상태를 줄일 수 있게 한다.
+- **아키텍처 결정:** 기존 `users/{uid}/notifications/{notificationId}` 구조를 유지하고 `readAt`, `updatedAt`만 부분 갱신한다. UI는 앱 루트에서 로그인 사용자에게만 렌더링한다.
+- **영향:** iPhone Web Push는 추가하지 않는다. Discord/긴급 알림 저장 계약은 그대로 유지한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/userNotifications.js`
+- `digimon-tamagotchi-frontend/src/components/notifications/GlobalNotificationCenter.jsx`
+- `digimon-tamagotchi-frontend/src/App.jsx`
+- 관련 API wrapper, CSS, 테스트
+
+### 검증
+- 알림 helper node:test
+- `GlobalNotificationCenter` React Testing Library 회귀 테스트
+- production build
+
+
 ## [2026-06-25] 플레이 허브 슬롯 카드 관리 액션 정리
 
 ### 작업 유형

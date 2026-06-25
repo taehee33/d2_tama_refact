@@ -108,6 +108,7 @@ jest.mock("./components/layout/RequireAuth", () => ({
 
 jest.mock("./components/ChatRoom", () => () => <div>채팅방</div>);
 jest.mock("./components/chat/PlayChatDrawer", () => () => <div>플레이 채팅 드로어</div>);
+jest.mock("./components/notifications/GlobalNotificationCenter", () => () => <div>전역 알림 센터</div>);
 jest.mock("./pages/Home", () => () => <div>홈 화면</div>);
 jest.mock("./pages/Landing", () => () => <div>랜딩 화면</div>);
 jest.mock("./pages/Login", () => () => <div>로그인 화면</div>);
@@ -122,6 +123,7 @@ jest.mock("./pages/Collection", () => () => <div>도감 화면</div>);
 jest.mock("./pages/Settings", () => () => <div>설정 화면</div>);
 jest.mock("./pages/News", () => () => <div>소식 화면</div>);
 jest.mock("./pages/Support", () => () => <div>지원 화면</div>);
+jest.mock("./pages/OperatorUsers", () => () => <div>사용자관리 화면</div>);
 
 beforeEach(() => {
   mockLocation.pathname = "/";

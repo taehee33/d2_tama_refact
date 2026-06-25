@@ -19,6 +19,7 @@ import PlayChatDrawer from "./components/chat/PlayChatDrawer";
 import RequireAuth from "./components/layout/RequireAuth";
 import ServiceLayout from "./components/layout/ServiceLayout";
 import LandingShell from "./components/landing/LandingShell";
+import GlobalNotificationCenter from "./components/notifications/GlobalNotificationCenter";
 import { useTamerProfile } from "./hooks/useTamerProfile";
 import Collection from "./pages/Collection";
 import Community from "./pages/Community";
@@ -113,6 +114,7 @@ function AppContent() {
         renderChatRoom={(chatState) => <ChatRoomWrapper {...chatState} />}
       >
         <PageViewTracker />
+        <GlobalNotificationCenter />
         <Routes>
           <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
             <Route path="/" element={<RootEntry />} />
