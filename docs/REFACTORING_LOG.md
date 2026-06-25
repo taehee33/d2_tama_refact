@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-06-25] 플레이 허브 슬롯 카드 관리 액션 정리
+
+### 작업 유형
+- 슬롯 카드 UI 액션 위계 개선
+- 위험 액션을 더보기 메뉴로 이동
+- 삭제 전 디지몬 이름 입력 확인 추가
+- 저장된 슬롯 상태 칩 추가
+- 관련 회귀 테스트 갱신
+
+### 목적 및 영향
+- **목적:** `이어하기`를 슬롯 카드의 주 액션으로 명확히 유지하고, 몰입형 진입 버튼과 실수 위험이 큰 `삭제`를 카드 본문에서 분리한다.
+- **아키텍처 결정:** 저장 계약과 라우팅은 바꾸지 않고 `SlotCard`의 표시 구조와 `PlayHub` 최근 카드 문구만 조정한다. 상태 칩은 `digimonStats` 스냅샷을 읽는 pure helper로 계산하되, `진화 가능`은 현재 디지몬 데이터에 실제 진화 후보가 있을 때만 표시한다.
+- **영향:** Firestore/localStorage 저장 로직과 lazy update 규칙은 그대로 유지된다. 슬롯 삭제는 기존 저장소 삭제 호출 전에 현재 디지몬 표시 이름을 직접 입력해야 진행된다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/play/SlotCard.jsx`
+- `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+- `digimon-tamagotchi-frontend/src/utils/slotStatusChips.js`
+- `digimon-tamagotchi-frontend/src/index.css`
+- 관련 회귀 테스트
+
+### 검증
+- `slotStatusChips` helper 단위 테스트
+- `SlotCard` / `PlayHub` React Testing Library 회귀 테스트
+
+
 ## [2026-06-24] 댓글 알림 문맥 및 계산 제외 슬롯 복구 보강
 
 ### 작업 유형

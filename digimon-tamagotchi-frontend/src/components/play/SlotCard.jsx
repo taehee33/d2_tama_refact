@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { formatSlotCreatedAt } from "../../utils/dateUtils";
 import {
   getSlotDigimonData,
@@ -6,6 +6,7 @@ import {
   getSlotSpriteSrc,
   getSlotStageLabel,
 } from "../../utils/slotViewUtils";
+import { getSlotStatusChips } from "../../utils/slotStatusChips";
 
 function SlotCard({
   slot,
@@ -16,10 +17,16 @@ function SlotCard({
   onNicknameSave,
   onNicknameReset,
   onContinue,
-  onImmersive,
   onDelete,
 }) {
   const slotDigimonData = getSlotDigimonData(slot);
+  const statusChips = getSlotStatusChips(slot);
+  const [isManageMenuOpen, setIsManageMenuOpen] = useState(false);
+
+  const handleMenuAction = (action) => {
+    setIsManageMenuOpen(false);
+    action();
+  };
 
   return (
     <article className="service-slot-card">
@@ -41,29 +48,58 @@ function SlotCard({
               {getSlotStageLabel(slot)} · {slot.device} / {slot.version}
             </p>
           </div>
-          {slot.isFrozen && <span className="service-badge service-badge--cool">냉장고 보관</span>}
+          <div className="service-slot-card__head-actions">
+            <div className="service-slot-card__menu">
+              <button
+                type="button"
+                className="service-slot-card__menu-trigger"
+                aria-label={`슬롯 ${slot.id} 관리 메뉴`}
+                aria-expanded={isManageMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => setIsManageMenuOpen((prev) => !prev)}
+              >
+                <span aria-hidden="true">...</span>
+              </button>
+              {isManageMenuOpen && (
+                <div className="service-slot-card__menu-panel" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="service-slot-card__menu-item"
+                    onClick={() => handleMenuAction(onToggleNickname)}
+                  >
+                    별명 변경
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="service-slot-card__menu-item service-slot-card__menu-item--danger"
+                    onClick={() => handleMenuAction(onDelete)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <p className="service-muted">
-          생성일 {formatSlotCreatedAt(slot.createdAt)} · {slot.slotName || `슬롯${slot.id}`}
+          생성일 {formatSlotCreatedAt(slot.createdAt)}
         </p>
 
-        <div className="service-inline-actions">
-          <button
-            type="button"
-            className="service-button service-button--danger"
-            onClick={onDelete}
-          >
-            삭제
-          </button>
-          <button
-            type="button"
-            className="service-button service-button--ghost"
-            onClick={onToggleNickname}
-          >
-            별명 변경
-          </button>
-        </div>
+        {statusChips.length > 0 && (
+          <div className="service-status-chip-row" aria-label="슬롯 상태">
+            {statusChips.map((chip) => (
+              <span
+                key={chip.id}
+                className={`service-status-chip service-status-chip--${chip.tone}`}
+              >
+                {chip.label}
+              </span>
+            ))}
+          </div>
+        )}
 
         {isNicknameOpen && (
           <div className="service-inline-panel">
@@ -102,13 +138,6 @@ function SlotCard({
             onClick={onContinue}
           >
             이어하기
-          </button>
-          <button
-            type="button"
-            className="service-button service-button--ghost"
-            onClick={onImmersive}
-          >
-            몰입형 화면
           </button>
         </div>
       </div>

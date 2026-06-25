@@ -5897,6 +5897,10 @@ code {
   gap: 0.65rem;
 }
 
+.service-inline-actions--primary .service-button--primary {
+  flex: 1 1 11rem;
+}
+
 .service-badge {
   display: inline-flex;
   align-items: center;
@@ -6102,8 +6106,100 @@ code {
 .service-slot-card__head,
 .service-slot-card__footer {
   display: flex;
-  flex-direction: column;
   gap: 0.7rem;
+}
+
+.service-slot-card__body {
+  flex-direction: column;
+}
+
+.service-slot-card__head {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.service-slot-card__footer {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.service-slot-card__footer .service-button--primary {
+  flex: 1 1 11rem;
+}
+
+.service-slot-card__head-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.service-slot-card__menu {
+  position: relative;
+}
+
+.service-slot-card__menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--button-ghost-border);
+  background: var(--button-ghost-bg);
+  color: var(--button-ghost-text);
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.service-slot-card__menu-trigger:hover,
+.service-slot-card__menu-trigger:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.service-slot-card__menu-panel {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 5;
+  display: grid;
+  min-width: 9rem;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: var(--surface-1);
+  box-shadow: 0 18px 42px var(--shadow-color);
+}
+
+.service-slot-card__menu-item {
+  width: 100%;
+  padding: 0.8rem 0.95rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--service-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.service-slot-card__menu-item:last-child {
+  border-bottom: 0;
+}
+
+.service-slot-card__menu-item:hover,
+.service-slot-card__menu-item:focus-visible {
+  background: var(--surface-2);
+}
+
+.service-slot-card__menu-item--danger {
+  color: #b91c1c;
 }
 
 .service-recent-slot {
@@ -6133,6 +6229,49 @@ code {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.55;
+}
+
+.service-status-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.service-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.85rem;
+  padding: 0.36rem 0.68rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.service-status-chip--danger {
+  border-color: rgba(239, 68, 68, 0.26);
+  background: rgba(254, 226, 226, 0.94);
+  color: #b91c1c;
+}
+
+.service-status-chip--cool {
+  border-color: rgba(59, 130, 246, 0.22);
+  background: rgba(219, 234, 254, 0.92);
+  color: #1d4ed8;
+}
+
+.service-status-chip--warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(254, 243, 199, 0.94);
+  color: #92400e;
+}
+
+.service-status-chip--accent {
+  border-color: rgba(46, 127, 104, 0.2);
+  background: rgba(209, 250, 229, 0.88);
+  color: rgba(26, 91, 71, 0.98);
 }
 
 .service-slot-card__head h3 {

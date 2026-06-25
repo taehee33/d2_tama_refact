@@ -12,10 +12,9 @@ import {
   getSlotDisplayName,
   getSlotSpriteSrc,
 } from "../utils/slotViewUtils";
-import {
-  getSlotPrimaryInfo,
-  getSlotSecondaryInfo,
-} from "../utils/slotInfoUtils";
+import { formatSlotCreatedAt } from "../utils/dateUtils";
+import { getSlotPrimaryInfo } from "../utils/slotInfoUtils";
+import { getSlotStatusChips } from "../utils/slotStatusChips";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -51,6 +50,8 @@ function PlayHub() {
   const showVer1Master = achievements.includes(ACHIEVEMENT_VER1_MASTER);
   const showVer2Master = achievements.includes(ACHIEVEMENT_VER2_MASTER);
   const hasSlots = slots.length > 0;
+  const recentSlotCreatedAtLabel = formatSlotCreatedAt(recentSlot?.createdAt);
+  const recentSlotStatusChips = getSlotStatusChips(recentSlot);
 
   const hasOrderChanged = useMemo(
     () =>
@@ -73,8 +74,19 @@ function PlayHub() {
     }
   };
 
-  const handleDeleteSlot = async (slotId) => {
-    if (!window.confirm(`슬롯 ${slotId}을 정말 삭제하시겠습니까?`)) {
+  const handleDeleteSlot = async (slot) => {
+    const slotId = slot.id;
+    const displayName = getSlotDisplayName(slot);
+    const typedName = window.prompt(
+      `슬롯 ${slotId}의 ${displayName}을 삭제하려면 디지몬 이름을 정확히 입력하세요.`
+    );
+
+    if (typedName == null) {
+      return;
+    }
+
+    if (typedName.trim() !== displayName) {
+      setPageError(`입력한 이름이 일치하지 않아 ${displayName}을 삭제하지 않았습니다.`);
       return;
     }
 
@@ -220,23 +232,28 @@ function PlayHub() {
                         {getSlotPrimaryInfo(recentSlot)}
                       </p>
                       <p className="service-slot-meta__item">
-                        {getSlotSecondaryInfo(recentSlot)}
+                        {recentSlotCreatedAtLabel ? `생성일 ${recentSlotCreatedAtLabel}` : "생성일 미상"}
                       </p>
                     </div>
-                    <div className="service-inline-actions">
+                    {recentSlotStatusChips.length > 0 && (
+                      <div className="service-status-chip-row" aria-label="최근 슬롯 상태">
+                        {recentSlotStatusChips.map((chip) => (
+                          <span
+                            key={chip.id}
+                            className={`service-status-chip service-status-chip--${chip.tone}`}
+                          >
+                            {chip.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="service-inline-actions service-inline-actions--primary">
                       <button
                         type="button"
                         className="service-button service-button--primary"
                         onClick={() => navigate(`/play/${recentSlot.id}`)}
                       >
                         이어하기
-                      </button>
-                      <button
-                        type="button"
-                        className="service-button service-button--ghost"
-                        onClick={() => navigate(`/play/${recentSlot.id}/full`)}
-                      >
-                        몰입형 화면
                       </button>
                     </div>
                   </div>
@@ -341,8 +358,7 @@ function PlayHub() {
               onNicknameSave={() => handleSaveNickname(slot.id)}
               onNicknameReset={() => handleResetNickname(slot.id)}
               onContinue={() => navigate(`/play/${slot.id}`)}
-              onImmersive={() => navigate(`/play/${slot.id}/full`)}
-              onDelete={() => handleDeleteSlot(slot.id)}
+              onDelete={() => handleDeleteSlot(slot)}
             />
           ))}
         </div>
