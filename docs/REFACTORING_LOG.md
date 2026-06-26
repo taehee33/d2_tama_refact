@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-26] 긴급 알림 운영 상태 표시 및 delivery 조회 최적화
+
+### 작업 유형
+- 10분 긴급 알림 서버 검사 상태 저장
+- 설정 화면 알림 상태 UI 개선
+- pending delivery 조회 최적화
+
+### 목적 및 영향
+- **목적:** Discord 메시지가 없더라도 10분 서버 검사가 정상 실행 중인지 앱에서 확인하고, `notification_deliveries` 전체 읽기를 줄인다.
+- **아키텍처 결정:** `notification_runtime/urgentCare` 단일 운영 문서에 마지막 검사 결과를 저장한다. delivery 재사용은 `status == pending` 및 `expiresAt` 범위 쿼리로 조회하고, 만료 pending은 실행마다 최대 100개만 정리한다.
+- **영향:** 반복 알림 정책과 기존 중복 방지는 유지한다. Firestore에는 10분 실행마다 운영 상태 write 1회가 추가된다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+- `digimon-tamagotchi-frontend/api/_lib/userNotifications.js`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- `firestore.indexes.json`
+- 관련 API/UI 회귀 테스트
+
+### 검증
+- notification API node:test
+- 설정 패널 React Testing Library 테스트
+- production build
+
+
 ## [2026-06-25] 긴급 케어 Apps Script 실행 간격 10분 조정
 
 ### 작업 유형
@@ -6482,3 +6507,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
   - `digimon-tamagotchi-frontend/src/index.css`
 - **근거:** Vercel 서버의 기본 시간대와 게임의 한국 시간 기준 수면 스케줄이 어긋나 낮 시간대 수면 알림이 발생할 수 있어, 알림 판정 단계에서 KST 기준을 명시한다.
+
+## [2026-06-26] 게임 화면 저장 및 동기화 상태 상세 표시
+
+- **내용:** 게임 화면의 `저장 및 동기화` 카드에 마지막 서버 저장 시각, 마지막 활동 기록 동기화 시각, 상태 저장 오류, 기록 동기화 오류를 표시하도록 확장했다. 서버 저장 실패 시에는 기존 outbox 재전송 흐름을 유지하면서 사용자에게 실패 원인을 카드 안에서 바로 보여준다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.test.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.test.js`
+- **근거:** 긴급 알림 운영 상태와 별개로, 현재 게임 슬롯의 저장/활동 로그 동기화 성공 여부를 플레이 화면에서 확인할 수 있게 한다.

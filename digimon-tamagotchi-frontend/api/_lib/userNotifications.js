@@ -367,6 +367,26 @@ function summarizeLastDiscordResult(notifications = [], deliveries = []) {
   return null;
 }
 
+function mapUrgentCheckStatus(document) {
+  const data = document?.data || {};
+  if (!document || !data.status) return null;
+  return {
+    status: normalizeString(data.status, "unknown"),
+    checkedAt: data.checkedAt || null,
+    preparedReports: Number(data.preparedReports || 0),
+    successfulReports: Number(data.successfulReports || 0),
+    failedReports: Number(data.failedReports || 0),
+    acknowledged: Number(data.acknowledged || 0),
+    projectionUnavailable: Number(data.projectionUnavailable || 0),
+    frozenSlots: Number(data.frozenSlots || 0),
+    newDeliveries: Number(data.newDeliveries || 0),
+    reusedDeliveries: Number(data.reusedDeliveries || 0),
+    expiredDeliveries: Number(data.expiredDeliveries || 0),
+    errorMessage: normalizeString(data.errorMessage),
+    updatedAt: data.updatedAt || null,
+  };
+}
+
 async function buildProjectionSummary({ uid, listCollectionDocuments = listDocuments, currentTime = new Date() }) {
   const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
   const slots = await listCollectionDocuments(`users/${uid}/slots`);
@@ -409,7 +429,7 @@ async function getUserNotificationStatus({
   currentTime = new Date(),
 }) {
   const settings = await resolveUserSettings(uid, getDocumentByPath);
-  const [notificationDocuments, deliveryDocuments, notificationStateDocuments, projection] =
+  const [notificationDocuments, deliveryDocuments, notificationStateDocuments, projection, urgentCheckDocument] =
     await Promise.all([
       listCollectionDocuments(`users/${uid}/notifications`).catch(() => []),
       runFirestoreQuery(buildDeliveryQuery(uid)).catch(() => []),
@@ -421,6 +441,7 @@ async function getUserNotificationStatus({
         unavailableSlots: [],
         projectionUnavailable: 0,
       })),
+      getDocumentByPath("notification_runtime/urgentCare").catch(() => null),
     ]);
 
   const recentNotifications = notificationDocuments
@@ -451,6 +472,7 @@ async function getUserNotificationStatus({
       lastDiscordResult: summarizeLastDiscordResult(recentNotifications, recentDeliveries),
     },
     recentNotifications,
+    urgentCheck: mapUrgentCheckStatus(urgentCheckDocument),
   };
 }
 

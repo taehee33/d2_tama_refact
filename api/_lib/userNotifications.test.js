@@ -149,6 +149,23 @@ test("알림 상태는 projectionUnavailable 슬롯을 요약한다", async () =
         issueKeys: ["hunger_call"],
       },
     },
+    "notification_runtime/urgentCare": {
+      id: "urgentCare",
+      data: {
+        status: "success",
+        checkedAt: now,
+        preparedReports: 0,
+        successfulReports: 0,
+        failedReports: 0,
+        acknowledged: 0,
+        projectionUnavailable: 1,
+        frozenSlots: 0,
+        newDeliveries: 0,
+        reusedDeliveries: 0,
+        expiredDeliveries: 2,
+        updatedAt: now,
+      },
+    },
   });
 
   const status = await getUserNotificationStatus({
@@ -165,6 +182,9 @@ test("알림 상태는 projectionUnavailable 슬롯을 요약한다", async () =
   assert.equal(status.projection.projectedSlots, 1);
   assert.deepEqual(status.projection.unavailableSlots, ["slot2"]);
   assert.equal(status.delivery.lastDiscordResult.status, "acknowledged");
+  assert.equal(status.urgentCheck.status, "success");
+  assert.equal(status.urgentCheck.checkedAt, now);
+  assert.equal(status.urgentCheck.expiredDeliveries, 2);
 });
 
 test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async () => {

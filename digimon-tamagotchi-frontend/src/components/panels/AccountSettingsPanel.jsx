@@ -82,6 +82,7 @@ function getDefaultNotificationStatus() {
       lastDiscordResult: null,
     },
     recentNotifications: [],
+    urgentCheck: null,
   };
 }
 
@@ -123,6 +124,34 @@ function getDiscordResultLabel(result) {
   }
 
   return result.status || "기록 없음";
+}
+
+function getUrgentCheckLabel(urgentCheck) {
+  if (!urgentCheck) {
+    return "검사 이력 없음";
+  }
+
+  if (urgentCheck.status === "success") {
+    return `정상 · 새 전송 ${urgentCheck.newDeliveries || 0}건`;
+  }
+
+  if (urgentCheck.status === "error") {
+    return `오류 · ${urgentCheck.errorMessage || "상세 없음"}`;
+  }
+
+  return urgentCheck.status || "기록 없음";
+}
+
+function getUrgentCheckSummary(urgentCheck) {
+  if (!urgentCheck) {
+    return "10분 서버 검사 기록이 없습니다.";
+  }
+
+  if (urgentCheck.status === "error") {
+    return "Apps Script 실행 기록과 Vercel 로그를 확인해 주세요.";
+  }
+
+  return `계산 제외 ${urgentCheck.projectionUnavailable || 0}개 · 만료 정리 ${urgentCheck.expiredDeliveries || 0}개`;
 }
 
 function AccountSettingsPanel({
@@ -429,6 +458,7 @@ function AccountSettingsPanel({
     Boolean(normalizedInputValue) && normalizedInputValue === normalizedCurrentTamerName;
   const projectionSummary = notificationStatus.projection || getDefaultNotificationStatus().projection;
   const lastDiscordResult = notificationStatus.delivery?.lastDiscordResult || null;
+  const urgentCheck = notificationStatus.urgentCheck || null;
   const hasUnavailableSlots = Number(projectionSummary.projectionUnavailable || 0) > 0;
 
   if (!currentUser) {
@@ -645,7 +675,17 @@ function AccountSettingsPanel({
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">15분 계산 대상</p>
+            <p className="service-section-label">마지막 서버 검사</p>
+            <strong>{getUrgentCheckLabel(urgentCheck)}</strong>
+            <p className="service-muted">
+              {formatDateTime(urgentCheck?.checkedAt)}
+            </p>
+            <p className="service-muted">
+              {getUrgentCheckSummary(urgentCheck)}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">10분 계산 대상</p>
             <strong>
               {projectionSummary.projectedSlots || 0} / {projectionSummary.totalSlots || 0} 슬롯
             </strong>
@@ -666,7 +706,7 @@ function AccountSettingsPanel({
           <div className="service-alert">
             <strong>계산 제외 슬롯 {projectionSummary.projectionUnavailable}개</strong>
             <p>
-              {projectionSummary.unavailableSlots.join(", ")} 슬롯의 15분 알림 계산 데이터가 오래되었습니다.
+              {projectionSummary.unavailableSlots.join(", ")} 슬롯의 10분 알림 계산 데이터가 오래되었습니다.
               해당 슬롯을 한 번 열고 저장하면 긴급 알림 대상에 포함됩니다.
             </p>
           </div>

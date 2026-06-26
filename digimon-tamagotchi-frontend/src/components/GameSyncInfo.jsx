@@ -3,11 +3,22 @@ import { formatSyncCountdown } from "../hooks/game-runtime/gameSyncSchedule";
 
 const STATE_LABELS = {
   saving: "저장 중",
-  local: "기기에 안전하게 저장됨",
+  local: "서버 저장 대기",
   synced: "서버 저장 완료",
   conflict: "다른 기기의 변경사항 확인 필요",
   unavailable: "저장소 사용 불가",
 };
+
+function formatSyncTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
 
 function GameSyncInfo({ syncInfo = null, compact = false }) {
   const [now, setNow] = useState(Date.now());
@@ -19,6 +30,10 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
     nextRecordSyncAt = null,
     retryAt = null,
     pendingRecordCount = 0,
+    lastStateSyncedAt = null,
+    lastRecordSyncedAt = null,
+    stateSyncError = "",
+    recordSyncError = "",
   } = syncInfo || {};
 
   useEffect(() => {
@@ -30,6 +45,8 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
   const stateCountdown = useMemo(() => formatSyncCountdown(nextStateSyncAt, now), [nextStateSyncAt, now]);
   const recordCountdown = useMemo(() => formatSyncCountdown(nextRecordSyncAt, now), [nextRecordSyncAt, now]);
   const retryCountdown = useMemo(() => formatSyncCountdown(retryAt, now), [retryAt, now]);
+  const lastStateSyncedText = useMemo(() => formatSyncTime(lastStateSyncedAt), [lastStateSyncedAt]);
+  const lastRecordSyncedText = useMemo(() => formatSyncTime(lastRecordSyncedAt), [lastRecordSyncedAt]);
 
   if (!syncInfo) return null;
 
@@ -73,10 +90,34 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
             <dd>{retryCountdown}</dd>
           </div>
         ) : null}
+        {lastStateSyncedText ? (
+          <div className="flex flex-wrap justify-between gap-2">
+            <dt>마지막 서버 저장</dt>
+            <dd>{lastStateSyncedText}</dd>
+          </div>
+        ) : null}
+        {stateSyncError ? (
+          <div className="flex flex-wrap justify-between gap-2 text-rose-700">
+            <dt>상태 오류</dt>
+            <dd className="max-w-[70%] text-right">{stateSyncError}</dd>
+          </div>
+        ) : null}
         <div className="flex flex-wrap justify-between gap-2">
           <dt>활동 기록{pendingRecordCount > 0 ? ` (${pendingRecordCount})` : ""}</dt>
           <dd className="font-semibold text-slate-800">{recordLabel}</dd>
         </div>
+        {lastRecordSyncedText ? (
+          <div className="flex flex-wrap justify-between gap-2">
+            <dt>마지막 기록 동기화</dt>
+            <dd>{lastRecordSyncedText}</dd>
+          </div>
+        ) : null}
+        {recordSyncError ? (
+          <div className="flex flex-wrap justify-between gap-2 text-rose-700">
+            <dt>기록 오류</dt>
+            <dd className="max-w-[70%] text-right">{recordSyncError}</dd>
+          </div>
+        ) : null}
       </dl>
       {!compact ? (
         <p className="mt-2 border-t border-slate-200 pt-2 text-[11px] leading-relaxed text-slate-500">

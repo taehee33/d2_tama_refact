@@ -117,6 +117,8 @@ describe("useDurableGamePersistence", () => {
     expect(await outbox.getStateMutation()).toBeNull();
     expect(result.current.stateSyncStatus).toBe("synced");
     expect(result.current.nextStateSyncAt).toBe(901_000);
+    expect(result.current.lastStateSyncedAt).toBe(1_000);
+    expect(result.current.stateSyncError).toBe("");
   });
 
   test("일반 먹이 기록은 다음 15분 bucket까지 별도 대기 상태로 표시한다", async () => {
@@ -163,6 +165,7 @@ describe("useDurableGamePersistence", () => {
     expect(await outbox.getStateMutation()).not.toBeNull();
     expect(result.current.stateSyncStatus).toBe("local");
     expect(result.current.nextStateSyncAt).toBeNull();
+    expect(result.current.stateSyncError).toBe("offline");
   });
 
   test("사망 같은 위험 전이의 revision 충돌은 자동 덮어쓰지 않고 보류한다", async () => {

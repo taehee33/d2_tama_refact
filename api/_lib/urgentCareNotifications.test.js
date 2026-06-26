@@ -74,6 +74,31 @@ function createStore(slotData) {
         .filter(([key]) => key.startsWith(prefix) && !key.slice(prefix.length).includes("/"))
         .map(([, value]) => value);
     },
+    async listPendingDeliveries(nowMs) {
+      return [...documents.entries()]
+        .filter(([key, value]) =>
+          key.startsWith("notification_deliveries/") &&
+          value.data?.status === "pending" &&
+          Number(value.data?.expiresAt) > nowMs
+        )
+        .map(([, value]) => value);
+    },
+    async listExpiredPendingDeliveries(nowMs) {
+      return [...documents.entries()]
+        .filter(([key, value]) =>
+          key.startsWith("notification_deliveries/") &&
+          value.data?.status === "pending" &&
+          Number(value.data?.expiresAt) <= nowMs
+        )
+        .slice(0, 100)
+        .map(([, value]) => value);
+    },
+    async listEligibleSlots() {
+      const prefix = "users/user-1/slots/";
+      return [...documents.entries()]
+        .filter(([key]) => key.startsWith(prefix) && !key.slice(prefix.length).includes("/"))
+        .map(([, value]) => value);
+    },
     async commit(writes) {
       writes.forEach((write) => {
         const name = write.update.name;
@@ -226,6 +251,9 @@ test("prepare 재호출은 pending delivery를 재사용하고 ack 뒤에는 중
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
   };
@@ -278,6 +306,9 @@ test("Discord 실패처럼 ack하지 않은 delivery는 다음 prepare에서 재
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
   };
@@ -304,6 +335,9 @@ test("prepare handler는 공용 활성 구독자 조회 결과만 처리한다",
     },
     getDocument: store.get,
     listDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commitWrites: store.commit,
   });
   const req = {
@@ -319,6 +353,38 @@ test("prepare handler는 공용 활성 구독자 조회 결과만 처리한다",
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.summary.totalUsers, 1);
   assert.equal(res.body.reports.length, 1);
+  assert.equal(store.documents.get("notification_runtime/urgentCare").data.status, "success");
+  assert.equal(store.documents.get("notification_runtime/urgentCare").data.newDeliveries, 1);
+});
+
+test("prepare handler 실패 시 긴급 검사 오류 상태를 저장한다", async () => {
+  const now = Date.parse("2026-06-22T03:00:00.000Z");
+  const store = createStore({
+    selectedDigimon: "Agumon",
+    lastSavedAt: now,
+    digimonStats: createRuntimeStats(),
+  });
+  const handler = createUrgentCarePrepareHandler({
+    getSchedulerSecret: () => "top-secret",
+    getCurrentTime: () => new Date(now),
+    listNotificationSubscribers: async () => {
+      throw new Error("subscriber query failed");
+    },
+    getDocument: store.get,
+    listDocuments: store.list,
+    commitWrites: store.commit,
+  });
+  const res = createMockRes();
+
+  await handler({
+    method: "POST",
+    headers: { "x-d2-scheduler-secret": "top-secret" },
+    body: {},
+  }, res);
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(store.documents.get("notification_runtime/urgentCare").data.status, "error");
+  assert.equal(store.documents.get("notification_runtime/urgentCare").data.errorMessage, "subscriber query failed");
 });
 
 test("dryRun은 메시지를 계산하지만 delivery 문서를 만들지 않는다", async () => {
@@ -332,12 +398,16 @@ test("dryRun은 메시지를 계산하지만 delivery 문서를 만들지 않는
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
     dryRun: true,
   });
   assert.equal(result.reports.length, 1);
   assert.equal((await store.list("notification_deliveries")).length, 0);
+  assert.equal(store.documents.has("notification_runtime/urgentCare"), false);
 });
 
 test("7일이 지난 pending delivery는 cancelled로 정리한다", async () => {
@@ -360,6 +430,9 @@ test("7일이 지난 pending delivery는 cancelled로 정리한다", async () =>
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
   });
@@ -378,6 +451,9 @@ test("runtime 필드가 없는 구 슬롯과 냉장고 슬롯을 안전하게 �
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
   });
@@ -392,6 +468,9 @@ test("runtime 필드가 없는 구 슬롯과 냉장고 슬롯을 안전하게 �
     subscribers: await listTestSubscribers(store),
     getDocumentByPath: store.get,
     listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: store.listPendingDeliveries,
+    listExpiredPendingDeliveryDocuments: store.listExpiredPendingDeliveries,
     commit: store.commit,
     currentTime: new Date(now),
   });

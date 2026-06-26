@@ -7,6 +7,8 @@ process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "test-proje
 
 const {
   createEligibleSlotsQuery,
+  createExpiredPendingDeliveriesQuery,
+  createPendingDeliveriesQuery,
   listEligibleNotificationSlots,
   prepareUrgentCareNotifications,
   resolveUrgentIssues,
@@ -82,6 +84,42 @@ test("eligible 슬롯 쿼리는 notificationEligible == true만 요청한다", a
   assert.deepEqual(result, [{ id: "slot1", data: { notificationEligible: true } }]);
   assert.equal(receivedParentPath, "users/user-1");
   assert.deepEqual(receivedQuery, createEligibleSlotsQuery());
+});
+
+test("pending delivery 쿼리는 유효한 pending 문서만 요청한다", () => {
+  assert.deepEqual(createPendingDeliveriesQuery(TEST_NOW), {
+    from: [{ collectionId: "notification_deliveries" }],
+    where: {
+      compositeFilter: {
+        op: "AND",
+        filters: [
+          {
+            fieldFilter: {
+              field: { fieldPath: "status" },
+              op: "EQUAL",
+              value: { stringValue: "pending" },
+            },
+          },
+          {
+            fieldFilter: {
+              field: { fieldPath: "expiresAt" },
+              op: "GREATER_THAN",
+              value: { integerValue: String(TEST_NOW) },
+            },
+          },
+        ],
+      },
+    },
+    orderBy: [{ field: { fieldPath: "expiresAt" }, direction: "ASCENDING" }],
+  });
+});
+
+test("만료 pending delivery 쿼리는 100개까지만 정리 대상으로 요청한다", () => {
+  const query = createExpiredPendingDeliveriesQuery(TEST_NOW);
+
+  assert.equal(query.limit, 100);
+  assert.equal(query.where.compositeFilter.filters[1].fieldFilter.op, "LESS_THAN_OR_EQUAL");
+  assert.equal(query.where.compositeFilter.filters[1].fieldFilter.value.integerValue, String(TEST_NOW));
 });
 
 test("prepare는 전체 슬롯 목록 대신 eligible 슬롯 목록만 사용한다", async () => {

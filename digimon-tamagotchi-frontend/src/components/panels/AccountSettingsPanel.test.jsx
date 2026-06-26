@@ -130,6 +130,7 @@ describe("AccountSettingsPanel", () => {
         lastDiscordResult: null,
       },
       recentNotifications: [],
+      urgentCheck: null,
     });
     mockSendTestNotification.mockResolvedValue({
       id: "test-notification",
@@ -192,6 +193,7 @@ describe("AccountSettingsPanel", () => {
     await waitFor(() => expect(screen.getByText("알림 상태")).toBeInTheDocument());
 
     expect(screen.getByText("알림 꺼짐")).toBeInTheDocument();
+    expect(screen.getByText("검사 이력 없음")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 슬롯")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "테스트 알림 보내기" })).toBeInTheDocument();
   });
@@ -218,13 +220,22 @@ describe("AccountSettingsPanel", () => {
         },
       },
       recentNotifications: [{ id: "n1" }],
+      urgentCheck: {
+        status: "success",
+        checkedAt: 1760000000000,
+        newDeliveries: 0,
+        projectionUnavailable: 1,
+        expiredDeliveries: 2,
+      },
     });
 
     renderPanel();
 
     await waitFor(() => expect(screen.getByText("계산 제외 슬롯 1개")).toBeInTheDocument());
-    expect(screen.getByText(/slot2 슬롯의 15분 알림 계산 데이터가 오래되었습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/slot2 슬롯의 10분 알림 계산 데이터가 오래되었습니다/)).toBeInTheDocument();
     expect(screen.getByText("성공")).toBeInTheDocument();
+    expect(screen.getByText("정상 · 새 전송 0건")).toBeInTheDocument();
+    expect(screen.getByText("계산 제외 1개 · 만료 정리 2개")).toBeInTheDocument();
     expect(screen.getByText("1개")).toBeInTheDocument();
   });
 

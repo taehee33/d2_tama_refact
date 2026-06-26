@@ -22,6 +22,8 @@ describe("GameSyncInfo", () => {
           nextStateSyncAt: new Date("2026-06-21T15:15:28+09:00").getTime(),
           nextRecordSyncAt: new Date("2026-06-21T15:15:00+09:00").getTime(),
           pendingRecordCount: 2,
+          lastStateSyncedAt: new Date("2026-06-21T15:00:10+09:00").getTime(),
+          lastRecordSyncedAt: new Date("2026-06-21T14:58:00+09:00").getTime(),
         }}
       />
     );
@@ -29,7 +31,31 @@ describe("GameSyncInfo", () => {
     expect(screen.getByText("서버 저장 완료")).toBeInTheDocument();
     expect(screen.getByText(/15분 0초 후/)).toBeInTheDocument();
     expect(screen.getByText(/먹이 기록 요약 대기 · 14분 32초 후/)).toBeInTheDocument();
+    expect(screen.getByText("마지막 서버 저장")).toBeInTheDocument();
+    expect(screen.getByText("마지막 기록 동기화")).toBeInTheDocument();
     expect(screen.getByText(/중요한 행동은 즉시 이 기기에 보존/)).toBeInTheDocument();
+  });
+
+  test("서버 저장과 기록 동기화 오류를 카드에 표시한다", () => {
+    render(
+      <GameSyncInfo
+        syncInfo={{
+          mode: "firebase",
+          stateSyncStatus: "local",
+          recordSyncStatus: "local",
+          retryAt: new Date("2026-06-21T15:05:28+09:00").getTime(),
+          pendingRecordCount: 3,
+          stateSyncError: "offline",
+          recordSyncError: "permission denied",
+        }}
+      />
+    );
+
+    expect(screen.getByText("서버 저장 대기")).toBeInTheDocument();
+    expect(screen.getByText("상태 오류")).toBeInTheDocument();
+    expect(screen.getByText("offline")).toBeInTheDocument();
+    expect(screen.getByText("기록 오류")).toBeInTheDocument();
+    expect(screen.getByText("permission denied")).toBeInTheDocument();
   });
 
   test("로컬 모드는 서버 카운트다운 없이 기기 저장 상태를 표시한다", () => {

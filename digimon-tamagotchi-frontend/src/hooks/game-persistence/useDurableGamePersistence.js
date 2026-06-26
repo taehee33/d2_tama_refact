@@ -48,6 +48,11 @@ export const GAME_RECORD_SYNC_STATUS = {
 
 const OUTBOX_SCHEMA_VERSION = 1;
 
+function formatSyncError(error, fallback = "알 수 없는 동기화 오류") {
+  const message = String(error?.message || error || fallback).trim();
+  return message || fallback;
+}
+
 export function resolveNewReplayActions({
   previousLogs = [],
   updatedLogs = [],
@@ -160,6 +165,10 @@ export function useDurableGamePersistence({
   const [nextRecordSyncAt, setNextRecordSyncAt] = useState(null);
   const [pendingRecordCount, setPendingRecordCount] = useState(0);
   const [syncConflict, setSyncConflict] = useState(null);
+  const [lastStateSyncedAt, setLastStateSyncedAt] = useState(null);
+  const [lastRecordSyncedAt, setLastRecordSyncedAt] = useState(null);
+  const [stateSyncError, setStateSyncError] = useState("");
+  const [recordSyncError, setRecordSyncError] = useState("");
   const [outbox] = useState(() => {
     if (outboxOverride !== undefined) return outboxOverride;
     try {
@@ -185,6 +194,10 @@ export function useDurableGamePersistence({
     setNextStateSyncAt(null);
     setNextRecordSyncAt(null);
     setPendingRecordCount(0);
+    setLastStateSyncedAt(null);
+    setLastRecordSyncedAt(null);
+    setStateSyncError("");
+    setRecordSyncError("");
     conflictRef.current = null;
     setSyncConflict(null);
   }, [currentUser?.uid, outbox, slotId]);
@@ -209,6 +222,7 @@ export function useDurableGamePersistence({
     const pendingFeedEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
     const recordCount = activityEvents.length + battleEvents.length + pendingFeedEvents.length;
     setStateSyncStatus(stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED);
+    if (!stateRecord) setStateSyncError("");
     setPendingRecordCount(recordCount);
     if (activityEvents.length || battleEvents.length) {
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.LOCAL);
@@ -216,6 +230,7 @@ export function useDurableGamePersistence({
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.FEED_PENDING);
     } else {
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.SYNCED);
+      setRecordSyncError("");
     }
     const nextFeedAt = pendingFeedEvents.length
       ? Math.min(...pendingFeedEvents.map((event) => getFeedSummaryBucketEndAt(event.occurredAt)))
@@ -235,6 +250,7 @@ export function useDurableGamePersistence({
     };
     conflictRef.current = conflict;
     setSyncConflict(conflict);
+    setStateSyncError("다른 기기의 변경사항 확인이 필요합니다.");
     setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
     return false;
   }, []);
@@ -255,6 +271,8 @@ export function useDurableGamePersistence({
       });
       revisionRef.current = result.revision;
       lastSyncedStatsRef.current = localSnapshot;
+      setLastStateSyncedAt(Date.now());
+      setStateSyncError("");
       setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
       setNextStateSyncAt(getNextStateSyncAt());
       if (outbox) {
@@ -270,6 +288,7 @@ export function useDurableGamePersistence({
       return true;
     } catch (commitError) {
       if (!(commitError instanceof GameRevisionConflictError)) {
+        setStateSyncError(formatSyncError(commitError));
         setStateSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
         throw commitError;
       }
@@ -308,6 +327,8 @@ export function useDurableGamePersistence({
       });
       revisionRef.current = replayCommit.revision;
       lastSyncedStatsRef.current = replayedSnapshot;
+      setLastStateSyncedAt(Date.now());
+      setStateSyncError("");
       setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
       setNextStateSyncAt(getNextStateSyncAt());
       setDigimonStats((previous) => ({
@@ -387,6 +408,7 @@ export function useDurableGamePersistence({
         setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } catch (error) {
         console.error("로컬 outbox 저장 오류:", error);
+        setStateSyncError(formatSyncError(error, "이 기기의 임시 저장소를 사용할 수 없습니다."));
         setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
       }
     }
@@ -438,6 +460,7 @@ export function useDurableGamePersistence({
         await refreshOutboxStatus();
       } catch (error) {
         console.error("[appendLogToSubcollection] outbox 오류:", error);
+        setRecordSyncError(formatSyncError(error, "활동 기록 임시 저장에 실패했습니다."));
         setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       }
     }
@@ -449,10 +472,13 @@ export function useDurableGamePersistence({
       if (outbox) {
         await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId });
       }
+      setLastRecordSyncedAt(Date.now());
+      setRecordSyncError("");
       await refreshOutboxStatus();
       return true;
     } catch (error) {
       console.error("[appendLogToSubcollection] 오류:", error);
+      setRecordSyncError(formatSyncError(error));
       setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return false;
     }
@@ -475,6 +501,7 @@ export function useDurableGamePersistence({
         await refreshOutboxStatus();
       } catch (error) {
         console.error("[appendBattleLogToSubcollection] outbox 오류:", error);
+        setRecordSyncError(formatSyncError(error, "배틀 기록 임시 저장에 실패했습니다."));
         setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       }
     }
@@ -484,10 +511,13 @@ export function useDurableGamePersistence({
       if (outbox) {
         await outbox.deleteBattleEvent({ uid: currentUser.uid, slotId, eventId });
       }
+      setLastRecordSyncedAt(Date.now());
+      setRecordSyncError("");
       await refreshOutboxStatus();
       return true;
     } catch (error) {
       console.error("[appendBattleLogToSubcollection] 오류:", error);
+      setRecordSyncError(formatSyncError(error));
       setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return false;
     }
@@ -509,6 +539,7 @@ export function useDurableGamePersistence({
       buckets.set(bucketStartAt, [...(buckets.get(bucketStartAt) || []), event]);
     });
 
+    let syncedCount = 0;
     for (const [bucketStartAt, events] of buckets.entries()) {
       const eventId = `feed-summary:${bucketStartAt}`;
       const summaryRef = doc(collection(slotRef, "logs"), eventId);
@@ -535,9 +566,11 @@ export function useDurableGamePersistence({
           syncStatus: "synced",
           syncedAt: Date.now(),
         });
+        syncedCount += 1;
       }
     }
     await outbox.pruneSyncedFeedEvents({ uid: currentUser.uid, slotId });
+    return syncedCount;
   }, [currentUser, outbox, slotId]);
 
   const flushOutboxInternal = useCallback(async () => {
@@ -550,25 +583,36 @@ export function useDurableGamePersistence({
     }
     const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
     let hasConflict = false;
+    let stateRecord = null;
+    let syncedRecordCount = 0;
     try {
-      const stateRecord = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+      stateRecord = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
       if (stateRecord) hasConflict = !(await commitStateRecord(stateRecord));
 
       const activityEvents = await outbox.listActivityEvents({ uid: currentUser.uid, slotId });
       for (const event of activityEvents) {
         await setDoc(doc(collection(slotRef, "logs"), event.eventId), event.payload, { merge: true });
         await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId: event.eventId });
+        syncedRecordCount += 1;
       }
       const battleEvents = await outbox.listBattleEvents({ uid: currentUser.uid, slotId });
       for (const event of battleEvents) {
         await setDoc(doc(collection(slotRef, "battleLogs"), event.eventId), event.payload, { merge: true });
         await outbox.deleteBattleEvent({ uid: currentUser.uid, slotId, eventId: event.eventId });
+        syncedRecordCount += 1;
       }
-      await flushFeed(slotRef);
+      syncedRecordCount += await flushFeed(slotRef) || 0;
+      if (syncedRecordCount > 0) {
+        setLastRecordSyncedAt(Date.now());
+        setRecordSyncError("");
+      }
       if (!hasConflict) await refreshOutboxStatus();
       return true;
     } catch (error) {
       console.warn("[GameOutbox] 재전송 실패:", error);
+      const message = formatSyncError(error);
+      if (stateRecord) setStateSyncError(message);
+      setRecordSyncError(message);
       try {
         await refreshOutboxStatus();
       } catch (_statusError) {
@@ -656,6 +700,8 @@ export function useDurableGamePersistence({
           });
           revisionRef.current = result.revision;
           lastSyncedStatsRef.current = localSnapshot;
+          setLastStateSyncedAt(Date.now());
+          setStateSyncError("");
           if (outbox && stateRecord) {
             await outbox.deleteStateMutation({
               uid: currentUser.uid,
@@ -679,6 +725,7 @@ export function useDurableGamePersistence({
       conflictRef.current = null;
       setSyncConflict(null);
       setNextStateSyncAt(getNextStateSyncAt());
+      setStateSyncError("");
       await refreshOutboxStatus();
       return true;
     });
@@ -744,6 +791,10 @@ export function useDurableGamePersistence({
     pendingRecordCount,
     recordSyncStatus,
     retryAt,
+    lastStateSyncedAt,
+    lastRecordSyncedAt,
+    stateSyncError,
+    recordSyncError,
     stateSyncStatus,
   };
 }

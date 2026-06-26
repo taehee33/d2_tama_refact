@@ -30,6 +30,8 @@ const {
 const { listNotificationSubscribers } = require("./notificationSubscribers");
 
 const DELIVERY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const EXPIRED_DELIVERY_CLEANUP_LIMIT = 100;
+const URGENT_CHECK_RUNTIME_PATH = "notification_runtime/urgentCare";
 
 function normalizeString(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -52,6 +54,71 @@ async function listEligibleNotificationSlots(uid, queryDocuments = runQuery) {
   return queryDocuments(createEligibleSlotsQuery(), `users/${uid}`);
 }
 
+function createPendingDeliveriesQuery(nowMs) {
+  return {
+    from: [{ collectionId: "notification_deliveries" }],
+    where: {
+      compositeFilter: {
+        op: "AND",
+        filters: [
+          {
+            fieldFilter: {
+              field: { fieldPath: "status" },
+              op: "EQUAL",
+              value: { stringValue: "pending" },
+            },
+          },
+          {
+            fieldFilter: {
+              field: { fieldPath: "expiresAt" },
+              op: "GREATER_THAN",
+              value: { integerValue: String(nowMs) },
+            },
+          },
+        ],
+      },
+    },
+    orderBy: [{ field: { fieldPath: "expiresAt" }, direction: "ASCENDING" }],
+  };
+}
+
+function createExpiredPendingDeliveriesQuery(nowMs) {
+  return {
+    from: [{ collectionId: "notification_deliveries" }],
+    where: {
+      compositeFilter: {
+        op: "AND",
+        filters: [
+          {
+            fieldFilter: {
+              field: { fieldPath: "status" },
+              op: "EQUAL",
+              value: { stringValue: "pending" },
+            },
+          },
+          {
+            fieldFilter: {
+              field: { fieldPath: "expiresAt" },
+              op: "LESS_THAN_OR_EQUAL",
+              value: { integerValue: String(nowMs) },
+            },
+          },
+        ],
+      },
+    },
+    orderBy: [{ field: { fieldPath: "expiresAt" }, direction: "ASCENDING" }],
+    limit: EXPIRED_DELIVERY_CLEANUP_LIMIT,
+  };
+}
+
+async function listPendingUrgentDeliveries(nowMs, queryDocuments = runQuery) {
+  return queryDocuments(createPendingDeliveriesQuery(nowMs));
+}
+
+async function listExpiredPendingUrgentDeliveries(nowMs, queryDocuments = runQuery) {
+  return queryDocuments(createExpiredPendingDeliveriesQuery(nowMs));
+}
+
 function buildUrgentNotificationPath(uid, deliveryId) {
   return `users/${uid}/notifications/urgent_${deliveryId}`;
 }
@@ -66,19 +133,28 @@ async function prepareUrgentCareNotifications({
   getDocumentByPath,
   listCollectionDocuments,
   listEligibleSlotDocuments = listEligibleNotificationSlots,
+  listPendingDeliveryDocuments = async () => [],
+  listExpiredPendingDeliveryDocuments = async () => [],
   commit,
   currentTime = new Date(),
   dryRun = false,
 }) {
   const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
-  const pendingDocuments = await listCollectionDocuments("notification_deliveries");
+  const [pendingDocuments, expiredPendingDocuments] = await Promise.all([
+    listPendingDeliveryDocuments(nowMs),
+    dryRun ? Promise.resolve([]) : listExpiredPendingDeliveryDocuments(nowMs),
+  ]);
   const pendingBySlot = new Map();
   const writes = [];
   pendingDocuments.forEach((document) => {
     const data = document?.data || {};
     if (data.status === "pending" && Number(data.expiresAt) > nowMs) {
       pendingBySlot.set(`${data.uid}:${data.slotId}`, { id: document.id, data });
-    } else if (data.status === "pending" && !dryRun) {
+    }
+  });
+  expiredPendingDocuments.forEach((document) => {
+    const data = document?.data || {};
+    if (data.status === "pending" && !dryRun) {
       writes.push(createSetWrite(`notification_deliveries/${document.id}`, {
         ...data,
         status: "cancelled",
@@ -239,8 +315,36 @@ async function prepareUrgentCareNotifications({
     }
   }
 
+  if (!dryRun) {
+    writes.push(createSetWrite(URGENT_CHECK_RUNTIME_PATH, {
+      status: "success",
+      checkedAt: nowMs,
+      preparedReports: reports.length,
+      successfulReports: reports.length,
+      failedReports: 0,
+      acknowledged: 0,
+      projectionUnavailable: summary.projectionUnavailable,
+      frozenSlots: summary.frozenSlots,
+      newDeliveries: summary.newDeliveries,
+      reusedDeliveries: summary.reusedDeliveries,
+      expiredDeliveries: summary.expiredDeliveries,
+      updatedAt: nowMs,
+    }));
+  }
   if (!dryRun && writes.length) await commitInBatches(writes, commit);
   return { ok: true, dryRun, generatedAt: formatKstDate(nowMs), summary, reports };
+}
+
+async function saveUrgentCheckError({ error, commit, currentTime = new Date() }) {
+  const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  await commitInBatches([
+    createSetWrite(URGENT_CHECK_RUNTIME_PATH, {
+      status: "error",
+      checkedAt: nowMs,
+      errorMessage: error?.message || "unknown",
+      updatedAt: nowMs,
+    }),
+  ], commit);
 }
 
 async function acknowledgeUrgentCareDeliveries({ deliveryIds, getDocumentByPath, commit, currentTime = new Date() }) {
@@ -296,12 +400,27 @@ function createUrgentCarePrepareHandler(deps = {}) {
         listCollectionDocuments: deps.listDocuments || listDocuments,
         listEligibleSlotDocuments: deps.listEligibleSlotDocuments || ((uid) =>
           listEligibleNotificationSlots(uid, deps.runQuery || runQuery)),
+        listPendingDeliveryDocuments: deps.listPendingDeliveryDocuments || ((nowMs) =>
+          listPendingUrgentDeliveries(nowMs, deps.runQuery || runQuery)),
+        listExpiredPendingDeliveryDocuments: deps.listExpiredPendingDeliveryDocuments || ((nowMs) =>
+          listExpiredPendingUrgentDeliveries(nowMs, deps.runQuery || runQuery)),
         commit: deps.commitWrites || commitWrites,
         currentTime: (deps.getCurrentTime || (() => new Date()))(),
         dryRun: req?.body?.dryRun === true,
       });
       sendJson(res, 200, payload);
     } catch (error) {
+      if (req?.body?.dryRun !== true) {
+        try {
+          await saveUrgentCheckError({
+            error,
+            commit: deps.commitWrites || commitWrites,
+            currentTime: (deps.getCurrentTime || (() => new Date()))(),
+          });
+        } catch (statusError) {
+          console.warn("[urgent-care] failed to save urgent check error status", statusError);
+        }
+      }
       handleApiError(res, error);
     }
   };
@@ -328,12 +447,17 @@ function createUrgentCareAckHandler(deps = {}) {
 module.exports = {
   acknowledgeUrgentCareDeliveries,
   buildDeliveryId,
+  createExpiredPendingDeliveriesQuery,
   createEligibleSlotsQuery,
+  createPendingDeliveriesQuery,
   createUrgentCareAckHandler,
   createUrgentCarePrepareHandler,
   hasProjectionRuntime,
+  listExpiredPendingUrgentDeliveries,
   listEligibleNotificationSlots,
+  listPendingUrgentDeliveries,
   prepareUrgentCareNotifications,
   projectSlotForUrgentCare,
   resolveUrgentIssues,
+  saveUrgentCheckError,
 };
