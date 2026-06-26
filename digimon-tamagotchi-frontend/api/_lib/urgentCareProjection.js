@@ -163,6 +163,24 @@ function isActiveScheduledSleepLightWarning(projectedStats = {}, slotData = {}, 
   return isWithinSleepScheduleKst(sleepSchedule, nowMs);
 }
 
+function isCurrentSleepOrNap(projectedStats = {}, slotData = {}, nowMs = Date.now()) {
+  const wakeUntil = toTimestamp(projectedStats.wakeUntil ?? slotData.wakeUntil);
+  if (wakeUntil != null && wakeUntil > nowMs) return false;
+
+  const napUntil = toTimestamp(projectedStats.napUntil ?? slotData?.digimonStats?.napUntil);
+  if (napUntil != null && napUntil > nowMs) return true;
+
+  const sleepSchedule = projectedStats.sleepSchedule || slotData?.digimonStats?.sleepSchedule;
+  return isWithinSleepScheduleKst(sleepSchedule, nowMs);
+}
+
+function isNeedCallPausedBySleep(callEntry = {}, projectedStats = {}, slotData = {}, nowMs = Date.now()) {
+  return (
+    toTimestamp(callEntry.sleepStartAt) != null &&
+    isCurrentSleepOrNap(projectedStats, slotData, nowMs)
+  );
+}
+
 function hasProjectionRuntime(slotData = {}) {
   const stats = slotData?.digimonStats;
   if (!stats || typeof stats !== "object") return false;
@@ -203,7 +221,10 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   if (projectedStats.isDead) return [{ key: "death", label: "💀 사망 판정" }];
   const issues = [];
   const callStatus = projectedStats.callStatus || {};
-  if (callStatus.hunger?.isActive) {
+  if (
+    callStatus.hunger?.isActive &&
+    !isNeedCallPausedBySleep(callStatus.hunger, projectedStats, slotData, nowMs)
+  ) {
     const startedAt = toTimestamp(callStatus.hunger.startedAt) ??
       toTimestamp(projectedStats.lastHungerZeroAt);
     const deadlineAt = toTimestamp(projectedStats.hungerMistakeDeadline) ??
@@ -215,7 +236,10 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
       ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
     });
   }
-  if (callStatus.strength?.isActive) {
+  if (
+    callStatus.strength?.isActive &&
+    !isNeedCallPausedBySleep(callStatus.strength, projectedStats, slotData, nowMs)
+  ) {
     const startedAt = toTimestamp(callStatus.strength.startedAt) ??
       toTimestamp(projectedStats.lastStrengthZeroAt);
     const deadlineAt = toTimestamp(projectedStats.strengthMistakeDeadline) ??

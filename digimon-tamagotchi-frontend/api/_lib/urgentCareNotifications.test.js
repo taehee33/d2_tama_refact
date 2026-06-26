@@ -371,6 +371,30 @@ test("기력 호출에도 시작과 케어미스 예정 정보를 붙인다", ()
   assert.ok(issues[0].detailLines.some((line) => line.startsWith("남은 시간:")));
 });
 
+test("수면 중 일시정지된 배고픔과 기력 호출은 긴급 알림에서 제외한다", () => {
+  const issues = resolveUrgentIssues({
+    fullness: 0,
+    strength: 0,
+    sleepSchedule: { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+    callStatus: {
+      hunger: {
+        isActive: true,
+        startedAt: TEST_NOW - 5 * 60_000,
+        sleepStartAt: TEST_NOW - 2 * 60_000,
+      },
+      strength: {
+        isActive: true,
+        startedAt: TEST_NOW - 5 * 60_000,
+        sleepStartAt: TEST_NOW - 2 * 60_000,
+      },
+    },
+    hungerMistakeDeadline: TEST_NOW + 5 * 60_000,
+    strengthMistakeDeadline: TEST_NOW + 5 * 60_000,
+  }, {}, new Date("2026-06-26T22:52:00+09:00").getTime());
+
+  assert.deepEqual(issues, []);
+});
+
 test("deadline이 지난 호출은 케어미스 발생 구간으로 표시한다", () => {
   const issues = resolveUrgentIssues({
     callStatus: {

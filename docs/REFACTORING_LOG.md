@@ -6518,3 +6518,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.test.jsx`
   - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.test.js`
 - **근거:** 긴급 알림 운영 상태와 별개로, 현재 게임 슬롯의 저장/활동 로그 동기화 성공 여부를 플레이 화면에서 확인할 수 있게 한다.
+
+## [2026-06-26] 수면 중 일시정지 호출 긴급 알림 제외
+
+- **내용:** 수면 중 배고픔/기력 호출 타이머가 일시정지된 상태에서는 Discord/인앱 긴급 알림 대상에서 제외하도록 서버 판정을 보정했다. 수면 조명 경고는 기존처럼 수면 중 조명이 켜진 실제 긴급 상태로 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
+- **근거:** 게임 화면은 수면 중 배고픔/기력 호출을 일시정지로 표시하는데, 알림 서버가 이를 일반 10분 데드라인으로 보내 사용자에게 서로 다른 상태를 보여주던 문제를 맞춘다.
