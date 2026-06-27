@@ -23,6 +23,26 @@ describe("getSlotStatusChips", () => {
     });
   });
 
+  test("deathReason이 저장된 슬롯은 다른 위험 상태보다 사망 칩을 먼저 반환한다", () => {
+    expect(
+      getSlotStatusChips({
+        selectedDigimon: "Punimon",
+        version: "Ver.2",
+        lastSavedAt: 1,
+        digimonStats: {
+          deathReason: "STARVATION (굶주림)",
+          poopTimer: 1,
+          poopCountdown: 60,
+          poopCount: 8,
+          timeToEvolveSeconds: 0,
+        },
+      })
+    ).toEqual([
+      { id: "dead", label: "사망", tone: "danger" },
+      { id: "poop", label: "배변 주의", tone: "warning" },
+    ]);
+  });
+
   test("저장 후 시간이 지나 배변 수가 위험 기준에 도달하면 배변 주의 칩을 반환한다", () => {
     expect(
       getSlotStatusChips({

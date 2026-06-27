@@ -14,7 +14,7 @@ const SLOT_STATUS_DEFINITIONS = [
     id: "dead",
     label: "사망",
     tone: "danger",
-    isActive: (stats) => Boolean(stats.isDead),
+    isActive: (stats) => Boolean(stats.isDead || stats.deathReason || stats.diedAt),
   },
   {
     id: "frozen",
@@ -60,13 +60,14 @@ function resolveLastSavedAt(slot = {}, stats = {}) {
 
 function getProjectedStats(slot) {
   const stats = slot?.digimonStats || {};
+  const hasStoredDeathSignal = Boolean(stats.isDead || stats.deathReason || stats.diedAt);
   const lastSavedAt = resolveLastSavedAt(slot, stats);
   const projectedStats = lastSavedAt
     ? applyLazyUpdate(stats, lastSavedAt)
     : { ...stats };
   const deathEvaluation = evaluateDeathConditions(projectedStats);
 
-  if (deathEvaluation.isDead) {
+  if (hasStoredDeathSignal || deathEvaluation.isDead) {
     return {
       ...projectedStats,
       isDead: true,
