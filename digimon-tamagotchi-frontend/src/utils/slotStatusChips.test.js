@@ -7,6 +7,38 @@ describe("getSlotStatusChips", () => {
     ]);
   });
 
+  test("저장 후 시간이 지나 사망 조건이 된 슬롯도 사망 칩으로 반환한다", () => {
+    expect(
+      getSlotStatusChips({
+        lastSavedAt: 1,
+        digimonStats: {
+          isDead: false,
+          fullness: 0,
+          lastHungerZeroAt: 1,
+        },
+      })[0]
+    ).toMatchObject({
+      id: "dead",
+      label: "사망",
+    });
+  });
+
+  test("저장 후 시간이 지나 배변 수가 위험 기준에 도달하면 배변 주의 칩을 반환한다", () => {
+    expect(
+      getSlotStatusChips({
+        lastSavedAt: 1,
+        digimonStats: {
+          poopTimer: 1,
+          poopCountdown: 60,
+          poopCount: 0,
+        },
+      })[0]
+    ).toMatchObject({
+      id: "poop",
+      label: "배변 주의",
+    });
+  });
+
   test("냉장고, 치료, 배변, 진화 가능 상태를 칩으로 변환한다", () => {
     expect(getSlotStatusChips({ digimonStats: { isFrozen: true } })[0]).toMatchObject({
       id: "frozen",

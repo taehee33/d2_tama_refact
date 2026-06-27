@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-06-27] 플레이 허브 슬롯 상태 칩 현재 시점 보정
+
+### 작업 유형
+- 플레이 허브 슬롯 상태 칩 버그 수정
+- 저장 스냅샷 기반 read-only lazy projection 적용
+
+### 목적 및 영향
+- **목적:** 상세 게임 화면에서는 사망/배변 위험으로 보이지만, 플레이 허브 카드에서는 저장 당시 스냅샷만 읽어 상태 칩이 누락되던 문제를 해결한다.
+- **아키텍처 결정:** 목록 화면에서 Firestore write는 하지 않고, 기존 순수 `applyLazyUpdate()`와 `evaluateDeathConditions()`만 사용해 현재 시점 표시용 상태를 계산한다.
+- **영향:** 슬롯 저장 계약, lazy update 저장 정책, 상태 칩 우선순위는 유지한다. 특이 상태가 없는 슬롯은 계속 칩 영역을 표시하지 않는다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/slotStatusChips.js`
+- `digimon-tamagotchi-frontend/src/utils/slotStatusChips.test.js`
+
+### 검증
+- 슬롯 상태 칩 helper 테스트
+- `SlotCard` / `PlayHub` React Testing Library 회귀 테스트
+
+
 ## [2026-06-26] 긴급 알림 운영 상태 표시 및 delivery 조회 최적화
 
 ### 작업 유형
