@@ -7,15 +7,11 @@ describe("getSlotStatusChips", () => {
     ]);
   });
 
-  test("저장 후 시간이 지나 사망 조건이 된 슬롯도 사망 칩으로 반환한다", () => {
+  test("projectedDigimonStats의 사망 상태를 최우선 칩으로 반환한다", () => {
     expect(
       getSlotStatusChips({
-        lastSavedAt: 1,
-        digimonStats: {
-          isDead: false,
-          fullness: 0,
-          lastHungerZeroAt: 1,
-        },
+        digimonStats: { isDead: false },
+        projectedDigimonStats: { isDead: true },
       })[0]
     ).toMatchObject({
       id: "dead",
@@ -23,16 +19,26 @@ describe("getSlotStatusChips", () => {
     });
   });
 
-  test("deathReason이 저장된 슬롯은 다른 위험 상태보다 사망 칩을 먼저 반환한다", () => {
+  test("deathReason만 남은 슬롯은 사망 칩으로 처리하지 않는다", () => {
+    expect(
+      getSlotStatusChips({
+        selectedDigimon: "OmegamonAlterSV2",
+        version: "Ver.2",
+        digimonStats: {
+          isDead: false,
+          deathReason: "STARVATION (굶주림)",
+        },
+      })
+    ).toEqual([]);
+  });
+
+  test("사망, 배변, 진화 상태가 동시에 있으면 사망과 배변 주의만 반환한다", () => {
     expect(
       getSlotStatusChips({
         selectedDigimon: "Punimon",
         version: "Ver.2",
-        lastSavedAt: 1,
-        digimonStats: {
-          deathReason: "STARVATION (굶주림)",
-          poopTimer: 1,
-          poopCountdown: 60,
+        projectedDigimonStats: {
+          isDead: true,
           poopCount: 8,
           timeToEvolveSeconds: 0,
         },
@@ -43,15 +49,11 @@ describe("getSlotStatusChips", () => {
     ]);
   });
 
-  test("저장 후 시간이 지나 배변 수가 위험 기준에 도달하면 배변 주의 칩을 반환한다", () => {
+  test("projectedDigimonStats의 배변 위험 상태를 칩으로 반환한다", () => {
     expect(
       getSlotStatusChips({
-        lastSavedAt: 1,
-        digimonStats: {
-          poopTimer: 1,
-          poopCountdown: 60,
-          poopCount: 0,
-        },
+        digimonStats: { poopCount: 0 },
+        projectedDigimonStats: { poopCount: 8 },
       })[0]
     ).toMatchObject({
       id: "poop",

@@ -1,5 +1,4 @@
 import { getDigimonEntryByVersion } from "./digimonVersionUtils";
-import { applyLazyUpdate } from "../logic/stats/stats";
 import { evaluateDeathConditions } from "../logic/stats/death";
 
 const MAX_VISIBLE_STATUS_CHIPS = 2;
@@ -14,7 +13,7 @@ const SLOT_STATUS_DEFINITIONS = [
     id: "dead",
     label: "사망",
     tone: "danger",
-    isActive: (stats) => Boolean(stats.isDead || stats.deathReason || stats.diedAt),
+    isActive: (stats) => Boolean(stats.isDead),
   },
   {
     id: "frozen",
@@ -45,29 +44,11 @@ const SLOT_STATUS_DEFINITIONS = [
   },
 ];
 
-function resolveLastSavedAt(slot = {}, stats = {}) {
-  const sourceSlot = slot || {};
-  const sourceStats = stats || {};
-
-  return (
-    sourceSlot.lastSavedAtServer ||
-    sourceSlot.lastSavedAt ||
-    sourceStats.lastSavedAtServer ||
-    sourceStats.lastSavedAt ||
-    null
-  );
-}
-
 function getProjectedStats(slot) {
-  const stats = slot?.digimonStats || {};
-  const hasStoredDeathSignal = Boolean(stats.isDead || stats.deathReason || stats.diedAt);
-  const lastSavedAt = resolveLastSavedAt(slot, stats);
-  const projectedStats = lastSavedAt
-    ? applyLazyUpdate(stats, lastSavedAt)
-    : { ...stats };
+  const projectedStats = slot?.projectedDigimonStats || slot?.digimonStats || {};
   const deathEvaluation = evaluateDeathConditions(projectedStats);
 
-  if (hasStoredDeathSignal || deathEvaluation.isDead) {
+  if (deathEvaluation.isDead) {
     return {
       ...projectedStats,
       isDead: true,

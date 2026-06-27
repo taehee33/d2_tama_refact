@@ -15,6 +15,7 @@ import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
 import { sortSlotsByRecentActivity } from "../utils/slotRecency";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
+import { buildPlayHubProjectedSlot } from "../utils/playHubSlotProjection";
 import { toEpochMs } from "../utils/time";
 
 function normalizeSlotOrder(slots) {
@@ -63,10 +64,12 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
       );
 
       const normalizedSlots = normalizeSlotOrder(
-        loadedSlots.map((slot) => ({
-          ...slot,
-          isFrozen: slot.digimonStats?.isFrozen || false,
-        }))
+        loadedSlots.map((slot) =>
+          buildPlayHubProjectedSlot({
+            ...slot,
+            isFrozen: slot.digimonStats?.isFrozen || false,
+          })
+        )
       );
 
       setSlots(normalizedSlots);
