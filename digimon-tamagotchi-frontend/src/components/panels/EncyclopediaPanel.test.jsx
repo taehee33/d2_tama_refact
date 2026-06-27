@@ -49,7 +49,7 @@ describe("EncyclopediaPanel", () => {
     });
   });
 
-  it("물음표 표시가 켜진 미발견 항목은 기존처럼 스프라이트를 흐리게 보여준다", async () => {
+  it("개발자 모드에서는 물음표 표시가 켜져도 미발견 항목을 공개한다", async () => {
     render(
       <EncyclopediaPanel developerMode encyclopediaShowQuestionMark />
     );
@@ -59,13 +59,14 @@ describe("EncyclopediaPanel", () => {
     );
 
     expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
-      filter: "blur(8px) grayscale(100%)",
-      opacity: "0.5",
+      filter: "none",
+      opacity: "1",
     });
-    expect(screen.getAllByText("???").length).toBeGreaterThan(0);
+    expect(screen.getByText("아구몬")).toBeInTheDocument();
+    expect(screen.getAllByText("성장기").length).toBeGreaterThan(0);
   });
 
-  it("개발자 모드에서 물음표 표시를 끄면 미발견 항목을 공개한다", async () => {
+  it("개발자 모드에서는 물음표 표시가 꺼져도 미발견 항목을 공개한다", async () => {
     render(
       <EncyclopediaPanel developerMode encyclopediaShowQuestionMark={false} />
     );
@@ -76,6 +77,24 @@ describe("EncyclopediaPanel", () => {
 
     expect(screen.getByRole("img", { name: "아구몬" })).toBeInTheDocument();
     expect(screen.getByText("아구몬")).toBeInTheDocument();
+  });
+
+  it("개발자 모드가 꺼져 있으면 미발견 항목을 흐리게 잠근다", async () => {
+    render(
+      <EncyclopediaPanel developerMode={false} encyclopediaShowQuestionMark />
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
+    );
+
+    expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
+      filter: "blur(8px) grayscale(100%)",
+      opacity: "0.5",
+    });
+    expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
+    expect(screen.getAllByText("???").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("🔒").length).toBeGreaterThan(0);
   });
 
   it("도감 저장 실패 시 Firestore 단계 정보를 포함해 보여준다", async () => {

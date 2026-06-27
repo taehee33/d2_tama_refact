@@ -214,8 +214,7 @@ function EncyclopediaPanel({
             const digimonKey = digimon.listKey || digimon.id || digimon.name;
             const discoveredData = getEncyclopediaEntry(versionData, digimonKey);
             const isDiscovered = discoveredData?.isDiscovered === true;
-            const showAsDiscovered =
-              isDiscovered || (developerMode && !encyclopediaShowQuestionMark);
+            const showAsDiscovered = isDiscovered || developerMode;
 
             return (
               <button
