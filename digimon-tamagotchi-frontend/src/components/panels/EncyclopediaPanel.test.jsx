@@ -49,6 +49,32 @@ describe("EncyclopediaPanel", () => {
     });
   });
 
+  it("물음표 표시가 켜진 미발견 항목은 실제 스프라이트를 노출하지 않는다", async () => {
+    render(
+      <EncyclopediaPanel developerMode encyclopediaShowQuestionMark />
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
+    );
+
+    expect(screen.queryByRole("img", { name: "아구몬" })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText("미발견 디지몬").length).toBeGreaterThan(0);
+  });
+
+  it("개발자 모드에서 물음표 표시를 끄면 미발견 항목을 공개한다", async () => {
+    render(
+      <EncyclopediaPanel developerMode encyclopediaShowQuestionMark={false} />
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
+    );
+
+    expect(screen.getByRole("img", { name: "아구몬" })).toBeInTheDocument();
+    expect(screen.getByText("아구몬")).toBeInTheDocument();
+  });
+
   it("도감 저장 실패 시 Firestore 단계 정보를 포함해 보여준다", async () => {
     useAuth.mockReturnValue({
       currentUser: { uid: "tester" },

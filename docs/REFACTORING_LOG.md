@@ -6558,3 +6558,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
   - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
 - **근거:** 사용자가 슬롯 저장 성공 여부와 긴급 알림/Discord 전송 성공 여부를 서로 다른 운영 상태로 이해할 수 있게 한다.
+
+## [2026-06-27] 도감 미발견 물음표 표시 보정
+
+- **내용:** 도감 물음표 표시가 켜진 미발견 항목에서 실제 디지몬 스프라이트를 blur 처리로 노출하지 않고 공통 물음표 플레이스홀더를 표시하도록 수정했다. 개발자 모드에서 물음표 표시를 끄면 기존처럼 미발견 항목을 공개한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
+- **근거:** `???` 텍스트와 잠금 아이콘만으로는 실제 스프라이트 실루엣이 남아 미발견 항목의 정체가 일부 드러나므로, 물음표 모드의 숨김 의미를 일관되게 맞춘다.

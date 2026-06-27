@@ -216,6 +216,7 @@ function EncyclopediaPanel({
             const isDiscovered = discoveredData?.isDiscovered === true;
             const showAsDiscovered =
               isDiscovered || (developerMode && !encyclopediaShowQuestionMark);
+            const showQuestionMarkPlaceholder = !showAsDiscovered && encyclopediaShowQuestionMark;
 
             return (
               <button
@@ -233,16 +234,25 @@ function EncyclopediaPanel({
                     : "cursor-not-allowed border-slate-300 bg-slate-100 opacity-70"
                 }`}
               >
-                <img
-                  src={`${digimon.spriteBasePath || "/images"}/${digimon.sprite || 0}.png`}
-                  alt={digimon.name || digimonKey}
-                  className="h-16 w-16"
-                  style={{
-                    imageRendering: "pixelated",
-                    filter: showAsDiscovered ? "none" : "blur(8px) grayscale(100%)",
-                    opacity: showAsDiscovered ? 1 : 0.5,
-                  }}
-                />
+                {showQuestionMarkPlaceholder ? (
+                  <div
+                    aria-label="미발견 디지몬"
+                    className="flex h-16 w-16 items-center justify-center rounded-xl border border-slate-300 bg-slate-200 text-3xl font-black text-slate-500"
+                  >
+                    ?
+                  </div>
+                ) : (
+                  <img
+                    src={`${digimon.spriteBasePath || "/images"}/${digimon.sprite || 0}.png`}
+                    alt={digimon.name || digimonKey}
+                    className="h-16 w-16"
+                    style={{
+                      imageRendering: "pixelated",
+                      filter: showAsDiscovered ? "none" : "blur(8px) grayscale(100%)",
+                      opacity: showAsDiscovered ? 1 : 0.5,
+                    }}
+                  />
+                )}
                 <div className="text-sm font-bold">
                   {showAsDiscovered ? digimon.name || digimonKey : "???"}
                 </div>
