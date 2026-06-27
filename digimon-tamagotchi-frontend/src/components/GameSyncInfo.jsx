@@ -54,7 +54,10 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
     return (
       <section className="game-sync-info mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left" data-testid="game-sync-info">
         <h3 className="text-xs font-bold text-slate-700">저장 및 동기화</h3>
-        <p className="mt-1 text-xs font-semibold text-amber-700">로컬 모드 · 이 기기에 저장됨</p>
+        <p className="mt-1 text-xs font-semibold text-amber-700">현재 슬롯 · 이 기기에 저장됨</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+          이 카드는 현재 슬롯과 활동 기록 저장 상태만 표시합니다.
+        </p>
       </section>
     );
   }
@@ -73,55 +76,58 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
   return (
     <section className={`game-sync-info mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left ${compact ? "game-sync-info--compact" : ""}`} data-testid="game-sync-info">
       <h3 className="text-xs font-bold text-slate-700">저장 및 동기화</h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+        현재 슬롯 저장과 활동 기록 전송 상태입니다. 긴급 알림 계산과 Discord 전송 상태는 설정 화면에서 확인합니다.
+      </p>
       <dl className="mt-2 space-y-1 text-xs text-slate-600">
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>게임 상태</dt>
+          <dt>현재 슬롯 저장</dt>
           <dd className="font-semibold text-slate-800">{STATE_LABELS[stateSyncStatus] || STATE_LABELS.synced}</dd>
         </div>
         {stateSyncStatus === "synced" && stateCountdown ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>다음 정기 저장</dt>
+            <dt>다음 슬롯 저장</dt>
             <dd>{stateCountdown}</dd>
           </div>
         ) : null}
         {stateSyncStatus === "local" && retryCountdown ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>상태 재전송</dt>
+            <dt>슬롯 재전송</dt>
             <dd>{retryCountdown}</dd>
           </div>
         ) : null}
         {lastStateSyncedText ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>마지막 서버 저장</dt>
+            <dt>마지막 슬롯 저장</dt>
             <dd>{lastStateSyncedText}</dd>
           </div>
         ) : null}
         {stateSyncError ? (
           <div className="flex flex-wrap justify-between gap-2 text-rose-700">
-            <dt>상태 오류</dt>
+            <dt>슬롯 저장 오류</dt>
             <dd className="max-w-[70%] text-right">{stateSyncError}</dd>
           </div>
         ) : null}
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>활동 기록{pendingRecordCount > 0 ? ` (${pendingRecordCount})` : ""}</dt>
+          <dt>활동 기록 전송{pendingRecordCount > 0 ? ` (${pendingRecordCount})` : ""}</dt>
           <dd className="font-semibold text-slate-800">{recordLabel}</dd>
         </div>
         {lastRecordSyncedText ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>마지막 기록 동기화</dt>
+            <dt>마지막 활동 기록 전송</dt>
             <dd>{lastRecordSyncedText}</dd>
           </div>
         ) : null}
         {recordSyncError ? (
           <div className="flex flex-wrap justify-between gap-2 text-rose-700">
-            <dt>기록 오류</dt>
+            <dt>활동 기록 오류</dt>
             <dd className="max-w-[70%] text-right">{recordSyncError}</dd>
           </div>
         ) : null}
       </dl>
       {!compact ? (
         <p className="mt-2 border-t border-slate-200 pt-2 text-[11px] leading-relaxed text-slate-500">
-          중요한 행동은 즉시 이 기기에 보존하고 서버 저장을 시도합니다. 일반 먹이 기록은 15분 단위로 묶어 전송합니다. 앱 종료로 전송하지 못한 내용은 다음 실행 때 자동으로 이어서 전송합니다.
+          중요한 행동은 즉시 이 기기에 보존하고 슬롯 저장을 시도합니다. 일반 먹이 기록은 15분 단위로 묶어 전송합니다. 앱 종료로 전송하지 못한 내용은 다음 실행 때 자동으로 이어서 전송합니다.
         </p>
       ) : null}
     </section>

@@ -653,13 +653,13 @@ function AccountSettingsPanel({
         <div className="service-field">
           <span>알림 상태</span>
           <p className="service-muted">
-            게임 긴급 알림과 커뮤니티 댓글 알림의 연결 상태를 확인합니다.
+            10분 긴급 알림 계산, Discord 전송 결과, 인앱 알림 저장 상태를 확인합니다. 현재 슬롯 저장 상태는 게임 화면의 저장 및 동기화 카드에서 확인합니다.
           </p>
         </div>
 
         <div className="service-settings-summary md:grid-cols-2">
           <div className="service-key-value">
-            <p className="service-section-label">수신 설정</p>
+            <p className="service-section-label">알림 수신 설정</p>
             <strong>
               {isNotificationEnabled ? "알림 켜짐" : "알림 꺼짐"}
             </strong>
@@ -668,14 +668,14 @@ function AccountSettingsPanel({
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">마지막 Discord 결과</p>
+            <p className="service-section-label">마지막 Discord 전송</p>
             <strong>{getDiscordResultLabel(lastDiscordResult)}</strong>
             <p className="service-muted">
               {formatDateTime(lastDiscordResult?.at)}
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">마지막 서버 검사</p>
+            <p className="service-section-label">마지막 긴급 알림 계산</p>
             <strong>{getUrgentCheckLabel(urgentCheck)}</strong>
             <p className="service-muted">
               {formatDateTime(urgentCheck?.checkedAt)}
@@ -685,7 +685,7 @@ function AccountSettingsPanel({
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">10분 계산 대상</p>
+            <p className="service-section-label">10분 긴급 계산 대상</p>
             <strong>
               {projectionSummary.projectedSlots || 0} / {projectionSummary.totalSlots || 0} 슬롯
             </strong>

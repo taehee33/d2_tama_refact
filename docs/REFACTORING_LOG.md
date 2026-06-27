@@ -6526,3 +6526,13 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
   - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
 - **근거:** 게임 화면은 수면 중 배고픔/기력 호출을 일시정지로 표시하는데, 알림 서버가 이를 일반 10분 데드라인으로 보내 사용자에게 서로 다른 상태를 보여주던 문제를 맞춘다.
+
+## [2026-06-27] 저장 상태와 알림 상태 문구 구분
+
+- **내용:** 게임 화면의 `저장 및 동기화` 카드는 현재 슬롯 저장과 활동 기록 전송 상태만 다룬다는 설명을 추가하고, 설정 화면의 `알림 상태`는 10분 긴급 알림 계산, Discord 전송 결과, 인앱 알림 저장 상태를 확인하는 영역임을 명확히 했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.test.jsx`
+- **근거:** 사용자가 슬롯 저장 성공 여부와 긴급 알림/Discord 전송 성공 여부를 서로 다른 운영 상태로 이해할 수 있게 한다.

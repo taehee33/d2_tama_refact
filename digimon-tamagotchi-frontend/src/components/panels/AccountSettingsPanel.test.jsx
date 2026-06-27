@@ -192,7 +192,10 @@ describe("AccountSettingsPanel", () => {
 
     await waitFor(() => expect(screen.getByText("알림 상태")).toBeInTheDocument());
 
+    expect(screen.getByText(/10분 긴급 알림 계산, Discord 전송 결과, 인앱 알림 저장 상태/)).toBeInTheDocument();
     expect(screen.getByText("알림 꺼짐")).toBeInTheDocument();
+    expect(screen.getByText("마지막 Discord 전송")).toBeInTheDocument();
+    expect(screen.getByText("마지막 긴급 알림 계산")).toBeInTheDocument();
     expect(screen.getByText("검사 이력 없음")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 슬롯")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "테스트 알림 보내기" })).toBeInTheDocument();

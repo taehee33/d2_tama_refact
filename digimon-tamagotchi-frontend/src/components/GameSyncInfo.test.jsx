@@ -31,9 +31,12 @@ describe("GameSyncInfo", () => {
     expect(screen.getByText("서버 저장 완료")).toBeInTheDocument();
     expect(screen.getByText(/15분 0초 후/)).toBeInTheDocument();
     expect(screen.getByText(/먹이 기록 요약 대기 · 14분 32초 후/)).toBeInTheDocument();
-    expect(screen.getByText("마지막 서버 저장")).toBeInTheDocument();
-    expect(screen.getByText("마지막 기록 동기화")).toBeInTheDocument();
-    expect(screen.getByText(/중요한 행동은 즉시 이 기기에 보존/)).toBeInTheDocument();
+    expect(screen.getByText("현재 슬롯 저장")).toBeInTheDocument();
+    expect(screen.getByText("마지막 슬롯 저장")).toBeInTheDocument();
+    expect(screen.getByText("활동 기록 전송 (2)")).toBeInTheDocument();
+    expect(screen.getByText("마지막 활동 기록 전송")).toBeInTheDocument();
+    expect(screen.getByText(/긴급 알림 계산과 Discord 전송 상태는 설정 화면/)).toBeInTheDocument();
+    expect(screen.getByText(/중요한 행동은 즉시 이 기기에 보존하고 슬롯 저장/)).toBeInTheDocument();
   });
 
   test("서버 저장과 기록 동기화 오류를 카드에 표시한다", () => {
@@ -52,15 +55,16 @@ describe("GameSyncInfo", () => {
     );
 
     expect(screen.getByText("서버 저장 대기")).toBeInTheDocument();
-    expect(screen.getByText("상태 오류")).toBeInTheDocument();
+    expect(screen.getByText("슬롯 저장 오류")).toBeInTheDocument();
     expect(screen.getByText("offline")).toBeInTheDocument();
-    expect(screen.getByText("기록 오류")).toBeInTheDocument();
+    expect(screen.getByText("활동 기록 오류")).toBeInTheDocument();
     expect(screen.getByText("permission denied")).toBeInTheDocument();
   });
 
   test("로컬 모드는 서버 카운트다운 없이 기기 저장 상태를 표시한다", () => {
     render(<GameSyncInfo syncInfo={{ mode: "local" }} />);
-    expect(screen.getByText("로컬 모드 · 이 기기에 저장됨")).toBeInTheDocument();
-    expect(screen.queryByText("다음 정기 저장")).not.toBeInTheDocument();
+    expect(screen.getByText("현재 슬롯 · 이 기기에 저장됨")).toBeInTheDocument();
+    expect(screen.getByText("이 카드는 현재 슬롯과 활동 기록 저장 상태만 표시합니다.")).toBeInTheDocument();
+    expect(screen.queryByText("다음 슬롯 저장")).not.toBeInTheDocument();
   });
 });
