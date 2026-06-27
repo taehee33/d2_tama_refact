@@ -172,9 +172,6 @@ function PlayHub() {
         <div className="service-hero__content">
           <p className="service-section-label">플레이 허브</p>
           <h1>{displayTamerName}님의 디지몬 보관함</h1>
-          <p>
-            새 디지몬 시작, 이어하기, 순서 정리까지 한 화면에서 바로 처리합니다.
-          </p>
           <div className="service-chip-row">
             <span className="service-badge">{`현재 ${slots.length} / 최대 ${maxSlots}`}</span>
             {showVer1Master ? (
@@ -292,11 +289,6 @@ function PlayHub() {
           <p className="service-section-label">내 디지몬</p>
           <h2>슬롯 목록</h2>
         </div>
-        {hasSlots ? (
-          <p className="service-muted">
-            순서는 저장된 `displayOrder`를 따르며, 정렬 모달에서 바로 바꿀 수 있습니다.
-          </p>
-        ) : null}
       </div>
 
       {loading ? (
