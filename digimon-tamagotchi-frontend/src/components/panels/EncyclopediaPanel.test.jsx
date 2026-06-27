@@ -49,7 +49,7 @@ describe("EncyclopediaPanel", () => {
     });
   });
 
-  it("물음표 표시가 켜진 미발견 항목은 실제 스프라이트를 노출하지 않는다", async () => {
+  it("물음표 표시가 켜진 미발견 항목은 기존처럼 스프라이트를 흐리게 보여준다", async () => {
     render(
       <EncyclopediaPanel developerMode encyclopediaShowQuestionMark />
     );
@@ -58,8 +58,11 @@ describe("EncyclopediaPanel", () => {
       expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
     );
 
-    expect(screen.queryByRole("img", { name: "아구몬" })).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText("미발견 디지몬").length).toBeGreaterThan(0);
+    expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
+      filter: "blur(8px) grayscale(100%)",
+      opacity: "0.5",
+    });
+    expect(screen.getAllByText("???").length).toBeGreaterThan(0);
   });
 
   it("개발자 모드에서 물음표 표시를 끄면 미발견 항목을 공개한다", async () => {

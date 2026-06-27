@@ -6566,3 +6566,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
 - **근거:** `???` 텍스트와 잠금 아이콘만으로는 실제 스프라이트 실루엣이 남아 미발견 항목의 정체가 일부 드러나므로, 물음표 모드의 숨김 의미를 일관되게 맞춘다.
+
+## [2026-06-28] 도감 미발견 blur 표시 복원
+
+- **내용:** 미발견 도감 항목의 공통 물음표 플레이스홀더를 철회하고, 이전처럼 실제 스프라이트를 blur/grayscale 처리해 약하게 보이도록 복원했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
+- **근거:** 미발견 상태에서도 원래의 실루엣 힌트를 유지하는 UX가 더 적합하다는 피드백을 반영한다.
