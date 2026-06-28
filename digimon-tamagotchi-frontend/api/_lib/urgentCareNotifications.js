@@ -130,6 +130,56 @@ function buildSlotTargetPath(slotId) {
   return numericSlotId ? `/play/${numericSlotId}` : "/play";
 }
 
+function normalizeSlotDocumentId(slotId) {
+  const normalized = normalizeString(slotId);
+  if (!normalized) return "";
+  return normalized.startsWith("slot") ? normalized : `slot${normalized}`;
+}
+
+function buildInAppChannelState(settings = {}) {
+  return settings.notificationChannels?.inApp === false
+    ? { status: "hidden" }
+    : { status: "stored" };
+}
+
+function buildSkippedWebPushState(reason) {
+  return {
+    status: "skipped",
+    reason,
+    sentAt: null,
+    successCount: 0,
+    failureCount: 0,
+  };
+}
+
+async function maybeSendWebPushForSettings({
+  uid,
+  title,
+  body,
+  targetPath,
+  settings = {},
+  listCollectionDocuments,
+  webPush,
+  currentTime,
+}) {
+  if (!settings.isNotificationEnabled) {
+    return buildSkippedWebPushState("disabled");
+  }
+  if (settings.notificationChannels?.webPush === false) {
+    return buildSkippedWebPushState("channel_disabled");
+  }
+
+  return sendWebPushNotification({
+    uid,
+    title,
+    body,
+    targetPath,
+    listCollectionDocuments,
+    webPush,
+    currentTime,
+  });
+}
+
 async function prepareUrgentCareNotifications({
   subscribers = [],
   getDocumentByPath,
@@ -272,23 +322,16 @@ async function prepareUrgentCareNotifications({
               getDocumentByPath,
               fetchImpl,
             }),
-            settings.isNotificationEnabled
-              ? sendWebPushNotification({
-                  uid,
-                  title: "디지몬 긴급 케어 알림",
-                  body: notificationBody,
-                  targetPath: notificationTargetPath,
-                  listCollectionDocuments,
-                  webPush,
-                  currentTime,
-                })
-              : Promise.resolve({
-                  status: "skipped",
-                  reason: "disabled",
-                  sentAt: null,
-                  successCount: 0,
-                  failureCount: 0,
-                }),
+            maybeSendWebPushForSettings({
+              uid,
+              title: "디지몬 긴급 케어 알림",
+              body: notificationBody,
+              targetPath: notificationTargetPath,
+              settings,
+              listCollectionDocuments,
+              webPush,
+              currentTime,
+            }),
           ]);
           writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
             uid,
@@ -312,7 +355,7 @@ async function prepareUrgentCareNotifications({
               issueKeys: nextIssueKeys,
             },
             channelState: {
-              inApp: { status: "stored" },
+              inApp: buildInAppChannelState(settings),
               discord: discordState,
               webPush: webPushState,
             },
@@ -366,6 +409,244 @@ async function prepareUrgentCareNotifications({
   }
   if (!dryRun && writes.length) await commitInBatches(writes, commit);
   return { ok: true, dryRun, generatedAt: formatKstDate(nowMs), summary, reports };
+}
+
+async function evaluateUrgentCareSlotNotification({
+  uid,
+  slotId,
+  getDocumentByPath,
+  listCollectionDocuments,
+  listPendingDeliveryDocuments = async () => [],
+  commit,
+  fetchImpl = globalThis.fetch,
+  webPush = undefined,
+  currentTime = new Date(),
+  dryRun = false,
+}) {
+  const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  const normalizedSlotId = normalizeSlotDocumentId(slotId);
+  if (!uid || !normalizedSlotId) {
+    const error = new Error("즉시 알림을 평가할 사용자와 슬롯 ID가 필요합니다.");
+    error.status = 400;
+    throw error;
+  }
+
+  const [settingsDocument, rootDocument, slotDocument, pendingDocuments] = await Promise.all([
+    getDocumentByPath(`users/${uid}/settings/main`),
+    getDocumentByPath(`users/${uid}`),
+    getDocumentByPath(`users/${uid}/slots/${normalizedSlotId}`),
+    listPendingDeliveryDocuments(nowMs),
+  ]);
+  const settings = resolveNotificationSettings(
+    settingsDocument?.data || {},
+    rootDocument?.data || {}
+  );
+
+  if (!settings.isNotificationEnabled) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "disabled",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+    };
+  }
+  if (!slotDocument) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "missing_slot",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+    };
+  }
+
+  const slotData = slotDocument.data || {};
+  if (slotData.notificationEligible !== true) {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "not_eligible",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+    };
+  }
+
+  const statePath = `users/${uid}/notificationState/${normalizedSlotId}`;
+  const stateDocument = await getDocumentByPath(statePath);
+  const activeIssueKeys = Array.isArray(stateDocument?.data?.activeIssueKeys)
+    ? stateDocument.data.activeIssueKeys
+    : [];
+  const writes = [];
+
+  if (isStoredInCareStorage(slotData)) {
+    if (activeIssueKeys.length && !dryRun) {
+      writes.push(createSetWrite(statePath, {
+        activeIssueKeys: [],
+        lastAcknowledgedAt: stateDocument?.data?.lastAcknowledgedAt || null,
+        updatedAt: nowMs,
+      }));
+      await commitInBatches(writes, commit);
+    }
+    return {
+      ok: true,
+      status: "skipped",
+      reason: "stored",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+    };
+  }
+
+  const projection = projectSlotForUrgentCare(slotData, nowMs);
+  if (projection.status !== "projected") {
+    return {
+      ok: true,
+      status: "skipped",
+      reason: projection.reason || projection.status || "projection_unavailable",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+    };
+  }
+
+  const issues = resolveUrgentIssues(projection.stats, slotData, nowMs);
+  const currentKeys = issues.map((issue) => issue.key);
+  const retainedActiveKeys = activeIssueKeys.filter((key) => currentKeys.includes(key));
+  const newIssues = issues.filter((issue) => !retainedActiveKeys.includes(issue.key));
+
+  if (retainedActiveKeys.length !== activeIssueKeys.length && !dryRun) {
+    writes.push(createSetWrite(statePath, {
+      activeIssueKeys: retainedActiveKeys,
+      lastAcknowledgedAt: stateDocument?.data?.lastAcknowledgedAt || null,
+      updatedAt: nowMs,
+    }));
+  }
+  if (!newIssues.length) {
+    if (!dryRun && writes.length) await commitInBatches(writes, commit);
+    return {
+      ok: true,
+      status: "clear",
+      reason: "",
+      slotId: normalizedSlotId,
+      newDeliveries: 0,
+      reusedDeliveries: 0,
+      issues: [],
+    };
+  }
+
+  const pendingBySlot = new Map();
+  pendingDocuments.forEach((document) => {
+    const data = document?.data || {};
+    if (data.status === "pending" && Number(data.expiresAt) > nowMs) {
+      pendingBySlot.set(`${data.uid}:${data.slotId}`, { id: document.id, data });
+    }
+  });
+
+  const pendingKey = `${uid}:${normalizedSlotId}`;
+  const reusable = pendingBySlot.get(pendingKey);
+  const nextIssueKeys = newIssues.map((issue) => issue.key).sort();
+  const reusableIssueKeys = [...(reusable?.data?.issueKeys || [])].sort();
+  if (reusable && JSON.stringify(nextIssueKeys) === JSON.stringify(reusableIssueKeys)) {
+    if (!dryRun && writes.length) await commitInBatches(writes, commit);
+    return {
+      ok: true,
+      status: "reused",
+      reason: "",
+      slotId: normalizedSlotId,
+      deliveryId: reusable.id,
+      newDeliveries: 0,
+      reusedDeliveries: 1,
+      issues: newIssues,
+    };
+  }
+
+  if (reusable && !dryRun) {
+    writes.push(createSetWrite(`notification_deliveries/${reusable.id}`, {
+      ...reusable.data,
+      status: "cancelled",
+      cancelledAt: nowMs,
+    }));
+  }
+
+  const deliveryId = buildDeliveryId(
+    uid,
+    normalizedSlotId,
+    nextIssueKeys,
+    stateDocument?.data?.lastAcknowledgedAt || 0
+  );
+  const digimonName = resolveDigimonDisplayName(slotData);
+  const notificationBody = buildUrgentNotificationBody(normalizedSlotId, digimonName, newIssues);
+  const notificationTargetPath = buildSlotTargetPath(normalizedSlotId);
+
+  if (!dryRun) {
+    const [discordState, webPushState] = await Promise.all([
+      maybeSendDiscordNotification({
+        uid,
+        title: "디지몬 긴급 케어 알림",
+        body: notificationBody,
+        settings,
+        getDocumentByPath,
+        fetchImpl,
+      }),
+      maybeSendWebPushForSettings({
+        uid,
+        title: "디지몬 긴급 케어 알림",
+        body: notificationBody,
+        targetPath: notificationTargetPath,
+        settings,
+        listCollectionDocuments,
+        webPush,
+        currentTime,
+      }),
+    ]);
+    writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
+      uid,
+      slotId: normalizedSlotId,
+      issueKeys: nextIssueKeys,
+      issues: newIssues,
+      slotIssues: [{ slotId: normalizedSlotId, issues: newIssues }],
+      status: "pending",
+      createdAt: nowMs,
+      expiresAt: nowMs + DELIVERY_TTL_MS,
+    }));
+    writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
+      type: "urgent_care",
+      title: "디지몬 긴급 케어 알림",
+      body: notificationBody,
+      targetPath: notificationTargetPath,
+      source: {
+        kind: "urgent_delivery",
+        deliveryId,
+        slotId: normalizedSlotId,
+        issueKeys: nextIssueKeys,
+        trigger: "immediate_slot_save",
+      },
+      channelState: {
+        inApp: buildInAppChannelState(settings),
+        discord: discordState,
+        webPush: webPushState,
+      },
+      readAt: null,
+      createdAt: nowMs,
+      updatedAt: nowMs,
+    }));
+    if (writes.length) await commitInBatches(writes, commit);
+  }
+
+  return {
+    ok: true,
+    status: "created",
+    reason: "",
+    slotId: normalizedSlotId,
+    deliveryId,
+    newDeliveries: 1,
+    reusedDeliveries: 0,
+    issues: newIssues,
+  };
 }
 
 async function saveUrgentCheckError({ error, commit, currentTime = new Date() }) {
@@ -479,6 +760,32 @@ function createUrgentCareAckHandler(deps = {}) {
   };
 }
 
+function createUrgentCareEvaluateHandler(deps = {}) {
+  return async function urgentCareEvaluateHandler(req, res) {
+    if (!allowMethods(req, res, ["POST"])) return;
+    try {
+      const { verifyRequestUser } = require("./auth");
+      const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
+      const payload = await evaluateUrgentCareSlotNotification({
+        uid: decodedToken.uid,
+        slotId: req?.body?.slotId,
+        getDocumentByPath: deps.getDocument || getDocument,
+        listCollectionDocuments: deps.listDocuments || listDocuments,
+        listPendingDeliveryDocuments: deps.listPendingDeliveryDocuments || ((nowMs) =>
+          listPendingUrgentDeliveries(nowMs, deps.runQuery || runQuery)),
+        commit: deps.commitWrites || commitWrites,
+        fetchImpl: deps.fetch || globalThis.fetch,
+        webPush: deps.webPush,
+        currentTime: (deps.getCurrentTime || (() => new Date()))(),
+        dryRun: req?.body?.dryRun === true,
+      });
+      sendJson(res, 200, payload);
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
 module.exports = {
   acknowledgeUrgentCareDeliveries,
   buildDeliveryId,
@@ -486,7 +793,9 @@ module.exports = {
   createEligibleSlotsQuery,
   createPendingDeliveriesQuery,
   createUrgentCareAckHandler,
+  createUrgentCareEvaluateHandler,
   createUrgentCarePrepareHandler,
+  evaluateUrgentCareSlotNotification,
   hasProjectionRuntime,
   listExpiredPendingUrgentDeliveries,
   listEligibleNotificationSlots,

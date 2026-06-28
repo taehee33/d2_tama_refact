@@ -10,6 +10,11 @@ const {
 const KST_TIME_ZONE = "Asia/Seoul";
 const NOTIFICATION_SECRET_HEADER = "x-d2-scheduler-secret";
 const REPORT_BORDER = "━━━━━━━━━━━━━━━━━━";
+const DEFAULT_NOTIFICATION_CHANNELS = {
+  inApp: true,
+  discord: true,
+  webPush: true,
+};
 
 function createNotificationError(status, message) {
   const error = new Error(message);
@@ -77,10 +82,22 @@ function resolveNotificationSettings(settingsData, rootData) {
   const isNotificationEnabled = hasOwnField(settingsData, "isNotificationEnabled")
     ? settingsData.isNotificationEnabled === true
     : rootData?.isNotificationEnabled === true;
+  const channelSource = hasOwnField(settingsData, "notificationChannels")
+    ? settingsData.notificationChannels
+    : rootData?.notificationChannels;
+  const notificationChannels =
+    channelSource && typeof channelSource === "object"
+      ? {
+          inApp: channelSource.inApp !== false,
+          discord: channelSource.discord !== false,
+          webPush: channelSource.webPush !== false,
+        }
+      : { ...DEFAULT_NOTIFICATION_CHANNELS };
 
   return {
     discordWebhookUrl,
     isNotificationEnabled,
+    notificationChannels,
   };
 }
 

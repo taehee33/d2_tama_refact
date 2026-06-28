@@ -2,6 +2,32 @@
 
 ## 2026-06-28
 
+### 알림 미수신 개선 v2: 즉시 평가와 채널별 토글
+- 알림 설정에 `notificationChannels.inApp`, `notificationChannels.discord`, `notificationChannels.webPush`를 추가하고, 기존 사용자에게는 모두 켜짐으로 해석되도록 기본값을 보강했습니다.
+- 알림 사건 문서는 계속 저장하되 앱 알림함 표시가 꺼진 경우 `channelState.inApp.status = "hidden"`으로 남기고 알림 센터 목록에서는 제외하도록 정리했습니다.
+- 슬롯 저장 직후 호출하는 `evaluate-slot` API를 추가해 서버가 저장된 슬롯 문서를 다시 읽고 긴급 이슈를 즉시 평가하도록 했습니다.
+- 즉시 평가도 기존 `notification_deliveries` pending 문서와 `notificationState`를 사용해 10분 예약 검사와 같은 이슈를 중복 전송하지 않도록 연결했습니다.
+- Web Push skipped reason 표시를 `missing_subscription`, `not_configured`, `send_failed`, `not_requested` 기준으로 세분화했습니다.
+- 계정 설정의 알림 상태 영역에 다음 서버 검사 예상 시간, 현재 슬롯 긴급 진단, 최근 테스트 알림 channelState 요약을 추가했습니다.
+
+### 영향받은 파일
+- `api/_lib/notificationReports.js`
+- `api/_lib/userNotifications.js`
+- `api/_lib/urgentCareNotifications.js`
+- `api/notifications/[operation].js`
+- `src/hooks/useGameData.js`
+- `src/utils/notificationApi.js`
+- `src/utils/userSettingsUtils.js`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `src/components/AccountSettingsModal.jsx`
+- `src/components/notifications/GlobalNotificationCenter.jsx`
+- `src/pages/Game.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- Firestore 실시간 타이머 write는 추가하지 않고, 기존 슬롯 저장 시점과 10분 예약 검사를 병행해 알림 지연을 줄였습니다.
+- 채널 토글은 알림 사건 생성 여부가 아니라 채널별 표시/전송 여부만 제어하게 두어 운영 로그와 장애 추적 가능성을 유지했습니다.
+
 ### 알림 채널 상태 표시와 운영 확인 기준 보강
 - 알림 센터 상단 문구를 `앱 알림함`으로 통일해 Firestore 알림 문서와 사용자-facing 알림함의 의미가 헷갈리지 않도록 정리했습니다.
 - 알림 항목의 `channelState.discord` / `channelState.webPush`가 `skipped`일 때도 `Discord 미연결`, `푸시 미연결`, `Discord 꺼짐`, `푸시 꺼짐`처럼 원인을 짧게 표시하도록 보강했습니다.

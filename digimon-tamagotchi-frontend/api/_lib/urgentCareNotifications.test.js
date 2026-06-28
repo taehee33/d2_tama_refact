@@ -9,6 +9,7 @@ const {
   createEligibleSlotsQuery,
   createExpiredPendingDeliveriesQuery,
   createPendingDeliveriesQuery,
+  evaluateUrgentCareSlotNotification,
   listEligibleNotificationSlots,
   prepareUrgentCareNotifications,
   resolveUrgentIssues,
@@ -417,4 +418,98 @@ test("deadline이 지난 호출은 케어미스 발생 구간으로 표시한다
   assert.equal(issues.length, 1);
   assert.equal(issues[0].key, "hunger_call");
   assert.ok(issues[0].detailLines.includes("케어미스 발생 구간"));
+});
+
+test("즉시 슬롯 평가는 기존 pending delivery가 같은 이슈이면 재사용한다", async () => {
+  const payload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "1",
+    currentTime: TEST_TIME,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return { id: "main", data: { isNotificationEnabled: true } };
+      }
+      if (path === "users/user-1") {
+        return { id: "user-1", data: { discordWebhookUrl: "https://discord.com/api/webhooks/1/token" } };
+      }
+      if (path === "users/user-1/slots/slot1") return createProjectedSlot();
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [
+      {
+        id: "existing-delivery",
+        data: {
+          uid: "user-1",
+          slotId: "slot1",
+          issueKeys: ["hunger_call"],
+          status: "pending",
+          expiresAt: TEST_NOW + 60_000,
+        },
+      },
+    ],
+    commit: async () => {
+      throw new Error("같은 pending delivery가 있으면 새 write를 만들면 안 됩니다.");
+    },
+  });
+
+  assert.equal(payload.status, "reused");
+  assert.equal(payload.deliveryId, "existing-delivery");
+  assert.equal(payload.reusedDeliveries, 1);
+});
+
+test("즉시 슬롯 평가는 채널 토글에 따라 hidden/skipped 상태를 알림 문서에 저장한다", async () => {
+  const writes = [];
+  const payload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "slot1",
+    currentTime: TEST_TIME,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return {
+          id: "main",
+          data: {
+            isNotificationEnabled: true,
+            discordWebhookUrl: "https://discord.com/api/webhooks/1/token",
+            notificationChannels: {
+              inApp: false,
+              discord: false,
+              webPush: false,
+            },
+          },
+        };
+      }
+      if (path === "users/user-1") return { id: "user-1", data: {} };
+      if (path === "users/user-1/slots/slot1") return createProjectedSlot();
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [],
+    fetchImpl: async () => {
+      throw new Error("Discord 채널이 꺼져 있으면 전송하지 않아야 합니다.");
+    },
+    commit: async (batch) => {
+      writes.push(...batch);
+    },
+  });
+
+  assert.equal(payload.status, "created");
+  const notificationWrite = writes.find((write) =>
+    String(write?.update?.name || "").includes("/users/user-1/notifications/urgent_")
+  );
+  assert.ok(notificationWrite);
+  assert.equal(
+    notificationWrite.update.fields.channelState.mapValue.fields.inApp.mapValue.fields.status.stringValue,
+    "hidden"
+  );
+  assert.equal(
+    notificationWrite.update.fields.channelState.mapValue.fields.discord.mapValue.fields.reason.stringValue,
+    "channel_disabled"
+  );
+  assert.equal(
+    notificationWrite.update.fields.channelState.mapValue.fields.webPush.mapValue.fields.reason.stringValue,
+    "channel_disabled"
+  );
 });

@@ -15,6 +15,7 @@ jest.mock("../firebase", () => ({
 }));
 
 const {
+  DEFAULT_NOTIFICATION_CHANNELS,
   getUserSettings,
   saveUserSettings,
 } = require("./userSettingsUtils");
@@ -49,6 +50,7 @@ describe("userSettingsUtils", () => {
     expect(result).toEqual({
       discordWebhookUrl: "https://discord.com/api/webhooks/new",
       isNotificationEnabled: true,
+      notificationChannels: DEFAULT_NOTIFICATION_CHANNELS,
       siteTheme: "notebook",
     });
   });
@@ -72,6 +74,7 @@ describe("userSettingsUtils", () => {
     expect(result).toEqual({
       discordWebhookUrl: "https://discord.com/api/webhooks/root",
       isNotificationEnabled: true,
+      notificationChannels: DEFAULT_NOTIFICATION_CHANNELS,
       siteTheme: "default",
     });
   });
@@ -80,6 +83,11 @@ describe("userSettingsUtils", () => {
     await saveUserSettings("tester", {
       discordWebhookUrl: " https://discord.com/api/webhooks/abc ",
       isNotificationEnabled: true,
+      notificationChannels: {
+        inApp: true,
+        discord: false,
+        webPush: true,
+      },
       siteTheme: "notebook",
     });
 
@@ -89,6 +97,11 @@ describe("userSettingsUtils", () => {
       expect.objectContaining({
         discordWebhookUrl: "https://discord.com/api/webhooks/abc",
         isNotificationEnabled: true,
+        notificationChannels: {
+          inApp: true,
+          discord: false,
+          webPush: true,
+        },
         siteTheme: "notebook",
         updatedAt: expect.any(Date),
       })

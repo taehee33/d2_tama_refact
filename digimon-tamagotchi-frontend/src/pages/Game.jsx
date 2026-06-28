@@ -1533,6 +1533,7 @@ function Game({ immersive = false }){
           tamerName={tamerName}
           setTamerName={setTamerName}
           refreshProfile={refreshProfile}
+          slotId={slotId}
         />
       )}
     </>

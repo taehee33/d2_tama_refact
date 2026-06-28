@@ -8,6 +8,11 @@ import { db } from "../firebase";
 const DISCORD_WEBHOOK_PREFIXES = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/"];
 const SITE_THEMES = new Set(["default", "notebook"]);
 const USER_SETTINGS_DOC_ID = "main";
+export const DEFAULT_NOTIFICATION_CHANNELS = {
+  inApp: true,
+  discord: true,
+  webPush: true,
+};
 
 function getUserRootRef(uid) {
   return doc(db, "users", uid);
@@ -18,13 +23,31 @@ function getUserSettingsRef(uid) {
 }
 
 function getDefaultUserSettings() {
-  return { discordWebhookUrl: null, isNotificationEnabled: false, siteTheme: null };
+  return {
+    discordWebhookUrl: null,
+    isNotificationEnabled: false,
+    notificationChannels: { ...DEFAULT_NOTIFICATION_CHANNELS },
+    siteTheme: null,
+  };
+}
+
+export function normalizeNotificationChannels(value) {
+  if (!value || typeof value !== "object") {
+    return { ...DEFAULT_NOTIFICATION_CHANNELS };
+  }
+
+  return {
+    inApp: value.inApp !== false,
+    discord: value.discord !== false,
+    webPush: value.webPush !== false,
+  };
 }
 
 function mapSettings(data) {
   return {
     discordWebhookUrl: data?.discordWebhookUrl ?? null,
     isNotificationEnabled: data?.isNotificationEnabled === true,
+    notificationChannels: normalizeNotificationChannels(data?.notificationChannels),
     siteTheme: normalizeSiteTheme(data?.siteTheme),
   };
 }
@@ -58,7 +81,7 @@ export function normalizeSiteTheme(themeId) {
 /**
  * 사용자 설정 가져오기 (Discord 웹훅 URL, 알림 수신 여부, 사이트 테마)
  * @param {string} uid - 사용자 ID
- * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean, siteTheme: "default"|"notebook"|null }>}
+ * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean, notificationChannels: Object, siteTheme: "default"|"notebook"|null }>}
  */
 export async function getUserSettings(uid) {
   if (!uid) {
@@ -84,15 +107,16 @@ export async function getUserSettings(uid) {
 }
 
 /**
- * Discord 웹훅 URL·알림 수신 여부·사이트 테마 저장
+ * Discord 웹훅 URL·알림 수신 여부·채널별 알림·사이트 테마 저장
  * @param {string} uid - 사용자 ID
  * @param {Object} options
  * @param {string|null} [options.discordWebhookUrl] - Discord 웹훅 URL (빈 문자열이면 null로 저장)
  * @param {boolean} [options.isNotificationEnabled] - 알림 수신 여부
+ * @param {{inApp?: boolean, discord?: boolean, webPush?: boolean}} [options.notificationChannels] - 채널별 사용 여부
  * @param {"default"|"notebook"} [options.siteTheme] - 사이트 테마
  * @returns {Promise<void>}
  */
-export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled, siteTheme }) {
+export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled, notificationChannels, siteTheme }) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
   const settingsRef = getUserSettingsRef(uid);
   const updates = { updatedAt: new Date() };
@@ -105,6 +129,9 @@ export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationE
   }
   if (isNotificationEnabled !== undefined) {
     updates.isNotificationEnabled = Boolean(isNotificationEnabled);
+  }
+  if (notificationChannels !== undefined) {
+    updates.notificationChannels = normalizeNotificationChannels(notificationChannels);
   }
   if (siteTheme !== undefined) {
     const normalizedTheme = normalizeSiteTheme(siteTheme);

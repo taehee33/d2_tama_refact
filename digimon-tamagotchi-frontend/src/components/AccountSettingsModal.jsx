@@ -8,6 +8,7 @@ function AccountSettingsModal({
   setTamerName,
   refreshProfile,
   slotCount,
+  slotId,
 }) {
   const [modalMode, setModalMode] = useState("menu");
 
@@ -68,6 +69,7 @@ function AccountSettingsModal({
           {modalMode === "settings" ? (
             <AccountSettingsPanel
               slotCount={slotCount}
+              slotId={slotId}
               tamerName={tamerName}
               setTamerName={setTamerName}
               refreshProfile={refreshProfile}

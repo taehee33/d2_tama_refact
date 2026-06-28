@@ -3,6 +3,7 @@
 const { createDailyDigimonReportHandler } = require("../_lib/notificationReports");
 const {
   createUrgentCareAckHandler,
+  createUrgentCareEvaluateHandler,
   createUrgentCarePrepareHandler,
 } = require("../_lib/urgentCareNotifications");
 const {
@@ -33,6 +34,7 @@ function createNotificationRouter(deps = {}) {
   const handlers = {
     daily: deps.dailyHandler || createDailyDigimonReportHandler(),
     prepare: deps.prepareHandler || createUrgentCarePrepareHandler(),
+    "evaluate-slot": deps.evaluateSlotHandler || createUrgentCareEvaluateHandler(),
     ack: deps.ackHandler || createUrgentCareAckHandler(),
     status: deps.statusHandler || createNotificationStatusHandler(),
     test: deps.testHandler || createTestNotificationHandler(),

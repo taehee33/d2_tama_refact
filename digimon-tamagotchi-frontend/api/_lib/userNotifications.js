@@ -26,6 +26,7 @@ const {
 
 const MAX_RECENT_NOTIFICATIONS = 10;
 const MAX_RECENT_DELIVERIES = 10;
+const URGENT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const COMMUNITY_BOARD_LABELS = {
   showcase: "자랑게시판",
   free: "자유게시판",
@@ -117,12 +118,30 @@ async function maybeSendDiscordNotification({
   fetchImpl = globalThis.fetch,
 }) {
   const resolvedSettings = settings || await resolveUserSettings(uid, getDocumentByPath);
-  if (!resolvedSettings.isNotificationEnabled || !resolvedSettings.discordWebhookUrl) {
+  if (!resolvedSettings.isNotificationEnabled) {
     return {
-      enabled: resolvedSettings.isNotificationEnabled === true,
+      enabled: false,
       connected: Boolean(resolvedSettings.discordWebhookUrl),
       status: "skipped",
-      reason: resolvedSettings.isNotificationEnabled ? "missing_webhook" : "disabled",
+      reason: "disabled",
+      sentAt: null,
+    };
+  }
+  if (resolvedSettings.notificationChannels?.discord === false) {
+    return {
+      enabled: true,
+      connected: Boolean(resolvedSettings.discordWebhookUrl),
+      status: "skipped",
+      reason: "channel_disabled",
+      sentAt: null,
+    };
+  }
+  if (!resolvedSettings.discordWebhookUrl) {
+    return {
+      enabled: true,
+      connected: false,
+      status: "skipped",
+      reason: "missing_webhook",
       sentAt: null,
     };
   }
@@ -169,6 +188,9 @@ async function createUserNotification({
   }
 
   const settings = await resolveUserSettings(uid, getDocumentByPath);
+  const inAppState = settings.notificationChannels?.inApp === false
+    ? { status: "hidden" }
+    : { status: "stored" };
   const discordState = sendDiscord
     ? await maybeSendDiscordNotification({
         uid,
@@ -179,8 +201,33 @@ async function createUserNotification({
         fetchImpl,
       })
     : { status: "skipped", reason: "not_requested", sentAt: null };
-  const webPushState = sendWebPush && settings.isNotificationEnabled
-    ? await sendWebPushNotification({
+  let webPushState;
+  if (!sendWebPush) {
+    webPushState = {
+      status: "skipped",
+      reason: "not_requested",
+      sentAt: null,
+      successCount: 0,
+      failureCount: 0,
+    };
+  } else if (!settings.isNotificationEnabled) {
+    webPushState = {
+      status: "skipped",
+      reason: "disabled",
+      sentAt: null,
+      successCount: 0,
+      failureCount: 0,
+    };
+  } else if (settings.notificationChannels?.webPush === false) {
+    webPushState = {
+      status: "skipped",
+      reason: "channel_disabled",
+      sentAt: null,
+      successCount: 0,
+      failureCount: 0,
+    };
+  } else {
+    webPushState = await sendWebPushNotification({
         uid,
         title,
         body,
@@ -188,14 +235,8 @@ async function createUserNotification({
         listCollectionDocuments,
         webPush,
         currentTime,
-      })
-    : {
-        status: "skipped",
-        reason: settings.isNotificationEnabled ? "not_requested" : "disabled",
-        sentAt: null,
-        successCount: 0,
-        failureCount: 0,
-      };
+      });
+  }
   const notification = buildUserNotification({
     uid,
     type,
@@ -205,7 +246,7 @@ async function createUserNotification({
     source,
     channelState: {
       discord: discordState,
-      inApp: { status: "stored" },
+      inApp: inAppState,
       webPush: webPushState,
     },
     currentTime,
@@ -304,6 +345,10 @@ function mapNotificationDocument(document) {
   };
 }
 
+function isVisibleInAppNotification(notification) {
+  return notification?.channelState?.inApp?.status !== "hidden";
+}
+
 function normalizeNotificationIds(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -332,6 +377,7 @@ async function markUserNotificationsRead({
     const notificationDocuments = await listCollectionDocuments(`users/${uid}/notifications`).catch(() => []);
     targetIds = notificationDocuments
       .map(mapNotificationDocument)
+      .filter(isVisibleInAppNotification)
       .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt))
       .slice(0, MAX_RECENT_NOTIFICATIONS)
       .filter((notification) => !notification.readAt)
@@ -451,6 +497,7 @@ async function buildProjectionSummary({ uid, listCollectionDocuments = listDocum
 
 async function getUserNotificationStatus({
   uid,
+  slotId = "",
   getDocumentByPath = getDocument,
   listCollectionDocuments = listDocuments,
   runFirestoreQuery = runQuery,
@@ -475,8 +522,12 @@ async function getUserNotificationStatus({
 
   const recentNotifications = notificationDocuments
     .map(mapNotificationDocument)
+    .filter(isVisibleInAppNotification)
     .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt))
     .slice(0, MAX_RECENT_NOTIFICATIONS);
+  const allNotifications = notificationDocuments
+    .map(mapNotificationDocument)
+    .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt));
   const recentDeliveries = deliveryDocuments.map((document) => ({
     id: document.id,
     status: normalizeString(document.data?.status, "unknown"),
@@ -495,6 +546,7 @@ async function getUserNotificationStatus({
   return {
     settings: {
       isNotificationEnabled: settings.isNotificationEnabled === true,
+      notificationChannels: settings.notificationChannels,
       hasDiscordWebhook: Boolean(settings.discordWebhookUrl),
       hasWebPushSubscription: activePushSubscriptionCount > 0,
       activePushSubscriptionCount,
@@ -507,7 +559,79 @@ async function getUserNotificationStatus({
     },
     recentNotifications,
     urgentCheck: mapUrgentCheckStatus(urgentCheckDocument),
+    diagnostics: {
+      nextUrgentCheckAt: urgentCheckDocument?.data?.checkedAt
+        ? normalizeTimestampMs(urgentCheckDocument.data.checkedAt) + URGENT_CHECK_INTERVAL_MS
+        : null,
+      latestTestNotification:
+        allNotifications.find((notification) => notification.type === "system_test") || null,
+      currentSlot: slotId
+        ? await buildCurrentSlotUrgentDiagnostics({
+            uid,
+            slotId,
+            getDocumentByPath,
+            currentTime,
+          })
+        : null,
+    },
   };
+}
+
+async function buildCurrentSlotUrgentDiagnostics({
+  uid,
+  slotId,
+  getDocumentByPath = getDocument,
+  currentTime = new Date(),
+}) {
+  const normalizedSlotId = normalizeString(slotId);
+  if (!normalizedSlotId) {
+    return null;
+  }
+
+  try {
+    const { isStoredInCareStorage, projectSlotForUrgentCare } = require("./urgentCareProjection");
+    const { resolveUrgentIssues } = require("./urgentCareProjection");
+    const nowMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+    const slotDocument = await getDocumentByPath(`users/${uid}/slots/${normalizedSlotId}`);
+    const slotData = slotDocument?.data || {};
+
+    if (!slotDocument) {
+      return { slotId: normalizedSlotId, status: "missing", issues: [] };
+    }
+    if (slotData.notificationEligible !== true) {
+      return { slotId: normalizedSlotId, status: "not_eligible", issues: [] };
+    }
+    if (isStoredInCareStorage(slotData)) {
+      return { slotId: normalizedSlotId, status: "stored", issues: [] };
+    }
+
+    const projection = projectSlotForUrgentCare(slotData, nowMs);
+    if (projection.status !== "projected") {
+      return {
+        slotId: normalizedSlotId,
+        status: projection.status || "projection_unavailable",
+        reason: projection.reason || "",
+        issues: [],
+      };
+    }
+
+    const issues = resolveUrgentIssues(projection.stats, slotData, nowMs).map((issue) => ({
+      key: issue.key,
+      label: issue.label || issue.title || issue.key,
+    }));
+    return {
+      slotId: normalizedSlotId,
+      status: issues.length ? "urgent" : "clear",
+      issues,
+    };
+  } catch (error) {
+    return {
+      slotId: normalizedSlotId,
+      status: "error",
+      reason: error?.message || "현재 슬롯 진단에 실패했습니다.",
+      issues: [],
+    };
+  }
 }
 
 function createNotificationStatusHandler(deps = {}) {
@@ -519,6 +643,7 @@ function createNotificationStatusHandler(deps = {}) {
       const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
       const payload = await getUserNotificationStatus({
         uid: decodedToken.uid,
+        slotId: normalizeString(req.query?.slotId),
         getDocumentByPath: deps.getDocument || getDocument,
         listCollectionDocuments: deps.listDocuments || listDocuments,
         runFirestoreQuery: deps.runQuery || runQuery,

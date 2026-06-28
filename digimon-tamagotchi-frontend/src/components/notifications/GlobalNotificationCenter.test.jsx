@@ -134,7 +134,7 @@ describe("GlobalNotificationCenter", () => {
           channelState: {
             inApp: { status: "stored" },
             discord: { status: "skipped", reason: "missing_webhook" },
-            webPush: { status: "skipped", reason: "no_active_subscription" },
+            webPush: { status: "skipped", reason: "missing_subscription" },
           },
         },
       ],
@@ -145,6 +145,27 @@ describe("GlobalNotificationCenter", () => {
     fireEvent.click(await screen.findByRole("button", { name: "알림" }));
 
     expect(await screen.findByText("앱 알림함 · Discord 미연결 · 푸시 미연결")).toBeInTheDocument();
+  });
+
+  test("푸시 설정 누락 스킵 상태를 알림 항목에 표시한다", async () => {
+    mockGetNotificationStatus.mockResolvedValue(createStatus({
+      recentNotifications: [
+        {
+          ...createStatus().recentNotifications[0],
+          readAt: Date.parse("2026-06-25T00:01:00.000Z"),
+          channelState: {
+            inApp: { status: "stored" },
+            webPush: { status: "skipped", reason: "not_configured" },
+          },
+        },
+      ],
+    }));
+
+    render(<GlobalNotificationCenter />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "알림" }));
+
+    expect(await screen.findByText("앱 알림함 · 푸시 설정 누락")).toBeInTheDocument();
   });
 
   test("통합 전 Discord 전송 기록이 없는 알림은 기록 없음으로 표시한다", async () => {

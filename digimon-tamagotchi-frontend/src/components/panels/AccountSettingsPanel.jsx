@@ -13,8 +13,10 @@ import {
   withNormalizationNotice,
 } from "../../utils/tamerNameUtils";
 import {
+  DEFAULT_NOTIFICATION_CHANNELS,
   getUserSettings,
   isValidDiscordWebhookUrl,
+  normalizeNotificationChannels,
   saveUserSettings,
 } from "../../utils/userSettingsUtils";
 import {
@@ -77,6 +79,7 @@ function getDefaultNotificationStatus() {
       hasDiscordWebhook: false,
       hasWebPushSubscription: false,
       activePushSubscriptionCount: 0,
+      notificationChannels: { ...DEFAULT_NOTIFICATION_CHANNELS },
     },
     projection: {
       totalSlots: 0,
@@ -92,6 +95,11 @@ function getDefaultNotificationStatus() {
     },
     recentNotifications: [],
     urgentCheck: null,
+    diagnostics: {
+      nextUrgentCheckAt: null,
+      latestTestNotification: null,
+      currentSlot: null,
+    },
   };
 }
 
@@ -163,8 +171,47 @@ function getUrgentCheckSummary(urgentCheck) {
   return `계산 제외 ${urgentCheck.projectionUnavailable || 0}개 · 만료 정리 ${urgentCheck.expiredDeliveries || 0}개`;
 }
 
+function getCurrentSlotDiagnosticLabel(currentSlot) {
+  if (!currentSlot) {
+    return "현재 슬롯 정보 없음";
+  }
+  if (currentSlot.status === "urgent") {
+    return `긴급 이슈 ${currentSlot.issues?.length || 0}건`;
+  }
+  if (currentSlot.status === "clear") {
+    return "긴급 이슈 없음";
+  }
+  if (currentSlot.status === "not_eligible") {
+    return "계산 대상 아님";
+  }
+  if (currentSlot.status === "stored") {
+    return "보관함 제외";
+  }
+  if (currentSlot.status === "missing") {
+    return "슬롯 문서 없음";
+  }
+  if (currentSlot.status === "error") {
+    return "진단 오류";
+  }
+  return currentSlot.reason || currentSlot.status || "진단 불가";
+}
+
+function safeNormalizeNotificationChannels(channels) {
+  return normalizeNotificationChannels(channels) || { ...DEFAULT_NOTIFICATION_CHANNELS };
+}
+
+function getChannelSummary(channels) {
+  const normalized = safeNormalizeNotificationChannels(channels);
+  return [
+    normalized.inApp ? "앱 표시" : "앱 숨김",
+    normalized.discord ? "Discord 켜짐" : "Discord 꺼짐",
+    normalized.webPush ? "푸시 켜짐" : "푸시 꺼짐",
+  ].join(" · ");
+}
+
 function AccountSettingsPanel({
   slotCount,
+  slotId = "",
   tamerName: parentTamerName = "",
   setTamerName: setTamerNameParent,
   refreshProfile,
@@ -184,6 +231,9 @@ function AccountSettingsPanel({
   const [maxSlots, setMaxSlots] = useState(10);
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState("");
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(false);
+  const [notificationChannels, setNotificationChannels] = useState({
+    ...DEFAULT_NOTIFICATION_CHANNELS,
+  });
   const [discordSettingsLoading, setDiscordSettingsLoading] = useState(false);
   const [discordSettingsMessage, setDiscordSettingsMessage] = useState("");
   const [notificationStatus, setNotificationStatus] = useState(getDefaultNotificationStatus);
@@ -219,7 +269,7 @@ function AccountSettingsPanel({
           getTamerName(currentUser.uid, getDefaultTamerName(currentUser)),
           getUserSettings(currentUser.uid),
           getAchievementsAndMaxSlots(currentUser.uid),
-          getNotificationStatus(currentUser).catch((error) => {
+          getNotificationStatus(currentUser, { slotId }).catch((error) => {
             console.warn("알림 상태 로드 오류:", error);
             return null;
           }),
@@ -234,6 +284,9 @@ function AccountSettingsPanel({
         setTamerNameInput(nextTamerName);
         setDiscordWebhookUrl(settings.discordWebhookUrl || "");
         setIsNotificationEnabled(settings.isNotificationEnabled === true);
+        setNotificationChannels(
+          safeNormalizeNotificationChannels(settings.notificationChannels)
+        );
         setAchievements(profile.achievements || []);
         setMaxSlots(profile.maxSlots ?? 10);
         setNotificationStatus(loadedNotificationStatus || getDefaultNotificationStatus());
@@ -265,7 +318,15 @@ function AccountSettingsPanel({
     return () => {
       isMounted = false;
     };
-  }, [currentUser]);
+  }, [currentUser, slotId]);
+
+  const updateNotificationChannel = (channelName, checked) => {
+    setNotificationChannels((previous) => ({
+      ...safeNormalizeNotificationChannels(previous),
+      [channelName]: checked,
+    }));
+    setDiscordSettingsMessage("");
+  };
 
   const syncProfileState = async (nextTamerName) => {
     if (typeof setTamerNameParent === "function") {
@@ -409,9 +470,10 @@ function AccountSettingsPanel({
       await saveUserSettings(currentUser.uid, {
         discordWebhookUrl: urlTrimmed || null,
         isNotificationEnabled,
+        notificationChannels: safeNormalizeNotificationChannels(notificationChannels),
       });
-      setDiscordSettingsMessage("Discord 알림 설정이 저장되었습니다.");
-      const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+      setDiscordSettingsMessage("알림 설정이 저장되었습니다.");
+      const nextNotificationStatus = await getNotificationStatus(currentUser, { slotId }).catch(() => null);
       if (nextNotificationStatus) {
         setNotificationStatus(nextNotificationStatus);
         setNotificationStatusMessage("");
@@ -433,7 +495,7 @@ function AccountSettingsPanel({
 
     try {
       await sendTestNotification(currentUser);
-      const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+      const nextNotificationStatus = await getNotificationStatus(currentUser, { slotId }).catch(() => null);
       if (nextNotificationStatus) {
         setNotificationStatus(nextNotificationStatus);
       }
@@ -446,7 +508,7 @@ function AccountSettingsPanel({
   };
 
   const refreshNotificationStatus = async () => {
-    const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+    const nextNotificationStatus = await getNotificationStatus(currentUser, { slotId }).catch(() => null);
     if (nextNotificationStatus) {
       setNotificationStatus(nextNotificationStatus);
       setNotificationStatusMessage("");
@@ -524,6 +586,13 @@ function AccountSettingsPanel({
   const urgentCheck = notificationStatus.urgentCheck || null;
   const hasUnavailableSlots = Number(projectionSummary.projectionUnavailable || 0) > 0;
   const notificationSettings = notificationStatus.settings || getDefaultNotificationStatus().settings;
+  const diagnostics = notificationStatus.diagnostics || getDefaultNotificationStatus().diagnostics;
+  const editableChannels = safeNormalizeNotificationChannels(notificationChannels);
+  const effectiveChannels = safeNormalizeNotificationChannels(
+    notificationSettings.notificationChannels || editableChannels
+  );
+  const latestTestNotification = diagnostics.latestTestNotification || null;
+  const latestTestChannelState = latestTestNotification?.channelState || null;
   const webPushSupported = isWebPushSupported();
   const hasWebPushSubscription = notificationSettings.hasWebPushSubscription === true;
 
@@ -693,13 +762,43 @@ function AccountSettingsPanel({
           호출, 상태 변화 같은 알림 받기
         </label>
 
+        <div className="grid gap-2 rounded-md border border-slate-200 bg-white/70 p-3 text-sm">
+          <label className="flex items-center gap-2 font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={editableChannels.inApp !== false}
+              onChange={(event) => updateNotificationChannel("inApp", event.target.checked)}
+              className="h-4 w-4 rounded"
+            />
+            앱 알림함에 표시
+          </label>
+          <label className="flex items-center gap-2 font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={editableChannels.discord !== false}
+              onChange={(event) => updateNotificationChannel("discord", event.target.checked)}
+              className="h-4 w-4 rounded"
+            />
+            Discord로 보내기
+          </label>
+          <label className="flex items-center gap-2 font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={editableChannels.webPush !== false}
+              onChange={(event) => updateNotificationChannel("webPush", event.target.checked)}
+              className="h-4 w-4 rounded"
+            />
+            브라우저 푸시로 보내기
+          </label>
+        </div>
+
         {discordSettingsMessage ? (
           <p className={getMessageClassName(discordSettingsMessage)}>
             {discordSettingsMessage}
           </p>
         ) : (
           <p className="service-muted">
-            앱 알림함에는 항상 기록하고, 웹훅이나 브라우저 푸시가 연결되어 있으면 같은 알림을 각 채널로 보냅니다.
+            알림 사건 문서는 기록하고, 선택한 채널에만 표시하거나 전송합니다.
           </p>
         )}
 
@@ -732,6 +831,9 @@ function AccountSettingsPanel({
             <p className="service-muted">
               Discord 웹훅: {discordWebhookUrl.trim() ? "연결됨" : "미연결"}
             </p>
+            <p className="service-muted">
+              {getChannelSummary(effectiveChannels)}
+            </p>
           </div>
           <div className="service-key-value">
             <p className="service-section-label">브라우저 푸시</p>
@@ -760,6 +862,9 @@ function AccountSettingsPanel({
               {formatDateTime(urgentCheck?.checkedAt)}
             </p>
             <p className="service-muted">
+              다음 예상 {formatDateTime(diagnostics.nextUrgentCheckAt)}
+            </p>
+            <p className="service-muted">
               {getUrgentCheckSummary(urgentCheck)}
             </p>
           </div>
@@ -776,7 +881,28 @@ function AccountSettingsPanel({
             <p className="service-section-label">앱 알림함</p>
             <strong>{notificationStatus.recentNotifications?.length || 0}개</strong>
             <p className="service-muted">
-              최근 알림은 오른쪽 위 종 아이콘에서 확인합니다.
+              {effectiveChannels.inApp
+                ? "최근 알림은 오른쪽 위 종 아이콘에서 확인합니다."
+                : "앱 알림함 표시가 꺼져 있어 목록에서 숨깁니다."}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">현재 슬롯 긴급 진단</p>
+            <strong>{getCurrentSlotDiagnosticLabel(diagnostics.currentSlot)}</strong>
+            <p className="service-muted">
+              {(diagnostics.currentSlot?.issues || []).map((issue) => issue.label).join(", ") || "표시할 이슈 없음"}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">최근 테스트 알림</p>
+            <strong>{latestTestNotification ? formatDateTime(latestTestNotification.createdAt) : "기록 없음"}</strong>
+            <p className="service-muted">
+              {latestTestChannelState
+                ? [
+                    `Discord ${latestTestChannelState.discord?.status || "기록 없음"}`,
+                    `푸시 ${latestTestChannelState.webPush?.status || "기록 없음"}`,
+                  ].join(" · ")
+                : "테스트 알림 결과가 없습니다."}
             </p>
           </div>
         </div>

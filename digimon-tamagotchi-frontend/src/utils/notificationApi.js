@@ -1,7 +1,11 @@
 const NOTIFICATION_API_BASE_URL = process.env.REACT_APP_NOTIFICATION_API_BASE_URL || "";
 
-function buildNotificationUrl(operation) {
-  return `${NOTIFICATION_API_BASE_URL}/api/notifications/${operation}`;
+function buildNotificationUrl(operation, query = {}) {
+  const queryString = new URLSearchParams(
+    Object.entries(query).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  ).toString();
+  const baseUrl = `${NOTIFICATION_API_BASE_URL}/api/notifications/${operation}`;
+  return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 }
 
 function extractNotificationErrorMessage(response, payload, rawText) {
@@ -27,7 +31,7 @@ async function requestNotification(currentUser, operation, options = {}) {
   }
 
   const token = await currentUser.getIdToken();
-  const response = await fetch(buildNotificationUrl(operation), {
+  const response = await fetch(buildNotificationUrl(operation, options.query), {
     method: options.method || "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -53,8 +57,10 @@ async function requestNotification(currentUser, operation, options = {}) {
   return payload || {};
 }
 
-export async function getNotificationStatus(currentUser) {
-  const payload = await requestNotification(currentUser, "status");
+export async function getNotificationStatus(currentUser, options = {}) {
+  const payload = await requestNotification(currentUser, "status", {
+    query: options.slotId ? { slotId: options.slotId } : undefined,
+  });
   return payload.status || null;
 }
 
@@ -74,6 +80,15 @@ export async function markNotificationsRead(currentUser, body = {}) {
   });
 
   return payload.result || null;
+}
+
+export async function evaluateSlotUrgentNotification(currentUser, slotId) {
+  const payload = await requestNotification(currentUser, "evaluate-slot", {
+    method: "POST",
+    body: { slotId },
+  });
+
+  return payload || null;
 }
 
 export async function subscribeWebPush(currentUser, subscription) {

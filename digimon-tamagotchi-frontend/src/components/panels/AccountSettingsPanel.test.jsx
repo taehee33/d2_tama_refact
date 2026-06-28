@@ -55,8 +55,18 @@ jest.mock("../../utils/tamerNameUtils", () => {
 });
 
 jest.mock("../../utils/userSettingsUtils", () => ({
+  DEFAULT_NOTIFICATION_CHANNELS: {
+    inApp: true,
+    discord: true,
+    webPush: true,
+  },
   getUserSettings: (...args) => mockGetUserSettings(...args),
   isValidDiscordWebhookUrl: jest.fn(() => true),
+  normalizeNotificationChannels: jest.fn((value) => ({
+    inApp: value?.inApp !== false,
+    discord: value?.discord !== false,
+    webPush: value?.webPush !== false,
+  })),
   normalizeSiteTheme: jest.fn((themeId) => themeId),
   saveUserSettings: jest.fn(),
 }));
@@ -110,6 +120,11 @@ describe("AccountSettingsPanel", () => {
     mockGetUserSettings.mockResolvedValue({
       discordWebhookUrl: null,
       isNotificationEnabled: false,
+      notificationChannels: {
+        inApp: true,
+        discord: true,
+        webPush: true,
+      },
       siteTheme: "default",
     });
     mockGetNotificationStatus.mockResolvedValue({

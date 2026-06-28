@@ -36,6 +36,7 @@ import {
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
 import { toEpochMs } from "../utils/time";
+import { evaluateSlotUrgentNotification } from "../utils/notificationApi";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -1094,6 +1095,9 @@ export function useGameData({
           conflictError.code = "game/revision-conflict-pending";
           throw conflictError;
         }
+        evaluateSlotUrgentNotification(currentUser, slotId).catch((error) => {
+          console.warn("[saveStats] 즉시 긴급 알림 평가 실패:", error);
+        });
       } catch (error) {
         console.error("스탯 저장 오류:", error);
         raiseGameSaveError(error, setError);

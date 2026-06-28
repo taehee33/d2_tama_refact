@@ -34,7 +34,7 @@ function getChannelStatusLabel(notification) {
   if (discordStatus === "sent") labels.push("Discord 전송");
   if (discordStatus === "failed") labels.push("Discord 실패");
   if (discordStatus === "skipped") {
-    if (discordState.reason === "disabled") labels.push("Discord 꺼짐");
+    if (discordState.reason === "disabled" || discordState.reason === "channel_disabled") labels.push("Discord 꺼짐");
     else if (
       discordState.reason === "missing_webhook" ||
       discordState.reason === "webhook_missing"
@@ -51,8 +51,19 @@ function getChannelStatusLabel(notification) {
   if (webPushStatus === "partial") labels.push("푸시 일부 실패");
   if (webPushStatus === "failed") labels.push("푸시 실패");
   if (webPushStatus === "skipped") {
-    if (webPushState.reason === "disabled") labels.push("푸시 꺼짐");
-    else if (webPushState.reason === "no_active_subscription") labels.push("푸시 미연결");
+    if (webPushState.reason === "disabled" || webPushState.reason === "channel_disabled") labels.push("푸시 꺼짐");
+    else if (
+      webPushState.reason === "no_active_subscription" ||
+      webPushState.reason === "missing_subscription"
+    ) {
+      labels.push("푸시 미연결");
+    } else if (webPushState.reason === "not_configured") {
+      labels.push("푸시 설정 누락");
+    } else if (webPushState.reason === "not_requested") {
+      labels.push("푸시 기록 없음");
+    } else if (webPushState.reason === "send_failed") {
+      labels.push("푸시 실패");
+    }
     else labels.push("푸시 제외");
   }
 
