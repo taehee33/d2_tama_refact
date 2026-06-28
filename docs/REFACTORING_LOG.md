@@ -6591,3 +6591,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
   - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
 - **근거:** 개발자 옵션 체크 상태와 도감 표시 결과를 일치시켜, 체크가 꺼진 상태에서 미발견 디지몬이 공개되는 혼란을 막는다.
+
+## [2026-06-28] 도감 미발견 실루엣 표시 조정
+
+- **내용:** 미발견 디지몬 스프라이트의 불투명도를 낮춰 더 약한 실루엣으로 보이게 하고, 잠금 아이콘과 `???` 텍스트를 스프라이트 위 오버레이가 아니라 이미지 아래 정보 영역에 배치했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
+- **근거:** 미발견 카드에서도 아주 약한 실루엣 힌트는 유지하되, 잠금/이름 영역은 발견된 카드와 같은 세로 흐름으로 정렬한다.

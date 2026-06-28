@@ -240,23 +240,27 @@ function EncyclopediaPanel({
                   style={{
                     imageRendering: "pixelated",
                     filter: showAsDiscovered ? "none" : "blur(8px) grayscale(100%)",
-                    opacity: showAsDiscovered ? 1 : 0.5,
+                    opacity: showAsDiscovered ? 1 : 0.35,
                   }}
                 />
-                <div className="text-sm font-bold">
-                  {showAsDiscovered ? digimon.name || digimonKey : "???"}
-                </div>
                 {showAsDiscovered ? (
-                  <div className="text-xs text-slate-500">{translateStage(digimon.stage)}</div>
-                ) : null}
+                  <>
+                    <div className="text-sm font-bold">
+                      {digimon.name || digimonKey}
+                    </div>
+                    <div className="text-xs text-slate-500">{translateStage(digimon.stage)}</div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-2xl leading-none" aria-label="미발견 잠금">
+                      🔒
+                    </span>
+                    <span className="text-sm font-bold text-slate-600">???</span>
+                  </div>
+                )}
                 {isDiscovered ? (
                   <span className="absolute right-2 top-2 text-lg font-bold text-emerald-500">
                     ✓
-                  </span>
-                ) : null}
-                {!showAsDiscovered ? (
-                  <span className="absolute inset-0 flex items-center justify-center text-3xl">
-                    🔒
                   </span>
                 ) : null}
               </button>

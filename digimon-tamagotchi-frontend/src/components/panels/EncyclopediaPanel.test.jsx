@@ -77,11 +77,11 @@ describe("EncyclopediaPanel", () => {
 
     expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
       filter: "blur(8px) grayscale(100%)",
-      opacity: "0.5",
+      opacity: "0.35",
     });
     expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
     expect(screen.getAllByText("???").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("🔒").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("미발견 잠금").length).toBeGreaterThan(0);
   });
 
   it("개발자 모드가 꺼져 있으면 미발견 항목을 흐리게 잠근다", async () => {
@@ -95,11 +95,11 @@ describe("EncyclopediaPanel", () => {
 
     expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
       filter: "blur(8px) grayscale(100%)",
-      opacity: "0.5",
+      opacity: "0.35",
     });
     expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
     expect(screen.getAllByText("???").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("🔒").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("미발견 잠금").length).toBeGreaterThan(0);
   });
 
   it("도감 저장 실패 시 Firestore 단계 정보를 포함해 보여준다", async () => {
