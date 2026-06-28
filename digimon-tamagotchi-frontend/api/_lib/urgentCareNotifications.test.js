@@ -339,6 +339,7 @@ test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async 
       return [];
     },
     listEligibleSlotDocuments: async () => [createProjectedSlot()],
+    fetchImpl: async () => ({ ok: true }),
     commit: async (batch) => {
       writes.push(...batch);
       return {};
@@ -351,6 +352,14 @@ test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async 
   assert.ok(notificationWrite);
   assert.equal(notificationWrite.update.fields.type.stringValue, "urgent_care");
   assert.match(notificationWrite.update.fields.body.stringValue, /케어미스 예정:/);
+  assert.equal(
+    notificationWrite.update.fields.channelState.mapValue.fields.inApp.mapValue.fields.status.stringValue,
+    "stored"
+  );
+  assert.equal(
+    notificationWrite.update.fields.channelState.mapValue.fields.discord.mapValue.fields.status.stringValue,
+    "sent"
+  );
 });
 
 test("기력 호출에도 시작과 케어미스 예정 정보를 붙인다", () => {

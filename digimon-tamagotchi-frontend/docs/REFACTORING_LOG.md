@@ -1,5 +1,32 @@
 # REFACTORING LOG
 
+## 2026-06-27
+
+### 통합 알림 이벤트와 채널별 전송 상태로 정리
+- 알림 사건 1개가 앱 알림함, Discord, 브라우저 푸시 채널 상태를 함께 갖도록 서버 알림 생성 흐름을 확장했습니다.
+- 긴급 케어 알림은 같은 제목/본문을 Discord와 Web Push에 공유하고, 전송 결과를 `channelState`에 묶어 알림 문서에 저장하도록 조정했습니다.
+- 표준 Web Push(VAPID + service worker) 구독 저장/해제 API와 클라이언트 연결/해제 UI를 추가했습니다.
+- 알림 센터와 계정 설정의 “인앱 저장” 중심 문구를 “앱 알림함 / Discord / 브라우저 푸시” 채널 기준으로 바꿨습니다.
+
+### 영향받은 파일
+- `api/_lib/userNotifications.js`
+- `api/_lib/urgentCareNotifications.js`
+- `api/_lib/webPushNotifications.js`
+- `api/_lib/notificationSubscribers.js`
+- `api/notifications/[operation].js`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `src/components/notifications/GlobalNotificationCenter.jsx`
+- `src/utils/notificationApi.js`
+- `src/utils/webPushClient.js`
+- `public/d2-tama-push-sw.js`
+- `package.json`
+- `package-lock.json`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 알림 사건과 채널 전송을 분리하면 사용자에게 같은 사건이 앱/Discord/푸시에 일관되게 보이고, Firestore write도 알림 문서 1건 중심으로 관리할 수 있습니다.
+- Discord 웹훅이 없는 사용자도 Web Push만 연결해 긴급 알림을 받을 수 있어야 하므로 알림 대상 조회는 전체 알림 토글 기준으로 조정했습니다.
+
 ## 2026-04-14
 
 ### 홈화면에 추가 노출을 계정 설정 중심으로 재배치

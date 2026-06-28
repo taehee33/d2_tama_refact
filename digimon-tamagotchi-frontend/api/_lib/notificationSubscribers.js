@@ -39,7 +39,7 @@ function mapNotificationSubscriber(document) {
   if (!matchedPath || document?.id !== "main") return null;
 
   const webhookUrl = normalizeDiscordWebhookUrl(document?.data?.discordWebhookUrl);
-  if (!webhookUrl || document?.data?.isNotificationEnabled !== true) return null;
+  if (document?.data?.isNotificationEnabled !== true) return null;
 
   const uid = matchedPath[1];
   return {

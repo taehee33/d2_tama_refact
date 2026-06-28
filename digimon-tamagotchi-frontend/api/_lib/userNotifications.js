@@ -18,6 +18,11 @@ const {
   isStoredInCareStorage,
   projectSlotForUrgentCare,
 } = require("./urgentCareProjection");
+const {
+  disablePushSubscription,
+  savePushSubscription,
+  sendWebPushNotification,
+} = require("./webPushNotifications");
 
 const MAX_RECENT_NOTIFICATIONS = 10;
 const MAX_RECENT_DELIVERIES = 10;
@@ -107,23 +112,24 @@ async function maybeSendDiscordNotification({
   uid,
   title,
   body,
+  settings = null,
   getDocumentByPath = getDocument,
   fetchImpl = globalThis.fetch,
 }) {
-  const settings = await resolveUserSettings(uid, getDocumentByPath);
-  if (!settings.isNotificationEnabled || !settings.discordWebhookUrl) {
+  const resolvedSettings = settings || await resolveUserSettings(uid, getDocumentByPath);
+  if (!resolvedSettings.isNotificationEnabled || !resolvedSettings.discordWebhookUrl) {
     return {
-      enabled: settings.isNotificationEnabled === true,
-      connected: Boolean(settings.discordWebhookUrl),
+      enabled: resolvedSettings.isNotificationEnabled === true,
+      connected: Boolean(resolvedSettings.discordWebhookUrl),
       status: "skipped",
-      reason: settings.isNotificationEnabled ? "missing_webhook" : "disabled",
+      reason: resolvedSettings.isNotificationEnabled ? "missing_webhook" : "disabled",
       sentAt: null,
     };
   }
 
   const sentAt = Date.now();
   try {
-    await postDiscordWebhook(settings.discordWebhookUrl, `**${title}**\n${body}`, fetchImpl);
+    await postDiscordWebhook(resolvedSettings.discordWebhookUrl, `**${title}**\n${body}`, fetchImpl);
     return {
       enabled: true,
       connected: true,
@@ -150,24 +156,46 @@ async function createUserNotification({
   targetPath = "",
   source = {},
   sendDiscord = false,
+  sendWebPush = true,
   getDocumentByPath = getDocument,
+  listCollectionDocuments = listDocuments,
   commit = commitWrites,
   fetchImpl = globalThis.fetch,
+  webPush = undefined,
   currentTime = new Date(),
 }) {
   if (!uid) {
     throw new Error("알림을 저장할 사용자 ID가 필요합니다.");
   }
 
+  const settings = await resolveUserSettings(uid, getDocumentByPath);
   const discordState = sendDiscord
     ? await maybeSendDiscordNotification({
         uid,
         title,
         body,
+        settings,
         getDocumentByPath,
         fetchImpl,
       })
     : { status: "skipped", reason: "not_requested", sentAt: null };
+  const webPushState = sendWebPush && settings.isNotificationEnabled
+    ? await sendWebPushNotification({
+        uid,
+        title,
+        body,
+        targetPath,
+        listCollectionDocuments,
+        webPush,
+        currentTime,
+      })
+    : {
+        status: "skipped",
+        reason: settings.isNotificationEnabled ? "not_requested" : "disabled",
+        sentAt: null,
+        successCount: 0,
+        failureCount: 0,
+      };
   const notification = buildUserNotification({
     uid,
     type,
@@ -178,7 +206,7 @@ async function createUserNotification({
     channelState: {
       discord: discordState,
       inApp: { status: "stored" },
-      webPush: { status: "not_configured" },
+      webPush: webPushState,
     },
     currentTime,
   });
@@ -429,11 +457,12 @@ async function getUserNotificationStatus({
   currentTime = new Date(),
 }) {
   const settings = await resolveUserSettings(uid, getDocumentByPath);
-  const [notificationDocuments, deliveryDocuments, notificationStateDocuments, projection, urgentCheckDocument] =
+  const [notificationDocuments, deliveryDocuments, notificationStateDocuments, pushSubscriptionDocuments, projection, urgentCheckDocument] =
     await Promise.all([
       listCollectionDocuments(`users/${uid}/notifications`).catch(() => []),
       runFirestoreQuery(buildDeliveryQuery(uid)).catch(() => []),
       listCollectionDocuments(`users/${uid}/notificationState`).catch(() => []),
+      listCollectionDocuments(`users/${uid}/pushSubscriptions`).catch(() => []),
       buildProjectionSummary({ uid, listCollectionDocuments, currentTime }).catch(() => ({
         totalSlots: 0,
         projectedSlots: 0,
@@ -459,11 +488,16 @@ async function getUserNotificationStatus({
   const activeIssueSlotCount = notificationStateDocuments.filter((document) =>
     Array.isArray(document.data?.activeIssueKeys) && document.data.activeIssueKeys.length > 0
   ).length;
+  const activePushSubscriptionCount = pushSubscriptionDocuments.filter(
+    (document) => document.data?.enabled !== false && document.data?.endpoint
+  ).length;
 
   return {
     settings: {
       isNotificationEnabled: settings.isNotificationEnabled === true,
       hasDiscordWebhook: Boolean(settings.discordWebhookUrl),
+      hasWebPushSubscription: activePushSubscriptionCount > 0,
+      activePushSubscriptionCount,
     },
     projection,
     delivery: {
@@ -514,8 +548,10 @@ function createTestNotificationHandler(deps = {}) {
         source: { kind: "manual_test" },
         sendDiscord: true,
         getDocumentByPath: deps.getDocument || getDocument,
+        listCollectionDocuments: deps.listDocuments || listDocuments,
         commit: deps.commitWrites || commitWrites,
         fetchImpl: deps.fetch || globalThis.fetch,
+        webPush: deps.webPush,
         currentTime: (deps.getCurrentTime || (() => new Date()))(),
       });
 
@@ -549,6 +585,49 @@ function createNotificationReadHandler(deps = {}) {
   };
 }
 
+function createPushSubscribeHandler(deps = {}) {
+  return async function pushSubscribeHandler(req, res) {
+    if (!allowMethods(req, res, ["POST"])) return;
+
+    try {
+      const { verifyRequestUser } = require("./auth");
+      const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
+      const result = await savePushSubscription({
+        uid: decodedToken.uid,
+        subscription: req.body?.subscription,
+        userAgent: req.headers?.["user-agent"] || "",
+        commit: deps.commitWrites || commitWrites,
+        currentTime: (deps.getCurrentTime || (() => new Date()))(),
+      });
+
+      sendJson(res, 200, { ok: true, result });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
+function createPushUnsubscribeHandler(deps = {}) {
+  return async function pushUnsubscribeHandler(req, res) {
+    if (!allowMethods(req, res, ["POST"])) return;
+
+    try {
+      const { verifyRequestUser } = require("./auth");
+      const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
+      const result = await disablePushSubscription({
+        uid: decodedToken.uid,
+        endpoint: req.body?.endpoint,
+        commit: deps.commitWrites || commitWrites,
+        currentTime: (deps.getCurrentTime || (() => new Date()))(),
+      });
+
+      sendJson(res, 200, { ok: true, result });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
 module.exports = {
   buildCommunityCommentNotification,
   buildNotificationId,
@@ -556,6 +635,8 @@ module.exports = {
   buildUserNotification,
   createNotificationReadHandler,
   createNotificationStatusHandler,
+  createPushSubscribeHandler,
+  createPushUnsubscribeHandler,
   createTestNotificationHandler,
   createUserNotification,
   getUserNotificationStatus,

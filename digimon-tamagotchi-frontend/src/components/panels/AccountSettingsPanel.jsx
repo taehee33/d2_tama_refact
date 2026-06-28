@@ -20,7 +20,14 @@ import {
 import {
   getNotificationStatus,
   sendTestNotification,
+  subscribeWebPush,
+  unsubscribeWebPush,
 } from "../../utils/notificationApi";
+import {
+  isWebPushSupported,
+  removeWebPushSubscription,
+  requestWebPushSubscription,
+} from "../../utils/webPushClient";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -68,6 +75,8 @@ function getDefaultNotificationStatus() {
     settings: {
       isNotificationEnabled: false,
       hasDiscordWebhook: false,
+      hasWebPushSubscription: false,
+      activePushSubscriptionCount: 0,
     },
     projection: {
       totalSlots: 0,
@@ -180,6 +189,8 @@ function AccountSettingsPanel({
   const [notificationStatus, setNotificationStatus] = useState(getDefaultNotificationStatus);
   const [notificationStatusMessage, setNotificationStatusMessage] = useState("");
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
+  const [isUpdatingWebPush, setIsUpdatingWebPush] = useState(false);
+  const [webPushMessage, setWebPushMessage] = useState("");
   const [themeSaving, setThemeSaving] = useState(false);
   const [themeMessage, setThemeMessage] = useState("");
 
@@ -434,6 +445,58 @@ function AccountSettingsPanel({
     }
   };
 
+  const refreshNotificationStatus = async () => {
+    const nextNotificationStatus = await getNotificationStatus(currentUser).catch(() => null);
+    if (nextNotificationStatus) {
+      setNotificationStatus(nextNotificationStatus);
+      setNotificationStatusMessage("");
+    }
+  };
+
+  const handleEnableWebPush = async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    setIsUpdatingWebPush(true);
+    setWebPushMessage("");
+
+    try {
+      const subscription = await requestWebPushSubscription();
+      await subscribeWebPush(currentUser, subscription);
+      await refreshNotificationStatus();
+      setWebPushMessage("브라우저 푸시 알림이 연결되었습니다.");
+    } catch (error) {
+      setWebPushMessage(error.message || "브라우저 푸시 알림을 연결하지 못했습니다.");
+    } finally {
+      setIsUpdatingWebPush(false);
+    }
+  };
+
+  const handleDisableWebPush = async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    setIsUpdatingWebPush(true);
+    setWebPushMessage("");
+
+    try {
+      const endpoint = await removeWebPushSubscription();
+      if (!endpoint) {
+        setWebPushMessage("현재 브라우저에 해제할 푸시 구독이 없습니다.");
+        return;
+      }
+      await unsubscribeWebPush(currentUser, endpoint);
+      await refreshNotificationStatus();
+      setWebPushMessage("브라우저 푸시 알림이 해제되었습니다.");
+    } catch (error) {
+      setWebPushMessage(error.message || "브라우저 푸시 알림을 해제하지 못했습니다.");
+    } finally {
+      setIsUpdatingWebPush(false);
+    }
+  };
+
   const handleThemeChange = async (nextThemeId) => {
     if (nextThemeId === themeId) {
       return;
@@ -460,6 +523,9 @@ function AccountSettingsPanel({
   const lastDiscordResult = notificationStatus.delivery?.lastDiscordResult || null;
   const urgentCheck = notificationStatus.urgentCheck || null;
   const hasUnavailableSlots = Number(projectionSummary.projectionUnavailable || 0) > 0;
+  const notificationSettings = notificationStatus.settings || getDefaultNotificationStatus().settings;
+  const webPushSupported = isWebPushSupported();
+  const hasWebPushSubscription = notificationSettings.hasWebPushSubscription === true;
 
   if (!currentUser) {
     return (
@@ -624,7 +690,7 @@ function AccountSettingsPanel({
             onChange={(event) => setIsNotificationEnabled(event.target.checked)}
             className="h-4 w-4 rounded"
           />
-          호출, 상태 변화 같은 알림을 Discord로 받기
+          호출, 상태 변화 같은 알림 받기
         </label>
 
         {discordSettingsMessage ? (
@@ -633,7 +699,7 @@ function AccountSettingsPanel({
           </p>
         ) : (
           <p className="service-muted">
-            웹훅을 등록하면 디지몬 호출과 주요 상태 변화를 Discord 채널에서 확인할 수 있습니다.
+            앱 알림함에는 항상 기록하고, 웹훅이나 브라우저 푸시가 연결되어 있으면 같은 알림을 각 채널로 보냅니다.
           </p>
         )}
 
@@ -653,7 +719,7 @@ function AccountSettingsPanel({
         <div className="service-field">
           <span>알림 상태</span>
           <p className="service-muted">
-            10분 긴급 알림 계산, Discord 전송 결과, 인앱 알림 저장 상태를 확인합니다. 현재 슬롯 저장 상태는 게임 화면의 저장 및 동기화 카드에서 확인합니다.
+            10분 긴급 알림 계산과 앱 알림함, Discord, 브라우저 푸시 전송 상태를 확인합니다. 현재 슬롯 저장 상태는 게임 화면의 저장 및 동기화 카드에서 확인합니다.
           </p>
         </div>
 
@@ -665,6 +731,19 @@ function AccountSettingsPanel({
             </strong>
             <p className="service-muted">
               Discord 웹훅: {discordWebhookUrl.trim() ? "연결됨" : "미연결"}
+            </p>
+          </div>
+          <div className="service-key-value">
+            <p className="service-section-label">브라우저 푸시</p>
+            <strong>
+              {!webPushSupported
+                ? "지원 안 됨"
+                : hasWebPushSubscription
+                ? "연결됨"
+                : "미연결"}
+            </strong>
+            <p className="service-muted">
+              활성 기기 {notificationSettings.activePushSubscriptionCount || 0}개
             </p>
           </div>
           <div className="service-key-value">
@@ -694,13 +773,36 @@ function AccountSettingsPanel({
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">최근 인앱 알림</p>
+            <p className="service-section-label">앱 알림함</p>
             <strong>{notificationStatus.recentNotifications?.length || 0}개</strong>
             <p className="service-muted">
-              읽지 않음 표시는 다음 단계에서 연결됩니다.
+              최근 알림은 오른쪽 위 종 아이콘에서 확인합니다.
             </p>
           </div>
         </div>
+
+        <div className="service-inline-actions">
+          <button
+            type="button"
+            onClick={hasWebPushSubscription ? handleDisableWebPush : handleEnableWebPush}
+            disabled={isUpdatingWebPush || !webPushSupported}
+            className="service-button service-button--ghost"
+          >
+            {isUpdatingWebPush
+              ? "처리 중..."
+              : hasWebPushSubscription
+                ? "브라우저 푸시 해제"
+                : "이 브라우저 푸시 연결"}
+          </button>
+        </div>
+
+        {webPushMessage ? (
+          <p className={getMessageClassName(webPushMessage)}>{webPushMessage}</p>
+        ) : !webPushSupported ? (
+          <p className="service-muted">
+            현재 브라우저는 푸시 알림을 지원하지 않습니다.
+          </p>
+        ) : null}
 
         {hasUnavailableSlots ? (
           <div className="service-alert">

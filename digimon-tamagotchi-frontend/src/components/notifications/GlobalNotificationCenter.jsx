@@ -24,12 +24,18 @@ function formatNotificationTime(value) {
   }).format(date);
 }
 
-function getDiscordStatusLabel(notification) {
-  const status = notification?.channelState?.discord?.status;
-  if (status === "sent") return "Discord 전송";
-  if (status === "failed") return "Discord 실패";
-  if (status === "skipped") return "인앱 저장";
-  return "인앱 알림";
+function getChannelStatusLabel(notification) {
+  const discordStatus = notification?.channelState?.discord?.status;
+  const webPushStatus = notification?.channelState?.webPush?.status;
+  const labels = ["앱 알림함"];
+
+  if (discordStatus === "sent") labels.push("Discord 전송");
+  if (discordStatus === "failed") labels.push("Discord 실패");
+  if (webPushStatus === "sent") labels.push("푸시 전송");
+  if (webPushStatus === "partial") labels.push("푸시 일부 실패");
+  if (webPushStatus === "failed") labels.push("푸시 실패");
+
+  return labels.join(" · ");
 }
 
 function getUnreadNotifications(status) {
@@ -258,7 +264,7 @@ function GlobalNotificationCenter() {
                     </span>
                   ) : null}
                   <span className="global-notification-center__meta">
-                    {getDiscordStatusLabel(notification)}
+                    {getChannelStatusLabel(notification)}
                   </span>
                 </button>
               ))}

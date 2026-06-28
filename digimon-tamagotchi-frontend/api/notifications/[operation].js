@@ -8,6 +8,8 @@ const {
 const {
   createNotificationReadHandler,
   createNotificationStatusHandler,
+  createPushSubscribeHandler,
+  createPushUnsubscribeHandler,
   createTestNotificationHandler,
 } = require("../_lib/userNotifications");
 
@@ -35,6 +37,8 @@ function createNotificationRouter(deps = {}) {
     status: deps.statusHandler || createNotificationStatusHandler(),
     test: deps.testHandler || createTestNotificationHandler(),
     read: deps.readHandler || createNotificationReadHandler(),
+    "push-subscribe": deps.pushSubscribeHandler || createPushSubscribeHandler(),
+    "push-unsubscribe": deps.pushUnsubscribeHandler || createPushUnsubscribeHandler(),
   };
 
   return async function notificationRouter(req, res) {

@@ -75,3 +75,21 @@ export async function markNotificationsRead(currentUser, body = {}) {
 
   return payload.result || null;
 }
+
+export async function subscribeWebPush(currentUser, subscription) {
+  const payload = await requestNotification(currentUser, "push-subscribe", {
+    method: "POST",
+    body: { subscription },
+  });
+
+  return payload.result || null;
+}
+
+export async function unsubscribeWebPush(currentUser, endpoint) {
+  const payload = await requestNotification(currentUser, "push-unsubscribe", {
+    method: "POST",
+    body: { endpoint },
+  });
+
+  return payload.result || null;
+}

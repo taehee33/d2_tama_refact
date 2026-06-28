@@ -28,6 +28,8 @@ const {
   resolveUrgentIssues,
 } = require("./urgentCareProjection");
 const { listNotificationSubscribers } = require("./notificationSubscribers");
+const { maybeSendDiscordNotification } = require("./userNotifications");
+const { sendWebPushNotification } = require("./webPushNotifications");
 
 const DELIVERY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const EXPIRED_DELIVERY_CLEANUP_LIMIT = 100;
@@ -136,6 +138,8 @@ async function prepareUrgentCareNotifications({
   listPendingDeliveryDocuments = async () => [],
   listExpiredPendingDeliveryDocuments = async () => [],
   commit,
+  fetchImpl = globalThis.fetch,
+  webPush = undefined,
   currentTime = new Date(),
   dryRun = false,
 }) {
@@ -180,7 +184,7 @@ async function prepareUrgentCareNotifications({
     const uid = normalizeString(subscriber?.uid || subscriber?.id);
     if (!uid) continue;
     const settings = resolveNotificationSettings(subscriber?.data, {});
-    if (!settings.isNotificationEnabled || !settings.discordWebhookUrl) continue;
+    if (!settings.isNotificationEnabled) continue;
     summary.activeUsers += 1;
     const [rootDocument, profileDocument, slots] = await Promise.all([
       getDocumentByPath(`users/${uid}`),
@@ -257,6 +261,35 @@ async function prepareUrgentCareNotifications({
         summary.newDeliveries += 1;
         if (!dryRun) {
           const digimonName = resolveDigimonDisplayName(slotData);
+          const notificationBody = buildUrgentNotificationBody(slotId, digimonName, newIssues);
+          const notificationTargetPath = buildSlotTargetPath(slotId);
+          const [discordState, webPushState] = await Promise.all([
+            maybeSendDiscordNotification({
+              uid,
+              title: "디지몬 긴급 케어 알림",
+              body: notificationBody,
+              settings,
+              getDocumentByPath,
+              fetchImpl,
+            }),
+            settings.isNotificationEnabled
+              ? sendWebPushNotification({
+                  uid,
+                  title: "디지몬 긴급 케어 알림",
+                  body: notificationBody,
+                  targetPath: notificationTargetPath,
+                  listCollectionDocuments,
+                  webPush,
+                  currentTime,
+                })
+              : Promise.resolve({
+                  status: "skipped",
+                  reason: "disabled",
+                  sentAt: null,
+                  successCount: 0,
+                  failureCount: 0,
+                }),
+          ]);
           writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
             uid,
             slotId,
@@ -270,8 +303,8 @@ async function prepareUrgentCareNotifications({
           writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
             type: "urgent_care",
             title: "디지몬 긴급 케어 알림",
-            body: buildUrgentNotificationBody(slotId, digimonName, newIssues),
-            targetPath: buildSlotTargetPath(slotId),
+            body: notificationBody,
+            targetPath: notificationTargetPath,
             source: {
               kind: "urgent_delivery",
               deliveryId,
@@ -279,9 +312,9 @@ async function prepareUrgentCareNotifications({
               issueKeys: nextIssueKeys,
             },
             channelState: {
-              discord: { status: "skipped", reason: "urgent_delivery", sentAt: null },
               inApp: { status: "stored" },
-              webPush: { status: "not_configured" },
+              discord: discordState,
+              webPush: webPushState,
             },
             readAt: null,
             createdAt: nowMs,
@@ -405,6 +438,8 @@ function createUrgentCarePrepareHandler(deps = {}) {
         listExpiredPendingDeliveryDocuments: deps.listExpiredPendingDeliveryDocuments || ((nowMs) =>
           listExpiredPendingUrgentDeliveries(nowMs, deps.runQuery || runQuery)),
         commit: deps.commitWrites || commitWrites,
+        fetchImpl: deps.fetch || globalThis.fetch,
+        webPush: deps.webPush,
         currentTime: (deps.getCurrentTime || (() => new Date()))(),
         dryRun: req?.body?.dryRun === true,
       });
