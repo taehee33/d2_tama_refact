@@ -35,8 +35,16 @@ function getChannelStatusLabel(notification) {
   if (discordStatus === "failed") labels.push("Discord 실패");
   if (discordStatus === "skipped") {
     if (discordState.reason === "disabled") labels.push("Discord 꺼짐");
-    else if (discordState.reason === "webhook_missing") labels.push("Discord 미연결");
-    else labels.push("Discord 제외");
+    else if (
+      discordState.reason === "missing_webhook" ||
+      discordState.reason === "webhook_missing"
+    ) {
+      labels.push("Discord 미연결");
+    } else if (discordState.reason === "not_requested") {
+      labels.push("Discord 기록 없음");
+    } else {
+      labels.push("Discord 제외");
+    }
   }
 
   if (webPushStatus === "sent") labels.push("푸시 전송");
