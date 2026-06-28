@@ -190,7 +190,7 @@ const SettingsModal = ({
           {localDevMode && (
             <div className="mb-4 pt-4 border-t border-gray-300">
               <h3 className="font-semibold mb-2">개발자 옵션</h3>
-              {/* 도감 물음표 켜기/끄기 (Dev 모드일 때만) */}
+              {/* 도감 미발견 공개/숨김 (Dev 모드일 때만) */}
               {setEncyclopediaShowQuestionMark && (
                 <div className="mb-3">
                   <label className="flex items-center">
@@ -204,7 +204,7 @@ const SettingsModal = ({
                       }}
                       className="mr-2"
                     />
-                    <span>도감 물음표 켜기 (미발견 시 ??? 표시)</span>
+                    <span>도감 미발견 디지몬 공개</span>
                   </label>
                 </div>
               )}

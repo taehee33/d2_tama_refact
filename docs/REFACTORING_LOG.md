@@ -6582,3 +6582,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
 - **근거:** 개발자 모드의 기대 동작은 도감 발견 여부를 무시하고 전체 디지몬 데이터를 확인하는 것이므로, 물음표 표시 옵션보다 개발자 모드 공개 규칙을 우선한다.
+
+## [2026-06-28] 개발자 도감 공개 옵션 제어 복구
+
+- **내용:** 개발자 모드만으로는 미발견 디지몬을 공개하지 않고, 개발자 모드에서 `도감 미발견 디지몬 공개` 옵션이 켜져 있을 때만 전체 도감을 공개하도록 수정했다. 옵션이 꺼져 있으면 미발견 항목은 기존처럼 `???`, blur, 잠금 상태로 표시한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
+  - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+- **근거:** 개발자 옵션 체크 상태와 도감 표시 결과를 일치시켜, 체크가 꺼진 상태에서 미발견 디지몬이 공개되는 혼란을 막는다.

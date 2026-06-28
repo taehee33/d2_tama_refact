@@ -49,7 +49,7 @@ describe("EncyclopediaPanel", () => {
     });
   });
 
-  it("개발자 모드에서는 물음표 표시가 켜져도 미발견 항목을 공개한다", async () => {
+  it("개발자 모드에서 도감 공개 옵션이 켜져 있으면 미발견 항목을 공개한다", async () => {
     render(
       <EncyclopediaPanel developerMode encyclopediaShowQuestionMark />
     );
@@ -66,7 +66,7 @@ describe("EncyclopediaPanel", () => {
     expect(screen.getAllByText("성장기").length).toBeGreaterThan(0);
   });
 
-  it("개발자 모드에서는 물음표 표시가 꺼져도 미발견 항목을 공개한다", async () => {
+  it("개발자 모드여도 도감 공개 옵션이 꺼져 있으면 미발견 항목을 잠근다", async () => {
     render(
       <EncyclopediaPanel developerMode encyclopediaShowQuestionMark={false} />
     );
@@ -75,8 +75,13 @@ describe("EncyclopediaPanel", () => {
       expect(screen.queryByText("도감을 불러오는 중입니다.")).not.toBeInTheDocument()
     );
 
-    expect(screen.getByRole("img", { name: "아구몬" })).toBeInTheDocument();
-    expect(screen.getByText("아구몬")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
+      filter: "blur(8px) grayscale(100%)",
+      opacity: "0.5",
+    });
+    expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
+    expect(screen.getAllByText("???").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("🔒").length).toBeGreaterThan(0);
   });
 
   it("개발자 모드가 꺼져 있으면 미발견 항목을 흐리게 잠근다", async () => {
