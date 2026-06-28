@@ -26,6 +26,7 @@ import {
   unsubscribeWebPush,
 } from "../../utils/notificationApi";
 import {
+  getWebPushSupportInfo,
   isWebPushSupported,
   removeWebPushSubscription,
   requestWebPushSubscription,
@@ -593,6 +594,11 @@ function AccountSettingsPanel({
   );
   const latestTestNotification = diagnostics.latestTestNotification || null;
   const latestTestChannelState = latestTestNotification?.channelState || null;
+  const webPushSupportInfo = getWebPushSupportInfo() || {
+    supported: false,
+    reason: "unsupported",
+    message: "현재 브라우저는 푸시 알림을 지원하지 않습니다.",
+  };
   const webPushSupported = isWebPushSupported();
   const hasWebPushSubscription = notificationSettings.hasWebPushSubscription === true;
 
@@ -926,7 +932,7 @@ function AccountSettingsPanel({
           <p className={getMessageClassName(webPushMessage)}>{webPushMessage}</p>
         ) : !webPushSupported ? (
           <p className="service-muted">
-            현재 브라우저는 푸시 알림을 지원하지 않습니다.
+            {webPushSupportInfo.message || "현재 브라우저는 푸시 알림을 지원하지 않습니다."}
           </p>
         ) : null}
 

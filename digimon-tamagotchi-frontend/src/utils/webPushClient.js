@@ -14,11 +14,60 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 export function isWebPushSupported() {
-  return (
+  return getWebPushSupportInfo().supported;
+}
+
+export function isIOSDevice() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+export function isStandaloneWebApp() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+
+  const displayModeStandalone =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)")?.matches === true;
+  const iosStandalone = window.navigator.standalone === true;
+
+  return displayModeStandalone || iosStandalone;
+}
+
+export function getWebPushSupportInfo() {
+  const hasCoreSupport =
     typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
     "serviceWorker" in navigator &&
     "PushManager" in window &&
-    "Notification" in window
+    "Notification" in window;
+
+  if (!hasCoreSupport) {
+    return {
+      supported: false,
+      reason: "unsupported",
+      message: "현재 브라우저는 푸시 알림을 지원하지 않습니다.",
+    };
+  }
+
+  if (isIOSDevice() && !isStandaloneWebApp()) {
+    return {
+      supported: false,
+      reason: "ios_not_standalone",
+      message: "iPhone에서는 Safari 탭이 아니라 홈 화면 아이콘으로 연 앱에서만 브라우저 푸시를 연결할 수 있습니다.",
+    };
+  }
+
+  return (
+    {
+      supported: true,
+      reason: "",
+      message: "",
+    }
   );
 }
 
@@ -36,8 +85,9 @@ export async function getExistingWebPushSubscription() {
 }
 
 export async function requestWebPushSubscription() {
-  if (!isWebPushSupported()) {
-    throw new Error("이 브라우저는 푸시 알림을 지원하지 않습니다.");
+  const supportInfo = getWebPushSupportInfo();
+  if (!supportInfo.supported) {
+    throw new Error(supportInfo.message);
   }
 
   const publicKey = getWebPushPublicKey();
@@ -45,9 +95,16 @@ export async function requestWebPushSubscription() {
     throw new Error("브라우저 푸시 공개 키가 설정되지 않았습니다.");
   }
 
+  if (Notification.permission === "denied") {
+    throw new Error("브라우저 푸시 권한이 차단되어 있습니다. iPhone 설정 > 알림 > 디지몬 타마고치에서 알림을 허용한 뒤 다시 시도해 주세요.");
+  }
+
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    throw new Error("브라우저 푸시 권한이 허용되지 않았습니다.");
+    if (permission === "denied") {
+      throw new Error("브라우저 푸시 권한이 차단되어 있습니다. iPhone 설정 > 알림 > 디지몬 타마고치에서 알림을 허용한 뒤 다시 시도해 주세요.");
+    }
+    throw new Error("브라우저 푸시 권한이 허용되지 않았습니다. 권한 요청 창에서 허용을 눌러야 연결됩니다.");
   }
 
   const registration = await navigator.serviceWorker.register(WEB_PUSH_SERVICE_WORKER_PATH);

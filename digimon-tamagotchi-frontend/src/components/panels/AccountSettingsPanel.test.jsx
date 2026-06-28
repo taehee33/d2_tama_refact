@@ -76,6 +76,17 @@ jest.mock("../../utils/notificationApi", () => ({
   sendTestNotification: (...args) => mockSendTestNotification(...args),
 }));
 
+jest.mock("../../utils/webPushClient", () => ({
+  getWebPushSupportInfo: jest.fn(() => ({
+    supported: false,
+    reason: "unsupported",
+    message: "현재 브라우저는 푸시 알림을 지원하지 않습니다.",
+  })),
+  isWebPushSupported: jest.fn(() => false),
+  requestWebPushSubscription: jest.fn(),
+  removeWebPushSubscription: jest.fn(),
+}));
+
 jest.mock("../../utils/userProfileUtils", () => ({
   ACHIEVEMENT_VER1_MASTER: "ver1",
   ACHIEVEMENT_VER2_MASTER: "ver2",

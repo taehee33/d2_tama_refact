@@ -2,6 +2,21 @@
 
 ## 2026-06-28
 
+### iPhone 브라우저 푸시 연결 안내 보강
+- iPhone에서 Safari 탭으로 열린 상태와 홈 화면 웹앱 실행 상태를 구분해, Safari 탭에서는 홈 화면 아이콘으로 실행해야 한다는 안내를 표시하도록 했습니다.
+- 사용자가 이미 푸시 권한을 차단한 경우 `iPhone 설정 > 알림 > 디지몬 타마고치`에서 다시 허용해야 한다는 복구 안내를 표시하도록 했습니다.
+- Web Push 클라이언트 유틸리티에 iOS standalone 판정과 권한 차단 상태 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `src/utils/webPushClient.js`
+- `src/utils/webPushClient.test.js`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `src/components/panels/AccountSettingsPanel.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- iOS Web Push는 일반 Safari 탭과 홈 화면 웹앱의 동작이 달라서, 브라우저 지원 여부와 실행 모드를 분리해 안내해야 사용자가 실제 복구 동작을 알 수 있습니다.
+
 ### 알림 미수신 개선 v2: 즉시 평가와 채널별 토글
 - 알림 설정에 `notificationChannels.inApp`, `notificationChannels.discord`, `notificationChannels.webPush`를 추가하고, 기존 사용자에게는 모두 켜짐으로 해석되도록 기본값을 보강했습니다.
 - 알림 사건 문서는 계속 저장하되 앱 알림함 표시가 꺼진 경우 `channelState.inApp.status = "hidden"`으로 남기고 알림 센터 목록에서는 제외하도록 정리했습니다.
