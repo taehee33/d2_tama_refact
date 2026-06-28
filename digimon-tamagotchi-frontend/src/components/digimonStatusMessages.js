@@ -529,7 +529,7 @@ export function buildDigimonStatusMessages({
         color: "text-violet-700",
         bgColor: "bg-violet-100",
         category: "good",
-        priority: 73,
+        priority: 45,
         detailHint: "조건이 맞으면 진화 버튼으로 다음 단계로 갈 수 있어요.",
       })
     );

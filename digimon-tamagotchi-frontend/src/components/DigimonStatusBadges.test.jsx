@@ -27,9 +27,11 @@ describe("DigimonStatusBadges", () => {
       />
     );
 
-    expect(screen.getByText("배고픔 0 🍖")).toBeInTheDocument();
-    expect(screen.getByText("힘 0 💪")).toBeInTheDocument();
-    expect(screen.getByText("진화 가능 ✨")).toBeInTheDocument();
+    const visibleBadges = screen
+      .getAllByText(/진화 가능|배고픔 0|힘 0/)
+      .map((element) => element.textContent);
+
+    expect(visibleBadges).toEqual(["진화 가능 ✨", "배고픔 0 🍖", "힘 0 💪"]);
     expect(screen.getByText("+1개 더")).toBeInTheDocument();
     expect(screen.queryByText(/수면까지/)).not.toBeInTheDocument();
 

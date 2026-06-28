@@ -38,9 +38,9 @@ describe("digimonStatusMessages", () => {
     expect(messages.map((message) => message.id)).toContain("time-until-sleep");
     expect(summaryMessages).toHaveLength(3);
     expect(summaryMessages.map((message) => message.id)).toEqual([
+      "can-evolve",
       "hunger-zero",
       "strength-zero",
-      "can-evolve",
     ]);
   });
 

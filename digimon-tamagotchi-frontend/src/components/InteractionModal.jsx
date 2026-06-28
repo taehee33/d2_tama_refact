@@ -14,7 +14,7 @@ export default function InteractionModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-5"
       onClick={onClose}
     >
       <div

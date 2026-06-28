@@ -1837,3 +1837,40 @@
 
 ### 아키텍처 결정 근거
 - 관리자 로그도 커뮤니티/아레나와 같은 이름 우선순위를 따르지 않으면 동일 계정이 화면마다 다른 이름으로 남기 때문에, 저장 시 actor 메타에 `tamerName`을 명시적으로 함께 기록해 두는 편이 이후 조회 성능과 과거 로그 호환성 모두에 유리합니다.
+
+## 2026-06-28
+
+### 온라인 배틀 팝업 위치 정렬
+- 온라인 배틀 하위 메뉴 모달의 overlay 정렬을 배틀모드 선택 모달과 같은 중앙 정렬로 맞췄습니다.
+- 기존 상단 정렬(`items-start`) 때문에 배틀모드 선택에서 온라인 배틀로 들어갈 때 팝업 위치가 위로 튀어 보이던 문제를 수정했습니다.
+
+### 영향받은 파일
+- `src/components/CommunicationModal.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 저장 계약이나 게임 로직 변경 없이 모달 overlay의 정렬만 통일하면 되는 UI 보정이므로, 별도 공통 모달 추출 없이 기존 컴포넌트의 className만 최소 수정했습니다.
+
+### 진화 가능 상태 배지 우선순위 조정
+- 상단 상태 배지에서 `진화 가능`의 표시 우선순위를 높여, 배고픔/힘 경고와 함께 표시될 때 가장 왼쪽에 먼저 보이도록 정렬했습니다.
+- 요약 배지 테스트도 실제 표시 순서를 검증하도록 보강했습니다.
+
+### 영향받은 파일
+- `src/components/digimonStatusMessages.js`
+- `src/components/digimonStatusMessages.test.js`
+- `src/components/DigimonStatusBadges.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 게임 저장 계약이나 lazy update 로직 변경 없이 상태 메시지의 기존 `priority` 정렬 규칙만 조정하면 되는 UI 중요도 변경이므로, 새 정렬 계층을 추가하지 않고 기존 helper 안에서 최소 수정했습니다.
+
+### 교감 팝업 위치 정렬
+- 교감 메뉴 모달의 overlay 정렬을 배틀모드 선택/온라인 배틀 모달과 같은 중앙 정렬로 맞췄습니다.
+- 기존 상단 정렬(`items-start`) 때문에 교감 버튼을 눌렀을 때 팝업이 위로 치우쳐 보이던 문제를 수정했습니다.
+
+### 영향받은 파일
+- `src/components/InteractionModal.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 교감 팝업은 기존 interactive 모달 구조를 그대로 쓰고 있어 저장 로직이나 액션 핸들러 변경 없이 overlay 정렬만 통일하는 편이 가장 작은 변경입니다.
