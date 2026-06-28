@@ -1,5 +1,23 @@
 # REFACTORING LOG
 
+## 2026-06-28
+
+### 알림 채널 상태 표시와 운영 확인 기준 보강
+- 알림 센터 상단 문구를 `앱 알림함`으로 통일해 Firestore 알림 문서와 사용자-facing 알림함의 의미가 헷갈리지 않도록 정리했습니다.
+- 알림 항목의 `channelState.discord` / `channelState.webPush`가 `skipped`일 때도 `Discord 미연결`, `푸시 미연결`, `Discord 꺼짐`, `푸시 꺼짐`처럼 원인을 짧게 표시하도록 보강했습니다.
+- 운영 URL에서 `public/d2-tama-push-sw.js` 서비스워커가 정상 제공되는지 확인했습니다.
+
+### 테스트 보강
+- `GlobalNotificationCenter.test.jsx`에 Discord/Web Push가 미연결 상태로 스킵된 알림이 채널별 상태 라벨을 표시하는지 검증하는 케이스를 추가했습니다.
+
+### 영향받은 파일
+- `src/components/notifications/GlobalNotificationCenter.jsx`
+- `src/components/notifications/GlobalNotificationCenter.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 통합 알림 사건은 Firestore 문서 하나에 채널별 전송 결과를 담기 때문에, 사용자가 앱 알림함에서 같은 사건의 앱 저장/Discord/Web Push 상태를 바로 읽을 수 있어야 운영 확인과 장애 대응이 단순해집니다.
+
 ## 2026-06-27
 
 ### 통합 알림 이벤트와 채널별 전송 상태로 정리

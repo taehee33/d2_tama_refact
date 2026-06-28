@@ -125,6 +125,28 @@ describe("GlobalNotificationCenter", () => {
     expect(await screen.findByText("새 알림이 없습니다.")).toBeInTheDocument();
   });
 
+  test("채널별 전송 스킵 상태를 알림 항목에 표시한다", async () => {
+    mockGetNotificationStatus.mockResolvedValue(createStatus({
+      recentNotifications: [
+        {
+          ...createStatus().recentNotifications[0],
+          readAt: Date.parse("2026-06-25T00:01:00.000Z"),
+          channelState: {
+            inApp: { status: "stored" },
+            discord: { status: "skipped", reason: "webhook_missing" },
+            webPush: { status: "skipped", reason: "no_active_subscription" },
+          },
+        },
+      ],
+    }));
+
+    render(<GlobalNotificationCenter />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "알림" }));
+
+    expect(await screen.findByText("앱 알림함 · Discord 미연결 · 푸시 미연결")).toBeInTheDocument();
+  });
+
   test("인증 화면에서는 렌더링하지 않는다", () => {
     mockLocation.pathname = "/auth";
     mockGetNotificationStatus.mockResolvedValue(createStatus());

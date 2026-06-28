@@ -25,15 +25,28 @@ function formatNotificationTime(value) {
 }
 
 function getChannelStatusLabel(notification) {
-  const discordStatus = notification?.channelState?.discord?.status;
-  const webPushStatus = notification?.channelState?.webPush?.status;
+  const discordState = notification?.channelState?.discord || {};
+  const webPushState = notification?.channelState?.webPush || {};
+  const discordStatus = discordState.status;
+  const webPushStatus = webPushState.status;
   const labels = ["앱 알림함"];
 
   if (discordStatus === "sent") labels.push("Discord 전송");
   if (discordStatus === "failed") labels.push("Discord 실패");
+  if (discordStatus === "skipped") {
+    if (discordState.reason === "disabled") labels.push("Discord 꺼짐");
+    else if (discordState.reason === "webhook_missing") labels.push("Discord 미연결");
+    else labels.push("Discord 제외");
+  }
+
   if (webPushStatus === "sent") labels.push("푸시 전송");
   if (webPushStatus === "partial") labels.push("푸시 일부 실패");
   if (webPushStatus === "failed") labels.push("푸시 실패");
+  if (webPushStatus === "skipped") {
+    if (webPushState.reason === "disabled") labels.push("푸시 꺼짐");
+    else if (webPushState.reason === "no_active_subscription") labels.push("푸시 미연결");
+    else labels.push("푸시 제외");
+  }
 
   return labels.join(" · ");
 }
@@ -220,7 +233,7 @@ function GlobalNotificationCenter() {
         >
           <div className="global-notification-center__header">
             <div>
-              <p className="service-section-label">인앱 알림</p>
+              <p className="service-section-label">앱 알림함</p>
               <h3>알림</h3>
             </div>
             <button
