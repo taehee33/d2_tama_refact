@@ -239,8 +239,8 @@ function EncyclopediaPanel({
                   className="h-16 w-16"
                   style={{
                     imageRendering: "pixelated",
-                    filter: showAsDiscovered ? "none" : "blur(8px) grayscale(100%)",
-                    opacity: showAsDiscovered ? 1 : 0.35,
+                    filter: showAsDiscovered ? "none" : "blur(6px) grayscale(70%)",
+                    opacity: showAsDiscovered ? 1 : 0.70,
                   }}
                 />
                 {showAsDiscovered ? (

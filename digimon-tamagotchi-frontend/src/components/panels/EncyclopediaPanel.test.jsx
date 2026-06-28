@@ -76,8 +76,8 @@ describe("EncyclopediaPanel", () => {
     );
 
     expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
-      filter: "blur(8px) grayscale(100%)",
-      opacity: "0.35",
+      filter: "blur(6px) grayscale(70%)",
+      opacity: "0.70",
     });
     expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
     expect(screen.getAllByText("???").length).toBeGreaterThan(0);
@@ -94,8 +94,8 @@ describe("EncyclopediaPanel", () => {
     );
 
     expect(screen.getByRole("img", { name: "아구몬" })).toHaveStyle({
-      filter: "blur(8px) grayscale(100%)",
-      opacity: "0.35",
+      filter: "blur(6px) grayscale(70%)",
+      opacity: "0.70",
     });
     expect(screen.queryByText("아구몬")).not.toBeInTheDocument();
     expect(screen.getAllByText("???").length).toBeGreaterThan(0);
