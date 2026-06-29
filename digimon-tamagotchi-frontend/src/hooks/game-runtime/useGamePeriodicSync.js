@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export const GAME_PERIODIC_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+export const GAME_PERIODIC_SYNC_RETRY_MS = 30 * 1000;
 
 export function useGamePeriodicSync({
   slotId,
@@ -13,6 +14,7 @@ export function useGamePeriodicSync({
   const latestStatsRef = useRef(digimonStats);
   const saveRef = useRef(setDigimonStatsAndSave);
   const isSyncingRef = useRef(false);
+  const [retryRevision, setRetryRevision] = useState(0);
 
   useEffect(() => {
     latestStatsRef.current = digimonStats;
@@ -47,18 +49,33 @@ export function useGamePeriodicSync({
     }
   }, [currentUser, isLoadingSlot, slotId]);
 
+  const syncLatestStatsWithVisibleRetry = useCallback(async (reason) => {
+    const didSync = await syncLatestStats(reason);
+    if (!didSync && document.visibilityState === "visible") {
+      setRetryRevision((revision) => revision + 1);
+    }
+  }, [syncLatestStats]);
+
   useEffect(() => {
     if (!slotId || !currentUser || isLoadingSlot || !saveRef.current) {
       return undefined;
     }
 
-    const timer = nextSyncAt != null && Number.isFinite(Number(nextSyncAt))
+    const numericNextSyncAt = Number(nextSyncAt);
+    const isOverdue =
+      nextSyncAt != null &&
+      Number.isFinite(numericNextSyncAt) &&
+      numericNextSyncAt <= Date.now();
+    const timerDelay = isOverdue && retryRevision > 0
+      ? GAME_PERIODIC_SYNC_RETRY_MS
+      : Math.max(0, numericNextSyncAt - Date.now());
+    const timer = nextSyncAt != null && Number.isFinite(numericNextSyncAt)
       ? window.setTimeout(() => {
-          void syncLatestStats("15분 주기");
-        }, Math.max(0, Number(nextSyncAt) - Date.now()))
+          void syncLatestStatsWithVisibleRetry("15분 주기");
+        }, timerDelay)
       : null;
     const handleOnline = () => {
-      void syncLatestStats("온라인 복귀");
+      void syncLatestStatsWithVisibleRetry("온라인 복귀");
     };
     const handleVisibilityChange = () => {
       if (
@@ -66,7 +83,7 @@ export function useGamePeriodicSync({
         nextSyncAt != null &&
         Number(nextSyncAt) <= Date.now()
       ) {
-        void syncLatestStats("화면 재활성화");
+        void syncLatestStatsWithVisibleRetry("화면 재활성화");
       }
     };
 
@@ -78,5 +95,12 @@ export function useGamePeriodicSync({
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentUser, isLoadingSlot, nextSyncAt, slotId, syncLatestStats]);
+  }, [
+    currentUser,
+    isLoadingSlot,
+    nextSyncAt,
+    retryRevision,
+    slotId,
+    syncLatestStatsWithVisibleRetry,
+  ]);
 }

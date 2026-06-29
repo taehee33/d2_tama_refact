@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import {
   GAME_PERIODIC_SYNC_INTERVAL_MS,
+  GAME_PERIODIC_SYNC_RETRY_MS,
   useGamePeriodicSync,
 } from "./useGamePeriodicSync";
 
@@ -107,6 +108,36 @@ describe("useGamePeriodicSync", () => {
     });
 
     expect(save).not.toHaveBeenCalled();
+  });
+
+  test("보이는 화면에서 주기 저장이 밀리면 짧은 간격으로 재시도한다", async () => {
+    jest.setSystemTime(20_000);
+    const save = jest.fn().mockResolvedValue(undefined);
+    save.isInFlight = jest
+      .fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValue(false);
+
+    renderHook(() => useGamePeriodicSync({
+      slotId: "1",
+      currentUser: { uid: "user-1" },
+      digimonStats: { energy: 2 },
+      setDigimonStatsAndSave: save,
+      nextSyncAt: 15_000,
+    }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(0);
+      await Promise.resolve();
+    });
+    expect(save).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(GAME_PERIODIC_SYNC_RETRY_MS);
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledWith({ energy: 2 });
   });
 
   test("온라인 복귀 시 즉시 한 번 동기화한다", async () => {

@@ -175,10 +175,7 @@ function isCurrentSleepOrNap(projectedStats = {}, slotData = {}, nowMs = Date.no
 }
 
 function isNeedCallPausedBySleep(callEntry = {}, projectedStats = {}, slotData = {}, nowMs = Date.now()) {
-  return (
-    toTimestamp(callEntry.sleepStartAt) != null &&
-    isCurrentSleepOrNap(projectedStats, slotData, nowMs)
-  );
+  return isCurrentSleepOrNap(projectedStats, slotData, nowMs);
 }
 
 function hasProjectionRuntime(slotData = {}) {
