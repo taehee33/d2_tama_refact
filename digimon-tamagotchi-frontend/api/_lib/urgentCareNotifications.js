@@ -152,6 +152,36 @@ function buildSkippedWebPushState(reason) {
   };
 }
 
+function isDeliveryReservationConflict(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  const status = Number(error?.status || error?.payload?.error?.code || 0);
+  return status === 409 ||
+    message.includes("already exists") ||
+    message.includes("document already exists") ||
+    message.includes("exists");
+}
+
+function buildDeliveryReservationWrite(deliveryId, data) {
+  return createSetWrite(`notification_deliveries/${deliveryId}`, data, {
+    currentDocument: { exists: false },
+  });
+}
+
+async function reserveUrgentDelivery({ deliveryId, data, commit, dryRun }) {
+  if (dryRun) {
+    return true;
+  }
+  try {
+    await commit([buildDeliveryReservationWrite(deliveryId, data)]);
+    return true;
+  } catch (error) {
+    if (isDeliveryReservationConflict(error)) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 async function maybeSendWebPushForSettings({
   uid,
   title,
@@ -309,6 +339,26 @@ async function prepareUrgentCareNotifications({
           nextIssueKeys,
           stateDocument?.data?.lastAcknowledgedAt || 0
         );
+        const deliveryData = {
+          uid,
+          slotId,
+          issueKeys: nextIssueKeys,
+          issues: newIssues,
+          slotIssues: [{ slotId, issues: newIssues }],
+          status: "pending",
+          createdAt: nowMs,
+          expiresAt: nowMs + DELIVERY_TTL_MS,
+        };
+        const reserved = await reserveUrgentDelivery({
+          deliveryId,
+          data: deliveryData,
+          commit,
+          dryRun,
+        });
+        if (!reserved) {
+          summary.reusedDeliveries += 1;
+          continue;
+        }
         summary.newDeliveries += 1;
         if (!dryRun) {
           const digimonName = resolveDigimonDisplayName(slotData);
@@ -340,16 +390,6 @@ async function prepareUrgentCareNotifications({
               currentTime,
             }),
           ]);
-          writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
-            uid,
-            slotId,
-            issueKeys: nextIssueKeys,
-            issues: newIssues,
-            slotIssues: [{ slotId, issues: newIssues }],
-            status: "pending",
-            createdAt: nowMs,
-            expiresAt: nowMs + DELIVERY_TTL_MS,
-          }));
           writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
             type: "urgent_care",
             title: "디지몬 긴급 케어 알림",
@@ -595,6 +635,35 @@ async function evaluateUrgentCareSlotNotification({
     [{ deliveryId, slotId: normalizedSlotId, digimonName, issues: newIssues }],
     formatKstDate(nowMs)
   );
+  const deliveryData = {
+    uid,
+    slotId: normalizedSlotId,
+    issueKeys: nextIssueKeys,
+    issues: newIssues,
+    slotIssues: [{ slotId: normalizedSlotId, issues: newIssues }],
+    status: "pending",
+    createdAt: nowMs,
+    expiresAt: nowMs + DELIVERY_TTL_MS,
+  };
+  const reserved = await reserveUrgentDelivery({
+    deliveryId,
+    data: deliveryData,
+    commit,
+    dryRun,
+  });
+  if (!reserved) {
+    if (!dryRun && writes.length) await commitInBatches(writes, commit);
+    return {
+      ok: true,
+      status: "reused",
+      reason: "",
+      slotId: normalizedSlotId,
+      deliveryId,
+      newDeliveries: 0,
+      reusedDeliveries: 1,
+      issues: newIssues,
+    };
+  }
 
   if (!dryRun) {
     const [discordState, webPushState] = await Promise.all([
@@ -618,16 +687,6 @@ async function evaluateUrgentCareSlotNotification({
         currentTime,
       }),
     ]);
-    writes.push(createSetWrite(`notification_deliveries/${deliveryId}`, {
-      uid,
-      slotId: normalizedSlotId,
-      issueKeys: nextIssueKeys,
-      issues: newIssues,
-      slotIssues: [{ slotId: normalizedSlotId, issues: newIssues }],
-      status: "pending",
-      createdAt: nowMs,
-      expiresAt: nowMs + DELIVERY_TTL_MS,
-    }));
     writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
       type: "urgent_care",
       title: "디지몬 긴급 케어 알림",

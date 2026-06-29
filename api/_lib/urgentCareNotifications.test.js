@@ -103,6 +103,11 @@ function createStore(slotData) {
       writes.forEach((write) => {
         const name = write.update.name;
         const path = name.slice(name.indexOf("/documents/") + "/documents/".length);
+        if (write.currentDocument?.exists === false && documents.has(path)) {
+          const error = new Error("Document already exists");
+          error.status = 409;
+          throw error;
+        }
         documents.set(path, {
           id: path.split("/").pop(),
           data: parseFirestoreFields(write.update.fields || {}),
@@ -316,6 +321,47 @@ test("Discord 실패처럼 ack하지 않은 delivery는 다음 prepare에서 재
   const retry = await prepareUrgentCareNotifications({ ...args, currentTime: new Date(now + 15 * 60 * 1000) });
   assert.equal(retry.summary.reusedDeliveries, 1);
   assert.equal(retry.reports[0].deliveryIds[0], first.reports[0].deliveryIds[0]);
+});
+
+test("prepare는 delivery 예약 충돌 시 Discord를 보내지 않고 새 리포트를 만들지 않는다", async () => {
+  const now = Date.parse("2026-06-21T13:00:00.000Z");
+  const store = createStore({
+    selectedDigimon: "Agumon",
+    lastSavedAt: now,
+    digimonStats: createRuntimeStats({ poopCount: 6 }),
+  });
+  let fetchCalled = false;
+  const originalCommit = store.commit;
+  const result = await prepareUrgentCareNotifications({
+    subscribers: await listTestSubscribers(store),
+    getDocumentByPath: store.get,
+    listCollectionDocuments: store.list,
+    listEligibleSlotDocuments: store.listEligibleSlots,
+    listPendingDeliveryDocuments: async () => [],
+    listExpiredPendingDeliveryDocuments: async () => [],
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return { ok: true };
+    },
+    commit: async (writes) => {
+      const isReservation = writes.some((write) =>
+        String(write?.update?.name || "").includes("/notification_deliveries/") &&
+        write?.currentDocument?.exists === false
+      );
+      if (isReservation) {
+        const error = new Error("Document already exists");
+        error.status = 409;
+        throw error;
+      }
+      return originalCommit(writes);
+    },
+    currentTime: new Date(now),
+  });
+
+  assert.equal(result.summary.newDeliveries, 0);
+  assert.equal(result.summary.reusedDeliveries, 1);
+  assert.equal(result.reports.length, 0);
+  assert.equal(fetchCalled, false);
 });
 
 test("prepare handler는 공용 활성 구독자 조회 결과만 처리한다", async () => {

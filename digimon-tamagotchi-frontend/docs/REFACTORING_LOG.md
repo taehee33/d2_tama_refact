@@ -18,6 +18,20 @@
 ### 아키텍처 결정 근거
 - 알림 사건과 채널별 전송 상태는 서버가 단일 원본으로 관리해야 앱 알림함, Discord, Web Push의 결과가 한 문서에서 일관되게 보입니다. Apps Script는 외부 스케줄러 역할만 남겨야 같은 urgent delivery가 서로 다른 형식으로 두 번 전송되지 않습니다.
 
+### 긴급 알림 즉시 평가와 스케줄 평가 동시 실행 중복 방지
+- 슬롯 저장 직후 `evaluate-slot` 즉시 평가와 Apps Script의 10분 `prepare` 평가가 같은 초에 겹칠 때, 둘 다 pending delivery를 아직 보지 못해 Discord/Web Push를 중복 전송할 수 있던 경쟁 상태를 수정했습니다.
+- 새 delivery는 전송 전에 Firestore `currentDocument.exists = false` 조건으로 먼저 예약하고, 예약에 성공한 호출만 Discord/Web Push를 보냅니다.
+- 같은 delivery ID 예약에 실패한 호출은 새 전송을 만들지 않고 재사용 처리로 종료해, 1초 차이 중복 Discord 메시지를 막습니다.
+
+### 영향받은 파일
+- `api/_lib/firestoreAdmin.js`
+- `api/_lib/urgentCareNotifications.js`
+- `api/_lib/urgentCareNotifications.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 10분 스케줄러와 앱 저장 직후 즉시 평가는 모두 필요한 경로이므로 한쪽을 제거하기보다, 동일한 deterministic delivery ID를 Firestore precondition으로 선점하게 해 서버리스 동시 실행에서도 단일 전송만 허용하는 편이 안전합니다.
+
 ## 2026-06-28
 
 ### iPhone 브라우저 푸시 연결 안내 보강

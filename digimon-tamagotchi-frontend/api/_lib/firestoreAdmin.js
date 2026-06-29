@@ -381,13 +381,17 @@ async function runQuery(structuredQuery, parentPath = "") {
     }));
 }
 
-function createSetWrite(documentPath, data) {
-  return {
+function createSetWrite(documentPath, data, options = {}) {
+  const write = {
     update: {
       name: getDocumentName(documentPath),
       fields: encodeFirestoreFields(data),
     },
   };
+  if (options.currentDocument) {
+    write.currentDocument = options.currentDocument;
+  }
+  return write;
 }
 
 function createUpdateWrite(documentPath, data, fieldPaths) {

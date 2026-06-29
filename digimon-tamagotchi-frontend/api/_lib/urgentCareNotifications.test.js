@@ -470,6 +470,89 @@ test("즉시 슬롯 평가는 기존 pending delivery가 같은 이슈이면 재
   assert.equal(payload.reusedDeliveries, 1);
 });
 
+test("즉시 슬롯 평가는 delivery 예약 충돌 시 Discord를 보내지 않고 재사용 처리한다", async () => {
+  let fetchCalled = false;
+  const payload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "slot1",
+    currentTime: TEST_TIME,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return {
+          id: "main",
+          data: {
+            isNotificationEnabled: true,
+            discordWebhookUrl: "https://discord.com/api/webhooks/1/token",
+          },
+        };
+      }
+      if (path === "users/user-1") return { id: "user-1", data: {} };
+      if (path === "users/user-1/slots/slot1") return createProjectedSlot();
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [],
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return { ok: true };
+    },
+    commit: async (batch) => {
+      const isReservation = batch.some((write) =>
+        String(write?.update?.name || "").includes("/notification_deliveries/") &&
+        write?.currentDocument?.exists === false
+      );
+      if (isReservation) {
+        const error = new Error("Document already exists");
+        error.status = 409;
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(payload.status, "reused");
+  assert.equal(payload.newDeliveries, 0);
+  assert.equal(payload.reusedDeliveries, 1);
+  assert.equal(fetchCalled, false);
+});
+
+test("prepare는 delivery 예약 충돌 시 Discord를 보내지 않고 새 리포트를 만들지 않는다", async () => {
+  let fetchCalled = false;
+  const payload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime: TEST_TIME,
+    dryRun: false,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listEligibleSlotDocuments: async () => [createProjectedSlot()],
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return { ok: true };
+    },
+    commit: async (batch) => {
+      const isReservation = batch.some((write) =>
+        String(write?.update?.name || "").includes("/notification_deliveries/") &&
+        write?.currentDocument?.exists === false
+      );
+      if (isReservation) {
+        const error = new Error("Document already exists");
+        error.status = 409;
+        throw error;
+      }
+    },
+  });
+
+  assert.equal(payload.summary.newDeliveries, 0);
+  assert.equal(payload.summary.reusedDeliveries, 1);
+  assert.equal(payload.reports.length, 0);
+  assert.equal(fetchCalled, false);
+});
+
 test("즉시 슬롯 평가는 채널 토글에 따라 hidden/skipped 상태를 알림 문서에 저장한다", async () => {
   const writes = [];
   const payload = await evaluateUrgentCareSlotNotification({
