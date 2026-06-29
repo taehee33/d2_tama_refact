@@ -101,15 +101,41 @@ describe("Home 테마 진입점", () => {
       recentSlot: {
         id: 1,
         slotName: "슬롯1",
+        selectedDigimon: "Punimon",
         device: "Digital Monster Color 25th",
-        version: "Ver.1",
+        version: "Ver.2",
+        isLightsOn: true,
+        projectedDigimonStats: {
+          fullness: 2,
+          strength: 1,
+          sleepSchedule: { start: 0, end: 23, startMinute: 0, endMinute: 59 },
+          sleepLightOnStart: Date.now() - 40 * 60 * 1000,
+          callStatus: {
+            hunger: { isActive: false },
+            strength: { isActive: false },
+            sleep: { isActive: true, isLogged: true },
+          },
+        },
       },
       recentSlots: [
         {
           id: 1,
           slotName: "슬롯1",
+          selectedDigimon: "Punimon",
           device: "Digital Monster Color 25th",
-          version: "Ver.1",
+          version: "Ver.2",
+          isLightsOn: true,
+          projectedDigimonStats: {
+            fullness: 2,
+            strength: 1,
+            sleepSchedule: { start: 0, end: 23, startMinute: 0, endMinute: 59 },
+            sleepLightOnStart: Date.now() - 40 * 60 * 1000,
+            callStatus: {
+              hunger: { isActive: false },
+              strength: { isActive: false },
+              sleep: { isActive: true, isLogged: true },
+            },
+          },
         },
       ],
     });
@@ -122,9 +148,11 @@ describe("Home 테마 진입점", () => {
       "/images/11.png"
     );
     expect(
-      screen.getAllByText("유아기 · Digital Monster Color 25th / Ver.1").length
+      screen.getAllByText("유아기 · Digital Monster Color 25th / Ver.2").length
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("슬롯1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("수면 중(불 켜짐 경고!) 😴").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("힘 낮음 💪").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "몰입형 화면" })).toBeInTheDocument();
   });

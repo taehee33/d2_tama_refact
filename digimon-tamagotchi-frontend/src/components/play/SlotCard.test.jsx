@@ -121,7 +121,41 @@ describe("SlotCard", () => {
     );
 
     expect(screen.getByLabelText("슬롯 상태")).toBeInTheDocument();
-    expect(screen.getByText("치료 필요")).toBeInTheDocument();
-    expect(screen.getByText("배변 주의")).toBeInTheDocument();
+    expect(screen.getByText("치료 필요: 부상 🏥")).toBeInTheDocument();
+    expect(screen.getByText("똥 많음 💩")).toBeInTheDocument();
+  });
+
+  test("게임 화면과 같은 수면 조명 경고 상태 칩을 표시한다", () => {
+    render(
+      <SlotCard
+        slot={{
+          ...slot,
+          selectedDigimon: "Punimon",
+          version: "Ver.2",
+          isLightsOn: true,
+          projectedDigimonStats: {
+            fullness: 2,
+            strength: 1,
+            sleepSchedule: { start: 0, end: 23, startMinute: 0, endMinute: 59 },
+            sleepLightOnStart: Date.now() - 40 * 60 * 1000,
+            callStatus: {
+              hunger: { isActive: false },
+              strength: { isActive: false },
+              sleep: { isActive: true, isLogged: true },
+            },
+          },
+        }}
+        onToggleNickname={() => {}}
+        onNicknameChange={() => {}}
+        onNicknameSave={() => {}}
+        onNicknameReset={() => {}}
+        onContinue={() => {}}
+        onDelete={() => {}}
+      />
+    );
+
+    expect(screen.getByLabelText("슬롯 상태")).toBeInTheDocument();
+    expect(screen.getByText("수면 중(불 켜짐 경고!) 😴")).toBeInTheDocument();
+    expect(screen.getByText("힘 낮음 💪")).toBeInTheDocument();
   });
 });

@@ -282,6 +282,45 @@ test("KST 수면 시간이고 불이 켜져 있으면 수면 알림과 30분 데
   assert.match(payload.reports[0].messageContent, /남은 시간:/);
 });
 
+test("이미 케어미스로 처리된 수면 조명 경고는 수면 중이어도 새 알림을 만들지 않는다", async () => {
+  const currentTime = new Date("2026-06-25T14:45:00.000Z"); // KST 23:45
+  const nowMs = currentTime.getTime();
+  const payload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async (path) => {
+      if (path === "notification_deliveries") return [];
+      return [];
+    },
+    listEligibleSlotDocuments: async () => [
+      createProjectedSlot({
+        lastSavedAt: nowMs,
+        digimonStats: {
+          callStatus: {
+            sleep: {
+              isActive: true,
+              startedAt: nowMs - 45 * 60_000,
+              isLogged: true,
+            },
+          },
+          sleepLightOnStart: nowMs - 45 * 60_000,
+        },
+      }),
+    ],
+    commit: async () => {},
+  });
+
+  assert.equal(payload.summary.newDeliveries, 0);
+  assert.equal(payload.reports.length, 0);
+});
+
 test("wakeUntil 강제 기상 중이면 수면 알림을 보내지 않는다", async () => {
   const currentTime = new Date("2026-06-25T14:05:00.000Z"); // KST 23:05
   const nowMs = currentTime.getTime();

@@ -94,10 +94,50 @@ describe("PlayHub", () => {
     expect(screen.getByText("슬롯 1")).toBeInTheDocument();
     expect(screen.getByText(/생성일/)).toBeInTheDocument();
     expect(screen.getByLabelText("최근 슬롯 상태")).toBeInTheDocument();
-    expect(screen.getByText("치료 필요")).toBeInTheDocument();
-    expect(screen.getByText("배변 주의")).toBeInTheDocument();
+    expect(screen.getByText("치료 필요: 부상 🏥")).toBeInTheDocument();
+    expect(screen.getByText("똥 많음 💩")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "몰입형 화면" })).not.toBeInTheDocument();
+  });
+
+  test("최근 이어하기 카드에 게임 화면과 같은 수면 조명 경고 상태를 표시한다", () => {
+    mockUseUserSlots.mockReturnValue({
+      slots: [],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: {
+        id: 4,
+        slotName: "슬롯4",
+        selectedDigimon: "Punimon",
+        device: "Digital Monster Color 25th",
+        version: "Ver.2",
+        createdAt: "2026-06-29T00:41:33.000Z",
+        isLightsOn: true,
+        projectedDigimonStats: {
+          fullness: 2,
+          strength: 1,
+          sleepSchedule: { start: 0, end: 23, startMinute: 0, endMinute: 59 },
+          sleepLightOnStart: Date.now() - 40 * 60 * 1000,
+          callStatus: {
+            hunger: { isActive: false },
+            strength: { isActive: false },
+            sleep: { isActive: true, isLogged: true },
+          },
+        },
+      },
+    });
+
+    render(<PlayHub />);
+
+    expect(screen.getByLabelText("최근 슬롯 상태")).toBeInTheDocument();
+    expect(screen.getByText("수면 중(불 켜짐 경고!) 😴")).toBeInTheDocument();
+    expect(screen.getByText("힘 낮음 💪")).toBeInTheDocument();
   });
 
   test("슬롯이 있을 때 허브 운영 기준 카드는 더 이상 보이지 않는다", () => {

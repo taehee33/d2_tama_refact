@@ -1968,3 +1968,32 @@
 ### 아키텍처 결정 근거
 - 배고픔/기력 호출은 수면 중에는 대응 요구가 일시정지되는 규칙이므로, 서버 알림도 호출 객체의 보정 필드에만 의존하지 않고 판정 시각의 수면 상태를 직접 확인하는 편이 오래된 저장 상태와 더 안전하게 맞물립니다.
 - 주기 저장 재시도는 15분 저장 계약을 보완하는 예외 처리이며, 실시간 Firestore 쓰기 타이머를 추가하지 않고 실패한 예정 저장만 낮은 빈도로 재시도합니다.
+
+## 2026-06-30
+
+### 수면 조명 경고 종료 후 중복 알림 차단
+- 서버 긴급 알림 판정에서 `callStatus.sleep.isLogged === true`인 수면 조명 경고는 새 `sleep_light` 이슈로 만들지 않도록 수정했습니다.
+- 30분 경과 후 이미 케어미스로 기록된 수면 조명 사건은 화면 경고는 유지하되, Discord/앱 긴급 알림 재발송 대상에서 제외합니다.
+
+### 홈/플레이 허브 상태 메시지 통일
+- 홈 화면과 플레이 허브 카드의 상태 칩을 게임 화면의 `buildDigimonStatusMessages` 기반 요약 helper로 통일했습니다.
+- 최근 슬롯/슬롯 카드에서 `수면 중(불 켜짐 경고!)`, `진화 가능`, `힘 낮음`, 치료/똥 위험 같은 메시지가 게임 화면과 같은 우선순위로 최대 3개 표시되도록 정리했습니다.
+
+### 테스트 보강
+- 이미 처리된 수면 조명 경고가 서버 긴급 알림으로 다시 만들어지지 않는 회귀 테스트를 추가했습니다.
+- 홈, 플레이 허브, 슬롯 카드가 수면 조명 경고와 힘 낮음 상태를 동일한 요약 칩으로 보여주는 UI 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `api/_lib/urgentCareProjection.js`
+- `api/_lib/urgentCareNotifications.test.js`
+- `src/utils/slotStatusChips.js`
+- `src/utils/slotStatusChips.test.js`
+- `src/components/play/SlotCard.test.jsx`
+- `src/pages/Home.jsx`
+- `src/pages/Home.test.jsx`
+- `src/pages/PlayHub.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 수면 조명 경고는 같은 수면 구간에서 불이 계속 켜져 있어도 케어미스는 1회만 반영되는 사건이므로, 서버 알림도 lazy update의 `isLogged` 상태를 존중해야 사용자에게 같은 사건을 반복 통지하지 않습니다.
+- 홈/허브 카드가 별도 축약 helper를 쓰면 게임 화면과 상태 우선순위가 어긋나므로, 기존 게임 화면 메시지 helper를 감싼 카드용 adapter로 표시 규칙을 한곳에 모았습니다.

@@ -250,6 +250,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   }
   if (
     callStatus.sleep?.isActive &&
+    callStatus.sleep?.isLogged !== true &&
     isActiveScheduledSleepLightWarning(projectedStats, slotData, nowMs)
   ) {
     const startedAt = toTimestamp(callStatus.sleep.startedAt) ??

@@ -16,6 +16,25 @@ import {
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
 import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
+import { getSlotStatusChips } from "../utils/slotStatusChips";
+
+function SlotStatusChipRow({ slot, label }) {
+  const chips = getSlotStatusChips(slot);
+  if (chips.length === 0) return null;
+
+  return (
+    <div className="service-status-chip-row" aria-label={label}>
+      {chips.map((chip) => (
+        <span
+          key={chip.id}
+          className={`service-status-chip service-status-chip--${chip.tone}`}
+        >
+          {chip.label}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function Home() {
   const navigate = useNavigate();
@@ -74,6 +93,7 @@ function Home() {
                         {getSlotSecondaryInfo(recentSlot)}
                       </p>
                     </div>
+                    <SlotStatusChipRow slot={recentSlot} label="최근 슬롯 상태" />
                     <div className="service-inline-actions">
                       <button
                         type="button"
@@ -164,6 +184,7 @@ function Home() {
                     <strong>{getSlotDisplayName(slot)}</strong>
                     <span>{getSlotPrimaryInfo(slot)}</span>
                     <span>{getSlotSecondaryInfo(slot)}</span>
+                    <SlotStatusChipRow slot={slot} label={`슬롯 ${slot.id} 상태`} />
                   </div>
                 </button>
               ))}

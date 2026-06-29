@@ -1,9 +1,9 @@
-import { getSlotStatusChips } from "./slotStatusChips";
+import { getSlotStatusChips, getSlotStatusMessages } from "./slotStatusChips";
 
 describe("getSlotStatusChips", () => {
   test("사망 상태를 최우선 칩으로 반환한다", () => {
     expect(getSlotStatusChips({ digimonStats: { isDead: true } })).toEqual([
-      { id: "dead", label: "사망", tone: "danger" },
+      { id: "death", label: "사망 💀", tone: "danger" },
     ]);
   });
 
@@ -14,8 +14,8 @@ describe("getSlotStatusChips", () => {
         projectedDigimonStats: { isDead: true },
       })[0]
     ).toMatchObject({
-      id: "dead",
-      label: "사망",
+      id: "death",
+      label: "사망 💀",
     });
   });
 
@@ -32,7 +32,7 @@ describe("getSlotStatusChips", () => {
     ).toEqual([]);
   });
 
-  test("사망, 배변, 진화 상태가 동시에 있으면 사망과 배변 주의만 반환한다", () => {
+  test("사망, 배변, 진화 상태가 동시에 있으면 게임 화면 우선순위로 반환한다", () => {
     expect(
       getSlotStatusChips({
         selectedDigimon: "Punimon",
@@ -44,8 +44,8 @@ describe("getSlotStatusChips", () => {
         },
       })
     ).toEqual([
-      { id: "dead", label: "사망", tone: "danger" },
-      { id: "poop", label: "배변 주의", tone: "warning" },
+      { id: "death", label: "사망 💀", tone: "danger" },
+      { id: "poop-danger-max", label: "똥 8개 위험 💩", tone: "danger" },
     ]);
   });
 
@@ -56,23 +56,23 @@ describe("getSlotStatusChips", () => {
         projectedDigimonStats: { poopCount: 8 },
       })[0]
     ).toMatchObject({
-      id: "poop",
-      label: "배변 주의",
+      id: "poop-danger-max",
+      label: "똥 8개 위험 💩",
     });
   });
 
-  test("냉장고, 치료, 배변, 진화 가능 상태를 칩으로 변환한다", () => {
+  test("냉장고, 치료, 배변, 진화 가능 상태를 게임 상태 메시지 칩으로 변환한다", () => {
     expect(getSlotStatusChips({ digimonStats: { isFrozen: true } })[0]).toMatchObject({
       id: "frozen",
-      label: "냉장고 보관",
+      label: "냉장고 보관 중 🧊",
     });
     expect(getSlotStatusChips({ digimonStats: { isInjured: true } })[0]).toMatchObject({
-      id: "injured",
-      label: "치료 필요",
+      id: "injury",
+      label: "치료 필요: 부상 🏥",
     });
     expect(getSlotStatusChips({ digimonStats: { poopCount: 6 } })[0]).toMatchObject({
-      id: "poop",
-      label: "배변 주의",
+      id: "poop-danger-high",
+      label: "똥 많음 💩",
     });
     expect(
       getSlotStatusChips({
@@ -81,12 +81,12 @@ describe("getSlotStatusChips", () => {
         digimonStats: { timeToEvolveSeconds: 0 },
       })[0]
     ).toMatchObject({
-      id: "evolution",
-      label: "진화 가능",
+      id: "can-evolve",
+      label: "진화 가능 ✨",
     });
   });
 
-  test("여러 상태가 있으면 우선순위대로 최대 2개만 반환한다", () => {
+  test("여러 상태가 있으면 게임 화면 우선순위대로 최대 3개만 반환한다", () => {
     expect(
       getSlotStatusChips({
         digimonStats: {
@@ -100,8 +100,9 @@ describe("getSlotStatusChips", () => {
         version: "Ver.2",
       })
     ).toEqual([
-      { id: "dead", label: "사망", tone: "danger" },
-      { id: "frozen", label: "냉장고 보관", tone: "cool" },
+      { id: "death", label: "사망 💀", tone: "danger" },
+      { id: "injury", label: "치료 필요: 부상 🏥", tone: "danger" },
+      { id: "poop-danger-max", label: "똥 8개 위험 💩", tone: "danger" },
     ]);
   });
 
@@ -118,5 +119,33 @@ describe("getSlotStatusChips", () => {
         digimonStats: { timeToEvolveSeconds: 0 },
       })
     ).toEqual([]);
+  });
+
+  test("수면 중 불 켜짐 경고는 진화 가능보다 앞선 요약 메시지로 반환한다", () => {
+    const messages = getSlotStatusMessages({
+      selectedDigimon: "Punimon",
+      version: "Ver.2",
+      isLightsOn: true,
+      projectedDigimonStats: {
+        fullness: 2,
+        strength: 1,
+        timeToEvolveSeconds: 0,
+        sleepSchedule: { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+        sleepLightOnStart: new Date("2026-06-29T20:00:00+09:00").getTime(),
+        callStatus: {
+          hunger: { isActive: false },
+          strength: { isActive: false },
+          sleep: { isActive: true, isLogged: true },
+        },
+      },
+    }, {
+      currentTime: new Date("2026-06-29T22:28:00+09:00").getTime(),
+    });
+
+    expect(messages.map((message) => message.text)).toEqual([
+      "수면 중(불 켜짐 경고!) 😴",
+      "진화 가능 ✨",
+      "힘 낮음 💪",
+    ]);
   });
 });
