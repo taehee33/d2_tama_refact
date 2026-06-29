@@ -1,5 +1,23 @@
 # REFACTORING LOG
 
+## 2026-06-29
+
+### Discord 긴급 알림 중복 전송 경로 정리
+- 긴급 케어 `prepare` API가 이미 Discord/Web Push를 직접 전송하는 상태에서 Apps Script가 `report.messageContent`를 다시 웹훅으로 보내던 중복 경로를 제거했습니다.
+- Apps Script는 이제 10분 스케줄 실행과 `deliveryIds` ack만 담당하고, Discord 메시지는 서버 알림 채널 상태에 기록되는 단일 전송 경로로 유지합니다.
+- 서버 직접 Discord 전송 payload에 `username: "디지몬 파수꾼"`을 넣어 웹훅 기본 이름인 `Captain Hook`으로 표시되지 않도록 맞췄습니다.
+- 서버 직접 Discord 긴급 알림도 기존 `디지몬 파수꾼` 템플릿처럼 테이머, 긴급 대상 수, 슬롯별 이슈, 앱 확인 안내, 확인 시간을 포함하도록 맞췄습니다.
+
+### 영향받은 파일
+- `scripts/apps-script/urgentDigimonCare.gs`
+- `api/_lib/userNotifications.js`
+- `tests/apps-script-urgent-care.test.js`
+- `docs/DISCORD_NOTIFICATION_API_GUIDE.md`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 알림 사건과 채널별 전송 상태는 서버가 단일 원본으로 관리해야 앱 알림함, Discord, Web Push의 결과가 한 문서에서 일관되게 보입니다. Apps Script는 외부 스케줄러 역할만 남겨야 같은 urgent delivery가 서로 다른 형식으로 두 번 전송되지 않습니다.
+
 ## 2026-06-28
 
 ### iPhone 브라우저 푸시 연결 안내 보강

@@ -167,7 +167,7 @@ API는 아래 규칙으로 리포트를 생성합니다.
 
 ## 8. 10분 긴급 케어 알림
 
-긴급 알림은 Google Sheet를 사용하지 않는다. Apps Script는 10분 스케줄 실행과 Discord 전송만 담당하고, 계산 및 중복 방지는 Vercel API와 Firestore 서버 전용 문서가 담당한다.
+긴급 알림은 Google Sheet를 사용하지 않는다. Apps Script는 10분 스케줄 실행과 ack만 담당하고, 계산·Discord/Web Push 전송·중복 방지는 Vercel API와 Firestore 서버 전용 문서가 담당한다.
 
 ### API
 
@@ -175,7 +175,7 @@ API는 아래 규칙으로 리포트를 생성합니다.
 - 확인: `POST /api/notifications/urgent-digimon-care/ack`
 - 공통 헤더: `x-d2-scheduler-secret: {NOTIFICATION_API_SECRET}`
 
-`prepare`는 슬롯 문서와 revision을 수정하지 않는다. 프론트와 동일한 lazy update를 메모리에서 수행하고 새 issue 또는 미확인 pending delivery만 반환한다. Apps Script는 Discord 전송 성공 시에만 해당 `deliveryIds`를 `ack`한다.
+`prepare`는 슬롯 문서와 revision을 수정하지 않는다. 프론트와 동일한 lazy update를 메모리에서 수행하고 새 issue 또는 미확인 pending delivery를 반환한다. Discord/Web Push 전송은 서버가 처리하고, Apps Script는 반환된 `deliveryIds`를 `ack`해 같은 이슈가 반복 계산되지 않게 한다.
 
 ### 알림 대상 조회
 
@@ -209,14 +209,14 @@ Apps Script 편집기에 [`scripts/apps-script/urgentDigimonCare.gs`](../scripts
 2. 구 설정 audit·필요 시 backfill·재-audit을 완료한다.
 3. Vercel 환경변수 설정 후 배포한다.
 4. Apps Script의 Script Properties 세 값을 저장한다.
-5. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 성공 건만 ack되는지 확인한다.
+5. `notifyUrgentDigimonCare()`를 수동 실행해 Discord 메시지가 1건만 전송되고 delivery가 ack되는지 확인한다.
 6. 즉시 재실행해 동일 issue가 중복 전송되지 않는지 확인한다.
 7. `installUrgentDigimonCareTrigger()`를 한 번 실행해 10분 트리거를 설치한다.
 8. Apps Script 실행 기록에서 `preparedReports`, `failedReports`, `acknowledged`, `projectionUnavailable`을 확인한다.
 
 기존 `dryRunUrgentDigimonCare()` 함수는 유지하지만 현재 운영 설치 절차에서는 사용하지 않는다.
 
-webhook URL과 비밀키는 로그에 출력하지 않는다. Discord 성공 후 ack 호출만 실패하면 다음 cron에서 같은 메시지가 한 번 더 전송될 수 있다. 이는 전송과 Firestore ack가 서로 다른 외부 요청이기 때문에 남는 제한이다.
+webhook URL과 비밀키는 로그에 출력하지 않는다. Discord 전송 후 ack 호출만 실패하면 다음 cron에서 같은 delivery가 다시 확인 대상이 될 수 있다. Discord 직접 전송은 서버가 담당하므로 Apps Script에서 `report.messageContent`를 웹훅으로 다시 보내면 중복 알림이 발생한다.
 
 ### 계산 제외
 

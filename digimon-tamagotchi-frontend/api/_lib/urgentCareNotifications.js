@@ -242,6 +242,7 @@ async function prepareUrgentCareNotifications({
       listEligibleSlotDocuments(uid),
     ]);
     const rootData = rootDocument?.data || {};
+    const tamerName = resolveTamerName(profileDocument?.data, rootData);
     summary.totalSlots += slots.length;
     const slotAlerts = [];
 
@@ -313,11 +314,17 @@ async function prepareUrgentCareNotifications({
           const digimonName = resolveDigimonDisplayName(slotData);
           const notificationBody = buildUrgentNotificationBody(slotId, digimonName, newIssues);
           const notificationTargetPath = buildSlotTargetPath(slotId);
+          const discordMessageContent = buildUrgentMessage(
+            tamerName,
+            [{ deliveryId, slotId, digimonName, issues: newIssues }],
+            formatKstDate(nowMs)
+          );
           const [discordState, webPushState] = await Promise.all([
             maybeSendDiscordNotification({
               uid,
               title: "디지몬 긴급 케어 알림",
               body: notificationBody,
+              content: discordMessageContent,
               settings,
               getDocumentByPath,
               fetchImpl,
@@ -374,7 +381,6 @@ async function prepareUrgentCareNotifications({
     }
 
     if (slotAlerts.length) {
-      const tamerName = resolveTamerName(profileDocument?.data, rootData);
       reports.push({
         uid,
         tamerName,
@@ -431,15 +437,18 @@ async function evaluateUrgentCareSlotNotification({
     throw error;
   }
 
-  const [settingsDocument, rootDocument, slotDocument, pendingDocuments] = await Promise.all([
+  const [settingsDocument, rootDocument, profileDocument, slotDocument, pendingDocuments] = await Promise.all([
     getDocumentByPath(`users/${uid}/settings/main`),
     getDocumentByPath(`users/${uid}`),
+    getDocumentByPath(`users/${uid}/profile/main`),
     getDocumentByPath(`users/${uid}/slots/${normalizedSlotId}`),
     listPendingDeliveryDocuments(nowMs),
   ]);
+  const rootData = rootDocument?.data || {};
+  const tamerName = resolveTamerName(profileDocument?.data, rootData);
   const settings = resolveNotificationSettings(
     settingsDocument?.data || {},
-    rootDocument?.data || {}
+    rootData
   );
 
   if (!settings.isNotificationEnabled) {
@@ -581,6 +590,11 @@ async function evaluateUrgentCareSlotNotification({
   const digimonName = resolveDigimonDisplayName(slotData);
   const notificationBody = buildUrgentNotificationBody(normalizedSlotId, digimonName, newIssues);
   const notificationTargetPath = buildSlotTargetPath(normalizedSlotId);
+  const discordMessageContent = buildUrgentMessage(
+    tamerName,
+    [{ deliveryId, slotId: normalizedSlotId, digimonName, issues: newIssues }],
+    formatKstDate(nowMs)
+  );
 
   if (!dryRun) {
     const [discordState, webPushState] = await Promise.all([
@@ -588,6 +602,7 @@ async function evaluateUrgentCareSlotNotification({
         uid,
         title: "디지몬 긴급 케어 알림",
         body: notificationBody,
+        content: discordMessageContent,
         settings,
         getDocumentByPath,
         fetchImpl,

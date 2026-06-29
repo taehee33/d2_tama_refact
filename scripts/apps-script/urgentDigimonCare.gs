@@ -34,23 +34,9 @@ function postJson_(url, secret, body) {
   return payload;
 }
 
-function sendUrgentDiscordReport_(report) {
-  const response = UrlFetchApp.fetch(report.webhookUrl, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      content: report.messageContent,
-      username: "디지몬 파수꾼",
-    }),
-    muteHttpExceptions: true,
-  });
-  const status = response.getResponseCode();
-  return status >= 200 && status < 300;
-}
-
 /**
  * 10분 시간 기반 트리거에서 실행한다.
- * Discord 전송에 성공한 delivery만 ack하므로 실패 건은 다음 실행에서 재전송된다.
+ * Discord/Web Push 전송은 Vercel API가 처리하고, Apps Script는 스케줄 실행과 ack만 담당한다.
  */
 function notifyUrgentDigimonCare() {
   const lock = LockService.getScriptLock();
@@ -64,18 +50,9 @@ function notifyUrgentDigimonCare() {
     const prepared = postJson_(config.prepareUrl, config.secret, { dryRun: false });
     const reports = Array.isArray(prepared.reports) ? prepared.reports : [];
     const acknowledgedIds = [];
-    let failedReports = 0;
 
     reports.forEach(function (report) {
-      try {
-        if (sendUrgentDiscordReport_(report)) {
-          acknowledgedIds.push.apply(acknowledgedIds, report.deliveryIds || []);
-        } else {
-          failedReports += 1;
-        }
-      } catch (error) {
-        failedReports += 1;
-      }
+      acknowledgedIds.push.apply(acknowledgedIds, report.deliveryIds || []);
     });
 
     let ackSummary = { acknowledged: 0, alreadyAcknowledged: 0, invalid: 0 };
@@ -88,8 +65,8 @@ function notifyUrgentDigimonCare() {
     const result = {
       ok: true,
       preparedReports: reports.length,
-      successfulReports: reports.length - failedReports,
-      failedReports: failedReports,
+      successfulReports: reports.length,
+      failedReports: 0,
       acknowledged: ackSummary.acknowledged || 0,
       projectionUnavailable: prepared.summary && prepared.summary.projectionUnavailable || 0,
       frozenSlots: prepared.summary && prepared.summary.frozenSlots || 0,

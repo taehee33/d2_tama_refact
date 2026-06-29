@@ -101,7 +101,10 @@ async function postDiscordWebhook(webhookUrl, content, fetchImpl = globalThis.fe
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({
+      content,
+      username: "디지몬 파수꾼",
+    }),
   });
 
   if (!response.ok) {
@@ -113,6 +116,7 @@ async function maybeSendDiscordNotification({
   uid,
   title,
   body,
+  content = "",
   settings = null,
   getDocumentByPath = getDocument,
   fetchImpl = globalThis.fetch,
@@ -148,7 +152,11 @@ async function maybeSendDiscordNotification({
 
   const sentAt = Date.now();
   try {
-    await postDiscordWebhook(resolvedSettings.discordWebhookUrl, `**${title}**\n${body}`, fetchImpl);
+    await postDiscordWebhook(
+      resolvedSettings.discordWebhookUrl,
+      normalizeString(content) || `**${title}**\n${body}`,
+      fetchImpl
+    );
     return {
       enabled: true,
       connected: true,

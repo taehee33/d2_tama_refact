@@ -325,12 +325,13 @@ test("wakeUntil 강제 기상 중이면 수면 알림을 보내지 않는다", a
 
 test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async () => {
   const writes = [];
+  let discordPayload = null;
   await prepareUrgentCareNotifications({
     subscribers: [createSubscriber()],
     currentTime: TEST_TIME,
     dryRun: false,
     getDocumentByPath: async (path) => {
-      if (path === "users/user-1") return { id: "user-1", data: {} };
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "히히히" } };
       if (path === "users/user-1/profile/main") return { id: "main", data: {} };
       if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
       return null;
@@ -340,7 +341,10 @@ test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async 
       return [];
     },
     listEligibleSlotDocuments: async () => [createProjectedSlot()],
-    fetchImpl: async () => ({ ok: true }),
+    fetchImpl: async (_url, options) => {
+      discordPayload = JSON.parse(options.body);
+      return { ok: true };
+    },
     commit: async (batch) => {
       writes.push(...batch);
       return {};
@@ -361,6 +365,13 @@ test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async 
     notificationWrite.update.fields.channelState.mapValue.fields.discord.mapValue.fields.status.stringValue,
     "sent"
   );
+  assert.equal(discordPayload.username, "디지몬 파수꾼");
+  assert.match(discordPayload.content, /🚨 \*\*디지몬 긴급 케어 알림\*\*/);
+  assert.match(discordPayload.content, /👤 \*\*테이머\*\*: 히히히/);
+  assert.match(discordPayload.content, /⚠️ \*\*긴급 대상\*\*: 1마리 · 1건/);
+  assert.match(discordPayload.content, /🐾 \*\*아구몬\*\* · `슬롯 1`/);
+  assert.match(discordPayload.content, /📱 앱을 열어 현재 상태를 확인해 주세요\./);
+  assert.match(discordPayload.content, /⏰ \*\*확인 시간\*\*:/);
 });
 
 test("기력 호출에도 시작과 케어미스 예정 정보를 붙인다", () => {

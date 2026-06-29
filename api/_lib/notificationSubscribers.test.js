@@ -29,7 +29,7 @@ test("활성 알림 설정 collection-group 쿼리를 생성한다", () => {
   });
 });
 
-test("settings/main과 유효한 Discord webhook만 구독자로 변환한다", () => {
+test("settings/main의 활성 알림 설정은 Discord webhook을 정규화해 구독자로 변환한다", () => {
   const valid = mapNotificationSubscriber(settingsDocument("user-1", {
     isNotificationEnabled: true,
     discordWebhookUrl: "https://discord.com/api/webhooks/id/token",
@@ -44,17 +44,19 @@ test("settings/main과 유효한 Discord webhook만 구독자로 변환한다", 
     }),
     id: "other",
   }), null);
-  assert.equal(mapNotificationSubscriber(settingsDocument("user-3", {
+  const invalidWebhook = mapNotificationSubscriber(settingsDocument("user-3", {
     isNotificationEnabled: true,
     discordWebhookUrl: "https://example.com/api/webhooks/id/token",
-  })), null);
+  }));
+  assert.equal(invalidWebhook.uid, "user-3");
+  assert.equal(invalidWebhook.data.discordWebhookUrl, null);
   assert.equal(mapNotificationSubscriber(settingsDocument("user-4", {
     isNotificationEnabled: false,
     discordWebhookUrl: "https://discord.com/api/webhooks/id/token",
   })), null);
 });
 
-test("조회 결과에서 유효한 활성 구독자만 반환한다", async () => {
+test("조회 결과에서 활성 구독자를 반환하고 Discord webhook은 선택값으로 둔다", async () => {
   let receivedQuery = null;
   const subscribers = await listNotificationSubscribers(async (query) => {
     receivedQuery = query;
@@ -71,5 +73,6 @@ test("조회 결과에서 유효한 활성 구독자만 반환한다", async () 
   });
 
   assert.deepEqual(receivedQuery, buildActiveNotificationSettingsQuery());
-  assert.deepEqual(subscribers.map((entry) => entry.uid), ["enabled"]);
+  assert.deepEqual(subscribers.map((entry) => entry.uid), ["enabled", "invalid"]);
+  assert.equal(subscribers[1].data.discordWebhookUrl, null);
 });

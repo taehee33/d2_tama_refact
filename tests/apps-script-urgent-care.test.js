@@ -64,7 +64,7 @@ function createContext(fetchImplementation) {
   return { context, logs, triggerCalls };
 }
 
-test("Apps Script는 Discord 성공 delivery만 ack한다", () => {
+test("Apps Script는 Discord 직접 전송 없이 prepared delivery를 ack한다", () => {
   const calls = [];
   const { context } = createContext((url, options) => {
     calls.push({ url, options });
@@ -80,18 +80,18 @@ test("Apps Script는 Discord 성공 delivery만 ack한다", () => {
         }],
       });
     }
-    if (url.includes("discord.test")) return response(204);
     return response(200, { ok: true, acknowledged: 1 });
   });
 
   const result = context.notifyUrgentDigimonCare();
   assert.equal(result.acknowledged, 1);
+  assert.equal(calls.some((call) => call.url.includes("discord.test")), false);
   const ackCall = calls.find((call) => call.url.endsWith("/ack"));
   assert.deepEqual(JSON.parse(ackCall.options.payload), { deliveryIds: ["delivery-1"] });
   assert.equal(ackCall.options.headers["x-d2-scheduler-secret"], "secret");
 });
 
-test("Discord 실패 delivery는 ack하지 않아 다음 cron 재전송 대상으로 남긴다", () => {
+test("ack 실패 delivery는 다음 cron 확인 대상으로 남긴다", () => {
   const calls = [];
   const { context } = createContext((url, options) => {
     calls.push({ url, options });
@@ -106,12 +106,13 @@ test("Discord 실패 delivery는 ack하지 않아 다음 cron 재전송 대상�
         }],
       });
     }
+    if (url.endsWith("/ack")) return response(500, { ok: false, error: "ack failed" });
     return response(500, {});
   });
 
-  const result = context.notifyUrgentDigimonCare();
-  assert.equal(result.failedReports, 1);
-  assert.equal(calls.some((call) => call.url.endsWith("/ack")), false);
+  assert.throws(() => context.notifyUrgentDigimonCare(), /API 요청 실패/);
+  assert.equal(calls.some((call) => call.url.includes("discord.test")), false);
+  assert.equal(calls.some((call) => call.url.endsWith("/ack")), true);
 });
 
 test("dryRun은 prepare만 호출하고 webhook을 결과에서 제거한다", () => {
