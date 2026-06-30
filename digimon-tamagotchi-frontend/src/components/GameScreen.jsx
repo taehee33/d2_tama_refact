@@ -118,7 +118,9 @@ const GameScreen = ({
   // 부상 상태일 때 11시/5시만 랜덤, 1시/7시는 주사기로 고정
   const [selectedSickEmojis, setSelectedSickEmojis] = useState([]);
   const prevIsInjured = useRef(digimonStats.isInjured);
+  const prevShowCallModal = useRef(showCallModal);
   const [liveCurrentTime, setLiveCurrentTime] = useState(Date.now());
+  const [callModalTab, setCallModalTab] = useState(null);
   
   useEffect(() => {
     if (digimonStats.isInjured) {
@@ -169,6 +171,19 @@ const GameScreen = ({
       }),
     [digimonStats, sleepStatus, isLightsOn, currentTime]
   );
+
+  useEffect(() => {
+    if (showCallModal && !prevShowCallModal.current) {
+      setCallModalTab(callStatusViewModel.defaultTab);
+    }
+    prevShowCallModal.current = showCallModal;
+  }, [showCallModal, callStatusViewModel.defaultTab]);
+
+  const openCallModal = (tab) => {
+    setCallModalTab(tab);
+    onCallIconClick();
+  };
+  const selectedCallModalTab = callModalTab || callStatusViewModel.defaultTab;
 
   const renderCallCard = (call) => {
     const styles = CALL_CARD_STYLES[call.type] || CALL_CARD_STYLES.hunger;
@@ -394,7 +409,7 @@ const GameScreen = ({
       {/* 호출(Call) 아이콘 */}
       {callStatusViewModel.hasActiveCalls && (
           <button
-            onClick={onCallIconClick}
+            onClick={() => openCallModal("active")}
             style={{
               position: "absolute",
               bottom: 8,
@@ -414,6 +429,29 @@ const GameScreen = ({
             aria-label="호출 상태 열기"
           >
             📣
+          </button>
+      )}
+      {!callStatusViewModel.hasActiveCalls && callStatusViewModel.hasRecentCalls && (
+          <button
+            onClick={() => openCallModal("recent")}
+            style={{
+              position: "absolute",
+              bottom: 8,
+              right: 8,
+              zIndex: 4,
+              background: "rgba(75, 85, 99, 0.85)",
+              color: "white",
+              border: "2px solid #000",
+              borderRadius: 8,
+              padding: "8px 12px",
+              fontSize: 20,
+              cursor: "pointer",
+              fontWeight: "bold",
+            }}
+            title={callStatusViewModel.summaryLabel}
+            aria-label="최근 호출 열기"
+          >
+            🕘📣
           </button>
       )}
       
@@ -470,12 +508,47 @@ const GameScreen = ({
               </button>
             </div>
             
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="호출 상태 탭">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedCallModalTab === "active"}
+                className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                  selectedCallModalTab === "active" ? "bg-white text-gray-900 shadow" : "text-gray-500"
+                }`}
+                onClick={() => setCallModalTab("active")}
+              >
+                현재 호출
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedCallModalTab === "recent"}
+                className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                  selectedCallModalTab === "recent" ? "bg-white text-gray-900 shadow" : "text-gray-500"
+                }`}
+                onClick={() => setCallModalTab("recent")}
+              >
+                최근 호출/케어미스 기록
+              </button>
+            </div>
+
             <div className="space-y-4">
-              {callStatusViewModel.hasActiveCalls ? (
-                callStatusViewModel.activeCalls.map(renderCallCard)
+              {selectedCallModalTab === "active" ? (
+                callStatusViewModel.hasActiveCalls ? (
+                  callStatusViewModel.activeCalls.map(renderCallCard)
+                ) : (
+                  <div className="border-2 border-gray-300 p-3 rounded bg-gray-50">
+                    <p className="font-semibold text-gray-700">현재 활성 호출이 없습니다.</p>
+                  </div>
+                )
               ) : (
                 <div className="border-2 border-gray-300 p-3 rounded bg-gray-50">
-                  <p className="font-semibold text-gray-700">현재 활성 호출이 없습니다.</p>
+                  <p className="font-semibold text-gray-700">
+                    {callStatusViewModel.hasActiveCalls
+                      ? "최근 호출/케어미스 기록"
+                      : "현재 활성 호출이 없습니다."}
+                  </p>
                   {callStatusViewModel.recentCallHistory.length > 0 ? (
                     <div className="mt-3 space-y-2">
                       <p className="text-sm font-semibold text-gray-600">최근 호출/케어미스 기록</p>

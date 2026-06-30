@@ -375,6 +375,10 @@ export default function StatsPopup({
     [callStatusViewModel.activeCalls]
   );
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
+  const isSleepLightCareMistakeProcessed =
+    visibleSleepStatus === "SLEEPING_LIGHT_ON" &&
+    isLightsOn &&
+    currentStats?.callStatus?.sleep?.isLogged === true;
   const isSleepingLikeStatus = [
     "NAPPING",
     "SLEEPING",
@@ -1371,7 +1375,11 @@ export default function StatsPopup({
             {activeCallMap.get("sleep") ? (
                 renderCallDetail(activeCallMap.get("sleep"))
             ) : (
-              visibleSleepStatus === 'SLEEPING_LIGHT_ON' ? (
+              isSleepLightCareMistakeProcessed ? (
+                <div className="text-red-600 font-semibold ml-2">
+                  케어미스 처리됨 · 불은 아직 켜져 있음
+                </div>
+              ) : visibleSleepStatus === 'SLEEPING_LIGHT_ON' ? (
                 <div className="text-yellow-600 ml-2">호출 대기 중...</div>
               ) : (
                 <div className="text-green-600 ml-2">

@@ -303,17 +303,21 @@ export function buildDigimonStatusMessages({
   } else if (!isFrozen && sleepState === "SLEEPING_LIGHT_ON") {
     const elapsedMs = sleepLightOnStartTs == null ? 0 : now - sleepLightOnStartTs;
     const remainingMs = 30 * 60 * 1000 - elapsedMs;
+    const isSleepLightProcessed =
+      digimonStats?.callStatus?.sleep?.isLogged === true || remainingMs <= 0;
     const countdownText =
       sleepLightOnStartTs == null
         ? "불을 끄면 경고가 시작돼요."
         : remainingMs > 0
           ? `케어 미스까지 ${formatSleepCountdown(remainingMs)}`
-          : "케어 미스 발생 구간";
+          : "케어미스 처리됨";
 
     messages.push(
       createStatusMessage({
         id: "sleep-light-on",
-        text: "수면 중(불 켜짐 경고!) 😴",
+        text: isSleepLightProcessed
+          ? "수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴"
+          : "수면 중(불 켜짐 경고!) 😴",
         color: remainingMs > 0 ? "text-orange-600" : "text-red-600",
         bgColor: remainingMs > 0 ? "bg-orange-100" : "bg-red-100",
         category: "warning",

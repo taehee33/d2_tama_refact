@@ -220,6 +220,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   const callStatus = projectedStats.callStatus || {};
   if (
     callStatus.hunger?.isActive &&
+    callStatus.hunger?.isLogged !== true &&
     !isNeedCallPausedBySleep(callStatus.hunger, projectedStats, slotData, nowMs)
   ) {
     const startedAt = toTimestamp(callStatus.hunger.startedAt) ??
@@ -235,6 +236,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   }
   if (
     callStatus.strength?.isActive &&
+    callStatus.strength?.isLogged !== true &&
     !isNeedCallPausedBySleep(callStatus.strength, projectedStats, slotData, nowMs)
   ) {
     const startedAt = toTimestamp(callStatus.strength.startedAt) ??

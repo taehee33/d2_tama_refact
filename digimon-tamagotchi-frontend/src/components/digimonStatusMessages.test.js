@@ -92,6 +92,28 @@ describe("digimonStatusMessages", () => {
     expect(tiredMessage.text).not.toContain("TIRED");
   });
 
+  test("처리된 수면 조명 경고는 케어미스 처리됨 문구로 표시된다", () => {
+    const now = new Date(2026, 3, 7, 23, 40, 0).getTime();
+
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats({
+        callStatus: {
+          hunger: { isActive: false },
+          strength: { isActive: false },
+          sleep: { isActive: true, isLogged: true },
+        },
+      }),
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      sleepLightOnStart: now - 40 * 60 * 1000,
+      currentTime: now,
+    });
+
+    const tiredMessage = messages.find((message) => message.id === "sleep-light-on");
+
+    expect(tiredMessage.text).toBe("수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴");
+    expect(tiredMessage.detailHint).toBe("케어미스 처리됨");
+  });
+
   test("FALLING_ASLEEP 상태는 남은 15초 카운트다운을 본문과 힌트에 표시한다", () => {
     const now = new Date(2026, 3, 7, 23, 10, 5).getTime();
 

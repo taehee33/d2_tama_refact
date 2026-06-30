@@ -125,6 +125,50 @@ function buildRecentCallHistory(activityLogs) {
     });
 }
 
+function buildRecentLoggedCallEntry({ type, callEntry, currentTimeMs }) {
+  if (!callEntry?.isLogged) return null;
+
+  const startedAt = ensureTimestamp(callEntry.startedAt);
+  const timeoutMs =
+    type === "sleep"
+      ? SLEEP_LIGHT_WARNING_TIMEOUT_MS
+      : type === "strength"
+        ? STRENGTH_CALL_TIMEOUT_MS
+        : HUNGER_CALL_TIMEOUT_MS;
+  const timestamp = startedAt != null ? startedAt + timeoutMs : currentTimeMs;
+  const title = CALL_META[type]?.title || "호출";
+  const text =
+    type === "sleep"
+      ? "수면 조명 경고가 케어미스로 처리되었습니다."
+      : `${title}이 케어미스로 처리되었습니다.`;
+
+  return {
+    id: `logged-${type}-${timestamp || "na"}`,
+    type: "CAREMISTAKE",
+    title,
+    text,
+    timestamp,
+    timestampLabel: timestamp ? formatTimestamp(timestamp) : "시간 정보 없음",
+  };
+}
+
+function mergeRecentCallHistory(activityLogs, callStatus, currentTimeMs) {
+  const loggedEntries = ["hunger", "strength", "sleep"]
+    .map((type) => buildRecentLoggedCallEntry({
+      type,
+      callEntry: callStatus?.[type],
+      currentTimeMs,
+    }))
+    .filter(Boolean);
+
+  return [...loggedEntries, ...buildRecentCallHistory(activityLogs)]
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+    .filter((entry, index, entries) => (
+      entries.findIndex((candidate) => candidate.id === entry.id) === index
+    ))
+    .slice(0, 5);
+}
+
 function buildDeadlineText(deadlineMs, prefix = "데드라인") {
   return deadlineMs ? `${prefix}: ${formatTimestamp(deadlineMs)}` : "";
 }
@@ -149,7 +193,11 @@ function buildHungerOrStrengthCall({
     ensureTimestamp(callEntry?.startedAt) ?? ensureTimestamp(lastZeroAtMs);
   const sleepStartAt = ensureTimestamp(callEntry?.sleepStartAt);
   const shouldShowFrozenState = isFrozen && statValue === 0;
-  const hasRealtimeCall = Boolean(callEntry?.isActive && (startedAt || deadlineMs || statValue === 0));
+  const hasRealtimeCall = Boolean(
+    callEntry?.isActive &&
+      callEntry?.isLogged !== true &&
+      (startedAt || deadlineMs || statValue === 0)
+  );
 
   if (!shouldShowFrozenState && !hasRealtimeCall) {
     return null;
@@ -205,7 +253,8 @@ function buildSleepCall({
     ensureTimestamp(callEntry?.startedAt) ?? ensureTimestamp(sleepLightOnStart);
   const normalizedSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const hasSleepWarning = Boolean(
-    callEntry?.isActive || normalizedSleepStatus === "SLEEPING_LIGHT_ON"
+    callEntry?.isLogged !== true &&
+      (callEntry?.isActive || normalizedSleepStatus === "SLEEPING_LIGHT_ON")
   );
 
   if (!hasSleepWarning) {
@@ -309,17 +358,24 @@ export function buildCallStatusViewModel({
     }),
   ].filter(Boolean);
 
-  const recentCallHistory = buildRecentCallHistory(activityLogs);
+  const recentCallHistory = mergeRecentCallHistory(activityLogs, callStatus, currentTimeMs);
   const summaryLabel = activeCalls.length
     ? `${activeCalls.map((call) => call.title).join(" · ")} 확인 필요`
     : recentCallHistory.length > 0
       ? "최근 호출 기록 확인"
       : "현재 활성 호출이 없습니다.";
+  const defaultTab = activeCalls.length > 0
+    ? "active"
+    : recentCallHistory.length > 0
+      ? "recent"
+      : "active";
 
   return {
     activeCalls,
     recentCallHistory,
     hasActiveCalls: activeCalls.length > 0,
+    hasRecentCalls: recentCallHistory.length > 0,
     summaryLabel,
+    defaultTab,
   };
 }

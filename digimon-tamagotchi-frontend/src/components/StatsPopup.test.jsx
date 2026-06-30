@@ -336,6 +336,53 @@ describe("StatsPopup NEW 탭 케어미스/부상 안내", () => {
     ).toBeInTheDocument();
   });
 
+  test("처리된 수면 조명 경고는 호출 대기 중 대신 케어미스 처리 완료로 표시한다", () => {
+    render(
+      <StatsPopup
+        stats={{
+          fullness: 1,
+          maxOverfeed: 3,
+          timeToEvolveSeconds: 3600,
+          lifespanSeconds: 0,
+          age: 0,
+          sprite: 100,
+          evolutionStage: "Child",
+          weight: 3,
+          careMistakes: 1,
+          strength: 1,
+          effort: 0,
+          winRate: 0,
+          energy: 0,
+          poopCount: 0,
+          isInjured: false,
+          injuries: 0,
+          hungerTimer: 60,
+          strengthTimer: 60,
+          poopTimer: 60,
+          callStatus: {
+            hunger: { isActive: false, startedAt: null, isLogged: false },
+            strength: { isActive: false, startedAt: null, isLogged: false },
+            sleep: { isActive: true, startedAt: Date.now() - 40 * 60 * 1000, isLogged: true },
+          },
+          sleepLightOnStart: Date.now() - 40 * 60 * 1000,
+        }}
+        activityLogs={[]}
+        digimonData={{ healDoses: 1 }}
+        digimonDataMap={{}}
+        selectedDigimonId="Agumon"
+        slotVersion="Ver.1"
+        onClose={jest.fn()}
+        devMode={false}
+        onChangeStats={jest.fn()}
+        sleepStatus="SLEEPING_LIGHT_ON"
+        isLightsOn
+      />
+    );
+
+    expect(screen.getByText("케어미스 처리됨 · 불은 아직 켜져 있음")).toBeInTheDocument();
+    expect(screen.queryByText("호출 대기 중...")).not.toBeInTheDocument();
+  });
+
   test("개발자 모드 NEW 탭은 props 갱신을 따라가며 시간이 멈춰 보이지 않는다", () => {
     const { rerender } = render(
       <StatsPopup

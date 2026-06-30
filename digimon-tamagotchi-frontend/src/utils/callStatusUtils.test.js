@@ -280,6 +280,78 @@ describe("callStatusUtils", () => {
     expect(viewModel.summaryLabel).toBe("최근 호출 기록 확인");
   });
 
+  test("케어미스로 처리된 배고픔과 기력 호출은 현재 호출이 아니라 최근 호출로 분류한다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 0,
+        strength: 0,
+        callStatus: {
+          hunger: {
+            isActive: true,
+            startedAt: now - 12 * 60 * 1000,
+            isLogged: true,
+          },
+          strength: {
+            isActive: true,
+            startedAt: now - 11 * 60 * 1000,
+            isLogged: true,
+          },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      },
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasActiveCalls).toBe(false);
+    expect(viewModel.hasRecentCalls).toBe(true);
+    expect(viewModel.defaultTab).toBe("recent");
+    expect(viewModel.recentCallHistory).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "배고픔 호출",
+          text: "배고픔 호출이 케어미스로 처리되었습니다.",
+        }),
+        expect.objectContaining({
+          title: "힘 호출",
+          text: "힘 호출이 케어미스로 처리되었습니다.",
+        }),
+      ])
+    );
+  });
+
+  test("케어미스로 처리된 수면 조명 경고는 현재 호출이 아니라 최근 호출로 분류한다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        sleepLightOnStart: now - 35 * 60 * 1000,
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: {
+            isActive: true,
+            startedAt: now - 35 * 60 * 1000,
+            isLogged: true,
+          },
+        },
+      },
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasActiveCalls).toBe(false);
+    expect(viewModel.defaultTab).toBe("recent");
+    expect(viewModel.recentCallHistory[0]).toEqual(
+      expect.objectContaining({
+        title: "수면 조명 경고",
+        text: "수면 조명 경고가 케어미스로 처리되었습니다.",
+      })
+    );
+  });
+
   test("영문 호출 로그 문구를 한국어로 바꾼다", () => {
     expect(normalizeCallLogText("Call: No Energy!")).toBe("힘 호출이 시작되었습니다.");
   });

@@ -70,6 +70,10 @@ describe("GameScreen 호출 UI", () => {
     });
 
     expect(screen.getByText("📣 호출 상태")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "현재 호출" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
     expect(screen.getByText("배고픔 호출")).toBeInTheDocument();
     expect(screen.getByText("10분을 넘기면 케어미스가 1 증가합니다.")).toBeInTheDocument();
 
@@ -118,8 +122,12 @@ describe("GameScreen 호출 UI", () => {
       },
     });
 
+    expect(screen.getByRole("tab", { name: "최근 호출/케어미스 기록" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
     expect(screen.getByText("현재 활성 호출이 없습니다.")).toBeInTheDocument();
-    expect(screen.getByText("최근 호출/케어미스 기록")).toBeInTheDocument();
+    expect(screen.getAllByText("최근 호출/케어미스 기록").length).toBeGreaterThan(0);
     expect(screen.getByText("배고픔 호출이 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText("수면 조명 경고가 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText(/배고픔 호출 10분 무시/)).toBeInTheDocument();
@@ -145,6 +153,57 @@ describe("GameScreen 호출 UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "호출 상태 열기" }));
     expect(onCallIconClick).toHaveBeenCalledTimes(1);
+  });
+
+  test("활성 호출이 없고 최근 기록만 있으면 최근 호출 아이콘으로 모달 진입 콜백을 호출한다", () => {
+    const onCallIconClick = jest.fn();
+
+    renderGameScreen({
+      onCallIconClick,
+      digimonStats: {
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp: Date.now() - 5000 },
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "최근 호출 열기" }));
+    expect(onCallIconClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "최근 호출 열기" })).toHaveTextContent("🕘📣");
+  });
+
+  test("최근 호출 탭과 현재 호출 탭을 전환해 내용을 분리해서 보여준다", () => {
+    renderGameScreen({
+      showCallModal: true,
+      digimonStats: {
+        fullness: 0,
+        hungerMistakeDeadline: Date.now() + 9 * 60 * 1000,
+        activityLogs: [
+          { type: "CALL", text: "Call: Sleepy!", timestamp: Date.now() - 5000 },
+        ],
+        callStatus: createCallStatus({
+          hunger: {
+            isActive: true,
+            startedAt: Date.now() - 60 * 1000,
+            isLogged: false,
+          },
+        }),
+      },
+    });
+
+    expect(screen.getByRole("tab", { name: "현재 호출" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByText("배고픔 호출")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "최근 호출/케어미스 기록" }));
+
+    expect(screen.getByRole("tab", { name: "최근 호출/케어미스 기록" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByText("수면 조명 경고가 시작되었습니다.")).toBeInTheDocument();
   });
 });
 
