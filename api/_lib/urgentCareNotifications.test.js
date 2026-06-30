@@ -14,6 +14,9 @@ const {
   projectSlotForUrgentCare,
   resolveUrgentIssues,
 } = require("./urgentCareNotifications");
+const {
+  getCurrentSleepScheduleStartMs,
+} = require("../../digimon-tamagotchi-frontend/api/_lib/urgentCareProjection");
 const { NOTIFICATION_SECRET_HEADER } = require("../../digimon-tamagotchi-frontend/api/_lib/notificationReports");
 
 process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2-test";
@@ -236,6 +239,60 @@ test("이미 케어미스로 처리된 수면 조명 경고는 긴급 이슈에�
       },
     },
     sleepLightOnStart: startedAt,
+  }, { isLightsOn: true }, now);
+
+  assert.deepEqual(issues, []);
+});
+
+test("저장된 sleep call이 없어도 수면 스케줄 시작 시각으로 수면 조명 이슈를 만든다", () => {
+  const now = Date.parse("2026-06-30T20:12:00+09:00");
+  const startedAt = Date.parse("2026-06-30T20:00:00+09:00");
+  const issues = resolveUrgentIssues({
+    sleepSchedule: { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+    isLightsOn: true,
+    callStatus: {
+      sleep: {
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
+    },
+    sleepLightOnStart: null,
+  }, { isLightsOn: true }, now);
+
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].key, "sleep_light");
+  assert.equal(issues[0].startedAt, startedAt);
+  assert.equal(issues[0].deadlineAt, startedAt + 30 * 60 * 1000);
+  assert.ok(issues[0].detailLines.includes("남은 시간: 18분"));
+});
+
+test("수면 조명 스케줄 시작 계산은 자정 이후 전날 시작 시각을 사용한다", () => {
+  const now = Date.parse("2026-07-01T01:00:00+09:00");
+  const startedAt = Date.parse("2026-06-30T20:00:00+09:00");
+
+  assert.equal(
+    getCurrentSleepScheduleStartMs(
+      { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+      now
+    ),
+    startedAt
+  );
+});
+
+test("수면 조명 경고가 30분을 넘기면 저장된 sleep call 없이 새 이슈를 만들지 않는다", () => {
+  const now = Date.parse("2026-06-30T20:45:00+09:00");
+  const issues = resolveUrgentIssues({
+    sleepSchedule: { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+    isLightsOn: true,
+    callStatus: {
+      sleep: {
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
+    },
+    sleepLightOnStart: null,
   }, { isLightsOn: true }, now);
 
   assert.deepEqual(issues, []);

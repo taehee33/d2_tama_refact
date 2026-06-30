@@ -222,7 +222,7 @@ describe("AccountSettingsPanel", () => {
     expect(screen.getByText("알림 꺼짐")).toBeInTheDocument();
     expect(screen.getByText("브라우저 푸시")).toBeInTheDocument();
     expect(screen.getByText("마지막 Discord 전송")).toBeInTheDocument();
-    expect(screen.getByText("마지막 긴급 알림 계산")).toBeInTheDocument();
+    expect(screen.getByText("마지막 스케줄러 확인")).toBeInTheDocument();
     expect(screen.getByText("검사 이력 없음")).toBeInTheDocument();
     expect(screen.getByText("1 / 1 슬롯")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "테스트 알림 보내기" })).toBeInTheDocument();
@@ -253,6 +253,8 @@ describe("AccountSettingsPanel", () => {
       urgentCheck: {
         status: "success",
         checkedAt: 1760000000000,
+        totalSlots: 2,
+        projectedSlots: 1,
         newDeliveries: 0,
         projectionUnavailable: 1,
         expiredDeliveries: 2,
@@ -265,7 +267,8 @@ describe("AccountSettingsPanel", () => {
     expect(screen.getByText(/slot2 슬롯의 10분 알림 계산 데이터가 오래되었습니다/)).toBeInTheDocument();
     expect(screen.getByText("성공")).toBeInTheDocument();
     expect(screen.getByText("정상 · 새 전송 0건")).toBeInTheDocument();
-    expect(screen.getByText("계산 제외 1개 · 만료 정리 2개")).toBeInTheDocument();
+    expect(screen.getByText(/마지막 긴급 확인 시간:/)).toBeInTheDocument();
+    expect(screen.getByText("계산 성공 1/2개 · 계산 제외 1개 · 새 전송 0건 · 만료 정리 2개")).toBeInTheDocument();
     expect(screen.getByText("1개")).toBeInTheDocument();
   });
 

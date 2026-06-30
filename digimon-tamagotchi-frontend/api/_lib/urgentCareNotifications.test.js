@@ -14,6 +14,9 @@ const {
   prepareUrgentCareNotifications,
   resolveUrgentIssues,
 } = require("./urgentCareNotifications");
+const {
+  getCurrentSleepScheduleStartMs,
+} = require("./urgentCareProjection");
 
 const TEST_TIME = new Date("2026-06-25T01:00:00.000Z");
 const TEST_NOW = TEST_TIME.getTime();
@@ -280,6 +283,103 @@ test("KST 수면 시간이고 불이 켜져 있으면 수면 알림과 30분 데
   assert.match(payload.reports[0].messageContent, /시작:/);
   assert.match(payload.reports[0].messageContent, /케어미스 예정:/);
   assert.match(payload.reports[0].messageContent, /남은 시간:/);
+});
+
+test("저장된 sleep call이 없어도 수면 스케줄 시작 시각으로 수면 조명 알림을 만든다", async () => {
+  const currentTime = new Date("2026-06-30T11:12:00.000Z"); // KST 20:12
+  const nowMs = currentTime.getTime();
+  const sleepStartedAt = Date.parse("2026-06-30T20:00:00+09:00");
+  const payload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listEligibleSlotDocuments: async () => [
+      createProjectedSlot({
+        lastSavedAt: nowMs,
+        digimonStats: {
+          fullness: 5,
+          strength: 5,
+          sleepSchedule: {
+            start: 20,
+            end: 8,
+            startMinute: 0,
+            endMinute: 0,
+          },
+          callStatus: {
+            sleep: { isActive: false, startedAt: null, isLogged: false },
+          },
+          sleepLightOnStart: null,
+        },
+      }),
+    ],
+    commit: async () => {},
+  });
+
+  assert.equal(payload.summary.newDeliveries, 1);
+  assert.equal(payload.reports.length, 1);
+  const issue = payload.reports[0].slotIssues[0].issues[0];
+  assert.equal(issue.key, "sleep_light");
+  assert.equal(issue.startedAt, sleepStartedAt);
+  assert.equal(issue.deadlineAt, sleepStartedAt + 30 * 60_000);
+  assert.ok(issue.detailLines.includes("시작: 오후 8:00"));
+  assert.ok(issue.detailLines.includes("케어미스 예정: 오후 8:30"));
+  assert.ok(issue.detailLines.includes("남은 시간: 18분"));
+});
+
+test("수면 조명 스케줄 시작 계산은 자정 이후 전날 시작 시각을 사용한다", () => {
+  const startedAt = getCurrentSleepScheduleStartMs(
+    { start: 20, end: 8, startMinute: 0, endMinute: 0 },
+    Date.parse("2026-07-01T01:00:00+09:00")
+  );
+
+  assert.equal(startedAt, Date.parse("2026-06-30T20:00:00+09:00"));
+});
+
+test("수면 조명 경고가 30분을 넘기면 저장된 sleep call 없이 새 알림을 만들지 않는다", async () => {
+  const currentTime = new Date("2026-06-30T11:45:00.000Z"); // KST 20:45
+  const nowMs = currentTime.getTime();
+  const payload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listEligibleSlotDocuments: async () => [
+      createProjectedSlot({
+        lastSavedAt: nowMs,
+        digimonStats: {
+          fullness: 5,
+          strength: 5,
+          sleepSchedule: {
+            start: 20,
+            end: 8,
+            startMinute: 0,
+            endMinute: 0,
+          },
+          callStatus: {
+            sleep: { isActive: false, startedAt: null, isLogged: false },
+          },
+          sleepLightOnStart: null,
+        },
+      }),
+    ],
+    commit: async () => {},
+  });
+
+  assert.equal(payload.summary.newDeliveries, 0);
+  assert.equal(payload.reports.length, 0);
 });
 
 test("이미 케어미스로 처리된 수면 조명 경고는 수면 중이어도 새 알림을 만들지 않는다", async () => {
@@ -574,6 +674,71 @@ test("즉시 슬롯 평가는 기존 pending delivery가 같은 이슈이면 재
   assert.equal(payload.status, "reused");
   assert.equal(payload.deliveryId, "existing-delivery");
   assert.equal(payload.reusedDeliveries, 1);
+});
+
+test("prepare와 즉시 슬롯 평가는 저장된 sleep call이 없어도 같은 수면 조명 이슈를 계산한다", async () => {
+  const currentTime = new Date("2026-06-30T11:12:00.000Z"); // KST 20:12
+  const nowMs = currentTime.getTime();
+  const slotDocument = createProjectedSlot({
+    lastSavedAt: nowMs,
+    digimonStats: {
+      fullness: 5,
+      strength: 5,
+      sleepSchedule: {
+        start: 20,
+        end: 8,
+        startMinute: 0,
+        endMinute: 0,
+      },
+      callStatus: {
+        sleep: { isActive: false, startedAt: null, isLogged: false },
+      },
+      sleepLightOnStart: null,
+    },
+  });
+
+  const preparePayload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listEligibleSlotDocuments: async () => [slotDocument],
+    commit: async () => {},
+  });
+  const evaluatePayload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "slot1",
+    currentTime,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return { id: "main", data: { isNotificationEnabled: true } };
+      }
+      if (path === "users/user-1") {
+        return { id: "user-1", data: { discordWebhookUrl: "https://discord.com/api/webhooks/1/token" } };
+      }
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/slots/slot1") return slotDocument;
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [],
+    commit: async () => {},
+  });
+
+  const prepareIssue = preparePayload.reports[0].slotIssues[0].issues[0];
+  const evaluateIssue = evaluatePayload.issues[0];
+  assert.equal(prepareIssue.key, "sleep_light");
+  assert.equal(evaluateIssue.key, "sleep_light");
+  assert.equal(prepareIssue.startedAt, evaluateIssue.startedAt);
+  assert.equal(prepareIssue.deadlineAt, evaluateIssue.deadlineAt);
 });
 
 test("즉시 슬롯 평가는 delivery 예약 충돌 시 Discord를 보내지 않고 재사용 처리한다", async () => {

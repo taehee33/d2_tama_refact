@@ -89,6 +89,33 @@ function getKstMinutesOfDay(nowMs) {
   return clampHour(hour, 0) * 60 + clampMinute(values.minute, 0);
 }
 
+function getKstDateParts(nowMs) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: KST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(nowMs));
+  return parts.reduce((accumulator, part) => {
+    if (part.type !== "literal") {
+      accumulator[part.type] = Number(part.value);
+    }
+    return accumulator;
+  }, {});
+}
+
+function kstWallTimeToUtcMs(dateParts, hour, minute, dayOffset = 0) {
+  return Date.UTC(
+    Number(dateParts.year),
+    Number(dateParts.month) - 1,
+    Number(dateParts.day) + dayOffset,
+    clampHour(hour, 0) - 9,
+    clampMinute(minute, 0),
+    0,
+    0
+  );
+}
+
 function isWithinSleepScheduleKst(schedule, nowMs) {
   const normalized = normalizeSleepScheduleForAlert(schedule);
   const currentMinutes = getKstMinutesOfDay(nowMs);
@@ -102,6 +129,33 @@ function isWithinSleepScheduleKst(schedule, nowMs) {
     return currentMinutes >= startMinutes && currentMinutes < endMinutes;
   }
   return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+}
+
+function getCurrentSleepScheduleStartMs(schedule, nowMs) {
+  const normalized = normalizeSleepScheduleForAlert(schedule);
+  const currentMinutes = getKstMinutesOfDay(nowMs);
+  const startMinutes = normalized.start * 60 + normalized.startMinute;
+  const endMinutes = normalized.end * 60 + normalized.endMinute;
+  const dateParts = getKstDateParts(nowMs);
+
+  if (startMinutes === endMinutes) {
+    return null;
+  }
+
+  if (startMinutes < endMinutes) {
+    if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+      return null;
+    }
+    return kstWallTimeToUtcMs(dateParts, normalized.start, normalized.startMinute);
+  }
+
+  if (currentMinutes >= startMinutes) {
+    return kstWallTimeToUtcMs(dateParts, normalized.start, normalized.startMinute);
+  }
+  if (currentMinutes < endMinutes) {
+    return kstWallTimeToUtcMs(dateParts, normalized.start, normalized.startMinute, -1);
+  }
+  return null;
 }
 
 function formatKstTime(nowMs) {
@@ -159,8 +213,26 @@ function isActiveScheduledSleepLightWarning(projectedStats = {}, slotData = {}, 
   if (projectedStats.isLightsOn === false || slotData.isLightsOn === false) return false;
   const wakeUntil = toTimestamp(projectedStats.wakeUntil ?? slotData.wakeUntil);
   if (wakeUntil != null && wakeUntil > nowMs) return false;
+  const napUntil = toTimestamp(projectedStats.napUntil ?? slotData?.digimonStats?.napUntil);
+  if (napUntil != null && napUntil > nowMs) return false;
   const sleepSchedule = projectedStats.sleepSchedule || slotData?.digimonStats?.sleepSchedule;
   return isWithinSleepScheduleKst(sleepSchedule, nowMs);
+}
+
+function resolveSleepLightIssueTiming(projectedStats = {}, slotData = {}, nowMs = Date.now()) {
+  const sleepSchedule = projectedStats.sleepSchedule || slotData?.digimonStats?.sleepSchedule;
+  const callEntry = projectedStats.callStatus?.sleep || {};
+  const startedAt = toTimestamp(callEntry.startedAt) ??
+    toTimestamp(projectedStats.sleepLightOnStart) ??
+    getCurrentSleepScheduleStartMs(sleepSchedule, nowMs);
+  const deadlineAt =
+    startedAt != null ? startedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS : null;
+
+  if (startedAt == null || deadlineAt == null || deadlineAt <= nowMs) {
+    return null;
+  }
+
+  return buildIssueTiming({ startedAt, deadlineAt, nowMs });
 }
 
 function isCurrentSleepOrNap(projectedStats = {}, slotData = {}, nowMs = Date.now()) {
@@ -251,19 +323,17 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
     });
   }
   if (
-    callStatus.sleep?.isActive &&
     callStatus.sleep?.isLogged !== true &&
     isActiveScheduledSleepLightWarning(projectedStats, slotData, nowMs)
   ) {
-    const startedAt = toTimestamp(callStatus.sleep.startedAt) ??
-      toTimestamp(projectedStats.sleepLightOnStart);
-    const deadlineAt =
-      startedAt != null ? startedAt + SLEEP_LIGHT_WARNING_TIMEOUT_MS : null;
-    issues.push({
-      key: "sleep_light",
-      label: "💡 수면 시간 조명 켜짐",
-      ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
-    });
+    const timing = resolveSleepLightIssueTiming(projectedStats, slotData, nowMs);
+    if (timing) {
+      issues.push({
+        key: "sleep_light",
+        label: "💡 수면 시간 조명 켜짐",
+        ...timing,
+      });
+    }
   }
   const poopCount = Number(projectedStats.poopCount) || 0;
   if (poopCount >= 8) {
@@ -283,8 +353,10 @@ function isStoredInCareStorage(slotData = {}) {
 
 module.exports = {
   hasProjectionRuntime,
+  getCurrentSleepScheduleStartMs,
   isActiveScheduledSleepLightWarning,
   isStoredInCareStorage,
   projectSlotForUrgentCare,
   resolveUrgentIssues,
+  resolveSleepLightIssueTiming,
 };

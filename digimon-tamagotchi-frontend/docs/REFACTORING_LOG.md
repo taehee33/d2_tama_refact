@@ -1,5 +1,23 @@
 # REFACTORING LOG
 
+## 2026-06-30
+
+### 수면 조명 경고 서버 계산 보강
+- 긴급 케어 서버 projection이 저장된 `sleepLightOnStart` 없이도 현재 KST 수면 구간 시작 시각을 계산해 30분 이내 수면 조명 경고 알림을 만들도록 보강했습니다.
+- 자정 이후에도 전날 수면 시작 시각을 기준으로 계산해 `PM 8:00 - AM 8:00` 같은 야간 수면 스케줄의 시작 시각이 흔들리지 않도록 했습니다.
+- 30분을 이미 넘긴 수면 조명 경고는 새 Discord/앱 긴급 알림을 만들지 않고, 실제 케어미스 반영은 기존 앱 진입/슬롯 저장 lazy update 경로에 맡깁니다.
+- 알림 상태 화면의 10분 스케줄러 진단 문구를 `마지막 긴급 확인 시간`, `다음 예상 확인 시간`, 계산 성공/제외/새 전송/만료 정리 집계로 구체화했습니다.
+
+### 영향받은 파일
+- `api/_lib/urgentCareNotifications.js`
+- `api/_lib/userNotifications.js`
+- `api/_lib/urgentCareProjection.js`
+- `src/components/panels/AccountSettingsPanel.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- Apps Script 10분 트리거는 유지하되, 서버가 저장된 슬롯 문서와 수면 스케줄만으로 현재 수면 조명 호출을 판정하게 해야 앱을 열기 전에도 알림이 발생할 수 있습니다. 슬롯 문서의 스탯과 케어미스 값은 계속 lazy update 경계에서만 갱신해 Firestore write 비용과 책임 경계를 유지합니다.
+
 ## 2026-06-29
 
 ### Discord 긴급 알림 중복 전송 경로 정리

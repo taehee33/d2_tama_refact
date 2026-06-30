@@ -169,7 +169,12 @@ function getUrgentCheckSummary(urgentCheck) {
     return "Apps Script 실행 기록과 Vercel 로그를 확인해 주세요.";
   }
 
-  return `계산 제외 ${urgentCheck.projectionUnavailable || 0}개 · 만료 정리 ${urgentCheck.expiredDeliveries || 0}개`;
+  return [
+    `계산 성공 ${urgentCheck.projectedSlots || 0}/${urgentCheck.totalSlots || 0}개`,
+    `계산 제외 ${urgentCheck.projectionUnavailable || 0}개`,
+    `새 전송 ${urgentCheck.newDeliveries || 0}건`,
+    `만료 정리 ${urgentCheck.expiredDeliveries || 0}개`,
+  ].join(" · ");
 }
 
 function getCurrentSlotDiagnosticLabel(currentSlot) {
@@ -862,13 +867,13 @@ function AccountSettingsPanel({
             </p>
           </div>
           <div className="service-key-value">
-            <p className="service-section-label">마지막 긴급 알림 계산</p>
+            <p className="service-section-label">마지막 스케줄러 확인</p>
             <strong>{getUrgentCheckLabel(urgentCheck)}</strong>
             <p className="service-muted">
-              {formatDateTime(urgentCheck?.checkedAt)}
+              마지막 긴급 확인 시간: {formatDateTime(urgentCheck?.checkedAt)}
             </p>
             <p className="service-muted">
-              다음 예상 {formatDateTime(diagnostics.nextUrgentCheckAt)}
+              다음 예상 확인 시간: {formatDateTime(diagnostics.nextUrgentCheckAt)}
             </p>
             <p className="service-muted">
               {getUrgentCheckSummary(urgentCheck)}
@@ -880,7 +885,7 @@ function AccountSettingsPanel({
               {projectionSummary.projectedSlots || 0} / {projectionSummary.totalSlots || 0} 슬롯
             </strong>
             <p className="service-muted">
-              보관함 제외 {projectionSummary.frozenSlots || 0}개
+              보관함 제외 {projectionSummary.frozenSlots || 0}개 · 계산 제외 {projectionSummary.projectionUnavailable || 0}개
             </p>
           </div>
           <div className="service-key-value">
