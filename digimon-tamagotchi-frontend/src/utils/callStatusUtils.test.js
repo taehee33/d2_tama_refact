@@ -1,5 +1,6 @@
 import {
   buildCallStatusViewModel,
+  mergeAcknowledgedRecentCallIds,
   normalizeCallLogText,
   normalizeSleepStatusForDisplay,
 } from "./callStatusUtils";
@@ -278,6 +279,103 @@ describe("callStatusUtils", () => {
     );
     expect(viewModel.recentCallHistory[1].text).toContain("배고픔 호출");
     expect(viewModel.summaryLabel).toBe("최근 호출 기록 확인");
+  });
+
+  test("확인하지 않은 최근 호출은 미확인 상태로 분류한다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp: now - 5000 },
+        ],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      },
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasRecentCalls).toBe(true);
+    expect(viewModel.hasUnreadRecentCalls).toBe(true);
+    expect(viewModel.recentCallHistory[0]).toEqual(
+      expect.objectContaining({
+        id: `CALL-${now - 5000}-0`,
+        isAcknowledged: false,
+      })
+    );
+  });
+
+  test("확인된 최근 호출만 있으면 최근 호출 버튼 대상에서 제외한다", () => {
+    const recentId = `CALL-${now - 5000}-0`;
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        acknowledgedRecentCallIds: [recentId],
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp: now - 5000 },
+        ],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      },
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasRecentCalls).toBe(true);
+    expect(viewModel.hasUnreadRecentCalls).toBe(false);
+    expect(viewModel.summaryLabel).toBe("최근 호출 기록 모두 확인됨");
+    expect(viewModel.recentCallHistory[0].isAcknowledged).toBe(true);
+  });
+
+  test("기존 확인 목록에 없는 새 최근 호출은 미확인으로 표시한다", () => {
+    const oldRecentId = `CALL-${now - 5000}-0`;
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        acknowledgedRecentCallIds: [oldRecentId],
+        activityLogs: [
+          { type: "CALL", text: "Call: No Energy!", timestamp: now - 1000 },
+        ],
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null },
+        },
+      },
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasUnreadRecentCalls).toBe(true);
+    expect(viewModel.recentCallHistory[0]).toEqual(
+      expect.objectContaining({
+        id: `CALL-${now - 1000}-0`,
+        isAcknowledged: false,
+      })
+    );
+  });
+
+  test("확인 ID 병합은 중복을 제거하고 최근 50개까지만 유지한다", () => {
+    const baseIds = Array.from({ length: 49 }, (_, index) => `old-${index}`);
+    const merged = mergeAcknowledgedRecentCallIds(baseIds, ["old-48", "new-1", "new-2"]);
+
+    expect(merged).toHaveLength(50);
+    expect(merged).toContain("new-1");
+    expect(merged).toContain("new-2");
+    expect(merged.filter((id) => id === "old-48")).toHaveLength(1);
+    expect(merged).not.toContain("old-0");
   });
 
   test("케어미스로 처리된 배고픔과 기력 호출은 현재 호출이 아니라 최근 호출로 분류한다", () => {

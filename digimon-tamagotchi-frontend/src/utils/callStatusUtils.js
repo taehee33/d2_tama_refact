@@ -4,6 +4,7 @@ import { toEpochMs } from "./time";
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
+const MAX_ACKNOWLEDGED_RECENT_CALL_IDS = 50;
 
 const CALL_META = {
   hunger: {
@@ -169,6 +170,21 @@ function mergeRecentCallHistory(activityLogs, callStatus, currentTimeMs) {
     .slice(0, 5);
 }
 
+function normalizeAcknowledgedRecentCallIds(value) {
+  return Array.isArray(value)
+    ? value.filter((id) => typeof id === "string" && id.trim()).slice(-MAX_ACKNOWLEDGED_RECENT_CALL_IDS)
+    : [];
+}
+
+export function mergeAcknowledgedRecentCallIds(existingIds, nextIds) {
+  const merged = [
+    ...normalizeAcknowledgedRecentCallIds(existingIds),
+    ...normalizeAcknowledgedRecentCallIds(nextIds),
+  ];
+
+  return [...new Set(merged)].slice(-MAX_ACKNOWLEDGED_RECENT_CALL_IDS);
+}
+
 function buildDeadlineText(deadlineMs, prefix = "데드라인") {
   return deadlineMs ? `${prefix}: ${formatTimestamp(deadlineMs)}` : "";
 }
@@ -314,6 +330,9 @@ export function buildCallStatusViewModel({
   const currentTimeMs = ensureTimestamp(currentTime) ?? Date.now();
   const activityLogs = Array.isArray(digimonStats?.activityLogs) ? digimonStats.activityLogs : [];
   const callStatus = digimonStats?.callStatus || {};
+  const acknowledgedRecentCallIds = new Set(
+    normalizeAcknowledgedRecentCallIds(digimonStats?.acknowledgedRecentCallIds)
+  );
 
   const activeCalls = [
     buildHungerOrStrengthCall({
@@ -358,11 +377,18 @@ export function buildCallStatusViewModel({
     }),
   ].filter(Boolean);
 
-  const recentCallHistory = mergeRecentCallHistory(activityLogs, callStatus, currentTimeMs);
+  const recentCallHistory = mergeRecentCallHistory(activityLogs, callStatus, currentTimeMs)
+    .map((entry) => ({
+      ...entry,
+      isAcknowledged: acknowledgedRecentCallIds.has(entry.id),
+    }));
+  const hasUnreadRecentCalls = recentCallHistory.some((entry) => !entry.isAcknowledged);
   const summaryLabel = activeCalls.length
     ? `${activeCalls.map((call) => call.title).join(" · ")} 확인 필요`
     : recentCallHistory.length > 0
-      ? "최근 호출 기록 확인"
+      ? hasUnreadRecentCalls
+        ? "최근 호출 기록 확인"
+        : "최근 호출 기록 모두 확인됨"
       : "현재 활성 호출이 없습니다.";
   const defaultTab = activeCalls.length > 0
     ? "active"
@@ -375,6 +401,7 @@ export function buildCallStatusViewModel({
     recentCallHistory,
     hasActiveCalls: activeCalls.length > 0,
     hasRecentCalls: recentCallHistory.length > 0,
+    hasUnreadRecentCalls,
     summaryLabel,
     defaultTab,
   };

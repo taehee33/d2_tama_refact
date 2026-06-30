@@ -172,6 +172,59 @@ describe("GameScreen 호출 UI", () => {
     expect(screen.getByRole("button", { name: "최근 호출 열기" })).toHaveTextContent("🕘📣");
   });
 
+  test("확인된 최근 호출만 있으면 최근 호출 아이콘을 숨긴다", () => {
+    const timestamp = Date.now() - 5000;
+
+    renderGameScreen({
+      digimonStats: {
+        acknowledgedRecentCallIds: [`CALL-${timestamp}-0`],
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: "최근 호출 열기" })).not.toBeInTheDocument();
+  });
+
+  test("최근 호출 탭은 확인 상태 배지와 모두 확인 버튼을 보여준다", () => {
+    const timestamp = Date.now() - 5000;
+    const onAcknowledgeRecentCalls = jest.fn();
+
+    renderGameScreen({
+      showCallModal: true,
+      onAcknowledgeRecentCalls,
+      digimonStats: {
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+    });
+
+    expect(screen.getByText("미확인")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "모두 확인" }));
+
+    expect(onAcknowledgeRecentCalls).toHaveBeenCalledWith([`CALL-${timestamp}-0`]);
+  });
+
+  test("모두 확인된 최근 호출은 확인됨 배지로 표시하고 모두 확인 버튼을 숨긴다", () => {
+    const timestamp = Date.now() - 5000;
+
+    renderGameScreen({
+      showCallModal: true,
+      digimonStats: {
+        acknowledgedRecentCallIds: [`CALL-${timestamp}-0`],
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+    });
+
+    expect(screen.getByText("확인됨")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "모두 확인" })).not.toBeInTheDocument();
+  });
+
   test("최근 호출 탭과 현재 호출 탭을 전환해 내용을 분리해서 보여준다", () => {
     renderGameScreen({
       showCallModal: true,

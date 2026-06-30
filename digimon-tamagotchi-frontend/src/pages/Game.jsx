@@ -63,6 +63,7 @@ import {
   SUPPORTED_DIGIMON_VERSIONS,
 } from "../utils/digimonVersionUtils";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
+import { mergeAcknowledgedRecentCallIds } from "../utils/callStatusUtils";
 
 const DEFAULT_SEASON_ID = 1;
 const MEAT_SPRITES = ["/images/526.png", "/images/527.png", "/images/528.png", "/images/529.png"];
@@ -777,6 +778,29 @@ function Game({ immersive = false }){
     [setActiveMenu, toggleModal]
   );
 
+  const handleAcknowledgeRecentCalls = useCallback(
+    (ids = []) => {
+      const nextIds = Array.isArray(ids)
+        ? ids.filter((id) => typeof id === "string" && id.trim())
+        : [];
+      if (nextIds.length === 0) return;
+
+      const updatedStats = {
+        ...digimonStats,
+        acknowledgedRecentCallIds: mergeAcknowledgedRecentCallIds(
+          digimonStats.acknowledgedRecentCallIds,
+          nextIds
+        ),
+      };
+
+      setDigimonStats(updatedStats);
+      setDigimonStatsAndSave(updatedStats).catch((error) => {
+        console.warn("[Game] 최근 호출 확인 상태 저장 실패", error);
+      });
+    },
+    [digimonStats, setDigimonStats, setDigimonStatsAndSave]
+  );
+
   const closeLandscapeActionViewer = useCallback(() => {
     setActiveLandscapeAction(null);
   }, []);
@@ -1208,6 +1232,7 @@ function Game({ immersive = false }){
     onCallIconClick: () => toggleModal("call", true),
     onCallModalClose: () => toggleModal("call", false),
     onResolveCallAction: handleResolveCallAction,
+    onAcknowledgeRecentCalls: handleAcknowledgeRecentCalls,
     showSleepDisturbanceToast: modals.sleepDisturbanceToast,
     sleepDisturbanceToastMessage: "수면 방해! 😴 (10분 동안 깨어있음)",
   };
