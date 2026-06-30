@@ -6519,6 +6519,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/hooks/useGameData.test.js`
 - **근거:** Apps Script 주기 자체는 유지하면서 Firestore 슬롯 읽기 수를 알림 대상 슬롯으로 좁힌다. 기존 슬롯 중 `notificationEligible`이 없는 문서는 한 번 저장되기 전까지 알림 대상에서 제외된다.
 
+## [2026-06-30] 최근 호출 기록 확인 상태 안정화
+
+- **내용:** 최근 호출/케어미스 기록을 표준 record로 정규화하고, 정렬 순서에 의존하던 확인 ID를 stable ID로 교체했다. `careMistakeLedger`를 우선 소스로 사용하고 `activityLogs`/`callStatus` 합성 기록은 같은 케어미스로 병합해 중복 미확인 표시를 줄였다. 사용자 화면에서는 `[과거 재구성]` 내부 문구를 제거하고 케어미스 처리 문구로 통일했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+  - `digimon-tamagotchi-frontend/src/utils/callStatusUtils.test.js`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- **근거:** 같은 호출 케어미스가 서로 다른 ID로 재생성되면 `모두 확인` 이후에도 최근 호출 버튼이 다시 보일 수 있으므로, 확인 상태 비교 기준을 정렬 index가 아닌 호출 종류/상태/처리 시각 기반으로 고정한다.
+
 ## [2026-06-25] 수면 오알림 방지 및 긴급 알림 시간 안내 개선
 
 - **내용:** 서버 긴급 알림에서 수면 조명 경고를 KST 기준 실제 수면 시간일 때만 보내도록 보강했다. 배고픔/기력/수면 조명 이슈에는 호출 시작 시각, 케어미스 예정 시각, 남은 시간 또는 케어미스 발생 구간을 함께 표시한다.

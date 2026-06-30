@@ -304,14 +304,14 @@ describe("callStatusUtils", () => {
     expect(viewModel.hasUnreadRecentCalls).toBe(true);
     expect(viewModel.recentCallHistory[0]).toEqual(
       expect.objectContaining({
-        id: `CALL-${now - 5000}-0`,
+        id: `call:hunger:logged:${now - 5000}`,
         isAcknowledged: false,
       })
     );
   });
 
   test("확인된 최근 호출만 있으면 최근 호출 버튼 대상에서 제외한다", () => {
-    const recentId = `CALL-${now - 5000}-0`;
+    const recentId = `call:hunger:logged:${now - 5000}`;
     const viewModel = buildCallStatusViewModel({
       digimonStats: {
         fullness: 3,
@@ -338,7 +338,7 @@ describe("callStatusUtils", () => {
   });
 
   test("기존 확인 목록에 없는 새 최근 호출은 미확인으로 표시한다", () => {
-    const oldRecentId = `CALL-${now - 5000}-0`;
+    const oldRecentId = `call:hunger:logged:${now - 5000}`;
     const viewModel = buildCallStatusViewModel({
       digimonStats: {
         fullness: 3,
@@ -361,10 +361,63 @@ describe("callStatusUtils", () => {
     expect(viewModel.hasUnreadRecentCalls).toBe(true);
     expect(viewModel.recentCallHistory[0]).toEqual(
       expect.objectContaining({
-        id: `CALL-${now - 1000}-0`,
+        id: `call:strength:logged:${now - 1000}`,
         isAcknowledged: false,
       })
     );
+  });
+
+  test("최근 호출 ID는 새 로그가 앞에 추가되어도 정렬 순서에 따라 바뀌지 않는다", () => {
+    const timestamp = now - 5000;
+    const baseViewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+      currentTime: now,
+    });
+    const nextViewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        activityLogs: [
+          { type: "CALL", text: "Call: No Energy!", timestamp: now - 1000 },
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+      currentTime: now,
+    });
+
+    const baseHungry = baseViewModel.recentCallHistory.find((entry) => entry.callType === "hunger");
+    const nextHungry = nextViewModel.recentCallHistory.find((entry) => entry.callType === "hunger");
+
+    expect(nextHungry.id).toBe(baseHungry.id);
+  });
+
+  test("legacy 정렬 index 기반 확인 ID도 확인됨으로 흡수한다", () => {
+    const timestamp = now - 5000;
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        acknowledgedRecentCallIds: [`CALL-${timestamp}-0`],
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp },
+        ],
+      },
+      currentTime: now,
+    });
+
+    expect(viewModel.recentCallHistory[0]).toEqual(
+      expect.objectContaining({
+        id: `call:hunger:logged:${timestamp}`,
+        isAcknowledged: true,
+      })
+    );
+    expect(viewModel.hasUnreadRecentCalls).toBe(false);
   });
 
   test("확인 ID 병합은 중복을 제거하고 최근 50개까지만 유지한다", () => {
@@ -410,12 +463,61 @@ describe("callStatusUtils", () => {
         expect.objectContaining({
           title: "배고픔 호출",
           text: "배고픔 호출이 케어미스로 처리되었습니다.",
+          timestamp: now - 2 * 60 * 1000,
         }),
         expect.objectContaining({
           title: "힘 호출",
           text: "힘 호출이 케어미스로 처리되었습니다.",
+          timestamp: now - 60 * 1000,
         }),
       ])
+    );
+  });
+
+  test("ledger와 activityLog와 callStatus가 같은 케어미스를 가리키면 하나로 병합한다", () => {
+    const startedAt = now - 15 * 60 * 1000;
+    const timeoutAt = startedAt + 10 * 60 * 1000;
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 0,
+        strength: 3,
+        callStatus: {
+          hunger: {
+            isActive: true,
+            startedAt,
+            isLogged: true,
+          },
+        },
+        careMistakeLedger: [
+          {
+            id: `hunger_call:${timeoutAt}`,
+            reasonKey: "hunger_call",
+            occurredAt: timeoutAt,
+            text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+            source: "backfill",
+          },
+        ],
+        activityLogs: [
+          {
+            type: "CAREMISTAKE",
+            text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+            timestamp: timeoutAt,
+          },
+        ],
+      },
+      sleepStatus: "AWAKE",
+      currentTime: now,
+    });
+
+    const hungerEntries = viewModel.recentCallHistory.filter((entry) => entry.callType === "hunger");
+
+    expect(hungerEntries).toHaveLength(1);
+    expect(hungerEntries[0]).toEqual(
+      expect.objectContaining({
+        source: "ledger",
+        text: "배고픔 호출이 케어미스로 처리되었습니다.",
+        timestamp: timeoutAt,
+      })
     );
   });
 
@@ -452,5 +554,11 @@ describe("callStatusUtils", () => {
 
   test("영문 호출 로그 문구를 한국어로 바꾼다", () => {
     expect(normalizeCallLogText("Call: No Energy!")).toBe("힘 호출이 시작되었습니다.");
+  });
+
+  test("과거 재구성 내부 태그는 일반 표시 문구에서 제거한다", () => {
+    expect(normalizeCallLogText("케어미스(사유: 힘 콜 10분 무시) [과거 재구성]")).toBe(
+      "케어미스(사유: 힘 호출 10분 무시)"
+    );
   });
 });

@@ -130,7 +130,8 @@ describe("GameScreen 호출 UI", () => {
     expect(screen.getAllByText("최근 호출/케어미스 기록").length).toBeGreaterThan(0);
     expect(screen.getByText("배고픔 호출이 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText("수면 조명 경고가 시작되었습니다.")).toBeInTheDocument();
-    expect(screen.getByText(/배고픔 호출 10분 무시/)).toBeInTheDocument();
+    expect(screen.getByText("배고픔 호출이 케어미스로 처리되었습니다.")).toBeInTheDocument();
+    expect(screen.queryByText(/과거 재구성/)).not.toBeInTheDocument();
   });
 
   test("활성 호출이 있으면 화면 내 호출 아이콘으로 같은 모달 진입 콜백을 호출한다", () => {
@@ -177,7 +178,7 @@ describe("GameScreen 호출 UI", () => {
 
     renderGameScreen({
       digimonStats: {
-        acknowledgedRecentCallIds: [`CALL-${timestamp}-0`],
+        acknowledgedRecentCallIds: [`call:hunger:logged:${timestamp}`],
         activityLogs: [
           { type: "CALL", text: "Call: Hungry!", timestamp },
         ],
@@ -205,7 +206,7 @@ describe("GameScreen 호출 UI", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "모두 확인" }));
 
-    expect(onAcknowledgeRecentCalls).toHaveBeenCalledWith([`CALL-${timestamp}-0`]);
+    expect(onAcknowledgeRecentCalls).toHaveBeenCalledWith([`call:hunger:logged:${timestamp}`]);
   });
 
   test("모두 확인된 최근 호출은 확인됨 배지로 표시하고 모두 확인 버튼을 숨긴다", () => {
@@ -214,7 +215,7 @@ describe("GameScreen 호출 UI", () => {
     renderGameScreen({
       showCallModal: true,
       digimonStats: {
-        acknowledgedRecentCallIds: [`CALL-${timestamp}-0`],
+        acknowledgedRecentCallIds: [`call:hunger:logged:${timestamp}`],
         activityLogs: [
           { type: "CALL", text: "Call: Hungry!", timestamp },
         ],
