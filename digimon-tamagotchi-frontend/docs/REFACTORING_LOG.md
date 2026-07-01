@@ -6,26 +6,66 @@
 - 교감 메뉴에서 다이어트, 누워있기, 디톡스, 놀아주기/간식주기, 괜히 괴롭히기 액션을 수행한 뒤 결과 확인 시 교감 팝업이 다시 열리도록 수정했습니다.
 - 액션별 저장/로그 처리와 수면 방해 처리 흐름은 유지하고, 액션 모달 닫힘 후 교감 메뉴를 다시 여는 UI 상태 전환만 추가했습니다.
 
+### 아레나 상단 고정 헤더와 닫기 버튼
+- 아레나 모달의 상단 제목 영역을 스크롤 중에도 보이는 sticky 헤더로 변경했습니다.
+- 헤더 오른쪽에 `아레나 닫기` X 버튼을 추가해 긴 목록을 스크롤한 상태에서도 즉시 닫을 수 있게 했습니다.
+- X 버튼이 기존 `onClose` 핸들러를 호출하는 UI 회귀 테스트를 추가했습니다.
+
+### 호출 상태 상단 고정
+- 호출 상태 팝업의 제목, 요약, 닫기 버튼, 탭 영역을 sticky 헤더로 묶어 최근 호출 목록을 스크롤해도 상단 조작부가 유지되도록 수정했습니다.
+- 닫기 버튼에 `호출 상태 닫기` 접근성 라벨을 추가했습니다.
+
+### 퀘스트 모드 상단 고정
+- 퀘스트 모드 모달의 제목, 닫기 버튼, Ver.1/Ver.2 탭 영역을 sticky 헤더로 묶어 Area 목록을 스크롤해도 상단 조작부가 유지되도록 수정했습니다.
+- 퀘스트 모달의 기본 렌더링과 닫기 버튼 동작을 확인하는 테스트를 추가했습니다.
+
+### 아레나 결과 팝업 버튼 정리와 재전투 수정
+- 아레나 승리/패배 결과 팝업에서 `Review Log`를 우상단의 작은 보조 버튼으로 옮기고, 하단 주요 액션은 `재전투`와 `Return to Arena`만 남기도록 정리했습니다.
+- 재전투 시 결과 저장은 수행하되 전투 화면과 상대 정보를 유지하는 옵션을 추가하고, 같은 상대와 다시 싸워도 새 배틀 생성이 강제로 실행되도록 `arenaBattleRunId` 트리거를 추가했습니다.
+- 아레나 결과 버튼 레이아웃과 재전투 저장 옵션/새 배틀 생성 흐름을 검증하는 테스트를 추가했습니다.
+
 ### 영향받은 파일
 - `src/components/GameModals.jsx`
+- `src/components/ArenaScreen.jsx`
+- `src/components/ArenaScreen.test.jsx`
+- `src/components/BattleScreen.jsx`
+- `src/components/BattleScreen.test.js`
+- `src/components/GameScreen.jsx`
+- `src/components/QuestSelectionModal.jsx`
+- `src/components/QuestSelectionModal.test.jsx`
+- `src/hooks/useGameActions.js`
+- `src/styles/Battle.css`
 - `docs/REFACTORING_LOG.md`
 
 ### 아키텍처 결정 근거
 - 교감 액션 모달은 모두 완료 후 `onClose`로 닫히는 동일한 구조를 사용하므로, 저장 계약이나 액션 로직을 바꾸지 않고 공통 닫기 helper에서 모달 상태만 전환하는 방식이 가장 작은 변경입니다.
+- 아레나 화면은 이미 단일 모달 내부 스크롤 구조와 하단 닫기 버튼을 갖고 있으므로, 라우트나 모달 상태 구조를 바꾸지 않고 헤더만 sticky로 두는 방식이 가장 작은 UI 변경입니다.
+- 호출 상태 팝업은 `GameScreen` 내부의 표시 전용 모달이므로 호출 판정과 확인 저장 로직을 건드리지 않고 스크롤 컨테이너의 header/body 배치만 조정했습니다.
+- 퀘스트 모드는 별도 모달 컴포넌트에 화면 조립이 모여 있어, 퀘스트 해금/선택 로직을 유지한 채 헤더와 카드 그리드의 레이아웃만 분리했습니다.
+- 아레나 재전투는 전적 저장 계약은 유지해야 하지만 부모 모달 상태 초기화는 막아야 하므로, `onBattleComplete`에 아레나 전용 화면 유지 옵션만 추가했습니다.
 
 ### 상태 요약 수면 안내 노출 조건 조정
 - 수면까지 남은 시간이 2시간을 초과하면 상단 상태 배지에서는 숨기고, 상태 상세 모달에는 기존처럼 계속 표시하도록 조정했습니다.
 - 수면까지 2시간 이내에는 상단 요약에도 수면 카운트다운을 표시하되, critical/warning 상태가 있으면 기존처럼 뒤로 밀리도록 유지했습니다.
 - 별도 경고나 행동 상태가 없는 평온한 상태에서도 상단 상태 버튼이 보이도록 `평온한 상태예요 😊` 메시지를 추가했습니다.
 
+### 긴급 호출 시간 오표시 및 만료 알림 방지
+- 케어미스로 처리된 배고픔/힘 호출이 `startedAt` 없이 `isLogged`만 남아 있을 때 현재 시각의 새 최근 호출처럼 재구성되지 않도록 수정했습니다.
+- 긴급 알림 서버 projection에서 배고픔/힘 호출의 deadline이 지난 경우 Discord/Web Push delivery를 새로 만들지 않도록 제한했습니다.
+- 알림 설정 화면의 10분 스케줄러 진단에 재사용 delivery 수와 트리거 재설치 안내를 보강했습니다.
+
 ### 영향받은 파일
 - `src/components/digimonStatusMessages.js`
 - `src/components/digimonStatusMessages.test.js`
 - `src/components/DigimonStatusBadges.test.jsx`
+- `src/utils/callStatusUtils.js`
+- `api/_lib/urgentCareProjection.js`
+- `src/components/panels/AccountSettingsPanel.jsx`
 - `docs/REFACTORING_LOG.md`
 
 ### 아키텍처 결정 근거
 - 상태 상세와 상단 요약은 같은 메시지 목록을 공유하므로, 저장 계약이나 lazy update 경계를 건드리지 않고 `summaryEligible`만으로 노출 범위를 나누는 것이 가장 좁은 변경입니다. 수면 시간 계산은 기존 `getNextSleepDate()` 유틸리티를 재사용했습니다.
+- 긴급 호출 알림은 서버가 슬롯 문서를 직접 갱신하지 않고 projection으로만 판정해야 하므로, 만료된 호출은 알림 대상에서 제외하고 실제 케어미스 반영은 기존 lazy update 경계에 맡깁니다.
 
 ## 2026-06-30
 

@@ -498,7 +498,7 @@ const GameScreen = ({
           style={{ padding: '20px' }}
         >
           <div
-            className="bg-white p-6 rounded-lg shadow-xl max-h-[80vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             style={{
               border: "3px solid #000",
@@ -507,45 +507,49 @@ const GameScreen = ({
               margin: 'auto'
             }}
           >
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-2xl font-bold">📣 호출 상태</h2>
-                <p className="mt-1 text-sm text-gray-500">{callStatusViewModel.summaryLabel}</p>
+            <div className="sticky top-0 z-20 bg-white px-6 pt-6 pb-4 border-b border-gray-200 shadow-sm">
+              <div className="flex justify-between items-start gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold">📣 호출 상태</h2>
+                  <p className="mt-1 text-sm text-gray-500">{callStatusViewModel.summaryLabel}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCallModalClose}
+                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-2xl font-bold leading-none text-red-500 transition-colors hover:bg-red-50 hover:text-red-700"
+                  aria-label="호출 상태 닫기"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={onCallModalClose}
-                className="text-red-500 hover:text-red-700 text-2xl font-bold"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="mb-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="호출 상태 탭">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selectedCallModalTab === "active"}
-                className={`rounded-md px-3 py-2 text-sm font-semibold ${
-                  selectedCallModalTab === "active" ? "bg-white text-gray-900 shadow" : "text-gray-500"
-                }`}
-                onClick={() => setCallModalTab("active")}
-              >
-                현재 호출
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selectedCallModalTab === "recent"}
-                className={`rounded-md px-3 py-2 text-sm font-semibold ${
-                  selectedCallModalTab === "recent" ? "bg-white text-gray-900 shadow" : "text-gray-500"
-                }`}
-                onClick={() => setCallModalTab("recent")}
-              >
-                최근 호출/케어미스 기록
-              </button>
+
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1" role="tablist" aria-label="호출 상태 탭">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedCallModalTab === "active"}
+                  className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                    selectedCallModalTab === "active" ? "bg-white text-gray-900 shadow" : "text-gray-500"
+                  }`}
+                  onClick={() => setCallModalTab("active")}
+                >
+                  현재 호출
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedCallModalTab === "recent"}
+                  className={`rounded-md px-3 py-2 text-sm font-semibold ${
+                    selectedCallModalTab === "recent" ? "bg-white text-gray-900 shadow" : "text-gray-500"
+                  }`}
+                  onClick={() => setCallModalTab("recent")}
+                >
+                  최근 호출/케어미스 기록
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 px-6 pt-4 pb-6">
               {selectedCallModalTab === "active" ? (
                 callStatusViewModel.hasActiveCalls ? (
                   callStatusViewModel.activeCalls.map(renderCallCard)
@@ -610,10 +614,12 @@ const GameScreen = ({
               )}
             </div>
             
-            <div className="mt-4 pt-4 border-t">
+            <div className="px-6 pb-6">
+              <div className="pt-4 border-t">
               <p className="text-xs text-gray-500">
                 💡 배고픔/힘 호출은 10분 내 대응이 필요하고, 수면 조명 경고는 30분 내 조명이 정리돼야 합니다.
               </p>
+              </div>
             </div>
           </div>
         </div>

@@ -1054,17 +1054,26 @@ export default function ArenaScreen({
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 modal-overlay-mobile" style={{ paddingTop: '80px', paddingBottom: '80px', overflow: 'hidden' }}>
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full m-4 flex flex-col" style={{ maxHeight: 'calc(100vh - 160px)', height: 'auto' }}>
         {/* 스크롤 가능한 콘텐츠 영역 */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
-          <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-200">
-            <div>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+          <div className="sticky top-0 z-20 flex justify-between items-start gap-3 bg-white px-4 sm:px-6 py-4 border-b border-gray-200 shadow-sm">
+            <div className="min-w-0">
               <h2 className="text-2xl font-bold">아레나 [PvP(Ghost)]</h2>
               {currentUser && tamerName && (
                 <p className="text-sm text-gray-600 mt-1">테이머: {tamerName}</p>
               )}
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-xl leading-none text-gray-600 shadow-sm transition-colors hover:bg-gray-100 hover:text-gray-900"
+              aria-label="아레나 닫기"
+            >
+              ×
+            </button>
           </div>
 
         {/* 현재 디지몬 영역 */}
+        <div className="p-4 sm:p-6">
         {currentDigimonInfo ? (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg border-2 border-gray-300">
             <h3 className="text-xl font-bold mb-3">현재 디지몬</h3>
@@ -1953,6 +1962,7 @@ export default function ArenaScreen({
             </div>
           </div>
         )}
+        </div>
         </div>
         
         {/* 하단 고정 버튼 영역 */}

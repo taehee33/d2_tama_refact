@@ -1172,7 +1172,7 @@ export function useGameActions({
   /**
    * 배틀 완료 핸들러
    */
-  const handleBattleComplete = async (battleResult) => {
+  const handleBattleComplete = async (battleResult, options = {}) => {
     const currentDigimonSnapshot = buildDigimonLogSnapshot(selectedDigimon, digimonData);
 
     // Sparring 모드는 배틀 횟수에 반영하지 않고 로그만 남김
@@ -1297,15 +1297,17 @@ export function useGameActions({
         totalBattles: arenaOutcome.finalStats.totalBattles,
       });
 
-      setShowBattleScreen(false);
-      setBattleType(null);
-      setArenaChallenger(null);
-      setArenaEnemyId(null);
-      setMyArenaEntryId(null);
       if (onArenaBattleCommitted) {
         onArenaBattleCommitted(remoteBattleResult);
       }
-      setShowArenaScreen(true);
+      if (!options.keepBattleScreenOpen) {
+        setShowBattleScreen(false);
+        setBattleType(null);
+        setArenaChallenger(null);
+        setArenaEnemyId(null);
+        setMyArenaEntryId(null);
+        setShowArenaScreen(true);
+      }
       return remoteBattleResult;
     }
 

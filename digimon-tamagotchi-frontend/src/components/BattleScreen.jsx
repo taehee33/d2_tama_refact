@@ -137,6 +137,10 @@ export function shouldCompleteArenaBattleBeforeAction({
   return battleType === "arena" && Boolean(battleResult) && !hasCompleted;
 }
 
+export function shouldKeepArenaBattleScreenOpenAfterComplete(options = {}) {
+  return Boolean(options.keepBattleScreenOpen);
+}
+
 export default function BattleScreen({
   userDigimon,
   userStats,
@@ -165,6 +169,7 @@ export default function BattleScreen({
   const [showEnemyPowerDetails, setShowEnemyPowerDetails] = useState(false); // 상대방 파워 상세 정보 표시 여부
   const [showBattleGuide, setShowBattleGuide] = useState(false); // 배틀 가이드 표시 여부
   const [isCompletingBattle, setIsCompletingBattle] = useState(false); // 아레나 결과 저장 중 여부
+  const [arenaBattleRunId, setArenaBattleRunId] = useState(0); // 같은 상대 재전투 강제 트리거
   // Start를 누르기 전까지는 상대방 정보를 숨김
   const hideEnemyInfo = !hasRoundStarted;
   
@@ -394,7 +399,7 @@ export default function BattleScreen({
       setBattleState("ready");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, arenaBattleRunId]);
 
   // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
@@ -615,7 +620,7 @@ export default function BattleScreen({
     }
   };
 
-  const completeArenaBattleOnce = async () => {
+  const completeArenaBattleOnce = async (options = {}) => {
     if (!shouldCompleteArenaBattleBeforeAction({
       battleType,
       battleResult,
@@ -631,7 +636,7 @@ export default function BattleScreen({
     try {
       setIsCompletingBattle(true);
       if (onBattleComplete) {
-        const completionResult = await onBattleComplete(battleResult);
+        const completionResult = await onBattleComplete(battleResult, options);
         completedBattleRef.current = completionResult || true;
       } else {
         completedBattleRef.current = true;
@@ -665,7 +670,7 @@ export default function BattleScreen({
 
   // 재전투 (아레나 전용)
   const handleRematch = async () => {
-    const completed = await completeArenaBattleOnce();
+    const completed = await completeArenaBattleOnce({ keepBattleScreenOpen: true });
     if (!completed) return;
 
     console.log("🔍 [BattleScreen] 재전투 시작 - 상태 초기화");
@@ -685,6 +690,7 @@ export default function BattleScreen({
     // battleResult는 나중에 useEffect에서 설정되므로 여기서는 null로 설정
     setBattleResult(null);
     completedBattleRef.current = null;
+    setArenaBattleRunId((prevRunId) => prevRunId + 1);
     // 마지막에 battleState를 "loading"으로 설정하여 useEffect가 다시 실행되도록 함
     // 이렇게 하면 useEffect의 의존성 배열에 battleState가 포함되어 있어서 다시 실행됨
     console.log("🔍 [BattleScreen] 재전투 - battleState를 loading으로 설정");
@@ -718,6 +724,34 @@ export default function BattleScreen({
     // Exit를 누르면 나가기 (상대방 정보는 이미 숨겨져 있음)
     onClose();
   };
+
+  const renderArenaResultActions = () => (
+    <>
+      <button
+        onClick={() => setShowLogReview(true)}
+        disabled={isCompletingBattle}
+        className="arena-result-review-button disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Review Log
+      </button>
+      <div className="arena-result-actions">
+        <button
+          onClick={handleRematch}
+          disabled={isCompletingBattle}
+          className="arena-result-action-button arena-result-action-button--rematch disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isCompletingBattle ? "저장 중..." : "재전투"}
+        </button>
+        <button
+          onClick={handleExit}
+          disabled={isCompletingBattle}
+          className="arena-result-action-button arena-result-action-button--return disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isCompletingBattle ? "저장 중..." : "Return to Arena"}
+        </button>
+      </div>
+    </>
+  );
 
   if (battleState === "loading") {
     return (
@@ -1327,34 +1361,12 @@ export default function BattleScreen({
                   </div>
                 </>
               ) : battleType === 'arena' ? (
-                <>
+                <div className="arena-result-modal">
+                  {renderArenaResultActions()}
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
                   <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
                   <p className="text-sm text-gray-600 mb-6">Arena 전투에서 승리했습니다!</p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button
-                      onClick={() => setShowLogReview(true)}
-                      disabled={isCompletingBattle}
-                      className="px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
-                    >
-                      Review Log
-                    </button>
-                    <button
-                      onClick={handleRematch}
-                      disabled={isCompletingBattle}
-                      className="px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isCompletingBattle ? "저장 중..." : "재전투"}
-                    </button>
-                    <button
-                      onClick={handleExit}
-                      disabled={isCompletingBattle}
-                      className="px-6 py-3 bg-blue-500 text-white rounded-lg font-bold hover:bg-blue-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isCompletingBattle ? "저장 중..." : "Return to Arena"}
-                    </button>
-                  </div>
-                </>
+                </div>
               ) : (
                 <>
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
@@ -1429,41 +1441,34 @@ export default function BattleScreen({
           <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[100]" style={{ paddingTop: '80px', paddingBottom: '80px' }}>
             <div className="bg-white rounded-lg shadow-xl text-center modal-mobile w-full max-w-md mx-4 p-6 sm:p-8">
               <div className="battle-result text-center pb-4">
-                <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
-                {battleType === 'arena' && (
-                  <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
+                {battleType === 'arena' ? (
+                  <div className="arena-result-modal">
+                    {renderArenaResultActions()}
+                    <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
+                    <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
+                    <p className="text-sm text-gray-600 mb-6">Arena 전투에서 패배했습니다.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <button
+                        onClick={() => setShowLogReview(true)}
+                        disabled={isCompletingBattle}
+                        className="px-4 sm:px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
+                      >
+                        Review Log
+                      </button>
+                      <button
+                        onClick={handleDefeat}
+                        disabled={isCompletingBattle}
+                        className="px-4 sm:px-6 py-3 rounded-lg font-bold transition-colors text-base min-h-[44px] bg-red-500 text-white hover:bg-red-600"
+                      >
+                        돌아가기
+                      </button>
+                    </div>
+                  </>
                 )}
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => setShowLogReview(true)}
-                    disabled={isCompletingBattle}
-                    className="px-4 sm:px-6 py-3 bg-purple-500 text-white rounded-lg font-bold hover:bg-purple-600 transition-colors text-base min-h-[44px]"
-                  >
-                    Review Log
-                  </button>
-                  {battleType === 'arena' && (
-                    <button
-                      onClick={handleRematch}
-                      disabled={isCompletingBattle}
-                      className="px-4 sm:px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors text-base min-h-[44px] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {isCompletingBattle ? "저장 중..." : "재전투"}
-                    </button>
-                  )}
-                  <button
-                    onClick={handleDefeat}
-                    disabled={isCompletingBattle}
-                    className={`px-4 sm:px-6 py-3 rounded-lg font-bold transition-colors text-base min-h-[44px] ${
-                      battleType === 'arena'
-                        ? 'bg-blue-500 text-white hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60'
-                        : 'bg-red-500 text-white hover:bg-red-600'
-                    }`}
-                  >
-                    {battleType === 'arena'
-                      ? isCompletingBattle ? '저장 중...' : 'Return to Arena'
-                      : '돌아가기'}
-                  </button>
-                </div>
               </div>
             </div>
           </div>

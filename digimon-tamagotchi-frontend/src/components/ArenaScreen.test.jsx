@@ -223,6 +223,18 @@ describe("ArenaScreen replay 상태", () => {
 
     await waitFor(() => expect(mockGetDocs).toHaveBeenCalledTimes(5));
   });
+
+  test("상단 X 버튼으로 아레나를 닫을 수 있다", async () => {
+    mockGetDocs.mockResolvedValue({ docs: [] });
+    const onClose = jest.fn();
+
+    renderArenaScreen({ onClose });
+
+    const closeButton = await screen.findByRole("button", { name: "아레나 닫기" });
+    fireEvent.click(closeButton);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("ArenaScreen 리더보드 DTO 정규화", () => {

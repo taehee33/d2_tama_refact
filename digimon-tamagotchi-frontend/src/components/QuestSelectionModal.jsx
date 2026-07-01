@@ -47,36 +47,39 @@ export default function QuestSelectionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold">퀘스트 모드</h2>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-          >
-            닫기
-          </button>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+        <div className="sticky top-0 z-20 bg-white px-6 pt-6 pb-4 border-b border-gray-200 shadow-sm">
+          <div className="flex justify-between items-start gap-3">
+            <h2 className="text-3xl font-bold">퀘스트 모드</h2>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-shrink-0 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              닫기
+            </button>
+          </div>
+
+          {/* Ver.1 / Ver.2 탭 */}
+          <div className="flex gap-2 mt-6">
+            <button
+              type="button"
+              onClick={() => setActiveTab("Ver.1")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.1" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+            >
+              Ver.1
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("Ver.2")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.2" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+            >
+              Ver.2
+            </button>
+          </div>
         </div>
 
-        {/* Ver.1 / Ver.2 탭 */}
-        <div className="flex gap-2 mb-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab("Ver.1")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.1" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          >
-            Ver.1
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("Ver.2")}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === "Ver.2" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
-          >
-            Ver.2
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
           {(displayQuests || []).map((area, index) => {
             const status = getAreaStatus(index);
             const isLocked = status === "locked";
@@ -166,4 +169,3 @@ export default function QuestSelectionModal({
     </div>
   );
 }
-

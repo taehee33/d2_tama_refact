@@ -1,4 +1,7 @@
-import {
+import React from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { simulateBattle } from "../logic/battle/calculator";
+import BattleScreen, {
   buildBattleAreaClassName,
   buildArenaEnemyBattleData,
   buildDigimonImpactClassName,
@@ -6,7 +9,13 @@ import {
   resolveHitImpactTarget,
   resolveEnemyProjectileSprite,
   shouldCompleteArenaBattleBeforeAction,
+  shouldKeepArenaBattleScreenOpenAfterComplete,
 } from "./BattleScreen";
+
+jest.mock("../logic/battle/calculator", () => ({
+  ...jest.requireActual("../logic/battle/calculator"),
+  simulateBattle: jest.fn(),
+}));
 
 describe("BattleScreen arena helper", () => {
   test("버전별 데이터 맵을 먼저 조회하고 같은 ID의 ver1 fallback보다 우선한다", () => {
@@ -283,5 +292,130 @@ describe("BattleScreen arena helper", () => {
         hasCompleted: false,
       })
     ).toBe(false);
+  });
+
+  test("아레나 저장 후 전투 화면 유지 옵션을 판단한다", () => {
+    expect(shouldKeepArenaBattleScreenOpenAfterComplete({ keepBattleScreenOpen: true })).toBe(true);
+    expect(shouldKeepArenaBattleScreenOpenAfterComplete()).toBe(false);
+  });
+});
+
+function buildArenaBattleResult(message = "공격 성공") {
+  return {
+    won: true,
+    log: [{ attacker: "user", hit: true, message }],
+    rounds: 1,
+    userHits: 1,
+    enemyHits: 0,
+    userPower: 50,
+    userPowerDetails: {
+      basePower: 50,
+      strengthBonus: 0,
+      traitedEggBonus: 0,
+      effortBonus: 0,
+    },
+  };
+}
+
+function renderArenaBattleScreen(onBattleComplete = jest.fn(() => Promise.resolve({ id: "saved" }))) {
+  simulateBattle.mockReturnValueOnce(buildArenaBattleResult("첫 전투"));
+
+  render(
+    <BattleScreen
+      userDigimon={{
+        id: "Angemon",
+        name: "엔젤몬",
+        sprite: 0,
+        stats: {
+          basePower: 50,
+          type: "Vaccine",
+          attackSprite: 1,
+        },
+      }}
+      userStats={{ power: 50, type: "Vaccine" }}
+      userSlotName="슬롯4"
+      userDigimonNickname="탱탱볼"
+      battleType="arena"
+      arenaChallenger={{
+        id: "enemy-entry-1",
+        tamerName: "Young Jae Jun",
+        digimonSnapshot: {
+          digimonId: "Koromon",
+          digimonName: "코로몬",
+          slotVersion: "Ver.1",
+          sprite: 0,
+          stats: {
+            power: 0,
+            type: "Free",
+          },
+        },
+      }}
+      onBattleComplete={onBattleComplete}
+      onClose={jest.fn()}
+    />
+  );
+
+  return { onBattleComplete };
+}
+
+async function finishSingleLogBattle() {
+  fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+
+  await act(async () => {
+    jest.advanceTimersByTime(2600);
+  });
+
+  await waitFor(() => expect(screen.getByText("WIN!")).toBeInTheDocument());
+}
+
+describe("BattleScreen arena result modal", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    simulateBattle.mockReset();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+    Math.random.mockRestore();
+  });
+
+  test("아레나 결과 팝업은 작은 Review Log와 주요 액션 두 개를 표시한다", async () => {
+    renderArenaBattleScreen();
+
+    await finishSingleLogBattle();
+
+    expect(screen.getByRole("button", { name: "Review Log" })).toHaveClass(
+      "arena-result-review-button"
+    );
+    expect(screen.getByRole("button", { name: "재전투" })).toHaveClass(
+      "arena-result-action-button--rematch"
+    );
+    expect(screen.getByRole("button", { name: "Return to Arena" })).toHaveClass(
+      "arena-result-action-button--return"
+    );
+  });
+
+  test("재전투는 아레나 결과를 저장하되 전투 화면을 유지하고 같은 상대 새 배틀을 만든다", async () => {
+    const onBattleComplete = jest.fn(() => Promise.resolve({ id: "saved" }));
+    renderArenaBattleScreen(onBattleComplete);
+
+    await finishSingleLogBattle();
+
+    simulateBattle.mockReturnValueOnce(buildArenaBattleResult("재전투"));
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "재전투" }));
+    });
+
+    await waitFor(() =>
+      expect(onBattleComplete).toHaveBeenCalledWith(
+        expect.objectContaining({ win: true }),
+        { keepBattleScreenOpen: true }
+      )
+    );
+    await waitFor(() => expect(simulateBattle).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
   });
 });

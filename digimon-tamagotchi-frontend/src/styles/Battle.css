@@ -673,6 +673,66 @@
   padding: 20px;
 }
 
+.arena-result-modal {
+  position: relative;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 28px 8px 4px;
+}
+
+.arena-result-review-button {
+  position: absolute;
+  top: -12px;
+  right: 0;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #f3e8ff;
+  color: #6b21a8;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.arena-result-review-button:hover {
+  background: #e9d5ff;
+  color: #581c87;
+}
+
+.arena-result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.arena-result-action-button {
+  min-height: 46px;
+  padding: 12px 18px;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.arena-result-action-button--rematch {
+  background: #22c55e;
+}
+
+.arena-result-action-button--rematch:hover {
+  background: #16a34a;
+}
+
+.arena-result-action-button--return {
+  background: #3b82f6;
+}
+
+.arena-result-action-button--return:hover {
+  background: #2563eb;
+}
+
 /* 승리 모달 */
 .victory-modal {
   z-index: 100 !important;
@@ -696,6 +756,25 @@
     font-size: 16px;
     width: 100%;
     margin: 5px 0;
+  }
+
+  .victory-modal .arena-result-review-button,
+  .arena-result-review-button {
+    width: auto !important;
+    min-height: 32px;
+    margin: 0;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .arena-result-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .victory-modal .arena-result-action-button,
+  .arena-result-action-button {
+    width: 100%;
+    margin: 0;
   }
 }
 
