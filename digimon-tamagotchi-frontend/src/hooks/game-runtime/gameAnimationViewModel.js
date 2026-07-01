@@ -30,9 +30,14 @@ export function buildGameAnimationViewModel({
   const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const safeBaseSprite = Number(baseSprite);
+  const isEvolutionInProgress =
+    evolutionStage === "shaking" ||
+    evolutionStage === "flashing" ||
+    evolutionStage === "complete";
   const idleMotionTimeline =
     !Number.isFinite(safeBaseSprite) ||
     isDigitama ||
+    isEvolutionInProgress ||
     isDeathFormDigimonId(selectedDigimon)
       ? []
       : resolveIdleMotionTimeline(safeBaseSprite);

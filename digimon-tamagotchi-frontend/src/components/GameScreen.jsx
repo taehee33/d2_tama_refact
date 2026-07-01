@@ -632,7 +632,7 @@ const GameScreen = ({
           top: 0,
           left: 0,
           zIndex: 2,
-          animation: evolutionStage === 'shaking' ? 'shake 0.5s infinite' : 'none',
+          animation: 'none',
           filter:
             evolutionStage === 'flashing' && !isDigitamaHatchFlash
               ? 'invert(1)'

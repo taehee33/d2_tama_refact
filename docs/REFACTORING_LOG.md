@@ -6575,6 +6575,16 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
 - **근거:** 같은 호출 케어미스가 서로 다른 ID로 재생성되면 `모두 확인` 이후에도 최근 호출 버튼이 다시 보일 수 있으므로, 확인 상태 비교 기준을 정렬 index가 아닌 호출 종류/상태/처리 시각 기반으로 고정한다.
 
+## [2026-07-02] 진화 연출 중 디지몬 중앙 고정
+
+- **내용:** 진화 진행 단계에서 디지몬 idle 이동 타임라인을 비활성화하고, `shaking` 단계의 캔버스 흔들림 애니메이션을 제거해 진화 과정 동안 스프라이트가 중앙 위치에 머물도록 조정했다. 플래시 효과는 기존처럼 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameAnimationViewModel.test.js`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- **근거:** 진화 버튼을 누른 뒤 디지몬이 기존 idle 이동 연출과 흔들림 효과로 화면 안에서 움직여, 진화 연출의 초점이 흐려지는 문제를 막는다.
+
 ## [2026-06-25] 수면 오알림 방지 및 긴급 알림 시간 안내 개선
 
 - **내용:** 서버 긴급 알림에서 수면 조명 경고를 KST 기준 실제 수면 시간일 때만 보내도록 보강했다. 배고픔/기력/수면 조명 이슈에는 호출 시작 시각, 케어미스 예정 시각, 남은 시간 또는 케어미스 발생 구간을 함께 표시한다.

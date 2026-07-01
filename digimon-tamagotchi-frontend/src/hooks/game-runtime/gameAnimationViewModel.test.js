@@ -152,6 +152,16 @@ describe("buildGameAnimationViewModel", () => {
     expect(result.rejectFramesArr).toEqual(["110", "110"]);
   });
 
+  test("일반 디지몬도 진화 진행 중에는 idle 이동 타임라인을 사용하지 않는다", () => {
+    const result = buildGameAnimationViewModel(
+      createParams({
+        evolutionStage: "shaking",
+      })
+    );
+
+    expect(result.idleMotionTimeline).toEqual([]);
+  });
+
   test("오하카다몬은 고정 프레임과 idle 애니메이션만 사용한다", () => {
     const result = buildGameAnimationViewModel(
       createParams({

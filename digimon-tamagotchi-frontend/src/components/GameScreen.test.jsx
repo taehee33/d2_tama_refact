@@ -366,4 +366,15 @@ describe("GameScreen 디지타마 부화 연출", () => {
     expect(canvas).toHaveAttribute("data-filter-style", "invert(1)");
     expect(canvas).toHaveAttribute("data-transition-style", "filter 0.1s");
   });
+
+  test("진화 shaking 단계에서도 캔버스 위치 흔들림을 적용하지 않는다", () => {
+    renderGameScreen({
+      selectedDigimon: "Agumon",
+      evolutionStage: "shaking",
+    });
+
+    const canvas = screen.getByTestId("canvas");
+
+    expect(canvas).toHaveAttribute("data-animation-style", "none");
+  });
 });
