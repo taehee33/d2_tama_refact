@@ -3,6 +3,39 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import DigimonStatusBadges from "./DigimonStatusBadges";
 
 describe("DigimonStatusBadges", () => {
+  test("평온 상태 배지를 렌더링하고 상세 열기 콜백에 전체 메시지를 전달한다", () => {
+    const handleOpenStatusDetail = jest.fn();
+
+    render(
+      <DigimonStatusBadges
+        digimonStats={{
+          fullness: 3,
+          strength: 3,
+          poopCount: 0,
+          proteinOverdose: 0,
+          maxOverfeed: 0,
+          callStatus: {
+            hunger: { isActive: false },
+            strength: { isActive: false },
+            sleep: { isActive: false },
+          },
+        }}
+        sleepStatus="AWAKE"
+        currentAnimation="idle"
+        onOpenStatusDetail={handleOpenStatusDetail}
+      />
+    );
+
+    expect(screen.getByText("평온한 상태예요 😊")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "모든 상태 보기" }));
+
+    expect(handleOpenStatusDetail).toHaveBeenCalledTimes(1);
+    expect(handleOpenStatusDetail.mock.calls[0][0].map((message) => message.id)).toContain(
+      "normal-status"
+    );
+  });
+
   test("핵심 3개만 보여주고 더보기 클릭 시 숨겨진 수면 정보까지 전달한다", () => {
     const handleOpenStatusDetail = jest.fn();
 

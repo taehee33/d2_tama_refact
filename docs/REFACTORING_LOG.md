@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-07-01] 상태 요약 수면 안내 노출 조건 조정
+
+### 작업 유형
+- 상단 상태 배지 표시 정책 개선
+- 평온 상태 fallback 메시지 추가
+- 상태 메시지 회귀 테스트 보강
+
+### 목적 및 영향
+- **목적:** 수면 예정 시간이 먼 평상시에는 상단 요약에 수면 카운트다운을 계속 노출하지 않고, 2시간 전부터만 겉으로 보여 사용자가 필요한 시점에만 인지하게 한다.
+- **아키텍처 결정:** 상태 상세 모달에는 `time-until-sleep` 메시지를 계속 포함하고, 상단 배지 노출 여부만 `summaryEligible`로 제어한다. 수면 예정 시각 계산은 기존 `getNextSleepDate()`를 재사용한다.
+- **영향:** 저장 계약, lazy update, Firebase/localStorage 경계는 변경하지 않는다. 특별한 경고가 없는 평온 상태에서도 상단 상태 버튼을 열 수 있도록 `normal-status` 메시지를 추가한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.js`
+- `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.test.js`
+- `digimon-tamagotchi-frontend/src/components/DigimonStatusBadges.test.jsx`
+
+### 검증
+- 상태 메시지 helper 단위 테스트
+- 상태 배지 React Testing Library 회귀 테스트
+
+
 ## [2026-06-27] 플레이 허브 슬롯 상태 칩 현재 시점 보정
 
 ### 작업 유형

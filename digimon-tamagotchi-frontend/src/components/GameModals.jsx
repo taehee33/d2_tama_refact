@@ -226,6 +226,11 @@ export default function GameModals({
   const slotEvolutionDataMap = newDigimonDataVer1 || {};
   const slotRuntimeDataMap = digimonDataVer1 || {};
 
+  const closeInteractionActionAndReopenMenu = (actionModalName) => {
+    toggleModal(actionModalName, false);
+    toggleModal("interaction", true);
+  };
+
   // selectedDigimon 또는 evolutionStage로 디지몬 데이터 찾기
   const getCurrentDigimonData = () => {
     if (!digimonStats) return {};
@@ -396,7 +401,7 @@ export default function GameModals({
       {/* Diet Modal (다이어트) */}
       {modals.diet && (
         <DietModal
-          onClose={() => toggleModal('diet', false)}
+          onClose={() => closeInteractionActionAndReopenMenu('diet')}
           currentFullness={digimonStats?.fullness || 0}
           onComplete={async (result) => {
             if (result === "success") {
@@ -431,7 +436,7 @@ export default function GameModals({
       {/* Rest Modal (누워있기) */}
       {modals.rest && (
         <RestModal
-          onClose={() => toggleModal('rest', false)}
+          onClose={() => closeInteractionActionAndReopenMenu('rest')}
           currentStrength={digimonStats?.strength || 0}
           onComplete={async (result) => {
             if (result === "success") {
@@ -466,7 +471,7 @@ export default function GameModals({
       {/* Detox Modal (디톡스) */}
       {modals.detox && (
         <DetoxModal
-          onClose={() => toggleModal('detox', false)}
+          onClose={() => closeInteractionActionAndReopenMenu('detox')}
           currentProteinOverdose={digimonStats?.proteinOverdose || 0}
           onComplete={async (result) => {
             if (result === "success") {
@@ -501,7 +506,7 @@ export default function GameModals({
       {/* Play Or Snack Modal (놀아주기/간식주기) */}
       {modals.playOrSnack && (
         <PlayOrSnackModal
-          onClose={() => toggleModal('playOrSnack', false)}
+          onClose={() => closeInteractionActionAndReopenMenu('playOrSnack')}
           currentCareMistakes={digimonStats?.careMistakes || 0}
           onComplete={async (result) => {
             if (result === "success") {
@@ -536,7 +541,7 @@ export default function GameModals({
       {/* Tease Modal (괜히 괴롭히기) */}
       {modals.tease && (
         <TeaseModal
-          onClose={() => toggleModal('tease', false)}
+          onClose={() => closeInteractionActionAndReopenMenu('tease')}
           currentCareMistakes={digimonStats?.careMistakes || 0}
           onComplete={async (result) => {
             if (result === "success") {

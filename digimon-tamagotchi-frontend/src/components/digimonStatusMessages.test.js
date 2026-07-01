@@ -59,6 +59,58 @@ describe("digimonStatusMessages", () => {
     expect(sleepMessage.text).toContain("수면까지");
   });
 
+  test("수면까지 2시간 30분 남으면 상세에는 남기고 상단 요약에서는 숨긴다", () => {
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats(),
+      sleepStatus: "AWAKE",
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      currentTime: new Date(2026, 3, 7, 19, 30, 0).getTime(),
+    });
+
+    const sleepMessage = messages.find((message) => message.id === "time-until-sleep");
+    const summaryMessages = getSummaryDigimonStatusMessages(messages, 3);
+
+    expect(sleepMessage).toBeTruthy();
+    expect(sleepMessage.summaryEligible).toBe(false);
+    expect(summaryMessages.map((message) => message.id)).not.toContain("time-until-sleep");
+  });
+
+  test("수면까지 1시간 59분 남으면 상단 요약에 표시한다", () => {
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats(),
+      sleepStatus: "AWAKE",
+      sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
+      currentTime: new Date(2026, 3, 7, 20, 1, 0).getTime(),
+    });
+
+    const sleepMessage = messages.find((message) => message.id === "time-until-sleep");
+    const summaryMessages = getSummaryDigimonStatusMessages(messages, 3);
+
+    expect(sleepMessage).toBeTruthy();
+    expect(sleepMessage.summaryEligible).toBe(true);
+    expect(summaryMessages.map((message) => message.id)).toContain("time-until-sleep");
+  });
+
+  test("평온하지만 하트가 최대치가 아니면 일반 상태를 상단 요약에 표시한다", () => {
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats({
+        fullness: 3,
+        strength: 3,
+      }),
+      sleepStatus: "AWAKE",
+      currentAnimation: "idle",
+      currentTime: new Date(2026, 3, 7, 12, 0, 0).getTime(),
+    });
+
+    const normalMessage = messages.find((message) => message.id === "normal-status");
+    const summaryMessages = getSummaryDigimonStatusMessages(messages, 3);
+
+    expect(normalMessage).toBeTruthy();
+    expect(normalMessage.text).toBe("평온한 상태예요 😊");
+    expect(normalMessage.detailHint).toBe("지금은 급한 케어가 필요하지 않아요.");
+    expect(summaryMessages.map((message) => message.id)).toContain("normal-status");
+  });
+
   test("wakeUntil이 있으면 수면 방해만 남고 수면까지 메시지는 중복 생성되지 않는다", () => {
     const now = new Date(2026, 3, 7, 22, 10, 0).getTime();
 

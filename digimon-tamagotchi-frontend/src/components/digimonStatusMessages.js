@@ -3,6 +3,7 @@ import { willRefuseProtein } from "../logic/food/protein";
 import {
   formatSleepCountdown,
   getFallingAsleepRemainingSeconds,
+  getNextSleepDate,
   getTimeUntilSleep,
 } from "../utils/sleepUtils";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
@@ -50,6 +51,7 @@ export const DIGIMON_STATUS_CATEGORY_META = {
 };
 
 const SUMMARY_BLOCKING_CATEGORIES = new Set(["critical", "warning"]);
+const SLEEP_SUMMARY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const DEATH_REASON_LABELS = {
   "STARVATION (굶주림)": "굶주림",
@@ -540,6 +542,9 @@ export function buildDigimonStatusMessages({
   }
 
   if (!isFrozen && sleepStatus === "AWAKE" && !hasWakeWindow && sleepSchedule) {
+    const nextSleepDate = getNextSleepDate(sleepSchedule, new Date(now));
+    const sleepMsRemaining = nextSleepDate.getTime() - now;
+
     messages.push(
       createStatusMessage({
         id: "time-until-sleep",
@@ -548,6 +553,7 @@ export function buildDigimonStatusMessages({
         bgColor: "bg-blue-100",
         category: "info",
         priority: 74,
+        summaryEligible: sleepMsRemaining <= SLEEP_SUMMARY_WINDOW_MS,
         detailHint: "지금은 생활 리듬 안내예요. 급한 경고가 있으면 상단 요약에서는 뒤로 밀려요.",
       })
     );
@@ -603,6 +609,31 @@ export function buildDigimonStatusMessages({
           category: "good",
           priority: 92,
           detailHint: "기력이 넉넉해서 당장 회복 걱정은 없어요.",
+        })
+      );
+    } else if (
+      !isFrozen &&
+      sleepState === "AWAKE" &&
+      currentAnimation === "idle" &&
+      fullness > 1 &&
+      strength > 1 &&
+      poopCount < 6 &&
+      proteinOverdose === 0 &&
+      !hasWakeWindow &&
+      !hasSleepCall &&
+      !canEvolve &&
+      !meatRefused &&
+      !proteinRefused
+    ) {
+      messages.push(
+        createStatusMessage({
+          id: "normal-status",
+          text: "평온한 상태예요 😊",
+          color: "text-emerald-700",
+          bgColor: "bg-emerald-100",
+          category: "good",
+          priority: 93,
+          detailHint: "지금은 급한 케어가 필요하지 않아요.",
         })
       );
     }
