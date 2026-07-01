@@ -6,8 +6,8 @@ const {
   listNotificationSubscribers,
   normalizeDiscordWebhookUrl,
 } = require("./notificationSubscribers");
+const { formatKstDate } = require("./kstDateFormat");
 
-const KST_TIME_ZONE = "Asia/Seoul";
 const NOTIFICATION_SECRET_HEADER = "x-d2-scheduler-secret";
 const REPORT_BORDER = "━━━━━━━━━━━━━━━━━━";
 const DEFAULT_NOTIFICATION_CHANNELS = {
@@ -48,29 +48,6 @@ function getHeaderValue(headers = {}, headerName) {
 
   const rawValue = Array.isArray(matchedEntry[1]) ? matchedEntry[1][0] : matchedEntry[1];
   return typeof rawValue === "string" ? rawValue.trim() : "";
-}
-
-function formatKstDate(date = new Date()) {
-  const sourceDate = date instanceof Date ? date : new Date(date);
-  const safeDate = Number.isNaN(sourceDate.getTime()) ? new Date() : sourceDate;
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: KST_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const partMap = formatter.formatToParts(safeDate).reduce((accumulator, part) => {
-    if (part.type !== "literal") {
-      accumulator[part.type] = part.value;
-    }
-    return accumulator;
-  }, {});
-
-  return `${partMap.year}-${partMap.month}-${partMap.day} ${partMap.hour}:${partMap.minute}:${partMap.second}`;
 }
 
 function resolveNotificationSettings(settingsData, rootData) {

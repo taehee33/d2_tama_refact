@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("node:crypto");
+const { formatKstDate } = require("./kstDateFormat");
 
 const FIRESTORE_WRITE_BATCH_SIZE = 450;
 
@@ -65,14 +66,6 @@ function buildUrgentNotificationBody(slotId, digimonName, issues = []) {
     `${digimonName || "알 수 없는 디지몬"} · ${slotLabel}`,
     ...issueLines,
   ].filter(Boolean).join("\n");
-}
-
-function formatKstDate(nowMs) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    dateStyle: "medium",
-    timeStyle: "medium",
-  }).format(new Date(nowMs));
 }
 
 module.exports = {

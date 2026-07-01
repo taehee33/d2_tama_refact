@@ -41,6 +41,10 @@ test("Discord webhook은 공식 HTTPS 호스트만 허용한다", () => {
   assert.equal(normalizeDiscordWebhookUrl("https://example.com/api/webhooks/id/token"), null);
 });
 
+test("KST 확인 시간은 Discord 긴급 알림과 같은 AM/PM 형식으로 표시한다", () => {
+  assert.equal(formatKstDate("2026-07-01T12:52:43.000Z"), "2026. 7. 1. PM 9:52:43");
+});
+
 test("daily digimon report handler rejects unsupported methods", async () => {
   const handler = createDailyDigimonReportHandler({
     getSchedulerSecret: () => "top-secret",

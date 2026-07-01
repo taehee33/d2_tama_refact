@@ -1,5 +1,21 @@
 # REFACTORING LOG
 
+## 2026-07-02
+
+### Discord 일일 보고 확인 시간 포맷 통일
+- `디지몬 상태 일일 보고`의 확인 시간을 긴급 케어 알림과 같은 `2026. 7. 1. PM 9:52:43` 형식으로 표시하도록 변경했습니다.
+- 서버 알림용 KST 날짜 포맷터를 공통 helper로 분리해 일일 보고와 긴급 케어 알림이 같은 문자열 규칙을 사용하도록 맞췄습니다.
+
+### 영향받은 파일
+- `api/_lib/notificationReports.test.js`
+- `api/_lib/kstDateFormat.js`
+- `api/_lib/notificationReports.js`
+- `api/_lib/urgentCareDelivery.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 알림 판정, 저장 계약, Discord 전송 경로는 그대로 유지하고 메시지 표시 포맷만 공통화했습니다. 날짜 문자열 생성은 두 알림 템플릿이 공유하는 표현 책임이므로 별도 helper에 두는 것이 가장 좁은 변경입니다.
+
 ## 2026-07-01
 
 ### 교감 액션 후 메뉴 복귀
