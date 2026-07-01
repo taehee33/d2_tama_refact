@@ -300,11 +300,13 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
     const deadlineAt = toTimestamp(projectedStats.hungerMistakeDeadline) ??
       toTimestamp(callStatus.hunger.deadline) ??
       (startedAt != null ? startedAt + HUNGER_CALL_TIMEOUT_MS : null);
-    issues.push({
-      key: "hunger_call",
-      label: "🍖 배고픔 호출",
-      ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
-    });
+    if (deadlineAt != null && deadlineAt > nowMs) {
+      issues.push({
+        key: "hunger_call",
+        label: "🍖 배고픔 호출",
+        ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
+      });
+    }
   }
   if (
     callStatus.strength?.isActive &&
@@ -316,11 +318,13 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
     const deadlineAt = toTimestamp(projectedStats.strengthMistakeDeadline) ??
       toTimestamp(callStatus.strength.deadline) ??
       (startedAt != null ? startedAt + STRENGTH_CALL_TIMEOUT_MS : null);
-    issues.push({
-      key: "strength_call",
-      label: "🔋 기력 호출",
-      ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
-    });
+    if (deadlineAt != null && deadlineAt > nowMs) {
+      issues.push({
+        key: "strength_call",
+        label: "🔋 기력 호출",
+        ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
+      });
+    }
   }
   if (
     callStatus.sleep?.isLogged !== true &&

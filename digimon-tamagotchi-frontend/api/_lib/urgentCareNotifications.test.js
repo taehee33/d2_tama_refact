@@ -118,6 +118,86 @@ test("pending delivery 쿼리는 유효한 pending 문서만 요청한다", () =
   });
 });
 
+test("배고픔과 기력 호출은 deadline 전일 때만 긴급 이슈로 만든다", () => {
+  const issues = resolveUrgentIssues(
+    {
+      callStatus: {
+        hunger: {
+          isActive: true,
+          isLogged: false,
+          startedAt: TEST_NOW - 5 * 60_000,
+        },
+        strength: {
+          isActive: true,
+          isLogged: false,
+          startedAt: TEST_NOW - 11 * 60_000,
+        },
+      },
+      hungerMistakeDeadline: TEST_NOW + 5 * 60_000,
+      strengthMistakeDeadline: TEST_NOW - 60_000,
+    },
+    {},
+    TEST_NOW
+  );
+
+  assert.deepEqual(issues.map((issue) => issue.key), ["hunger_call"]);
+});
+
+test("deadline이 지난 배고픔과 기력 호출은 delivery를 만들지 않는다", async () => {
+  const writes = [];
+  const payload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "slot1",
+    currentTime: TEST_TIME,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return { id: "main", data: { isNotificationEnabled: true } };
+      }
+      if (path === "users/user-1") {
+        return { id: "user-1", data: { discordWebhookUrl: "https://discord.com/api/webhooks/1/token" } };
+      }
+      if (path === "users/user-1/slots/slot1") {
+        return createProjectedSlot({
+          digimonStats: {
+            fullness: 0,
+            strength: 0,
+            callStatus: {
+              hunger: {
+                isActive: true,
+                isLogged: false,
+                startedAt: TEST_NOW - 12 * 60_000,
+              },
+              strength: {
+                isActive: true,
+                isLogged: false,
+                startedAt: TEST_NOW - 12 * 60_000,
+              },
+            },
+            hungerMistakeDeadline: TEST_NOW - 2 * 60_000,
+            strengthMistakeDeadline: TEST_NOW - 2 * 60_000,
+          },
+        });
+      }
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [],
+    commit: async (batch) => {
+      writes.push(...batch);
+    },
+  });
+
+  assert.equal(payload.status, "clear");
+  assert.equal(payload.newDeliveries, 0);
+  assert.equal(payload.reusedDeliveries, 0);
+  assert.deepEqual(payload.issues, []);
+  assert.equal(
+    writes.some((write) => String(write?.update?.name || "").includes("/notification_deliveries/")),
+    false
+  );
+});
+
 test("만료 pending delivery 쿼리는 100개까지만 정리 대상으로 요청한다", () => {
   const query = createExpiredPendingDeliveriesQuery(TEST_NOW);
 

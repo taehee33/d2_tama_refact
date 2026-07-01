@@ -268,7 +268,7 @@ describe("AccountSettingsPanel", () => {
     expect(screen.getByText("성공")).toBeInTheDocument();
     expect(screen.getByText("정상 · 새 전송 0건")).toBeInTheDocument();
     expect(screen.getByText(/마지막 긴급 확인 시간:/)).toBeInTheDocument();
-    expect(screen.getByText("계산 성공 1/2개 · 계산 제외 1개 · 새 전송 0건 · 만료 정리 2개")).toBeInTheDocument();
+    expect(screen.getByText("계산 성공 1/2개 · 계산 제외 1개 · 새 전송 0건 · 재사용 0건 · 만료 정리 2개")).toBeInTheDocument();
     expect(screen.getByText("1개")).toBeInTheDocument();
   });
 

@@ -173,6 +173,7 @@ function getUrgentCheckSummary(urgentCheck) {
     `계산 성공 ${urgentCheck.projectedSlots || 0}/${urgentCheck.totalSlots || 0}개`,
     `계산 제외 ${urgentCheck.projectionUnavailable || 0}개`,
     `새 전송 ${urgentCheck.newDeliveries || 0}건`,
+    `재사용 ${urgentCheck.reusedDeliveries || 0}건`,
     `만료 정리 ${urgentCheck.expiredDeliveries || 0}개`,
   ].join(" · ");
 }
@@ -877,6 +878,9 @@ function AccountSettingsPanel({
             </p>
             <p className="service-muted">
               {getUrgentCheckSummary(urgentCheck)}
+            </p>
+            <p className="service-muted">
+              10분 Apps Script 트리거가 멈췄다면 Apps Script 편집기에서 긴급 케어 트리거 설치 함수를 다시 실행해 주세요.
             </p>
           </div>
           <div className="service-key-value">

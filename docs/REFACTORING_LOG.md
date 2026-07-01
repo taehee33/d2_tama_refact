@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-07-01] 긴급 호출 시간 오표시 및 만료 알림 방지
+
+### 작업 유형
+- 최근 호출 기록 시간 오표시 수정
+- 긴급 알림 projection 만료 호출 제외
+- 알림 운영 진단 문구 보강
+
+### 목적 및 영향
+- **목적:** 케어미스로 이미 처리된 배고픔/힘 호출이 `startedAt` 없이 남아 있을 때 현재 시각의 새 최근 호출처럼 표시되는 문제를 막는다.
+- **아키텍처 결정:** 최근 호출 표시에는 `careMistakeLedger`와 활동 로그를 우선 사용하고, `callStatus`는 실제 `startedAt`이 남아 있는 레거시 fallback으로만 사용한다. 서버 알림은 deadline이 지나기 전 대응 가능한 호출만 Discord/Web Push 대상으로 계산한다.
+- **영향:** 서버가 슬롯 문서를 주기적으로 직접 갱신하지 않는 lazy update 정책은 유지한다. deadline이 지난 호출은 앱 진입 후 lazy update와 최근 기록에서 처리되며, Discord 알림은 대응 가능한 시간대에 집중한다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/utils/callStatusUtils.js`
+- `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+- `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`
+- 관련 회귀 테스트 및 서버 projection bundle
+
+### 검증
+- 호출 상태 view model 회귀 테스트
+- 긴급 알림 projection/API 회귀 테스트
+- `GameScreen` 회귀 테스트
+- production build
+
+
 ## [2026-07-01] 상태 요약 수면 안내 노출 조건 조정
 
 ### 작업 유형

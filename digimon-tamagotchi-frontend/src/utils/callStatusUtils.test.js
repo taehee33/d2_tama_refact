@@ -474,6 +474,35 @@ describe("callStatusUtils", () => {
     );
   });
 
+  test("startedAt이 없는 logged 배고픔/기력 호출은 현재 시각 최근 기록으로 재구성하지 않는다", () => {
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 0,
+        strength: 0,
+        callStatus: {
+          hunger: {
+            isActive: false,
+            startedAt: null,
+            isLogged: true,
+          },
+          strength: {
+            isActive: false,
+            startedAt: null,
+            isLogged: true,
+          },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      },
+      sleepStatus: "AWAKE",
+      isLightsOn: true,
+      currentTime: now,
+    });
+
+    expect(viewModel.hasActiveCalls).toBe(false);
+    expect(viewModel.hasRecentCalls).toBe(false);
+    expect(viewModel.recentCallHistory).toEqual([]);
+  });
+
   test("ledger와 activityLog와 callStatus가 같은 케어미스를 가리키면 하나로 병합한다", () => {
     const startedAt = now - 15 * 60 * 1000;
     const timeoutAt = startedAt + 10 * 60 * 1000;

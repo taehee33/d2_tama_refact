@@ -257,13 +257,15 @@ function buildRecentLoggedCallEntry({ type, callEntry, currentTimeMs }) {
   if (!callEntry?.isLogged) return null;
 
   const startedAt = ensureTimestamp(callEntry.startedAt);
+  if (startedAt == null) return null;
+
   const timeoutMs =
     type === "sleep"
       ? SLEEP_LIGHT_WARNING_TIMEOUT_MS
       : type === "strength"
         ? STRENGTH_CALL_TIMEOUT_MS
         : HUNGER_CALL_TIMEOUT_MS;
-  const timestamp = startedAt != null ? startedAt + timeoutMs : currentTimeMs;
+  const timestamp = startedAt + timeoutMs;
   const title = CALL_META[type]?.title || "호출";
   const text =
     type === "sleep"
