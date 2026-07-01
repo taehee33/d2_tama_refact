@@ -291,6 +291,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   const issues = [];
   const callStatus = projectedStats.callStatus || {};
   if (
+    projectedStats.fullness === 0 &&
     callStatus.hunger?.isActive &&
     callStatus.hunger?.isLogged !== true &&
     !isNeedCallPausedBySleep(callStatus.hunger, projectedStats, slotData, nowMs)
@@ -309,6 +310,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
     }
   }
   if (
+    projectedStats.strength === 0 &&
     callStatus.strength?.isActive &&
     callStatus.strength?.isLogged !== true &&
     !isNeedCallPausedBySleep(callStatus.strength, projectedStats, slotData, nowMs)

@@ -156,6 +156,47 @@ describe("applyLazyUpdate", () => {
     expect(result.strength).toBe(2);
   });
 
+  test("경과 시간이 없어도 회복된 배고픔/힘 호출 메타를 정리한다", () => {
+    const now = Date.parse(NOW_ISO);
+    const staleStartedAt = now - 60 * 1000;
+    const result = applyLazyUpdate(
+      createBaseStats({
+        fullness: 2,
+        strength: 4,
+        lastHungerZeroAt: staleStartedAt,
+        lastStrengthZeroAt: staleStartedAt,
+        hungerMistakeDeadline: staleStartedAt + 10 * 60 * 1000,
+        strengthMistakeDeadline: staleStartedAt + 10 * 60 * 1000,
+        callStatus: {
+          hunger: { isActive: true, startedAt: staleStartedAt, isLogged: false },
+          strength: { isActive: true, startedAt: staleStartedAt, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+      }),
+      now,
+      null,
+      null,
+      { nowMs: now }
+    );
+
+    expect(result.fullness).toBe(2);
+    expect(result.strength).toBe(4);
+    expect(result.lastHungerZeroAt).toBeNull();
+    expect(result.lastStrengthZeroAt).toBeNull();
+    expect(result.hungerMistakeDeadline).toBeNull();
+    expect(result.strengthMistakeDeadline).toBeNull();
+    expect(result.callStatus.hunger).toMatchObject({
+      isActive: false,
+      startedAt: null,
+      isLogged: false,
+    });
+    expect(result.callStatus.strength).toMatchObject({
+      isActive: false,
+      startedAt: null,
+      isLogged: false,
+    });
+  });
+
   test("KST 자정 경계를 넘기면 lazy update가 나이를 하루 한 번만 증가시킨다", () => {
     jest.setSystemTime(new Date("2026-03-31T15:01:00.000Z"));
 

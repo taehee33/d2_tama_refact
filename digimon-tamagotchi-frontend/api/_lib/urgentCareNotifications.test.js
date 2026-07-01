@@ -33,7 +33,7 @@ function createSubscriber() {
 
 function createProjectedSlot(overrides = {}) {
   const baseStats = {
-    fullness: 5,
+    fullness: 0,
     strength: 5,
     poopCount: 0,
     hungerTimer: 60,
@@ -121,6 +121,8 @@ test("pending delivery 쿼리는 유효한 pending 문서만 요청한다", () =
 test("배고픔과 기력 호출은 deadline 전일 때만 긴급 이슈로 만든다", () => {
   const issues = resolveUrgentIssues(
     {
+      fullness: 0,
+      strength: 0,
       callStatus: {
         hunger: {
           isActive: true,
@@ -141,6 +143,33 @@ test("배고픔과 기력 호출은 deadline 전일 때만 긴급 이슈로 만�
   );
 
   assert.deepEqual(issues.map((issue) => issue.key), ["hunger_call"]);
+});
+
+test("회복된 배고픔/힘 값의 오래된 호출 상태는 긴급 이슈로 만들지 않는다", () => {
+  const issues = resolveUrgentIssues(
+    {
+      fullness: 2,
+      strength: 4,
+      callStatus: {
+        hunger: {
+          isActive: true,
+          isLogged: false,
+          startedAt: TEST_NOW - 60_000,
+        },
+        strength: {
+          isActive: true,
+          isLogged: false,
+          startedAt: TEST_NOW - 60_000,
+        },
+      },
+      hungerMistakeDeadline: TEST_NOW + 9 * 60_000,
+      strengthMistakeDeadline: TEST_NOW + 9 * 60_000,
+    },
+    {},
+    TEST_NOW
+  );
+
+  assert.deepEqual(issues, []);
 });
 
 test("deadline이 지난 배고픔과 기력 호출은 delivery를 만들지 않는다", async () => {
@@ -196,6 +225,50 @@ test("deadline이 지난 배고픔과 기력 호출은 delivery를 만들지 않
     writes.some((write) => String(write?.update?.name || "").includes("/notification_deliveries/")),
     false
   );
+});
+
+test("즉시 슬롯 평가는 회복된 배고픔 값의 오래된 호출 메타로 delivery를 만들지 않는다", async () => {
+  const staleStartedAt = TEST_NOW - 60_000;
+  const payload = await evaluateUrgentCareSlotNotification({
+    uid: "user-1",
+    slotId: "slot1",
+    currentTime: TEST_TIME,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1/settings/main") {
+        return { id: "main", data: { isNotificationEnabled: true } };
+      }
+      if (path === "users/user-1") {
+        return { id: "user-1", data: { discordWebhookUrl: "https://discord.com/api/webhooks/1/token" } };
+      }
+      if (path === "users/user-1/slots/slot1") {
+        return createProjectedSlot({
+          lastSavedAt: TEST_NOW,
+          digimonStats: {
+            fullness: 2,
+            lastHungerZeroAt: staleStartedAt,
+            hungerMistakeDeadline: staleStartedAt + 10 * 60_000,
+            callStatus: {
+              hunger: {
+                isActive: true,
+                isLogged: false,
+                startedAt: staleStartedAt,
+              },
+            },
+          },
+        });
+      }
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listPendingDeliveryDocuments: async () => [],
+    commit: async () => {
+      throw new Error("회복된 배고픔은 delivery를 만들면 안 됩니다.");
+    },
+  });
+
+  assert.equal(payload.status, "clear");
+  assert.deepEqual(payload.issues, []);
 });
 
 test("만료 pending delivery 쿼리는 100개까지만 정리 대상으로 요청한다", () => {
@@ -640,6 +713,7 @@ test("신규 긴급 delivery를 인앱 알림 문서로도 저장한다", async 
 
 test("기력 호출에도 시작과 케어미스 예정 정보를 붙인다", () => {
   const issues = resolveUrgentIssues({
+    strength: 0,
     callStatus: {
       strength: {
         isActive: true,
@@ -702,8 +776,9 @@ test("수면 중이면 sleepStartAt이 없어도 배고픔과 기력 호출은 �
   assert.deepEqual(issues, []);
 });
 
-test("deadline이 지난 호출은 케어미스 발생 구간으로 표시한다", () => {
+test("deadline이 지난 호출은 긴급 이슈로 만들지 않는다", () => {
   const issues = resolveUrgentIssues({
+    fullness: 0,
     callStatus: {
       hunger: {
         isActive: true,
@@ -712,9 +787,7 @@ test("deadline이 지난 호출은 케어미스 발생 구간으로 표시한다
     },
   }, {}, TEST_NOW);
 
-  assert.equal(issues.length, 1);
-  assert.equal(issues[0].key, "hunger_call");
-  assert.ok(issues[0].detailLines.includes("케어미스 발생 구간"));
+  assert.deepEqual(issues, []);
 });
 
 test("즉시 슬롯 평가는 기존 pending delivery가 같은 이슈이면 재사용한다", async () => {

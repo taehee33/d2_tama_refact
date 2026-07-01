@@ -6251,9 +6251,53 @@ function repairFutureZeroTiming(target, nowMs, lastSavedMs, config) {
   }
 }
 
+function clearResolvedNeedCallMetadata(target, {
+  statKey,
+  zeroAtKey,
+  frozenDurationKey,
+  deadlineKey,
+  callKey,
+}) {
+  if ((target[statKey] || 0) <= 0) return;
+
+  target[zeroAtKey] = null;
+  target[frozenDurationKey] = 0;
+  target[deadlineKey] = null;
+
+  if (target.callStatus?.[callKey]) {
+    target.callStatus = {
+      ...target.callStatus,
+      [callKey]: {
+        ...target.callStatus[callKey],
+        isActive: false,
+        startedAt: null,
+        isLogged: false,
+      },
+    };
+  }
+}
+
+function clearResolvedNeedCalls(target) {
+  clearResolvedNeedCallMetadata(target, {
+    statKey: "fullness",
+    zeroAtKey: "lastHungerZeroAt",
+    frozenDurationKey: "hungerZeroFrozenDurationMs",
+    deadlineKey: "hungerMistakeDeadline",
+    callKey: "hunger",
+  });
+  clearResolvedNeedCallMetadata(target, {
+    statKey: "strength",
+    zeroAtKey: "lastStrengthZeroAt",
+    frozenDurationKey: "strengthZeroFrozenDurationMs",
+    deadlineKey: "strengthMistakeDeadline",
+    callKey: "strength",
+  });
+}
+
 function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = null) {
   const nextStats = { ...stats };
   migrateLegacyPoopTimers(nextStats);
+  clearResolvedNeedCalls(nextStats);
 
   if (
     (nextStats.poopCount || 0) >= 8 &&

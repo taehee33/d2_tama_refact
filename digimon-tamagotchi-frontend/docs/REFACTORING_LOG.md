@@ -2138,3 +2138,26 @@
 ### 아키텍처 결정 근거
 - 호출과 최근 호출을 별도 저장 스키마로 늘리지 않고 기존 `callStatus.isLogged`와 `activityLogs`로 분류하면, Firestore 저장 계약을 바꾸지 않으면서 UI와 서버 알림의 의미를 일치시킬 수 있습니다.
 - 호출 팝업 내부 탭만 추가하면 라우트나 모달 관리 구조를 바꾸지 않고도 현재 대응해야 할 일과 과거 기록을 분명히 분리할 수 있습니다.
+
+## 2026-07-02
+
+### 회복된 배고픔/힘 호출의 긴급 알림 오발송 차단
+- `applyLazyUpdate`의 경과 시간 없음 경로에서도 배고픔/힘이 0보다 크면 오래된 `callStatus`, `last*ZeroAt`, `*MistakeDeadline` 메타를 정리하도록 보강했습니다.
+- 서버 긴급 알림 판정에서 배고픔 호출은 `fullness === 0`, 기력 호출은 `strength === 0`일 때만 이슈로 만들도록 방어 조건을 추가했습니다.
+- 서버 projection 번들을 재생성해 Vercel API 런타임도 동일한 lazy update 규칙을 사용하게 했습니다.
+
+### 테스트 보강
+- Fullness/Strength가 회복된 상태에서 오래된 호출 메타가 남아 있어도 lazy update와 긴급 알림 판정이 호출을 정리하거나 무시하는 회귀 테스트를 추가했습니다.
+- 알림 테스트 fixture의 기본 배고픔 호출 상태를 실제 규칙에 맞게 Fullness 0으로 조정했습니다.
+
+### 영향받은 파일
+- `src/data/stats.js`
+- `src/data/stats.test.js`
+- `api/_lib/urgentCareProjection.js`
+- `api/_lib/urgentCareNotifications.test.js`
+- `api/_generated/gameProjection.cjs`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 알림 서버는 저장된 슬롯을 lazy update로 투영하지만, 마지막 저장 시각과 검사 시각이 같거나 서버 기준 미래이면 경과 시간이 0이 되어 stale 호출 메타가 그대로 남을 수 있습니다.
+- 저장 계약을 바꾸지 않고 projection 정리와 이슈 생성 방어를 함께 두면, 오래된 Firestore 문서가 있어도 현재 회복된 하트 상태와 알림 의미가 어긋나지 않습니다.
