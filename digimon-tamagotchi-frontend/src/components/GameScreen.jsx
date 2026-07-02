@@ -629,20 +629,9 @@ const GameScreen = ({
           top: 0,
           left: 0,
           zIndex: 2,
-          filter:
-            evolutionStage === 'flashing'
-              ? undefined
-              : 'none',
-          transition:
-            evolutionStage === 'flashing'
-              ? undefined
-              : 'none',
+          filter: 'none',
+          transition: 'none',
         }}
-        className={
-          evolutionStage === 'flashing'
-            ? 'evolution-flashing'
-            : ''
-        }
         width={width}
         height={height}
         digimonImageBase={digimonImageBase}
@@ -668,6 +657,14 @@ const GameScreen = ({
         frozenAt={digimonStats.frozenAt || null}
         takeOutAt={digimonStats.takeOutAt || null}
       />
+
+      {evolutionStage === 'flashing' && (
+        <div
+          data-testid="evolution-flash-overlay"
+          className="evolution-screen-flash"
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 };

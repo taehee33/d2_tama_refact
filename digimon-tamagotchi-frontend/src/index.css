@@ -2108,12 +2108,30 @@ code {
   animation: flash 0.1s infinite;
 }
 
+.evolution-screen-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0);
+  animation: evolution-screen-flash 0.18s steps(2, end) infinite;
+}
+
 @keyframes flash {
   0%, 100% {
     filter: invert(0);
   }
   50% {
     filter: invert(1);
+  }
+}
+
+@keyframes evolution-screen-flash {
+  0%, 100% {
+    background: rgba(255, 255, 255, 0);
+  }
+  50% {
+    background: rgba(255, 255, 255, 0.48);
   }
 }
 

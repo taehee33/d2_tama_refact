@@ -340,8 +340,8 @@ describe("GameScreen 수면 상태 라벨", () => {
   });
 });
 
-describe("GameScreen 디지타마 부화 연출", () => {
-  test("디지타마 flashing 단계에서는 깨진 알 정지 컷에 플래시 효과를 적용한다", () => {
+describe("GameScreen 진화 연출", () => {
+  test("디지타마 flashing 단계에서는 화면 전체 플래시 오버레이를 적용한다", () => {
     renderGameScreen({
       selectedDigimon: "Digitama",
       evolutionStage: "flashing",
@@ -349,12 +349,15 @@ describe("GameScreen 디지타마 부화 연출", () => {
 
     const canvas = screen.getByTestId("canvas");
 
-    expect(canvas).toHaveAttribute("data-class-name", "evolution-flashing");
-    expect(canvas).toHaveAttribute("data-filter-style", "");
-    expect(canvas).toHaveAttribute("data-transition-style", "");
+    expect(canvas).toHaveAttribute("data-class-name", "");
+    expect(canvas).toHaveAttribute("data-filter-style", "none");
+    expect(canvas).toHaveAttribute("data-transition-style", "none");
+    expect(screen.getByTestId("evolution-flash-overlay")).toHaveClass(
+      "evolution-screen-flash"
+    );
   });
 
-  test("일반 디지몬 flashing 단계에서는 기존 플래시 효과를 유지한다", () => {
+  test("일반 디지몬 flashing 단계에서도 화면 전체 플래시 오버레이를 적용한다", () => {
     renderGameScreen({
       selectedDigimon: "Agumon",
       evolutionStage: "flashing",
@@ -362,9 +365,10 @@ describe("GameScreen 디지타마 부화 연출", () => {
 
     const canvas = screen.getByTestId("canvas");
 
-    expect(canvas).toHaveAttribute("data-class-name", "evolution-flashing");
-    expect(canvas).toHaveAttribute("data-filter-style", "");
-    expect(canvas).toHaveAttribute("data-transition-style", "");
+    expect(canvas).toHaveAttribute("data-class-name", "");
+    expect(canvas).toHaveAttribute("data-filter-style", "none");
+    expect(canvas).toHaveAttribute("data-transition-style", "none");
+    expect(screen.getByTestId("evolution-flash-overlay")).toBeInTheDocument();
   });
 
   test("진화 shaking 단계에서도 캔버스 위치 흔들림을 적용하지 않는다", () => {
@@ -376,5 +380,14 @@ describe("GameScreen 디지타마 부화 연출", () => {
     const canvas = screen.getByTestId("canvas");
 
     expect(canvas).toHaveAttribute("data-animation-style", "");
+  });
+
+  test("idle 단계에서는 화면 전체 플래시 오버레이를 표시하지 않는다", () => {
+    renderGameScreen({
+      selectedDigimon: "Agumon",
+      evolutionStage: "idle",
+    });
+
+    expect(screen.queryByTestId("evolution-flash-overlay")).not.toBeInTheDocument();
   });
 });

@@ -6575,6 +6575,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
 - **근거:** 같은 호출 케어미스가 서로 다른 ID로 재생성되면 `모두 확인` 이후에도 최근 호출 버튼이 다시 보일 수 있으므로, 확인 상태 비교 기준을 정렬 index가 아닌 호출 종류/상태/처리 시각 기반으로 고정한다.
 
+## [2026-07-02] 진화 깜빡임 화면 전체 오버레이 전환
+
+- **내용:** 진화 `flashing` 단계에서 디지몬 캔버스만 깜빡이던 효과를 화면 전체 반투명 오버레이 플래시로 변경했다. 깜빡임 주기는 `0.18s`로 늦추고 흰색 오버레이 투명도를 낮춰 기존보다 덜 강하게 보이도록 조정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 디지몬만 깜빡이면 배경과 분리되어 어색하므로, 원래처럼 화면 전체가 번쩍이는 느낌을 유지하되 시각 피로를 줄인다.
+
 ## [2026-07-02] 일일 보고 상태별 마릿수 표시
 
 - **내용:** Discord 일일 보고 메시지에 전체 디지몬 수, 상태이상 디지몬 수, 정상 디지몬 수를 함께 표시하도록 수정했다. 응답 report payload에도 `totalCount`를 포함한다.
