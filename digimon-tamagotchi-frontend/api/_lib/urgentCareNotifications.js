@@ -136,6 +136,53 @@ function normalizeSlotDocumentId(slotId) {
   return normalized.startsWith("slot") ? normalized : `slot${normalized}`;
 }
 
+function sortedUniqueStrings(values = []) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map((value) => normalizeString(value))
+    .filter(Boolean))].sort();
+}
+
+function areStringSetsEqual(left = [], right = []) {
+  return JSON.stringify(sortedUniqueStrings(left)) === JSON.stringify(sortedUniqueStrings(right));
+}
+
+function getIssueDedupKey(issue = {}) {
+  return normalizeString(issue.dedupKey || issue.key);
+}
+
+function getIssueLegacyKey(issue = {}) {
+  return normalizeString(issue.key);
+}
+
+function getIssueDedupKeys(issues = []) {
+  return sortedUniqueStrings(issues.map(getIssueDedupKey));
+}
+
+function getIssueLegacyKeys(issues = []) {
+  return sortedUniqueStrings(issues.map(getIssueLegacyKey));
+}
+
+function isIssueAlreadyActive(issue = {}, activeIssueKeys = []) {
+  const activeKeys = new Set(sortedUniqueStrings(activeIssueKeys));
+  const dedupKey = getIssueDedupKey(issue);
+  const legacyKey = getIssueLegacyKey(issue);
+  return (dedupKey && activeKeys.has(dedupKey)) ||
+    (legacyKey && activeKeys.has(legacyKey));
+}
+
+function resolveIssueDedupState(issues = [], activeIssueKeys = []) {
+  const retainedIssues = issues.filter((issue) => isIssueAlreadyActive(issue, activeIssueKeys));
+  return {
+    retainedActiveKeys: getIssueDedupKeys(retainedIssues),
+    newIssues: issues.filter((issue) => !isIssueAlreadyActive(issue, activeIssueKeys)),
+  };
+}
+
+function isReusablePendingDelivery(reusableIssueKeys = [], nextDedupIssueKeys = [], nextLegacyIssueKeys = []) {
+  return areStringSetsEqual(reusableIssueKeys, nextDedupIssueKeys) ||
+    areStringSetsEqual(reusableIssueKeys, nextLegacyIssueKeys);
+}
+
 function buildInAppChannelState(settings = {}) {
   return settings.notificationChannels?.inApp === false
     ? { status: "hidden" }
@@ -304,11 +351,9 @@ async function prepareUrgentCareNotifications({
       }
       summary.projectedSlots += 1;
       const issues = resolveUrgentIssues(projection.stats, slotData, nowMs);
-      const currentKeys = issues.map((issue) => issue.key);
-      const retainedActiveKeys = activeIssueKeys.filter((key) => currentKeys.includes(key));
-      const newIssues = issues.filter((issue) => !retainedActiveKeys.includes(issue.key));
+      const { retainedActiveKeys, newIssues } = resolveIssueDedupState(issues, activeIssueKeys);
 
-      if (retainedActiveKeys.length !== activeIssueKeys.length && !dryRun) {
+      if (!areStringSetsEqual(retainedActiveKeys, activeIssueKeys) && !dryRun) {
         writes.push(createSetWrite(statePath, {
           activeIssueKeys: retainedActiveKeys,
           lastAcknowledgedAt: stateDocument?.data?.lastAcknowledgedAt || null,
@@ -320,11 +365,19 @@ async function prepareUrgentCareNotifications({
       const pendingKey = `${uid}:${slotId}`;
       const reusable = pendingBySlot.get(pendingKey);
       let deliveryId;
-      const nextIssueKeys = newIssues.map((issue) => issue.key).sort();
-      const reusableIssueKeys = [...(reusable?.data?.issueKeys || [])].sort();
-      if (reusable && JSON.stringify(nextIssueKeys) === JSON.stringify(reusableIssueKeys)) {
+      const nextIssueKeys = getIssueDedupKeys(newIssues);
+      const nextLegacyIssueKeys = getIssueLegacyKeys(newIssues);
+      const reusableIssueKeys = sortedUniqueStrings(reusable?.data?.issueKeys || []);
+      if (reusable && isReusablePendingDelivery(reusableIssueKeys, nextIssueKeys, nextLegacyIssueKeys)) {
         deliveryId = reusable.id;
         summary.reusedDeliveries += 1;
+        if (!areStringSetsEqual(reusableIssueKeys, nextIssueKeys) && !dryRun) {
+          writes.push(createSetWrite(`notification_deliveries/${reusable.id}`, {
+            ...reusable.data,
+            issueKeys: nextIssueKeys,
+            updatedAt: nowMs,
+          }));
+        }
       } else {
         if (reusable && !dryRun) {
           writes.push(createSetWrite(`notification_deliveries/${reusable.id}`, {
@@ -567,11 +620,9 @@ async function evaluateUrgentCareSlotNotification({
   }
 
   const issues = resolveUrgentIssues(projection.stats, slotData, nowMs);
-  const currentKeys = issues.map((issue) => issue.key);
-  const retainedActiveKeys = activeIssueKeys.filter((key) => currentKeys.includes(key));
-  const newIssues = issues.filter((issue) => !retainedActiveKeys.includes(issue.key));
+  const { retainedActiveKeys, newIssues } = resolveIssueDedupState(issues, activeIssueKeys);
 
-  if (retainedActiveKeys.length !== activeIssueKeys.length && !dryRun) {
+  if (!areStringSetsEqual(retainedActiveKeys, activeIssueKeys) && !dryRun) {
     writes.push(createSetWrite(statePath, {
       activeIssueKeys: retainedActiveKeys,
       lastAcknowledgedAt: stateDocument?.data?.lastAcknowledgedAt || null,
@@ -601,9 +652,17 @@ async function evaluateUrgentCareSlotNotification({
 
   const pendingKey = `${uid}:${normalizedSlotId}`;
   const reusable = pendingBySlot.get(pendingKey);
-  const nextIssueKeys = newIssues.map((issue) => issue.key).sort();
-  const reusableIssueKeys = [...(reusable?.data?.issueKeys || [])].sort();
-  if (reusable && JSON.stringify(nextIssueKeys) === JSON.stringify(reusableIssueKeys)) {
+  const nextIssueKeys = getIssueDedupKeys(newIssues);
+  const nextLegacyIssueKeys = getIssueLegacyKeys(newIssues);
+  const reusableIssueKeys = sortedUniqueStrings(reusable?.data?.issueKeys || []);
+  if (reusable && isReusablePendingDelivery(reusableIssueKeys, nextIssueKeys, nextLegacyIssueKeys)) {
+    if (!areStringSetsEqual(reusableIssueKeys, nextIssueKeys) && !dryRun) {
+      writes.push(createSetWrite(`notification_deliveries/${reusable.id}`, {
+        ...reusable.data,
+        issueKeys: nextIssueKeys,
+        updatedAt: nowMs,
+      }));
+    }
     if (!dryRun && writes.length) await commitInBatches(writes, commit);
     return {
       ok: true,
@@ -764,7 +823,7 @@ async function acknowledgeUrgentCareDeliveries({ deliveryIds, getDocumentByPath,
     const statePath = `users/${uid}/notificationState/${slotId}`;
     const state = await getDocumentByPath(statePath);
     const activeIssueKeys = Array.isArray(state?.data?.activeIssueKeys) ? state.data.activeIssueKeys : [];
-    const nextActiveKeys = [...new Set([...activeIssueKeys, ...(delivery.data.issueKeys || [])])];
+    const nextActiveKeys = sortedUniqueStrings([...activeIssueKeys, ...(delivery.data.issueKeys || [])]);
     writes.push(createSetWrite(statePath, {
       activeIssueKeys: nextActiveKeys,
       lastAcknowledgedAt: nowMs,

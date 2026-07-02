@@ -35,7 +35,6 @@ export function useGameRuntimeEffects({
     currentUser,
     digimonStats,
     setDigimonStatsAndSave,
-    nextSyncAt: nextStateSyncAt,
   });
 
   useGamePeriodicSync({
@@ -44,6 +43,7 @@ export function useGameRuntimeEffects({
     isLoadingSlot,
     digimonStats,
     setDigimonStatsAndSave,
+    nextSyncAt: nextStateSyncAt,
   });
 
   useGameRealtimeLoop({

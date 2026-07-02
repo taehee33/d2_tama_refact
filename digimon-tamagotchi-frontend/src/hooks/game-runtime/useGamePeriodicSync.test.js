@@ -41,6 +41,25 @@ describe("useGamePeriodicSync", () => {
     expect(save).toHaveBeenCalledWith({ energy: 2 });
   });
 
+  test("nextSyncAt이 없으면 1초 루프처럼 저장하지 않는다", async () => {
+    const save = jest.fn().mockResolvedValue(undefined);
+
+    renderHook(() => useGamePeriodicSync({
+      slotId: "1",
+      currentUser: { uid: "user-1" },
+      digimonStats: { energy: 2 },
+      setDigimonStatsAndSave: save,
+      nextSyncAt: null,
+    }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(1_000);
+      await Promise.resolve();
+    });
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
   test("숨겨진 탭에서는 주기 저장을 건너뛴다", async () => {
     Object.defineProperty(document, "visibilityState", {
       configurable: true,

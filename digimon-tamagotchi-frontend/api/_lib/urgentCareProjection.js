@@ -5,6 +5,7 @@ const { applyLazyUpdate } = require("../_generated/gameProjection.cjs");
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
+const RECENTLY_EXPIRED_CALL_GRACE_MS = 15 * 60 * 1000;
 const KST_TIME_ZONE = "Asia/Seoul";
 
 function toTimestamp(value) {
@@ -209,6 +210,69 @@ function buildIssueTiming({
   };
 }
 
+function isActiveOrRecentlyExpired(deadlineAt, nowMs) {
+  const safeDeadlineAt = toTimestamp(deadlineAt);
+  if (safeDeadlineAt == null) return false;
+  return safeDeadlineAt > nowMs ||
+    safeDeadlineAt >= nowMs - RECENTLY_EXPIRED_CALL_GRACE_MS;
+}
+
+function buildTimedIssueKey(key, deadlineAt) {
+  const safeDeadlineAt = toTimestamp(deadlineAt);
+  return safeDeadlineAt != null ? `${key}:${safeDeadlineAt}` : key;
+}
+
+function resolveNeedCallIssue({
+  key,
+  label,
+  statValue,
+  projectedCall = {},
+  storedCall = {},
+  projectedDeadline,
+  storedDeadline,
+  projectedStartedAt,
+  storedStartedAt,
+  timeoutMs,
+  projectedStats,
+  slotData,
+  nowMs,
+}) {
+  if (Number(statValue) !== 0) return null;
+  const startedAt = toTimestamp(projectedStartedAt) ??
+    toTimestamp(storedStartedAt);
+  const deadlineAt = toTimestamp(projectedDeadline) ??
+    toTimestamp(storedDeadline) ??
+    (startedAt != null ? startedAt + timeoutMs : null);
+  const isProjectedActive = projectedCall?.isActive === true &&
+    projectedCall?.isLogged !== true;
+  const isStoredUnlogged = storedCall?.isLogged !== true;
+  const isStoredActiveOrRecentlyExpired = storedCall?.isActive === true &&
+    isStoredUnlogged &&
+    isActiveOrRecentlyExpired(deadlineAt, nowMs);
+
+  if (
+    startedAt == null ||
+    deadlineAt == null ||
+    (!isProjectedActive && !isStoredActiveOrRecentlyExpired) ||
+    !isActiveOrRecentlyExpired(deadlineAt, nowMs) ||
+    isNeedCallPausedBySleep(
+      isProjectedActive ? projectedCall : storedCall,
+      projectedStats,
+      slotData,
+      nowMs
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    key,
+    dedupKey: buildTimedIssueKey(key, deadlineAt),
+    label,
+    ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
+  };
+}
+
 function isActiveScheduledSleepLightWarning(projectedStats = {}, slotData = {}, nowMs = Date.now()) {
   if (projectedStats.isLightsOn === false || slotData.isLightsOn === false) return false;
   const wakeUntil = toTimestamp(projectedStats.wakeUntil ?? slotData.wakeUntil);
@@ -290,44 +354,41 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
   if (projectedStats.isDead) return [{ key: "death", label: "💀 사망 판정" }];
   const issues = [];
   const callStatus = projectedStats.callStatus || {};
-  if (
-    projectedStats.fullness === 0 &&
-    callStatus.hunger?.isActive &&
-    callStatus.hunger?.isLogged !== true &&
-    !isNeedCallPausedBySleep(callStatus.hunger, projectedStats, slotData, nowMs)
-  ) {
-    const startedAt = toTimestamp(callStatus.hunger.startedAt) ??
-      toTimestamp(projectedStats.lastHungerZeroAt);
-    const deadlineAt = toTimestamp(projectedStats.hungerMistakeDeadline) ??
-      toTimestamp(callStatus.hunger.deadline) ??
-      (startedAt != null ? startedAt + HUNGER_CALL_TIMEOUT_MS : null);
-    if (deadlineAt != null && deadlineAt > nowMs) {
-      issues.push({
-        key: "hunger_call",
-        label: "🍖 배고픔 호출",
-        ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
-      });
-    }
-  }
-  if (
-    projectedStats.strength === 0 &&
-    callStatus.strength?.isActive &&
-    callStatus.strength?.isLogged !== true &&
-    !isNeedCallPausedBySleep(callStatus.strength, projectedStats, slotData, nowMs)
-  ) {
-    const startedAt = toTimestamp(callStatus.strength.startedAt) ??
-      toTimestamp(projectedStats.lastStrengthZeroAt);
-    const deadlineAt = toTimestamp(projectedStats.strengthMistakeDeadline) ??
-      toTimestamp(callStatus.strength.deadline) ??
-      (startedAt != null ? startedAt + STRENGTH_CALL_TIMEOUT_MS : null);
-    if (deadlineAt != null && deadlineAt > nowMs) {
-      issues.push({
-        key: "strength_call",
-        label: "🔋 기력 호출",
-        ...buildIssueTiming({ startedAt, deadlineAt, nowMs }),
-      });
-    }
-  }
+  const storedStats = slotData?.digimonStats || {};
+  const storedCallStatus = storedStats.callStatus || {};
+  const hungerIssue = resolveNeedCallIssue({
+    key: "hunger_call",
+    label: "🍖 배고픔 호출",
+    statValue: projectedStats.fullness,
+    projectedCall: callStatus.hunger,
+    storedCall: storedCallStatus.hunger,
+    projectedDeadline: projectedStats.hungerMistakeDeadline ?? callStatus.hunger?.deadline,
+    storedDeadline: storedStats.hungerMistakeDeadline ?? storedCallStatus.hunger?.deadline,
+    projectedStartedAt: callStatus.hunger?.startedAt ?? projectedStats.lastHungerZeroAt,
+    storedStartedAt: storedCallStatus.hunger?.startedAt ?? storedStats.lastHungerZeroAt,
+    timeoutMs: HUNGER_CALL_TIMEOUT_MS,
+    projectedStats,
+    slotData,
+    nowMs,
+  });
+  if (hungerIssue) issues.push(hungerIssue);
+
+  const strengthIssue = resolveNeedCallIssue({
+    key: "strength_call",
+    label: "🔋 기력 호출",
+    statValue: projectedStats.strength,
+    projectedCall: callStatus.strength,
+    storedCall: storedCallStatus.strength,
+    projectedDeadline: projectedStats.strengthMistakeDeadline ?? callStatus.strength?.deadline,
+    storedDeadline: storedStats.strengthMistakeDeadline ?? storedCallStatus.strength?.deadline,
+    projectedStartedAt: callStatus.strength?.startedAt ?? projectedStats.lastStrengthZeroAt,
+    storedStartedAt: storedCallStatus.strength?.startedAt ?? storedStats.lastStrengthZeroAt,
+    timeoutMs: STRENGTH_CALL_TIMEOUT_MS,
+    projectedStats,
+    slotData,
+    nowMs,
+  });
+  if (strengthIssue) issues.push(strengthIssue);
   if (
     callStatus.sleep?.isLogged !== true &&
     isActiveScheduledSleepLightWarning(projectedStats, slotData, nowMs)
@@ -336,6 +397,7 @@ function resolveUrgentIssues(projectedStats = {}, slotData = {}, nowMs = Date.no
     if (timing) {
       issues.push({
         key: "sleep_light",
+        dedupKey: buildTimedIssueKey("sleep_light", timing.deadlineAt ?? timing.startedAt),
         label: "💡 수면 시간 조명 켜짐",
         ...timing,
       });
@@ -358,6 +420,7 @@ function isStoredInCareStorage(slotData = {}) {
 }
 
 module.exports = {
+  RECENTLY_EXPIRED_CALL_GRACE_MS,
   hasProjectionRuntime,
   getCurrentSleepScheduleStartMs,
   isActiveScheduledSleepLightWarning,

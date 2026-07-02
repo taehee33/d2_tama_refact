@@ -6655,6 +6655,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
 - **근거:** 진화 버튼을 누른 뒤 디지몬이 기존 idle 이동 연출과 흔들림 효과로 화면 안에서 움직여, 진화 연출의 초점이 흐려지는 문제를 막는다.
 
+## [2026-07-03] 긴급 알림 누락 방지 및 15분 저장 배선 복구
+
+- **내용:** 게임 런타임의 `nextStateSyncAt`을 15분 주기 저장 훅으로 전달하도록 복구하고, 긴급 알림 서버 판정에서 배고픔/기력 호출이 deadline 직후 15분 grace 안에 있으면 한 번 알림 대상으로 포함하도록 보강했다. 알림 중복 방지는 표시용 `issue.key`와 분리된 사건 기준 `dedupKey`를 우선 사용하며, 기존 운영 데이터의 legacy `activeIssueKeys`/pending `issueKeys`는 중복 발송 없이 dedupKey 기준으로 정규화한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePeriodicSync.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+  - `api/_lib/urgentCareNotifications.test.js`
+- **근거:** 서버 체크 주기와 배고픔/기력 케어 윈도우가 모두 10분이라 체크가 조금 늦으면 기존 `deadlineAt > nowMs` 조건에서 알림이 누락될 수 있었다. 서버는 여전히 `digimonStats` 전체를 쓰지 않고, 알림 delivery/state 메타데이터만 갱신해 클라이언트 저장 충돌 위험을 제한한다.
+
 ## [2026-06-25] 수면 오알림 방지 및 긴급 알림 시간 안내 개선
 
 - **내용:** 서버 긴급 알림에서 수면 조명 경고를 KST 기준 실제 수면 시간일 때만 보내도록 보강했다. 배고픔/기력/수면 조명 이슈에는 호출 시작 시각, 케어미스 예정 시각, 남은 시간 또는 케어미스 발생 구간을 함께 표시한다.

@@ -66,6 +66,7 @@ describe("useGameRuntimeEffects", () => {
       setIsSleeping: jest.fn(),
       setDeathReason: jest.fn(),
       setHasSeenDeathPopup: jest.fn(),
+      nextStateSyncAt: 123456,
     };
 
     renderHook(() => useGameRuntimeEffects(options));
@@ -77,6 +78,7 @@ describe("useGameRuntimeEffects", () => {
       isLoadingSlot: false,
       digimonStats: options.digimonStats,
       setDigimonStatsAndSave: options.setDigimonStatsAndSave,
+      nextSyncAt: options.nextStateSyncAt,
     });
     expect(mockUseGameSaveOnLeave).toHaveBeenCalledWith({
       slotId: "1",
