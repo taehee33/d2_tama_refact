@@ -1,6 +1,6 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react";
-import Canvas from "./Canvas";
+import Canvas, { getEvolutionShakeOffset } from "./Canvas";
 import { resetRuntimeMetrics } from "../utils/runtimeMetrics";
 
 function buildIdleMotionTimeline(overrides = {}) {
@@ -177,5 +177,20 @@ describe("Canvas idle motion timeline", () => {
     );
 
     expect(container.querySelector("canvas")).toHaveClass("evolution-flashing");
+  });
+});
+
+describe("Canvas 진화 흔들림", () => {
+  test("shaking 단계에서만 디지몬 좌표 오프셋을 좌우로 만든다", () => {
+    expect(getEvolutionShakeOffset(320, 0, "shaking")).toBe(0);
+    expect(getEvolutionShakeOffset(320, 120, "shaking")).toBe(6);
+    expect(getEvolutionShakeOffset(320, 240, "shaking")).toBe(0);
+    expect(getEvolutionShakeOffset(320, 360, "shaking")).toBe(-6);
+  });
+
+  test("shaking 외 단계에서는 흔들림 오프셋을 만들지 않는다", () => {
+    expect(getEvolutionShakeOffset(320, 120, "idle")).toBe(0);
+    expect(getEvolutionShakeOffset(320, 120, "flashing")).toBe(0);
+    expect(getEvolutionShakeOffset(320, 120, "complete")).toBe(0);
   });
 });

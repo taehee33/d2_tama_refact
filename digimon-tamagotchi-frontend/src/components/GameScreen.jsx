@@ -656,6 +656,7 @@ const GameScreen = ({
         isFrozen={isFrozen}
         frozenAt={digimonStats.frozenAt || null}
         takeOutAt={digimonStats.takeOutAt || null}
+        evolutionStage={evolutionStage || "idle"}
       />
 
       {evolutionStage === 'flashing' && (

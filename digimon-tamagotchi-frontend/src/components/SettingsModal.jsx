@@ -48,15 +48,25 @@ const SettingsModal = ({
   const [uniformScale, setUniformScale] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(height / width); // 초기 비율 저장
 
-  // 초기값
+  // 부모 상태가 개별로 바뀔 때 해당 draft만 갱신한다.
+  // 여러 설정을 한 effect에서 동기화하면 개발자 옵션 체크 시 Dev Mode draft가 되돌아간다.
   useEffect(() => {
     setLocalWidth(width);
     setLocalHeight(height);
-    setLocalDevMode(developerMode);
-    setLocalEncyclopediaQuestionMark(encyclopediaShowQuestionMark);
-    setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
     setAspectRatio(height / width); // 비율 업데이트
-  }, [width, height, developerMode, encyclopediaShowQuestionMark, ignoreEvolutionTime]);
+  }, [width, height]);
+
+  useEffect(() => {
+    setLocalDevMode(developerMode);
+  }, [developerMode]);
+
+  useEffect(() => {
+    setLocalEncyclopediaQuestionMark(encyclopediaShowQuestionMark);
+  }, [encyclopediaShowQuestionMark]);
+
+  useEffect(() => {
+    setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
+  }, [ignoreEvolutionTime]);
 
   // Width/Height 변경
   const handleLocalWidthChange = (e) => {
@@ -167,7 +177,7 @@ const SettingsModal = ({
   return (
     <>
       <div className="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
-        <div className="bg-white rounded-lg shadow-lg w-96 flex flex-col max-h-[90vh]" modal-mobile>
+        <div className="bg-white rounded-lg shadow-lg w-96 flex flex-col max-h-[90vh] modal-mobile">
         {/* 헤더 */}
         <div className="p-6 pb-4 border-b border-gray-200">
           <h2 className="text-xl">Settings</h2>

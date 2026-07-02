@@ -14,6 +14,7 @@ const DIGIMON_WIDTH_RATIO = 0.4;
 const DIGIMON_HEIGHT_RATIO = 0.4;
 const IDLE_MOTION_COORDINATE_GRID = 80;
 const IDLE_MOTION_STEP_MS = 700;
+const EVOLUTION_SHAKE_STEP_MS = 120;
 const SLEEPING_LIKE_VISUAL_STATUSES = new Set([
   "NAPPING",
   "SLEEPING",
@@ -93,6 +94,16 @@ function getIdleMotionDrawState(width, height, step) {
   };
 }
 
+export function getEvolutionShakeOffset(width, elapsedMs, evolutionStage) {
+  if (evolutionStage !== "shaking") return 0;
+  const amplitude = Math.max(2, Math.min(6, Math.round(width * 0.018)));
+  const pattern = [0, amplitude, 0, -amplitude];
+  const stepIndex =
+    Math.floor(Math.max(0, elapsedMs) / EVOLUTION_SHAKE_STEP_MS) %
+    pattern.length;
+  return pattern[stepIndex];
+}
+
 function drawDigimonImage(ctx, image, drawState) {
   if (drawState.flip) {
     ctx.save();
@@ -154,6 +165,7 @@ const Canvas = ({
   isFrozen=false, // 냉장고 보관 여부
   frozenAt=null, // 냉장고에 넣은 시간 (timestamp)
   takeOutAt=null, // 냉장고에서 꺼낸 시간 (timestamp, 꺼내기 애니메이션용)
+  evolutionStage="idle",
 }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
   const isSleepingLikeVisualState = SLEEPING_LIKE_VISUAL_STATUSES.has(
@@ -301,7 +313,7 @@ const Canvas = ({
     currentAnimation,showFood,feedStep,
     foodSizeScale,foodSpritesKey,developerMode,
     poopCount,showPoopCleanAnimation,cleanStep,
-    sleepStatus,isSleepingLikeVisualState,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt
+    sleepStatus,isSleepingLikeVisualState,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt,evolutionStage
   ]);
 
   function startAnimation(ctx, frames){
@@ -369,14 +381,29 @@ const Canvas = ({
                   currentAnimation === "foodRejectRefuse" &&
                   idx === 1,
               };
+          const evolutionShakeOffset = getEvolutionShakeOffset(
+            width,
+            nowTimestamp - animationStartedAt,
+            evolutionStage
+          );
+          const drawStateWithEvolutionShake =
+            evolutionShakeOffset === 0
+              ? drawState
+              : {
+                  ...drawState,
+                  digiX: Math.max(
+                    0,
+                    Math.min(width - drawState.digiW, drawState.digiX + evolutionShakeOffset)
+                  ),
+                };
 
-          drawDigimonImage(ctx, digimonImg, drawState);
+          drawDigimonImage(ctx, digimonImg, drawStateWithEvolutionShake);
 
           // 거절 상태일 때만 😡 표시 (디지몬 오른쪽)
           if(currentAnimation === "foodRejectRefuse" && isRefused){
             ctx.font="32px Arial";
             ctx.fillStyle="red";
-            ctx.fillText("😡", drawState.digiX + drawState.digiW + 10, drawState.digiY + drawState.digiH/2);
+            ctx.fillText("😡", drawStateWithEvolutionShake.digiX + drawStateWithEvolutionShake.digiW + 10, drawStateWithEvolutionShake.digiY + drawStateWithEvolutionShake.digiH/2);
           }
 
           if(developerMode){
@@ -385,7 +412,7 @@ const Canvas = ({
             const motionLabel = motionStep
               ? ` F:${motionStep.f} X:${motionStep.x} Y:${motionStep.y} Flip:${motionStep.flip ? "Y" : "N"}`
               : "";
-            ctx.fillText(`Sprite: ${name}.png${motionLabel}`, drawState.digiX, drawState.digiY + drawState.digiH + 12);
+            ctx.fillText(`Sprite: ${name}.png${motionLabel}`, drawStateWithEvolutionShake.digiX, drawStateWithEvolutionShake.digiY + drawStateWithEvolutionShake.digiH + 12);
           }
         }
       }

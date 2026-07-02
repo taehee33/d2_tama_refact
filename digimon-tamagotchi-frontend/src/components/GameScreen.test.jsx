@@ -10,6 +10,7 @@ jest.mock("./Canvas", () => function CanvasMock(props) {
       data-animation-style={props.style?.animation || ""}
       data-filter-style={props.style?.filter || ""}
       data-transition-style={props.style?.transition || ""}
+      data-evolution-stage={props.evolutionStage || ""}
     />
   );
 });
@@ -380,6 +381,7 @@ describe("GameScreen 진화 연출", () => {
     const canvas = screen.getByTestId("canvas");
 
     expect(canvas).toHaveAttribute("data-animation-style", "");
+    expect(canvas).toHaveAttribute("data-evolution-stage", "shaking");
   });
 
   test("idle 단계에서는 화면 전체 플래시 오버레이를 표시하지 않는다", () => {

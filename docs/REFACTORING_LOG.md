@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-07-02] 설정 모달 개발자 옵션 draft 상태 보정
+
+- **내용:** Settings 모달에서 저장 전 `Developer Mode`를 ON으로 둔 상태에서 개발자 옵션 체크박스를 누르면 부모 상태 변경에 의해 Dev Mode draft가 OFF로 되돌아가던 문제를 수정했다. 설정별 local draft 동기화를 분리해 옵션 체크 상태만 갱신되도록 했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.test.jsx`
+- **근거:** 모달 내부 변경사항은 저장 전까지 draft 상태로 유지되어야 하며, 하위 옵션의 즉시 반영이 상위 Dev Mode draft를 덮어쓰면 안 된다.
+
+## [2026-07-02] 진화 shaking 디지몬 좌우 흔들림 추가
+
+- **내용:** 진화 `shaking` 단계에서 Canvas 전체가 아니라 디지몬 스프라이트 좌표만 중앙 기준으로 좌우 2~6px 범위에서 살짝 흔들리도록 추가했다. `flashing` 단계의 화면 전체 플래시는 기존대로 분리 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+  - `digimon-tamagotchi-frontend/src/components/Canvas.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- **근거:** 진화 준비 단계에서 디지몬이 정위치에 머물면서도 진화 직전의 긴장감을 주고, 화면 전체 흔들림이나 위치 이탈은 피한다.
+
 ## [2026-07-02] 개발자 모드 진화 애니메이션 유지
 
 - **내용:** 개발자 모드와 `모든 진화 조건 무시` 옵션에서도 진화 결과를 즉시 저장하지 않고, 일반 진화와 동일하게 `shaking → flashing → complete` 애니메이션을 거친 뒤 저장하도록 수정했다.
