@@ -6575,6 +6575,16 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
 - **근거:** 같은 호출 케어미스가 서로 다른 ID로 재생성되면 `모두 확인` 이후에도 최근 호출 버튼이 다시 보일 수 있으므로, 확인 상태 비교 기준을 정렬 index가 아닌 호출 종류/상태/처리 시각 기반으로 고정한다.
 
+## [2026-07-02] 진화 깜빡임 연출 복구
+
+- **내용:** `Canvas`가 전달받은 `className`을 실제 `<canvas>`에 적용하도록 수정하고, 일반 디지몬 진화의 `evolution-flashing` CSS 애니메이션이 inline style에 막히지 않게 보정했다. 위치 이동은 계속 비활성화해 중앙 고정 요구사항을 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/Canvas.jsx`
+  - `digimon-tamagotchi-frontend/src/components/Canvas.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- **근거:** 진화 중 이동을 막는 과정에서 깜빡임 애니메이션까지 체감되지 않아, 연출 효과와 중앙 고정을 분리한다.
+
 ## [2026-07-02] 진화 연출 중 디지몬 중앙 고정
 
 - **내용:** 진화 진행 단계에서 디지몬 idle 이동 타임라인을 비활성화하고, `shaking` 단계의 캔버스 흔들림 애니메이션을 제거해 진화 과정 동안 스프라이트가 중앙 위치에 머물도록 조정했다. 플래시 효과는 기존처럼 유지한다.

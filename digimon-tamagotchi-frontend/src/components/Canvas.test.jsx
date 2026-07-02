@@ -164,4 +164,18 @@ describe("Canvas idle motion timeline", () => {
     expect(loadedImageSources).not.toContain("/images/210.png");
     expect(loadedImageSources).not.toContain("/images/211.png");
   });
+
+  test("전달받은 className을 실제 canvas에 적용한다", () => {
+    const { container } = render(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="idle"
+        idleFrames={["210"]}
+        className="evolution-flashing"
+      />
+    );
+
+    expect(container.querySelector("canvas")).toHaveClass("evolution-flashing");
+  });
 });

@@ -632,14 +632,13 @@ const GameScreen = ({
           top: 0,
           left: 0,
           zIndex: 2,
-          animation: 'none',
           filter:
             evolutionStage === 'flashing' && !isDigitamaHatchFlash
-              ? 'invert(1)'
+              ? undefined
               : 'none',
           transition:
             evolutionStage === 'flashing' && !isDigitamaHatchFlash
-              ? 'filter 0.1s'
+              ? undefined
               : 'none',
         }}
         className={

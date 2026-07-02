@@ -119,6 +119,7 @@ function drawDigimonImage(ctx, image, drawState) {
 
 const Canvas = ({
   style={},
+  className="",
   width=300,
   height=200,
   // frames
@@ -746,6 +747,7 @@ const Canvas = ({
   return (
     <canvas
       ref={canvasRef}
+      className={className}
       width={width}
       height={height}
       style={{
