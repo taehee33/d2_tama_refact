@@ -30,11 +30,11 @@ describe("GameSyncInfo", () => {
 
     expect(screen.getByText("서버 저장 완료")).toBeInTheDocument();
     expect(screen.getByText(/15분 0초 후/)).toBeInTheDocument();
-    expect(screen.getByText(/먹이 기록 요약 대기 · 14분 32초 후/)).toBeInTheDocument();
-    expect(screen.getByText("현재 슬롯 저장")).toBeInTheDocument();
-    expect(screen.getByText("마지막 슬롯 저장")).toBeInTheDocument();
-    expect(screen.getByText("활동 기록 전송 (2)")).toBeInTheDocument();
-    expect(screen.getByText("마지막 활동 기록 전송")).toBeInTheDocument();
+    expect(screen.getByText(/먹이 기록 15분 요약 대기 · 14분 32초 후/)).toBeInTheDocument();
+    expect(screen.getByText("현재 슬롯 저장 (Firestore 슬롯)")).toBeInTheDocument();
+    expect(screen.getByText("마지막 슬롯 저장 (Firestore 슬롯)")).toBeInTheDocument();
+    expect(screen.getByText("활동 기록 전송 (대기 2개 · IndexedDB → Firestore logs)")).toBeInTheDocument();
+    expect(screen.getByText("마지막 활동 기록 전송 (Firestore logs)")).toBeInTheDocument();
     expect(screen.getByText(/긴급 알림 계산과 Discord 전송 상태는 설정 화면/)).toBeInTheDocument();
     expect(screen.getByText(/중요한 행동은 즉시 이 기기에 보존하고 슬롯 저장/)).toBeInTheDocument();
   });
@@ -55,9 +55,9 @@ describe("GameSyncInfo", () => {
     );
 
     expect(screen.getByText("서버 저장 대기")).toBeInTheDocument();
-    expect(screen.getByText("슬롯 저장 오류")).toBeInTheDocument();
+    expect(screen.getByText("슬롯 저장 오류 (Firestore 슬롯)")).toBeInTheDocument();
     expect(screen.getByText("offline")).toBeInTheDocument();
-    expect(screen.getByText("활동 기록 오류")).toBeInTheDocument();
+    expect(screen.getByText("활동 기록 오류 (IndexedDB → Firestore logs)")).toBeInTheDocument();
     expect(screen.getByText("permission denied")).toBeInTheDocument();
   });
 
@@ -65,6 +65,6 @@ describe("GameSyncInfo", () => {
     render(<GameSyncInfo syncInfo={{ mode: "local" }} />);
     expect(screen.getByText("현재 슬롯 · 이 기기에 저장됨")).toBeInTheDocument();
     expect(screen.getByText("이 카드는 현재 슬롯과 활동 기록 저장 상태만 표시합니다.")).toBeInTheDocument();
-    expect(screen.queryByText("다음 슬롯 저장")).not.toBeInTheDocument();
+    expect(screen.queryByText("다음 슬롯 저장 (Firestore 슬롯)")).not.toBeInTheDocument();
   });
 });

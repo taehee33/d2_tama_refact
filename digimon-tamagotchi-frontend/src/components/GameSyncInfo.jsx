@@ -63,10 +63,13 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
   }
 
   const hasRecordPending = pendingRecordCount > 0 || recordSyncStatus !== "synced";
+  const recordLocationLabel = pendingRecordCount > 0
+    ? `대기 ${pendingRecordCount}개 · IndexedDB → Firestore logs`
+    : "IndexedDB → Firestore logs";
   const recordLabel = retryAt && hasRecordPending
     ? `재전송 대기${retryCountdown ? ` · ${retryCountdown}` : ""}`
     : recordSyncStatus === "feed_pending"
-      ? `먹이 기록 요약 대기${recordCountdown ? ` · ${recordCountdown}` : ""}`
+      ? `먹이 기록 15분 요약 대기${recordCountdown ? ` · ${recordCountdown}` : ""}`
       : recordSyncStatus === "local"
         ? "재전송 대기"
         : recordSyncStatus === "unavailable"
@@ -81,46 +84,46 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
       </p>
       <dl className="mt-2 space-y-1 text-xs text-slate-600">
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>현재 슬롯 저장</dt>
+          <dt>현재 슬롯 저장 (Firestore 슬롯)</dt>
           <dd className="font-semibold text-slate-800">{STATE_LABELS[stateSyncStatus] || STATE_LABELS.synced}</dd>
         </div>
         {stateSyncStatus === "synced" && stateCountdown ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>다음 슬롯 저장</dt>
+            <dt>다음 슬롯 저장 (Firestore 슬롯)</dt>
             <dd>{stateCountdown}</dd>
           </div>
         ) : null}
         {stateSyncStatus === "local" && retryCountdown ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>슬롯 재전송</dt>
+            <dt>슬롯 재전송 (IndexedDB → Firestore 슬롯)</dt>
             <dd>{retryCountdown}</dd>
           </div>
         ) : null}
         {lastStateSyncedText ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>마지막 슬롯 저장</dt>
+            <dt>마지막 슬롯 저장 (Firestore 슬롯)</dt>
             <dd>{lastStateSyncedText}</dd>
           </div>
         ) : null}
         {stateSyncError ? (
           <div className="flex flex-wrap justify-between gap-2 text-rose-700">
-            <dt>슬롯 저장 오류</dt>
+            <dt>슬롯 저장 오류 (Firestore 슬롯)</dt>
             <dd className="max-w-[70%] text-right">{stateSyncError}</dd>
           </div>
         ) : null}
         <div className="flex flex-wrap justify-between gap-2">
-          <dt>활동 기록 전송{pendingRecordCount > 0 ? ` (${pendingRecordCount})` : ""}</dt>
+          <dt>활동 기록 전송 ({recordLocationLabel})</dt>
           <dd className="font-semibold text-slate-800">{recordLabel}</dd>
         </div>
         {lastRecordSyncedText ? (
           <div className="flex flex-wrap justify-between gap-2">
-            <dt>마지막 활동 기록 전송</dt>
+            <dt>마지막 활동 기록 전송 (Firestore logs)</dt>
             <dd>{lastRecordSyncedText}</dd>
           </div>
         ) : null}
         {recordSyncError ? (
           <div className="flex flex-wrap justify-between gap-2 text-rose-700">
-            <dt>활동 기록 오류</dt>
+            <dt>활동 기록 오류 (IndexedDB → Firestore logs)</dt>
             <dd className="max-w-[70%] text-right">{recordSyncError}</dd>
           </div>
         ) : null}

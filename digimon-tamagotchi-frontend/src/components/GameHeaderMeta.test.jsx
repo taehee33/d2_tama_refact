@@ -52,6 +52,6 @@ describe("GameHeaderMeta", () => {
 
     expect(screen.getByText(/현재 시간:/)).toBeInTheDocument();
     expect(screen.getByText("저장 및 동기화")).toBeInTheDocument();
-    expect(screen.getByText(/먹이 기록 요약 대기/)).toBeInTheDocument();
+    expect(screen.getByText(/먹이 기록 15분 요약 대기/)).toBeInTheDocument();
   });
 });
