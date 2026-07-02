@@ -9,7 +9,6 @@ import {
   formatSleepCountdown,
   getFallingAsleepRemainingSeconds,
 } from "../utils/sleepUtils";
-import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 
 const SICK_EMOJI_POOL = [
   "😷",
@@ -113,8 +112,6 @@ const GameScreen = ({
   currentTime: currentTimeProp = null,
   }) => {
   const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
-  const isDigitama = isStarterDigimonId(selectedDigimon);
-  const isDigitamaHatchFlash = isDigitama && evolutionStage === "flashing";
   
   // 부상 상태일 때 11시/5시만 랜덤, 1시/7시는 주사기로 고정
   const [selectedSickEmojis, setSelectedSickEmojis] = useState([]);
@@ -633,16 +630,16 @@ const GameScreen = ({
           left: 0,
           zIndex: 2,
           filter:
-            evolutionStage === 'flashing' && !isDigitamaHatchFlash
+            evolutionStage === 'flashing'
               ? undefined
               : 'none',
           transition:
-            evolutionStage === 'flashing' && !isDigitamaHatchFlash
+            evolutionStage === 'flashing'
               ? undefined
               : 'none',
         }}
         className={
-          evolutionStage === 'flashing' && !isDigitamaHatchFlash
+          evolutionStage === 'flashing'
             ? 'evolution-flashing'
             : ''
         }

@@ -1,8 +1,29 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import {
+  SUPPORTED_DIGIMON_VERSIONS,
+  getDigimonEntryByVersion,
+  getSpriteBasePathByVersion,
+  getStarterDigimonId,
+} from "../../utils/digimonVersionUtils";
 
 function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
   const [device, setDevice] = useState("Digital Monster Color 25th");
   const [version, setVersion] = useState("Ver.1");
+  const digitamaPreviews = useMemo(
+    () =>
+      SUPPORTED_DIGIMON_VERSIONS.map((versionLabel) => {
+        const starterId = getStarterDigimonId(versionLabel);
+        const starter = getDigimonEntryByVersion(versionLabel, starterId) || {};
+        const spriteBasePath = getSpriteBasePathByVersion(versionLabel);
+
+        return {
+          version: versionLabel,
+          name: starter.name || `디지타마 ${versionLabel}`,
+          spriteSrc: `${spriteBasePath}/${starter.sprite}.png`,
+        };
+      }),
+    []
+  );
 
   if (!open) {
     return null;
@@ -41,13 +62,53 @@ function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
           <label className="service-field">
             <span>버전</span>
             <select value={version} onChange={(event) => setVersion(event.target.value)}>
-              <option value="Ver.1">Ver.1</option>
-              <option value="Ver.2">Ver.2</option>
-              <option value="Ver.3">Ver.3</option>
-              <option value="Ver.4">Ver.4</option>
-              <option value="Ver.5">Ver.5</option>
+              {SUPPORTED_DIGIMON_VERSIONS.map((versionLabel) => (
+                <option key={versionLabel} value={versionLabel}>
+                  {versionLabel}
+                </option>
+              ))}
             </select>
           </label>
+
+          <section className="service-digitama-preview" aria-labelledby="digitama-preview-title">
+            <div className="service-digitama-preview__header">
+              <h4 id="digitama-preview-title">버전별 디지타마</h4>
+              <p>카드를 선택하면 시작할 버전이 함께 바뀝니다.</p>
+            </div>
+
+            <div className="service-digitama-preview__grid">
+              {digitamaPreviews.map((preview) => {
+                const isSelected = preview.version === version;
+
+                return (
+                  <button
+                    key={preview.version}
+                    type="button"
+                    className={`service-digitama-preview__card ${
+                      isSelected ? "service-digitama-preview__card--selected" : ""
+                    }`}
+                    onClick={() => setVersion(preview.version)}
+                    aria-pressed={isSelected}
+                    aria-label={`${preview.version} 디지타마 선택`}
+                  >
+                    <span className="service-digitama-preview__image-shell">
+                      <img
+                        src={preview.spriteSrc}
+                        alt={`${preview.version} ${preview.name}`}
+                        className="service-digitama-preview__image"
+                        style={{ imageRendering: "pixelated" }}
+                      />
+                    </span>
+                    <span className="service-digitama-preview__version">{preview.version}</span>
+                    <span className="service-digitama-preview__name">{preview.name}</span>
+                    {isSelected ? (
+                      <span className="service-digitama-preview__selected">선택됨</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
         <div className="service-modal__footer">

@@ -6575,6 +6575,31 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
 - **근거:** 같은 호출 케어미스가 서로 다른 ID로 재생성되면 `모두 확인` 이후에도 최근 호출 버튼이 다시 보일 수 있으므로, 확인 상태 비교 기준을 정렬 index가 아닌 호출 종류/상태/처리 시각 기반으로 고정한다.
 
+## [2026-07-02] 일일 보고 상태별 마릿수 표시
+
+- **내용:** Discord 일일 보고 메시지에 전체 디지몬 수, 상태이상 디지몬 수, 정상 디지몬 수를 함께 표시하도록 수정했다. 응답 report payload에도 `totalCount`를 포함한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/notificationReports.js`
+  - `api/_lib/notificationReports.test.js`
+- **근거:** 보고 메시지에서 전체 관리 대상과 상태별 규모를 한눈에 확인할 수 있게 한다.
+
+## [2026-07-02] 디지타마 진화 깜빡임 적용 복구
+
+- **내용:** 디지타마가 `flashing` 단계일 때도 `evolution-flashing` class를 적용하도록 수정했다. 깨진 알 정지 컷은 유지하면서 CSS 깜빡임 연출만 다시 보이게 한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+- **근거:** 디지타마 부화/진화 과정에서 일반 진화와 같은 깜빡임 피드백이 보이지 않아 연출이 사라진 것처럼 느껴지는 문제를 보정한다.
+
+## [2026-07-02] 새 디지몬 모달 디지타마 비교 그리드
+
+- **내용:** 새 디지몬 생성 모달에 Ver.1~Ver.5 디지타마를 한 번에 비교하는 카드 그리드를 추가했다. 카드를 클릭하면 기존 버전 select와 동기화되고, 선택된 버전으로 슬롯 생성이 이어진다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.test.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 디지타마 준비 단계에서 버전별 시작 알을 시각적으로 확인하고 선택할 수 있게 해 새 슬롯 생성 흐름을 명확하게 한다.
+
 ## [2026-07-02] 진화 깜빡임 연출 복구
 
 - **내용:** `Canvas`가 전달받은 `className`을 실제 `<canvas>`에 적용하도록 수정하고, 일반 디지몬 진화의 `evolution-flashing` CSS 애니메이션이 inline style에 막히지 않게 보정했다. 위치 이동은 계속 비활성화해 중앙 고정 요구사항을 유지한다.

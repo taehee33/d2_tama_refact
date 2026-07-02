@@ -187,16 +187,17 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     healthyList.push(`- **${digimonName}** (${slotId})`);
   });
 
-  let messageContent = `${REPORT_BORDER}\n📊 **디지몬 상태 일일 보고**\n\n👤 **테이머**: ${tamerName}\n`;
+  const totalCount = abnormalList.length + healthyList.length;
+  let messageContent = `${REPORT_BORDER}\n📊 **디지몬 상태 일일 보고**\n\n👤 **테이머**: ${tamerName} (총 ${totalCount}마리)\n`;
 
   if (abnormalList.length > 0) {
-    messageContent += `⚠️ **상태이상 발생!**\n${abnormalList.join("\n")}\n`;
+    messageContent += `⚠️ **상태이상 발생!** (${abnormalList.length}마리)\n${abnormalList.join("\n")}\n`;
   } else {
-    messageContent += "✅ **상태이상 디지몬이 없습니다!**\n현재 모든 디지몬이 아주 건강합니다. ✨\n";
+    messageContent += "✅ **상태이상 디지몬이 없습니다!** (0마리)\n현재 모든 디지몬이 아주 건강합니다. ✨\n";
   }
 
   if (healthyList.length > 0) {
-    messageContent += `\n🍀 **정상 상태 디지몬 목록**\n${healthyList.join("\n")}\n`;
+    messageContent += `\n🍀 **정상 상태 디지몬 목록** (${healthyList.length}마리)\n${healthyList.join("\n")}\n`;
   }
 
   messageContent += `\n⏰ **확인 시간**: ${generatedAt}\n${REPORT_BORDER}`;
@@ -208,6 +209,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     messageContent,
     abnormalCount: abnormalList.length,
     healthyCount: healthyList.length,
+    totalCount,
   };
 }
 

@@ -6404,6 +6404,106 @@ code {
   font: inherit;
 }
 
+.service-digitama-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.service-digitama-preview__header h4,
+.service-digitama-preview__header p {
+  margin: 0;
+}
+
+.service-digitama-preview__header h4 {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.service-digitama-preview__header p {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.service-digitama-preview__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.service-digitama-preview__card {
+  min-width: 0;
+  min-height: 8.8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  padding: 0.7rem 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.service-digitama-preview__card:hover,
+.service-digitama-preview__card:focus-visible {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.service-digitama-preview__card--selected {
+  border-color: var(--link-color);
+  box-shadow: 0 0 0 2px rgba(46, 122, 96, 0.16);
+  background: var(--nav-active-bg);
+}
+
+.service-digitama-preview__image-shell {
+  width: 3.2rem;
+  height: 3.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.85rem;
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+}
+
+.service-digitama-preview__image {
+  width: 2.45rem;
+  height: 2.45rem;
+  object-fit: contain;
+}
+
+.service-digitama-preview__version {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.service-digitama-preview__name {
+  min-height: 2rem;
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--text-muted);
+  text-align: center;
+  word-break: keep-all;
+}
+
+.service-digitama-preview__selected {
+  margin-top: auto;
+  min-height: 1.35rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: var(--link-color);
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
 .service-empty-state {
   align-items: center;
   text-align: center;
@@ -7647,6 +7747,14 @@ code {
 }
 
 @media (max-width: 768px) {
+  .service-digitama-preview__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .service-digitama-preview__card {
+    min-height: 7.9rem;
+  }
+
   .guide-hero-panel__item {
     padding: 0.9rem 1rem;
   }

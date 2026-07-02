@@ -341,7 +341,7 @@ describe("GameScreen 수면 상태 라벨", () => {
 });
 
 describe("GameScreen 디지타마 부화 연출", () => {
-  test("디지타마 flashing 단계에서는 깨진 알 정지 컷만 보여주도록 플래시 효과를 제거한다", () => {
+  test("디지타마 flashing 단계에서는 깨진 알 정지 컷에 플래시 효과를 적용한다", () => {
     renderGameScreen({
       selectedDigimon: "Digitama",
       evolutionStage: "flashing",
@@ -349,9 +349,9 @@ describe("GameScreen 디지타마 부화 연출", () => {
 
     const canvas = screen.getByTestId("canvas");
 
-    expect(canvas).toHaveAttribute("data-class-name", "");
-    expect(canvas).toHaveAttribute("data-filter-style", "none");
-    expect(canvas).toHaveAttribute("data-transition-style", "none");
+    expect(canvas).toHaveAttribute("data-class-name", "evolution-flashing");
+    expect(canvas).toHaveAttribute("data-filter-style", "");
+    expect(canvas).toHaveAttribute("data-transition-style", "");
   });
 
   test("일반 디지몬 flashing 단계에서는 기존 플래시 효과를 유지한다", () => {
