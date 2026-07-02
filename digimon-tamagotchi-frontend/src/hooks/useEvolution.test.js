@@ -244,8 +244,59 @@ describe("useEvolution jogress flows", () => {
   });
 
   afterEach(() => {
-    Date.now.mockRestore();
+    jest.useRealTimers();
+    if (Date.now.mockRestore) {
+      Date.now.mockRestore();
+    }
     alertSpy.mockRestore();
+  });
+
+  test("개발자 모드 조건 무시 진화도 애니메이션을 거친 뒤 저장한다", async () => {
+    jest.useFakeTimers();
+    const digimonMap = createDigimonMap();
+    digimonMap.Agumon = {
+      ...digimonMap.Agumon,
+      evolutions: [{ targetId: "Betamon", jogress: false }],
+    };
+    const params = createParams({
+      developerMode: true,
+      ignoreEvolutionTime: true,
+      digimonDataVer1: digimonMap,
+      newDigimonDataVer1: digimonMap,
+      evolutionDataVer1: digimonMap,
+    });
+    const { result } = renderHook(() => useEvolution(params));
+
+    await act(async () => {
+      await result.current.proceedEvolution();
+    });
+
+    expect(params.setEvolvedDigimonName).toHaveBeenCalledWith("베타몬");
+    expect(params.setIsEvolving).toHaveBeenCalledWith(true);
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("shaking");
+    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("flashing");
+    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("complete");
+    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+
+    await act(async () => {
+      jest.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Betamon");
+    expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 
   test("proceedJogressOnlineAsGuest는 room을 paired로 바꾸고 guest slot을 진화 결과로 저장한다", async () => {

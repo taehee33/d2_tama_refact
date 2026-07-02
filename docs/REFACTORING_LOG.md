@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-02] 개발자 모드 진화 애니메이션 유지
+
+- **내용:** 개발자 모드와 `모든 진화 조건 무시` 옵션에서도 진화 결과를 즉시 저장하지 않고, 일반 진화와 동일하게 `shaking → flashing → complete` 애니메이션을 거친 뒤 저장하도록 수정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useEvolution.test.js`
+- **근거:** 개발자 모드는 조건 판정과 시간 제한만 우회해야 하며, 사용자가 확인하는 진화 연출은 일반 모드와 동일하게 보여야 한다.
+
 ## [2026-07-01] 긴급 호출 시간 오표시 및 만료 알림 방지
 
 ### 작업 유형

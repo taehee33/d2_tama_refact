@@ -67,6 +67,10 @@ export async function persistJogressLogWithArchive({
   });
 }
 
+const EVOLUTION_SHAKE_DURATION_MS = 2000;
+const EVOLUTION_FLASH_DURATION_MS = 2000;
+const EVOLUTION_COMPLETE_DELAY_MS = 500;
+
 /**
  * useEvolution Hook
  * 진화 관련 로직을 담당하는 Custom Hook
@@ -213,6 +217,21 @@ export function useEvolution({
     );
     const currentDigimonData = resolvedCurrentDigimon?.data;
     const currentDigimonKey = resolvedCurrentDigimon?.key || digimonName;
+    const playEvolutionSequence = (targetId) => {
+      if (typeof setIsEvolving === 'function') setIsEvolving(true);
+      setEvolutionStage('shaking');
+      setTimeout(() => {
+        setEvolutionStage('flashing');
+        setTimeout(() => {
+          setEvolutionStage('complete');
+          setTimeout(async () => {
+            await evolve(targetId);
+            if (typeof setIsEvolving === 'function') setIsEvolving(false);
+          }, EVOLUTION_COMPLETE_DELAY_MS);
+        }, EVOLUTION_FLASH_DURATION_MS);
+      }, EVOLUTION_SHAKE_DURATION_MS);
+    };
+
     if (!currentDigimonData) {
       console.error(`No data for ${digimonName} in slotEvolutionDataMap!`);
       console.error('Available keys:', Object.keys(slotEvolutionDataMap));
@@ -233,23 +252,7 @@ export function useEvolution({
       const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
       const evolvedName = targetData?.name || targetData?.id || targetId;
       setEvolvedDigimonName(evolvedName);
-      if (developerMode) {
-        setEvolutionStage('complete');
-        await evolve(targetId);
-      } else {
-        if (typeof setIsEvolving === 'function') setIsEvolving(true);
-        setEvolutionStage('shaking');
-        setTimeout(() => {
-          setEvolutionStage('flashing');
-          setTimeout(() => {
-            setEvolutionStage('complete');
-            setTimeout(async () => {
-              await evolve(targetId);
-              if (typeof setIsEvolving === 'function') setIsEvolving(false);
-            }, 500);
-          }, 2000);
-        }, 2000);
-      }
+      playEvolutionSequence(targetId);
       return;
     }
     
@@ -269,23 +272,7 @@ export function useEvolution({
       const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
       const evolvedName = targetData?.name || targetData?.id || targetId;
       setEvolvedDigimonName(evolvedName);
-      if (developerMode) {
-        setEvolutionStage('complete');
-        await evolve(targetId);
-      } else {
-        if (typeof setIsEvolving === 'function') setIsEvolving(true);
-        setEvolutionStage('shaking');
-        setTimeout(() => {
-          setEvolutionStage('flashing');
-          setTimeout(() => {
-            setEvolutionStage('complete');
-            setTimeout(async () => {
-              await evolve(targetId);
-              if (typeof setIsEvolving === 'function') setIsEvolving(false);
-            }, 500);
-          }, 2000);
-        }, 2000);
-      }
+      playEvolutionSequence(targetId);
     } else if (evolutionResult.reason === "NOT_READY") {
       const remainingSeconds = evolutionResult.remainingTime;
       const mm = Math.floor(remainingSeconds / 60);
