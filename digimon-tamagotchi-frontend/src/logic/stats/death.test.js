@@ -1,4 +1,8 @@
-import { DEATH_REASONS, evaluateDeathConditions } from "./death";
+import {
+  DEATH_REASONS,
+  applyDeathEvaluationToStats,
+  evaluateDeathConditions,
+} from "./death";
 
 const NOW_MS = Date.parse("2026-04-01T12:00:00.000Z");
 
@@ -138,5 +142,52 @@ describe("evaluateDeathConditions", () => {
       reason: DEATH_REASONS.starvation,
       diedAt: Date.parse("2026-04-01T11:00:00.000Z"),
     });
+  });
+});
+
+describe("applyDeathEvaluationToStats", () => {
+  test("사망 판정 결과의 기존 merge 동작만 적용한다", () => {
+    const stats = createStats({
+      activityLogs: [{ type: "CALL" }],
+      deathReason: "기존 사유",
+    });
+    const result = applyDeathEvaluationToStats(stats, {
+      isDead: true,
+      reason: DEATH_REASONS.injuryNeglect,
+      diedAt: NOW_MS,
+    });
+
+    expect(result).toEqual({
+      ...stats,
+      isDead: true,
+      deathReason: DEATH_REASONS.injuryNeglect,
+      diedAt: NOW_MS,
+    });
+    expect(result).not.toBe(stats);
+  });
+
+  test("사망 판정이 아니면 입력 stats 의미를 그대로 유지한다", () => {
+    const stats = createStats({ deathReason: null });
+    const result = applyDeathEvaluationToStats(stats, {
+      isDead: false,
+      reason: null,
+      diedAt: null,
+    });
+
+    expect(result).toBe(stats);
+    expect(result).not.toHaveProperty("diedAt");
+  });
+
+  test("reason과 diedAt이 없으면 undefined 필드를 새로 주입하지 않는다", () => {
+    const stats = createStats({ deathReason: "기존 사유" });
+    const result = applyDeathEvaluationToStats(stats, {
+      isDead: true,
+      reason: null,
+      diedAt: null,
+    });
+
+    expect(result.isDead).toBe(true);
+    expect(result.deathReason).toBe("기존 사유");
+    expect(result).not.toHaveProperty("diedAt");
   });
 });

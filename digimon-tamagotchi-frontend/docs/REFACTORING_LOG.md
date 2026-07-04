@@ -2,6 +2,26 @@
 
 ## 2026-07-05
 
+### death evaluation 결과 반영 helper 분리
+- `evaluateDeathConditions`의 조건과 우선순위는 그대로 두고, 사망 판정 결과를 stats에 반영하는 `applyDeathEvaluationToStats` helper를 추가했습니다.
+- `updateLifespan`, `projectState`, realtime loop의 중복 merge 블록을 helper 호출로 교체했습니다.
+- death 판정 위치, death 이후 call/careMistake/sleep_light 처리 순서, evolution 실행 흐름, activityLog/알림/Firestore 저장 경계는 변경하지 않았습니다.
+
+### 테스트 보강
+- helper가 사망 결과일 때만 `isDead`, `deathReason`, `diedAt`을 기존 방식대로 반영하고, 사망 결과가 아니면 입력 stats 의미를 유지하는지 테스트했습니다.
+
+### 영향받은 파일
+- `src/logic/stats/death.js`
+- `src/logic/stats/death.test.js`
+- `src/data/stats.js`
+- `src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `api/_generated/gameProjection.cjs`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- death 조건 계산과 side effect 경계를 분리하지 않고, 결과 적용부만 이름 붙여 Phase 6A에서 확인한 현재 흐름을 고정했습니다.
+- 서버 알림 projection은 generated bundle을 사용하므로, 프론트 소스와 생성 번들을 함께 갱신해 같은 helper 계약을 유지합니다.
+
 ### 똥 부상 로그 중복 방지 문구 보존
 - 과거 재구성 똥 최대치 부상 로그와 8시간 방치 추가 부상 로그의 `textContains`가 실제 `text` 안에 포함되도록 private payload helper로 조립 경로를 정리했습니다.
 - `alreadyHasBackdatedLog`가 사용하는 부분 문자열 기준은 그대로 유지하면서, 로그 문구와 중복 방지 키워드가 조용히 어긋나지 않도록 테스트를 보강했습니다.

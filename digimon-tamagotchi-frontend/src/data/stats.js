@@ -9,7 +9,10 @@ import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime"
 import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { KST_DAY_MS, getStartOfKstDayMs, isSameKstDay } from "../utils/time";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
-import { evaluateDeathConditions } from "../logic/stats/death";
+import {
+  applyDeathEvaluationToStats,
+  evaluateDeathConditions,
+} from "../logic/stats/death";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
 import {
   getStarterDigimonIdFromDataMap,
@@ -326,13 +329,7 @@ export function updateLifespan(stats, deltaSec=1, isSleeping=false, referenceTim
 
   const deathEvaluation = evaluateDeathConditions(s, referenceTimeMs);
   if (deathEvaluation.isDead) {
-    s.isDead = true;
-    if (deathEvaluation.reason) {
-      s.deathReason = deathEvaluation.reason;
-    }
-    if (deathEvaluation.diedAt != null) {
-      s.diedAt = deathEvaluation.diedAt;
-    }
+    return applyDeathEvaluationToStats(s, deathEvaluation);
   }
 
   return s;
@@ -1288,13 +1285,7 @@ export function projectState(
   if (!updatedStats.isDead) {
     const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
     if (deathEvaluation.isDead) {
-      updatedStats.isDead = true;
-      if (deathEvaluation.reason) {
-        updatedStats.deathReason = deathEvaluation.reason;
-      }
-      if (deathEvaluation.diedAt != null) {
-        updatedStats.diedAt = deathEvaluation.diedAt;
-      }
+      updatedStats = applyDeathEvaluationToStats(updatedStats, deathEvaluation);
     }
   }
 

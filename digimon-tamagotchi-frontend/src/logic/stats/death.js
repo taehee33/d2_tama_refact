@@ -17,6 +17,19 @@ function buildDeathResult(isDead, reason = null, diedAt = null) {
   return { isDead, reason, diedAt };
 }
 
+export function applyDeathEvaluationToStats(stats = {}, deathEvaluation = {}) {
+  if (!deathEvaluation.isDead) {
+    return stats;
+  }
+
+  return {
+    ...stats,
+    isDead: true,
+    ...(deathEvaluation.reason ? { deathReason: deathEvaluation.reason } : {}),
+    ...(deathEvaluation.diedAt != null ? { diedAt: deathEvaluation.diedAt } : {}),
+  };
+}
+
 function getElapsedSince(startAt, stats, nowMs, extraExcludedMs = 0) {
   const startMs = toTimestamp(startAt);
   if (startMs == null) return 0;

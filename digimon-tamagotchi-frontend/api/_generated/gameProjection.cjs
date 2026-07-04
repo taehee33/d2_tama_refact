@@ -5339,6 +5339,19 @@ function buildDeathResult(isDead, reason = null, diedAt = null) {
   return { isDead, reason, diedAt };
 }
 
+function death_applyDeathEvaluationToStats(stats = {}, deathEvaluation = {}) {
+  if (!deathEvaluation.isDead) {
+    return stats;
+  }
+
+  return {
+    ...stats,
+    isDead: true,
+    ...(deathEvaluation.reason ? { deathReason: deathEvaluation.reason } : {}),
+    ...(deathEvaluation.diedAt != null ? { diedAt: deathEvaluation.diedAt } : {}),
+  };
+}
+
 function getElapsedSince(startAt, stats, nowMs, extraExcludedMs = 0) {
   const startMs = toTimestamp(startAt);
   if (startMs == null) return 0;
@@ -5852,13 +5865,7 @@ function updateLifespan(stats, deltaSec=1, isSleeping=false, referenceTimeMs=Dat
 
   const deathEvaluation = evaluateDeathConditions(s, referenceTimeMs);
   if (deathEvaluation.isDead) {
-    s.isDead = true;
-    if (deathEvaluation.reason) {
-      s.deathReason = deathEvaluation.reason;
-    }
-    if (deathEvaluation.diedAt != null) {
-      s.diedAt = deathEvaluation.diedAt;
-    }
+    return applyDeathEvaluationToStats(s, deathEvaluation);
   }
 
   return s;
@@ -6814,13 +6821,7 @@ function projectState(
   if (!updatedStats.isDead) {
     const deathEvaluation = death_evaluateDeathConditions(updatedStats, nowMs);
     if (deathEvaluation.isDead) {
-      updatedStats.isDead = true;
-      if (deathEvaluation.reason) {
-        updatedStats.deathReason = deathEvaluation.reason;
-      }
-      if (deathEvaluation.diedAt != null) {
-        updatedStats.diedAt = deathEvaluation.diedAt;
-      }
+      updatedStats = death_applyDeathEvaluationToStats(updatedStats, deathEvaluation);
     }
   }
 

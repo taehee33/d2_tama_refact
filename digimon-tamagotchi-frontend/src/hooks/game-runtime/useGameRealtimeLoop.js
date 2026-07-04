@@ -19,7 +19,10 @@ import {
   repairCareMistakeLedger,
 } from "../../logic/stats/careMistakeLedger";
 import { buildTickPoopInjuryLogs } from "../../logic/stats/injuryHistory";
-import { evaluateDeathConditions } from "../../logic/stats/death";
+import {
+  applyDeathEvaluationToStats,
+  evaluateDeathConditions,
+} from "../../logic/stats/death";
 import { buildDigimonLogSnapshot } from "../../utils/digimonLogSnapshot";
 
 export function resolveRealtimeTickWindow(previousTickTimeMs, nowMs, maxStepSeconds = 60) {
@@ -330,13 +333,12 @@ export function useGameRealtimeLoop({
         if (!updatedStats.isDead) {
           const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
           if (deathEvaluation.isDead) {
-            updatedStats.isDead = true;
+            updatedStats = applyDeathEvaluationToStats(
+              updatedStats,
+              deathEvaluation
+            );
             if (deathEvaluation.reason) {
-              updatedStats.deathReason = deathEvaluation.reason;
               setDeathReason(deathEvaluation.reason);
-            }
-            if (deathEvaluation.diedAt != null) {
-              updatedStats.diedAt = deathEvaluation.diedAt;
             }
           }
         }
