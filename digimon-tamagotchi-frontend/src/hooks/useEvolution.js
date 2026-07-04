@@ -1,6 +1,7 @@
 // src/hooks/useEvolution.js
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
+import { useRef } from "react";
 import { writeBatch, doc, updateDoc, getDoc, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
@@ -131,6 +132,7 @@ export function useEvolution({
   const slotRuntimeDataMap = digimonDataVer1 || {};
   const slotEvolutionDataMap = newDigimonDataVer1 || {};
   const normalizedSlotVersion = normalizeDigimonVersionLabel(version);
+  const evolutionInFlightRef = useRef(null);
 
   function getPreferredMaps(versionLabel = normalizedSlotVersion, extraMaps = []) {
     const normalizedVersion = normalizeDigimonVersionLabel(versionLabel);
@@ -192,97 +194,117 @@ export function useEvolution({
    * 실제 진화 진행 함수
    */
   async function proceedEvolution() {
-    // 모달 닫기
-    if (toggleModal) {
-      toggleModal('evolutionConfirm', false);
-    }
-
-    // 액션 전 Lazy Update 적용
-    const updatedStats = await applyLazyUpdateBeforeAction();
-    setDigimonStats(updatedStats);
-    
-    if (updatedStats.isDead && !developerMode) {
+    if (evolutionInFlightRef.current) {
       return;
     }
-    
-    // 현재 디지몬 데이터 가져오기 (새 데이터 구조 사용 - evolutionCriteria 포함)
-    // selectedDigimon이 없으면 evolutionStage를 통해 찾기
-    const digimonName = selectedDigimon || (updatedStats.evolutionStage ? 
-      Object.keys(slotEvolutionDataMap).find(key => slotEvolutionDataMap[key]?.stage === updatedStats.evolutionStage) : 
-      "Digitama");
-    
-    const resolvedCurrentDigimon = resolveDigimonDataFromMap(
-      slotEvolutionDataMap,
-      digimonName
-    );
-    const currentDigimonData = resolvedCurrentDigimon?.data;
-    const currentDigimonKey = resolvedCurrentDigimon?.key || digimonName;
-    const playEvolutionSequence = (targetId) => {
-      if (typeof setIsEvolving === 'function') setIsEvolving(true);
-      setEvolutionStage('shaking');
-      setTimeout(() => {
-        setEvolutionStage('flashing');
-        setTimeout(() => {
-          setEvolutionStage('complete');
-          setTimeout(async () => {
-            await evolve(targetId);
-            if (typeof setIsEvolving === 'function') setIsEvolving(false);
-          }, EVOLUTION_COMPLETE_DELAY_MS);
-        }, EVOLUTION_FLASH_DURATION_MS);
-      }, EVOLUTION_SHAKE_DURATION_MS);
-    };
 
-    if (!currentDigimonData) {
-      console.error(`No data for ${digimonName} in slotEvolutionDataMap!`);
-      console.error('Available keys:', Object.keys(slotEvolutionDataMap));
-      console.error('selectedDigimon:', selectedDigimon);
-      console.error('evolutionStage:', updatedStats.evolutionStage);
-      return;
-    }
-    
-    // '모든 진화 조건 무시' 옵션: 조건 검사 없이 첫 번째 진화 대상으로 진화
-    if (ignoreEvolutionTime) {
-      const evolutions = currentDigimonData.evolutions || [];
-      const firstOption = evolutions.find((e) => !e.jogress);
-      const targetId = firstOption ? (firstOption.targetId || firstOption.targetName) : null;
-      if (!targetId) {
-        alert("진화 가능한 형태가 없습니다.");
+    evolutionInFlightRef.current = "proceedEvolution";
+    let releaseOnReturn = true;
+
+    try {
+      // 모달 닫기
+      if (toggleModal) {
+        toggleModal('evolutionConfirm', false);
+      }
+
+      // 액션 전 Lazy Update 적용
+      const updatedStats = await applyLazyUpdateBeforeAction();
+      setDigimonStats(updatedStats);
+
+      if (updatedStats.isDead && !developerMode) {
         return;
       }
-      const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
-      const evolvedName = targetData?.name || targetData?.id || targetId;
-      setEvolvedDigimonName(evolvedName);
-      playEvolutionSequence(targetId);
-      return;
-    }
-    
-    // 개발자 모드: 시간 조건만 0으로 두고 나머지 조건은 판정
-    const statsForCheck = developerMode
-      ? { ...updatedStats, timeToEvolveSeconds: 0 }
-      : updatedStats;
-    const evolutionResult = checkEvolution(
-      statsForCheck,
-      currentDigimonData,
-      currentDigimonKey,
-      slotEvolutionDataMap
-    );
-    
-    if (evolutionResult.success) {
-      const targetId = evolutionResult.targetId;
-      const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
-      const evolvedName = targetData?.name || targetData?.id || targetId;
-      setEvolvedDigimonName(evolvedName);
-      playEvolutionSequence(targetId);
-    } else if (evolutionResult.reason === "NOT_READY") {
-      const remainingSeconds = evolutionResult.remainingTime;
-      const mm = Math.floor(remainingSeconds / 60);
-      const ss = Math.floor(remainingSeconds % 60);
-      alert(`아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초`);
-    } else if (evolutionResult.reason === "CONDITIONS_UNMET") {
-      const detailsText = evolutionResult.details
-        .map(d => `• ${d.target}: ${d.missing}`)
-        .join("\n");
-      alert(`진화 조건을 만족하지 못했어!\n\n[부족한 조건]\n${detailsText}`);
+
+      // 현재 디지몬 데이터 가져오기 (새 데이터 구조 사용 - evolutionCriteria 포함)
+      // selectedDigimon이 없으면 evolutionStage를 통해 찾기
+      const digimonName = selectedDigimon || (updatedStats.evolutionStage ?
+        Object.keys(slotEvolutionDataMap).find(key => slotEvolutionDataMap[key]?.stage === updatedStats.evolutionStage) :
+        "Digitama");
+
+      const resolvedCurrentDigimon = resolveDigimonDataFromMap(
+        slotEvolutionDataMap,
+        digimonName
+      );
+      const currentDigimonData = resolvedCurrentDigimon?.data;
+      const currentDigimonKey = resolvedCurrentDigimon?.key || digimonName;
+      const playEvolutionSequence = (targetId) => {
+        releaseOnReturn = false;
+        if (typeof setIsEvolving === 'function') setIsEvolving(true);
+        setEvolutionStage('shaking');
+        setTimeout(() => {
+          setEvolutionStage('flashing');
+          setTimeout(() => {
+            setEvolutionStage('complete');
+            setTimeout(async () => {
+              try {
+                await evolve(targetId, { allowInFlight: true });
+              } finally {
+                if (typeof setIsEvolving === 'function') setIsEvolving(false);
+                if (evolutionInFlightRef.current === "proceedEvolution") {
+                  evolutionInFlightRef.current = null;
+                }
+              }
+            }, EVOLUTION_COMPLETE_DELAY_MS);
+          }, EVOLUTION_FLASH_DURATION_MS);
+        }, EVOLUTION_SHAKE_DURATION_MS);
+      };
+
+      if (!currentDigimonData) {
+        console.error(`No data for ${digimonName} in slotEvolutionDataMap!`);
+        console.error('Available keys:', Object.keys(slotEvolutionDataMap));
+        console.error('selectedDigimon:', selectedDigimon);
+        console.error('evolutionStage:', updatedStats.evolutionStage);
+        return;
+      }
+
+      // '모든 진화 조건 무시' 옵션: 조건 검사 없이 첫 번째 진화 대상으로 진화
+      if (ignoreEvolutionTime) {
+        const evolutions = currentDigimonData.evolutions || [];
+        const firstOption = evolutions.find((e) => !e.jogress);
+        const targetId = firstOption ? (firstOption.targetId || firstOption.targetName) : null;
+        if (!targetId) {
+          alert("진화 가능한 형태가 없습니다.");
+          return;
+        }
+        const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
+        const evolvedName = targetData?.name || targetData?.id || targetId;
+        setEvolvedDigimonName(evolvedName);
+        playEvolutionSequence(targetId);
+        return;
+      }
+
+      // 개발자 모드: 시간 조건만 0으로 두고 나머지 조건은 판정
+      const statsForCheck = developerMode
+        ? { ...updatedStats, timeToEvolveSeconds: 0 }
+        : updatedStats;
+      const evolutionResult = checkEvolution(
+        statsForCheck,
+        currentDigimonData,
+        currentDigimonKey,
+        slotEvolutionDataMap
+      );
+
+      if (evolutionResult.success) {
+        const targetId = evolutionResult.targetId;
+        const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
+        const evolvedName = targetData?.name || targetData?.id || targetId;
+        setEvolvedDigimonName(evolvedName);
+        playEvolutionSequence(targetId);
+      } else if (evolutionResult.reason === "NOT_READY") {
+        const remainingSeconds = evolutionResult.remainingTime;
+        const mm = Math.floor(remainingSeconds / 60);
+        const ss = Math.floor(remainingSeconds % 60);
+        alert(`아직 진화할 준비가 안 됐어!\n\n남은 시간: ${mm}분 ${ss}초`);
+      } else if (evolutionResult.reason === "CONDITIONS_UNMET") {
+        const detailsText = evolutionResult.details
+          .map(d => `• ${d.target}: ${d.missing}`)
+          .join("\n");
+        alert(`진화 조건을 만족하지 못했어!\n\n[부족한 조건]\n${detailsText}`);
+      }
+    } finally {
+      if (releaseOnReturn && evolutionInFlightRef.current === "proceedEvolution") {
+        evolutionInFlightRef.current = null;
+      }
     }
   }
 
@@ -306,58 +328,72 @@ export function useEvolution({
    * 진화 실행 함수
    * @param {string} newName - 진화할 디지몬 이름 (ID)
    */
-  async function evolve(newName) {
-    const resolvedKey = resolveEvolutionTargetKey(newName, slotRuntimeDataMap) || newName;
-    if (!slotRuntimeDataMap[resolvedKey]) {
-      const fallback = getStarterDigimonId(version);
-      console.error(`No data for ${newName} (resolved: ${resolvedKey}) in slot data! fallback => ${fallback}`);
-      newName = fallback;
-    } else {
-      newName = resolvedKey;
+  async function evolve(newName, options = {}) {
+    const allowInFlight = options?.allowInFlight === true;
+    if (!allowInFlight) {
+      if (evolutionInFlightRef.current) {
+        return;
+      }
+      evolutionInFlightRef.current = "evolve";
     }
-    const currentStats = await applyLazyUpdateBeforeAction();
-    const old = { ...currentStats };
-    const existingLogs = currentStats.activityLogs || activityLogs || [];
-    const {
-      targetDigimonData: newDigimonData,
-      updatedLogs,
-      nextStatsWithLogs: nxWithLogs,
-    } = buildEvolutionTransitionState({
-      currentStats: old,
-      existingLogs,
-      targetId: newName,
-      targetMap: slotRuntimeDataMap,
-      snapshotArgs: [
-        slotRuntimeDataMap,
-        slotEvolutionDataMap,
-        evolutionDataVer1,
-        digimonDataVer2,
-      ],
-    });
 
-    if (newDigimonData?.sprite !== undefined) {
-      console.log("[evolve] 스프라이트 동기화:", {
-        digimon: newName,
-        sprite: newDigimonData.sprite,
-      });
-    }
-    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     try {
-      await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
-    } catch (saveError) {
-      console.error("진화 상태 저장 오류:", saveError);
-      return;
+      const resolvedKey = resolveEvolutionTargetKey(newName, slotRuntimeDataMap) || newName;
+      if (!slotRuntimeDataMap[resolvedKey]) {
+        const fallback = getStarterDigimonId(version);
+        console.error(`No data for ${newName} (resolved: ${resolvedKey}) in slot data! fallback => ${fallback}`);
+        newName = fallback;
+      } else {
+        newName = resolvedKey;
+      }
+      const currentStats = await applyLazyUpdateBeforeAction();
+      const old = { ...currentStats };
+      const existingLogs = currentStats.activityLogs || activityLogs || [];
+      const {
+        targetDigimonData: newDigimonData,
+        updatedLogs,
+        nextStatsWithLogs: nxWithLogs,
+      } = buildEvolutionTransitionState({
+        currentStats: old,
+        existingLogs,
+        targetId: newName,
+        targetMap: slotRuntimeDataMap,
+        snapshotArgs: [
+          slotRuntimeDataMap,
+          slotEvolutionDataMap,
+          evolutionDataVer1,
+          digimonDataVer2,
+        ],
+      });
+
+      if (newDigimonData?.sprite !== undefined) {
+        console.log("[evolve] 스프라이트 동기화:", {
+          digimon: newName,
+          sprite: newDigimonData.sprite,
+        });
+      }
+      if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
+      try {
+        await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
+      } catch (saveError) {
+        console.error("진화 상태 저장 오류:", saveError);
+        return;
+      }
+      await setSelectedDigimonAndSave(newName);
+
+      await syncEvolutionEncyclopediaEntries({
+        previousDigimonId: selectedDigimon,
+        previousStats: old,
+        targetId: newName,
+        nextStats: nxWithLogs,
+        currentUser,
+        version,
+      });
+    } finally {
+      if (!allowInFlight && evolutionInFlightRef.current === "evolve") {
+        evolutionInFlightRef.current = null;
+      }
     }
-    await setSelectedDigimonAndSave(newName);
-    
-    await syncEvolutionEncyclopediaEntries({
-      previousDigimonId: selectedDigimon,
-      previousStats: old,
-      targetId: newName,
-      nextStats: nxWithLogs,
-      currentUser,
-      version,
-    });
   }
 
   /**

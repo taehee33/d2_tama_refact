@@ -299,6 +299,83 @@ describe("useEvolution jogress flows", () => {
     expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 
+  test("proceedEvolution은 진화 플로우 진행 중 중복 실행되지 않는다", async () => {
+    jest.useFakeTimers();
+    const digimonMap = createDigimonMap();
+    digimonMap.Agumon = {
+      ...digimonMap.Agumon,
+      evolutions: [{ targetId: "Betamon", jogress: false }],
+    };
+    const params = createParams({
+      developerMode: true,
+      ignoreEvolutionTime: true,
+      digimonDataVer1: digimonMap,
+      newDigimonDataVer1: digimonMap,
+      evolutionDataVer1: digimonMap,
+    });
+    const { result } = renderHook(() => useEvolution(params));
+
+    await act(async () => {
+      const first = result.current.proceedEvolution();
+      const second = result.current.proceedEvolution();
+      await Promise.all([first, second]);
+    });
+
+    expect(params.applyLazyUpdateBeforeAction).toHaveBeenCalledTimes(1);
+    expect(params.setIsEvolving).toHaveBeenCalledTimes(1);
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("shaking");
+
+    await act(async () => {
+      jest.advanceTimersByTime(4500);
+      await Promise.resolve();
+    });
+
+    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledTimes(1);
+    expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
+  });
+
+  test("evolve 직접 호출은 저장 중 중복 실행되지 않고 완료 후 guard를 해제한다", async () => {
+    let resolveSave;
+    let saveCallCount = 0;
+    const params = createParams({
+      setDigimonStatsAndSave: jest.fn(() => {
+        saveCallCount += 1;
+        if (saveCallCount === 1) {
+          return new Promise((resolve) => {
+            resolveSave = resolve;
+          });
+        }
+        return Promise.resolve();
+      }),
+    });
+    const { result } = renderHook(() => useEvolution(params));
+
+    const first = result.current.evolve("Betamon");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await act(async () => {
+      await result.current.evolve("Betamon");
+    });
+
+    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveSave();
+      await first;
+    });
+
+    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.evolve("Betamon");
+    });
+
+    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(2);
+  });
+
   test("proceedJogressOnlineAsGuest는 room을 paired로 바꾸고 guest slot을 진화 결과로 저장한다", async () => {
     const params = createParams({ slotId: "99" });
     const { result } = renderHook(() => useEvolution(params));
