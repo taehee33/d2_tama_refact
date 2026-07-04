@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-07-04] projectState 1차 분리 및 lazy update wrapper 계약 고정
+
+- **내용:** `applyLazyUpdate()`의 시간 경과 계산 본체를 `projectState(stats, nowMs, options)`로 1차 분리하고, 기존 `applyLazyUpdate()`는 외부 API 호환 wrapper로 유지했다. `projectState()`는 `nowMs`를 인자로만 받으며 입력 `savedState`를 mutate하지 않도록 projection용 복사 경계를 추가했다. deterministic, input immutability, wrapper 동일성 테스트를 보강하고 서버 projection bundle을 재생성했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+  - `digimon-tamagotchi-frontend/src/data/stats.test.js`
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionEntry.js`
+  - `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`
+- **근거:** 클라이언트 게임 진행과 서버 알림 판단이 같은 시간 투영 계약을 기준으로 유지되도록 단일 계산 진입점을 만든다. 이번 단계에서는 게임 밸런스, 저장 계약, Firestore write 정책을 변경하지 않고 기존 lazy update 결과와 서버 parity를 유지한다.
+
 ## [2026-07-03] applyLazyUpdate 리팩터링 전 characterization test 보강 및 상태 칩 테스트 정리
 
 - **내용:** `applyLazyUpdate()` 리팩터링에 앞서 6시간 미접속, 수면 포함 긴 미접속, 미접속 중 poopTimer 다중 누적, 진화 가능 시점 도달 시 식별자 비변경 동작을 테스트로 고정했다. 전체 테스트 실행 중 발견된 상태 칩 테스트의 이전 문구/빈 상태 기대값도 현재 구현에 맞게 정리했다. 런타임 로직은 변경하지 않고 현재 구현 결과만 테스트로 보강했다.

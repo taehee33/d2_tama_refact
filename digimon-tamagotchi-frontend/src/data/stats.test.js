@@ -3,6 +3,7 @@ import {
   clearActiveInjuryState,
   clearPoopOverflowState,
   initializeStats,
+  projectState,
 } from "./stats";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
 
@@ -53,6 +54,25 @@ function createBaseStats(overrides = {}) {
     strengthMistakeDeadline: null,
     ...overrides,
   };
+}
+
+function clonePlainTestState(value) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+
+  Object.freeze(value);
+  Object.values(value).forEach((child) => {
+    deepFreeze(child);
+  });
+  return value;
 }
 
 const initializeDataMap = {
@@ -154,6 +174,67 @@ describe("applyLazyUpdate", () => {
     expect(result.lastSavedAt).toBe(Date.parse(NOW_ISO));
     expect(result.fullness).toBe(2);
     expect(result.strength).toBe(2);
+  });
+
+  test("projectState는 같은 입력과 같은 nowMs에 대해 항상 같은 결과를 반환한다", () => {
+    const nowMs = Date.parse(NOW_ISO);
+    const lastSavedAt = Date.parse("2026-03-31T10:00:00.000Z");
+    const savedState = createBaseStats({
+      lifespanSeconds: 10,
+      timeToEvolveSeconds: 60 * 60,
+      hungerCountdown: 30,
+      strengthCountdown: 45,
+      poopCountdown: 120,
+    });
+
+    jest.setSystemTime(new Date("2030-01-01T00:00:00.000Z"));
+    const first = projectState(savedState, nowMs, { lastSavedAt });
+    jest.setSystemTime(new Date("2040-01-01T00:00:00.000Z"));
+    const second = projectState(savedState, nowMs, { lastSavedAt });
+
+    expect(second).toEqual(first);
+  });
+
+  test("projectState는 입력 savedState 객체를 mutate하지 않는다", () => {
+    const nowMs = Date.parse(NOW_ISO);
+    const lastSavedAt = Date.parse("2026-03-31T10:00:00.000Z");
+    const savedState = createBaseStats({
+      fullness: 1,
+      strength: 1,
+      hungerCountdown: 30,
+      strengthCountdown: 30,
+      poopCountdown: 60,
+      careMistakeLedger: [
+        {
+          id: "existing",
+          reasonKey: "manual",
+          occurredAt: Date.parse("2026-03-31T09:00:00.000Z"),
+        },
+      ],
+    });
+    const before = clonePlainTestState(savedState);
+    deepFreeze(savedState);
+
+    projectState(savedState, nowMs, { lastSavedAt });
+
+    expect(savedState).toEqual(before);
+  });
+
+  test("applyLazyUpdate는 projectState와 같은 결과를 반환하는 호환 wrapper다", () => {
+    const nowMs = Date.parse(NOW_ISO);
+    const lastSavedAt = Date.parse("2026-03-31T10:00:00.000Z");
+    const savedState = createBaseStats({
+      lifespanSeconds: 10,
+      timeToEvolveSeconds: 60 * 60,
+      hungerCountdown: 30,
+      strengthCountdown: 45,
+      poopCountdown: 120,
+    });
+
+    const wrapperResult = applyLazyUpdate(savedState, lastSavedAt, null, null, { nowMs });
+    const projectionResult = projectState(savedState, nowMs, { lastSavedAt });
+
+    expect(wrapperResult).toEqual(projectionResult);
   });
 
   test("경과 시간이 없어도 회복된 배고픔/힘 호출 메타를 정리한다", () => {

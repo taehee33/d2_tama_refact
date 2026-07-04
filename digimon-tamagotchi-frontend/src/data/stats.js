@@ -770,7 +770,7 @@ function clearResolvedNeedCalls(target) {
 }
 
 function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = null) {
-  const nextStats = { ...stats };
+  const nextStats = cloneStatsForProjection(stats);
   migrateLegacyPoopTimers(nextStats);
   clearResolvedNeedCalls(nextStats);
 
@@ -813,26 +813,55 @@ function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = nu
   return nextStats;
 }
 
+function cloneCallStatus(callStatus) {
+  if (!callStatus || typeof callStatus !== "object") {
+    return callStatus;
+  }
+
+  return {
+    ...callStatus,
+    hunger: callStatus.hunger ? { ...callStatus.hunger } : callStatus.hunger,
+    strength: callStatus.strength ? { ...callStatus.strength } : callStatus.strength,
+    sleep: callStatus.sleep ? { ...callStatus.sleep } : callStatus.sleep,
+  };
+}
+
+function cloneStatsForProjection(stats = {}) {
+  return {
+    ...stats,
+    callStatus: cloneCallStatus(stats.callStatus),
+    activityLogs: Array.isArray(stats.activityLogs) ? [...stats.activityLogs] : stats.activityLogs,
+    careMistakeLedger: Array.isArray(stats.careMistakeLedger) ? [...stats.careMistakeLedger] : stats.careMistakeLedger,
+    injuryHistory: Array.isArray(stats.injuryHistory) ? [...stats.injuryHistory] : stats.injuryHistory,
+  };
+}
+
 /**
- * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
- * 스탯(배고픔, 수명 등)을 한 번에 차감
+ * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  * 
  * @param {Object} stats - 현재 디지몬 스탯
- * @param {Date|number|string|Object} lastSavedAt - 마지막 저장 시간 (Date, timestamp, ISO string, 또는 Firestore Timestamp)
- * @param {Object} sleepSchedule - 수면 스케줄 (선택적)
- * @param {number} maxEnergy - 최대 에너지 (선택적)
+ * @param {number} nowMs - 투영 기준 시각(ms)
+ * @param {Object} options - projection 옵션
  * @returns {Object} 업데이트된 스탯
  */
-export function applyLazyUpdate(
+export function projectState(
   stats,
-  lastSavedAt,
-  sleepSchedule = null,
-  maxEnergy = null,
+  nowMs,
   options = {}
 ) {
+  const {
+    lastSavedAt,
+    sleepSchedule = null,
+    maxEnergy = null,
+  } = options;
+  if (!Number.isFinite(Number(nowMs))) {
+    throw new Error("projectState requires a finite nowMs");
+  }
+  nowMs = Number(nowMs);
+
   if (!lastSavedAt) {
     // 마지막 저장 시간이 없으면 현재 시간으로 설정
-    return finalizeNoElapsedLazyUpdate(stats, Date.now());
+    return finalizeNoElapsedLazyUpdate(stats, nowMs);
   }
 
   // 마지막 저장 시간을 Date 객체로 변환 (Firestore Timestamp 지원)
@@ -842,12 +871,9 @@ export function applyLazyUpdate(
     lastSaved = new Date(lastSavedTimestamp);
   } else {
     // 알 수 없는 형식이면 현재 시간으로 설정
-    return finalizeNoElapsedLazyUpdate(stats, Date.now());
+    return finalizeNoElapsedLazyUpdate(stats, nowMs);
   }
 
-  const nowMs = Number.isFinite(Number(options?.nowMs))
-    ? Number(options.nowMs)
-    : Date.now();
   const digimonSnapshot = sanitizeDigimonLogSnapshot(options?.digimonSnapshot);
   
   // 냉장고 시간을 제외한 경과 시간 계산
@@ -893,7 +919,7 @@ export function applyLazyUpdate(
   }
 
   // 경과 시간만큼 한 번에 업데이트
-  let updatedStats = { ...stats };
+  let updatedStats = cloneStatsForProjection(stats);
   migrateLegacyPoopTimers(updatedStats);
   repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
     statKey: "fullness",
@@ -1475,4 +1501,33 @@ export function applyLazyUpdate(
   delete updatedStats.lastMaxPoopTime;
 
   return updatedStats;
+}
+
+/**
+ * Lazy Update: 마지막 저장 시간부터 현재까지 경과한 시간을 계산하여
+ * 스탯(배고픔, 수명 등)을 한 번에 차감
+ *
+ * @param {Object} stats - 현재 디지몬 스탯
+ * @param {Date|number|string|Object} lastSavedAt - 마지막 저장 시간 (Date, timestamp, ISO string, 또는 Firestore Timestamp)
+ * @param {Object} sleepSchedule - 수면 스케줄 (선택적)
+ * @param {number} maxEnergy - 최대 에너지 (선택적)
+ * @returns {Object} 업데이트된 스탯
+ */
+export function applyLazyUpdate(
+  stats,
+  lastSavedAt,
+  sleepSchedule = null,
+  maxEnergy = null,
+  options = {}
+) {
+  const nowMs = Number.isFinite(Number(options?.nowMs))
+    ? Number(options.nowMs)
+    : Date.now();
+
+  return projectState(stats, nowMs, {
+    ...options,
+    lastSavedAt,
+    sleepSchedule,
+    maxEnergy,
+  });
 }

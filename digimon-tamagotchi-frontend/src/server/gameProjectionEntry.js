@@ -1,1 +1,1 @@
-export { applyLazyUpdate } from "../data/stats";
+export { applyLazyUpdate, projectState } from "../data/stats";
