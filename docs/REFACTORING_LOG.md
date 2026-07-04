@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-07-04] 서버 projection bundle drift 방지 체크 추가
+
+- **내용:** `gameProjection.cjs` generated bundle 미갱신을 명확히 잡기 위해 루트 `check:server-projection` 스크립트와 `scripts/checkServerGameProjection.js`를 추가했다. 스크립트는 `npm run build:server-projection` 실행 후 `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`에 diff가 생기면 재생성/커밋 안내 메시지와 함께 실패한다. 기존 서버 projection parity 테스트는 수면 조명 케어미스, 똥 다중 누적, 진화 가능 시점, `projectState` export 비교 케이스를 보강했다.
+- **영향 파일:**
+  - `package.json`
+  - `scripts/checkServerGameProjection.js`
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionParity.test.js`
+- **검증:**
+  - `npm run build:server-projection`
+  - `npm run check:server-projection`
+  - `npm run test:notification-api` (45개 통과)
+  - `npm test -- --runTestsByPath src/server/gameProjectionParity.test.js --watchAll=false` (7개 통과)
+  - `npm test -- --runTestsByPath src/data/stats.test.js --watchAll=false` (51개 통과)
+- **근거:** parity 테스트는 계산 결과 drift를 잡고, diff 기반 check는 generated bundle 미갱신 drift를 잡는다. 이후 `stats.js`/`projectState` 리팩터링에서 서버 알림 projection이 낡은 bundle을 사용하는 사고를 방지한다.
+
 ## [2026-07-04] projectState 1차 분리 및 lazy update wrapper 계약 고정
 
 - **내용:** `applyLazyUpdate()`의 시간 경과 계산 본체를 `projectState(stats, nowMs, options)`로 1차 분리하고, 기존 `applyLazyUpdate()`는 외부 API 호환 wrapper로 유지했다. `projectState()`는 `nowMs`를 인자로만 받으며 입력 `savedState`를 mutate하지 않도록 projection용 복사 경계를 추가했다. deterministic, input immutability, wrapper 동일성 테스트를 보강하고 서버 projection bundle을 재생성했다.

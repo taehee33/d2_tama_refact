@@ -20,6 +20,7 @@
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
     "test:community-api": "node --test tests/community-lib.test.js",
     "build:server-projection": "node scripts/buildServerGameProjection.js",
+    "check:server-projection": "node scripts/checkServerGameProjection.js",
     "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore-emulator.test.js\""
   },
   "dependencies": {
