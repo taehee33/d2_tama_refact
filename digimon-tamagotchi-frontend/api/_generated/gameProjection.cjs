@@ -5997,6 +5997,22 @@ function alreadyHasBackdatedLog(activityLogs, type, timestampMs, textContains = 
   });
 }
 
+function buildPoopMaxInjuryLogPayload() {
+  const textContains = "Too much poop";
+  return {
+    textContains,
+    text: `Pooped (Total: 8) - Injury: ${textContains} (8 piles) [과거 재구성]`,
+  };
+}
+
+function buildPoopPenaltyLogPayload(periods) {
+  const textContains = "8시간 경과";
+  return {
+    textContains,
+    text: `똥 8개 방치 ${textContains} x${periods} - 추가 부상 [과거 재구성]`,
+  };
+}
+
 function isSleepLikeStatus(status) {
   return (
     status === "NAPPING" ||
@@ -6305,11 +6321,10 @@ function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = nu
     nextStats.poopReachedMaxAt &&
     !nextStats.isInjured
   ) {
-    const injuryLogText =
-      "Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]";
+    const injuryLogPayload = buildPoopMaxInjuryLogPayload();
     const injuryLogEventId = buildActivityLogEventId({
       type: "POOP",
-      text: injuryLogText,
+      text: injuryLogPayload.text,
       timestamp: nextStats.poopReachedMaxAt,
     });
     applyPoopInjury(nextStats, nextStats.poopReachedMaxAt);
@@ -6319,14 +6334,14 @@ function finalizeNoElapsedLazyUpdate(stats = {}, savedAtMs, digimonSnapshot = nu
         nextStats.activityLogs,
         "POOP",
         nextStats.poopReachedMaxAt,
-        "Too much poop",
+        injuryLogPayload.textContains,
         injuryLogEventId
       )
     ) {
       nextStats.activityLogs = pushBackdatedActivityLog(
         nextStats.activityLogs,
         "POOP",
-        injuryLogText,
+        injuryLogPayload.text,
         nextStats.poopReachedMaxAt,
         MAX_ACTIVITY_LOGS,
         digimonSnapshot
@@ -6712,21 +6727,21 @@ function projectState(
 
         if (updatedStats.poopCount === 8 && !updatedStats.poopReachedMaxAt) {
           const timeToMax = poopEventTime;
-          const injuryLogText = 'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]';
+          const injuryLogPayload = buildPoopMaxInjuryLogPayload();
           const injuryLogEventId = buildActivityLogEventId({
             type: "POOP",
-            text: injuryLogText,
+            text: injuryLogPayload.text,
             timestamp: timeToMax,
           });
           updatedStats.poopReachedMaxAt = timeToMax;
           updatedStats.lastPoopPenaltyAt = timeToMax;
           updatedStats.poopPenaltyFrozenDurationMs = 0;
           applyPoopInjury(updatedStats, timeToMax);
-          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, 'Too much poop', injuryLogEventId)) {
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', timeToMax, injuryLogPayload.textContains, injuryLogEventId)) {
             updatedStats.activityLogs = pushBackdatedActivityLog(
               updatedStats.activityLogs,
               'POOP',
-              injuryLogText,
+              injuryLogPayload.text,
               timeToMax,
               MAX_ACTIVITY_LOGS,
               digimonSnapshot
@@ -6738,18 +6753,18 @@ function projectState(
         migrateLegacyPoopTimers(updatedStats, poopEventTime);
 
         if (updatedStats.poopReachedMaxAt && !updatedStats.isInjured) {
-          const injuryLogText = 'Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]';
+          const injuryLogPayload = buildPoopMaxInjuryLogPayload();
           const injuryLogEventId = buildActivityLogEventId({
             type: "POOP",
-            text: injuryLogText,
+            text: injuryLogPayload.text,
             timestamp: updatedStats.poopReachedMaxAt,
           });
           applyPoopInjury(updatedStats, updatedStats.poopReachedMaxAt);
-          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', updatedStats.poopReachedMaxAt, 'Too much poop', injuryLogEventId)) {
+          if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', updatedStats.poopReachedMaxAt, injuryLogPayload.textContains, injuryLogEventId)) {
             updatedStats.activityLogs = pushBackdatedActivityLog(
               updatedStats.activityLogs,
               'POOP',
-              injuryLogText,
+              injuryLogPayload.text,
               updatedStats.poopReachedMaxAt,
               MAX_ACTIVITY_LOGS,
               digimonSnapshot
@@ -6768,20 +6783,20 @@ function projectState(
           );
           const periods = Math.floor((elapsedSincePenaltyMs / 1000) / 28800);
           if (periods >= 1) {
-            const penaltyLogText = `똥 8개 방치 8시간 경과 x${periods} - 추가 부상 [과거 재구성]`;
+            const penaltyLogPayload = buildPoopPenaltyLogPayload(periods);
             const penaltyLogEventId = buildActivityLogEventId({
               type: "POOP",
-              text: penaltyLogText,
+              text: penaltyLogPayload.text,
               timestamp: nowMs,
             });
             applyPoopInjury(updatedStats, nowMs, periods);
             updatedStats.lastPoopPenaltyAt = nowMs;
             updatedStats.poopPenaltyFrozenDurationMs = 0;
-            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, '8시간 경과', penaltyLogEventId)) {
+            if (!alreadyHasBackdatedLog(updatedStats.activityLogs, 'POOP', nowMs, penaltyLogPayload.textContains, penaltyLogEventId)) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'POOP',
-                penaltyLogText,
+                penaltyLogPayload.text,
                 nowMs,
                 MAX_ACTIVITY_LOGS,
                 digimonSnapshot

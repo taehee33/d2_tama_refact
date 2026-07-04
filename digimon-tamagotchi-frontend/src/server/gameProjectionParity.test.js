@@ -122,6 +122,53 @@ describe("서버 game projection parity", () => {
     expect(serverResult).toEqual(frontendResult);
   });
 
+  test("똥 부상 로그 문구와 포함 관계가 프론트와 서버에서 같다", () => {
+    const now = Date.parse("2026-06-21T13:00:00.000Z");
+    const maxLastSavedAt = Date.parse("2026-06-21T12:59:00.000Z");
+    const penaltyReachedAt = Date.parse("2026-06-21T05:00:00.000Z");
+    const penaltyLastSavedAt = Date.parse("2026-06-21T04:55:00.000Z");
+
+    jest.setSystemTime(now);
+
+    const maxStats = createStats({
+      hungerTimer: 999,
+      hungerCountdown: 999 * 60,
+      strengthTimer: 999,
+      strengthCountdown: 999 * 60,
+      poopTimer: 5,
+      poopCountdown: 60,
+      poopCount: 7,
+    });
+    const penaltyStats = createStats({
+      hungerTimer: 999,
+      hungerCountdown: 999 * 60,
+      strengthTimer: 999,
+      strengthCountdown: 999 * 60,
+      poopCount: 8,
+      poopCountdown: 300,
+      poopReachedMaxAt: penaltyReachedAt,
+      lastPoopPenaltyAt: penaltyReachedAt,
+      isInjured: true,
+      injuredAt: penaltyReachedAt,
+      injuries: 1,
+    });
+
+    const frontendMaxResult = applyFrontendLazyUpdate(clone(maxStats), maxLastSavedAt, null, 20, { nowMs: now });
+    const serverMaxResult = applyServerLazyUpdate(clone(maxStats), maxLastSavedAt, null, 20, { nowMs: now });
+    const frontendPenaltyResult = applyFrontendLazyUpdate(clone(penaltyStats), penaltyLastSavedAt, null, 20, { nowMs: now });
+    const serverPenaltyResult = applyServerLazyUpdate(clone(penaltyStats), penaltyLastSavedAt, null, 20, { nowMs: now });
+
+    const poopMaxText = "Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]";
+    const poopPenaltyText = "똥 8개 방치 8시간 경과 x1 - 추가 부상 [과거 재구성]";
+
+    expect(serverMaxResult).toEqual(frontendMaxResult);
+    expect(serverPenaltyResult).toEqual(frontendPenaltyResult);
+    expect(frontendMaxResult.activityLogs.map((log) => log.text)).toContain(poopMaxText);
+    expect(frontendPenaltyResult.activityLogs.map((log) => log.text)).toContain(poopPenaltyText);
+    expect(poopMaxText.includes("Too much poop")).toBe(true);
+    expect(poopPenaltyText.includes("8시간 경과")).toBe(true);
+  });
+
   test("projectState export도 같은 nowMs에서 프론트와 서버 결과가 같다", () => {
     const now = Date.parse("2026-06-21T13:00:00.000Z");
     const lastSavedAt = Date.parse("2026-06-21T00:00:00.000Z");

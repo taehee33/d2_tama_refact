@@ -1086,6 +1086,12 @@ describe("applyLazyUpdate", () => {
     expect(result.lastPoopPenaltyAt).toBe(Date.parse(NOW_ISO));
     expect(result.injuredAt).toBe(Date.parse(NOW_ISO));
     expect(result.careMistakes).toBe(0);
+
+    const poopMaxLog = result.activityLogs.find((log) =>
+      log.text === "Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]"
+    );
+    expect(poopMaxLog).toBeTruthy();
+    expect(poopMaxLog.text.includes("Too much poop")).toBe(true);
   });
 
   test("poopTimer는 미접속 활동 시간 동안 여러 번 누적되며 최대치 전에는 부상을 만들지 않는다", () => {
@@ -1137,6 +1143,12 @@ describe("applyLazyUpdate", () => {
     expect(result.lastPoopPenaltyAt).toBe(Date.parse(NOW_ISO));
     expect(result.injuredAt).toBe(Date.parse(NOW_ISO));
     expect(result.injuryReason).toBe("poop");
+
+    const poopPenaltyLog = result.activityLogs.find((log) =>
+      log.text === "똥 8개 방치 8시간 경과 x1 - 추가 부상 [과거 재구성]"
+    );
+    expect(poopPenaltyLog).toBeTruthy();
+    expect(poopPenaltyLog.text.includes("8시간 경과")).toBe(true);
   });
 
   test("실시간 똥 부상 로그가 이미 있으면 lazy update가 같은 사건을 중복 기록하지 않는다", () => {

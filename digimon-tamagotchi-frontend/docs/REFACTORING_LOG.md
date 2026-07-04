@@ -1,5 +1,27 @@
 # REFACTORING LOG
 
+## 2026-07-05
+
+### 똥 부상 로그 중복 방지 문구 보존
+- 과거 재구성 똥 최대치 부상 로그와 8시간 방치 추가 부상 로그의 `textContains`가 실제 `text` 안에 포함되도록 private payload helper로 조립 경로를 정리했습니다.
+- `alreadyHasBackdatedLog`가 사용하는 부분 문자열 기준은 그대로 유지하면서, 로그 문구와 중복 방지 키워드가 조용히 어긋나지 않도록 테스트를 보강했습니다.
+- 서버 알림 projection 번들을 재생성해 Vercel API 런타임도 동일한 로그 payload 규칙을 사용하게 했습니다.
+
+### 테스트 보강
+- stats 테스트에서 `Pooped (Total: 8) - Injury: Too much poop (8 piles) [과거 재구성]` 로그가 `Too much poop`을 포함하는지 확인했습니다.
+- parity 테스트에서 프론트와 서버 projection이 같은 똥 부상 로그 문구를 만들고, `8시간 경과` 포함 관계를 유지하는지 확인했습니다.
+
+### 영향받은 파일
+- `src/data/stats.js`
+- `src/data/stats.test.js`
+- `src/server/gameProjectionParity.test.js`
+- `api/_generated/gameProjection.cjs`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- dedup 기준인 `textContains`는 저장 스키마가 아니라 로그 텍스트 기반 호환 장치이므로, export나 테스트 전용 API를 늘리지 않고 실제 lazy update 결과 로그로 회귀를 잡는 편이 기존 저장 계약과 가장 잘 맞습니다.
+- 서버 알림은 생성 projection 번들을 통해 같은 lazy update 로직을 실행하므로, 프론트 소스와 generated bundle을 함께 갱신해야 알림 경로에서도 중복 방지 의미가 유지됩니다.
+
 ## 2026-07-02
 
 ### 저장 및 동기화 저장 위치 표시
