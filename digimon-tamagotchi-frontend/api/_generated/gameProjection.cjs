@@ -6362,6 +6362,21 @@ function cloneStatsForProjection(stats = {}) {
   };
 }
 
+function projectContinuousStats(state, { nowMs, elapsedSeconds }) {
+  const currentLifespan = typeof state.lifespanSeconds === 'number' && !Number.isNaN(state.lifespanSeconds)
+    ? state.lifespanSeconds
+    : 0;
+  const currentTte = typeof state.timeToEvolveSeconds === 'number' && !Number.isNaN(state.timeToEvolveSeconds)
+    ? state.timeToEvolveSeconds
+    : 0;
+
+  return {
+    birthTime: state.birthTime || nowMs,
+    lifespanSeconds: currentLifespan + elapsedSeconds,
+    timeToEvolveSeconds: Math.max(0, currentTte - elapsedSeconds),
+  };
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  *
@@ -6464,22 +6479,13 @@ function projectState(
     callKey: "strength",
   });
 
-  // birthTime이 없으면 현재 시간으로 설정
-  if (!updatedStats.birthTime) {
-    updatedStats.birthTime = nowMs;
-  }
-
-  // 나이는 updateAge 함수에서 자정에만 증가하도록 처리 (여기서는 계산하지 않음)
-
-  // updateLifespan을 경과 시간만큼 호출
-  // 하지만 한 번에 처리하는 것이 더 효율적이므로 직접 계산
-  const currentLifespan = typeof updatedStats.lifespanSeconds === 'number' && !Number.isNaN(updatedStats.lifespanSeconds)
-    ? updatedStats.lifespanSeconds
-    : 0;
-  updatedStats.lifespanSeconds = currentLifespan + elapsedSeconds;
-  // undefined/NaN 방지 — 구 저장 데이터에 timeToEvolveSeconds 없을 수 있음
-  const currentTte = typeof updatedStats.timeToEvolveSeconds === 'number' && !Number.isNaN(updatedStats.timeToEvolveSeconds) ? updatedStats.timeToEvolveSeconds : 0;
-  updatedStats.timeToEvolveSeconds = Math.max(0, currentTte - elapsedSeconds);
+  updatedStats = {
+    ...updatedStats,
+    ...projectContinuousStats(updatedStats, {
+      nowMs,
+      elapsedSeconds,
+    }),
+  };
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
   if (updatedStats.hungerTimer > 0) {

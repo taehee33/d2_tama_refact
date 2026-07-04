@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-07-04] projectContinuousStats 1차 분리
+
+- **내용:** `projectState()` 내부의 가장 단순한 연속값 계산인 `birthTime` fallback, `lifespanSeconds` 증가, `timeToEvolveSeconds` 감소를 내부 helper `projectContinuousStats()`로 분리했다. helper는 export하지 않고 변경 필드만 반환하며, `projectState()`는 기존 계산 결과를 merge한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+- **근거:** `elapsedSeconds` 계산, 냉장고 early return, 수면 제외 activeSeconds, hunger/strength/poop/care/death 로직은 그대로 두고 저위험 연속값 계산만 분리해 이후 단계별 리팩터링 범위를 작게 유지한다.
+
 ## [2026-07-04] 서버 projection bundle drift 방지 체크 추가
 
 - **내용:** `gameProjection.cjs` generated bundle 미갱신을 명확히 잡기 위해 루트 `check:server-projection` 스크립트와 `scripts/checkServerGameProjection.js`를 추가했다. 스크립트는 `npm run build:server-projection` 실행 후 `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`에 diff가 생기면 재생성/커밋 안내 메시지와 함께 실패한다. 기존 서버 projection parity 테스트는 수면 조명 케어미스, 똥 다중 누적, 진화 가능 시점, `projectState` export 비교 케이스를 보강했다.
