@@ -883,6 +883,27 @@ function calculateNeedZeroActiveOffset({
   return initialCountdown + (Math.max(0, initialValue - 1) * timerSeconds);
 }
 
+function calculateActiveCallDurationMs({
+  startedAt,
+  nowMs,
+  sleepSeconds,
+}) {
+  return nowMs - startedAt - (sleepSeconds * 1000);
+}
+
+function calculatePushedCallWindow({
+  startedAt,
+  sleepDuringCallMs,
+  careWindowMs,
+  nowMs,
+}) {
+  const pushedStartedAt = Math.min(nowMs, startedAt + sleepDuringCallMs);
+  return {
+    startedAt: pushedStartedAt,
+    deadline: pushedStartedAt + careWindowMs,
+  };
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  * 
@@ -1319,8 +1340,11 @@ export function projectState(
           updatedStats,
           sleepSchedule
         );
-        const totalElapsedMs = nowMs - activeStartedAt;
-        const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+        const activeCallDurationMs = calculateActiveCallDurationMs({
+          startedAt: activeStartedAt,
+          nowMs,
+          sleepSeconds: sleepDuringCall,
+        });
 
         if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
@@ -1354,10 +1378,14 @@ export function projectState(
           callStatus.hunger.startedAt = null;
           updatedStats.hungerMistakeDeadline = null;
         } else {
-          const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
-          callStatus.hunger.startedAt = Math.min(nowMs, pushedStart);
-          updatedStats.hungerMistakeDeadline =
-            callStatus.hunger.startedAt + HUNGER_CALL_TIMEOUT;
+          const pushedWindow = calculatePushedCallWindow({
+            startedAt: activeStartedAt,
+            sleepDuringCallMs: sleepDuringCall * 1000,
+            careWindowMs: HUNGER_CALL_TIMEOUT,
+            nowMs,
+          });
+          callStatus.hunger.startedAt = pushedWindow.startedAt;
+          updatedStats.hungerMistakeDeadline = pushedWindow.deadline;
         }
       }
     } else {
@@ -1411,8 +1439,11 @@ export function projectState(
           updatedStats,
           sleepSchedule
         );
-        const totalElapsedMs = nowMs - activeStartedAt;
-        const activeCallDurationMs = totalElapsedMs - (sleepDuringCall * 1000);
+        const activeCallDurationMs = calculateActiveCallDurationMs({
+          startedAt: activeStartedAt,
+          nowMs,
+          sleepSeconds: sleepDuringCall,
+        });
 
         if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
@@ -1446,10 +1477,14 @@ export function projectState(
           callStatus.strength.startedAt = null;
           updatedStats.strengthMistakeDeadline = null;
         } else {
-          const pushedStart = activeStartedAt + (sleepDuringCall * 1000);
-          callStatus.strength.startedAt = Math.min(nowMs, pushedStart);
-          updatedStats.strengthMistakeDeadline =
-            callStatus.strength.startedAt + STRENGTH_CALL_TIMEOUT;
+          const pushedWindow = calculatePushedCallWindow({
+            startedAt: activeStartedAt,
+            sleepDuringCallMs: sleepDuringCall * 1000,
+            careWindowMs: STRENGTH_CALL_TIMEOUT,
+            nowMs,
+          });
+          callStatus.strength.startedAt = pushedWindow.startedAt;
+          updatedStats.strengthMistakeDeadline = pushedWindow.deadline;
         }
       }
     } else {

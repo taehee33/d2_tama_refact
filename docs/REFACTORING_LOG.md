@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-07-04] call active duration/window 계산 분리
+
+- **내용:** `projectState()` 내부의 배고픔/힘 호출 처리에서 반복되던 active call duration 계산과 수면 시간만큼 밀린 call startedAt/deadline 계산을 내부 helper `calculateActiveCallDurationMs()`, `calculatePushedCallWindow()`로 분리했다. helper는 export하지 않고 순수 계산값만 반환하며, timeout 판정과 callStatus/ledger/log 상태 변경은 기존 위치에 유지했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+- **근거:** hunger/strength call 처리의 상태 변경 helper화는 보류하고, 수면 시간을 제외한 호출 지속 시간과 밀린 호출 윈도우 계산에만 이름을 붙여 startedAt/deadline 쌍 갱신의 의미를 명확히 한다.
+
 ## [2026-07-04] calculateNeedZeroActiveOffset 1차 분리
 
 - **내용:** `projectState()` 내부의 배고픔/힘 zero 도달 시각 계산에서 반복되던 active offset 산술을 내부 helper `calculateNeedZeroActiveOffset()`으로 분리했다. helper는 export하지 않고 `initialCountdown`, `initialValue`, 초 단위 `timerSeconds`만 받아 기존 공식과 같은 offset 값을 반환한다.
