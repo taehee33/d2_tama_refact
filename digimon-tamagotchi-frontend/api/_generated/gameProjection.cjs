@@ -6397,6 +6397,10 @@ function calculateActiveSecondsForNeeds({
   return elapsedSeconds;
 }
 
+function applyActiveCountdown(countdown, activeSeconds) {
+  return activeSeconds > 0 ? countdown - activeSeconds : countdown;
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  *
@@ -6529,9 +6533,10 @@ function projectState(
     });
 
     // 활동 시간만큼만 hungerCountdown 감소
-    if (activeSeconds > 0) {
-      updatedStats.hungerCountdown -= activeSeconds;
-    }
+    updatedStats.hungerCountdown = applyActiveCountdown(
+      updatedStats.hungerCountdown,
+      activeSeconds
+    );
 
     // countdown이 0 이하가 되면 fullness 감소
     while (updatedStats.hungerCountdown <= 0) {
@@ -6576,9 +6581,10 @@ function projectState(
     });
 
     // 활동 시간만큼만 strengthCountdown 감소
-    if (activeSeconds > 0) {
-      updatedStats.strengthCountdown -= activeSeconds;
-    }
+    updatedStats.strengthCountdown = applyActiveCountdown(
+      updatedStats.strengthCountdown,
+      activeSeconds
+    );
 
     // countdown이 0 이하가 되면 strength 감소
     while (updatedStats.strengthCountdown <= 0) {
@@ -6626,9 +6632,10 @@ function projectState(
     });
 
     // 활동 시간만큼만 poopCountdown 감소
-    if (activeSeconds > 0) {
-      updatedStats.poopCountdown -= activeSeconds;
-    }
+    updatedStats.poopCountdown = applyActiveCountdown(
+      updatedStats.poopCountdown,
+      activeSeconds
+    );
 
     while (updatedStats.poopCountdown <= 0) {
       const poopEventTime = nowMs + (updatedStats.poopCountdown * 1000);

@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-04] applyActiveCountdown 1차 분리
+
+- **내용:** `projectState()` 내부의 배고픔, 힘, 배변 countdown 감소부에서 반복되던 `activeSeconds > 0` 조건부 산술을 내부 helper `applyActiveCountdown()`으로 분리했다. helper는 export하지 않고 countdown 값과 activeSeconds만 받아 기존 조건과 동일한 다음 countdown 값을 반환한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+  - `api/_lib/urgentCareNotifications.test.js`
+- **근거:** `while` 내부의 zeroAt 복원, 똥 누적/부상/로그, 호출 상태와 케어미스 처리 흐름은 그대로 두고 가장 작은 반복 산술에만 이름을 붙여 이후 리팩터링 위험을 낮춘다. 알림 테스트의 똥 경고 케이스는 현재 시각이 기본 수면 시간에 걸릴 때 수면 조명 이슈가 함께 잡히지 않도록 고정 시각을 주입해 테스트 의도를 명확히 했다.
+
 ## [2026-07-04] calculateActiveSecondsForNeeds 1차 분리
 
 - **내용:** `projectState()` 내부에서 배고픔, 힘, 배변 countdown이 반복하던 수면 제외 활동 시간 계산을 내부 helper `calculateActiveSecondsForNeeds()`로 분리했다. helper는 export하지 않고 기존 `calculateSleepLikeSecondsInRange()` 호출과 `elapsedSeconds - sleepSeconds` 계산을 그대로 유지한다.

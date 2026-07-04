@@ -450,8 +450,9 @@ test("냉장고 구간은 부상 방치 사망 시간에서 제외한다", () =>
 });
 
 test("똥 6개 경고와 8개 위험을 분리한다", () => {
-  assert.deepEqual(resolveUrgentIssues({ poopCount: 6, callStatus: {} }, {}).map((issue) => issue.key), ["poop_warning"]);
-  assert.deepEqual(resolveUrgentIssues({ poopCount: 8, callStatus: {} }, {}).map((issue) => issue.key), ["poop_danger"]);
+  const now = Date.parse("2026-06-21T00:00:00.000Z"); // KST 09:00, 정규 수면 밖
+  assert.deepEqual(resolveUrgentIssues({ poopCount: 6, callStatus: {} }, {}, now).map((issue) => issue.key), ["poop_warning"]);
+  assert.deepEqual(resolveUrgentIssues({ poopCount: 8, callStatus: {} }, {}, now).map((issue) => issue.key), ["poop_danger"]);
 });
 
 test("prepare 재호출은 pending delivery를 재사용하고 ack 뒤에는 중복 발송하지 않는다", async () => {
