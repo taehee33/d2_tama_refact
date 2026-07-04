@@ -245,6 +245,48 @@ describe("applyLazyUpdate", () => {
     expect(result.strengthMistakeDeadline).toBe(result.lastStrengthZeroAt + 10 * 60 * 1000);
   });
 
+  test("6시간 미접속은 현재 lazy update 산출값을 한 번에 복원한다", () => {
+    const lastSavedAt = Date.parse("2026-03-31T06:00:00.000Z");
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        lifespanSeconds: 120,
+        timeToEvolveSeconds: 60 * 60 * 8,
+        hungerTimer: 60,
+        hungerCountdown: 60 * 60,
+        fullness: 5,
+        strengthTimer: 120,
+        strengthCountdown: 120 * 60,
+        strength: 4,
+        poopTimer: 180,
+        poopCountdown: 180 * 60,
+        poopCount: 1,
+      }),
+      lastSavedAt
+    );
+
+    expect(result.lifespanSeconds).toBe(120 + 6 * 60 * 60);
+    expect(result.timeToEvolveSeconds).toBe(2 * 60 * 60);
+    expect(result.fullness).toBe(0);
+    expect(result.strength).toBe(1);
+    expect(result.poopCount).toBe(3);
+    expect(result.hungerCountdown).toBe(60 * 60);
+    expect(result.strengthCountdown).toBe(120 * 60);
+    expect(result.poopCountdown).toBe(180 * 60);
+    expect(result.lastHungerZeroAt).toBe(Date.parse("2026-03-31T11:00:00.000Z"));
+    expect(result.callStatus.hunger.isActive).toBe(false);
+    expect(result.callStatus.hunger.isLogged).toBe(true);
+    expect(result.careMistakes).toBe(1);
+    expect(result.careMistakeLedger).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reasonKey: "hunger_call",
+          occurredAt: Date.parse("2026-03-31T11:10:00.000Z"),
+        }),
+      ])
+    );
+  });
+
   test("수면 시간은 hunger/strength/poop countdown에서 제외한다", () => {
     const sleepWindowStart = new Date(2026, 2, 31, 22, 0, 0);
     const sleepWindowEnd = new Date(2026, 2, 31, 23, 30, 0);
@@ -270,6 +312,48 @@ describe("applyLazyUpdate", () => {
     expect(result.hungerCountdown).toBe(30);
     expect(result.strengthCountdown).toBe(40);
     expect(result.poopCountdown).toBe(50);
+  });
+
+  test("수면 포함 긴 미접속은 수명/진화시간은 전체 경과, needs/poop은 활동 시간 기준으로 계산한다", () => {
+    const lastSavedAt = new Date(2026, 2, 31, 21, 0, 0).getTime();
+    jest.setSystemTime(new Date(2026, 3, 1, 9, 0, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        lifespanSeconds: 300,
+        timeToEvolveSeconds: 14 * 60 * 60,
+        hungerTimer: 60,
+        hungerCountdown: 60 * 60,
+        fullness: 5,
+        strengthTimer: 60,
+        strengthCountdown: 60 * 60,
+        strength: 5,
+        poopTimer: 120,
+        poopCountdown: 120 * 60,
+        poopCount: 0,
+        isLightsOn: false,
+        wakeUntil: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+      }),
+      lastSavedAt,
+      { start: 22, end: 6, startMinute: 0, endMinute: 0 }
+    );
+
+    expect(result.lifespanSeconds).toBe(300 + 12 * 60 * 60);
+    expect(result.timeToEvolveSeconds).toBe(2 * 60 * 60);
+    expect(result.fullness).toBe(1);
+    expect(result.strength).toBe(1);
+    expect(result.poopCount).toBe(2);
+    expect(result.hungerCountdown).toBe(30 * 60);
+    expect(result.strengthCountdown).toBe(30 * 60);
+    expect(result.poopCountdown).toBe(90 * 60);
+    expect(result.lastHungerZeroAt).toBeNull();
+    expect(result.lastStrengthZeroAt).toBeNull();
+    expect(result.callStatus.hunger.isActive).toBe(false);
+    expect(result.callStatus.strength.isActive).toBe(false);
+    expect(result.hungerMistakeDeadline).toBeNull();
+    expect(result.strengthMistakeDeadline).toBeNull();
+    expect(result.wakeUntil).toBeNull();
+    expect(result.isLightsOn).toBe(false);
   });
 
   test("낮잠 시간은 hunger/strength/poop countdown에서 제외한다", () => {
@@ -923,6 +1007,28 @@ describe("applyLazyUpdate", () => {
     expect(result.careMistakes).toBe(0);
   });
 
+  test("poopTimer는 미접속 활동 시간 동안 여러 번 누적되며 최대치 전에는 부상을 만들지 않는다", () => {
+    const result = applyLazyUpdate(
+      createBaseStats({
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 30,
+        poopCountdown: 30 * 60,
+        poopCount: 2,
+      }),
+      Date.parse("2026-03-31T10:00:00.000Z")
+    );
+
+    expect(result.poopCount).toBe(6);
+    expect(result.poopCountdown).toBe(30 * 60);
+    expect(result.isInjured).toBe(false);
+    expect(result.injuries).toBe(0);
+    expect(result.poopReachedMaxAt).toBeNull();
+    expect(result.lastPoopPenaltyAt).toBeNull();
+  });
+
   test("poop 8개를 8시간 이상 방치하면 추가 부상만 발생하고 케어미스는 증가하지 않는다", () => {
     const poopReachedMaxAt = Date.parse("2026-03-31T04:00:00.000Z");
 
@@ -1118,6 +1224,29 @@ describe("applyLazyUpdate", () => {
 
     expect(result.isDead).toBe(false);
     expect(result.deathReason).toBeUndefined();
+  });
+
+  test("진화 가능 시점에 도달해도 applyLazyUpdate는 디지몬 식별자를 직접 바꾸지 않는다", () => {
+    const result = applyLazyUpdate(
+      createBaseStats({
+        selectedDigimon: "Agumon",
+        currentDigimon: "Agumon",
+        digimonId: "Agumon",
+        timeToEvolveSeconds: 30,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 999,
+        poopCountdown: 999 * 60,
+      }),
+      Date.parse("2026-03-31T11:59:00.000Z")
+    );
+
+    expect(result.timeToEvolveSeconds).toBe(0);
+    expect(result.selectedDigimon).toBe("Agumon");
+    expect(result.currentDigimon).toBe("Agumon");
+    expect(result.digimonId).toBe("Agumon");
   });
 
   test("13시간 오프라인 경과에서 배고픔 0 도달 시각과 사망 시각을 과거로 복원한다", () => {

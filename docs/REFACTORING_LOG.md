@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-07-03] applyLazyUpdate 리팩터링 전 characterization test 보강 및 상태 칩 테스트 정리
+
+- **내용:** `applyLazyUpdate()` 리팩터링에 앞서 6시간 미접속, 수면 포함 긴 미접속, 미접속 중 poopTimer 다중 누적, 진화 가능 시점 도달 시 식별자 비변경 동작을 테스트로 고정했다. 전체 테스트 실행 중 발견된 상태 칩 테스트의 이전 문구/빈 상태 기대값도 현재 구현에 맞게 정리했다. 런타임 로직은 변경하지 않고 현재 구현 결과만 테스트로 보강했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.test.js`
+  - `digimon-tamagotchi-frontend/src/utils/slotStatusChips.test.js`
+  - `digimon-tamagotchi-frontend/src/pages/PlayHub.test.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Home.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/play/SlotCard.test.jsx`
+- **근거:** 이후 `projectState(savedState, now)` 분리 작업에서 수명/진화 시간, 수면 제외 활동 시간, 똥 생성, 진화 가능 상태의 기존 동작이 바뀌었는지 빠르게 감지하기 위한 안전망을 먼저 확보한다. 상태 칩 테스트는 현재 UI 정책인 기본 정상 칩과 처리된 수면 조명 경고 문구를 기준으로 맞춰 전체 회귀 테스트 신뢰도를 회복한다.
+
+## [2026-07-03] 긴급 알림 누락 방지 및 15분 저장 배선 수정
+
+- **내용:** 15분 주기 저장 예약이 `useGamePeriodicSync`로 전달되도록 배선을 복구하고, 서버 10분 긴급 알림 체크가 배고픔/기력 호출 deadline 직후 실행되어도 15분 grace 안에서는 한 번 알림하도록 보강했다. `issue.key`는 표시/분기용으로 유지하고, `issue.dedupKey`를 사건 단위 중복 방지용으로 추가했으며 legacy `activeIssueKeys`/pending `issueKeys`도 배포 직후 중복 발송 없이 정규화되도록 했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePeriodicSync.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+  - `api/_lib/urgentCareNotifications.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
+- **근거:** 10분 케어 윈도우와 10분 서버 체크 주기가 거의 같아 deadline 직후 실행에서 알림 대상이 빠지는 운영 누락 가능성을 줄이되, 서버가 `digimonStats` 전체를 쓰지 않는 lazy update 저장 정책은 유지한다.
+
 ## [2026-07-02] 설정 모달 개발자 옵션 draft 상태 보정
 
 - **내용:** Settings 모달에서 저장 전 `Developer Mode`를 ON으로 둔 상태에서 개발자 옵션 체크박스를 누르면 부모 상태 변경에 의해 Dev Mode draft가 OFF로 되돌아가던 문제를 수정했다. 설정별 local draft 동기화를 분리해 옵션 체크 상태만 갱신되도록 했다.

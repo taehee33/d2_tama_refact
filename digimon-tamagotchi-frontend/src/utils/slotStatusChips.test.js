@@ -29,7 +29,12 @@ describe("getSlotStatusChips", () => {
           deathReason: "STARVATION (굶주림)",
         },
       })
-    ).toEqual([]);
+    ).toEqual([
+      expect.objectContaining({
+        id: "normal-status",
+        tone: "accent",
+      }),
+    ]);
   });
 
   test("사망, 배변, 진화 상태가 동시에 있으면 게임 화면 우선순위로 반환한다", () => {
@@ -106,8 +111,13 @@ describe("getSlotStatusChips", () => {
     ]);
   });
 
-  test("상태가 없으면 칩을 반환하지 않는다", () => {
-    expect(getSlotStatusChips({ digimonStats: {} })).toEqual([]);
+  test("상태가 없으면 기본 정상 상태 칩을 반환한다", () => {
+    expect(getSlotStatusChips({ digimonStats: {} })).toEqual([
+      expect.objectContaining({
+        id: "normal-status",
+        tone: "accent",
+      }),
+    ]);
     expect(getSlotStatusChips(null)).toEqual([]);
   });
 
@@ -118,7 +128,12 @@ describe("getSlotStatusChips", () => {
         version: "Ver.2",
         digimonStats: { timeToEvolveSeconds: 0 },
       })
-    ).toEqual([]);
+    ).toEqual([
+      expect.objectContaining({
+        id: "normal-status",
+        tone: "accent",
+      }),
+    ]);
   });
 
   test("수면 중 불 켜짐 경고는 진화 가능보다 앞선 요약 메시지로 반환한다", () => {
@@ -143,7 +158,7 @@ describe("getSlotStatusChips", () => {
     });
 
     expect(messages.map((message) => message.text)).toEqual([
-      "수면 중(불 켜짐 경고!) 😴",
+      "수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴",
       "진화 가능 ✨",
       "힘 낮음 💪",
     ]);

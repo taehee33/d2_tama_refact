@@ -151,7 +151,7 @@ describe("Home 테마 진입점", () => {
       screen.getAllByText("유아기 · Digital Monster Color 25th / Ver.2").length
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("슬롯1").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("수면 중(불 켜짐 경고!) 😴").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴").length).toBeGreaterThan(0);
     expect(screen.getAllByText("힘 낮음 💪").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "몰입형 화면" })).toBeInTheDocument();

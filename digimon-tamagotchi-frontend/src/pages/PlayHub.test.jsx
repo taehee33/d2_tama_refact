@@ -136,7 +136,7 @@ describe("PlayHub", () => {
     render(<PlayHub />);
 
     expect(screen.getByLabelText("최근 슬롯 상태")).toBeInTheDocument();
-    expect(screen.getByText("수면 중(불 켜짐 경고!) 😴")).toBeInTheDocument();
+    expect(screen.getByText("수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴")).toBeInTheDocument();
     expect(screen.getByText("힘 낮음 💪")).toBeInTheDocument();
   });
 
