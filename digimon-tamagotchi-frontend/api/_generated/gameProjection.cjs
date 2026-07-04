@@ -6377,6 +6377,26 @@ function projectContinuousStats(state, { nowMs, elapsedSeconds }) {
   };
 }
 
+function calculateActiveSecondsForNeeds({
+  elapsedSeconds,
+  lastSavedAtMs,
+  nowMs,
+  stats,
+  sleepSchedule,
+}) {
+  if (sleepSchedule || stats.napUntil || stats.fastSleepStart || stats.wakeUntil) {
+    const sleepSeconds = stats_calculateSleepLikeSecondsInRange(
+      lastSavedAtMs,
+      nowMs,
+      stats,
+      sleepSchedule
+    );
+    return elapsedSeconds - sleepSeconds;
+  }
+
+  return elapsedSeconds;
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  *
@@ -6500,16 +6520,13 @@ function projectState(
     }
 
     // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
-    let activeSeconds = elapsedSeconds;
-    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
-      const sleepSeconds = stats_calculateSleepLikeSecondsInRange(
-        lastSaved.getTime(),
-        nowMs,
-        updatedStats,
-        sleepSchedule
-      );
-      activeSeconds = elapsedSeconds - sleepSeconds;
-    }
+    const activeSeconds = calculateActiveSecondsForNeeds({
+      elapsedSeconds,
+      lastSavedAtMs: lastSaved.getTime(),
+      nowMs,
+      stats: updatedStats,
+      sleepSchedule,
+    });
 
     // 활동 시간만큼만 hungerCountdown 감소
     if (activeSeconds > 0) {
@@ -6550,16 +6567,13 @@ function projectState(
     }
 
     // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
-    let activeSeconds = elapsedSeconds;
-    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
-      const sleepSeconds = stats_calculateSleepLikeSecondsInRange(
-        lastSaved.getTime(),
-        nowMs,
-        updatedStats,
-        sleepSchedule
-      );
-      activeSeconds = elapsedSeconds - sleepSeconds;
-    }
+    const activeSeconds = calculateActiveSecondsForNeeds({
+      elapsedSeconds,
+      lastSavedAtMs: lastSaved.getTime(),
+      nowMs,
+      stats: updatedStats,
+      sleepSchedule,
+    });
 
     // 활동 시간만큼만 strengthCountdown 감소
     if (activeSeconds > 0) {
@@ -6603,16 +6617,13 @@ function projectState(
     }
 
     // 실제 수면 구간(정규 수면/낮잠/수면 조명 경고)만 제외한 활동 시간 계산
-    let activeSeconds = elapsedSeconds;
-    if (sleepSchedule || updatedStats.napUntil || updatedStats.fastSleepStart || updatedStats.wakeUntil) {
-      const sleepSeconds = stats_calculateSleepLikeSecondsInRange(
-        lastSaved.getTime(),
-        nowMs,
-        updatedStats,
-        sleepSchedule
-      );
-      activeSeconds = elapsedSeconds - sleepSeconds;
-    }
+    const activeSeconds = calculateActiveSecondsForNeeds({
+      elapsedSeconds,
+      lastSavedAtMs: lastSaved.getTime(),
+      nowMs,
+      stats: updatedStats,
+      sleepSchedule,
+    });
 
     // 활동 시간만큼만 poopCountdown 감소
     if (activeSeconds > 0) {
