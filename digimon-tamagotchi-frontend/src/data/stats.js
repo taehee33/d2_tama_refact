@@ -875,6 +875,14 @@ function applyActiveCountdown(countdown, activeSeconds) {
   return activeSeconds > 0 ? countdown - activeSeconds : countdown;
 }
 
+function calculateNeedZeroActiveOffset({
+  initialCountdown,
+  initialValue,
+  timerSeconds,
+}) {
+  return initialCountdown + (Math.max(0, initialValue - 1) * timerSeconds);
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  * 
@@ -1019,8 +1027,11 @@ export function projectState(
       
       // fullness가 0이 되면 lastHungerZeroAt 기록
       if (updatedStats.fullness === 0 && !updatedStats.lastHungerZeroAt) {
-        const activeOffsetSeconds = initialHungerCountdown +
-          (Math.max(0, initialFullness - 1) * updatedStats.hungerTimer * 60);
+        const activeOffsetSeconds = calculateNeedZeroActiveOffset({
+          initialCountdown: initialHungerCountdown,
+          initialValue: initialFullness,
+          timerSeconds: updatedStats.hungerTimer * 60,
+        });
         updatedStats.lastHungerZeroAt = findWallTimeForActiveOffset(
           lastSaved.getTime(),
           nowMs,
@@ -1068,8 +1079,11 @@ export function projectState(
       
       // strength가 0이 되면 lastStrengthZeroAt 기록
       if (updatedStats.strength === 0 && !updatedStats.lastStrengthZeroAt) {
-        const activeOffsetSeconds = initialStrengthCountdown +
-          (Math.max(0, initialStrength - 1) * updatedStats.strengthTimer * 60);
+        const activeOffsetSeconds = calculateNeedZeroActiveOffset({
+          initialCountdown: initialStrengthCountdown,
+          initialValue: initialStrength,
+          timerSeconds: updatedStats.strengthTimer * 60,
+        });
         updatedStats.lastStrengthZeroAt = findWallTimeForActiveOffset(
           lastSaved.getTime(),
           nowMs,

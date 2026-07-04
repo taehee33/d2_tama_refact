@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-07-04] calculateNeedZeroActiveOffset 1차 분리
+
+- **내용:** `projectState()` 내부의 배고픔/힘 zero 도달 시각 계산에서 반복되던 active offset 산술을 내부 helper `calculateNeedZeroActiveOffset()`으로 분리했다. helper는 export하지 않고 `initialCountdown`, `initialValue`, 초 단위 `timerSeconds`만 받아 기존 공식과 같은 offset 값을 반환한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+- **근거:** `findWallTimeForActiveOffset()` 호출 위치, zeroAt 대입, frozenDuration 초기화, 호출 상태/케어미스 처리 흐름은 그대로 유지하고 zero 도달 active offset 산술만 이름 붙여 hunger/strength 대칭 계산을 명확히 한다.
+
 ## [2026-07-04] applyActiveCountdown 1차 분리
 
 - **내용:** `projectState()` 내부의 배고픔, 힘, 배변 countdown 감소부에서 반복되던 `activeSeconds > 0` 조건부 산술을 내부 helper `applyActiveCountdown()`으로 분리했다. helper는 export하지 않고 countdown 값과 activeSeconds만 받아 기존 조건과 동일한 다음 countdown 값을 반환한다.
