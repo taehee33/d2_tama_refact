@@ -904,6 +904,21 @@ function calculatePushedCallWindow({
   };
 }
 
+function buildNeedCareMistakePayload({
+  reasonKey,
+  label,
+  occurredAt,
+}) {
+  const text = `케어미스(사유: ${label} 콜 10분 무시) [과거 재구성]`;
+  return {
+    occurredAt,
+    reasonKey,
+    text,
+    source: "backfill",
+    logTextContains: `${label} 콜`,
+  };
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  * 
@@ -1348,28 +1363,38 @@ export function projectState(
 
         if (activeCallDurationMs > HUNGER_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + HUNGER_CALL_TIMEOUT;
-          const careMistakeLogText = '케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]';
+          const careMistakePayload = buildNeedCareMistakePayload({
+            reasonKey: "hunger_call",
+            label: "배고픔",
+            occurredAt: timeoutOccurredAt,
+          });
           const careMistakeEventId = buildActivityLogEventId({
             type: "CAREMISTAKE",
-            text: careMistakeLogText,
-            timestamp: timeoutOccurredAt,
+            text: careMistakePayload.text,
+            timestamp: careMistakePayload.occurredAt,
           });
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
-              occurredAt: timeoutOccurredAt,
-              reasonKey: "hunger_call",
-              text: careMistakeLogText,
-              source: "backfill",
+              occurredAt: careMistakePayload.occurredAt,
+              reasonKey: careMistakePayload.reasonKey,
+              text: careMistakePayload.text,
+              source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '배고픔 콜', careMistakeEventId)) {
+                !alreadyHasBackdatedLog(
+                  updatedStats.activityLogs,
+                  'CAREMISTAKE',
+                  careMistakePayload.occurredAt,
+                  careMistakePayload.logTextContains,
+                  careMistakeEventId
+                )) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'CAREMISTAKE',
-                careMistakeLogText,
-                timeoutOccurredAt
+                careMistakePayload.text,
+                careMistakePayload.occurredAt
               );
             }
             callStatus.hunger.isLogged = true;
@@ -1447,28 +1472,38 @@ export function projectState(
 
         if (activeCallDurationMs > STRENGTH_CALL_TIMEOUT) {
           const timeoutOccurredAt = activeStartedAt + STRENGTH_CALL_TIMEOUT;
-          const careMistakeLogText = '케어미스(사유: 힘 콜 10분 무시) [과거 재구성]';
+          const careMistakePayload = buildNeedCareMistakePayload({
+            reasonKey: "strength_call",
+            label: "힘",
+            occurredAt: timeoutOccurredAt,
+          });
           const careMistakeEventId = buildActivityLogEventId({
             type: "CAREMISTAKE",
-            text: careMistakeLogText,
-            timestamp: timeoutOccurredAt,
+            text: careMistakePayload.text,
+            timestamp: careMistakePayload.occurredAt,
           });
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
-              occurredAt: timeoutOccurredAt,
-              reasonKey: "strength_call",
-              text: careMistakeLogText,
-              source: "backfill",
+              occurredAt: careMistakePayload.occurredAt,
+              reasonKey: careMistakePayload.reasonKey,
+              text: careMistakePayload.text,
+              source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
-                !alreadyHasBackdatedLog(updatedStats.activityLogs, 'CAREMISTAKE', timeoutOccurredAt, '힘 콜', careMistakeEventId)) {
+                !alreadyHasBackdatedLog(
+                  updatedStats.activityLogs,
+                  'CAREMISTAKE',
+                  careMistakePayload.occurredAt,
+                  careMistakePayload.logTextContains,
+                  careMistakeEventId
+                )) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
                 'CAREMISTAKE',
-                careMistakeLogText,
-                timeoutOccurredAt
+                careMistakePayload.text,
+                careMistakePayload.occurredAt
               );
             }
             callStatus.strength.isLogged = true;

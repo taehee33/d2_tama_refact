@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-07-04] buildNeedCareMistakePayload 1차 분리
+
+- **내용:** `projectState()` 내부의 배고픔/힘 호출 timeout 케어미스 처리에서 반복되던 payload 조립을 내부 helper `buildNeedCareMistakePayload()`로 분리했다. helper는 export하지 않고 `occurredAt`, `reasonKey`, `text`, `source`, `logTextContains`만 반환하며 상태를 변경하지 않는다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+- **근거:** `appendCareMistakeEntry()`, `alreadyHasBackdatedLog()`, activityLogs 추가, callStatus mutation 순서는 케어미스 중복 방지와 연결되어 있으므로 그대로 유지하고, hunger/strength에 반복되는 payload 문구와 필드 조립만 이름 붙여 이후 변경 범위를 작게 유지한다.
+
 ## [2026-07-04] call active duration/window 계산 분리
 
 - **내용:** `projectState()` 내부의 배고픔/힘 호출 처리에서 반복되던 active call duration 계산과 수면 시간만큼 밀린 call startedAt/deadline 계산을 내부 helper `calculateActiveCallDurationMs()`, `calculatePushedCallWindow()`로 분리했다. helper는 export하지 않고 순수 계산값만 반환하며, timeout 판정과 callStatus/ledger/log 상태 변경은 기존 위치에 유지했다.
