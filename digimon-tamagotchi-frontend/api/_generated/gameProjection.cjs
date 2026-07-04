@@ -6445,6 +6445,23 @@ function buildNeedCareMistakePayload({
   };
 }
 
+function buildNeedCareMistakeActivityLogPayload(careMistakePayload) {
+  const text = careMistakePayload.text;
+  const timestamp = careMistakePayload.occurredAt;
+  const type = "CAREMISTAKE";
+  return {
+    type,
+    text,
+    timestamp,
+    eventId: buildActivityLogEventId({
+      type,
+      text,
+      timestamp,
+    }),
+    textContains: careMistakePayload.logTextContains,
+  };
+}
+
 /**
  * 저장된 상태를 특정 시각의 현재 상태로 투영한다.
  *
@@ -6894,11 +6911,8 @@ function projectState(
             label: "배고픔",
             occurredAt: timeoutOccurredAt,
           });
-          const careMistakeEventId = buildActivityLogEventId({
-            type: "CAREMISTAKE",
-            text: careMistakePayload.text,
-            timestamp: careMistakePayload.occurredAt,
-          });
+          const activityLogPayload =
+            buildNeedCareMistakeActivityLogPayload(careMistakePayload);
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
               occurredAt: careMistakePayload.occurredAt,
@@ -6911,16 +6925,16 @@ function projectState(
             if (result.added &&
                 !alreadyHasBackdatedLog(
                   updatedStats.activityLogs,
-                  'CAREMISTAKE',
-                  careMistakePayload.occurredAt,
-                  careMistakePayload.logTextContains,
-                  careMistakeEventId
+                  activityLogPayload.type,
+                  activityLogPayload.timestamp,
+                  activityLogPayload.textContains,
+                  activityLogPayload.eventId
                 )) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
-                'CAREMISTAKE',
-                careMistakePayload.text,
-                careMistakePayload.occurredAt
+                activityLogPayload.type,
+                activityLogPayload.text,
+                activityLogPayload.timestamp
               );
             }
             callStatus.hunger.isLogged = true;
@@ -7003,11 +7017,8 @@ function projectState(
             label: "힘",
             occurredAt: timeoutOccurredAt,
           });
-          const careMistakeEventId = buildActivityLogEventId({
-            type: "CAREMISTAKE",
-            text: careMistakePayload.text,
-            timestamp: careMistakePayload.occurredAt,
-          });
+          const activityLogPayload =
+            buildNeedCareMistakeActivityLogPayload(careMistakePayload);
           if (!alreadyLogged) {
             const result = appendCareMistakeEntry(updatedStats, {
               occurredAt: careMistakePayload.occurredAt,
@@ -7020,16 +7031,16 @@ function projectState(
             if (result.added &&
                 !alreadyHasBackdatedLog(
                   updatedStats.activityLogs,
-                  'CAREMISTAKE',
-                  careMistakePayload.occurredAt,
-                  careMistakePayload.logTextContains,
-                  careMistakeEventId
+                  activityLogPayload.type,
+                  activityLogPayload.timestamp,
+                  activityLogPayload.textContains,
+                  activityLogPayload.eventId
                 )) {
               updatedStats.activityLogs = pushBackdatedActivityLog(
                 updatedStats.activityLogs,
-                'CAREMISTAKE',
-                careMistakePayload.text,
-                careMistakePayload.occurredAt
+                activityLogPayload.type,
+                activityLogPayload.text,
+                activityLogPayload.timestamp
               );
             }
             callStatus.strength.isLogged = true;

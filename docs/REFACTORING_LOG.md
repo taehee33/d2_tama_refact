@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-07-05] buildNeedCareMistakeActivityLogPayload 1차 분리
+
+- **내용:** `projectState()` 내부의 배고픔/힘 호출 timeout 후 activityLogs 중복 확인과 추가에 쓰이는 payload 생성을 내부 helper `buildNeedCareMistakeActivityLogPayload()`로 분리했다. helper는 export하지 않고 `type`, `text`, `timestamp`, `eventId`, `textContains`만 반환하며 activityLogs를 직접 변경하지 않는다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/stats.js`
+- **근거:** `appendCareMistakeEntry()`, `result.added`, `alreadyHasBackdatedLog()`, `pushBackdatedActivityLog()` 순서는 중복 케어미스/중복 로그 방지에 중요하므로 그대로 유지하고, hunger/strength에 반복되는 activity log payload 생성만 이름 붙여 상태 변경 흐름을 노출된 상태로 보존한다.
+
 ## [2026-07-04] buildNeedCareMistakePayload 1차 분리
 
 - **내용:** `projectState()` 내부의 배고픔/힘 호출 timeout 케어미스 처리에서 반복되던 payload 조립을 내부 helper `buildNeedCareMistakePayload()`로 분리했다. helper는 export하지 않고 `occurredAt`, `reasonKey`, `text`, `source`, `logTextContains`만 반환하며 상태를 변경하지 않는다.
