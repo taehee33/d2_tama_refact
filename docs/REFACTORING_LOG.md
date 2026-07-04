@@ -6667,6 +6667,23 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `api/_lib/urgentCareNotifications.test.js`
 - **근거:** 서버 체크 주기와 배고픔/기력 케어 윈도우가 모두 10분이라 체크가 조금 늦으면 기존 `deadlineAt > nowMs` 조건에서 알림이 누락될 수 있었다. 서버는 여전히 `digimonStats` 전체를 쓰지 않고, 알림 delivery/state 메타데이터만 갱신해 클라이언트 저장 충돌 위험을 제한한다.
 
+## [2026-07-04] 일일보고 사망 상태 표시 보정
+
+- **내용:** Discord 일일보고가 저장된 사망 상태와 서버 lazy update 투영 사망 상태를 확인해, 사망한 슬롯을 배고픔/기력부족 같은 일반 상태이상 대신 `💀 사망 판정`으로 우선 표시하도록 수정했다. 사망 슬롯에 다른 케어 이슈가 남아 있어도 일일보고에서는 사망 상태가 최우선으로 노출된다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/notificationReports.js`
+  - `api/_lib/notificationReports.test.js`
+- **근거:** 긴급 케어 알림은 서버 투영 결과의 사망 상태를 감지했지만, 일일보고는 사망 플래그와 투영 사망을 검사하지 않아 사망한 아구몬을 일반 상태이상으로 보고하던 불일치를 해소한다.
+
+## [2026-07-04] 긴급 케어 알림 총 디지몬 수 표시
+
+- **내용:** Discord 긴급 케어 알림의 테이머 줄에 전체 알림 대상 슬롯 수를 함께 표시하도록 수정했다. 예: `👤 테이머: 히히히 (총 3마리)`.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.js`
+  - `api/_lib/urgentCareNotifications.test.js`
+- **근거:** 긴급 케어 알림에서도 일일보고처럼 현재 관리 중인 디지몬 전체 수를 바로 확인할 수 있게 해 Discord 알림 간 정보 구조를 맞춘다.
+
 ## [2026-06-25] 수면 오알림 방지 및 긴급 알림 시간 안내 개선
 
 - **내용:** 서버 긴급 알림에서 수면 조명 경고를 KST 기준 실제 수면 시간일 때만 보내도록 보강했다. 배고픔/기력/수면 조명 이슈에는 호출 시작 시각, 케어미스 예정 시각, 남은 시간 또는 케어미스 발생 구간을 함께 표시한다.

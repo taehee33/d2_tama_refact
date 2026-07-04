@@ -7,6 +7,7 @@ const {
   normalizeDiscordWebhookUrl,
 } = require("./notificationSubscribers");
 const { formatKstDate } = require("./kstDateFormat");
+const { projectSlotForUrgentCare } = require("./urgentCareProjection");
 
 const NOTIFICATION_SECRET_HEADER = "x-d2-scheduler-secret";
 const REPORT_BORDER = "━━━━━━━━━━━━━━━━━━";
@@ -117,7 +118,7 @@ function isStoredInCareStorage(slotData = {}) {
   );
 }
 
-function resolveSlotIssues(slotData = {}) {
+function resolveSlotIssues(slotData = {}, nowMs = Date.now()) {
   const stats = slotData?.digimonStats && typeof slotData.digimonStats === "object" ? slotData.digimonStats : {};
   const callStatus = stats?.callStatus && typeof stats.callStatus === "object" ? stats.callStatus : {};
   const hungerCall = normalizeCallEntry(callStatus.hunger);
@@ -127,6 +128,13 @@ function resolveSlotIssues(slotData = {}) {
   const strength = normalizeNumber(stats.strength, 1);
   const issues = [];
 
+  if (stats.isDead === true || slotData?.isDead === true) {
+    return ["💀 사망 판정"];
+  }
+  const projection = projectSlotForUrgentCare(slotData, nowMs);
+  if (projection.status === "projected" && projection.stats?.isDead === true) {
+    return ["💀 사망 판정"];
+  }
   if (fullness === 0) {
     issues.push("🍖 배고픔");
   }
@@ -164,7 +172,7 @@ function sortSlotDocuments(slotDocuments = []) {
   });
 }
 
-function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], generatedAt }) {
+function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], generatedAt, currentTimeMs }) {
   const abnormalList = [];
   const healthyList = [];
 
@@ -177,7 +185,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     }
 
     const digimonName = resolveDigimonDisplayName(slotData);
-    const issues = resolveSlotIssues(slotData);
+    const issues = resolveSlotIssues(slotData, currentTimeMs);
 
     if (issues.length > 0) {
       abnormalList.push(`- **${digimonName}** (${slotId}): ${issues.join(", ")}`);
@@ -225,6 +233,7 @@ async function buildDailyDigimonReportPayload({
 
   const subscriberDocuments = Array.isArray(subscribers) ? subscribers : [];
   const generatedAt = formatKstDate(currentTime);
+  const currentTimeMs = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
   const skippedUsersByReason = {
     invalidUser: 0,
     notificationDisabled: 0,
@@ -289,6 +298,7 @@ async function buildDailyDigimonReportPayload({
           webhookUrl: settings.discordWebhookUrl,
           slotDocuments: safeSlotDocuments,
           generatedAt,
+          currentTimeMs,
         }),
       };
     })

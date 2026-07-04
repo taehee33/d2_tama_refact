@@ -420,7 +420,8 @@ async function prepareUrgentCareNotifications({
           const discordMessageContent = buildUrgentMessage(
             tamerName,
             [{ deliveryId, slotId, digimonName, issues: newIssues }],
-            formatKstDate(nowMs)
+            formatKstDate(nowMs),
+            { totalDigimonCount: slots.length }
           );
           const [discordState, webPushState] = await Promise.all([
             maybeSendDiscordNotification({
@@ -485,7 +486,9 @@ async function prepareUrgentCareNotifications({
           digimonName,
           issues,
         })),
-        messageContent: buildUrgentMessage(tamerName, slotAlerts, formatKstDate(nowMs)),
+        messageContent: buildUrgentMessage(tamerName, slotAlerts, formatKstDate(nowMs), {
+          totalDigimonCount: slots.length,
+        }),
       });
     }
   }

@@ -19,12 +19,16 @@ async function commitInBatches(writes, commit) {
   }
 }
 
-function buildUrgentMessage(tamerName, slotAlerts, generatedAt) {
+function buildUrgentMessage(tamerName, slotAlerts, generatedAt, options = {}) {
   const safeSlotAlerts = Array.isArray(slotAlerts) ? slotAlerts : [];
   const issueCount = safeSlotAlerts.reduce(
     (total, slot) => total + (Array.isArray(slot?.issues) ? slot.issues.length : 0),
     0
   );
+  const totalDigimonCount = Number(options.totalDigimonCount);
+  const tamerLine = Number.isFinite(totalDigimonCount) && totalDigimonCount >= 0
+    ? `👤 **테이머**: ${tamerName} (총 ${totalDigimonCount}마리)`
+    : `👤 **테이머**: ${tamerName}`;
   const lines = safeSlotAlerts.flatMap((slot) => {
     const slotLabel = String(slot?.slotId || "slot?").replace(/^slot\s*/i, "슬롯 ");
     const issues = Array.isArray(slot?.issues) ? slot.issues : [];
@@ -45,7 +49,7 @@ function buildUrgentMessage(tamerName, slotAlerts, generatedAt) {
     "🚨 **디지몬 긴급 케어 알림**",
     "지금 확인이 필요한 상태가 발생했습니다.",
     "",
-    `👤 **테이머**: ${tamerName}`,
+    tamerLine,
     `⚠️ **긴급 대상**: ${safeSlotAlerts.length}마리 · ${issueCount}건`,
     "",
     ...lines,
