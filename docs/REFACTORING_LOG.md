@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-07-05] Developer Mode 운영자 권한 제한
+
+- **내용:** 게임 설정 모달의 `Developer Mode` 토글과 개발자 옵션을 운영자 권한 계정에만 노출하도록 제한했다. 운영자에게는 라벨을 `Developer Mode (운영자 권한)`으로 표시하고, 비운영자는 기존 localStorage에 developer mode가 켜져 있어도 게임 로직에 effective developer mode가 적용되지 않도록 보정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.test.jsx`
+- **근거:** 운영자 전용 디버그 기능이 일반 계정에 노출되거나 기존 브라우저 저장값으로 계속 활성화되는 일을 막으면서, Firebase/localStorage 저장 계약과 lazy update 로직은 그대로 유지한다.
+
 ## [2026-07-05] 알림/채팅 floating UI 위치 정책 정리
 
 - **내용:** route/layout별 알림 렌더링 정책을 분리하고, 알림 상태 로직을 service floating UI와 game toolbar UI에서 공유하도록 `NotificationCenterProvider` 기반으로 정리했다. 서비스 화면은 기존 floating 알림을 유지하고, 일반 게임 화면은 `GamePageToolbar` 알림 액션으로 편입했으며, 몰입형 게임 화면에서는 알림을 숨긴다. 모바일 게임 toolbar는 핵심 액션 중심으로 정리하고 보조 액션을 더보기로 넘기며, 채팅/알림/더보기 동시 열림 우선순위와 safe-area/z-index 보정을 함께 적용했다.

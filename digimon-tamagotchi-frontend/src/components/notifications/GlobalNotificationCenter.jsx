@@ -75,6 +75,7 @@ function GlobalNotificationCenter({ placement = "floating" }) {
 
       {isOpen ? (
         <NotificationPanel
+          className="global-notification-center__panel notification-panel--mobile-safe"
           recentNotifications={recentNotifications}
           isLoading={isLoading}
           errorMessage={errorMessage}

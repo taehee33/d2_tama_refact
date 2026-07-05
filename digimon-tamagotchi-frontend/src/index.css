@@ -2293,6 +2293,30 @@ code {
   justify-self: end;
 }
 
+.game-page-toolbar__utilities .online-users-count,
+.game-page-toolbar__mobile-actions .online-users-count,
+.game-page-toolbar__utilities .game-notification-action__button,
+.game-page-toolbar__utilities .game-page-toolbar__profile-button {
+  min-height: 44px;
+  border: 0;
+}
+
+.game-page-toolbar__utilities .game-notification-action__button {
+  width: 44px;
+  padding: 0;
+  border-radius: 0.38rem;
+  background: #eef2ff;
+}
+
+.game-page-toolbar__utilities .game-notification-action__button:hover,
+.game-page-toolbar__utilities .game-notification-action__button:focus-visible {
+  background: #dbeafe;
+}
+
+.game-page-toolbar__utilities .game-page-toolbar__profile-button {
+  border: 0;
+}
+
 .game-page-toolbar__mobile-row {
   display: flex;
   align-items: center;
@@ -7052,6 +7076,25 @@ code {
   color: #6d7b73;
   font-size: 0.74rem;
   font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .notification-panel--mobile-safe {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 5.9rem);
+    left: 0.75rem;
+    right: auto;
+    width: calc(100vw - 1.5rem);
+    width: calc(100dvw - 1.5rem);
+    max-width: calc(100vw - 1.5rem);
+    max-width: calc(100dvw - 1.5rem);
+    max-height: min(58vh, 30rem);
+    box-sizing: border-box;
+  }
+
+  .game-notification-action__panel {
+    top: calc(env(safe-area-inset-top, 0px) + 4.35rem);
+  }
 }
 
 .play-chat-fab {

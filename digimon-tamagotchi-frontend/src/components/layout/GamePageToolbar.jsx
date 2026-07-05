@@ -28,7 +28,21 @@ function renderAvatar(currentUser, tamerName, avatarClassName, fallbackClassName
   );
 }
 
-function renderMasterBadges({ hasVer1Master, hasVer2Master, compact = false }) {
+function renderMasterBadges({ hasVer1Master, hasVer2Master, compact = false, small = false }) {
+  if (small) {
+    const badgeClassName =
+      "inline-flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium leading-none text-amber-800";
+    const badgeClassNameVer2 =
+      "inline-flex items-center gap-0.5 rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium leading-none text-indigo-800";
+
+    return (
+      <>
+        {hasVer1Master ? <span className={badgeClassName}>👑 Ver.1</span> : null}
+        {hasVer2Master ? <span className={badgeClassNameVer2}>👑 Ver.2</span> : null}
+      </>
+    );
+  }
+
   const badgeClassName = compact
     ? "inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-medium shrink-0"
     : "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-medium shrink-0";
@@ -72,7 +86,7 @@ function renderProfileMenu({
         className={
           compact
             ? "flex items-center gap-1.5 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
-            : "flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded pixel-art-button"
+            : "game-page-toolbar__profile-button flex min-h-[44px] items-center gap-2 rounded-md bg-gray-100 px-3 py-1.5 hover:bg-gray-200 pixel-art-button"
         }
       >
         {renderAvatar(
@@ -87,13 +101,20 @@ function renderProfileMenu({
           className={
             compact
               ? "text-xs text-gray-700 hidden sm:inline max-w-[80px] truncate flex items-center gap-1 flex-wrap"
-              : "text-sm text-gray-700 flex items-center gap-1 flex-wrap"
+              : "min-w-0 flex flex-col items-start gap-1 text-gray-700"
           }
         >
-          <span className="truncate">
+          <span className={compact ? "truncate" : "max-w-[120px] truncate text-sm leading-none"}>
             {displayName}
           </span>
-          {renderMasterBadges({ hasVer1Master, hasVer2Master, compact })}
+          <span className={compact ? "flex items-center gap-1 flex-wrap" : "flex items-center gap-1 leading-none"}>
+            {renderMasterBadges({
+              hasVer1Master,
+              hasVer2Master,
+              compact,
+              small: !compact,
+            })}
+          </span>
         </span>
         <span className="text-xs text-gray-500">▼</span>
       </button>
@@ -217,17 +238,19 @@ function GamePageToolbar({
           </button>
 
           <div className="game-page-toolbar__mobile-actions">
-            <button
-              type="button"
-              onClick={handleToggleChat}
-              className={`game-page-toolbar__mobile-icon pixel-art-button${
-                isChatOpen ? " game-page-toolbar__mobile-icon--active" : ""
-              }`}
-              aria-label={`채팅 ${isChatOpen ? "닫기" : "열기"}, 현재 ${presenceCount || 0}명 접속 중`}
-              aria-expanded={isChatOpen}
-            >
-              💬
-            </button>
+            {onlineUsersNode || (
+              <button
+                type="button"
+                onClick={handleToggleChat}
+                className={`game-page-toolbar__mobile-icon pixel-art-button${
+                  isChatOpen ? " game-page-toolbar__mobile-icon--active" : ""
+                }`}
+                aria-label={`채팅 ${isChatOpen ? "닫기" : "열기"}, 현재 ${presenceCount || 0}명 접속 중`}
+                aria-expanded={isChatOpen}
+              >
+                💬
+              </button>
+            )}
 
             <GameNotificationAction compact />
 
@@ -249,9 +272,6 @@ function GamePageToolbar({
                 aria-label="게임 화면 더보기"
                 ref={moreMenuRef}
               >
-                <div className="game-page-toolbar__mobile-menu-presence">
-                  {onlineUsersNode || <span>{`접속자 ${presenceCount || 0}명`}</span>}
-                </div>
                 <button
                   type="button"
                   role="menuitem"
@@ -264,7 +284,7 @@ function GamePageToolbar({
                   role="menuitem"
                   onClick={() => handleMoreAction(onOpenSettings)}
                 >
-                  설정
+                  게임 설정
                 </button>
                 {isFirebaseAvailable && currentUser ? (
                   <button

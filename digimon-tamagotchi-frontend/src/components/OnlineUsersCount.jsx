@@ -53,12 +53,13 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="online-users-count relative inline-flex items-stretch overflow-visible rounded-md bg-slate-100 shadow-sm">
       {showChatShortcut && (
         <button
           onClick={handleChatClick}
-          className="relative px-2 py-1.5 bg-blue-100 text-blue-800 border border-gray-800 rounded text-xs font-semibold hover:bg-blue-200 transition-colors cursor-pointer"
+          className="online-users-count__chat relative flex min-h-[44px] min-w-[44px] items-center justify-center bg-blue-50 px-3 text-xs font-semibold text-blue-800 transition-colors hover:bg-blue-100 cursor-pointer"
           title="채팅으로 이동"
+          aria-label="채팅으로 이동"
         >
           <span className="text-base">💬</span>
           {unreadCount > 0 && (
@@ -77,9 +78,10 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
         <button
           ref={buttonRef}
           onClick={handleClick}
-          className="flex items-center gap-1.5 px-2 py-1.5 bg-green-100 text-green-800 border border-gray-800 rounded text-xs font-semibold hover:bg-green-200 transition-colors cursor-pointer"
+          className="online-users-count__presence flex min-h-[44px] items-center gap-2 bg-green-50 px-3 text-xs font-semibold text-green-800 transition-colors hover:bg-green-100 cursor-pointer"
+          aria-label={`현재 접속자 ${presenceCount}명`}
         >
-          <span>🟢</span>
+          <span className="text-lg leading-none">🟢</span>
           <span>{presenceCount}명</span>
           <span className="text-xs text-gray-600">▼</span>
         </button>

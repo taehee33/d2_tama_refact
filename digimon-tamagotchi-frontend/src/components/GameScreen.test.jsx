@@ -132,6 +132,8 @@ describe("GameScreen 호출 UI", () => {
     expect(screen.getByText("배고픔 호출이 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText("수면 조명 경고가 시작되었습니다.")).toBeInTheDocument();
     expect(screen.getByText("배고픔 호출이 케어미스로 처리되었습니다.")).toBeInTheDocument();
+    expect(screen.getByText("배고픔 호출").closest(".rounded")).toHaveClass("bg-amber-50");
+    expect(screen.getByText("배고픔 호출 -> 케어미스!").closest(".rounded")).toHaveClass("bg-red-50");
     expect(screen.queryByText(/과거 재구성/)).not.toBeInTheDocument();
   });
 
@@ -268,12 +270,22 @@ describe("GameScreen 부상 이모지 오버레이", () => {
       digimonStats: {
         isInjured: true,
         isDead: false,
+        fullness: 0,
+        callStatus: createCallStatus({
+          hunger: {
+            isActive: true,
+            startedAt: Date.now() - 60 * 1000,
+            isLogged: false,
+          },
+        }),
       },
     });
 
     const syringeOverlays = screen.getAllByText("💉");
+    const callButton = screen.getByRole("button", { name: "호출 상태 열기" });
 
     expect(syringeOverlays).toHaveLength(2);
+    expect(callButton).toHaveStyle({ zIndex: "8" });
     expect(
       syringeOverlays.some(
         (element) => element.style.top === "62%" && element.style.left === "10%"

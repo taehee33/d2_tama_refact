@@ -13,6 +13,7 @@ const SettingsModal = ({
   // 기본 상태들
   foodSizeScale, setFoodSizeScale,
   developerMode, setDeveloperMode,
+  canUseDeveloperMode = false,
   encyclopediaShowQuestionMark = true,
   setEncyclopediaShowQuestionMark,
   ignoreEvolutionTime = false,
@@ -57,8 +58,8 @@ const SettingsModal = ({
   }, [width, height]);
 
   useEffect(() => {
-    setLocalDevMode(developerMode);
-  }, [developerMode]);
+    setLocalDevMode(canUseDeveloperMode ? developerMode : false);
+  }, [canUseDeveloperMode, developerMode]);
 
   useEffect(() => {
     setLocalEncyclopediaQuestionMark(encyclopediaShowQuestionMark);
@@ -116,6 +117,7 @@ const SettingsModal = ({
 
   // Dev Mode toggle
   const toggleDevMode = () => {
+    if (!canUseDeveloperMode) return;
     setLocalDevMode(!localDevMode);
   };
 
@@ -170,7 +172,7 @@ const SettingsModal = ({
   const handleSave = () => {
     setWidth(localWidth);
     setHeight(localHeight);
-    setDeveloperMode(localDevMode);
+    setDeveloperMode(canUseDeveloperMode ? localDevMode : false);
     // TODO: timeMode, timeSpeed, customTime 등도 저장 로직
     onClose();
   };
@@ -186,18 +188,20 @@ const SettingsModal = ({
         {/* 스크롤 가능한 컨텐츠 영역 */}
         <div className="flex-1 overflow-y-auto p-6 pt-4">
           {/* Dev Mode */}
-          <div className="mb-4">
-            <label className="block font-semibold">Developer Mode</label>
-            <button
-              className={`px-3 py-1 rounded mt-1 ${localDevMode ? "bg-green-500" : "bg-gray-500"} text-white`}
-              onClick={toggleDevMode}
-            >
-              {localDevMode ? "ON" : "OFF"}
-            </button>
-          </div>
+          {canUseDeveloperMode && (
+            <div className="mb-4">
+              <label className="block font-semibold">Developer Mode (운영자 권한)</label>
+              <button
+                className={`px-3 py-1 rounded mt-1 ${localDevMode ? "bg-green-500" : "bg-gray-500"} text-white`}
+                onClick={toggleDevMode}
+              >
+                {localDevMode ? "ON" : "OFF"}
+              </button>
+            </div>
+          )}
 
           {/* Developer Mode Options */}
-          {localDevMode && (
+          {canUseDeveloperMode && localDevMode && (
             <div className="mb-4 pt-4 border-t border-gray-300">
               <h3 className="font-semibold mb-2">개발자 옵션</h3>
               {/* 도감 미발견 공개/숨김 (Dev 모드일 때만) */}

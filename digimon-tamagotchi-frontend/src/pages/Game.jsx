@@ -45,6 +45,7 @@ import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSe
 import ImmersiveLandscapeStatusPanel from "../components/layout/ImmersiveLandscapeStatusPanel";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 import { useImmersiveGameLayout } from "../hooks/game-runtime/useImmersiveGameLayout";
+import useOperatorStatus from "../hooks/useOperatorStatus";
 
 import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { digimonDataVer1 as newDigimonDataVer1 } from "../data/v1/digimons";
@@ -136,6 +137,8 @@ function Game({ immersive = false }){
   // 계정 설정 모달 상태
   const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   const { tamerName, setTamerName, hasVer1Master, hasVer2Master, refreshProfile } = useTamerProfile();
+  const { operatorStatus, isLoading: isOperatorStatusLoading } = useOperatorStatus();
+  const canUseDeveloperMode = Boolean(operatorStatus?.isOperator);
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
@@ -209,6 +212,25 @@ function Game({ immersive = false }){
     hasSeenDeathPopup,
     setHasSeenDeathPopup,
   } = flags || {};
+  const effectiveDeveloperMode = canUseDeveloperMode ? Boolean(developerMode) : false;
+
+  useEffect(() => {
+    if (
+      !isOperatorStatusLoading &&
+      currentUser &&
+      !canUseDeveloperMode &&
+      developerMode &&
+      typeof setDeveloperMode === "function"
+    ) {
+      setDeveloperMode(false);
+    }
+  }, [
+    canUseDeveloperMode,
+    currentUser,
+    developerMode,
+    isOperatorStatusLoading,
+    setDeveloperMode,
+  ]);
 
   const {
     activeMenu,
@@ -486,7 +508,7 @@ function Game({ immersive = false }){
     activityLogs,
     appendLogToSubcollection,
     selectedDigimon,
-    developerMode,
+    developerMode: effectiveDeveloperMode,
     ignoreEvolutionTime,
     slotId,
     currentUser,
@@ -717,7 +739,7 @@ function Game({ immersive = false }){
         sleepStatus,
         isLightsOn,
         evolutionStage,
-        developerMode,
+        developerMode: effectiveDeveloperMode,
         wakeUntil,
         deathReason,
       }),
@@ -745,7 +767,7 @@ function Game({ immersive = false }){
       sleepStatus,
       isLightsOn,
       evolutionStage,
-      developerMode,
+      effectiveDeveloperMode,
       wakeUntil,
       deathReason,
     ]
@@ -1066,7 +1088,7 @@ function Game({ immersive = false }){
   useGamePageEvolutionAvailability({
     isLoadingSlot,
     digimonStats,
-    developerMode,
+    developerMode: effectiveDeveloperMode,
     ignoreEvolutionTime,
     selectedDigimon,
     evolutionDataForSlot,
@@ -1507,7 +1529,8 @@ function Game({ immersive = false }){
         data={data}
         ui={modalUi}
         flags={{
-          developerMode,
+          developerMode: effectiveDeveloperMode,
+          canUseDeveloperMode,
           setDeveloperMode,
           encyclopediaShowQuestionMark,
           setEncyclopediaShowQuestionMark,

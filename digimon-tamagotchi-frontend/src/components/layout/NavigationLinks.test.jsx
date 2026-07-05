@@ -40,6 +40,20 @@ jest.mock("../../contexts/AuthContext", () => ({
   useAuth: () => mockAuthState,
 }));
 
+jest.mock("../../hooks/useOperatorStatus", () => ({
+  __esModule: true,
+  default: () => ({
+    operatorStatus: {
+      isOperator: false,
+      canAccessUserDirectory: false,
+    },
+    isLoading: false,
+    error: "",
+  }),
+}));
+
+jest.mock("../notifications/GlobalNotificationCenter", () => () => null);
+
 describe("홈과 노트북 전역 이동 링크", () => {
   beforeEach(() => {
     mockAuthState.currentUser = null;

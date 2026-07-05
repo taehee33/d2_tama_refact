@@ -71,7 +71,7 @@ function GameNotificationAction({ compact = false }) {
 
       {isOpen ? (
         <NotificationPanel
-          className="global-notification-center__panel game-notification-action__panel"
+          className="global-notification-center__panel notification-panel--mobile-safe game-notification-action__panel"
           recentNotifications={recentNotifications}
           isLoading={isLoading}
           errorMessage={errorMessage}

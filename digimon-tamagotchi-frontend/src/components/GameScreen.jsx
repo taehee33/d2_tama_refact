@@ -423,7 +423,7 @@ const GameScreen = ({
               position: "absolute",
               bottom: 8,
               right: 8,
-              zIndex: 4,
+              zIndex: 8,
               background: "rgba(255, 165, 0, 0.8)",
               color: "white",
               border: "2px solid #000",
@@ -447,7 +447,7 @@ const GameScreen = ({
               position: "absolute",
               bottom: 8,
               right: 8,
-              zIndex: 4,
+              zIndex: 8,
               background: "rgba(75, 85, 99, 0.85)",
               color: "white",
               border: "2px solid #000",
@@ -576,33 +576,46 @@ const GameScreen = ({
                           </button>
                         ) : null}
                       </div>
-                      {callStatusViewModel.recentCallHistory.map((entry) => (
-                        <div
-                          key={entry.id}
-                          className={`rounded border px-3 py-2 text-sm ${
-                            entry.isAcknowledged
-                              ? "border-gray-200 bg-white"
-                              : "border-amber-300 bg-amber-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="font-semibold text-gray-800">{entry.title}</span>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                  entry.isAcknowledged
-                                    ? "bg-gray-100 text-gray-500"
-                                    : "bg-amber-200 text-amber-800"
-                                }`}
-                              >
-                                {entry.isAcknowledged ? "확인됨" : "미확인"}
+                      {callStatusViewModel.recentCallHistory.map((entry) => {
+                        const isCareMistakeCall = entry.title?.includes("케어미스");
+                        const cardToneClass = entry.isAcknowledged
+                          ? isCareMistakeCall
+                            ? "border-red-100 bg-red-50"
+                            : "border-gray-200 bg-white"
+                          : isCareMistakeCall
+                            ? "border-red-300 bg-red-50"
+                            : "border-amber-300 bg-amber-50";
+                        const badgeToneClass = entry.isAcknowledged
+                          ? isCareMistakeCall
+                            ? "bg-red-100 text-red-600"
+                            : "bg-gray-100 text-gray-500"
+                          : isCareMistakeCall
+                            ? "bg-red-200 text-red-800"
+                            : "bg-amber-200 text-amber-800";
+                        const titleToneClass = isCareMistakeCall ? "text-red-900" : "text-gray-800";
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`rounded border px-3 py-2 text-sm ${cardToneClass}`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className={`font-semibold ${titleToneClass}`}>
+                                {entry.title}
                               </span>
-                              <span className="text-xs text-gray-400">{entry.timestampLabel}</span>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badgeToneClass}`}
+                                >
+                                  {entry.isAcknowledged ? "확인됨" : "미확인"}
+                                </span>
+                                <span className="text-xs text-gray-400">{entry.timestampLabel}</span>
+                              </div>
                             </div>
+                            <p className="mt-1 text-gray-600">{entry.text}</p>
                           </div>
-                          <p className="mt-1 text-gray-600">{entry.text}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="mt-2 text-sm text-gray-500">최근 호출 기록도 없습니다.</p>

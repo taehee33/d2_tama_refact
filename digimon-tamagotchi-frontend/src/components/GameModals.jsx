@@ -218,7 +218,16 @@ export default function GameModals({
     setWakeUntil,
   } = ui || {};
 
-  const { developerMode, setDeveloperMode, encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark, ignoreEvolutionTime, setIgnoreEvolutionTime, setIsEvolving } = flags || {};
+  const {
+    developerMode,
+    canUseDeveloperMode = false,
+    setDeveloperMode,
+    encyclopediaShowQuestionMark,
+    setEncyclopediaShowQuestionMark,
+    ignoreEvolutionTime,
+    setIgnoreEvolutionTime,
+    setIsEvolving,
+  } = flags || {};
   const ignoreAllEvolutionConditions = !!ignoreEvolutionTime;
   const starterDigimonId = getStarterDigimonId(slotVersion || "Ver.1");
   const supportsOnlineJogress =
@@ -306,6 +315,7 @@ export default function GameModals({
           <SettingsModal
             onClose={() => toggleModal('settings', false)}
             developerMode={developerMode}
+            canUseDeveloperMode={canUseDeveloperMode}
             setDeveloperMode={setDeveloperMode || (() => {})}
             encyclopediaShowQuestionMark={encyclopediaShowQuestionMark}
             setEncyclopediaShowQuestionMark={setEncyclopediaShowQuestionMark || (() => {})}

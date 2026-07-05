@@ -10,7 +10,7 @@ jest.mock("../hooks/usePwaInstallPrompt", () => () => ({
   promptInstall: jest.fn(),
 }));
 
-function renderSettingsModalWithParentState() {
+function renderSettingsModalWithParentState({ canUseDeveloperMode = true } = {}) {
   function Wrapper() {
     const [developerMode, setDeveloperMode] = React.useState(false);
     const [encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark] =
@@ -25,6 +25,7 @@ function renderSettingsModalWithParentState() {
         setFoodSizeScale={jest.fn()}
         developerMode={developerMode}
         setDeveloperMode={setDeveloperMode}
+        canUseDeveloperMode={canUseDeveloperMode}
         encyclopediaShowQuestionMark={encyclopediaShowQuestionMark}
         setEncyclopediaShowQuestionMark={setEncyclopediaShowQuestionMark}
         ignoreEvolutionTime={ignoreEvolutionTime}
@@ -60,6 +61,13 @@ function renderSettingsModalWithParentState() {
 }
 
 describe("SettingsModal developer options", () => {
+  test("운영자에게 Developer Mode 운영자 권한 라벨과 토글을 표시한다", () => {
+    renderSettingsModalWithParentState({ canUseDeveloperMode: true });
+
+    expect(screen.getByText("Developer Mode (운영자 권한)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "OFF" })).toBeInTheDocument();
+  });
+
   test("개발자 옵션 체크 변경이 저장 전 Developer Mode draft를 끄지 않는다", () => {
     renderSettingsModalWithParentState();
 
@@ -82,5 +90,60 @@ describe("SettingsModal developer options", () => {
 
     expect(screen.getByRole("button", { name: "ON" })).toBeInTheDocument();
     expect(screen.getByText("개발자 옵션")).toBeInTheDocument();
+  });
+
+  test("비운영자에게 Developer Mode와 개발자 옵션을 숨긴다", () => {
+    renderSettingsModalWithParentState({ canUseDeveloperMode: false });
+
+    expect(screen.queryByText(/Developer Mode/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "OFF" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ON" })).not.toBeInTheDocument();
+    expect(screen.queryByText("개발자 옵션")).not.toBeInTheDocument();
+  });
+
+  test("비운영자 저장 시 Developer Mode를 false로 보정한다", () => {
+    const setDeveloperMode = jest.fn();
+
+    render(
+      <SettingsModal
+        onClose={jest.fn()}
+        foodSizeScale={0.31}
+        setFoodSizeScale={jest.fn()}
+        developerMode
+        setDeveloperMode={setDeveloperMode}
+        canUseDeveloperMode={false}
+        encyclopediaShowQuestionMark={false}
+        setEncyclopediaShowQuestionMark={jest.fn()}
+        ignoreEvolutionTime={false}
+        setIgnoreEvolutionTime={jest.fn()}
+        width={300}
+        height={200}
+        setWidth={jest.fn()}
+        setHeight={jest.fn()}
+        backgroundNumber={1}
+        setBackgroundNumber={jest.fn()}
+        digimonSizeScale={1}
+        setDigimonSizeScale={jest.fn()}
+        timeMode="real"
+        setTimeMode={jest.fn()}
+        timeSpeed={1}
+        setTimeSpeed={jest.fn()}
+        customTime=""
+        setCustomTime={jest.fn()}
+        newDigimonDataVer1={null}
+        digimonDataVer1={null}
+        digimonDataVer2={null}
+        initializeStats={null}
+        setDigimonStatsAndSave={null}
+        setSelectedDigimonAndSave={null}
+        selectedDigimon="Agumon"
+        digimonStats={{}}
+        slotVersion="Ver.1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(setDeveloperMode).toHaveBeenCalledWith(false);
   });
 });

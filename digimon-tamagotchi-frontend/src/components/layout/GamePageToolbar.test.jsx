@@ -57,27 +57,25 @@ describe("GamePageToolbar", () => {
     render(<GamePageToolbar {...props} isMobile />);
 
     expect(screen.getByText("← 허브")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /채팅 열기/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /채팅 열기/ })).not.toBeInTheDocument();
+    expect(screen.getByText("접속자 3명")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "알림" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "더보기" })).toBeInTheDocument();
-    expect(screen.queryByText("접속자 3명")).not.toBeInTheDocument();
     expect(screen.queryByText("몰입형 플레이")).not.toBeInTheDocument();
-    expect(screen.queryByText("설정")).not.toBeInTheDocument();
+    expect(screen.queryByText("게임 설정")).not.toBeInTheDocument();
     expect(screen.getByText("테이머: 용사")).toBeInTheDocument();
     expect(screen.getAllByText("👑 Ver.1")).toHaveLength(1);
 
     fireEvent.click(screen.getByText("← 허브"));
-    fireEvent.click(screen.getByRole("button", { name: /채팅 열기/ }));
     fireEvent.click(screen.getByRole("button", { name: "더보기" }));
 
-    expect(screen.getByText("접속자 3명")).toBeInTheDocument();
+    expect(screen.getAllByText("접속자 3명")).toHaveLength(1);
     fireEvent.click(screen.getByText("몰입형 플레이"));
     fireEvent.click(screen.getByRole("button", { name: "더보기" }));
-    fireEvent.click(screen.getByText("설정"));
+    fireEvent.click(screen.getByText("게임 설정"));
 
     expect(props.onOpenPlayHub).toHaveBeenCalledTimes(1);
     expect(mockCloseNotification).toHaveBeenCalled();
-    expect(mockSetIsChatOpen).toHaveBeenCalledWith(true);
     expect(props.onOpenImmersiveView).toHaveBeenCalledTimes(1);
     expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
   });
