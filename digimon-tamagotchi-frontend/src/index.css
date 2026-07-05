@@ -8854,6 +8854,60 @@ code {
   }
 }
 
+@media (max-width: 640px) and (orientation: portrait) {
+  .stats-popup-modal {
+    align-items: flex-start;
+    justify-content: center;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 0.75rem
+      calc(env(safe-area-inset-bottom, 0px) + 6.75rem);
+  }
+
+  .stats-popup-modal__surface {
+    width: min(100%, 38rem) !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 7.5rem) !important;
+    margin: 0 auto;
+    padding: 1rem !important;
+    border-radius: 0.85rem;
+  }
+
+  .stats-popup-modal__header {
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .stats-popup-modal__title {
+    font-size: 1.25rem;
+    line-height: 1.2;
+  }
+
+  .stats-popup-modal__close {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0.45rem 0.75rem !important;
+    font-size: 1.2rem !important;
+    border-radius: 0.55rem !important;
+  }
+
+  .stats-popup-modal__tabs {
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .stats-popup-modal__tabs button {
+    flex: 1;
+    padding: 0.65rem 0.75rem !important;
+    font-size: 0.95rem;
+  }
+
+  .stats-popup-modal__content {
+    padding-right: 0.2rem;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @media (max-width: 960px) and (max-height: 560px) and (orientation: landscape) {
   .modal-mobile {
     max-height: calc(100dvh - 0.9rem);

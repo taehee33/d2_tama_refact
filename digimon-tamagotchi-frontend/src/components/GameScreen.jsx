@@ -624,11 +624,19 @@ const GameScreen = ({
               )}
             </div>
             
-            <div className="px-6 pb-6">
-              <div className="pt-4 border-t">
+            <div className="sticky bottom-0 z-20 bg-white px-6 pb-6 pt-4 border-t border-gray-200 shadow-[0_-8px_20px_rgba(15,23,42,0.06)]">
               <p className="text-xs text-gray-500">
                 💡 배고픔/힘 호출은 10분 내 대응이 필요하고, 수면 조명 경고는 30분 내 조명이 정리돼야 합니다.
               </p>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={onCallModalClose}
+                  className="w-full rounded-lg bg-slate-800 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-700"
+                  aria-label="호출 상태 닫기 하단"
+                >
+                  닫기
+                </button>
               </div>
             </div>
           </div>

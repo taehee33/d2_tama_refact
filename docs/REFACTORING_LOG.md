@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-07-05] 모바일 호출/상태 팝업 표시 보정
+
+- **내용:** 호출 상태 팝업 하단에 닫기 버튼을 추가하고, 모바일 세로 화면에서 상태 팝업이 iOS 브라우저 하단 UI에 잘려 보이지 않도록 safe-area 기반 높이와 내부 스크롤 영역을 보정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameScreen.test.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 모바일에서 긴 팝업을 닫는 동작과 스크롤 가능한 콘텐츠 영역을 명확히 해 하단 브라우저 UI와의 겹침을 줄인다.
+
 ## [2026-07-05] Developer Mode 운영자 권한 제한
 
 - **내용:** 게임 설정 모달의 `Developer Mode` 토글과 개발자 옵션을 운영자 권한 계정에만 노출하도록 제한했다. 운영자에게는 라벨을 `Developer Mode (운영자 권한)`으로 표시하고, 비운영자는 기존 localStorage에 developer mode가 켜져 있어도 게임 로직에 effective developer mode가 적용되지 않도록 보정했다.

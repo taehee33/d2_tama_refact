@@ -159,6 +159,24 @@ describe("GameScreen 호출 UI", () => {
     expect(onCallIconClick).toHaveBeenCalledTimes(1);
   });
 
+  test("호출 모달 하단 닫기 버튼으로 팝업을 닫을 수 있다", () => {
+    const onCallModalClose = jest.fn();
+
+    renderGameScreen({
+      showCallModal: true,
+      onCallModalClose,
+      digimonStats: {
+        activityLogs: [
+          { type: "CALL", text: "Call: Hungry!", timestamp: Date.now() - 5000 },
+        ],
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "호출 상태 닫기 하단" }));
+
+    expect(onCallModalClose).toHaveBeenCalledTimes(1);
+  });
+
   test("활성 호출이 없고 최근 기록만 있으면 최근 호출 아이콘으로 모달 진입 콜백을 호출한다", () => {
     const onCallIconClick = jest.fn();
 
