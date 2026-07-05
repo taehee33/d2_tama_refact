@@ -46,6 +46,21 @@ describe("OnlineUsersCount", () => {
     ).toBeInTheDocument();
   });
 
+  test("접속자가 0명이어도 채팅 바로가기와 접속자 수 액션을 유지한다", () => {
+    mockUsePresenceContext.mockReturnValue(
+      makeContext({
+        presenceData: [],
+        presenceCount: 0,
+        unreadCount: 0,
+      })
+    );
+
+    render(<OnlineUsersCount />);
+
+    expect(screen.getByTitle("채팅으로 이동")).toBeInTheDocument();
+    expect(screen.getByText("0명")).toBeInTheDocument();
+  });
+
   test("채팅 컨테이너가 있으면 스크롤로 이동하고 drawer를 직접 열지는 않는다", () => {
     const scrollIntoView = jest.fn();
     const chatContainer = { scrollIntoView };

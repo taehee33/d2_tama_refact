@@ -33,10 +33,6 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
     }
   }, [showPopup]);
 
-  if (presenceCount === 0) {
-    return null; // 접속자가 없으면 표시하지 않음
-  }
-
   const handleClick = () => {
     const newShowPopup = !showPopup;
     setShowPopup(newShowPopup);

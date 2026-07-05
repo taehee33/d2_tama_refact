@@ -53,6 +53,7 @@ function renderProfileMenu({
   showProfileMenu,
   onToggleProfileMenu,
   onCloseProfileMenu,
+  onOpenSettings,
   onOpenAccountSettings,
 }) {
   if (!currentUser) {
@@ -90,7 +91,7 @@ function renderProfileMenu({
           }
         >
           <span className="truncate">
-            {compact ? displayName : `테이머: ${displayName}`}
+            {displayName}
           </span>
           {renderMasterBadges({ hasVer1Master, hasVer2Master, compact })}
         </span>
@@ -115,11 +116,17 @@ function renderProfileMenu({
                     : "text-sm font-semibold text-gray-700 whitespace-nowrap truncate flex flex-wrap items-center gap-1"
                 }
               >
-                <span>테이머: {displayName}</span>
+                <span>{displayName}</span>
                 {renderMasterBadges({ hasVer1Master, hasVer2Master, compact })}
               </p>
               <p className="text-xs text-gray-500 truncate">{currentUser.email}</p>
             </div>
+            <button
+              onClick={onOpenSettings}
+              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 pixel-art-button"
+            >
+              게임 설정
+            </button>
             <button
               onClick={onOpenAccountSettings}
               className="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50 pixel-art-button"
@@ -305,14 +312,6 @@ function GamePageToolbar({
       <div className="game-page-toolbar__utilities">
         {onlineUsersNode}
 
-        <button
-          onClick={onOpenSettings}
-          className="px-3 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-          title="설정"
-        >
-          ⚙️
-        </button>
-
         <GameNotificationAction />
 
         {isFirebaseAvailable
@@ -324,6 +323,7 @@ function GamePageToolbar({
               showProfileMenu,
               onToggleProfileMenu,
               onCloseProfileMenu,
+              onOpenSettings,
               onOpenAccountSettings,
             })
           : null}

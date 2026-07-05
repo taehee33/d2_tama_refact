@@ -7,6 +7,7 @@
 - 서비스 화면은 기존 floating 알림을 유지하고, 일반 게임 화면은 `GamePageToolbar` 알림 액션으로 편입했으며, 몰입형 게임 화면에서는 알림을 숨기도록 했습니다.
 - 모바일 게임 toolbar는 핵심 액션 중심으로 정리하고 보조 액션을 더보기로 넘기며, 채팅/알림/더보기 동시 열림 우선순위와 safe-area/z-index 보정을 함께 적용했습니다.
 - PC 서비스 화면에서는 알림을 전역 우측 floating이 아니라 상단 네비의 테이머명 왼쪽 inline 액션으로 이동했고, 데스크톱 게임 toolbar의 중복 채팅 버튼을 제거했습니다.
+- 데스크톱 게임 toolbar는 채팅 바로가기/접속자 수, 알림, 테이머명 순서로 정리하고, `테이머:` 접두어를 제거했으며 게임 설정 진입은 테이머 메뉴 안으로 이동했습니다.
 
 ### 테스트 보강
 - route/layout 판별, service floating 알림, game toolbar 알림, 모바일 toolbar overflow, 채팅 버튼 variant, 게임 route 채팅 drawer 정책을 테스트했습니다.
@@ -16,6 +17,7 @@
 - `src/contexts/NotificationCenterContext.jsx`
 - `src/components/notifications/*`
 - `src/components/layout/GamePageToolbar.jsx`
+- `src/components/OnlineUsersCount.jsx`
 - `src/components/chat/PlayChatButton.jsx`
 - `src/components/chat/PlayChatDrawer.jsx`
 - `src/index.css`
