@@ -9,6 +9,7 @@ import {
 function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
   const [device, setDevice] = useState("Digital Monster Color 25th");
   const [version, setVersion] = useState("Ver.1");
+  const preparingVersions = new Set(["Ver.3", "Ver.4", "Ver.5"]);
   const digitamaPreviews = useMemo(
     () =>
       SUPPORTED_DIGIMON_VERSIONS.map((versionLabel) => {
@@ -35,7 +36,10 @@ function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
 
   return (
     <div className="service-modal-backdrop" onClick={onClose}>
-      <div className="service-modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="service-modal service-modal--new-digimon"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="service-modal__header">
           <div>
             <p className="service-section-label">새 디지몬</p>
@@ -79,6 +83,7 @@ function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
             <div className="service-digitama-preview__grid">
               {digitamaPreviews.map((preview) => {
                 const isSelected = preview.version === version;
+                const isPreparing = preparingVersions.has(preview.version);
 
                 return (
                   <button
@@ -99,7 +104,12 @@ function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
                         style={{ imageRendering: "pixelated" }}
                       />
                     </span>
-                    <span className="service-digitama-preview__version">{preview.version}</span>
+                    <span className="service-digitama-preview__version">
+                      {preview.version}
+                      {isPreparing ? (
+                        <span className="service-digitama-preview__tag">(준비중)</span>
+                      ) : null}
+                    </span>
                     <span className="service-digitama-preview__name">{preview.name}</span>
                     {isSelected ? (
                       <span className="service-digitama-preview__selected">선택됨</span>

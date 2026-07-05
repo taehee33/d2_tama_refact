@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-07-05] 새 디지몬 시작 모달 모바일 CTA 표시 보정
+
+- **내용:** 새 디지몬 시작 모달에 전용 modifier class를 추가하고, 서비스 모달의 z-index와 모바일 safe-area 높이, 내부 스크롤 구조를 보정했다. 카드 목록은 모달 본문 안에서 스크롤되고, `취소`/`시작하기` footer는 채팅 FAB와 하단 탭바에 가려지지 않도록 유지한다. Ver.3~Ver.5 디지타마 카드는 선택 가능 상태를 유지하면서 `(준비중)` 태그만 표시한다.
+- **추가 보정:** 최근 이어하기 카드의 긴 상태 chip이 모바일에서 카드 밖으로 삐져나가지 않도록 chip row 폭과 줄바꿈 처리를 보강했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.test.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 모바일에서 버전 카드 목록이 길어질 때 시작 CTA가 화면 밖으로 밀리거나 floating 채팅 버튼과 겹치는 문제를 줄인다.
+
 ## [2026-07-05] 모바일 호출/상태 팝업 표시 보정
 
 - **내용:** 호출 상태 팝업 하단에 닫기 버튼을 추가하고, 모바일 세로 화면에서 상태 팝업이 iOS 브라우저 하단 UI에 잘려 보이지 않도록 safe-area 기반 높이와 내부 스크롤 영역을 보정했다.

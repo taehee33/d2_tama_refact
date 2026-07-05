@@ -15,7 +15,9 @@ function renderNewDigimonModal(props = {}) {
 
 describe("NewDigimonModal", () => {
   test("모달이 열리면 Ver.1~Ver.5 디지타마 카드를 모두 표시한다", () => {
-    renderNewDigimonModal();
+    const { container } = renderNewDigimonModal();
+
+    expect(container.querySelector(".service-modal--new-digimon")).toBeInTheDocument();
 
     ["Ver.1", "Ver.2", "Ver.3", "Ver.4", "Ver.5"].forEach((version) => {
       expect(
@@ -23,6 +25,7 @@ describe("NewDigimonModal", () => {
       ).toBeInTheDocument();
       expect(screen.getByRole("img", { name: new RegExp(`^${version}`) })).toBeInTheDocument();
     });
+    expect(screen.getAllByText("(준비중)")).toHaveLength(3);
   });
 
   test("디지타마 카드를 클릭하면 버전 select 값이 함께 바뀐다", () => {

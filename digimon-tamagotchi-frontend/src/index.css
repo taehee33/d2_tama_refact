@@ -6444,19 +6444,26 @@ code {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .service-status-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 0;
   min-height: 1.85rem;
   padding: 0.36rem 0.68rem;
   border-radius: 999px;
   border: 1px solid transparent;
   font-size: 0.78rem;
   font-weight: 900;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .service-status-chip--danger {
@@ -6688,8 +6695,23 @@ code {
 }
 
 .service-digitama-preview__version {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.service-digitama-preview__tag {
+  padding: 0.1rem 0.32rem;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .service-digitama-preview__name {
@@ -7431,7 +7453,7 @@ code {
 .service-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7458,6 +7480,7 @@ code {
 
 .service-modal__header,
 .service-modal__footer {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -7470,6 +7493,8 @@ code {
 }
 
 .service-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -7997,6 +8022,25 @@ code {
 }
 
 @media (max-width: 768px) {
+  .service-modal-backdrop {
+    padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1rem
+      calc(env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  .service-modal {
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 2rem
+    );
+  }
+
+  .service-modal--new-digimon .service-modal__body {
+    padding-bottom: 1rem;
+  }
+
+  .service-modal__footer {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
   .service-digitama-preview__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
