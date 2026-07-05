@@ -89,7 +89,8 @@ describe("GamePageToolbar", () => {
     render(<GamePageToolbar {...props} />);
 
     expect(screen.getByText("몰입형 플레이")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /채팅 열기/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /채팅 열기/ })).not.toBeInTheDocument();
+    expect(screen.getByText("접속자 3명")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "알림" })).toBeInTheDocument();
     expect(screen.getAllByText("테이머: 용사").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("계정 설정/로그아웃")[0]).toBeInTheDocument();

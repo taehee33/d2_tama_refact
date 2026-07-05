@@ -303,18 +303,6 @@ function GamePageToolbar({
       </div>
 
       <div className="game-page-toolbar__utilities">
-        <button
-          type="button"
-          onClick={handleToggleChat}
-          className={`px-3 py-2 bg-blue-100 hover:bg-blue-200 text-slate-800 rounded pixel-art-button${
-            isChatOpen ? " bg-blue-200" : ""
-          }`}
-          aria-label={`채팅 ${isChatOpen ? "닫기" : "열기"}, 현재 ${presenceCount || 0}명 접속 중`}
-          aria-expanded={isChatOpen}
-        >
-          💬
-        </button>
-
         {onlineUsersNode}
 
         <button

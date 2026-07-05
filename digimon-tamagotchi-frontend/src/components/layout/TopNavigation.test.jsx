@@ -39,6 +39,9 @@ jest.mock("../../hooks/useOperatorStatus", () => ({
 }));
 
 jest.mock("../home/NotebookTopBar", () => () => <div>노트북 상단바</div>);
+jest.mock("../notifications/GlobalNotificationCenter", () => ({ placement }) => (
+  <div data-testid="topnav-notification">{`알림:${placement}`}</div>
+));
 
 function createMenuState(overrides = {}) {
   return {
@@ -73,6 +76,13 @@ describe("TopNavigation", () => {
     render(<TopNavigation tamerName="테이머" />);
 
     expect(screen.queryByRole("link", { name: "사용자관리" })).not.toBeInTheDocument();
+  });
+
+  test("로그인 상태에서는 알림을 계정 메뉴 왼쪽 inline 영역에 렌더링한다", () => {
+    render(<TopNavigation tamerName="테이머" />);
+
+    expect(screen.getByTestId("topnav-notification")).toHaveTextContent("알림:inline");
+    expect(screen.getByRole("button", { name: "테이머 계정 메뉴" })).toBeInTheDocument();
   });
 
   test("운영자 권한이 있으면 소개 오른쪽에 사용자관리 메뉴를 노출한다", () => {

@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { useNotificationCenter } from "../../contexts/NotificationCenterContext";
 import NotificationPanel from "./NotificationPanel";
 
-function GlobalNotificationCenter() {
+function GlobalNotificationCenter({ placement = "floating" }) {
   const rootRef = useRef(null);
   const {
     recentNotifications,
@@ -49,7 +49,10 @@ function GlobalNotificationCenter() {
   }
 
   return (
-    <div className="global-notification-center" ref={rootRef}>
+    <div
+      className={`global-notification-center global-notification-center--${placement}`}
+      ref={rootRef}
+    >
       <button
         type="button"
         className={`global-notification-center__button${

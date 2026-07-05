@@ -6,6 +6,7 @@
 - route/layout별 알림 렌더링 정책을 분리하고, 알림 상태 로직을 service floating UI와 game toolbar UI에서 공유하도록 `NotificationCenterProvider` 기반으로 정리했습니다.
 - 서비스 화면은 기존 floating 알림을 유지하고, 일반 게임 화면은 `GamePageToolbar` 알림 액션으로 편입했으며, 몰입형 게임 화면에서는 알림을 숨기도록 했습니다.
 - 모바일 게임 toolbar는 핵심 액션 중심으로 정리하고 보조 액션을 더보기로 넘기며, 채팅/알림/더보기 동시 열림 우선순위와 safe-area/z-index 보정을 함께 적용했습니다.
+- PC 서비스 화면에서는 알림을 전역 우측 floating이 아니라 상단 네비의 테이머명 왼쪽 inline 액션으로 이동했고, 데스크톱 게임 toolbar의 중복 채팅 버튼을 제거했습니다.
 
 ### 테스트 보강
 - route/layout 판별, service floating 알림, game toolbar 알림, 모바일 toolbar overflow, 채팅 버튼 variant, 게임 route 채팅 drawer 정책을 테스트했습니다.

@@ -13,6 +13,7 @@ import {
 import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 import useOperatorStatus from "../../hooks/useOperatorStatus";
 import NotebookTopBar from "../home/NotebookTopBar";
+import GlobalNotificationCenter from "../notifications/GlobalNotificationCenter";
 
 function TopNavigation({ tamerName = "" }) {
   const location = useLocation();
@@ -258,6 +259,8 @@ function TopNavigation({ tamerName = "" }) {
               </div>
             ) : null}
           </div>
+
+          {currentUser ? <GlobalNotificationCenter placement="inline" /> : null}
 
           {currentUser ? (
             <div className="service-topnav__account" ref={accountMenuRef}>

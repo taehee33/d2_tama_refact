@@ -6861,6 +6861,16 @@ code {
   z-index: var(--z-floating-notification);
 }
 
+.global-notification-center--inline {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .global-notification-center__button {
   position: relative;
   display: inline-flex;
@@ -6875,6 +6885,12 @@ code {
   box-shadow: 0 16px 34px rgba(30, 42, 35, 0.16);
   cursor: pointer;
   backdrop-filter: blur(14px);
+}
+
+.global-notification-center--inline .global-notification-center__button {
+  width: 2.65rem;
+  height: 2.65rem;
+  box-shadow: 0 12px 24px rgba(30, 42, 35, 0.12);
 }
 
 .global-notification-center__button--open {
