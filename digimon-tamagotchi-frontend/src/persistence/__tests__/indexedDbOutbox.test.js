@@ -343,6 +343,50 @@ describe('indexedDbOutbox', () => {
     ).resolves.toHaveLength(1);
   });
 
+  it('콜론이 포함된 EVOLUTION eventId도 같은 activity eventKey로 재사용한다', async () => {
+    const outbox = createIndexedDbOutbox({
+      storage: createMemoryStorage(),
+    });
+    const eventId =
+      'activity:evolution:evolution:1700000000000:Agumon:Greymon:abc123';
+
+    await outbox.putActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId,
+      occurredAt: 1700000000000,
+      payload: {
+        type: 'EVOLUTION',
+        text: 'Evolution: Evolved to 그레이몬!',
+        transitionId: 'evolution:1700000000000:Agumon:Greymon:abc123',
+        eventId,
+      },
+    });
+    await outbox.putActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId,
+      occurredAt: 1700000000001,
+      payload: {
+        type: 'EVOLUTION',
+        text: 'Evolution: Evolved to 그레이몬!',
+        transitionId: 'evolution:1700000000000:Agumon:Greymon:abc123',
+        eventId,
+        retried: true,
+      },
+    });
+
+    const events = await outbox.listActivityEvents({
+      uid: 'user-a',
+      slotId: 'slot-1',
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].eventId).toBe(eventId);
+    expect(events[0].eventKey).toBe(`user-a::slot-1::activity::${eventId}`);
+    expect(events[0].payload.retried).toBe(true);
+  });
+
   it('FEED event는 개별 보존되며 15분 bucket summary를 계산한다', async () => {
     const outbox = createIndexedDbOutbox({
       storage: createMemoryStorage(),

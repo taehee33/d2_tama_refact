@@ -32,6 +32,12 @@ export function buildEvolutionResetStats(currentStats = {}, targetDigimonData = 
   };
 }
 
+export function buildEvolutionActivityLogEventId(transitionId) {
+  const normalizedTransitionId =
+    typeof transitionId === "string" ? transitionId.trim() : "";
+  return normalizedTransitionId ? `activity:evolution:${normalizedTransitionId}` : null;
+}
+
 export function buildEvolutionTransitionState({
   currentStats = {},
   existingLogs = [],
@@ -39,6 +45,8 @@ export function buildEvolutionTransitionState({
   targetMap = {},
   logText,
   snapshotArgs = [],
+  transitionId,
+  eventId,
 }) {
   const targetDigimonData = targetMap[targetId] || {};
   const resetStats = buildEvolutionResetStats(currentStats, targetDigimonData);
@@ -49,11 +57,22 @@ export function buildEvolutionTransitionState({
   }
 
   const resultName = targetDigimonData.name || targetId;
+  const normalizedTransitionId =
+    typeof transitionId === "string" ? transitionId.trim() : "";
+  const normalizedEventId =
+    normalizedTransitionId && typeof eventId === "string" ? eventId.trim() : "";
+  const evolutionEventId =
+    normalizedEventId || buildEvolutionActivityLogEventId(normalizedTransitionId);
+  const logSnapshot = {
+    ...buildDigimonLogSnapshot(targetId, ...snapshotArgs),
+    ...(normalizedTransitionId ? { transitionId: normalizedTransitionId } : {}),
+    ...(evolutionEventId ? { eventId: evolutionEventId } : {}),
+  };
   const updatedLogs = addActivityLog(
     Array.isArray(existingLogs) ? existingLogs : [],
     "EVOLUTION",
     logText || `Evolution: Evolved to ${resultName}!`,
-    buildDigimonLogSnapshot(targetId, ...snapshotArgs)
+    logSnapshot
   );
 
   return {

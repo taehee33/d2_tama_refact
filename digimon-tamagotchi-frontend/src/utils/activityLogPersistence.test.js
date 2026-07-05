@@ -68,4 +68,38 @@ describe("activityLogPersistence", () => {
     expect(first.eventId).toBe(second.eventId);
     expect(getPersistentActivityLogDocId(first)).toBe(first.eventId);
   });
+
+  test("EVOLUTION 로그는 명시 eventId와 transitionId를 영구 저장 payload에 보존한다", () => {
+    const log = {
+      type: "EVOLUTION",
+      text: "Evolution: Evolved to 그레이몬!",
+      timestamp: 1700000000000,
+      transitionId: "evolution:1700000000000:Agumon:Greymon:abc123",
+      eventId:
+        "activity:evolution:evolution:1700000000000:Agumon:Greymon:abc123",
+      digimonId: "Greymon",
+      digimonName: "그레이몬",
+    };
+
+    expect(buildPersistentActivityLogPayload(log)).toMatchObject({
+      type: "EVOLUTION",
+      transitionId: "evolution:1700000000000:Agumon:Greymon:abc123",
+      eventId:
+        "activity:evolution:evolution:1700000000000:Agumon:Greymon:abc123",
+      digimonId: "Greymon",
+      digimonName: "그레이몬",
+    });
+  });
+
+  test("non-EVOLUTION 로그의 transitionId는 영구 저장 payload에 추가하지 않는다", () => {
+    const payload = buildPersistentActivityLogPayload({
+      type: "TRAIN",
+      text: "훈련 성공",
+      timestamp: 123456789,
+      transitionId: "evolution:unused",
+    });
+
+    expect(payload.transitionId).toBeUndefined();
+    expect(payload.eventId).toMatch(/^activity:train:123456789:/);
+  });
 });

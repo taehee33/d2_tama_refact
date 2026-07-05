@@ -296,6 +296,17 @@ describe("useEvolution jogress flows", () => {
     });
 
     expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Betamon");
+    const appendedEvolutionLog = params.appendLogToSubcollection.mock.calls[0][0];
+    const savedEvolutionLog = params.setDigimonStatsAndSave.mock.calls[0][1].slice(-1)[0];
+    expect(appendedEvolutionLog.type).toBe("EVOLUTION");
+    expect(appendedEvolutionLog.transitionId).toMatch(
+      /^evolution:\d+:Agumon:Betamon:/
+    );
+    expect(appendedEvolutionLog.eventId).toBe(
+      `activity:evolution:${appendedEvolutionLog.transitionId}`
+    );
+    expect(savedEvolutionLog.transitionId).toBe(appendedEvolutionLog.transitionId);
+    expect(savedEvolutionLog.eventId).toBe(appendedEvolutionLog.eventId);
     expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 

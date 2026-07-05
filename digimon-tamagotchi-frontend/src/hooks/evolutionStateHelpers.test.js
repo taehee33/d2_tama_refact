@@ -1,9 +1,16 @@
 import {
+  buildEvolutionActivityLogEventId,
   buildEvolutionResetStats,
   buildEvolutionTransitionState,
 } from "./evolutionStateHelpers";
 
 describe("evolutionStateHelpers", () => {
+  afterEach(() => {
+    if (Date.now.mockRestore) {
+      Date.now.mockRestore();
+    }
+  });
+
   test("buildEvolutionResetStats는 진화 시 리셋되는 전투/케어 값을 초기화한다", () => {
     const resetStats = buildEvolutionResetStats(
       {
@@ -89,5 +96,57 @@ describe("evolutionStateHelpers", () => {
     });
     expect(result.nextStatsWithLogs.selectedDigimon).toBe("Greymon");
     expect(result.nextStatsWithLogs.activityLogs).toEqual(result.updatedLogs);
+  });
+
+  test("transitionId가 있으면 EVOLUTION 로그에 transitionId와 명시 eventId를 남긴다", () => {
+    const result = buildEvolutionTransitionState({
+      currentStats: {},
+      existingLogs: [],
+      targetId: "Greymon",
+      targetMap: {
+        Greymon: {
+          id: "Greymon",
+          name: "그레이몬",
+        },
+      },
+      transitionId: "evolution:1700000000000:Agumon:Greymon:abc123",
+    });
+
+    expect(result.updatedLogs[0]).toMatchObject({
+      type: "EVOLUTION",
+      transitionId: "evolution:1700000000000:Agumon:Greymon:abc123",
+      eventId:
+        "activity:evolution:evolution:1700000000000:Agumon:Greymon:abc123",
+    });
+  });
+
+  test("같은 transitionId는 같은 eventId를 만들고 다른 transitionId는 다른 eventId를 만든다", () => {
+    const first = buildEvolutionActivityLogEventId("evolution:1:Agumon:Greymon:a");
+    const duplicate = buildEvolutionActivityLogEventId("evolution:1:Agumon:Greymon:a");
+    const other = buildEvolutionActivityLogEventId("evolution:1:Agumon:Greymon:b");
+
+    expect(first).toBe(duplicate);
+    expect(first).not.toBe(other);
+  });
+
+  test("transitionId가 없으면 기존 timestamp 기반 EVOLUTION eventId 정책을 유지한다", () => {
+    jest.spyOn(Date, "now").mockReturnValue(123456789);
+
+    const result = buildEvolutionTransitionState({
+      currentStats: {},
+      existingLogs: [],
+      targetId: "Greymon",
+      targetMap: {
+        Greymon: {
+          id: "Greymon",
+          name: "그레이몬",
+        },
+      },
+    });
+
+    expect(result.updatedLogs[0].transitionId).toBeUndefined();
+    expect(result.updatedLogs[0].eventId).toMatch(
+      /^activity:evolution:123456789:/
+    );
   });
 });

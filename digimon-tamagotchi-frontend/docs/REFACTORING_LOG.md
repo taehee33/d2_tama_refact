@@ -2217,3 +2217,31 @@
 ### 아키텍처 결정 근거
 - 알림 서버는 저장된 슬롯을 lazy update로 투영하지만, 마지막 저장 시각과 검사 시각이 같거나 서버 기준 미래이면 경과 시간이 0이 되어 stale 호출 메타가 그대로 남을 수 있습니다.
 - 저장 계약을 바꾸지 않고 projection 정리와 이슈 생성 방어를 함께 두면, 오래된 Firestore 문서가 있어도 현재 회복된 하트 상태와 알림 의미가 어긋나지 않습니다.
+
+## 2026-07-05
+
+### EVOLUTION transition identity 안정화
+- 일반 `evolve()` 실행마다 `transitionId`를 한 번 생성해 EVOLUTION activity log에 함께 남기도록 했습니다.
+- `transitionId`가 있는 EVOLUTION 로그는 `activity:evolution:${transitionId}` 형식의 명시 `eventId`를 사용해 같은 transition 내에서는 동일한 로그 문서 키와 outbox key를 재사용할 수 있게 했습니다.
+- `transitionId`가 없는 기존 `buildEvolutionTransitionState()` 호출은 기존 Date.now 기반 eventId 생성 정책을 그대로 유지합니다.
+- Firestore 영구 저장 payload는 EVOLUTION 로그에 한해서만 `transitionId`를 보존하며, non-EVOLUTION activityLog eventId 정책은 변경하지 않았습니다.
+
+### 테스트 보강
+- EVOLUTION 로그의 `transitionId`/명시 `eventId` 생성, 같은 transitionId의 동일 eventId, 다른 transitionId의 다른 eventId, transitionId 없는 레거시 eventId 경로를 테스트했습니다.
+- `useEvolution`의 일반 진화 경로에서 subcollection append와 stats 저장 로그가 같은 transition identity를 공유하는지 확인했습니다.
+- persistence payload와 IndexedDB outbox가 콜론 포함 EVOLUTION eventId를 안정적으로 다루는지 확인했습니다.
+
+### 영향받은 파일
+- `src/hooks/evolutionStateHelpers.js`
+- `src/hooks/useEvolution.js`
+- `src/utils/activityLogPersistence.js`
+- `src/hooks/evolutionStateHelpers.test.js`
+- `src/hooks/useEvolution.test.js`
+- `src/hooks/useGameLogic.test.js`
+- `src/utils/activityLogPersistence.test.js`
+- `src/persistence/__tests__/indexedDbOutbox.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 이번 변경은 EVOLUTION log identity만 안정화하고, 저장 순서나 encyclopedia 동기화 정책은 바꾸지 않습니다.
+- reload/retry까지 포괄하는 idempotency는 persisted transition state 또는 recovery 설계가 필요하므로 별도 Phase로 남깁니다.

@@ -70,12 +70,17 @@ export function isImportantFeedActivityLog(logEntry) {
 
 export function buildPersistentActivityLogPayload(logEntry = {}) {
   const eventId = buildActivityLogEventId(logEntry);
+  const transitionId =
+    logEntry?.type === "EVOLUTION" && typeof logEntry?.transitionId === "string"
+      ? logEntry.transitionId.trim()
+      : "";
 
   return {
     type: logEntry?.type,
     text: logEntry?.text ?? "",
     timestamp: logEntry?.timestamp ?? Date.now(),
     ...(eventId ? { eventId } : {}),
+    ...(transitionId ? { transitionId } : {}),
     ...(logEntry?.digimonId ? { digimonId: logEntry.digimonId } : {}),
     ...(logEntry?.digimonName ? { digimonName: logEntry.digimonName } : {}),
   };

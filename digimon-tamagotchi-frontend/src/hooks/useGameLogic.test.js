@@ -755,4 +755,15 @@ describe("useGameLogic hunger/strength call consistency", () => {
     expect(duplicateLogs).toHaveLength(1);
     expect(duplicateLogs[0].eventId).toBe(firstLogs[0].eventId);
   });
+
+  test("non-EVOLUTION activityLog eventId는 기존 timestamp 기반 정책을 유지한다", () => {
+    const logs = addActivityLog([], "ACTION", "훈련 성공", {
+      timestamp: 123456789,
+      transitionId: "evolution:unused",
+    });
+
+    expect(logs[0].transitionId).toBe("evolution:unused");
+    expect(logs[0].eventId).toMatch(/^activity:action:123456789:/);
+    expect(logs[0].eventId).not.toContain("evolution:unused");
+  });
 });

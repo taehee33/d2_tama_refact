@@ -72,6 +72,25 @@ const EVOLUTION_SHAKE_DURATION_MS = 2000;
 const EVOLUTION_FLASH_DURATION_MS = 2000;
 const EVOLUTION_COMPLETE_DELAY_MS = 500;
 
+function normalizeEvolutionTransitionToken(value, fallback = "unknown") {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return (normalized || fallback).replace(/[^a-zA-Z0-9_-]+/g, "-");
+}
+
+function createEvolutionTransitionId({ fromDigimon, targetDigimon, nowMs = Date.now() } = {}) {
+  const browserCrypto = typeof window !== "undefined" ? window.crypto : null;
+  const randomId =
+    browserCrypto?.randomUUID?.() ||
+    Math.random().toString(36).slice(2);
+  return [
+    "evolution",
+    nowMs,
+    normalizeEvolutionTransitionToken(fromDigimon, "unknown"),
+    normalizeEvolutionTransitionToken(targetDigimon, "unknown"),
+    normalizeEvolutionTransitionToken(randomId, "random"),
+  ].join(":");
+}
+
 /**
  * useEvolution Hook
  * 진화 관련 로직을 담당하는 Custom Hook
@@ -349,6 +368,10 @@ export function useEvolution({
       const currentStats = await applyLazyUpdateBeforeAction();
       const old = { ...currentStats };
       const existingLogs = currentStats.activityLogs || activityLogs || [];
+      const transitionId = createEvolutionTransitionId({
+        fromDigimon: selectedDigimon || old.selectedDigimon,
+        targetDigimon: newName,
+      });
       const {
         targetDigimonData: newDigimonData,
         updatedLogs,
@@ -364,6 +387,7 @@ export function useEvolution({
           evolutionDataVer1,
           digimonDataVer2,
         ],
+        transitionId,
       });
 
       if (newDigimonData?.sprite !== undefined) {
