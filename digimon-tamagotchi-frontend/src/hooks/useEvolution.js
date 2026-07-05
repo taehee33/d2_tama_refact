@@ -71,6 +71,7 @@ export async function persistJogressLogWithArchive({
 const EVOLUTION_SHAKE_DURATION_MS = 2000;
 const EVOLUTION_FLASH_DURATION_MS = 2000;
 const EVOLUTION_COMPLETE_DELAY_MS = 500;
+const EVOLUTION_REVEAL_BEFORE_MODAL_DELAY_MS = 1200;
 
 function normalizeEvolutionTransitionToken(value, fallback = "unknown") {
   const normalized = typeof value === "string" ? value.trim() : "";
@@ -253,11 +254,20 @@ export function useEvolution({
         setTimeout(() => {
           setEvolutionStage('flashing');
           setTimeout(() => {
-            setEvolutionStage('complete');
+            setEvolutionStage('revealing');
             setTimeout(async () => {
               try {
                 await evolve(targetId, { allowInFlight: true });
-              } finally {
+                setEvolutionStage('revealed');
+                setTimeout(() => {
+                  setEvolutionStage('complete');
+                  if (typeof setIsEvolving === 'function') setIsEvolving(false);
+                  if (evolutionInFlightRef.current === "proceedEvolution") {
+                    evolutionInFlightRef.current = null;
+                  }
+                }, EVOLUTION_REVEAL_BEFORE_MODAL_DELAY_MS);
+              } catch (error) {
+                console.error("진화 처리 오류:", error);
                 if (typeof setIsEvolving === 'function') setIsEvolving(false);
                 if (evolutionInFlightRef.current === "proceedEvolution") {
                   evolutionInFlightRef.current = null;

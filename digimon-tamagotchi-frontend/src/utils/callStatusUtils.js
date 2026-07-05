@@ -105,10 +105,11 @@ export function normalizeCallLogText(value) {
 
 function normalizeCallHistoryTitle(log) {
   const normalizedText = normalizeCallLogText(log);
+  const isCareMistake = normalizedText.includes("케어미스");
 
-  if (normalizedText.includes("배고픔 호출")) return "배고픔 호출";
-  if (normalizedText.includes("힘 호출")) return "힘 호출";
-  if (normalizedText.includes("수면 조명 경고")) return "수면 조명 경고";
+  if (normalizedText.includes("배고픔 호출")) return buildMissedCallTitle("hunger", isCareMistake);
+  if (normalizedText.includes("힘 호출")) return buildMissedCallTitle("strength", isCareMistake);
+  if (normalizedText.includes("수면 조명 경고")) return buildMissedCallTitle("sleep", isCareMistake);
   if (normalizedText.includes("케어미스")) return "케어미스";
 
   return log?.type === "CALL" ? "호출" : "최근 기록";
@@ -127,6 +128,11 @@ function buildMissedCallText(type) {
   return type === "sleep"
     ? "수면 조명 경고가 케어미스로 처리되었습니다."
     : `${title}이 케어미스로 처리되었습니다.`;
+}
+
+function buildMissedCallTitle(type, isMissed = true) {
+  const title = CALL_META[type]?.title || "호출";
+  return isMissed ? `${title} -> 케어미스!` : title;
 }
 
 function buildCanonicalRecentCallId({
@@ -244,7 +250,7 @@ function buildRecentLedgerHistory(careMistakeLedger) {
         source: "ledger",
         isReconstructed: entry.source === "backfill",
         type: "CAREMISTAKE",
-        title: CALL_META[type]?.title || "호출",
+        title: buildMissedCallTitle(type),
         text,
         timestamp,
         timestampLabel: timestamp ? formatTimestamp(timestamp) : "시간 정보 없음",
@@ -281,7 +287,7 @@ function buildRecentLoggedCallEntry({ type, callEntry, currentTimeMs }) {
     source: "callStatus",
     isReconstructed: false,
     type: "CAREMISTAKE",
-    title,
+    title: buildMissedCallTitle(type),
     text,
     timestamp,
     timestampLabel: timestamp ? formatTimestamp(timestamp) : "시간 정보 없음",

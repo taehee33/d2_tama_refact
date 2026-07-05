@@ -2117,6 +2117,18 @@ code {
   animation: evolution-screen-flash 0.18s steps(2, end) infinite;
 }
 
+.evolution-reveal-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(255, 242, 128, 0.42) 0%, rgba(255, 242, 128, 0.18) 32%, rgba(255, 255, 255, 0) 62%),
+    rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 3px rgba(250, 204, 21, 0.75);
+  animation: evolution-reveal-spotlight 0.6s steps(2, end) infinite;
+}
+
 @keyframes flash {
   0%, 100% {
     filter: invert(0);
@@ -2132,6 +2144,15 @@ code {
   }
   50% {
     background: rgba(255, 255, 255, 0.48);
+  }
+}
+
+@keyframes evolution-reveal-spotlight {
+  0%, 100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 1;
   }
 }
 

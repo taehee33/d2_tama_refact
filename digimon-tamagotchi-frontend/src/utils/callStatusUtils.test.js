@@ -277,7 +277,12 @@ describe("callStatusUtils", () => {
         text: "수면 조명 경고가 시작되었습니다.",
       })
     );
-    expect(viewModel.recentCallHistory[1].text).toContain("배고픔 호출");
+    expect(viewModel.recentCallHistory[1]).toEqual(
+      expect.objectContaining({
+        title: "배고픔 호출 -> 케어미스!",
+        text: "배고픔 호출이 케어미스로 처리되었습니다.",
+      })
+    );
     expect(viewModel.summaryLabel).toBe("최근 호출 기록 확인");
   });
 
@@ -461,12 +466,12 @@ describe("callStatusUtils", () => {
     expect(viewModel.recentCallHistory).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          title: "배고픔 호출",
+          title: "배고픔 호출 -> 케어미스!",
           text: "배고픔 호출이 케어미스로 처리되었습니다.",
           timestamp: now - 2 * 60 * 1000,
         }),
         expect.objectContaining({
-          title: "힘 호출",
+          title: "힘 호출 -> 케어미스!",
           text: "힘 호출이 케어미스로 처리되었습니다.",
           timestamp: now - 60 * 1000,
         }),
@@ -544,6 +549,7 @@ describe("callStatusUtils", () => {
     expect(hungerEntries[0]).toEqual(
       expect.objectContaining({
         source: "ledger",
+        title: "배고픔 호출 -> 케어미스!",
         text: "배고픔 호출이 케어미스로 처리되었습니다.",
         timestamp: timeoutAt,
       })
@@ -575,7 +581,7 @@ describe("callStatusUtils", () => {
     expect(viewModel.defaultTab).toBe("recent");
     expect(viewModel.recentCallHistory[0]).toEqual(
       expect.objectContaining({
-        title: "수면 조명 경고",
+        title: "수면 조명 경고 -> 케어미스!",
         text: "수면 조명 경고가 케어미스로 처리되었습니다.",
       })
     );

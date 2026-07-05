@@ -33,6 +33,8 @@ export function buildGameAnimationViewModel({
   const isEvolutionInProgress =
     evolutionStage === "shaking" ||
     evolutionStage === "flashing" ||
+    evolutionStage === "revealing" ||
+    evolutionStage === "revealed" ||
     evolutionStage === "complete";
   const idleMotionTimeline =
     !Number.isFinite(safeBaseSprite) ||

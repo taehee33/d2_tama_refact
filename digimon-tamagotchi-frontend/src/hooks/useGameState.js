@@ -334,7 +334,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   };
   
   // 진화 관련
-  const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'complete'
+  const [evolutionStage, setEvolutionStage] = useState('idle'); // 'idle' | 'shaking' | 'flashing' | 'revealing' | 'revealed' | 'complete'
   const [evolvedDigimonName, setEvolvedDigimonName] = useState(null);
   const [evolutionCompleteIsJogress, setEvolutionCompleteIsJogress] = useState(false); // 조그레스 완료 시 성공 메시지에 파트너 사망 문구 표시용
   const [evolutionCompleteJogressSummary, setEvolutionCompleteJogressSummary] = useState(null); // 조그레스 성공 요약 { currentLabel, partnerLabel, resultName } (현재/파트너 구분 표시용)

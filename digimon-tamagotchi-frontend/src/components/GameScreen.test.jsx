@@ -392,4 +392,16 @@ describe("GameScreen 진화 연출", () => {
 
     expect(screen.queryByTestId("evolution-flash-overlay")).not.toBeInTheDocument();
   });
+
+  test("revealed 단계에서는 팝업 전 게임 화면 강조 오버레이를 표시한다", () => {
+    renderGameScreen({
+      selectedDigimon: "Agumon",
+      evolutionStage: "revealed",
+    });
+
+    expect(screen.queryByTestId("evolution-flash-overlay")).not.toBeInTheDocument();
+    expect(screen.getByTestId("evolution-reveal-overlay")).toHaveClass(
+      "evolution-reveal-spotlight"
+    );
+  });
 });

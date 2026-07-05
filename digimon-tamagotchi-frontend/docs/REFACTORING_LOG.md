@@ -2220,6 +2220,46 @@
 
 ## 2026-07-05
 
+### 케어미스 처리 호출 제목 구분
+- 최근 호출/케어미스 기록에서 이미 케어미스로 처리된 항목의 제목을 `배고픔 호출 -> 케어미스!`, `힘 호출 -> 케어미스!`, `수면 조명 경고 -> 케어미스!` 형식으로 표시하도록 변경했습니다.
+- 활동 로그, 케어미스 ledger, `callStatus.isLogged`에서 복원되는 missed 호출 항목이 모두 같은 제목 규칙을 사용하도록 정리했습니다.
+
+### 테스트 보강
+- 활동 로그 기반 케어미스, ledger 기반 케어미스, 수면 조명 경고 케어미스가 새 제목으로 표시되는지 테스트했습니다.
+
+### 영향받은 파일
+- `src/utils/callStatusUtils.js`
+- `src/utils/callStatusUtils.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 저장 스키마나 케어미스 판정 로직은 변경하지 않고, 최근 호출 표시 모델의 `title`만 missed 상태에 맞게 변환했습니다.
+- `text`는 기존 상세 설명을 유지하고 제목에서 상태를 구분하면, 작은 카드 UI에서 처리 결과를 더 빠르게 스캔할 수 있습니다.
+
+### 진화 완료 팝업 표시 타이밍 지연
+- 일반 진화 연출에 `revealing`/`revealed` 단계를 추가해, 저장으로 새 디지몬이 화면에 반영된 뒤 약 1.2초 동안 게임 화면 안에서 먼저 강조되도록 했습니다.
+- 완료 팝업은 새 디지몬 공개 시간이 지난 뒤 `complete` 단계에서만 표시되도록 순서를 정리했습니다.
+- `revealed` 단계에서는 화면 전체 모달이 아니라 캔버스 내부 비차단 spotlight 오버레이만 표시해, 진화된 디지몬을 먼저 볼 수 있게 했습니다.
+
+### 테스트 보강
+- 일반 진화 타이머 테스트를 `shaking → flashing → revealing → revealed → complete` 순서에 맞게 갱신했습니다.
+- `revealed` 단계의 게임 화면 강조 오버레이와 진화 중 idle 이동 타임라인 비활성화를 테스트했습니다.
+
+### 영향받은 파일
+- `src/hooks/useEvolution.js`
+- `src/hooks/useGameState.js`
+- `src/hooks/game-runtime/gameAnimationViewModel.js`
+- `src/components/GameScreen.jsx`
+- `src/index.css`
+- `src/hooks/useEvolution.test.js`
+- `src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `src/components/GameScreen.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- Firestore/localStorage 저장 계약과 lazy update 규칙은 건드리지 않고, 기존 `evolutionStage` 기반 UI 상태 전환만 확장했습니다.
+- `complete`를 팝업 표시 전용 단계로 유지하면 저장 전 완료 모달이 먼저 렌더링되는 순서 문제를 막을 수 있습니다.
+
 ### EVOLUTION transition identity 안정화
 - 일반 `evolve()` 실행마다 `transitionId`를 한 번 생성해 EVOLUTION activity log에 함께 남기도록 했습니다.
 - `transitionId`가 있는 EVOLUTION 로그는 `activity:evolution:${transitionId}` 형식의 명시 `eventId`를 사용해 같은 transition 내에서는 동일한 로그 문서 키와 outbox key를 재사용할 수 있게 했습니다.

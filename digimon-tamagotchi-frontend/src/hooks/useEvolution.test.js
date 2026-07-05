@@ -287,7 +287,7 @@ describe("useEvolution jogress flows", () => {
       jest.advanceTimersByTime(2000);
     });
 
-    expect(params.setEvolutionStage).toHaveBeenCalledWith("complete");
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("revealing");
     expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -296,6 +296,14 @@ describe("useEvolution jogress flows", () => {
     });
 
     expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Betamon");
+    expect(params.setEvolutionStage).toHaveBeenCalledWith("revealed");
+    expect(params.setIsEvolving).not.toHaveBeenLastCalledWith(false);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200);
+    });
+
+    expect(params.setEvolutionStage).toHaveBeenLastCalledWith("complete");
     const appendedEvolutionLog = params.appendLogToSubcollection.mock.calls[0][0];
     const savedEvolutionLog = params.setDigimonStatsAndSave.mock.calls[0][1].slice(-1)[0];
     expect(appendedEvolutionLog.type).toBe("EVOLUTION");
@@ -343,6 +351,12 @@ describe("useEvolution jogress flows", () => {
 
     expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(1);
     expect(params.setSelectedDigimonAndSave).toHaveBeenCalledTimes(1);
+    expect(params.setIsEvolving).not.toHaveBeenLastCalledWith(false);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1200);
+    });
+
     expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 

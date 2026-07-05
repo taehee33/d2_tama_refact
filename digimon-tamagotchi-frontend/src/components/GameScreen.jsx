@@ -666,6 +666,14 @@ const GameScreen = ({
           aria-hidden="true"
         />
       )}
+
+      {evolutionStage === 'revealed' && (
+        <div
+          data-testid="evolution-reveal-overlay"
+          className="evolution-reveal-spotlight"
+          aria-hidden="true"
+        />
+      )}
     </div>
   );
 };
