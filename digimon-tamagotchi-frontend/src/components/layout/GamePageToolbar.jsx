@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { usePresenceContext } from "../../contexts/AblyContext";
+import { useNotificationCenter } from "../../contexts/NotificationCenterContext";
+import GameNotificationAction from "../notifications/GameNotificationAction";
 import {
   resolveTamerNameInitial,
   resolveTamerNamePriority,
@@ -146,49 +149,127 @@ function GamePageToolbar({
   onOpenImmersiveView,
   onlineUsersNode = null,
 }) {
+  const moreMenuRef = useRef(null);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const { isChatOpen, setIsChatOpen, presenceCount } = usePresenceContext();
+  const { closeNotification } = useNotificationCenter();
+
+  useEffect(() => {
+    if (!isMoreMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!moreMenuRef.current?.contains(event.target)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setIsMoreMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMoreMenuOpen]);
+
+  const handleToggleChat = () => {
+    closeNotification();
+    setIsMoreMenuOpen(false);
+    setIsChatOpen(!isChatOpen);
+  };
+
+  const handleToggleMoreMenu = () => {
+    closeNotification();
+    setIsChatOpen(false);
+    setIsMoreMenuOpen((previous) => !previous);
+  };
+
+  const handleMoreAction = (action) => {
+    setIsMoreMenuOpen(false);
+    action?.();
+  };
+
   if (isMobile) {
     return (
       <div className="fixed top-0 left-0 right-0 z-50 bg-white bg-opacity-95 border-b border-gray-300 shadow-sm mobile-nav-bar">
-        <div className="flex items-center justify-between px-3 py-2">
+        <div className="game-page-toolbar__mobile-row">
           <button
             onClick={onOpenPlayHub}
-            className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm pixel-art-button flex items-center gap-1"
+            className="game-page-toolbar__mobile-primary pixel-art-button"
           >
             <span>← 허브</span>
           </button>
 
-          <div className="flex items-center gap-2">
-            {onlineUsersNode}
-
+          <div className="game-page-toolbar__mobile-actions">
             <button
-              onClick={onOpenImmersiveView}
-              className="px-2 py-1.5 bg-slate-900 text-white rounded pixel-art-button"
-              title="몰입형 플레이"
+              type="button"
+              onClick={handleToggleChat}
+              className={`game-page-toolbar__mobile-icon pixel-art-button${
+                isChatOpen ? " game-page-toolbar__mobile-icon--active" : ""
+              }`}
+              aria-label={`채팅 ${isChatOpen ? "닫기" : "열기"}, 현재 ${presenceCount || 0}명 접속 중`}
+              aria-expanded={isChatOpen}
             >
-              ⛶
+              💬
             </button>
 
+            <GameNotificationAction compact />
+
             <button
-              onClick={onOpenSettings}
-              className="px-2 py-1.5 bg-gray-400 hover:bg-gray-500 text-white rounded pixel-art-button"
-              title="설정"
+              type="button"
+              onClick={handleToggleMoreMenu}
+              className="game-page-toolbar__mobile-icon pixel-art-button"
+              aria-label="더보기"
+              aria-haspopup="menu"
+              aria-expanded={isMoreMenuOpen}
             >
-              ⚙️
+              ⋯
             </button>
 
-            {isFirebaseAvailable
-              ? renderProfileMenu({
-                  compact: true,
-                  currentUser,
-                  tamerName,
-                  hasVer1Master,
-                  hasVer2Master,
-                  showProfileMenu,
-                  onToggleProfileMenu,
-                  onCloseProfileMenu,
-                  onOpenAccountSettings,
-                })
-              : null}
+            {isMoreMenuOpen ? (
+              <div
+                className="game-page-toolbar__mobile-menu"
+                role="menu"
+                aria-label="게임 화면 더보기"
+                ref={moreMenuRef}
+              >
+                <div className="game-page-toolbar__mobile-menu-presence">
+                  {onlineUsersNode || <span>{`접속자 ${presenceCount || 0}명`}</span>}
+                </div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleMoreAction(onOpenImmersiveView)}
+                >
+                  몰입형 플레이
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => handleMoreAction(onOpenSettings)}
+                >
+                  설정
+                </button>
+                {isFirebaseAvailable && currentUser ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleMoreAction(onOpenAccountSettings)}
+                  >
+                    테이머/프로필 상세
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -222,6 +303,18 @@ function GamePageToolbar({
       </div>
 
       <div className="game-page-toolbar__utilities">
+        <button
+          type="button"
+          onClick={handleToggleChat}
+          className={`px-3 py-2 bg-blue-100 hover:bg-blue-200 text-slate-800 rounded pixel-art-button${
+            isChatOpen ? " bg-blue-200" : ""
+          }`}
+          aria-label={`채팅 ${isChatOpen ? "닫기" : "열기"}, 현재 ${presenceCount || 0}명 접속 중`}
+          aria-expanded={isChatOpen}
+        >
+          💬
+        </button>
+
         {onlineUsersNode}
 
         <button
@@ -231,6 +324,8 @@ function GamePageToolbar({
         >
           ⚙️
         </button>
+
+        <GameNotificationAction />
 
         {isFirebaseAvailable
           ? renderProfileMenu({

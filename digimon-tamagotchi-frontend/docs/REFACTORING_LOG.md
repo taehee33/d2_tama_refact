@@ -2,6 +2,27 @@
 
 ## 2026-07-05
 
+### 알림/채팅 floating UI 위치 정책 정리
+- route/layout별 알림 렌더링 정책을 분리하고, 알림 상태 로직을 service floating UI와 game toolbar UI에서 공유하도록 `NotificationCenterProvider` 기반으로 정리했습니다.
+- 서비스 화면은 기존 floating 알림을 유지하고, 일반 게임 화면은 `GamePageToolbar` 알림 액션으로 편입했으며, 몰입형 게임 화면에서는 알림을 숨기도록 했습니다.
+- 모바일 게임 toolbar는 핵심 액션 중심으로 정리하고 보조 액션을 더보기로 넘기며, 채팅/알림/더보기 동시 열림 우선순위와 safe-area/z-index 보정을 함께 적용했습니다.
+
+### 테스트 보강
+- route/layout 판별, service floating 알림, game toolbar 알림, 모바일 toolbar overflow, 채팅 버튼 variant, 게임 route 채팅 drawer 정책을 테스트했습니다.
+
+### 영향받은 파일
+- `src/utils/routeLayout.js`
+- `src/contexts/NotificationCenterContext.jsx`
+- `src/components/notifications/*`
+- `src/components/layout/GamePageToolbar.jsx`
+- `src/components/chat/PlayChatButton.jsx`
+- `src/components/chat/PlayChatDrawer.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 게임 화면의 레트로/기기 느낌과 저장 계약, lazy update 로직은 유지하면서 알림, 채팅, 하단 탭바, 게임 조작 영역의 모바일 겹침 회귀를 줄입니다.
+
 ### death evaluation 결과 반영 helper 분리
 - `evaluateDeathConditions`의 조건과 우선순위는 그대로 두고, 사망 판정 결과를 stats에 반영하는 `applyDeathEvaluationToStats` helper를 추가했습니다.
 - `updateLifespan`, `projectState`, realtime loop의 중복 merge 블록을 helper 호출로 교체했습니다.

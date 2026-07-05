@@ -4,10 +4,18 @@ import PlayChatDrawer from "./PlayChatDrawer";
 
 const mockUsePresenceContext = jest.fn();
 const mockChatRoom = jest.fn();
+const mockLocation = {
+  pathname: "/play",
+  search: "",
+};
 
 jest.mock("../../contexts/AblyContext", () => ({
   usePresenceContext: () => mockUsePresenceContext(),
 }));
+
+jest.mock("react-router-dom", () => ({
+  useLocation: () => mockLocation,
+}), { virtual: true });
 
 jest.mock("../ChatRoom", () => (props) => {
   mockChatRoom(props);
@@ -21,6 +29,7 @@ describe("PlayChatDrawer", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockLocation.pathname = "/play";
 
     mockUsePresenceContext.mockReturnValue({
       isChatOpen: true,
@@ -56,5 +65,14 @@ describe("PlayChatDrawer", () => {
     fireEvent.click(closeButton);
 
     expect(setIsChatOpen).toHaveBeenCalledWith(false);
+  });
+
+  test("일반 게임 화면에서는 toolbar가 채팅을 제어하므로 floating 채팅 버튼을 숨긴다", () => {
+    mockLocation.pathname = "/play/4";
+
+    render(<PlayChatDrawer />);
+
+    expect(screen.queryByTestId("play-chat-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("play-chat-room")).toBeInTheDocument();
   });
 });

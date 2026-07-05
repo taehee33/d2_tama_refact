@@ -1,12 +1,13 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NotificationCenterProvider } from "../../contexts/NotificationCenterContext";
 import GlobalNotificationCenter from "./GlobalNotificationCenter";
 
 const mockGetNotificationStatus = jest.fn();
 const mockMarkNotificationsRead = jest.fn();
 const mockNavigate = jest.fn();
 const mockLocation = {
-  pathname: "/play/1",
+  pathname: "/play",
   search: "",
 };
 const mockCurrentUser = {
@@ -25,10 +26,25 @@ jest.mock("../../utils/notificationApi", () => ({
   markNotificationsRead: (...args) => mockMarkNotificationsRead(...args),
 }));
 
+jest.mock("../../contexts/AblyContext", () => ({
+  usePresenceContext: () => ({
+    isChatOpen: false,
+    setIsChatOpen: jest.fn(),
+  }),
+}));
+
 jest.mock("react-router-dom", () => ({
   useLocation: () => mockLocation,
   useNavigate: () => mockNavigate,
 }), { virtual: true });
+
+function renderWithProvider(ui) {
+  return render(
+    <NotificationCenterProvider>
+      {ui}
+    </NotificationCenterProvider>
+  );
+}
 
 function createStatus(overrides = {}) {
   return {
@@ -52,7 +68,7 @@ function createStatus(overrides = {}) {
 
 describe("GlobalNotificationCenter", () => {
   beforeEach(() => {
-    mockLocation.pathname = "/play/1";
+    mockLocation.pathname = "/play";
     mockLocation.search = "";
     mockGetNotificationStatus.mockReset();
     mockMarkNotificationsRead.mockReset();
@@ -76,7 +92,7 @@ describe("GlobalNotificationCenter", () => {
         ],
       }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     expect(await screen.findByText("1")).toBeInTheDocument();
 
@@ -102,7 +118,7 @@ describe("GlobalNotificationCenter", () => {
       ],
     }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     fireEvent.click(await screen.findByRole("button", { name: "알림" }));
     fireEvent.click(await screen.findByRole("button", {
@@ -118,7 +134,7 @@ describe("GlobalNotificationCenter", () => {
       recentNotifications: [],
     }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     fireEvent.click(screen.getByRole("button", { name: "알림" }));
 
@@ -140,7 +156,7 @@ describe("GlobalNotificationCenter", () => {
       ],
     }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     fireEvent.click(await screen.findByRole("button", { name: "알림" }));
 
@@ -161,7 +177,7 @@ describe("GlobalNotificationCenter", () => {
       ],
     }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     fireEvent.click(await screen.findByRole("button", { name: "알림" }));
 
@@ -182,7 +198,7 @@ describe("GlobalNotificationCenter", () => {
       ],
     }));
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
 
     fireEvent.click(await screen.findByRole("button", { name: "알림" }));
 
@@ -193,7 +209,26 @@ describe("GlobalNotificationCenter", () => {
     mockLocation.pathname = "/auth";
     mockGetNotificationStatus.mockResolvedValue(createStatus());
 
-    render(<GlobalNotificationCenter />);
+    renderWithProvider(<GlobalNotificationCenter />);
+
+    expect(screen.queryByRole("button", { name: "알림" })).not.toBeInTheDocument();
+  });
+
+  test("일반 게임 화면에서는 floating 알림을 렌더링하지 않는다", async () => {
+    mockLocation.pathname = "/play/4";
+    mockGetNotificationStatus.mockResolvedValue(createStatus());
+
+    renderWithProvider(<GlobalNotificationCenter />);
+
+    expect(screen.queryByRole("button", { name: "알림" })).not.toBeInTheDocument();
+    await waitFor(() => expect(mockGetNotificationStatus).toHaveBeenCalled());
+  });
+
+  test("몰입형 게임 화면에서는 floating 알림을 렌더링하지 않는다", () => {
+    mockLocation.pathname = "/play/4/full";
+    mockGetNotificationStatus.mockResolvedValue(createStatus());
+
+    renderWithProvider(<GlobalNotificationCenter />);
 
     expect(screen.queryByRole("button", { name: "알림" })).not.toBeInTheDocument();
   });

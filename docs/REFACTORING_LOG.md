@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-07-05] 알림/채팅 floating UI 위치 정책 정리
+
+- **내용:** route/layout별 알림 렌더링 정책을 분리하고, 알림 상태 로직을 service floating UI와 game toolbar UI에서 공유하도록 `NotificationCenterProvider` 기반으로 정리했다. 서비스 화면은 기존 floating 알림을 유지하고, 일반 게임 화면은 `GamePageToolbar` 알림 액션으로 편입했으며, 몰입형 게임 화면에서는 알림을 숨긴다. 모바일 게임 toolbar는 핵심 액션 중심으로 정리하고 보조 액션을 더보기로 넘기며, 채팅/알림/더보기 동시 열림 우선순위와 safe-area/z-index 보정을 함께 적용했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/routeLayout.js`
+  - `digimon-tamagotchi-frontend/src/contexts/NotificationCenterContext.jsx`
+  - `digimon-tamagotchi-frontend/src/components/notifications/*`
+  - `digimon-tamagotchi-frontend/src/components/layout/GamePageToolbar.jsx`
+  - `digimon-tamagotchi-frontend/src/components/chat/PlayChatButton.jsx`
+  - `digimon-tamagotchi-frontend/src/components/chat/PlayChatDrawer.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 게임 화면의 레트로/기기 느낌과 저장 계약, lazy update 로직은 유지하면서 알림, 채팅, 하단 탭바, 게임 조작 영역의 모바일 겹침 회귀를 줄인다.
+
 ## [2026-07-05] buildNeedCareMistakeActivityLogPayload 1차 분리
 
 - **내용:** `projectState()` 내부의 배고픔/힘 호출 timeout 후 activityLogs 중복 확인과 추가에 쓰이는 payload 생성을 내부 helper `buildNeedCareMistakeActivityLogPayload()`로 분리했다. helper는 export하지 않고 `type`, `text`, `timestamp`, `eventId`, `textContains`만 반환하며 activityLogs를 직접 변경하지 않는다.

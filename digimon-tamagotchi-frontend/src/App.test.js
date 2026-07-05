@@ -78,6 +78,10 @@ jest.mock("./contexts/AblyContext", () => ({
   ),
 }));
 
+jest.mock("./contexts/NotificationCenterContext", () => ({
+  NotificationCenterProvider: ({ children }) => <div>{children}</div>,
+}));
+
 jest.mock("./contexts/MasterDataContext", () => ({
   MasterDataProvider: ({ children }) => <div>{children}</div>,
   useMasterData: () => ({

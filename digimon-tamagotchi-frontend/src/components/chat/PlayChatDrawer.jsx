@@ -1,9 +1,13 @@
 import React, { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import ChatRoom from "../ChatRoom";
 import { usePresenceContext } from "../../contexts/AblyContext";
+import { CLOSE_NOTIFICATION_EVENT } from "../../contexts/NotificationCenterContext";
+import { getRouteLayoutPolicy } from "../../utils/routeLayout";
 import PlayChatButton from "./PlayChatButton";
 
 function PlayChatDrawer() {
+  const location = useLocation();
   const drawerId = "play-chat-drawer";
   const drawerTitleId = "play-chat-drawer-title";
   const {
@@ -12,6 +16,7 @@ function PlayChatDrawer() {
     unreadCount,
     presenceCount,
   } = usePresenceContext();
+  const routePolicy = getRouteLayoutPolicy(location.pathname, true);
 
   useEffect(() => {
     return () => {
@@ -48,18 +53,25 @@ function PlayChatDrawer() {
   }, [isChatOpen]);
 
   const toggleDrawer = () => {
-    setIsChatOpen(!isChatOpen);
+    const nextOpen = !isChatOpen;
+    if (nextOpen) {
+      window.dispatchEvent(new Event(CLOSE_NOTIFICATION_EVENT));
+    }
+    setIsChatOpen(nextOpen);
   };
 
   return (
     <>
-      <PlayChatButton
-        controlsId={drawerId}
-        isOpen={isChatOpen}
-        unreadCount={unreadCount}
-        presenceCount={presenceCount || 0}
-        onClick={toggleDrawer}
-      />
+      {!routePolicy.isGameRoute ? (
+        <PlayChatButton
+          controlsId={drawerId}
+          isOpen={isChatOpen}
+          unreadCount={unreadCount}
+          presenceCount={presenceCount || 0}
+          onClick={toggleDrawer}
+          variant="service"
+        />
+      ) : null}
 
       <button
         type="button"

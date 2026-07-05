@@ -12,6 +12,18 @@
   --community-surface-soft: rgba(255, 255, 255, 0.66);
   --community-shadow: 0 24px 80px rgba(77, 94, 84, 0.12);
   --community-glow: radial-gradient(circle at top left, rgba(210, 244, 233, 0.92), rgba(255, 255, 255, 0.92) 44%, rgba(233, 244, 255, 0.78) 100%);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-tabbar-height: 86px;
+  --game-action-bottom: 112px;
+  --floating-gap: 16px;
+  --z-header: 100;
+  --z-tabbar: 110;
+  --z-floating-chat: 120;
+  --z-floating-notification: 125;
+  --z-notification-panel: 220;
+  --z-drawer: 300;
+  --z-modal: 500;
+  --z-toast: 600;
 }
 
 .community-page {
@@ -2279,6 +2291,140 @@ code {
 .game-page-toolbar__utilities {
   justify-content: flex-end;
   justify-self: end;
+}
+
+.game-page-toolbar__mobile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: calc(env(safe-area-inset-top, 0px) + 0.5rem) 0.75rem 0.5rem;
+}
+
+.game-page-toolbar__mobile-primary,
+.game-page-toolbar__mobile-icon,
+.game-notification-action__button {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-page-toolbar__mobile-primary {
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.38rem;
+  background: #9ca3af;
+  color: #ffffff;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.game-page-toolbar__mobile-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.game-page-toolbar__mobile-icon,
+.game-notification-action__button {
+  position: relative;
+  border-radius: 0.38rem;
+  border: 2px solid rgba(15, 23, 42, 0.82);
+  background: #dbeafe;
+  color: #111827;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.game-page-toolbar__mobile-icon--active,
+.game-notification-action__button--open {
+  background: #bbf7d0;
+}
+
+.game-page-toolbar__mobile-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: var(--z-drawer);
+  display: grid;
+  gap: 0.35rem;
+  width: min(15rem, calc(100vw - 1rem));
+  padding: 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.game-page-toolbar__mobile-menu button,
+.game-page-toolbar__mobile-menu-presence {
+  width: 100%;
+  min-height: 40px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.65rem;
+  color: #1f2937;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.game-page-toolbar__mobile-menu button {
+  border: 0;
+  background: transparent;
+}
+
+.game-page-toolbar__mobile-menu button:hover,
+.game-page-toolbar__mobile-menu button:focus-visible {
+  background: #eff6ff;
+  outline: none;
+}
+
+.game-page-toolbar__mobile-menu-presence {
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.game-notification-action {
+  position: relative;
+  display: inline-flex;
+}
+
+.game-notification-action__button {
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.game-notification-action__button--compact {
+  padding: 0;
+}
+
+.game-notification-action__badge {
+  position: absolute;
+  top: -0.48rem;
+  right: -0.44rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #f06b5f;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.game-notification-action__panel {
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: var(--z-notification-panel);
 }
 
 .game-header-meta-section {
@@ -5797,8 +5943,8 @@ code {
   position: fixed;
   left: 1rem;
   right: 1rem;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.8rem);
-  z-index: 40;
+  bottom: calc(var(--safe-bottom) + 0.8rem);
+  z-index: var(--z-tabbar);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 0.35rem;
@@ -6712,7 +6858,7 @@ code {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
   right: 1rem;
-  z-index: 60;
+  z-index: var(--z-floating-notification);
 }
 
 .global-notification-center__button {
@@ -6763,6 +6909,7 @@ code {
   position: absolute;
   top: calc(100% + 0.7rem);
   right: 0;
+  z-index: var(--z-notification-panel);
   width: min(390px, calc(100vw - 2rem));
   max-height: min(72vh, 620px);
   display: flex;
@@ -6894,8 +7041,8 @@ code {
 .play-chat-fab {
   position: fixed;
   right: 1rem;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 1.25rem);
-  z-index: 45;
+  bottom: calc(var(--safe-bottom) + 1.25rem);
+  z-index: var(--z-floating-chat);
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
@@ -6959,10 +7106,15 @@ code {
   font-weight: 900;
 }
 
+.play-chat-fab--game-compact {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .play-chat-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 43;
+  z-index: calc(var(--z-drawer) - 2);
   border: none;
   background: rgba(21, 29, 25, 0.16);
   opacity: 0;
@@ -6978,8 +7130,8 @@ code {
 .play-chat-drawer {
   position: fixed;
   right: 1rem;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 5.5rem);
-  z-index: 46;
+  bottom: calc(var(--safe-bottom) + 5.5rem);
+  z-index: var(--z-drawer);
   width: min(420px, calc(100vw - 2rem));
   max-height: min(72vh, 760px);
   display: flex;
@@ -7899,7 +8051,7 @@ code {
 
   .play-chat-fab {
     right: 1rem;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 6rem);
+    bottom: calc(var(--safe-bottom) + var(--mobile-tabbar-height) + var(--floating-gap));
     gap: 0.45rem;
     padding: 0.85rem 0.95rem;
   }
@@ -7916,7 +8068,7 @@ code {
     left: 1rem;
     right: 1rem;
     width: auto;
-    bottom: max(calc(env(safe-area-inset-bottom, 0px) + 0.75rem), 6rem);
+    bottom: max(calc(var(--safe-bottom) + 0.75rem), 6rem);
     max-height: min(72dvh, calc(100dvh - 10rem));
   }
 

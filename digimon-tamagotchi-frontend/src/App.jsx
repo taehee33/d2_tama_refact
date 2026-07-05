@@ -14,12 +14,14 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
 import { MasterDataProvider, useMasterData } from "./contexts/MasterDataContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { NotificationCenterProvider } from "./contexts/NotificationCenterContext";
 import { ChannelProvider } from "ably/react";
 import PlayChatDrawer from "./components/chat/PlayChatDrawer";
 import RequireAuth from "./components/layout/RequireAuth";
 import ServiceLayout from "./components/layout/ServiceLayout";
 import LandingShell from "./components/landing/LandingShell";
 import GlobalNotificationCenter from "./components/notifications/GlobalNotificationCenter";
+import { getRouteLayoutPolicy } from "./utils/routeLayout";
 import { useTamerProfile } from "./hooks/useTamerProfile";
 import Collection from "./pages/Collection";
 import Community from "./pages/Community";
@@ -66,13 +68,12 @@ function ChatRoomWrapper({ clientReady }) {
   const location = useLocation();
   const { currentUser } = useAuth();
   const isNotebookRoute = location.pathname === "/notebook";
-  const isAuthRoute = location.pathname.startsWith("/auth");
+  const routePolicy = getRouteLayoutPolicy(location.pathname, currentUser);
   const shouldShowLobbyDrawer =
     !isNotebookRoute &&
-    !isAuthRoute &&
-    !location.pathname.endsWith("/full");
+    routePolicy.shouldShowChat;
 
-  if (!currentUser || location.pathname.endsWith("/full")) {
+  if (!currentUser || !routePolicy.shouldShowChat) {
     return null;
   }
 
@@ -113,41 +114,43 @@ function AppContent() {
         tamerName={currentUser ? tamerName : null}
         renderChatRoom={(chatState) => <ChatRoomWrapper {...chatState} />}
       >
-        <PageViewTracker />
-        <GlobalNotificationCenter />
-        <Routes>
-          <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
-            <Route path="/" element={<RootEntry />} />
-            <Route path="/notebook" element={<NotebookLanding />} />
-            <Route path="/guide" element={<Guide />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/news" element={<News />} />
-            <Route path="/support" element={<Support />} />
+        <NotificationCenterProvider>
+          <PageViewTracker />
+          <GlobalNotificationCenter />
+          <Routes>
+            <Route element={<ServiceLayout tamerName={currentUser ? tamerName : ""} />}>
+              <Route path="/" element={<RootEntry />} />
+              <Route path="/notebook" element={<NotebookLanding />} />
+              <Route path="/guide" element={<Guide />} />
+              <Route path="/community" element={<Community />} />
+              <Route path="/news" element={<News />} />
+              <Route path="/support" element={<Support />} />
+
+              <Route element={<RequireAuth />}>
+                <Route path="/play" element={<PlayHub />} />
+                <Route path="/me" element={<Me />} />
+                <Route path="/me/collection" element={<Collection />} />
+                <Route path="/me/settings" element={<Settings />} />
+                <Route path="/operators/users" element={<OperatorUsers />} />
+              </Route>
+            </Route>
+
+            <Route
+              path="/landing"
+              element={<LandingEntry tamerName={currentUser ? tamerName : ""} />}
+            />
+            <Route path="/auth" element={<Login />} />
 
             <Route element={<RequireAuth />}>
-              <Route path="/play" element={<PlayHub />} />
-              <Route path="/me" element={<Me />} />
-              <Route path="/me/collection" element={<Collection />} />
-              <Route path="/me/settings" element={<Settings />} />
-              <Route path="/operators/users" element={<OperatorUsers />} />
+              <Route path="/play/:slotId" element={<Game />} />
+              <Route path="/play/:slotId/full" element={<PlayFull />} />
             </Route>
-          </Route>
 
-          <Route
-            path="/landing"
-            element={<LandingEntry tamerName={currentUser ? tamerName : ""} />}
-          />
-          <Route path="/auth" element={<Login />} />
-
-          <Route element={<RequireAuth />}>
-            <Route path="/play/:slotId" element={<Game />} />
-            <Route path="/play/:slotId/full" element={<PlayFull />} />
-          </Route>
-
-          <Route path="/select" element={<SelectScreen />} />
-          <Route path="/game/:slotId" element={<LegacyGameRedirect />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="/select" element={<SelectScreen />} />
+            <Route path="/game/:slotId" element={<LegacyGameRedirect />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </NotificationCenterProvider>
       </AblyContextProvider>
     </Router>
   );
