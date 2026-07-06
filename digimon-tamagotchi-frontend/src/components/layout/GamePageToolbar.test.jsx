@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import OnlineUsersCount from "../OnlineUsersCount";
 import GamePageToolbar from "./GamePageToolbar";
 
 const mockSetIsChatOpen = jest.fn();
@@ -105,5 +106,33 @@ describe("GamePageToolbar", () => {
     expect(props.onOpenSettings).toHaveBeenCalledTimes(1);
     expect(props.onOpenAccountSettings).toHaveBeenCalledTimes(1);
     expect(props.onToggleProfileMenu).toHaveBeenCalledTimes(1);
+  });
+
+  test("모바일 툴바는 게임 헤더용 채팅 pill을 렌더링한다", () => {
+    const props = buildProps({
+      onlineUsersNode: <OnlineUsersCount variant="game-header" />,
+    });
+
+    render(<GamePageToolbar {...props} isMobile />);
+
+    expect(
+      screen.getByRole("button", { name: "채팅 열기, 현재 3명 접속 중" })
+    ).toHaveClass("online-users-count--game-header");
+    expect(screen.getByText("채팅")).toBeInTheDocument();
+    expect(screen.getByText("3명")).toBeInTheDocument();
+  });
+
+  test("데스크톱 툴바도 게임 헤더용 채팅 pill을 렌더링한다", () => {
+    const props = buildProps({
+      onlineUsersNode: <OnlineUsersCount variant="game-header" />,
+    });
+
+    render(<GamePageToolbar {...props} />);
+
+    expect(
+      screen.getByRole("button", { name: "채팅 열기, 현재 3명 접속 중" })
+    ).toHaveClass("online-users-count--game-header");
+    expect(screen.getByText("채팅")).toBeInTheDocument();
+    expect(screen.getByText("3명")).toBeInTheDocument();
   });
 });

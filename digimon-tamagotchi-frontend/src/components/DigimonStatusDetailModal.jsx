@@ -25,7 +25,7 @@ const DigimonStatusDetailModal = ({
       onClick={onClose}
     >
       <div
-        className="digimon-status-detail-modal__surface bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto pixel-art-modal"
+        className="digimon-status-detail-modal__surface bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden pixel-art-modal"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="digimon-status-detail-modal__content p-6">
@@ -45,48 +45,50 @@ const DigimonStatusDetailModal = ({
             </button>
           </div>
 
-          {groupedMessages.length === 0 ? (
-            <div className="digimon-status-detail-modal__empty rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-slate-500">
-              지금은 표시할 상태가 없어요.
-            </div>
-          ) : (
-            <div className="digimon-status-detail-modal__sections">
-              {groupedMessages.map(({ category, meta, messages }) => (
-                <section
-                  key={category}
-                  className={`digimon-status-detail-modal__section rounded-2xl border px-4 py-4 ${meta.containerClass}`}
-                >
-                  <div className="mb-3">
-                    <h3 className={`text-base font-bold ${meta.titleClass}`}>{meta.title}</h3>
-                    <p className="text-xs text-slate-500 mt-1">{meta.description}</p>
-                  </div>
-                  <div className="space-y-2">
-                    {messages.map((message) => (
-                      <article
-                        key={message.id}
-                        className="digimon-status-detail-modal__message rounded-xl border border-white/80 bg-white/80 px-3 py-3 shadow-sm"
-                      >
-                        <div className={`font-semibold ${message.color}`}>{message.text}</div>
-                        {message.detailHint && (
-                          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                            {message.detailHint}
-                          </p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
+          <div className="digimon-status-detail-modal__body">
+            {groupedMessages.length === 0 ? (
+              <div className="digimon-status-detail-modal__empty rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-slate-500">
+                지금은 표시할 상태가 없어요.
+              </div>
+            ) : (
+              <div className="digimon-status-detail-modal__sections">
+                {groupedMessages.map(({ category, meta, messages }) => (
+                  <section
+                    key={category}
+                    className={`digimon-status-detail-modal__section rounded-2xl border px-4 py-4 ${meta.containerClass}`}
+                  >
+                    <div className="mb-3">
+                      <h3 className={`text-base font-bold ${meta.titleClass}`}>{meta.title}</h3>
+                      <p className="text-xs text-slate-500 mt-1">{meta.description}</p>
+                    </div>
+                    <div className="space-y-2">
+                      {messages.map((message) => (
+                        <article
+                          key={message.id}
+                          className="digimon-status-detail-modal__message rounded-xl border border-white/80 bg-white/80 px-3 py-3 shadow-sm"
+                        >
+                          <div className={`font-semibold ${message.color}`}>{message.text}</div>
+                          {message.detailHint && (
+                            <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                              {message.detailHint}
+                            </p>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
 
-          <div className="digimon-status-detail-modal__footer mt-6 text-center">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"
-            >
-              닫기
-            </button>
+            <div className="digimon-status-detail-modal__footer mt-6 text-center">
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       </div>

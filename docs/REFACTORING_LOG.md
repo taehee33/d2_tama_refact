@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-07-06] 모바일/PC UI 정렬 및 팝업 사용성 보정
+
+- **내용:** 모바일 도감/슬롯 목록을 좁은 화면에서 더 조밀하게 볼 수 있도록 조정하고, 슬롯 목록에 `자세히/간략히` 보기 전환과 localStorage 유지 기능을 추가했다. 모바일 커뮤니티 탭바에는 게시판 카테고리 메뉴를 추가했으며, 게임 화면 채팅 버튼은 모바일/PC 모두 `채팅 n명` pill 형태로 통일했다.
+- **추가 보정:** 디지몬 상태 상세 모달 상단 고정, 진화 확인 팝업 하단 닫기 버튼, 호출 상태 확인됨 배지/카드 회색 처리, 훈련 시작/진행 팝업 버튼 및 라운드 기록 영역 정렬을 보정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/*`
+  - `digimon-tamagotchi-frontend/src/components/layout/*`
+  - `digimon-tamagotchi-frontend/src/components/play/*`
+  - `digimon-tamagotchi-frontend/src/components/panels/*`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+  - `digimon-tamagotchi-frontend/src/styles/TrainPopup.css`
+- **근거:** 모바일 브라우저와 PC 게임 화면에서 주요 팝업/탭/카드 UI의 인지성과 조작성, 레이아웃 안정성을 높이되 저장 계약과 게임 로직은 변경하지 않는다.
+
 ## [2026-07-05] 새 디지몬 시작 모달 모바일 CTA 표시 보정
 
 - **내용:** 새 디지몬 시작 모달에 전용 modifier class를 추가하고, 서비스 모달의 z-index와 모바일 safe-area 높이, 내부 스크롤 구조를 보정했다. 카드 목록은 모달 본문 안에서 스크롤되고, `취소`/`시작하기` footer는 채팅 FAB와 하단 탭바에 가려지지 않도록 유지한다. Ver.3~Ver.5 디지타마 카드는 선택 가능 상태를 유지하면서 `(준비중)` 태그만 표시한다.

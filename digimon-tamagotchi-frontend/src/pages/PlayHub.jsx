@@ -20,6 +20,27 @@ import {
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
 
+const SLOT_LIST_VIEW_STORAGE_KEY = "digimon_slot_list_view_mode";
+const SLOT_LIST_VIEW_MODES = {
+  detail: "detail",
+  compact: "compact",
+};
+
+function getInitialSlotListViewMode() {
+  if (typeof window === "undefined") {
+    return SLOT_LIST_VIEW_MODES.detail;
+  }
+
+  try {
+    const savedMode = window.localStorage.getItem(SLOT_LIST_VIEW_STORAGE_KEY);
+    return Object.values(SLOT_LIST_VIEW_MODES).includes(savedMode)
+      ? savedMode
+      : SLOT_LIST_VIEW_MODES.detail;
+  } catch (error) {
+    return SLOT_LIST_VIEW_MODES.detail;
+  }
+}
+
 function PlayHub() {
   const navigate = useNavigate();
   const { displayTamerName, achievements, maxSlots } = useTamerProfile();
@@ -46,6 +67,7 @@ function PlayHub() {
   const [pageError, setPageError] = useState("");
   const [isCreatingSlot, setIsCreatingSlot] = useState(false);
   const [isSavingOrder, setIsSavingOrder] = useState(false);
+  const [slotListViewMode, setSlotListViewMode] = useState(getInitialSlotListViewMode);
 
   const showVer1Master = achievements.includes(ACHIEVEMENT_VER1_MASTER);
   const showVer2Master = achievements.includes(ACHIEVEMENT_VER2_MASTER);
@@ -163,6 +185,20 @@ function PlayHub() {
       setPageError(saveError.message || "순서 저장에 실패했습니다.");
     } finally {
       setIsSavingOrder(false);
+    }
+  };
+
+  const handleSlotListViewModeChange = (nextMode) => {
+    if (!Object.values(SLOT_LIST_VIEW_MODES).includes(nextMode)) {
+      return;
+    }
+
+    setSlotListViewMode(nextMode);
+
+    try {
+      window.localStorage.setItem(SLOT_LIST_VIEW_STORAGE_KEY, nextMode);
+    } catch (error) {
+      // localStorage를 사용할 수 없는 환경에서는 화면 상태만 유지합니다.
     }
   };
 
@@ -284,11 +320,39 @@ function PlayHub() {
         </div>
       ) : null}
 
-      <div className="service-section-header">
+      <div className="service-section-header service-section-header--slot-list">
         <div>
           <p className="service-section-label">내 디지몬</p>
           <h2>슬롯 목록</h2>
         </div>
+        {hasSlots ? (
+          <div className="service-view-toggle" aria-label="슬롯 목록 보기 방식">
+            <button
+              type="button"
+              className={`service-view-toggle__button ${
+                slotListViewMode === SLOT_LIST_VIEW_MODES.detail
+                  ? "service-view-toggle__button--active"
+                  : ""
+              }`}
+              aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.detail}
+              onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.detail)}
+            >
+              자세히
+            </button>
+            <button
+              type="button"
+              className={`service-view-toggle__button ${
+                slotListViewMode === SLOT_LIST_VIEW_MODES.compact
+                  ? "service-view-toggle__button--active"
+                  : ""
+              }`}
+              aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.compact}
+              onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.compact)}
+            >
+              간략히
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {loading ? (
@@ -325,11 +389,12 @@ function PlayHub() {
           </div>
         </div>
       ) : (
-        <div className="service-slot-grid">
+        <div className={`service-slot-grid service-slot-grid--${slotListViewMode}`}>
           {slots.map((slot) => (
             <SlotCard
               key={slot.id}
               slot={slot}
+              variant={slotListViewMode}
               isNicknameOpen={openNicknameSlotId === slot.id}
               nicknameValue={
                 digimonNicknameEdits[slot.id] !== undefined

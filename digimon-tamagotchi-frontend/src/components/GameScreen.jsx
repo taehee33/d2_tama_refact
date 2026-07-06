@@ -579,15 +579,13 @@ const GameScreen = ({
                       {callStatusViewModel.recentCallHistory.map((entry) => {
                         const isCareMistakeCall = entry.title?.includes("케어미스");
                         const cardToneClass = entry.isAcknowledged
-                          ? isCareMistakeCall
-                            ? "border-red-100 bg-red-50"
-                            : "border-gray-200 bg-white"
+                          ? "border-slate-200 bg-slate-50"
                           : isCareMistakeCall
                             ? "border-red-300 bg-red-50"
                             : "border-amber-300 bg-amber-50";
                         const badgeToneClass = entry.isAcknowledged
                           ? isCareMistakeCall
-                            ? "bg-red-100 text-red-600"
+                            ? "border border-slate-200 bg-slate-100 text-slate-600"
                             : "bg-gray-100 text-gray-500"
                           : isCareMistakeCall
                             ? "bg-red-200 text-red-800"

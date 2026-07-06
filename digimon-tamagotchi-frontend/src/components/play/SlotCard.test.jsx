@@ -158,4 +158,32 @@ describe("SlotCard", () => {
     expect(screen.getByText("수면 중(불 켜짐 경고! · 케어미스 처리됨) 😴")).toBeInTheDocument();
     expect(screen.getByText("힘 낮음 💪")).toBeInTheDocument();
   });
+
+  test("간략히 모드에서는 생성일을 숨기고 상태 칩을 하나만 표시한다", () => {
+    render(
+      <SlotCard
+        slot={{
+          ...slot,
+          digimonStats: {
+            isInjured: true,
+            poopCount: 6,
+          },
+        }}
+        variant="compact"
+        onToggleNickname={() => {}}
+        onNicknameChange={() => {}}
+        onNicknameSave={() => {}}
+        onNicknameReset={() => {}}
+        onContinue={() => {}}
+        onDelete={() => {}}
+      />
+    );
+
+    expect(screen.queryByText(/생성일/)).not.toBeInTheDocument();
+    expect(screen.getByText("유아기 · Ver.2")).toBeInTheDocument();
+    expect(screen.queryByText("유아기 · Digital Monster Color 25th / Ver.2")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("슬롯 상태").children).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "이어하기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "슬롯 2 관리 메뉴" })).toBeInTheDocument();
+  });
 });

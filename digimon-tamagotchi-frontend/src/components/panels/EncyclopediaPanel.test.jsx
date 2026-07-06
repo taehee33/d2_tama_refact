@@ -45,7 +45,7 @@ describe("EncyclopediaPanel", () => {
     );
 
     expect(screen.getByTestId("encyclopedia-grid")).toHaveStyle({
-      gridTemplateColumns: "repeat(auto-fit, minmax(8rem, 1fr))",
+      gridTemplateColumns: "repeat(auto-fit, minmax(7.25rem, 1fr))",
     });
   });
 

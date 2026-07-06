@@ -1394,16 +1394,24 @@ function Game({ immersive = false }){
     onOpenSettings: () => toggleModal("settings", true),
     onOpenPlayHub: () => navigate("/play"),
     onOpenImmersiveView: () => navigate(`/play/${slotId}/full`),
-    onlineUsersNode: <OnlineUsersCount />,
   };
 
   const mobileHeaderNode =
     !isImmersive && isMobile ? (
-      <GamePageToolbar {...toolbarProps} isMobile />
+      <GamePageToolbar
+        {...toolbarProps}
+        isMobile
+        onlineUsersNode={<OnlineUsersCount variant="game-header" />}
+      />
     ) : null;
 
   const desktopToolbarNode =
-    !isImmersive && !isMobile ? <GamePageToolbar {...toolbarProps} /> : null;
+    !isImmersive && !isMobile ? (
+      <GamePageToolbar
+        {...toolbarProps}
+        onlineUsersNode={<OnlineUsersCount variant="game-header" />}
+      />
+    ) : null;
 
   const immersiveTopBarProps = {
     isMobile,

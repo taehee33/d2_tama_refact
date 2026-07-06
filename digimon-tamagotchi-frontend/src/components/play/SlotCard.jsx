@@ -10,6 +10,7 @@ import { getSlotStatusChips } from "../../utils/slotStatusChips";
 
 function SlotCard({
   slot,
+  variant = "detail",
   isNicknameOpen = false,
   nicknameValue = "",
   onToggleNickname,
@@ -21,6 +22,8 @@ function SlotCard({
 }) {
   const slotDigimonData = getSlotDigimonData(slot);
   const statusChips = getSlotStatusChips(slot);
+  const isCompact = variant === "compact";
+  const visibleStatusChips = isCompact ? statusChips.slice(0, 1) : statusChips;
   const [isManageMenuOpen, setIsManageMenuOpen] = useState(false);
 
   const handleMenuAction = (action) => {
@@ -29,7 +32,7 @@ function SlotCard({
   };
 
   return (
-    <article className="service-slot-card">
+    <article className={`service-slot-card service-slot-card--${isCompact ? "compact" : "detail"}`}>
       <div className="service-slot-card__media">
         <img
           src={getSlotSpriteSrc(slot)}
@@ -45,7 +48,9 @@ function SlotCard({
             <p className="service-section-label">슬롯 {slot.id}</p>
             <h3>{getSlotDisplayName(slot)}</h3>
             <p className="service-muted">
-              {getSlotStageLabel(slot)} · {slot.device} / {slot.version}
+              {isCompact
+                ? `${getSlotStageLabel(slot)} · ${slot.version}`
+                : `${getSlotStageLabel(slot)} · ${slot.device} / ${slot.version}`}
             </p>
           </div>
           <div className="service-slot-card__head-actions">
@@ -84,13 +89,15 @@ function SlotCard({
           </div>
         </div>
 
-        <p className="service-muted">
-          생성일 {formatSlotCreatedAt(slot.createdAt)}
-        </p>
+        {!isCompact && (
+          <p className="service-muted">
+            생성일 {formatSlotCreatedAt(slot.createdAt)}
+          </p>
+        )}
 
-        {statusChips.length > 0 && (
+        {visibleStatusChips.length > 0 && (
           <div className="service-status-chip-row" aria-label="슬롯 상태">
-            {statusChips.map((chip) => (
+            {visibleStatusChips.map((chip) => (
               <span
                 key={chip.id}
                 className={`service-status-chip service-status-chip--${chip.tone}`}

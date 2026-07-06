@@ -151,6 +151,25 @@ describe("TrainPopup UI", () => {
     expect(screen.getByTestId("train-hit-effect")).toHaveClass("is-upper");
   });
 
+  test("훈련 시작 직후에도 라운드 기록 영역을 예약하고 결과를 같은 영역에 표시한다", async () => {
+    renderTrainPopup();
+
+    fireEvent.click(screen.getByRole("button", { name: "시작" }));
+
+    const logStrip = screen.getByLabelText("라운드 기록");
+    expect(logStrip).toBeInTheDocument();
+    expect(logStrip.querySelectorAll(".train-popup__log-chip")).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /위/ }));
+
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(logStrip.querySelector(".train-popup__log-chip")).not.toBeNull();
+    expect(logStrip).toHaveTextContent("R1");
+  });
+
   test("모바일에서는 공격 버튼이 내 디지몬 아래 패널로 이동한다", async () => {
     setViewportSize(390, 844);
     renderTrainPopup();

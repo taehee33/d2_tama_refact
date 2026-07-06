@@ -34,4 +34,31 @@ describe("DigimonStatusDetailModal", () => {
     expect(screen.getByText("강제로 깨어 있는 동안은 다시 재우기 전까지 수면 리듬이 밀릴 수 있어요.")).toBeInTheDocument();
     expect(screen.getByText("수면까지 1시간 0분 후 😴")).toBeInTheDocument();
   });
+
+  test("상단 제목 영역은 스크롤 본문 밖에 고정될 수 있는 구조로 렌더링한다", () => {
+    render(
+      <DigimonStatusDetailModal
+        statusMessages={[
+          {
+            id: "hunger-empty",
+            text: "배고픔 0 🍖",
+            category: "warning",
+            detailHint: "조금 더 방치하면 배고픔 호출이 켜질 수 있어요.",
+            color: "text-orange-600",
+            bgColor: "bg-orange-100",
+          },
+        ]}
+        onClose={() => {}}
+      />
+    );
+
+    const body = document.querySelector(".digimon-status-detail-modal__body");
+    const header = document.querySelector(".digimon-status-detail-modal__header");
+
+    expect(body).toBeInTheDocument();
+    expect(header).toBeInTheDocument();
+    expect(body).toContainElement(screen.getByText("곧 대응 필요"));
+    expect(body).not.toContainElement(screen.getByText("디지몬 상태 상세"));
+    expect(header).toContainElement(screen.getByText("디지몬 상태 상세"));
+  });
 });

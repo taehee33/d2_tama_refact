@@ -5,11 +5,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { usePresenceContext } from '../contexts/AblyContext';
 import { getPresenceDisplayName } from '../utils/presenceUtils';
 
-const OnlineUsersCount = ({ showChatShortcut = true }) => {
+const OnlineUsersCount = ({ showChatShortcut = true, variant = "default" }) => {
   const { presenceData, presenceCount, unreadCount, setIsChatOpen } = usePresenceContext();
   const [showPopup, setShowPopup] = useState(false);
   const popupRef = useRef(null);
   const buttonRef = useRef(null);
+  const isGameHeader = variant === "game-header";
 
   // 팝업 외부 클릭 시 닫기
   useEffect(() => {
@@ -40,6 +41,12 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
 
   // 채팅 아이콘 클릭 시 채팅창으로 스크롤
   const handleChatClick = () => {
+    if (isGameHeader) {
+      setShowPopup(false);
+      setIsChatOpen(true);
+      return;
+    }
+
     // 채팅창 컨테이너 찾기
     const chatContainer = document.querySelector('.tamer-chat-container');
     if (chatContainer) {
@@ -51,6 +58,29 @@ const OnlineUsersCount = ({ showChatShortcut = true }) => {
     setShowPopup(false);
     setIsChatOpen(true);
   };
+
+  if (isGameHeader) {
+    return (
+      <button
+        type="button"
+        onClick={handleChatClick}
+        className="online-users-count online-users-count--game-header"
+        title="채팅 열기"
+        aria-label={`채팅 열기, 현재 ${presenceCount}명 접속 중`}
+      >
+        <span className="online-users-count__game-icon" aria-hidden="true">
+          💬
+          {unreadCount > 0 && (
+            <span className="online-users-count__game-badge">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </span>
+        <span className="online-users-count__game-label">채팅</span>
+        <span className="online-users-count__game-presence">{presenceCount}명</span>
+      </button>
+    );
+  }
 
   return (
     <div className="online-users-count relative inline-flex items-stretch overflow-visible rounded-md bg-slate-100 shadow-sm">

@@ -48,6 +48,7 @@ jest.mock("../utils/slotViewUtils", () => ({
 
 describe("PlayHub", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     mockNavigate.mockReset();
     mockDeleteSlot.mockReset();
     mockGetSlotDisplayName.mockReturnValue("뿔몬");
@@ -174,6 +175,119 @@ describe("PlayHub", () => {
     expect(screen.queryByText("허브 운영 기준")).not.toBeInTheDocument();
     expect(screen.queryByText("정렬과 보관")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "관련 페이지" })).toBeInTheDocument();
+  });
+
+  test("전체 슬롯 목록은 전용 그리드 컨테이너에 렌더링한다", () => {
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+        {
+          id: 2,
+          slotName: "슬롯2",
+          selectedDigimon: "Agumon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: {
+        id: 1,
+        slotName: "슬롯1",
+        selectedDigimon: "Koromon",
+        device: "Digital Monster Color 25th",
+        version: "Ver.1",
+        createdAt: "2026-04-04T09:00:00.000Z",
+      },
+    });
+
+    const { container } = render(<PlayHub />);
+    const slotGrid = container.querySelector(".service-slot-grid");
+
+    expect(slotGrid).toBeInTheDocument();
+    expect(slotGrid).toContainElement(screen.getByRole("button", { name: "슬롯 1 삭제" }));
+    expect(slotGrid).toContainElement(screen.getByRole("button", { name: "슬롯 2 삭제" }));
+    expect(container.querySelector(".service-recent-slot")).toBeInTheDocument();
+  });
+
+  test("슬롯 목록 보기 방식은 기본 자세히이며 간략히 선택을 저장한다", () => {
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: null,
+    });
+
+    const { container } = render(<PlayHub />);
+    const slotGrid = container.querySelector(".service-slot-grid");
+
+    expect(screen.getByRole("button", { name: "자세히" })).toHaveAttribute("aria-pressed", "true");
+    expect(slotGrid).toHaveClass("service-slot-grid--detail");
+
+    fireEvent.click(screen.getByRole("button", { name: "간략히" }));
+
+    expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--compact");
+    expect(window.localStorage.getItem("digimon_slot_list_view_mode")).toBe("compact");
+  });
+
+  test("저장된 슬롯 목록 보기 방식을 새 렌더에서도 유지한다", () => {
+    window.localStorage.setItem("digimon_slot_list_view_mode", "compact");
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: null,
+    });
+
+    const { container } = render(<PlayHub />);
+
+    expect(screen.getByRole("button", { name: "간략히" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--compact");
+
+    fireEvent.click(screen.getByRole("button", { name: "자세히" }));
+
+    expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--detail");
+    expect(window.localStorage.getItem("digimon_slot_list_view_mode")).toBe("detail");
   });
 
   test("삭제 시 디지몬 이름이 일치해야 슬롯을 삭제한다", () => {

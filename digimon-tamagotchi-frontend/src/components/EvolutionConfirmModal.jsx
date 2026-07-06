@@ -111,6 +111,12 @@ export default function EvolutionConfirmModal({
           >
             진화가이드
           </button>
+          <button
+            onClick={onClose}
+            className="px-6 py-3 bg-gray-600 text-white font-bold rounded pixel-art-button hover:bg-gray-700"
+          >
+            닫기
+          </button>
         </div>
       </div>
     </div>

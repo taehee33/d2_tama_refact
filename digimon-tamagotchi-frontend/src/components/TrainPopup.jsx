@@ -723,19 +723,17 @@ export default function TrainPopup({
           </article>
         </section>
 
-        {partialResults.length > 0 && (
-          <section className="train-popup__log-strip" aria-label="라운드 기록">
-            {partialResults.map((result) => (
-              <div key={result.round} className={`train-popup__log-chip ${result.isHit ? "is-hit" : "is-block"}`}>
-                <strong>R{result.round}</strong>
-                <span>
-                  {formatDirection(result.attack)} 공격 / {formatDirection(result.defend)} 방어
-                </span>
-                <em>{result.isHit ? "명중" : "막힘"}</em>
-              </div>
-            ))}
-          </section>
-        )}
+        <section className="train-popup__log-strip" aria-label="라운드 기록">
+          {partialResults.map((result) => (
+            <div key={result.round} className={`train-popup__log-chip ${result.isHit ? "is-hit" : "is-block"}`}>
+              <strong>R{result.round}</strong>
+              <span>
+                {formatDirection(result.attack)} 공격 / {formatDirection(result.defend)} 방어
+              </span>
+              <em>{result.isHit ? "명중" : "막힘"}</em>
+            </div>
+          ))}
+        </section>
 
         {phase === "final" && finalResult && (
           <div className="train-popup__result-overlay" role="dialog" aria-modal="true" aria-label="최종 훈련 결과 팝업">

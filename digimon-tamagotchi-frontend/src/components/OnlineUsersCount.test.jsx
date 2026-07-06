@@ -88,4 +88,34 @@ describe("OnlineUsersCount", () => {
 
     querySelectorSpy.mockRestore();
   });
+
+  test("게임 헤더 모드는 채팅 pill과 접속자 수를 함께 표시한다", () => {
+    mockUsePresenceContext.mockReturnValue(
+      makeContext({
+        presenceCount: 0,
+        unreadCount: 0,
+      })
+    );
+
+    render(<OnlineUsersCount variant="game-header" />);
+
+    expect(screen.getByRole("button", { name: "채팅 열기, 현재 0명 접속 중" })).toBeInTheDocument();
+    expect(screen.getByText("채팅")).toBeInTheDocument();
+    expect(screen.getByText("0명")).toBeInTheDocument();
+  });
+
+  test("게임 헤더 모드는 클릭 시 채팅 drawer를 열고 unread 배지를 유지한다", () => {
+    const querySelectorSpy = jest.spyOn(document, "querySelector");
+
+    render(<OnlineUsersCount variant="game-header" />);
+
+    expect(screen.getByText("2")).toHaveClass("online-users-count__game-badge");
+
+    fireEvent.click(screen.getByRole("button", { name: "채팅 열기, 현재 4명 접속 중" }));
+
+    expect(setIsChatOpen).toHaveBeenCalledWith(true);
+    expect(querySelectorSpy).not.toHaveBeenCalled();
+
+    querySelectorSpy.mockRestore();
+  });
 });

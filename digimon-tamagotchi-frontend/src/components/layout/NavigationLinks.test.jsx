@@ -274,4 +274,69 @@ describe("홈과 노트북 전역 이동 링크", () => {
     );
     expect(screen.queryByRole("link", { name: "노트북" })).not.toBeInTheDocument();
   });
+
+  test("모바일 탭바 커뮤니티 버튼은 게시판 메뉴 4개를 펼친다", () => {
+    render(<MobileTabBar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+
+    const menu = screen.getByRole("menu", { name: "커뮤니티 게시판 메뉴" });
+    expect(within(menu).getByRole("menuitem", { name: /자유게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=free"
+    );
+    expect(within(menu).getByRole("menuitem", { name: /자랑게시판/ })).toHaveAttribute(
+      "href",
+      "/community?board=showcase"
+    );
+    expect(
+      within(menu).getByRole("menuitem", { name: /버그제보\s*\/\s*QnA/ })
+    ).toHaveAttribute("href", "/community?board=support");
+    expect(within(menu).getByRole("menuitem", { name: /디스코드\/후원/ })).toHaveAttribute(
+      "href",
+      "/community?board=discord"
+    );
+  });
+
+  test("모바일 탭바 게시판 메뉴는 현재 커뮤니티 board를 표시한다", () => {
+    mockLocation.pathname = "/community";
+    mockLocation.search = "?board=showcase";
+
+    render(<MobileTabBar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+
+    expect(screen.getByRole("menuitem", { name: /자랑게시판/ })).toHaveClass(
+      "service-tabbar-community-menu__link--active"
+    );
+  });
+
+  test("모바일 탭바 게시판 메뉴는 Escape와 바깥 클릭으로 닫힌다", () => {
+    render(<MobileTabBar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    expect(screen.getByRole("menu", { name: "커뮤니티 게시판 메뉴" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu", { name: "커뮤니티 게시판 메뉴" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("menu", { name: "커뮤니티 게시판 메뉴" })).not.toBeInTheDocument();
+  });
+
+  test("모바일 탭바 게시판 메뉴는 다른 탭과 라우트 변경에서 닫힌다", () => {
+    const { rerender } = render(<MobileTabBar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    expect(screen.getByRole("menu", { name: "커뮤니티 게시판 메뉴" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "플레이" }));
+    expect(screen.queryByRole("menu", { name: "커뮤니티 게시판 메뉴" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "커뮤니티" }));
+    mockLocation.pathname = "/play";
+    rerender(<MobileTabBar />);
+    expect(screen.queryByRole("menu", { name: "커뮤니티 게시판 메뉴" })).not.toBeInTheDocument();
+  });
 });

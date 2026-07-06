@@ -14,7 +14,7 @@ import {
 import EncyclopediaDetailModal from "../EncyclopediaDetailModal";
 import "../../styles/Battle.css";
 
-const ENCYCLOPEDIA_GRID_TEMPLATE = "repeat(auto-fit, minmax(8rem, 1fr))";
+const ENCYCLOPEDIA_GRID_TEMPLATE = "repeat(auto-fit, minmax(7.25rem, 1fr))";
 
 function getEncyclopediaEntry(versionData, digimonKey) {
   return (

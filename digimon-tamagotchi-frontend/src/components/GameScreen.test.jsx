@@ -247,6 +247,44 @@ describe("GameScreen 호출 UI", () => {
     expect(screen.queryByRole("button", { name: "모두 확인" })).not.toBeInTheDocument();
   });
 
+  test("케어미스 최근 기록은 확인 여부에 따라 배지 색상을 분리한다", () => {
+    const unreadTimestamp = Date.now() - 6000;
+    const acknowledgedTimestamp = Date.now() - 3000;
+
+    renderGameScreen({
+      showCallModal: true,
+      digimonStats: {
+        acknowledgedRecentCallIds: [
+          `call:hunger:missed:${acknowledgedTimestamp}`,
+        ],
+        activityLogs: [
+          {
+            type: "CARE_MISTAKE",
+            text: "케어미스(사유: 힘 콜 10분 무시) [과거 재구성]",
+            timestamp: unreadTimestamp,
+          },
+          {
+            type: "CARE_MISTAKE",
+            text: "케어미스(사유: 배고픔 콜 10분 무시) [과거 재구성]",
+            timestamp: acknowledgedTimestamp,
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByText("미확인")).toHaveClass("bg-red-200", "text-red-800");
+    expect(screen.getByText("확인됨")).toHaveClass(
+      "border",
+      "border-slate-200",
+      "bg-slate-100",
+      "text-slate-600"
+    );
+    expect(screen.getByText("배고픔 호출 -> 케어미스!").closest(".rounded")).toHaveClass(
+      "bg-slate-50",
+      "border-slate-200"
+    );
+  });
+
   test("최근 호출 탭과 현재 호출 탭을 전환해 내용을 분리해서 보여준다", () => {
     renderGameScreen({
       showCallModal: true,

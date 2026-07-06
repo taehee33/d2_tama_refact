@@ -1066,7 +1066,9 @@
 .train-popup__log-strip {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 10px;
+  min-height: 76px;
 }
 
 .train-popup__log-chip {
@@ -1184,6 +1186,7 @@
 
 .train-popup__ready-actions {
   display: flex;
+  justify-content: center;
   gap: 12px;
   margin-top: 24px;
 }
