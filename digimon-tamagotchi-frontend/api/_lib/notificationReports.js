@@ -175,16 +175,18 @@ function sortSlotDocuments(slotDocuments = []) {
 function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], generatedAt, currentTimeMs }) {
   const abnormalList = [];
   const healthyList = [];
+  const frozenList = [];
 
   sortSlotDocuments(slotDocuments).forEach((slotDocument) => {
     const slotId = normalizeString(slotDocument?.id || slotDocument?.name?.split("/").pop(), "slot?");
     const slotData = slotDocument?.data && typeof slotDocument.data === "object" ? slotDocument.data : {};
+    const digimonName = resolveDigimonDisplayName(slotData);
 
     if (isStoredInCareStorage(slotData)) {
+      frozenList.push(`- **${digimonName}** (${slotId})`);
       return;
     }
 
-    const digimonName = resolveDigimonDisplayName(slotData);
     const issues = resolveSlotIssues(slotData, currentTimeMs);
 
     if (issues.length > 0) {
@@ -195,7 +197,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     healthyList.push(`- **${digimonName}** (${slotId})`);
   });
 
-  const totalCount = abnormalList.length + healthyList.length;
+  const totalCount = abnormalList.length + healthyList.length + frozenList.length;
   let messageContent = `${REPORT_BORDER}\n📊 **디지몬 상태 일일 보고**\n\n👤 **테이머**: ${tamerName} (총 ${totalCount}마리)\n`;
 
   if (abnormalList.length > 0) {
@@ -208,6 +210,10 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     messageContent += `\n🍀 **정상 상태 디지몬 목록** (${healthyList.length}마리)\n${healthyList.join("\n")}\n`;
   }
 
+  if (frozenList.length > 0) {
+    messageContent += `\n🧊 **냉장고 보관 중 목록** (${frozenList.length}마리)\n${frozenList.join("\n")}\n`;
+  }
+
   messageContent += `\n⏰ **확인 시간**: ${generatedAt}\n${REPORT_BORDER}`;
 
   return {
@@ -217,6 +223,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     messageContent,
     abnormalCount: abnormalList.length,
     healthyCount: healthyList.length,
+    frozenCount: frozenList.length,
     totalCount,
   };
 }

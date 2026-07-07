@@ -6923,3 +6923,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.jsx`
   - `digimon-tamagotchi-frontend/src/components/panels/EncyclopediaPanel.test.jsx`
 - **근거:** 미발견 카드에서도 아주 약한 실루엣 힌트는 유지하되, 잠금/이름 영역은 발견된 카드와 같은 세로 흐름으로 정렬한다.
+
+## [2026-07-07] Discord 일일 보고 냉장고 상태 반영
+
+- **내용:** Discord 일일 보고에서 냉장고 보관 중인 슬롯을 누락하지 않고 총 마리 수에 포함하도록 수정했다. 냉장고 보관 슬롯은 상태이상/정상 목록과 분리해 `냉장고 보관 중 목록` 섹션에 표시한다.
+- **응답 변경:** report payload에 `frozenCount`를 추가해 상태이상, 정상, 냉장고 보관 수를 각각 확인할 수 있게 했다.
+- **테스트:** 냉장고 슬롯이 총 마리 수와 `frozenCount`에 포함되고, 배고픔/기력 0 상태여도 상태이상 항목으로 표시되지 않는지 검증했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/notificationReports.js`
+  - `api/_lib/notificationReports.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **근거:** 냉장고 보관은 시간 경과와 호출 판정이 멈춘 별도 보관 상태이므로, 상태이상이나 정상 상태로 합치지 않고 별도 섹션으로 분리한다. Firestore 저장 계약, Apps Script 전송 흐름, lazy update 규칙은 변경하지 않는다.
