@@ -6500,7 +6500,6 @@ function projectState(
   const {
     lastSavedAt,
     sleepSchedule = null,
-    maxEnergy = null,
   } = options;
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error("projectState requires a finite nowMs");
