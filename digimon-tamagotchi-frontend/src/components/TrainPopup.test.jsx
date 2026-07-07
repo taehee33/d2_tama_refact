@@ -151,14 +151,13 @@ describe("TrainPopup UI", () => {
     expect(screen.getByTestId("train-hit-effect")).toHaveClass("is-upper");
   });
 
-  test("훈련 시작 직후에도 라운드 기록 영역을 예약하고 결과를 같은 영역에 표시한다", async () => {
+  test("라운드 결과는 하단 기록 없이 상단 히트 히스토리 칩에 상세 표시된다", async () => {
     renderTrainPopup();
 
     fireEvent.click(screen.getByRole("button", { name: "시작" }));
 
-    const logStrip = screen.getByLabelText("라운드 기록");
-    expect(logStrip).toBeInTheDocument();
-    expect(logStrip.querySelectorAll(".train-popup__log-chip")).toHaveLength(0);
+    const hitHistory = screen.getByLabelText("히트 히스토리");
+    expect(screen.queryByLabelText("라운드 기록")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /위/ }));
 
@@ -166,8 +165,9 @@ describe("TrainPopup UI", () => {
       jest.advanceTimersByTime(300);
     });
 
-    expect(logStrip.querySelector(".train-popup__log-chip")).not.toBeNull();
-    expect(logStrip).toHaveTextContent("R1");
+    expect(hitHistory).toHaveTextContent("R1");
+    expect(hitHistory).toHaveTextContent("상단 공격 / 상단 방어");
+    expect(screen.queryByLabelText("라운드 기록")).not.toBeInTheDocument();
   });
 
   test("모바일에서는 공격 버튼이 내 디지몬 아래 패널로 이동한다", async () => {

@@ -9,6 +9,7 @@ export default function ExtraMenuModal({
   onClose,
   onOpenSettings,
   onOpenCollection,
+  onOpenBackgroundSettings,
   onOpenActivityLog,
   onOpenBattleLog,
   onOpenEncyclopedia,
@@ -21,6 +22,7 @@ export default function ExtraMenuModal({
     encyclopedia: onOpenEncyclopedia,
     fridge: onOpenFridge,
     collection: onOpenCollection,
+    backgroundSettings: onOpenBackgroundSettings,
     settings: onOpenSettings,
   };
 

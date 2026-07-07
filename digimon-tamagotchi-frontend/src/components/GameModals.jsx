@@ -82,6 +82,8 @@ export default function GameModals({
   ui,
   flags,
 }) {
+  const [backgroundSettingsReturnTarget, setBackgroundSettingsReturnTarget] = React.useState("collection");
+
   // 필수 props가 없으면 렌더링하지 않음
   if (!modals || !toggleModal || !gameState || !handlers || !data || !ui || !flags) {
     console.warn('GameModals: 필수 props가 누락되었습니다.', { modals, toggleModal, gameState, handlers, data, ui, flags });
@@ -785,6 +787,10 @@ export default function GameModals({
           onClose={() => toggleModal('extra', false)}
           onOpenSettings={() => toggleModal('settings', true)}
           onOpenCollection={() => toggleModal('collection', true)}
+          onOpenBackgroundSettings={() => {
+            setBackgroundSettingsReturnTarget("extra");
+            toggleModal('backgroundSettings', true);
+          }}
           onOpenActivityLog={() => toggleModal('activityLog', true)}
           onOpenBattleLog={() => toggleModal('battleLog', true)}
           onOpenEncyclopedia={() => toggleModal('encyclopedia', true)}
@@ -837,6 +843,7 @@ export default function GameModals({
             toggleModal('extra', true);
           }}
           onOpenBackgroundSettings={() => {
+            setBackgroundSettingsReturnTarget("collection");
             toggleModal('collection', false);
             toggleModal('backgroundSettings', true);
           }}
@@ -849,7 +856,7 @@ export default function GameModals({
           onClose={() => toggleModal('backgroundSettings', false)}
           onBack={() => {
             toggleModal('backgroundSettings', false);
-            toggleModal('collection', true);
+            toggleModal(backgroundSettingsReturnTarget === "extra" ? 'extra' : 'collection', true);
           }}
           backgroundSettings={ui?.backgroundSettings}
           setBackgroundSettings={ui?.setBackgroundSettings}

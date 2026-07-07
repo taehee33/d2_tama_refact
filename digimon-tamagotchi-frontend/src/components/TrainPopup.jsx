@@ -525,6 +525,9 @@ export default function TrainPopup({
               const result = partialResults[index];
               const isCurrentRound = !result && phase === "battle" && round === index + 1;
               const label = result ? (result.isHit ? "명중" : "막힘") : isCurrentRound ? "진행 중" : "대기";
+              const detailLabel = result
+                ? `${formatDirection(result.attack)} 공격 / ${formatDirection(result.defend)} 방어`
+                : "";
 
               return (
                 <div
@@ -542,6 +545,12 @@ export default function TrainPopup({
                 >
                   <span>R{index + 1}</span>
                   <strong>{label}</strong>
+                  {detailLabel && (
+                    <em className="train-popup__round-detail">
+                      {detailLabel}
+                      {result.autoSelected ? " · 자동" : ""}
+                    </em>
+                  )}
                 </div>
               );
             })}
@@ -721,18 +730,6 @@ export default function TrainPopup({
               입력 전에는 중앙 ?로 방어가 숨겨집니다.
             </span>
           </article>
-        </section>
-
-        <section className="train-popup__log-strip" aria-label="라운드 기록">
-          {partialResults.map((result) => (
-            <div key={result.round} className={`train-popup__log-chip ${result.isHit ? "is-hit" : "is-block"}`}>
-              <strong>R{result.round}</strong>
-              <span>
-                {formatDirection(result.attack)} 공격 / {formatDirection(result.defend)} 방어
-              </span>
-              <em>{result.isHit ? "명중" : "막힘"}</em>
-            </div>
-          ))}
         </section>
 
         {phase === "final" && finalResult && (

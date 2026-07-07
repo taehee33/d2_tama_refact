@@ -4,6 +4,44 @@
 
 ---
 
+## [2026-07-07] 교감 닫기 문구 및 배경화면 메뉴 승격
+
+- **내용:** 교감 관련 모달 하단 버튼 문구를 `뒤로`에서 `닫기`로 변경하고, `더보기 > 보관/꾸미기`의 기존 컬렉션 위치에서 배경화면 설정을 바로 열 수 있도록 조정했다. 배경화면 설정의 뒤로가기는 진입 경로에 따라 추가 기능 또는 컬렉션으로 돌아간다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/CommunicationModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/InteractionModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ExtraMenuModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/constants/gameMenus.js`
+  - `digimon-tamagotchi-frontend/src/components/CommunicationModal.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/InteractionModal.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ExtraMenuModal.test.jsx`
+- **근거:** 사용자가 교감 모달의 닫기 의미를 명확히 인지하고, 배경화면 설정을 컬렉션 하위 메뉴를 거치지 않고 더보기에서 바로 찾을 수 있게 한다.
+
+## [2026-07-07] PC 훈련 결과 표시 통합
+
+- **내용:** 훈련 팝업의 하단 `라운드 기록` 영역을 제거하고, 상단 R1~R5 히트 히스토리 칩에 라운드별 공격/방어 상세를 함께 표시하도록 정리했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/TrainPopup.jsx`
+  - `digimon-tamagotchi-frontend/src/styles/TrainPopup.css`
+  - `digimon-tamagotchi-frontend/src/components/TrainPopup.test.jsx`
+- **근거:** 같은 라운드 결과를 상단과 하단에 중복 표시하지 않고, PC 훈련 팝업의 높이와 시선 흐름을 안정적으로 유지한다.
+
+## [2026-07-07] 모바일 훈련 3영역 균등 정렬
+
+- **내용:** 모바일/짧은 가로 훈련 팝업에서 `내 디지몬`, `공격 경로`, `샌드백` 영역을 같은 폭의 3열로 정렬하고, 가운데 공격 경로와 오른쪽 샌드백 내부 요소가 칸 밖으로 튀지 않도록 크기와 위치를 보정했다. 샌드백 제목과 `막음`/`피격` 표시, 피격 효과도 모바일에서 더 읽기 쉽도록 키우고 샌드백 본체 위치를 아래로 조정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/styles/TrainPopup.css`
+- **근거:** 모바일에서도 PC처럼 훈련 전투 무대의 세 영역이 균형 있게 보여, 가운데 공격 연출과 샌드백 영역이 과도하게 넓거나 좁아 보이는 문제를 줄인다.
+
+## [2026-07-07] 운영자 사용자관리 메뉴명 명확화
+
+- **내용:** 운영자 전용 사용자 디렉터리 메뉴명을 `사용자관리`에서 `사용자관리(운영자)`로 변경했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/data/headerNavigation.js`
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.test.jsx`
+- **근거:** 일반 메뉴와 구분되도록 운영자 전용 관리 기능임을 메뉴명에서 바로 드러낸다.
+
 ## [2026-07-06] 모바일/PC UI 정렬 및 팝업 사용성 보정
 
 - **내용:** 모바일 도감/슬롯 목록을 좁은 화면에서 더 조밀하게 볼 수 있도록 조정하고, 슬롯 목록에 `자세히/간략히` 보기 전환과 localStorage 유지 기능을 추가했다. 모바일 커뮤니티 탭바에는 게시판 카테고리 메뉴를 추가했으며, 게임 화면 채팅 버튼은 모바일/PC 모두 `채팅 n명` pill 형태로 통일했다.

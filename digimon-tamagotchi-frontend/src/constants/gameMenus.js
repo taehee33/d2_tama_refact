@@ -158,9 +158,9 @@ export const GAME_MENU_DEFINITIONS = [
     surface: MENU_SURFACES.EXTRA,
   },
   {
-    id: "collection",
-    label: "컬렉션",
-    icon: "⭐",
+    id: "backgroundSettings",
+    label: "배경화면",
+    icon: "🖼️",
     group: "storage",
     order: 2,
     requiresLights: false,

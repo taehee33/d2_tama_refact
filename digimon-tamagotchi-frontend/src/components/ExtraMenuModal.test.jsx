@@ -9,6 +9,7 @@ describe("ExtraMenuModal", () => {
         onClose={jest.fn()}
         onOpenSettings={jest.fn()}
         onOpenCollection={jest.fn()}
+        onOpenBackgroundSettings={jest.fn()}
         onOpenActivityLog={jest.fn()}
         onOpenBattleLog={jest.fn()}
         onOpenEncyclopedia={jest.fn()}
@@ -20,6 +21,8 @@ describe("ExtraMenuModal", () => {
     expect(screen.getByText("자료")).toBeInTheDocument();
     expect(screen.getByText("보관/꾸미기")).toBeInTheDocument();
     expect(screen.getByText("시스템")).toBeInTheDocument();
+    expect(screen.getByText("배경화면")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /컬렉션/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/디지몬 가이드/)).not.toBeInTheDocument();
   });
 
@@ -32,6 +35,7 @@ describe("ExtraMenuModal", () => {
         onClose={onClose}
         onOpenSettings={jest.fn()}
         onOpenCollection={jest.fn()}
+        onOpenBackgroundSettings={jest.fn()}
         onOpenActivityLog={onOpenActivityLog}
         onOpenBattleLog={jest.fn()}
         onOpenEncyclopedia={jest.fn()}
@@ -45,6 +49,29 @@ describe("ExtraMenuModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  test("배경화면 버튼이 배경화면 설정 액션과 닫기를 함께 실행한다", () => {
+    const onClose = jest.fn();
+    const onOpenBackgroundSettings = jest.fn();
+
+    render(
+      <ExtraMenuModal
+        onClose={onClose}
+        onOpenSettings={jest.fn()}
+        onOpenCollection={jest.fn()}
+        onOpenBackgroundSettings={onOpenBackgroundSettings}
+        onOpenActivityLog={jest.fn()}
+        onOpenBattleLog={jest.fn()}
+        onOpenEncyclopedia={jest.fn()}
+        onOpenFridge={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /배경화면/ }));
+
+    expect(onOpenBackgroundSettings).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   test("상단 닫기 버튼으로 더보기 모달을 닫을 수 있다", () => {
     const onClose = jest.fn();
 
@@ -53,6 +80,7 @@ describe("ExtraMenuModal", () => {
         onClose={onClose}
         onOpenSettings={jest.fn()}
         onOpenCollection={jest.fn()}
+        onOpenBackgroundSettings={jest.fn()}
         onOpenActivityLog={jest.fn()}
         onOpenBattleLog={jest.fn()}
         onOpenEncyclopedia={jest.fn()}

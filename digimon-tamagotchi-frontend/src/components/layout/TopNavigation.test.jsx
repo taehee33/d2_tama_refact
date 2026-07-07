@@ -75,7 +75,7 @@ describe("TopNavigation", () => {
   test("운영자 권한이 없으면 사용자관리 메뉴를 숨긴다", () => {
     render(<TopNavigation tamerName="테이머" />);
 
-    expect(screen.queryByRole("link", { name: "사용자관리" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "사용자관리(운영자)" })).not.toBeInTheDocument();
   });
 
   test("로그인 상태에서는 알림을 계정 메뉴 왼쪽 inline 영역에 렌더링한다", () => {
@@ -95,7 +95,7 @@ describe("TopNavigation", () => {
     render(<TopNavigation tamerName="테이머" />);
 
     expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
-    expect(screen.getByRole("link", { name: "사용자관리" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "사용자관리(운영자)" })).toHaveAttribute(
       "href",
       "/operators/users"
     );

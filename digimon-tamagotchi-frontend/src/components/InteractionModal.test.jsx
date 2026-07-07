@@ -21,4 +21,24 @@ describe("InteractionModal", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  test("하단 닫기 버튼으로 모달을 닫을 수 있다", () => {
+    const onClose = jest.fn();
+
+    render(
+      <InteractionModal
+        onClose={onClose}
+        onDiet={jest.fn()}
+        onDetox={jest.fn()}
+        onRest={jest.fn()}
+        onPlayOrSnack={jest.fn()}
+        onTease={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+
+    expect(screen.queryByRole("button", { name: "뒤로" })).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
