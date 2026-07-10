@@ -318,6 +318,57 @@ describe("useEvolution jogress flows", () => {
     expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 
+  test("개발자 전체 조건 무시에서는 선택한 일반 진화 후보로 진행한다", async () => {
+    jest.useFakeTimers();
+    const digimonMap = createDigimonMap();
+    digimonMap.Agumon = {
+      ...digimonMap.Agumon,
+      evolutions: [
+        { targetId: "Betamon", jogress: false },
+        { targetId: "Omegamon", jogress: false },
+        { targetId: "JogressOnly", jogress: true },
+      ],
+    };
+    const params = createParams({
+      developerMode: true,
+      ignoreEvolutionTime: true,
+      digimonDataVer1: digimonMap,
+      newDigimonDataVer1: digimonMap,
+      evolutionDataVer1: digimonMap,
+    });
+    const { result } = renderHook(() => useEvolution(params));
+
+    await act(async () => {
+      await result.current.proceedEvolution("Omegamon");
+    });
+
+    expect(params.setEvolvedDigimonName).toHaveBeenCalledWith("오메가몬");
+    expect(alertSpy).not.toHaveBeenCalled();
+  });
+
+  test("개발자 모드가 OFF면 남아 있는 조건 무시 값으로 선택 진화를 실행하지 않는다", async () => {
+    const digimonMap = createDigimonMap();
+    digimonMap.Agumon = {
+      ...digimonMap.Agumon,
+      evolutions: [{ targetId: "Betamon", jogress: false }],
+    };
+    const params = createParams({
+      developerMode: false,
+      ignoreEvolutionTime: true,
+      digimonDataVer1: digimonMap,
+      newDigimonDataVer1: digimonMap,
+      evolutionDataVer1: digimonMap,
+    });
+    const { result } = renderHook(() => useEvolution(params));
+
+    await act(async () => {
+      await result.current.proceedEvolution("Betamon");
+    });
+
+    expect(params.setEvolvedDigimonName).not.toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalled();
+  });
+
   test("proceedEvolution은 진화 플로우 진행 중 중복 실행되지 않는다", async () => {
     jest.useFakeTimers();
     const digimonMap = createDigimonMap();

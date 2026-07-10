@@ -84,7 +84,7 @@ describe("SettingsModal developer options", () => {
 
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "모든 진화 조건 무시 (체크 시 바로 진화 가능)",
+        name: "모든 진화 조건 무시 (후보 선택 후 즉시 진화 가능)",
       })
     );
 
@@ -145,5 +145,52 @@ describe("SettingsModal developer options", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(setDeveloperMode).toHaveBeenCalledWith(false);
+  });
+
+  test("개발자 모드를 OFF로 저장하면 전체 조건 무시도 해제한다", () => {
+    const setIgnoreEvolutionTime = jest.fn();
+
+    render(
+      <SettingsModal
+        onClose={jest.fn()}
+        foodSizeScale={0.31}
+        setFoodSizeScale={jest.fn()}
+        developerMode
+        setDeveloperMode={jest.fn()}
+        canUseDeveloperMode
+        encyclopediaShowQuestionMark={false}
+        setEncyclopediaShowQuestionMark={jest.fn()}
+        ignoreEvolutionTime
+        setIgnoreEvolutionTime={setIgnoreEvolutionTime}
+        width={300}
+        height={200}
+        setWidth={jest.fn()}
+        setHeight={jest.fn()}
+        backgroundNumber={1}
+        setBackgroundNumber={jest.fn()}
+        digimonSizeScale={1}
+        setDigimonSizeScale={jest.fn()}
+        timeMode="real"
+        setTimeMode={jest.fn()}
+        timeSpeed={1}
+        setTimeSpeed={jest.fn()}
+        customTime=""
+        setCustomTime={jest.fn()}
+        newDigimonDataVer1={null}
+        digimonDataVer1={null}
+        digimonDataVer2={null}
+        initializeStats={null}
+        setDigimonStatsAndSave={null}
+        setSelectedDigimonAndSave={null}
+        selectedDigimon="Agumon"
+        digimonStats={{}}
+        slotVersion="Ver.1"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "ON" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(setIgnoreEvolutionTime).toHaveBeenCalledWith(false);
   });
 });

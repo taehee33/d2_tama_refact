@@ -1,5 +1,10 @@
 import { initializeStats } from "../../data/stats";
 import { checkEvolution } from "../../logic/evolution/checker";
+import {
+  buildEvolutionStatsForCheck,
+  getNormalEvolutionCandidates,
+  isIgnoringAllEvolutionConditions,
+} from "../../logic/evolution/developerOptions";
 import { getStarterDigimonId } from "../../utils/digimonVersionUtils";
 
 const PERFECT_STAGES = ["Perfect", "Ultimate", "SuperUltimate"];
@@ -123,10 +128,6 @@ export function shouldEnableEvolutionButton({
     return false;
   }
 
-  if (developerMode && ignoreEvolutionTime) {
-    return true;
-  }
-
   const resolvedCurrentDigimon = resolveDigimonDataFromMap(
     evolutionDataForSlot,
     selectedDigimon
@@ -134,19 +135,13 @@ export function shouldEnableEvolutionButton({
   const currentDigimonData = resolvedCurrentDigimon?.data;
   const currentDigimonKey = resolvedCurrentDigimon?.key || selectedDigimon;
 
-  if (ignoreEvolutionTime && currentDigimonData?.evolutions?.length > 0) {
-    const hasNonJogress = currentDigimonData.evolutions.some((evolution) => {
-      return !evolution.jogress;
-    });
-
-    if (hasNonJogress) {
-      return true;
-    }
+  if (isIgnoringAllEvolutionConditions(developerMode, ignoreEvolutionTime)) {
+    return getNormalEvolutionCandidates(currentDigimonData, evolutionDataForSlot).length > 0;
   }
 
   if (currentDigimonData?.evolutions) {
     const evolutionResult = checkEvolutionFn(
-      digimonStats,
+      buildEvolutionStatsForCheck(digimonStats, developerMode),
       currentDigimonData,
       currentDigimonKey,
       evolutionDataForSlot

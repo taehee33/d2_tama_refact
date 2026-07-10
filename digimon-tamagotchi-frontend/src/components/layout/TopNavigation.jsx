@@ -13,6 +13,7 @@ import {
 import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 import useOperatorStatus from "../../hooks/useOperatorStatus";
 import NotebookTopBar from "../home/NotebookTopBar";
+import PlayChatLauncher from "../chat/PlayChatLauncher";
 import GlobalNotificationCenter from "../notifications/GlobalNotificationCenter";
 
 function TopNavigation({ tamerName = "" }) {
@@ -260,6 +261,7 @@ function TopNavigation({ tamerName = "" }) {
             ) : null}
           </div>
 
+          {currentUser ? <PlayChatLauncher variant="topnav" /> : null}
           {currentUser ? <GlobalNotificationCenter placement="inline" /> : null}
 
           {currentUser ? (

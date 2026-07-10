@@ -80,12 +80,18 @@ describe("gamePageActionHelpers", () => {
         developerMode: true,
         ignoreEvolutionTime: true,
         selectedDigimon: "Agumon",
-        evolutionDataForSlot: {},
+        evolutionDataForSlot: {
+          Agumon: {
+            evolutions: [{ target: "Greymon" }],
+          },
+        },
       })
     ).toBe(true);
   });
 
-  test("shouldEnableEvolutionButton은 조건 무시 시 일반 진화 후보가 있으면 true를 반환한다", () => {
+  test("shouldEnableEvolutionButton은 개발자 모드 OFF면 남은 조건 무시 값을 적용하지 않는다", () => {
+    const checkEvolutionFn = jest.fn().mockReturnValue({ success: false });
+
     expect(
       shouldEnableEvolutionButton({
         isLoadingSlot: false,
@@ -98,8 +104,36 @@ describe("gamePageActionHelpers", () => {
             evolutions: [{ target: "Greymon" }, { target: "GeoGreymon", jogress: true }],
           },
         },
+        checkEvolutionFn,
+      })
+    ).toBe(false);
+
+    expect(checkEvolutionFn).toHaveBeenCalled();
+  });
+
+  test("shouldEnableEvolutionButton은 개발자 모드에서 진화 시간만 0으로 판정한다", () => {
+    const checkEvolutionFn = jest.fn().mockReturnValue({ success: true });
+
+    expect(
+      shouldEnableEvolutionButton({
+        isLoadingSlot: false,
+        digimonStats: { isDead: false, timeToEvolveSeconds: 3600, trainings: 3 },
+        developerMode: true,
+        ignoreEvolutionTime: false,
+        selectedDigimon: "Agumon",
+        evolutionDataForSlot: {
+          Agumon: { evolutions: [{ target: "Greymon" }] },
+        },
+        checkEvolutionFn,
       })
     ).toBe(true);
+
+    expect(checkEvolutionFn).toHaveBeenCalledWith(
+      { isDead: false, timeToEvolveSeconds: 0, trainings: 3 },
+      expect.any(Object),
+      "Agumon",
+      expect.any(Object)
+    );
   });
 
   test("shouldEnableEvolutionButton은 저장된 디지몬 ID의 앞뒤 공백을 무시한다", () => {

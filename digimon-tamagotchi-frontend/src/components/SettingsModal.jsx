@@ -173,6 +173,10 @@ const SettingsModal = ({
     setWidth(localWidth);
     setHeight(localHeight);
     setDeveloperMode(canUseDeveloperMode ? localDevMode : false);
+    if (!localDevMode || !canUseDeveloperMode) {
+      setLocalIgnoreEvolutionTime(false);
+      setIgnoreEvolutionTime?.(false);
+    }
     // TODO: timeMode, timeSpeed, customTime 등도 저장 로직
     onClose();
   };
@@ -222,7 +226,7 @@ const SettingsModal = ({
                   </label>
                 </div>
               )}
-              {/* 모든 진화 조건 무시 (체크 시 시간·훈련·배틀 등 조건 없이 바로 진화 가능) */}
+              {/* 모든 진화 조건 무시 (후보 선택 후 일반 진화 가능) */}
               {setIgnoreEvolutionTime && (
                 <div className="mb-3">
                   <label className="flex items-center">
@@ -236,7 +240,7 @@ const SettingsModal = ({
                       }}
                       className="mr-2"
                     />
-                    <span>모든 진화 조건 무시 (체크 시 바로 진화 가능)</span>
+                    <span>모든 진화 조건 무시 (후보 선택 후 즉시 진화 가능)</span>
                   </label>
                 </div>
               )}

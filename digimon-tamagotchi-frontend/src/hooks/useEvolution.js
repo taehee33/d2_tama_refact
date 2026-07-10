@@ -5,6 +5,11 @@ import { useRef } from "react";
 import { writeBatch, doc, updateDoc, getDoc, increment, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
+import {
+  buildEvolutionStatsForCheck,
+  getNormalEvolutionCandidates,
+  isIgnoringAllEvolutionConditions,
+} from "../logic/evolution/developerOptions";
 import { getJogressResult } from "../logic/evolution/jogress";
 import { sanitizeDigimonStatsForSlotDocument } from "./useGameData";
 import { buildEvolutionTransitionState } from "./evolutionStateHelpers";
@@ -213,7 +218,7 @@ export function useEvolution({
   /**
    * 실제 진화 진행 함수
    */
-  async function proceedEvolution() {
+  async function proceedEvolution(selectedTargetId = null) {
     if (evolutionInFlightRef.current) {
       return;
     }
@@ -286,13 +291,19 @@ export function useEvolution({
         return;
       }
 
-      // '모든 진화 조건 무시' 옵션: 조건 검사 없이 첫 번째 진화 대상으로 진화
-      if (ignoreEvolutionTime) {
-        const evolutions = currentDigimonData.evolutions || [];
-        const firstOption = evolutions.find((e) => !e.jogress);
-        const targetId = firstOption ? (firstOption.targetId || firstOption.targetName) : null;
+      // 전체 조건 무시는 개발자 모드에서만 적용하며, 일반 진화 후보만 선택할 수 있다.
+      if (isIgnoringAllEvolutionConditions(developerMode, ignoreEvolutionTime)) {
+        const candidates = getNormalEvolutionCandidates(currentDigimonData, slotEvolutionDataMap);
+        const targetId = selectedTargetId || candidates[0]?.targetId;
+
         if (!targetId) {
           alert("진화 가능한 형태가 없습니다.");
+          return;
+        }
+
+        const isValidTarget = candidates.some((candidate) => candidate.targetId === targetId);
+        if (!isValidTarget) {
+          alert("선택할 수 없는 진화 대상입니다.");
           return;
         }
         const targetData = resolveDigimonDataFromMap(slotEvolutionDataMap, targetId)?.data;
@@ -303,9 +314,7 @@ export function useEvolution({
       }
 
       // 개발자 모드: 시간 조건만 0으로 두고 나머지 조건은 판정
-      const statsForCheck = developerMode
-        ? { ...updatedStats, timeToEvolveSeconds: 0 }
-        : updatedStats;
+      const statsForCheck = buildEvolutionStatsForCheck(updatedStats, developerMode);
       const evolutionResult = checkEvolution(
         statsForCheck,
         currentDigimonData,

@@ -6972,3 +6972,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `api/_lib/notificationReports.test.js`
   - `docs/REFACTORING_LOG.md`
 - **근거:** 냉장고 보관은 시간 경과와 호출 판정이 멈춘 별도 보관 상태이므로, 상태이상이나 정상 상태로 합치지 않고 별도 섹션으로 분리한다. Firestore 저장 계약, Apps Script 전송 흐름, lazy update 규칙은 변경하지 않는다.
+
+## [2026-07-11] 개발자 진화 조건 무시 범위 정리 및 후보 선택
+
+- **내용:** 개발자 모드를 끌 때 전체 진화 조건 무시 옵션도 함께 해제하도록 보정했다. 전체 조건 무시는 개발자 모드가 켜진 경우에만 적용하며, 일반 개발자 모드는 진화 시간만 만료된 것으로 처리하고 나머지 진화 조건은 그대로 검사한다. 전체 조건 무시가 켜진 상태에서 일반 진화 후보가 여러 개면 확인 모달에서 대상을 선택할 수 있도록 했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/logic/evolution/developerOptions.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/components/EvolutionConfirmModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+- **근거:** 개발자 모드 OFF 뒤에도 localStorage에 남은 조건 무시 값이 버튼, 확인 모달, 실제 진화에 적용되던 상태 불일치를 없앤다. 조그레스는 별도 흐름이므로 개발자 일반 진화 후보 선택에서는 제외하며, Firestore 저장 계약과 lazy update 규칙은 변경하지 않는다.

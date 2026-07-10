@@ -22,8 +22,6 @@ jest.mock("../ChatRoom", () => (props) => {
   return <div data-testid="play-chat-room">{`ChatRoom:${props.variant}`}</div>;
 });
 
-jest.mock("./PlayChatButton", () => () => <div data-testid="play-chat-button">채팅 버튼</div>);
-
 describe("PlayChatDrawer", () => {
   const setIsChatOpen = jest.fn();
 
@@ -67,12 +65,11 @@ describe("PlayChatDrawer", () => {
     expect(setIsChatOpen).toHaveBeenCalledWith(false);
   });
 
-  test("일반 게임 화면에서는 toolbar가 채팅을 제어하므로 floating 채팅 버튼을 숨긴다", () => {
+  test("게임 화면에서도 채팅 드로어 콘텐츠를 렌더링한다", () => {
     mockLocation.pathname = "/play/4";
 
     render(<PlayChatDrawer />);
 
-    expect(screen.queryByTestId("play-chat-button")).not.toBeInTheDocument();
     expect(screen.getByTestId("play-chat-room")).toBeInTheDocument();
   });
 });

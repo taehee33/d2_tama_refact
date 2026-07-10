@@ -10,7 +10,7 @@ function PlayChatButton({
 }) {
   const buttonLabel = isOpen ? "채팅 닫기" : "채팅";
   const variantClassName = `play-chat-fab--${variant}`;
-  const isCompact = variant === "game-compact";
+  const isCompact = variant === "game-compact" || variant === "topnav";
   const accessibleLabel = `${buttonLabel}, 현재 ${presenceCount}명 접속 중`;
 
   return (

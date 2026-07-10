@@ -7467,6 +7467,31 @@ code {
   min-height: 44px;
 }
 
+.play-chat-fab--topnav {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  min-width: 2.65rem;
+  min-height: 2.65rem;
+  width: 2.65rem;
+  height: 2.65rem;
+  padding: 0;
+  justify-content: center;
+  background: rgba(255, 250, 243, 0.96);
+  color: #254b3d;
+  border: 1px solid rgba(67, 84, 73, 0.16);
+  box-shadow: 0 12px 24px rgba(30, 42, 35, 0.12);
+}
+
+.play-chat-fab--topnav.play-chat-fab--active {
+  background: #2d5f4c;
+  color: #fffdf8;
+}
+
+.play-chat-fab--topnav .play-chat-fab__icon {
+  font-size: 1.05rem;
+}
+
 .play-chat-backdrop {
   position: fixed;
   inset: 0;

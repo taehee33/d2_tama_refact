@@ -20,4 +20,24 @@ describe("EvolutionConfirmModal", () => {
     fireEvent.click(closeButton);
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
+
+  test("여러 개발자 진화 후보 중 선택한 대상만 전달한다", () => {
+    const handleConfirm = jest.fn();
+
+    render(
+      <EvolutionConfirmModal
+        onConfirm={handleConfirm}
+        onOpenGuide={() => {}}
+        onClose={() => {}}
+        evolutionCandidates={[
+          { targetId: "Greymon", label: "그레이몬" },
+          { targetId: "Tyrannomon", label: "티라노몬" },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "티라노몬로 진화" }));
+
+    expect(handleConfirm).toHaveBeenCalledWith("Tyrannomon");
+  });
 });

@@ -42,6 +42,11 @@ import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { addActivityLog, hasDuplicateSleepDisturbanceLog, createSleepDisturbanceLog } from "../hooks/useGameLogic";
 import { getSleepSchedule, isWithinSleepSchedule } from "../hooks/useGameHandlers";
 import { checkEvolution } from "../logic/evolution/checker";
+import {
+  buildEvolutionStatsForCheck,
+  getNormalEvolutionCandidates,
+  isIgnoringAllEvolutionConditions,
+} from "../logic/evolution/developerOptions";
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 
@@ -230,7 +235,10 @@ export default function GameModals({
     setIgnoreEvolutionTime,
     setIsEvolving,
   } = flags || {};
-  const ignoreAllEvolutionConditions = !!ignoreEvolutionTime;
+  const ignoreAllEvolutionConditions = isIgnoringAllEvolutionConditions(
+    developerMode,
+    ignoreEvolutionTime
+  );
   const starterDigimonId = getStarterDigimonId(slotVersion || "Ver.1");
   const supportsOnlineJogress =
     (slotVersion || "Ver.1") === "Ver.1" || (slotVersion || "Ver.1") === "Ver.2";
@@ -866,13 +874,17 @@ export default function GameModals({
 
       {/* Evolution Confirm Modal (진화 확인) */}
       {modals.evolutionConfirm && (() => {
-        // '모든 진화 조건 무시' 옵션 시 항상 진화 가능, 시간 미표시
+        const evolutionCandidates = ignoreAllEvolutionConditions
+          ? getNormalEvolutionCandidates(currentDigimonData, newDigimonDataVer1)
+          : [];
         let canEvolve = true;
         let remainingTime = null;
         
-        if (!ignoreAllEvolutionConditions && digimonStats && currentDigimonData && newDigimonDataVer1) {
+        if (ignoreAllEvolutionConditions) {
+          canEvolve = evolutionCandidates.length > 0;
+        } else if (digimonStats && currentDigimonData && newDigimonDataVer1) {
           const evolutionResult = checkEvolution(
-            digimonStats,
+            buildEvolutionStatsForCheck(digimonStats, developerMode),
             currentDigimonData,
             currentDigimonKey,
             newDigimonDataVer1
@@ -885,7 +897,7 @@ export default function GameModals({
         
         return (
           <EvolutionConfirmModal
-            onConfirm={handlers?.proceedEvolution || (() => {})}
+            onConfirm={(targetId) => (handlers?.proceedEvolution || (() => {}))(targetId)}
             onOpenGuide={() => {
               toggleModal('evolutionConfirm', false);
               toggleModal('evolutionGuide', true);
@@ -893,6 +905,7 @@ export default function GameModals({
             onClose={() => toggleModal('evolutionConfirm', false)}
             canEvolve={canEvolve}
             remainingTime={ignoreAllEvolutionConditions ? null : remainingTime}
+            evolutionCandidates={evolutionCandidates}
           />
         );
       })()}

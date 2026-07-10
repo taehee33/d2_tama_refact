@@ -33,6 +33,7 @@ export default function EvolutionConfirmModal({
   onClose,
   canEvolve = true,
   remainingTime = null,
+  evolutionCandidates = [],
 }) {
   const [currentRemainingTime, setCurrentRemainingTime] = useState(remainingTime);
   
@@ -63,6 +64,13 @@ export default function EvolutionConfirmModal({
   const buttonText = isDisabled && timeText 
     ? `진화(${timeText})`
     : "진화";
+  const shouldChooseCandidate = evolutionCandidates.length > 1;
+
+  const handleConfirm = (targetId) => {
+    if (isDisabled) return;
+    onConfirm(targetId);
+    onClose();
+  };
 
   return (
     <div
@@ -86,22 +94,33 @@ export default function EvolutionConfirmModal({
         </div>
 
         <div className="flex flex-col gap-3 mt-6">
-          <button
-            onClick={() => {
-              if (!isDisabled) {
-                onConfirm();
-                onClose();
-              }
-            }}
-            disabled={isDisabled}
-            className={`px-6 py-3 text-white font-bold rounded pixel-art-button ${
-              isDisabled 
-                ? "bg-gray-500 cursor-not-allowed" 
-                : "bg-green-500 hover:bg-green-600"
-            }`}
-          >
-            {buttonText}
-          </button>
+          {shouldChooseCandidate ? (
+            <div className="grid gap-2" aria-label="진화 후보 선택">
+              <p className="text-center text-sm text-slate-200">진화할 디지몬을 선택하세요.</p>
+              {evolutionCandidates.map((candidate) => (
+                <button
+                  key={candidate.targetId}
+                  type="button"
+                  onClick={() => handleConfirm(candidate.targetId)}
+                  className="px-6 py-3 text-white font-bold rounded pixel-art-button bg-green-500 hover:bg-green-600"
+                >
+                  {candidate.label}로 진화
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => handleConfirm(evolutionCandidates[0]?.targetId)}
+              disabled={isDisabled}
+              className={`px-6 py-3 text-white font-bold rounded pixel-art-button ${
+                isDisabled
+                  ? "bg-gray-500 cursor-not-allowed"
+                  : "bg-green-500 hover:bg-green-600"
+              }`}
+            >
+              {buttonText}
+            </button>
+          )}
           <button
             onClick={() => {
               onOpenGuide();
