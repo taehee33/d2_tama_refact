@@ -437,6 +437,55 @@ describe("applyLazyUpdate", () => {
     expect(result.isLightsOn).toBe(false);
   });
 
+  test("수면 후 기상 시 lazy projection은 energy를 최대치까지 회복한다", () => {
+    const lastSavedAt = new Date(2026, 2, 31, 5, 30, 0).getTime();
+    const now = new Date(2026, 2, 31, 7, 10, 0).getTime();
+    jest.setSystemTime(now);
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        energy: 1,
+        lastEnergyRecoveryAt: new Date(2026, 2, 31, 5, 0, 0).getTime(),
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 999,
+        poopCountdown: 999 * 60,
+      }),
+      lastSavedAt,
+      { start: 22, end: 7, startMinute: 0, endMinute: 0 },
+      5
+    );
+
+    expect(result.energy).toBe(5);
+    expect(result.lastEnergyRecoveryAt).toBe(new Date(2026, 2, 31, 7, 0, 0).getTime());
+  });
+
+  test("활동 시간 lazy projection은 30분 단위로 energy를 회복하고 maxEnergy를 넘지 않는다", () => {
+    const lastSavedAt = new Date(2026, 2, 31, 10, 10, 0).getTime();
+    jest.setSystemTime(new Date(2026, 2, 31, 11, 5, 0));
+
+    const result = applyLazyUpdate(
+      createBaseStats({
+        energy: 4,
+        lastEnergyRecoveryAt: null,
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 999,
+        poopCountdown: 999 * 60,
+      }),
+      lastSavedAt,
+      { start: 22, end: 7, startMinute: 0, endMinute: 0 },
+      5
+    );
+
+    expect(result.energy).toBe(5);
+    expect(result.lastEnergyRecoveryAt).toBe(new Date(2026, 2, 31, 10, 30, 0).getTime());
+  });
+
   test("낮잠 시간은 hunger/strength/poop countdown에서 제외한다", () => {
     const napStart = Date.parse("2026-03-31T11:00:15.000Z");
     const now = new Date("2026-03-31T12:00:15.000Z");

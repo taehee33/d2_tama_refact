@@ -1,5 +1,32 @@
 # REFACTORING LOG
 
+## 2026-07-10
+
+### energy 회복 규칙 정합성 개선
+- `maxEnergy`를 사용하는 energy 회복 판정을 `logic/stats/energyRecovery.js`의 순수 helper로 통합해, 실시간 루프와 lazy projection이 같은 결과를 만들도록 정리했습니다.
+- 00/30분 회복은 활동 시간에만 적용하며, 정규 수면·낮잠·수면 중 불 켜짐 및 냉장고 구간에서는 회복하지 않습니다.
+- 정규 기상 경계를 통과하면 최대 energy까지 회복하되, 해당 시각이 냉장고 구간이면 회복하지 않습니다. 냉장고에서 꺼낸 뒤에는 다음 활동 경계부터 회복을 재개합니다.
+- 서버 알림 projection 번들을 재생성해 프론트와 API projection의 회복 규칙을 동기화했습니다.
+
+### 테스트 보강
+- 활동·수면·낮잠·수면 중 불 켜짐·냉장고 진입/해제 경계와 유효하지 않은 `maxEnergy`를 테스트했습니다.
+- 실시간 handler, 클라이언트 lazy projection, 서버 projection의 회복 결과가 같음을 테스트했습니다.
+
+### 영향받은 파일
+- `src/data/stats.js`
+- `src/data/stats.test.js`
+- `src/logic/stats/energyRecovery.js`
+- `src/logic/stats/energyRecovery.test.js`
+- `src/logic/stats/stats.js`
+- `src/hooks/game-runtime/useGameRealtimeLoop.js`
+- `src/server/gameProjectionParity.test.js`
+- `api/_generated/gameProjection.cjs`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- `applyLazyUpdate`가 이미 `maxEnergy`를 전달하고 있었으므로 unused 경고 제거보다 회복 계약의 복원이 저장/알림 경로의 의미에 맞습니다.
+- energy는 실시간 루프에서도 저장되는 상태이므로, 오프라인 복귀와 서버 알림 projection까지 하나의 순수 회복 규칙을 공유해야 합니다.
+
 ## 2026-07-05
 
 ### 알림/채팅 floating UI 위치 정책 정리

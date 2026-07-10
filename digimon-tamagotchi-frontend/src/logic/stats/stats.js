@@ -7,6 +7,7 @@ import {
   hasCrossedWakeTimeSince,
   normalizeSleepSchedule,
 } from "../../utils/sleepUtils";
+import { recoverEnergy } from "./energyRecovery";
 
 /**
  * 냉장고 시간을 제외한 경과 시간 계산
@@ -548,64 +549,17 @@ export function applyLazyUpdate(stats, lastSavedAt, sleepSchedule = null, maxEne
  * @returns {Object} 업데이트된 스탯
  */
 export function handleEnergyRecovery(stats, sleepSchedule = null, maxEnergy = null, now = new Date()) {
-  if (!maxEnergy || stats.isDead) {
-    return stats;
-  }
-  
-  // 냉장고 상태에서는 에너지 회복 멈춤 (시간 정지)
-  if (stats.isFrozen) {
-    return stats;
-  }
+  const nowMs = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  const lastRecoveryMs = typeof stats.lastEnergyRecoveryAt === "number"
+    ? stats.lastEnergyRecoveryAt
+    : new Date(stats.lastEnergyRecoveryAt).getTime();
 
-  const updatedStats = { ...stats };
-  
-  if (sleepSchedule && maxEnergy) {
-    const normalizedSleepSchedule = normalizeSleepSchedule(sleepSchedule);
-    const lastRecoveryTime = updatedStats.lastEnergyRecoveryAt
-      ? typeof updatedStats.lastEnergyRecoveryAt === "number"
-        ? updatedStats.lastEnergyRecoveryAt
-        : new Date(updatedStats.lastEnergyRecoveryAt).getTime()
-      : 0;
-    const wakeDate = getMostRecentWakeDate(normalizedSleepSchedule, now);
-    const isWakeTime =
-      wakeDate.getTime() <= now.getTime() && lastRecoveryTime < wakeDate.getTime();
-    
-    if (isWakeTime) {
-      // 기상 시간: maxEnergy까지 회복
-      updatedStats.energy = maxEnergy;
-      updatedStats.lastEnergyRecoveryAt = now.getTime();
-    } else {
-      // 정각(00분) 또는 30분마다 +1 회복
-      // 마지막 회복 시간부터 현재 시간까지의 모든 정각/30분 체크
-      // 실시간 타이머에서는 최근 1시간 내의 회복만 체크 (성능 최적화)
-      let checkTime = new Date(Math.max(lastRecoveryTime, now.getTime() - 60 * 60 * 1000));
-      checkTime.setSeconds(0);
-      checkTime.setMilliseconds(0);
-      
-      // 다음 정각/30분으로 이동
-      if (checkTime.getMinutes() !== 0 && checkTime.getMinutes() !== 30) {
-        if (checkTime.getMinutes() < 30) {
-          checkTime.setMinutes(30);
-        } else {
-          checkTime.setMinutes(0);
-          checkTime.setHours(checkTime.getHours() + 1);
-        }
-      }
-      
-      // 정각(00분) 또는 30분마다 Energy +1
-      // 실시간 타이머에서는 한 번에 하나씩만 회복 (중복 방지)
-      if (checkTime.getTime() <= now.getTime()) {
-        const currentEnergy = updatedStats.energy || 0;
-        if (currentEnergy < maxEnergy) {
-          // 마지막 회복 시간이 현재 체크 시간보다 이전이면 회복
-          if (lastRecoveryTime < checkTime.getTime()) {
-            updatedStats.energy = Math.min(maxEnergy, currentEnergy + 1);
-            updatedStats.lastEnergyRecoveryAt = checkTime.getTime();
-          }
-        }
-      }
-    }
-  }
-  
-  return updatedStats;
+  return recoverEnergy(stats, {
+    startMs: Number.isFinite(lastRecoveryMs)
+      ? lastRecoveryMs
+      : nowMs - 60 * 60 * 1000,
+    endMs: nowMs,
+    sleepSchedule,
+    maxEnergy,
+  });
 }

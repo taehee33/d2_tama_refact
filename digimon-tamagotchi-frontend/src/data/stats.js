@@ -9,6 +9,7 @@ import { getElapsedTimeExcludingFridge, toTimestamp } from "../utils/fridgeTime"
 import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { KST_DAY_MS, getStartOfKstDayMs, isSameKstDay } from "../utils/time";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
+import { recoverEnergy } from "../logic/stats/energyRecovery";
 import {
   applyDeathEvaluationToStats,
   evaluateDeathConditions,
@@ -964,6 +965,7 @@ export function projectState(
   const {
     lastSavedAt,
     sleepSchedule = null,
+    maxEnergy = null,
   } = options;
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error("projectState requires a finite nowMs");
@@ -1615,6 +1617,16 @@ export function projectState(
     if (segment.isActiveSegment) {
       callStatus.sleep.isLogged = true;
     }
+  });
+
+  const energyProjectionEndMs = stats.isFrozen && stats.frozenAt
+    ? Math.min(nowMs, ensureTimestamp(stats.frozenAt) ?? nowMs)
+    : nowMs;
+  updatedStats = recoverEnergy(updatedStats, {
+    startMs: lastSaved.getTime(),
+    endMs: energyProjectionEndMs,
+    sleepSchedule,
+    maxEnergy,
   });
 
   // 나이 업데이트: 마지막 저장 시간부터 현재까지의 모든 자정 체크

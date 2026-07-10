@@ -238,7 +238,11 @@ export function useGameRealtimeLoop({
           updatedStats.maxStamina ||
           0;
         updatedStats = handleEnergyRecovery(
-          updatedStats,
+          {
+            ...updatedStats,
+            isLightsOn: live.isLightsOn,
+            wakeUntil: live.wakeUntil,
+          },
           schedule,
           maxEnergy,
           nowDate

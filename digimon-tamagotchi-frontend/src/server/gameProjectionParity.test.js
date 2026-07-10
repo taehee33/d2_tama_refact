@@ -99,6 +99,20 @@ describe("서버 game projection parity", () => {
       }),
       null,
     ],
+    [
+      "수면 후 energy 회복",
+      createStats({
+        energy: 2,
+        lastEnergyRecoveryAt: Date.parse("2026-06-21T05:00:00.000Z"),
+        hungerTimer: 999,
+        hungerCountdown: 999 * 60,
+        strengthTimer: 999,
+        strengthCountdown: 999 * 60,
+        poopTimer: 999,
+        poopCountdown: 999 * 60,
+      }),
+      { start: 23, end: 7, startMinute: 0, endMinute: 0 },
+    ],
   ])("%s 계산 결과가 프론트와 같다", (_name, stats, sleepSchedule) => {
     const now = Date.parse("2026-06-21T13:00:00.000Z");
     const lastSavedAt = Date.parse("2026-06-21T00:00:00.000Z");
