@@ -2465,11 +2465,10 @@ const digimonDataVer2 = {
 
 ;// ./src/data/v3/digimons.js
 // src/data/v3/digimons.js
-// Digital Monster Color Ver.3 골격 데이터
+// Digital Monster Color Ver.3 데이터
 // 주의:
-// - 진화 구조/파워/주요 분기 조건은 Ver.3 계열 자료를 바탕으로 정리했습니다.
-// - sprite 값은 로컬 자산 정합 작업 전까지 임시 번호입니다.
-// - 이후 Ver.3 전용 스프라이트가 정리되면 PROVISIONAL_V3_SPRITES만 교체하면 됩니다.
+// - 진화 구조/파워/주요 분기 조건은 로컬 `v3 정리` 이미지 자료를 바탕으로 정리했습니다.
+// - sprite 값은 public/Ver3_Mod_TH 자산과 정합성을 확인한 번호입니다.
 
 const V3_SPRITE_BASE = "/Ver3_Mod_TH";
 
@@ -2548,43 +2547,39 @@ function buildStats({
   };
 }
 
-const ADULT_FALLBACK_EVOLUTION = {
-  targetId: "Chimairamon",
-  targetName: "키메라몬",
-};
+function buildAndromonChimairamonEvolutions() {
+  return [
+    {
+      targetId: "Andromon",
+      targetName: "안드로몬",
+      conditions: {
+        trainings: { max: 31 },
+        battles: { min: 15 },
+        winRatio: { min: 80 },
+      },
+    },
+    {
+      targetId: "Chimairamon",
+      targetName: "키메라몬",
+      conditions: {
+        trainings: { min: 32 },
+        battles: { min: 15 },
+        winRatio: { min: 80 },
+      },
+    },
+  ];
+}
 
-function buildAdultEvolutions() {
+function buildGiromonEvolution() {
   return [
     {
       targetId: "Giromon",
       targetName: "기로몬",
       conditions: {
-        careMistakes: { min: 1, max: 4 },
         battles: { min: 15 },
         winRatio: { min: 80 },
       },
     },
-    {
-      targetId: "Andromon",
-      targetName: "안드로몬",
-      conditions: {
-        careMistakes: { max: 0 },
-        trainings: { min: 15 },
-        battles: { min: 15 },
-        winRatio: { min: 80 },
-      },
-    },
-    {
-      targetId: "Etemon",
-      targetName: "에테몬",
-      conditions: {
-        careMistakes: { max: 0 },
-        trainings: { max: 14 },
-        battles: { min: 15 },
-        winRatio: { min: 80 },
-      },
-    },
-    ADULT_FALLBACK_EVOLUTION,
   ];
 }
 
@@ -2702,12 +2697,12 @@ const digimonDataVer3 = {
       {
         targetId: "Patamon",
         targetName: "파타몬",
-        conditions: { careMistakes: { max: 2 } },
+        conditions: { careMistakes: { max: 3 } },
       },
       {
         targetId: "Kunemon",
         targetName: "쿠네몬",
-        conditions: { careMistakes: { min: 3 } },
+        conditions: { careMistakes: { min: 4 } },
       },
     ],
   }),
@@ -2726,7 +2721,7 @@ const digimonDataVer3 = {
       minWeight: 20,
       healDoses: 2,
       type: "Data",
-      sleepTime: "20:00",
+      sleepTime: "21:00",
       attackSprite: 4,
     }),
     evolutionCriteria: {
@@ -2737,24 +2732,60 @@ const digimonDataVer3 = {
         targetId: "Unimon",
         targetName: "유니몬",
         conditions: {
-          careMistakes: { max: 2 },
-          trainings: { min: 15 },
+          careMistakes: { max: 3 },
+          trainings: { min: 32 },
+        },
+      },
+      {
+        targetId: "Centaurmon",
+        targetName: "켄타루몬",
+        conditions: {
+          careMistakes: { min: 4 },
+          trainings: { min: 5, max: 23 },
+          overfeeds: { min: 2 },
+          sleepDisturbances: { max: 2 },
         },
       },
       {
         targetId: "Ogremon",
         targetName: "오거몬",
         conditions: {
-          careMistakes: { max: 2 },
-          trainings: { max: 14 },
+          careMistakes: { max: 3 },
+          trainings: { max: 31 },
         },
       },
       {
-        targetId: "Shellmon",
-        targetName: "쉘몬",
+        targetId: "Bakemon",
+        targetName: "바케몬",
         conditions: {
-          careMistakes: { min: 3 },
+          careMistakes: { min: 4 },
+          trainings: { min: 24 },
+          overfeeds: { min: 2 },
+          sleepDisturbances: { max: 4 },
         },
+      },
+      {
+        targetId: "Scumon",
+        targetName: "스카몬",
+        conditionGroups: [
+          {
+            careMistakes: { min: 4 },
+            trainings: { max: 4 },
+          },
+          {
+            careMistakes: { min: 4 },
+            overfeeds: { max: 1 },
+          },
+          {
+            careMistakes: { min: 4 },
+            sleepDisturbances: { min: 5 },
+          },
+          {
+            careMistakes: { min: 4 },
+            trainings: { min: 5, max: 23 },
+            sleepDisturbances: { min: 3, max: 4 },
+          },
+        ],
       },
     ],
   }),
@@ -2773,7 +2804,7 @@ const digimonDataVer3 = {
       minWeight: 20,
       healDoses: 2,
       type: "Virus",
-      sleepTime: "21:00",
+      sleepTime: "22:00",
       attackSprite: 5,
     }),
     evolutionCriteria: {
@@ -2781,40 +2812,72 @@ const digimonDataVer3 = {
     },
     evolutions: [
       {
-        targetId: "Scumon",
-        targetName: "스카몬",
+        targetId: "Shellmon",
+        targetName: "쉘몬",
+        conditionGroups: [
+          {
+            careMistakes: { max: 3 },
+            trainings: { max: 7 },
+          },
+          {
+            careMistakes: { max: 3 },
+            trainings: { min: 24, max: 31 },
+          },
+          {
+            careMistakes: { max: 3 },
+            trainings: { min: 8, max: 23 },
+            overfeeds: { min: 4 },
+          },
+          {
+            careMistakes: { max: 3 },
+            trainings: { min: 8, max: 23 },
+            sleepDisturbances: { max: 2 },
+          },
+        ],
+      },
+      {
+        targetId: "Drimogemon",
+        targetName: "드리모게몬",
         conditions: {
-          careMistakes: { min: 3 },
-          trainings: { max: 4 },
+          careMistakes: { min: 4 },
+          trainings: { min: 24 },
+          overfeeds: { min: 4 },
+          sleepDisturbances: { max: 2 },
         },
       },
       {
-        targetId: "Centaurmon",
-        targetName: "켄타루몬",
+        targetId: "Ogremon",
+        targetName: "오거몬",
         conditions: {
-          careMistakes: { min: 3 },
-          trainings: { min: 5, max: 11 },
-          overfeeds: { max: 1 },
-          sleepDisturbances: { max: 4 },
+          careMistakes: { max: 3 },
+          trainings: { min: 32 },
         },
       },
       {
         targetId: "Bakemon",
         targetName: "바케몬",
+        conditions: {
+          careMistakes: { max: 3 },
+          trainings: { min: 8, max: 23 },
+          overfeeds: { max: 3 },
+          sleepDisturbances: { min: 3 },
+        },
+      },
+      {
+        targetId: "Scumon",
+        targetName: "스카몬",
         conditionGroups: [
           {
-            careMistakes: { min: 3 },
-            trainings: { min: 12 },
+            careMistakes: { min: 4 },
+            trainings: { max: 23 },
           },
           {
-            careMistakes: { min: 3 },
-            trainings: { min: 5, max: 11 },
-            overfeeds: { min: 2 },
+            careMistakes: { min: 4 },
+            overfeeds: { max: 3 },
           },
           {
-            careMistakes: { min: 3 },
-            trainings: { min: 5, max: 11 },
-            sleepDisturbances: { min: 5 },
+            careMistakes: { min: 4 },
+            sleepDisturbances: { min: 3 },
           },
         ],
       },
@@ -2835,13 +2898,13 @@ const digimonDataVer3 = {
       minWeight: 30,
       healDoses: 1,
       type: "Vaccine",
-      sleepTime: "21:00",
+      sleepTime: "22:00",
       attackSprite: 4,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildAndromonChimairamonEvolutions(),
   }),
 
   Centaurmon: buildEntry({
@@ -2855,16 +2918,16 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 45,
       maxEnergy: 30,
-      minWeight: 20,
+      minWeight: 28,
       healDoses: 2,
       type: "Data",
-      sleepTime: "22:00",
+      sleepTime: "23:00",
       attackSprite: 4,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildGiromonEvolution(),
   }),
 
   Ogremon: buildEntry({
@@ -2878,7 +2941,7 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 50,
       maxEnergy: 30,
-      minWeight: 40,
+      minWeight: 20,
       healDoses: 1,
       type: "Virus",
       sleepTime: "23:00",
@@ -2887,7 +2950,7 @@ const digimonDataVer3 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildAndromonChimairamonEvolutions(),
   }),
 
   Bakemon: buildEntry({
@@ -2904,13 +2967,13 @@ const digimonDataVer3 = {
       minWeight: 30,
       healDoses: 2,
       type: "Virus",
-      sleepTime: "00:00",
+      sleepTime: "22:00",
       attackSprite: 17,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildGiromonEvolution(),
   }),
 
   Shellmon: buildEntry({
@@ -2924,16 +2987,16 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 50,
       maxEnergy: 30,
-      minWeight: 20,
+      minWeight: 30,
       healDoses: 2,
       type: "Data",
-      sleepTime: "23:00",
+      sleepTime: "22:00",
       attackSprite: 15,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildAndromonChimairamonEvolutions(),
   }),
 
   Drimogemon: buildEntry({
@@ -2950,13 +3013,13 @@ const digimonDataVer3 = {
       minWeight: 20,
       healDoses: 2,
       type: "Data",
-      sleepTime: "22:00",
+      sleepTime: "21:00",
       attackSprite: 6,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: buildGiromonEvolution(),
   }),
 
   Scumon: buildEntry({
@@ -2973,13 +3036,32 @@ const digimonDataVer3 = {
       minWeight: 10,
       healDoses: 3,
       type: "Virus",
-      sleepTime: "00:00",
+      sleepTime: "22:00",
       attackSprite: 16,
     }),
     evolutionCriteria: {
       timeToEvolveSeconds: 129600,
     },
-    evolutions: buildAdultEvolutions(),
+    evolutions: [
+      {
+        targetId: "Etemon",
+        targetName: "에테몬",
+        conditions: {
+          trainings: { max: 39 },
+          battles: { min: 15 },
+          winRatio: { min: 80 },
+        },
+      },
+      {
+        targetId: "Chimairamon",
+        targetName: "키메라몬",
+        conditions: {
+          trainings: { min: 40 },
+          battles: { min: 15 },
+          winRatio: { min: 80 },
+        },
+      },
+    ],
   }),
 
   Andromon: buildEntry({
@@ -2993,10 +3075,10 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 100,
       maxEnergy: 40,
-      minWeight: 40,
+      minWeight: 20,
       healDoses: 1,
       type: "Vaccine",
-      sleepTime: "20:00",
+      sleepTime: "22:00",
       attackSprite: 11,
     }),
     evolutionCriteria: {
@@ -3007,16 +3089,7 @@ const digimonDataVer3 = {
         targetId: "HiAndromon",
         targetName: "하이안드로몬",
         conditions: {
-          careMistakes: { max: 2 },
-          battles: { min: 15 },
-          winRatio: { min: 80 },
-        },
-      },
-      {
-        targetId: "Gokumon",
-        targetName: "고쿠몬",
-        conditions: {
-          careMistakes: { min: 3, max: 4 },
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -3035,10 +3108,10 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 85,
       maxEnergy: 40,
-      minWeight: 20,
+      minWeight: 5,
       healDoses: 1,
       type: "Vaccine",
-      sleepTime: "23:00",
+      sleepTime: "21:00",
       attackSprite: 8,
     }),
     evolutionCriteria: {
@@ -3049,16 +3122,7 @@ const digimonDataVer3 = {
         targetId: "HiAndromon",
         targetName: "하이안드로몬",
         conditions: {
-          careMistakes: { max: 2 },
-          battles: { min: 15 },
-          winRatio: { min: 80 },
-        },
-      },
-      {
-        targetId: "Gokumon",
-        targetName: "고쿠몬",
-        conditions: {
-          careMistakes: { min: 3, max: 4 },
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -3077,7 +3141,7 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 100,
       maxEnergy: 40,
-      minWeight: 40,
+      minWeight: 20,
       healDoses: 1,
       type: "Virus",
       sleepTime: "21:00",
@@ -3091,16 +3155,7 @@ const digimonDataVer3 = {
         targetId: "BanchoLeomon",
         targetName: "반쵸레오몬",
         conditions: {
-          careMistakes: { max: 2 },
-          battles: { min: 15 },
-          winRatio: { min: 80 },
-        },
-      },
-      {
-        targetId: "Gokumon",
-        targetName: "고쿠몬",
-        conditions: {
-          careMistakes: { min: 3, max: 4 },
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -3114,13 +3169,13 @@ const digimonDataVer3 = {
     stage: "Perfect",
     sprite: PROVISIONAL_V3_SPRITES.Chimairamon,
     stats: buildStats({
-      hungerCycle: 59,
-      strengthCycle: 59,
+      hungerCycle: 48,
+      strengthCycle: 48,
       maxOverfeed: 2,
       basePower: 100,
       maxEnergy: 40,
-      minWeight: 40,
-      healDoses: 1,
+      minWeight: 20,
+      healDoses: 2,
       type: "Data",
       sleepTime: "23:00",
       attackSprite: 31,
@@ -3129,6 +3184,15 @@ const digimonDataVer3 = {
       timeToEvolveSeconds: 172800,
     },
     evolutions: [
+      {
+        targetId: "BanchoLeomon",
+        targetName: "반쵸레오몬",
+        conditions: {
+          careMistakes: { max: 1 },
+          battles: { min: 15 },
+          winRatio: { min: 80 },
+        },
+      },
       {
         targetId: "Millenniumon",
         targetName: "밀레니엄몬",
@@ -3152,7 +3216,7 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 150,
       maxEnergy: 50,
-      minWeight: 40,
+      minWeight: 30,
       healDoses: 1,
       type: "Vaccine",
       sleepTime: "23:00",
@@ -3171,7 +3235,7 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 170,
       maxEnergy: 50,
-      minWeight: 40,
+      minWeight: 30,
       healDoses: 2,
       type: "Virus",
       sleepTime: "23:00",
@@ -3190,7 +3254,7 @@ const digimonDataVer3 = {
       maxOverfeed: 2,
       basePower: 180,
       maxEnergy: 50,
-      minWeight: 50,
+      minWeight: 25,
       healDoses: 1,
       type: "Vaccine",
       sleepTime: "23:00",
@@ -3216,12 +3280,12 @@ const digimonDataVer3 = {
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Chaosmon,
     stats: buildStats({
-      hungerCycle: 66,
-      strengthCycle: 66,
+      hungerCycle: 48,
+      strengthCycle: 48,
       maxOverfeed: 2,
       basePower: 200,
       maxEnergy: 50,
-      minWeight: 40,
+      minWeight: 32,
       healDoses: 1,
       type: "Vaccine",
       sleepTime: "23:00",
@@ -3235,8 +3299,8 @@ const digimonDataVer3 = {
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Millenniumon,
     stats: buildStats({
-      hungerCycle: 66,
-      strengthCycle: 66,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 200,
       maxEnergy: 50,
