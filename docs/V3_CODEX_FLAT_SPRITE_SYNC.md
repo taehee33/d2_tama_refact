@@ -1,10 +1,10 @@
 # Ver.3 Codex Flat Sprite Sync
 
-- Synced at: 2026-07-11T14:09:00.562Z
+- Synced at: 2026-07-11T14:23:29.373Z
 - Source dir: `public/Ver3_Mod_codex_48`
 - Output dir: `public/Ver3_Mod_codex`
 - Living frame files copied: 300
-- Supporting Ver.3 frame files copied: 15
+- Supporting Ver.3 frame files copied: 2
 - Supporting Ver.3 files copied: 2
 - Attack/common files copied: 0
 - Missing files: 0
@@ -37,7 +37,7 @@
 ## Supporting Ver.3 Files
 
 - DigitamaV3: 133.png-133.png from `public/Ver3_Mod_codex_48/133.png`
-- DigitamaV3: 134.png-147.png from `public/Ver3_Mod_codex_48/134.png`
+- DigitamaV3: 134.png-134.png from `public/Ver3_Mod_codex_48/134.png`
 
 ## Supporting Fixed Ver.3 Files
 

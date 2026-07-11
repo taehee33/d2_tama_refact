@@ -123,7 +123,7 @@ describe("digimonDataVer3", () => {
     const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_codex");
     const assetFiles = new Set(fs.readdirSync(assetDir));
     const animatedEntries = Object.values(digimonDataVer3).filter(
-      (entry) => entry.stage !== "Ohakadamon"
+      (entry) => entry.stage !== "Digitama" && entry.stage !== "Ohakadamon"
     );
 
     animatedEntries.forEach((entry) => {
@@ -131,6 +131,17 @@ describe("digimonDataVer3", () => {
         expect(assetFiles.has(`${entry.sprite + offset}.png`)).toBe(true);
       }
     });
+  });
+
+  test("starter DigitamaV3 has the dedicated idle and hatch frames used by runtime", () => {
+    const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_codex");
+    const assetFiles = new Set(fs.readdirSync(assetDir));
+    const starter = digimonDataVer3.DigitamaV3;
+
+    expect(starter.stage).toBe("Digitama");
+    expect(assetFiles.has(`${starter.sprite}.png`)).toBe(true);
+    expect(assetFiles.has(`${starter.sprite + 1}.png`)).toBe(true);
+    expect(assetFiles.has(`${starter.sprite + 2}.png`)).toBe(true);
   });
 
   test("evolution targets, names, conditions, and jogress partners are valid", () => {

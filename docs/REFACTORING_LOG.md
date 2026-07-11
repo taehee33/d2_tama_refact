@@ -7053,19 +7053,21 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 
 ## [2026-07-11] Ver.3 디지타마 깜빡임 보정
 
-- **내용:** 디지타마 idle 애니메이션이 `133.png`, `134.png`를 번갈아 요청하는데 `134.png` 이후 프레임이 없어 화면에서 사라지는 문제를 수정했다. `public/Ver3_Mod_codex/133.png`부터 `147.png`까지 동일한 48x48 디지타마 PNG로 채우고, flat 동기화 스크립트도 디지타마 15프레임 범위를 생성하도록 보정했다.
+- **내용:** 디지타마 idle 애니메이션이 `133.png`, `134.png`를 번갈아 요청하는데 `134.png`가 없어 화면에서 사라지는 문제를 수정했다. 이후 V1/V2 구조 재확인 결과 디지타마는 `133.png`, `134.png`를 idle로, `135.png`를 부화 flashing으로 사용하며 생체 디지몬처럼 15프레임 범위를 요구하지 않는 것으로 정정했다.
 - **영향 파일:**
-  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png` ~ `147.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png`
   - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
   - `digimon-tamagotchi-frontend/src/data/v3/digimons.test.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
-- **근거:** Canvas 렌더링은 디지몬 기본 sprite 번호에 애니메이션 offset을 더해 이미지를 불러오므로, 정적 디지타마도 요청 가능한 프레임 범위를 모두 제공해야 깜빡임이 없다.
+- **근거:** `digimonAnimations`의 디지타마 idle은 offset `[0, 1]`, 부화 flashing은 offset `[2]`만 사용한다. 생체 디지몬의 15프레임 규칙을 디지타마에 적용하면 근거 없는 자산이 생긴다.
 
 ## [2026-07-11] Ver.3 디지타마 및 오하카다몬 Codex 스프라이트 갱신
 
-- **내용:** 새로 추가된 Ver.3 원본 스프라이트를 48x48 투명 PNG로 변환해 `public/Ver3_Mod_codex/`와 `public/Ver3_Mod_codex_48/`에 반영했다. 디지타마는 `133.png`를 기본 프레임, `134.png`를 두 번째 프레임으로 사용하고, 미제공된 `135.png`부터 `147.png`까지는 `134.png`로 채워 15프레임 요청을 모두 만족하게 했다. 오하카다몬 계열 `159.png`, `160.png`도 같은 기준으로 교체했다.
+- **내용:** 새로 추가된 Ver.3 원본 스프라이트를 48x48 투명 PNG로 변환해 `public/Ver3_Mod_codex/`와 `public/Ver3_Mod_codex_48/`에 반영했다. 디지타마는 V1/V2와 같은 구조에 맞춰 `133.png`, `134.png` 두 idle 프레임만 새 원본으로 교체하고, 오하카다몬 계열 `159.png`, `160.png`도 같은 기준으로 교체했다. 잘못 추가했던 디지타마 `136.png`부터 `147.png`까지는 제거했다.
 - **영향 파일:**
-  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png` ~ `147.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/136.png` ~ `147.png`
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/159.png`
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/160.png`
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/133.png`
@@ -7074,4 +7076,4 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
   - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
-- **근거:** Ver.3 런타임은 현재 `Ver3_Mod_codex`를 사용하므로, 새 원본을 직접 참조하지 않고 앱이 요구하는 48x48 flat 번호 구조로 변환해야 한다. 디지타마는 애니메이션 offset으로 15장 범위를 요청하므로 누락 프레임이 생기지 않도록 제공된 두 번째 프레임을 반복 사용한다.
+- **근거:** Ver.3 런타임은 현재 `Ver3_Mod_codex`를 사용하므로, 새 원본을 직접 참조하지 않고 앱이 요구하는 48x48 flat 번호 구조로 변환해야 한다. V1/V2와 `gameAnimationViewModel` 기준상 디지타마는 `133/134` idle과 `135` hatch flashing만 사용하므로, `136~147`을 디지타마용으로 채우지 않는다.

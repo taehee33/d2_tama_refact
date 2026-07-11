@@ -25,11 +25,11 @@ const supportingV3FrameFiles = [
     destinationNumber: 133,
     sourcePath: path.join(sourceDir, "133.png"),
   },
-  ...Array.from({ length: frameCount - 1 }, (_, index) => ({
+  {
     label: "DigitamaV3",
-    destinationNumber: 134 + index,
+    destinationNumber: 134,
     sourcePath: path.join(sourceDir, "134.png"),
-  })),
+  },
 ];
 
 function parseEntries() {
