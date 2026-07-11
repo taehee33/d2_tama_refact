@@ -98,6 +98,16 @@ function resolveActiveDeathDiseaseCounters(slotData = {}, nowMs = Date.now(), pr
   return counters;
 }
 
+function formatSlotReportEntry({ digimonName, slotId, issues = [], counters = [] }) {
+  const lines = [`- **${digimonName}** (${slotId})`];
+  issues.forEach((issue) => lines.push(`  - ${issue}`));
+  if (counters.length > 0) {
+    lines.push("  - ⏳ **진행 중 카운터**");
+    counters.forEach((counter) => lines.push(`    - ${counter}`));
+  }
+  return lines.join("\n");
+}
+
 function getHeaderValue(headers = {}, headerName) {
   if (!headers || typeof headers !== "object") {
     return "";
@@ -238,7 +248,7 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     const digimonName = resolveDigimonDisplayName(slotData);
 
     if (isStoredInCareStorage(slotData)) {
-      frozenList.push(`- **${digimonName}** (${slotId})`);
+      frozenList.push(formatSlotReportEntry({ digimonName, slotId }));
       return;
     }
 
@@ -246,16 +256,14 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
     const projectedStats = projection.status === "projected" ? projection.stats : null;
     const issues = resolveSlotIssues(slotData, currentTimeMs);
     const counters = resolveActiveDeathDiseaseCounters(slotData, currentTimeMs, projectedStats);
-    const counterLines = counters.length > 0
-      ? `\n  ⏳ **진행 중 카운터**\n${counters.map((counter) => `  - ${counter}`).join("\n")}`
-      : "";
+    const slotReportEntry = formatSlotReportEntry({ digimonName, slotId, issues, counters });
 
     if (issues.length > 0) {
-      abnormalList.push(`- **${digimonName}** (${slotId}): ${issues.join(", ")}${counterLines}`);
+      abnormalList.push(slotReportEntry);
       return;
     }
 
-    healthyList.push(`- **${digimonName}** (${slotId})${counterLines}`);
+    healthyList.push(slotReportEntry);
   });
 
   const totalCount = abnormalList.length + healthyList.length + frozenList.length;
@@ -455,6 +463,7 @@ module.exports = {
   buildDailyDigimonReportPayload,
   createDailyDigimonReportHandler,
   formatKstDate,
+  formatSlotReportEntry,
   resolveDigimonDisplayName,
   resolveNotificationSettings,
   normalizeDiscordWebhookUrl,

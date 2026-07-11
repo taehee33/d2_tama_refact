@@ -1,6 +1,42 @@
 # REFACTORING LOG
 
+## 2026-07-11 운영자 설정 메뉴 통합
+
+### 메뉴 및 관리 화면 재구성
+- `사용자관리(운영자)`를 보라색 전용 메뉴인 `운영자 설정`으로 변경하고 데스크톱과 모바일에 같이 적용했습니다.
+- 기존 `/operators/users` 페이지를 `사용자관리`와 `디지몬 마스터 데이터` 탭으로 재구성했습니다.
+- 게임 설정의 Developer Mode에서 마스터 데이터 진입 버튼과 중첩 모달을 제거했습니다.
+
+### 영향받은 파일
+- `src/data/headerNavigation.js`
+- `src/components/layout/TopNavigation.jsx`
+- `src/components/layout/MobileTabBar.jsx`
+- `src/pages/OperatorUsers.jsx`
+- `src/components/SettingsModal.jsx`
+- `src/index.css`
+- 관련 테스트 및 `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 개별 게임 슬롯 설정과 전역 Firestore 관리 책임을 분리하기 위해 마스터 데이터 패널을 운영자 권한 경계 안으로 옮겼습니다.
+- 라우트와 저장 계약은 변경하지 않고 기존 패널을 재사용해 변경 범위를 UI 구조로 한정했습니다.
+
 ## 2026-07-11
+
+### Discord 일일보고 계층형 줄바꿈 개선
+- 디지몬별 상태이상을 쉼표로 연결하지 않고 각각 독립된 하위 항목으로 표시하도록 변경했습니다.
+- `진행 중 카운터`를 디지몬의 하위 항목으로, 개별 카운터를 다시 한 단계 아래에 배치해 Discord에서 관계가 명확하게 보이도록 개선했습니다.
+- 상태만 있거나 카운터만 있는 슬롯, 정상 및 냉장고 슬롯은 빈 제목이나 불필요한 줄 없이 기존 목록 분류를 유지합니다.
+
+### 테스트 보강
+- 복수 상태·복수 카운터의 정확한 줄바꿈과 들여쓰기, 상태만·카운터만·정상 슬롯 및 전체 일일보고 출력을 검증했습니다.
+
+### 영향받은 파일
+- `api/_lib/notificationReports.js`
+- `api/_lib/notificationReports.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 슬롯 메시지 조립을 순수 formatter로 분리해 상태와 카운터 계산 및 저장 계약을 건드리지 않고 Discord 표현만 일관되게 관리합니다.
 
 ### Discord 일일보고 종료된 케어미스 호출 제외
 - 호출 시간이 끝나 이미 케어미스로 기록된 배고픔·기력 호출은 현재 상태 중심의 일일보고에서 `배고픔방치`, `기력방치`로 다시 표시하지 않도록 정리했습니다.
