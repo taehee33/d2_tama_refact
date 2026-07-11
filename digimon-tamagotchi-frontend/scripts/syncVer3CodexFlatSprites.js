@@ -30,6 +30,11 @@ const supportingV3FrameFiles = [
     destinationNumber: 134,
     sourcePath: path.join(sourceDir, "134.png"),
   },
+  {
+    label: "DigitamaV3 hatch",
+    destinationNumber: 135,
+    sourcePath: path.join(sourceDir, "135.png"),
+  },
 ];
 
 function parseEntries() {

@@ -7077,3 +7077,13 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
 - **근거:** Ver.3 런타임은 현재 `Ver3_Mod_codex`를 사용하므로, 새 원본을 직접 참조하지 않고 앱이 요구하는 48x48 flat 번호 구조로 변환해야 한다. V1/V2와 `gameAnimationViewModel` 기준상 디지타마는 `133/134` idle과 `135` hatch flashing만 사용하므로, `136~147`을 디지타마용으로 채우지 않는다.
+
+## [2026-07-11] Ver.3 디지타마 부화 프레임 135 교체
+
+- **내용:** 새로 추가된 `public/Ver3_Mod_TH/ver 135.png` 원본을 48x48 투명 PNG로 변환해 `public/Ver3_Mod_codex/135.png`와 `public/Ver3_Mod_codex_48/135.png`에 반영했다. flat 동기화 스크립트도 디지타마 부화 flashing 프레임 `135.png`를 `Ver3_Mod_codex_48`에서 재생성하도록 수정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/135.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/135.png`
+  - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** 런타임의 디지타마 부화 flashing은 `digimonAnimations`의 offset `[2]`를 통해 기본 sprite `133`에서 `135.png`를 참조하므로, 별도 135 원본이 있을 때 이를 명시 자산으로 관리해야 한다.
