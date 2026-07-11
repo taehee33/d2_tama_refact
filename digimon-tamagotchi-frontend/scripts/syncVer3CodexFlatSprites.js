@@ -5,7 +5,6 @@ const repoRoot = path.resolve(__dirname, "..");
 const dataPath = path.join(repoRoot, "src", "data", "v3", "digimons.js");
 const sourceDir = path.join(repoRoot, "public", "Ver3_Mod_codex_48");
 const outputDir = path.join(repoRoot, "public", "Ver3_Mod_codex");
-const legacyV3Dir = path.join(repoRoot, "public", "Ver3_Mod_TH");
 const ver2CommonDir = path.join(repoRoot, "public", "Ver2_Mod_Kor");
 const reportPath = path.resolve(repoRoot, "..", "docs", "V3_CODEX_FLAT_SPRITE_SYNC.md");
 const frameCount = 15;
@@ -13,20 +12,24 @@ const frameCount = 15;
 const supportingV3Sprites = [
   {
     spriteNumber: 159,
-    sourcePath: path.join(legacyV3Dir, "159.png"),
+    sourcePath: path.join(sourceDir, "159.png"),
   },
   {
     spriteNumber: 160,
-    sourcePath: path.join(legacyV3Dir, "160.png"),
+    sourcePath: path.join(sourceDir, "160.png"),
   },
 ];
-const supportingV3FrameRanges = [
+const supportingV3FrameFiles = [
   {
     label: "DigitamaV3",
-    startSpriteNumber: 133,
-    count: frameCount,
+    destinationNumber: 133,
     sourcePath: path.join(sourceDir, "133.png"),
   },
+  ...Array.from({ length: frameCount - 1 }, (_, index) => ({
+    label: "DigitamaV3",
+    destinationNumber: 134 + index,
+    sourcePath: path.join(sourceDir, "134.png"),
+  })),
 ];
 
 function parseEntries() {
@@ -120,22 +123,19 @@ function syncFlatSprites() {
     }
   }
 
-  for (const { label, startSpriteNumber, count, sourcePath } of supportingV3FrameRanges) {
+  for (const { label, destinationNumber, sourcePath } of supportingV3FrameFiles) {
     if (!fs.existsSync(sourcePath)) {
-      missing.push({ type: "supporting v3 frame range", id: label, sourcePath });
+      missing.push({ type: "supporting v3 frame", id: label, sourcePath });
       continue;
     }
 
-    for (let index = 0; index < count; index += 1) {
-      const destinationNumber = startSpriteNumber + index;
-      const destinationPath = path.join(outputDir, `${destinationNumber}.png`);
-      copyFile(sourcePath, destinationPath);
-      copiedSupportingFrames.push({
-        label,
-        sourcePath,
-        destinationNumber,
-      });
-    }
+    const destinationPath = path.join(outputDir, `${destinationNumber}.png`);
+    copyFile(sourcePath, destinationPath);
+    copiedSupportingFrames.push({
+      label,
+      sourcePath,
+      destinationNumber,
+    });
   }
 
   for (const { spriteNumber, sourcePath } of supportingV3Sprites) {

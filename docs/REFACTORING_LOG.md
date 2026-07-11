@@ -7060,3 +7060,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/data/v3/digimons.test.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
 - **근거:** Canvas 렌더링은 디지몬 기본 sprite 번호에 애니메이션 offset을 더해 이미지를 불러오므로, 정적 디지타마도 요청 가능한 프레임 범위를 모두 제공해야 깜빡임이 없다.
+
+## [2026-07-11] Ver.3 디지타마 및 오하카다몬 Codex 스프라이트 갱신
+
+- **내용:** 새로 추가된 Ver.3 원본 스프라이트를 48x48 투명 PNG로 변환해 `public/Ver3_Mod_codex/`와 `public/Ver3_Mod_codex_48/`에 반영했다. 디지타마는 `133.png`를 기본 프레임, `134.png`를 두 번째 프레임으로 사용하고, 미제공된 `135.png`부터 `147.png`까지는 `134.png`로 채워 15프레임 요청을 모두 만족하게 했다. 오하카다몬 계열 `159.png`, `160.png`도 같은 기준으로 교체했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png` ~ `147.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/160.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
+  - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** Ver.3 런타임은 현재 `Ver3_Mod_codex`를 사용하므로, 새 원본을 직접 참조하지 않고 앱이 요구하는 48x48 flat 번호 구조로 변환해야 한다. 디지타마는 애니메이션 offset으로 15장 범위를 요청하므로 누락 프레임이 생기지 않도록 제공된 두 번째 프레임을 반복 사용한다.
