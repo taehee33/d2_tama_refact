@@ -7087,3 +7087,20 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
 - **근거:** 런타임의 디지타마 부화 flashing은 `digimonAnimations`의 offset `[2]`를 통해 기본 sprite `133`에서 `135.png`를 참조하므로, 별도 135 원본이 있을 때 이를 명시 자산으로 관리해야 한다.
+
+## [2026-07-12] Ver.3 48x48 _3 스프라이트 반영
+
+- **내용:** `public/Ver3_Mod_TH/`에 추가된 `ver3 133_3.png`, `ver3 134_3.png`, `ver3 135_3.png`, `ver3 159_3.png`, `ver3 160_3.png`가 모두 48x48임을 확인하고, 같은 번호의 `public/Ver3_Mod_codex/` 런타임 자산과 `public/Ver3_Mod_codex_48/` 재생성 원본 자산으로 교체했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/135.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/160.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/135.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** `_3` 파일들은 이미 앱이 요구하는 48x48 PNG였으므로 추가 변환 없이 복사해 적용한다. `syncVer3CodexFlatSprites.js`의 기존 `133/134/135/159/160` 동기화 규칙을 유지하면 이후 재생성 시에도 같은 자산이 유지된다.

@@ -1,6 +1,6 @@
 # Ver.3 Codex Flat Sprite Sync
 
-- Synced at: 2026-07-11T14:29:29.593Z
+- Synced at: 2026-07-11T22:05:23.312Z
 - Source dir: `public/Ver3_Mod_codex_48`
 - Output dir: `public/Ver3_Mod_codex`
 - Living frame files copied: 300
