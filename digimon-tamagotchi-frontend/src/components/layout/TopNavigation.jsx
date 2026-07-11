@@ -164,7 +164,9 @@ function TopNavigation({ tamerName = "" }) {
                 to={link.to}
                 end={link.end}
                 className={({ isActive }) =>
-                  `service-nav__link${isActive ? " service-nav__link--active" : ""}`
+                  `service-nav__link${
+                    link.variant === "operator" ? " service-nav__link--operator" : ""
+                  }${isActive ? " service-nav__link--active" : ""}`
                 }
               >
                 {link.label}

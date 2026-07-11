@@ -1,20 +1,21 @@
-import React from "react";
+import React, { useState } from "react";
 import UserDirectoryPanel from "../components/admin/UserDirectoryPanel";
+import DigimonMasterDataPanel from "../components/DigimonMasterDataPanel";
 import { useAuth } from "../contexts/AuthContext";
 import useOperatorStatus from "../hooks/useOperatorStatus";
 
 function OperatorUsers() {
   const { currentUser } = useAuth();
   const { operatorStatus, isLoading, error } = useOperatorStatus();
+  const [activeTab, setActiveTab] = useState("users");
 
   return (
     <section className="service-page">
       <div className="service-card">
-        <p className="service-section-label">운영자 도구</p>
-        <h1>사용자 디렉터리</h1>
+        <p className="service-section-label">운영자 전용</p>
+        <h1>운영자 설정</h1>
         <p>
-          전체 사용자 흐름과 현재 운영 권한 분포를 한 화면에서 확인할 수 있도록
-          정리했습니다.
+          사용자 권한과 디지몬 마스터 데이터를 한곳에서 관리합니다.
         </p>
         {operatorStatus.isOperator ? (
           <div className="flex flex-wrap gap-2 mt-4">
@@ -46,9 +47,43 @@ function OperatorUsers() {
           </p>
         </div>
       ) : (
-        <div className="service-card">
-          <UserDirectoryPanel currentUser={currentUser} />
-        </div>
+        <>
+          <div className="operator-settings-tabs" role="tablist" aria-label="운영자 설정 메뉴">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "users"}
+              className={`operator-settings-tab${activeTab === "users" ? " operator-settings-tab--active" : ""}`}
+              onClick={() => setActiveTab("users")}
+            >
+              사용자관리
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "master-data"}
+              className={`operator-settings-tab${activeTab === "master-data" ? " operator-settings-tab--active" : ""}`}
+              onClick={() => setActiveTab("master-data")}
+            >
+              디지몬 마스터 데이터
+            </button>
+          </div>
+
+          {activeTab === "users" ? (
+            <div className="service-card" role="tabpanel">
+              <UserDirectoryPanel currentUser={currentUser} />
+            </div>
+          ) : (
+            <div className="operator-master-data" role="tabpanel">
+              <div className="operator-master-data__header">
+                <p className="service-section-label">전역 게임 데이터</p>
+                <h2>디지몬 마스터 데이터</h2>
+                <p>Firestore 기준의 종족 기본값과 스냅샷, 복원 데이터를 관리합니다.</p>
+              </div>
+              <DigimonMasterDataPanel />
+            </div>
+          )}
+        </>
       )}
     </section>
   );

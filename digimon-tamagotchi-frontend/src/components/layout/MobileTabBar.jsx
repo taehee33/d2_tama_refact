@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import useOperatorStatus from "../../hooks/useOperatorStatus";
 import {
   getMobileBottomTabItems,
   getMobileServiceOverflowItems,
@@ -13,6 +14,7 @@ import {
 
 function MobileTabBar() {
   const { currentUser } = useAuth();
+  const { operatorStatus } = useOperatorStatus();
   const location = useLocation();
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
@@ -41,7 +43,9 @@ function MobileTabBar() {
   const visibleTabs = tabs.filter((tab) => tab.key !== "me");
   const moreItems = [
     ...(tamerTab ? [tamerTab] : []),
-    ...getMobileServiceOverflowItems(),
+    ...getMobileServiceOverflowItems({
+      includeOperatorDirectory: Boolean(operatorStatus.canAccessUserDirectory),
+    }),
   ];
 
   useEffect(() => {
@@ -128,6 +132,10 @@ function MobileTabBar() {
               role="menuitem"
               className={({ isActive }) =>
                 `service-tabbar-community-menu__link${
+                  item.variant === "operator"
+                    ? " service-tabbar-community-menu__link--operator"
+                    : ""
+                }${
                   isActive ? " service-tabbar-community-menu__link--active" : ""
                 }`
               }

@@ -74,6 +74,7 @@ describe("SettingsModal developer options", () => {
     fireEvent.click(screen.getByRole("button", { name: "OFF" }));
     expect(screen.getByRole("button", { name: "ON" })).toBeInTheDocument();
     expect(screen.getByText("개발자 옵션")).toBeInTheDocument();
+    expect(screen.queryByText("디지몬 마스터 데이터")).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("checkbox", { name: "도감 미발견 디지몬 공개" })

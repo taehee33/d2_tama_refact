@@ -16,7 +16,8 @@ const INTRO_NAV_ITEM = { key: "landing", to: "/landing", label: "소개", end: t
 const OPERATOR_USERS_NAV_ITEM = {
   key: "operator-users",
   to: "/operators/users",
-  label: "사용자관리(운영자)",
+  label: "운영자 설정",
+  variant: "operator",
 };
 
 function cloneNavItems(items) {

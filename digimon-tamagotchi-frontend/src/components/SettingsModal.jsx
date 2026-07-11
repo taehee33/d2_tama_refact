@@ -4,7 +4,6 @@ import {
   getDigimonDataMapByVersion,
   getStarterDigimonIdFromDataMap,
 } from "../utils/digimonVersionUtils";
-import DigimonMasterDataModal from "./DigimonMasterDataModal";
 import HomeScreenInstallSection from "./HomeScreenInstallSection";
 import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
 
@@ -35,7 +34,6 @@ const SettingsModal = ({
   digimonStats,
   slotVersion,
   }) => {
-  const [showMasterDataModal, setShowMasterDataModal] = useState(false);
   const slotEvolutionDataMap = newDigimonDataVer1;
   const slotRuntimeDataMap = digimonDataVer1;
   const installPrompt = usePwaInstallPrompt();
@@ -294,18 +292,6 @@ const SettingsModal = ({
                 </div>
               )}
 
-              <div className="mb-1">
-                <button
-                  type="button"
-                  onClick={() => setShowMasterDataModal(true)}
-                  className="w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-                >
-                  디지몬 마스터 데이터
-                </button>
-                <p className="mt-1 text-xs text-gray-500">
-                  전역 Firestore 기준으로 종족 기본값, 스냅샷, 기본 복원, 가져오기를 관리합니다.
-                </p>
-              </div>
             </div>
           )}
 
@@ -410,9 +396,6 @@ const SettingsModal = ({
         </div>
       </div>
 
-      {showMasterDataModal && (
-        <DigimonMasterDataModal onClose={() => setShowMasterDataModal(false)} />
-      )}
     </>
   );
 };
