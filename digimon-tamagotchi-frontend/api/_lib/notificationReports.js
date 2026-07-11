@@ -16,6 +16,13 @@ const DEFAULT_NOTIFICATION_CHANNELS = {
   discord: true,
   webPush: true,
 };
+const HOUR_MS = 60 * 60 * 1000;
+const DEATH_COUNTER_THRESHOLDS = {
+  hunger: 12 * HOUR_MS,
+  strength: 12 * HOUR_MS,
+  poop: 8 * HOUR_MS,
+  injury: 6 * HOUR_MS,
+};
 
 function createNotificationError(status, message) {
   const error = new Error(message);
@@ -34,6 +41,61 @@ function normalizeString(value, fallback = "") {
 function normalizeNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeTimestamp(value) {
+  if (value == null) return null;
+  const timestamp = value instanceof Date ? value.getTime() : Number(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function formatDuration(durationMs) {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${hours}시간 ${minutes}분 ${seconds}초`;
+}
+
+function getEffectiveElapsedMs(startedAt, nowMs, excludedMs = 0) {
+  const startMs = normalizeTimestamp(startedAt);
+  if (startMs == null) return null;
+  return Math.max(0, nowMs - startMs - Math.max(0, normalizeNumber(excludedMs, 0)));
+}
+
+function buildTimedCounter({ label, startedAt, thresholdMs, excludedMs, nowMs, repeat = false }) {
+  const elapsedTotalMs = getEffectiveElapsedMs(startedAt, nowMs, excludedMs);
+  if (elapsedTotalMs == null) return `${label}: 시작 시간 확인 불가`;
+
+  const elapsedMs = repeat ? elapsedTotalMs % thresholdMs : elapsedTotalMs;
+  const remainingMs = Math.max(0, thresholdMs - elapsedMs);
+  const isDanger = !repeat && elapsedTotalMs >= thresholdMs;
+  const deadlineMs = nowMs + remainingMs;
+  const status = isDanger ? "위험 단계" : `남음 ${formatDuration(remainingMs)}`;
+  return `${label}: 경과 ${formatDuration(elapsedMs)} · ${status} · 데드라인 ${formatKstDate(deadlineMs)}`;
+}
+
+function resolveActiveDeathDiseaseCounters(slotData = {}, nowMs = Date.now(), projectedStats = null) {
+  const storedStats = slotData?.digimonStats && typeof slotData.digimonStats === "object" ? slotData.digimonStats : {};
+  const stats = projectedStats && typeof projectedStats === "object" ? projectedStats : storedStats;
+  if (stats.isDead === true || slotData.isDead === true) return [];
+
+  const counters = [];
+  if (normalizeNumber(stats.fullness, 1) === 0) {
+    counters.push(buildTimedCounter({ label: "🍖 배고픔 0 지속", startedAt: stats.lastHungerZeroAt ?? stats.callStatus?.hunger?.startedAt, thresholdMs: DEATH_COUNTER_THRESHOLDS.hunger, excludedMs: stats.hungerZeroFrozenDurationMs, nowMs }));
+  }
+  if (normalizeNumber(stats.strength, 1) === 0) {
+    counters.push(buildTimedCounter({ label: "💪 힘 0 지속", startedAt: stats.lastStrengthZeroAt ?? stats.callStatus?.strength?.startedAt, thresholdMs: DEATH_COUNTER_THRESHOLDS.strength, excludedMs: stats.strengthZeroFrozenDurationMs, nowMs }));
+  }
+  if (normalizeNumber(stats.poopCount, 0) >= 8) {
+    counters.push(buildTimedCounter({ label: "💩 똥 8개(다음 추가 부상)", startedAt: stats.lastPoopPenaltyAt ?? stats.poopReachedMaxAt, thresholdMs: DEATH_COUNTER_THRESHOLDS.poop, excludedMs: stats.poopPenaltyFrozenDurationMs, nowMs, repeat: true }));
+  }
+  if (stats.isInjured === true) {
+    counters.push(buildTimedCounter({ label: "🏥 부상 방치", startedAt: stats.injuredAt, thresholdMs: DEATH_COUNTER_THRESHOLDS.injury, excludedMs: stats.injuryFrozenDurationMs, nowMs }));
+  }
+  const injuries = Math.max(0, Math.floor(normalizeNumber(stats.injuries, 0)));
+  if (injuries > 0) counters.push(`🩹 부상 누적: ${injuries}/15회`);
+  return counters;
 }
 
 function getHeaderValue(headers = {}, headerName) {
@@ -119,7 +181,9 @@ function isStoredInCareStorage(slotData = {}) {
 }
 
 function resolveSlotIssues(slotData = {}, nowMs = Date.now()) {
-  const stats = slotData?.digimonStats && typeof slotData.digimonStats === "object" ? slotData.digimonStats : {};
+  const storedStats = slotData?.digimonStats && typeof slotData.digimonStats === "object" ? slotData.digimonStats : {};
+  const projection = projectSlotForUrgentCare(slotData, nowMs);
+  const stats = projection.status === "projected" ? projection.stats : storedStats;
   const callStatus = stats?.callStatus && typeof stats.callStatus === "object" ? stats.callStatus : {};
   const hungerCall = normalizeCallEntry(callStatus.hunger);
   const strengthCall = normalizeCallEntry(callStatus.strength);
@@ -131,7 +195,6 @@ function resolveSlotIssues(slotData = {}, nowMs = Date.now()) {
   if (stats.isDead === true || slotData?.isDead === true) {
     return ["💀 사망 판정"];
   }
-  const projection = projectSlotForUrgentCare(slotData, nowMs);
   if (projection.status === "projected" && projection.stats?.isDead === true) {
     return ["💀 사망 판정"];
   }
@@ -187,14 +250,20 @@ function buildUserDailyReport({ uid, tamerName, webhookUrl, slotDocuments = [], 
       return;
     }
 
+    const projection = projectSlotForUrgentCare(slotData, currentTimeMs);
+    const projectedStats = projection.status === "projected" ? projection.stats : null;
     const issues = resolveSlotIssues(slotData, currentTimeMs);
+    const counters = resolveActiveDeathDiseaseCounters(slotData, currentTimeMs, projectedStats);
+    const counterLines = counters.length > 0
+      ? `\n  ⏳ **진행 중 카운터**\n${counters.map((counter) => `  - ${counter}`).join("\n")}`
+      : "";
 
     if (issues.length > 0) {
-      abnormalList.push(`- **${digimonName}** (${slotId}): ${issues.join(", ")}`);
+      abnormalList.push(`- **${digimonName}** (${slotId}): ${issues.join(", ")}${counterLines}`);
       return;
     }
 
-    healthyList.push(`- **${digimonName}** (${slotId})`);
+    healthyList.push(`- **${digimonName}** (${slotId})${counterLines}`);
   });
 
   const totalCount = abnormalList.length + healthyList.length + frozenList.length;
@@ -398,6 +467,7 @@ module.exports = {
   resolveNotificationSettings,
   normalizeDiscordWebhookUrl,
   resolveSlotIssues,
+  resolveActiveDeathDiseaseCounters,
   resolveTamerName,
   verifySchedulerSecret,
 };

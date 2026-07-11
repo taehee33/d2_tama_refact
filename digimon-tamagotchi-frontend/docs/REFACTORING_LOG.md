@@ -1,5 +1,43 @@
 # REFACTORING LOG
 
+## 2026-07-11
+
+### Discord 일일보고 사망·질병 카운터 추가
+- 일일보고에서 각 디지몬의 활성 배고픔 0, 힘 0, 똥 8개, 부상 방치 카운터를 경과 시간·남은 시간·KST 데드라인과 함께 표시하도록 추가했습니다.
+- 부상 누적값이 있으면 현재 횟수를 15회 기준으로 표시하며, 시작 시각이 없는 활성 조건은 임의의 데드라인 대신 `시작 시간 확인 불가`로 안내합니다.
+- 서버 lazy update 투영 결과와 카운터별 냉장고 누적 제외 시간을 사용하고, 사망 판정 및 냉장고 보관 슬롯의 기존 보고 우선순위는 유지했습니다.
+
+### 테스트 보강
+- 복수 사망 카운터, 똥·부상 복합 카운터, 냉장고 제외 시간, 임계치 초과, 시작 시각 누락 및 사망 슬롯 우선 처리를 검증했습니다.
+
+### 영향받은 파일
+- `api/_lib/notificationReports.js`
+- `api/_lib/notificationReports.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 보고서 전용 순수 helper가 서버 투영 상태를 읽도록 구성해 Firestore 저장 계약과 실시간 쓰기 정책을 변경하지 않았습니다.
+- 실효 데드라인을 보고 생성 시각과 남은 시간으로 계산해 냉장고에서 정지된 기간도 정확히 반영합니다.
+
+### 알림함 모두확인 버튼 추가
+- 알림함 헤더의 새로고침 버튼 옆에 `모두확인` 버튼을 추가했습니다.
+- 알림창을 열 때 자동으로 읽음 처리하던 동작을 제거하고, 사용자가 `모두확인`을 선택했을 때 표시된 미확인 알림을 일괄 처리하도록 변경했습니다.
+- 처리 중에는 중복 요청을 막고, 미확인 알림이 없으면 버튼을 비활성화합니다.
+
+### 영향받은 파일
+- `src/contexts/NotificationCenterContext.jsx`
+- `src/components/notifications/NotificationPanel.jsx`
+- `src/components/notifications/GlobalNotificationCenter.jsx`
+- `src/components/notifications/GameNotificationAction.jsx`
+- `src/components/notifications/GlobalNotificationCenter.test.jsx`
+- `src/components/notifications/GameNotificationAction.test.jsx`
+- `src/index.css`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 기존 알림 API와 상태 갱신 helper를 재사용해 저장 계약은 변경하지 않았습니다.
+- 읽음 처리를 context action으로 유지해 플로팅 알림함과 게임 툴바 알림함이 같은 동작을 공유합니다.
+
 ## 2026-07-10
 
 ### energy 회복 규칙 정합성 개선
