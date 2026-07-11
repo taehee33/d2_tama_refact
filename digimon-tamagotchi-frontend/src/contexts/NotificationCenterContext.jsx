@@ -46,8 +46,8 @@ export function NotificationCenterProvider({ children }) {
   const [status, setStatus] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [readSignature, setReadSignature] = useState("");
 
   const routePolicy = useMemo(
     () => getRouteLayoutPolicy(location.pathname, currentUser),
@@ -150,30 +150,26 @@ export function NotificationCenterProvider({ children }) {
     return () => window.removeEventListener(CLOSE_NOTIFICATION_EVENT, handleCloseRequest);
   }, []);
 
-  useEffect(() => {
-    if (!isOpen || !currentUser || unreadNotifications.length === 0) {
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!currentUser || unreadNotifications.length === 0 || isMarkingAllRead) {
       return;
     }
 
-    const signature = unreadNotifications.map((notification) => notification.id).join("|");
-    if (!signature || signature === readSignature) {
-      return;
+    setIsMarkingAllRead(true);
+    setErrorMessage("");
+    try {
+      const result = await markNotificationsRead(currentUser, { allVisible: true });
+      const notificationIds = result?.notificationIds?.length
+        ? result.notificationIds
+        : unreadNotifications.map((notification) => notification.id);
+      const readAt = result?.readAt || Date.now();
+      setStatus((currentStatus) => applyReadState(currentStatus, notificationIds, readAt));
+    } catch (error) {
+      setErrorMessage(error?.message || "알림 읽음 처리에 실패했습니다.");
+    } finally {
+      setIsMarkingAllRead(false);
     }
-
-    setReadSignature(signature);
-    markNotificationsRead(currentUser, { allVisible: true })
-      .then((result) => {
-        const notificationIds = result?.notificationIds?.length
-          ? result.notificationIds
-          : unreadNotifications.map((notification) => notification.id);
-        const readAt = result?.readAt || Date.now();
-        setStatus((currentStatus) => applyReadState(currentStatus, notificationIds, readAt));
-      })
-      .catch((error) => {
-        setReadSignature("");
-        setErrorMessage(error?.message || "알림 읽음 처리에 실패했습니다.");
-      });
-  }, [currentUser, isOpen, readSignature, unreadNotifications]);
+  }, [currentUser, isMarkingAllRead, unreadNotifications]);
 
   const value = useMemo(() => ({
     status,
@@ -182,6 +178,7 @@ export function NotificationCenterProvider({ children }) {
     unreadCount,
     isOpen,
     isLoading,
+    isMarkingAllRead,
     errorMessage,
     routePolicy,
     loadStatus,
@@ -190,14 +187,17 @@ export function NotificationCenterProvider({ children }) {
     toggleNotification,
     closeForChat,
     handleNotificationClick,
+    markAllNotificationsRead,
   }), [
     closeForChat,
     closeNotification,
     errorMessage,
     handleNotificationClick,
     isLoading,
+    isMarkingAllRead,
     isOpen,
     loadStatus,
+    markAllNotificationsRead,
     openNotification,
     recentNotifications,
     routePolicy,

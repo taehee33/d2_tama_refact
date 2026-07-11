@@ -69,6 +69,9 @@ function NotificationPanel({
   isLoading,
   errorMessage,
   onRefresh,
+  onMarkAllRead,
+  hasUnreadNotifications,
+  isMarkingAllRead,
   onNotificationClick,
 }) {
   return (
@@ -82,14 +85,24 @@ function NotificationPanel({
           <p className="service-section-label">앱 알림함</p>
           <h3>알림</h3>
         </div>
-        <button
-          type="button"
-          className="global-notification-center__refresh"
-          onClick={onRefresh}
-          disabled={isLoading}
-        >
-          새로고침
-        </button>
+        <div className="global-notification-center__header-actions">
+          <button
+            type="button"
+            className="global-notification-center__refresh"
+            onClick={onMarkAllRead}
+            disabled={!hasUnreadNotifications || isMarkingAllRead}
+          >
+            {isMarkingAllRead ? "확인 중..." : "모두확인"}
+          </button>
+          <button
+            type="button"
+            className="global-notification-center__refresh"
+            onClick={onRefresh}
+            disabled={isLoading}
+          >
+            새로고침
+          </button>
+        </div>
       </div>
 
       {errorMessage ? (

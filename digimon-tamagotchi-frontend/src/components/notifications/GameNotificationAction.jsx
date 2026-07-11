@@ -9,12 +9,14 @@ function GameNotificationAction({ compact = false }) {
     unreadCount,
     isOpen,
     isLoading,
+    isMarkingAllRead,
     errorMessage,
     routePolicy,
     loadStatus,
     closeNotification,
     toggleNotification,
     handleNotificationClick,
+    markAllNotificationsRead,
   } = useNotificationCenter();
 
   useEffect(() => {
@@ -76,6 +78,9 @@ function GameNotificationAction({ compact = false }) {
           isLoading={isLoading}
           errorMessage={errorMessage}
           onRefresh={() => loadStatus()}
+          onMarkAllRead={markAllNotificationsRead}
+          hasUnreadNotifications={unreadCount > 0}
+          isMarkingAllRead={isMarkingAllRead}
           onNotificationClick={handleNotificationClick}
         />
       ) : null}

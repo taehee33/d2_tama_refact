@@ -80,17 +80,8 @@ describe("GlobalNotificationCenter", () => {
     });
   });
 
-  test("읽지 않은 알림이 있으면 배지를 표시하고 패널 열림 시 읽음 처리한다", async () => {
-    mockGetNotificationStatus
-      .mockResolvedValueOnce(createStatus())
-      .mockResolvedValueOnce(createStatus({
-        recentNotifications: [
-          {
-            ...createStatus().recentNotifications[0],
-            readAt: Date.parse("2026-06-25T00:01:00.000Z"),
-          },
-        ],
-      }));
+  test("모두확인 버튼으로 표시된 알림을 읽음 처리한다", async () => {
+    mockGetNotificationStatus.mockResolvedValue(createStatus());
 
     renderWithProvider(<GlobalNotificationCenter />);
 
@@ -99,6 +90,8 @@ describe("GlobalNotificationCenter", () => {
     fireEvent.click(screen.getByRole("button", { name: "알림" }));
 
     expect(await screen.findByRole("dialog", { name: "알림 목록" })).toBeInTheDocument();
+    expect(mockMarkNotificationsRead).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "모두확인" }));
     await waitFor(() =>
       expect(mockMarkNotificationsRead).toHaveBeenCalledWith(
         mockCurrentUser,
@@ -106,6 +99,7 @@ describe("GlobalNotificationCenter", () => {
       )
     );
     await waitFor(() => expect(screen.queryByText("1")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "모두확인" })).toBeDisabled();
   });
 
   test("알림 항목을 클릭하면 targetPath로 이동하고 패널을 닫는다", async () => {

@@ -93,7 +93,8 @@ describe("GameNotificationAction", () => {
 
     expect(mockSetIsChatOpen).toHaveBeenCalledWith(false);
     expect(await screen.findByRole("dialog", { name: "알림 목록" })).toBeInTheDocument();
-    await waitFor(() => expect(mockMarkNotificationsRead).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: "모두확인" })).toBeInTheDocument();
+    expect(mockMarkNotificationsRead).not.toHaveBeenCalled();
   });
 
   test("서비스 화면에서는 toolbar 알림 액션을 렌더링하지 않는다", async () => {

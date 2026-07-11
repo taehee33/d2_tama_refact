@@ -9,12 +9,14 @@ function GlobalNotificationCenter({ placement = "floating" }) {
     unreadCount,
     isOpen,
     isLoading,
+    isMarkingAllRead,
     errorMessage,
     routePolicy,
     loadStatus,
     closeNotification,
     toggleNotification,
     handleNotificationClick,
+    markAllNotificationsRead,
   } = useNotificationCenter();
 
   useEffect(() => {
@@ -80,6 +82,9 @@ function GlobalNotificationCenter({ placement = "floating" }) {
           isLoading={isLoading}
           errorMessage={errorMessage}
           onRefresh={() => loadStatus()}
+          onMarkAllRead={markAllNotificationsRead}
+          hasUnreadNotifications={unreadCount > 0}
+          isMarkingAllRead={isMarkingAllRead}
           onNotificationClick={handleNotificationClick}
         />
       ) : null}
