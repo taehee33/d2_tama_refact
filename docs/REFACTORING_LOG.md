@@ -7104,3 +7104,19 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
 - **근거:** `_3` 파일들은 이미 앱이 요구하는 48x48 PNG였으므로 추가 변환 없이 복사해 적용한다. `syncVer3CodexFlatSprites.js`의 기존 `133/134/135/159/160` 동기화 규칙을 유지하면 이후 재생성 시에도 같은 자산이 유지된다.
+
+## [2026-07-12] Ver.3 지원 스프라이트 배경 투명화
+
+- **내용:** `public/Ver3_Mod_codex/`와 `public/Ver3_Mod_codex_48/`의 `133.png`, `134.png`, `135.png`, `159.png`, `160.png`에 남아 있던 불투명 배경을 제거하고 알파 채널을 추가했다. 가장자리와 연결된 배경 픽셀만 투명 처리해 디지타마와 오하카다몬 본체의 흰색 픽셀은 유지했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/135.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/160.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/134.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/135.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/159.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
+- **근거:** Canvas 배경 위에 흰 사각형이 보이는 문제는 PNG가 알파 채널 없이 불투명 배경을 포함해서 발생한다. 런타임과 재생성 원본 양쪽을 같은 투명 PNG로 맞춰 화면 표시와 향후 동기화 결과를 일치시킨다.
