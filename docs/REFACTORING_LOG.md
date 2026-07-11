@@ -7050,3 +7050,13 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
   - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
 - **근거:** Ver.3 디지타마도 생체 스프라이트와 같은 48x48 해상도 PNG로 맞춰, 현재 `/Ver3_Mod_codex/133.png` 런타임 참조에서 바로 표시되도록 한다.
+
+## [2026-07-11] Ver.3 디지타마 깜빡임 보정
+
+- **내용:** 디지타마 idle 애니메이션이 `133.png`, `134.png`를 번갈아 요청하는데 `134.png` 이후 프레임이 없어 화면에서 사라지는 문제를 수정했다. `public/Ver3_Mod_codex/133.png`부터 `147.png`까지 동일한 48x48 디지타마 PNG로 채우고, flat 동기화 스크립트도 디지타마 15프레임 범위를 생성하도록 보정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/134.png` ~ `147.png`
+  - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
+  - `digimon-tamagotchi-frontend/src/data/v3/digimons.test.js`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** Canvas 렌더링은 디지몬 기본 sprite 번호에 애니메이션 offset을 더해 이미지를 불러오므로, 정적 디지타마도 요청 가능한 프레임 범위를 모두 제공해야 깜빡임이 없다.

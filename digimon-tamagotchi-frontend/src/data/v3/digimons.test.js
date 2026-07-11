@@ -119,14 +119,14 @@ describe("digimonDataVer3", () => {
     });
   });
 
-  test("all living Ver.3 sprites have 15 flat animation frames", () => {
+  test("animated Ver.3 sprites have 15 flat animation frames", () => {
     const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_codex");
     const assetFiles = new Set(fs.readdirSync(assetDir));
-    const livingEntries = Object.values(digimonDataVer3).filter(
-      (entry) => entry.stage !== "Digitama" && entry.stage !== "Ohakadamon"
+    const animatedEntries = Object.values(digimonDataVer3).filter(
+      (entry) => entry.stage !== "Ohakadamon"
     );
 
-    livingEntries.forEach((entry) => {
+    animatedEntries.forEach((entry) => {
       for (let offset = 0; offset < 15; offset += 1) {
         expect(assetFiles.has(`${entry.sprite + offset}.png`)).toBe(true);
       }

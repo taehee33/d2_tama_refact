@@ -8,12 +8,9 @@ const outputDir = path.join(repoRoot, "public", "Ver3_Mod_codex");
 const legacyV3Dir = path.join(repoRoot, "public", "Ver3_Mod_TH");
 const ver2CommonDir = path.join(repoRoot, "public", "Ver2_Mod_Kor");
 const reportPath = path.resolve(repoRoot, "..", "docs", "V3_CODEX_FLAT_SPRITE_SYNC.md");
+const frameCount = 15;
 
 const supportingV3Sprites = [
-  {
-    spriteNumber: 133,
-    sourcePath: path.join(sourceDir, "133.png"),
-  },
   {
     spriteNumber: 159,
     sourcePath: path.join(legacyV3Dir, "159.png"),
@@ -23,7 +20,14 @@ const supportingV3Sprites = [
     sourcePath: path.join(legacyV3Dir, "160.png"),
   },
 ];
-const frameCount = 15;
+const supportingV3FrameRanges = [
+  {
+    label: "DigitamaV3",
+    startSpriteNumber: 133,
+    count: frameCount,
+    sourcePath: path.join(sourceDir, "133.png"),
+  },
+];
 
 function parseEntries() {
   const source = fs.readFileSync(dataPath, "utf8");
@@ -58,11 +62,30 @@ function copyFile(sourcePath, destinationPath) {
   fs.copyFileSync(sourcePath, destinationPath);
 }
 
+function groupSupportingFrames(copiedSupportingFrames) {
+  return [
+    ...copiedSupportingFrames
+      .reduce((groups, entry) => {
+        const key = `${entry.label}|${entry.sourcePath}`;
+        const group = groups.get(key) || {
+          label: entry.label,
+          sourcePath: entry.sourcePath,
+          numbers: [],
+        };
+        group.numbers.push(entry.destinationNumber);
+        groups.set(key, group);
+        return groups;
+      }, new Map())
+      .values(),
+  ];
+}
+
 function syncFlatSprites() {
   fs.mkdirSync(outputDir, { recursive: true });
 
   const copiedFrames = [];
   const copiedSupporting = [];
+  const copiedSupportingFrames = [];
   const copiedAttackSprites = [];
   const missing = [];
 
@@ -91,6 +114,24 @@ function syncFlatSprites() {
       copiedFrames.push({
         id: entry.id,
         name: entry.name,
+        sourcePath,
+        destinationNumber,
+      });
+    }
+  }
+
+  for (const { label, startSpriteNumber, count, sourcePath } of supportingV3FrameRanges) {
+    if (!fs.existsSync(sourcePath)) {
+      missing.push({ type: "supporting v3 frame range", id: label, sourcePath });
+      continue;
+    }
+
+    for (let index = 0; index < count; index += 1) {
+      const destinationNumber = startSpriteNumber + index;
+      const destinationPath = path.join(outputDir, `${destinationNumber}.png`);
+      copyFile(sourcePath, destinationPath);
+      copiedSupportingFrames.push({
+        label,
         sourcePath,
         destinationNumber,
       });
@@ -140,6 +181,7 @@ function syncFlatSprites() {
     `- Source dir: \`${path.relative(repoRoot, sourceDir)}\``,
     `- Output dir: \`${path.relative(repoRoot, outputDir)}\``,
     `- Living frame files copied: ${copiedFrames.length}`,
+    `- Supporting Ver.3 frame files copied: ${copiedSupportingFrames.length}`,
     `- Supporting Ver.3 files copied: ${copiedSupporting.length}`,
     `- Attack/common files copied: ${copiedAttackSprites.length}`,
     `- Missing files: ${missing.length}`,
@@ -155,6 +197,17 @@ function syncFlatSprites() {
     }),
     "",
     "## Supporting Ver.3 Files",
+    "",
+    copiedSupportingFrames.length === 0
+      ? "- None"
+      : groupSupportingFrames(copiedSupportingFrames)
+          .map(
+            (entry) =>
+              `- ${entry.label}: ${Math.min(...entry.numbers)}.png-${Math.max(...entry.numbers)}.png from \`${path.relative(repoRoot, entry.sourcePath)}\``
+          )
+          .join("\n"),
+    "",
+    "## Supporting Fixed Ver.3 Files",
     "",
     copiedSupporting.length === 0
       ? "- None"
@@ -195,6 +248,7 @@ function syncFlatSprites() {
     JSON.stringify(
       {
         livingFrameFiles: copiedFrames.length,
+        supportingFrameFiles: copiedSupportingFrames.length,
         supportingFiles: copiedSupporting.length,
         attackCommonFiles: copiedAttackSprites.length,
         missing: missing.length,
