@@ -2302,7 +2302,8 @@ code {
 }
 
 .game-page-toolbar__utilities .online-users-count--game-header,
-.game-page-toolbar__mobile-actions .online-users-count--game-header {
+.game-page-toolbar__mobile-actions .online-users-count--game-header,
+.service-topnav__chat .online-users-count--game-header {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2324,7 +2325,9 @@ code {
 .game-page-toolbar__utilities .online-users-count--game-header:hover,
 .game-page-toolbar__utilities .online-users-count--game-header:focus-visible,
 .game-page-toolbar__mobile-actions .online-users-count--game-header:hover,
-.game-page-toolbar__mobile-actions .online-users-count--game-header:focus-visible {
+.game-page-toolbar__mobile-actions .online-users-count--game-header:focus-visible,
+.service-topnav__chat .online-users-count--game-header:hover,
+.service-topnav__chat .online-users-count--game-header:focus-visible {
   background: linear-gradient(135deg, #ffffff, #e8eef5);
   outline: none;
 }
@@ -5900,6 +5903,10 @@ code {
   backdrop-filter: blur(16px);
 }
 
+.service-topnav__mobile-backdrop {
+  display: none;
+}
+
 .service-topnav__mobile-link {
   display: flex;
   align-items: center;
@@ -6112,6 +6119,97 @@ code {
 
   .service-topnav__account-name {
     max-width: 4.4rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .service-topnav {
+    padding: 0.5rem 0.45rem 0;
+  }
+
+  .service-topnav__inner {
+    gap: 0.35rem;
+    padding: 0.5rem;
+    flex-wrap: nowrap;
+  }
+
+  .service-brand {
+    flex: 1 1 auto;
+    gap: 0.42rem;
+  }
+
+  .service-brand__mark {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  .service-brand__copy {
+    display: flex;
+    min-width: 0;
+  }
+
+  .service-brand__eyebrow {
+    display: none;
+  }
+
+  .service-brand__title {
+    overflow: hidden;
+    font-size: 0.83rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .service-topnav__actions {
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .service-topnav__chat .online-users-count--game-header {
+    min-height: 2.5rem;
+    padding: 0.38rem 0.52rem;
+    gap: 0.28rem;
+    box-shadow: 0 7px 16px rgba(15, 23, 42, 0.1);
+  }
+
+  .service-topnav__chat .online-users-count__game-icon {
+    flex-basis: 1.05rem;
+    width: 1.05rem;
+    font-size: 0.92rem;
+  }
+
+  .service-topnav__chat .online-users-count__game-label {
+    font-size: 0.76rem;
+  }
+
+  .service-topnav__chat .online-users-count__game-presence {
+    font-size: 0.7rem;
+  }
+
+  .service-topnav__chat .online-users-count__game-badge {
+    top: -0.65rem;
+    right: -0.45rem;
+  }
+
+  .global-notification-center--inline .global-notification-center__button,
+  .service-topnav__cta--account {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+  }
+
+  .service-topnav__account-name {
+    display: none;
+  }
+
+  .service-topnav__account-caret {
+    font-size: 0.9rem;
+  }
+
+  .service-topnav__menu {
+    top: calc(100% + 0.5rem);
+    right: 0;
   }
 }
 
@@ -7394,104 +7492,6 @@ code {
   }
 }
 
-.play-chat-fab {
-  position: fixed;
-  right: 1rem;
-  bottom: calc(var(--safe-bottom) + 1.25rem);
-  z-index: var(--z-floating-chat);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  white-space: nowrap;
-  min-height: 3.25rem;
-  padding: 0.9rem 1.1rem;
-  border: none;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #1f7a5f, #2d5f4c);
-  color: #fffdf8;
-  box-shadow: 0 18px 38px rgba(29, 86, 64, 0.24);
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.play-chat-fab--active {
-  background: linear-gradient(135deg, #24483d, #1f7a5f);
-}
-
-.play-chat-fab__icon-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 1.4rem;
-  width: 1.4rem;
-  line-height: 1;
-}
-
-.play-chat-fab__icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.play-chat-fab__label {
-  font-size: 0.92rem;
-}
-
-.play-chat-fab__presence {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: rgba(255, 253, 248, 0.86);
-}
-
-.play-chat-fab__badge {
-  position: absolute;
-  top: -0.9rem;
-  right: -0.62rem;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.45rem;
-  height: 1.45rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: #f06b5f;
-  color: white;
-  font-size: 0.72rem;
-  font-weight: 900;
-}
-
-.play-chat-fab--game-compact {
-  min-width: 44px;
-  min-height: 44px;
-}
-
-.play-chat-fab--topnav {
-  position: relative;
-  right: auto;
-  bottom: auto;
-  min-width: 2.65rem;
-  min-height: 2.65rem;
-  width: 2.65rem;
-  height: 2.65rem;
-  padding: 0;
-  justify-content: center;
-  background: rgba(255, 250, 243, 0.96);
-  color: #254b3d;
-  border: 1px solid rgba(67, 84, 73, 0.16);
-  box-shadow: 0 12px 24px rgba(30, 42, 35, 0.12);
-}
-
-.play-chat-fab--topnav.play-chat-fab--active {
-  background: #2d5f4c;
-  color: #fffdf8;
-}
-
-.play-chat-fab--topnav .play-chat-fab__icon {
-  font-size: 1.05rem;
-}
-
 .play-chat-backdrop {
   position: fixed;
   inset: 0;
@@ -8320,10 +8320,6 @@ code {
     align-items: stretch;
   }
 
-  .play-chat-fab {
-    bottom: 1.5rem;
-  }
-
   .play-chat-drawer {
     bottom: 5.5rem;
   }
@@ -8458,21 +8454,6 @@ code {
 
   .service-page--play {
     padding-bottom: 5.5rem;
-  }
-
-  .play-chat-fab {
-    right: 1rem;
-    bottom: calc(var(--safe-bottom) + var(--mobile-tabbar-height) + var(--floating-gap));
-    gap: 0.45rem;
-    padding: 0.85rem 0.95rem;
-  }
-
-  .play-chat-fab__label {
-    font-size: 0.85rem;
-  }
-
-  .play-chat-fab__presence {
-    font-size: 0.74rem;
   }
 
   .play-chat-drawer {

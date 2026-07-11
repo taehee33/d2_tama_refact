@@ -7,13 +7,12 @@ import {
 } from "../../data/serviceContent";
 import {
   getPrimaryHeaderNavItems,
-  getMobileServiceOverflowItems,
   HEADER_APP_ICON_SRC,
 } from "../../data/headerNavigation";
 import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 import useOperatorStatus from "../../hooks/useOperatorStatus";
 import NotebookTopBar from "../home/NotebookTopBar";
-import PlayChatLauncher from "../chat/PlayChatLauncher";
+import OnlineUsersCount from "../OnlineUsersCount";
 import GlobalNotificationCenter from "../notifications/GlobalNotificationCenter";
 
 function TopNavigation({ tamerName = "" }) {
@@ -39,17 +38,11 @@ function TopNavigation({ tamerName = "" }) {
     includeTamer: Boolean(currentUser),
     includeOperatorDirectory: Boolean(operatorStatus.canAccessUserDirectory),
   });
-  const mobileOverflowItems = getMobileServiceOverflowItems({
-    includeOperatorDirectory: Boolean(operatorStatus.canAccessUserDirectory),
-  });
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const communityMenuRef = useRef(null);
-  const mobileMenuRef = useRef(null);
 
   useEffect(() => {
     setIsCommunityMenuOpen(false);
-    setIsMobileMenuOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
@@ -80,58 +73,18 @@ function TopNavigation({ tamerName = "" }) {
     };
   }, [isCommunityMenuOpen]);
 
-  useEffect(() => {
-    if (!isMobileMenuOpen) {
-      return undefined;
-    }
-
-    const handlePointerDown = (event) => {
-      if (!mobileMenuRef.current?.contains(event.target)) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("touchstart", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMobileMenuOpen]);
-
   const handleAccountMenuToggle = () => {
     setIsCommunityMenuOpen(false);
-    setIsMobileMenuOpen(false);
     toggleAccountMenu();
   };
 
   const handleCommunityMenuToggle = () => {
     closeAccountMenu();
-    setIsMobileMenuOpen(false);
     setIsCommunityMenuOpen((prev) => !prev);
   };
 
   const handleCloseCommunityMenu = () => {
     setIsCommunityMenuOpen(false);
-  };
-
-  const handleMobileMenuToggle = () => {
-    closeAccountMenu();
-    setIsCommunityMenuOpen(false);
-    setIsMobileMenuOpen((prev) => !prev);
-  };
-
-  const handleCloseMobileMenu = () => {
-    setIsMobileMenuOpen(false);
   };
 
   if (isNotebookRoute) {
@@ -151,7 +104,7 @@ function TopNavigation({ tamerName = "" }) {
           </span>
           <span className="service-brand__copy">
             <span className="service-brand__eyebrow">Digimon THamagotchi</span>
-            <span className="service-brand__title">디지몬 키우기</span>
+            <span className="service-brand__title">디지몬 타마고치</span>
           </span>
         </Link>
 
@@ -221,47 +174,11 @@ function TopNavigation({ tamerName = "" }) {
         </nav>
 
         <div className="service-topnav__actions">
-          <div className="service-topnav__mobile-menu" ref={mobileMenuRef}>
-            <button
-              type="button"
-              className={`service-topnav__mobile-trigger${
-                isMobileMenuOpen ? " service-topnav__mobile-trigger--open" : ""
-              }`}
-              onClick={handleMobileMenuToggle}
-              aria-haspopup="menu"
-              aria-expanded={isMobileMenuOpen}
-              aria-label="모바일 더보기 메뉴"
-            >
-              더보기
-            </button>
-
-            {isMobileMenuOpen ? (
-              <div
-                className="service-topnav__mobile-panel"
-                role="menu"
-                aria-label="모바일 더보기"
-              >
-                {mobileOverflowItems.map((item) => (
-                  <NavLink
-                    key={item.key}
-                    to={item.to}
-                    end={item.end}
-                    className={({ isActive }) =>
-                      `service-topnav__mobile-link${
-                        isActive ? " service-topnav__mobile-link--active" : ""
-                      }`
-                    }
-                    onClick={handleCloseMobileMenu}
-                    role="menuitem"
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          {currentUser ? <PlayChatLauncher variant="topnav" /> : null}
+          {currentUser ? (
+            <div className="service-topnav__chat">
+              <OnlineUsersCount variant="game-header" />
+            </div>
+          ) : null}
           {currentUser ? <GlobalNotificationCenter placement="inline" /> : null}
 
           {currentUser ? (
@@ -316,6 +233,7 @@ function TopNavigation({ tamerName = "" }) {
           )}
         </div>
       </div>
+
     </header>
   );
 }

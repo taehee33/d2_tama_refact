@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { getMobileBottomTabItems } from "../../data/headerNavigation";
+import {
+  getMobileBottomTabItems,
+  getMobileServiceOverflowItems,
+} from "../../data/headerNavigation";
 import {
   communityBoards,
   getCommunityBoardHref,
@@ -12,8 +15,11 @@ function MobileTabBar() {
   const { currentUser } = useAuth();
   const location = useLocation();
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const communityMenuRef = useRef(null);
   const communityTriggerRef = useRef(null);
+  const moreMenuRef = useRef(null);
+  const moreTriggerRef = useRef(null);
   const homePath = currentUser ? "/" : "/landing";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const isCommunityRoute = location.pathname === "/community";
@@ -22,6 +28,7 @@ function MobileTabBar() {
     play: "🕹️",
     community: "💬",
     me: "🧢",
+    more: "☰",
   };
   const tabs = getMobileBottomTabItems({
     includeTamer: Boolean(currentUser),
@@ -30,13 +37,20 @@ function MobileTabBar() {
     ...tab,
     icon: iconByKey[tab.key] || "•",
   }));
+  const tamerTab = tabs.find((tab) => tab.key === "me");
+  const visibleTabs = tabs.filter((tab) => tab.key !== "me");
+  const moreItems = [
+    ...(tamerTab ? [tamerTab] : []),
+    ...getMobileServiceOverflowItems(),
+  ];
 
   useEffect(() => {
     setIsCommunityMenuOpen(false);
+    setIsMoreMenuOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (!isCommunityMenuOpen) {
+    if (!isCommunityMenuOpen && !isMoreMenuOpen) {
       return undefined;
     }
 
@@ -44,7 +58,9 @@ function MobileTabBar() {
       const target = event.target;
       if (
         communityMenuRef.current?.contains(target) ||
-        communityTriggerRef.current?.contains(target)
+        communityTriggerRef.current?.contains(target) ||
+        moreMenuRef.current?.contains(target) ||
+        moreTriggerRef.current?.contains(target)
       ) {
         return;
       }
@@ -54,6 +70,7 @@ function MobileTabBar() {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         setIsCommunityMenuOpen(false);
+        setIsMoreMenuOpen(false);
       }
     };
 
@@ -64,7 +81,7 @@ function MobileTabBar() {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isCommunityMenuOpen]);
+  }, [isCommunityMenuOpen, isMoreMenuOpen]);
 
   return (
     <nav className="service-tabbar">
@@ -96,7 +113,35 @@ function MobileTabBar() {
         </div>
       ) : null}
 
-      {tabs.map((tab) => {
+      {isMoreMenuOpen ? (
+        <div
+          ref={moreMenuRef}
+          className="service-tabbar-community-menu"
+          role="menu"
+          aria-label="더보기 메뉴"
+        >
+          {moreItems.map((item) => (
+            <NavLink
+              key={item.key}
+              to={item.to}
+              end={item.end}
+              role="menuitem"
+              className={({ isActive }) =>
+                `service-tabbar-community-menu__link${
+                  isActive ? " service-tabbar-community-menu__link--active" : ""
+                }`
+              }
+              aria-label={item.label}
+              onClick={() => setIsMoreMenuOpen(false)}
+            >
+              <strong>{item.label}</strong>
+              <span>이동</span>
+            </NavLink>
+          ))}
+        </div>
+      ) : null}
+
+      {visibleTabs.map((tab) => {
         if (tab.key === "community") {
           const className = `service-tabbar__item service-tabbar__item--button${
             isCommunityRoute ? " service-tabbar__item--active" : ""
@@ -138,6 +183,26 @@ function MobileTabBar() {
           </NavLink>
         );
       })}
+
+      {moreItems.length > 0 ? (
+        <button
+          ref={moreTriggerRef}
+          type="button"
+          className={`service-tabbar__item service-tabbar__item--button${
+            isMoreMenuOpen ? " service-tabbar__item--open" : ""
+          }`}
+          aria-haspopup="menu"
+          aria-expanded={isMoreMenuOpen}
+          aria-label="더보기"
+          onClick={() => {
+            setIsCommunityMenuOpen(false);
+            setIsMoreMenuOpen((isOpen) => !isOpen);
+          }}
+        >
+          <span className="service-tabbar__icon" aria-hidden="true">☰</span>
+          <span>더보기</span>
+        </button>
+      ) : null}
     </nav>
   );
 }

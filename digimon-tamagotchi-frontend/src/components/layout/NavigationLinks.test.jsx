@@ -100,13 +100,13 @@ describe("홈과 노트북 전역 이동 링크", () => {
     expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
   });
 
-  test("모바일 더보기 메뉴에는 가이드, 소식, 노트북, 소개 링크가 보인다", () => {
+  test("모바일 하단 더보기 메뉴에는 가이드, 소식, 노트북, 소개 링크가 보인다", () => {
     mockLocation.pathname = "/guide";
-    render(<TopNavigation />);
+    render(<MobileTabBar />);
 
-    fireEvent.click(screen.getByRole("button", { name: "모바일 더보기 메뉴" }));
+    fireEvent.click(screen.getByRole("button", { name: "더보기" }));
 
-    const menu = screen.getByRole("menu", { name: "모바일 더보기" });
+    const menu = screen.getByRole("menu", { name: "더보기 메뉴" });
     expect(within(menu).getByRole("menuitem", { name: "가이드" })).toHaveAttribute(
       "href",
       "/guide"
@@ -263,16 +263,25 @@ describe("홈과 노트북 전역 이동 링크", () => {
     expect(screen.queryByRole("link", { name: "소개" })).not.toBeInTheDocument();
   });
 
-  test("로그인 모바일 탭바에는 테이머(설정) 탭이 보인다", () => {
+  test("로그인 모바일 탭바는 테이머(설정)를 더보기 메뉴에 넣는다", () => {
     mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
 
     render(<MobileTabBar />);
 
-    expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "더보기" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "테이머(설정)" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "더보기" }));
+
+    const menu = screen.getByRole("menu", { name: "더보기 메뉴" });
+    expect(within(menu).getByRole("menuitem", { name: "테이머(설정)" })).toHaveAttribute(
       "href",
       "/me"
     );
-    expect(screen.queryByRole("link", { name: "노트북" })).not.toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "노트북" })).toHaveAttribute(
+      "href",
+      "/notebook"
+    );
   });
 
   test("모바일 탭바 커뮤니티 버튼은 게시판 메뉴 4개를 펼친다", () => {

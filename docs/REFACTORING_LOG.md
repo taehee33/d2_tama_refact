@@ -6983,3 +6983,21 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/EvolutionConfirmModal.jsx`
   - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
 - **근거:** 개발자 모드 OFF 뒤에도 localStorage에 남은 조건 무시 값이 버튼, 확인 모달, 실제 진화에 적용되던 상태 불일치를 없앤다. 조그레스는 별도 흐름이므로 개발자 일반 진화 후보 선택에서는 제외하며, Firestore 저장 계약과 lazy update 규칙은 변경하지 않는다.
+
+## [2026-07-11] 서비스 상단바 채팅 및 모바일 메뉴 통일
+
+- **내용:** 메인 서비스 상단바의 원형 채팅 버튼을 게임 화면과 같은 `채팅 · 접속자 수` 가로형 버튼으로 교체했다. 모바일에서는 더보기 버튼을 좌측 햄버거 메뉴와 슬라이드형 목록 패널로 옮기고, 우측에 채팅·알림·계정 버튼이 한 줄로 유지되도록 브랜드와 액션 크기를 조정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+  - `digimon-tamagotchi-frontend/src/components/OnlineUsersCount.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 메인과 게임 화면의 채팅 시각 언어를 통일하고, 모바일에서 채팅 버튼이 상단바 폭 부족으로 화면 밖으로 밀리는 문제를 없앤다. 채팅 드로어, 접속자 수, 읽지 않은 메시지 배지의 기존 동작은 그대로 유지한다.
+
+## [2026-07-11] 모바일 더보기 메뉴를 하단 탭으로 이동
+
+- **내용:** 모바일 상단바의 햄버거 메뉴를 제거하고 로고와 게임명을 다시 표시했다. 하단 탭의 `테이머(설정)` 위치는 `더보기`로 바꿨으며, 커뮤니티와 같은 펼침 메뉴 안에 테이머 설정과 가이드·소식·노트북·소개 이동 항목을 넣었다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+  - `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+- **근거:** 모바일 상단바는 채팅·알림·계정 액션에 집중하고, 서비스 이동과 계정 설정은 하단의 더보기 메뉴로 모아 한 줄 레이아웃과 메뉴 탐색성을 함께 유지한다.
