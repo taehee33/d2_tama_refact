@@ -2468,9 +2468,9 @@ const digimonDataVer2 = {
 // Digital Monster Color Ver.3 데이터
 // 주의:
 // - 진화 구조/파워/주요 분기 조건은 로컬 `v3 정리` 이미지 자료를 바탕으로 정리했습니다.
-// - sprite 값은 public/Ver3_Mod_TH 자산과 정합성을 확인한 번호입니다.
+// - sprite 값은 public/Ver3_Mod_codex 자산과 정합성을 확인한 번호입니다.
 
-const V3_SPRITE_BASE = "/Ver3_Mod_TH";
+const V3_SPRITE_BASE = "/Ver3_Mod_codex";
 
 const PROVISIONAL_V3_SPRITES = {
   Ohakadamon1V3: 159,

@@ -72,7 +72,7 @@ describe("BattleScreen arena helper", () => {
         digimonName: "포무몬",
         slotVersion: "Ver.3",
         sprite: 405,
-        spriteBasePath: "/Ver3_Mod_TH",
+        spriteBasePath: "/Ver3_Mod_codex",
         attackSprite: 466,
         stats: {
           power: 88,
@@ -89,7 +89,7 @@ describe("BattleScreen arena helper", () => {
                 id: "Pomumon",
                 name: "포무몬",
                 sprite: 390,
-                spriteBasePath: "/Ver3_Mod_TH",
+                spriteBasePath: "/Ver3_Mod_codex",
                 stats: {
                   basePower: 55,
                   type: "Data",
@@ -104,7 +104,7 @@ describe("BattleScreen arena helper", () => {
 
     expect(result.enemyDigimonData).toMatchObject({
       id: "Pomumon",
-      spriteBasePath: "/Ver3_Mod_TH",
+      spriteBasePath: "/Ver3_Mod_codex",
       stats: {
         basePower: 55,
         type: "Data",
@@ -126,7 +126,7 @@ describe("BattleScreen arena helper", () => {
           digimonName: "미확인체",
           slotVersion: "Ver.3",
           sprite: 451,
-          spriteBasePath: "/Ver3_Mod_TH",
+          spriteBasePath: "/Ver3_Mod_codex",
           attackSprite: 466,
           stats: {
             type: "Free",
@@ -144,7 +144,7 @@ describe("BattleScreen arena helper", () => {
       id: "UnknownV3",
       name: "미확인체",
       sprite: 451,
-      spriteBasePath: "/Ver3_Mod_TH",
+      spriteBasePath: "/Ver3_Mod_codex",
       stats: {
         type: "Free",
         attackSprite: 466,

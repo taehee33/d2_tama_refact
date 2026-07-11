@@ -110,8 +110,8 @@ describe("digimonDataVer3", () => {
     });
   });
 
-  test("all referenced sprites exist in public/Ver3_Mod_TH", () => {
-    const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_TH");
+  test("all referenced sprites exist in public/Ver3_Mod_codex", () => {
+    const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_codex");
     const assetFiles = new Set(fs.readdirSync(assetDir));
 
     Object.values(digimonDataVer3).forEach((entry) => {
@@ -119,18 +119,18 @@ describe("digimonDataVer3", () => {
     });
   });
 
-  test("all public Ver.3 sprites are referenced by data", () => {
-    const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_TH");
-    const assetSprites = fs
-      .readdirSync(assetDir)
-      .filter((fileName) => fileName.endsWith(".png"))
-      .map((fileName) => Number.parseInt(path.basename(fileName, ".png"), 10))
-      .sort((a, b) => a - b);
-    const dataSprites = Object.values(digimonDataVer3)
-      .map((entry) => entry.sprite)
-      .sort((a, b) => a - b);
+  test("all living Ver.3 sprites have 15 flat animation frames", () => {
+    const assetDir = path.resolve(process.cwd(), "public", "Ver3_Mod_codex");
+    const assetFiles = new Set(fs.readdirSync(assetDir));
+    const livingEntries = Object.values(digimonDataVer3).filter(
+      (entry) => entry.stage !== "Digitama" && entry.stage !== "Ohakadamon"
+    );
 
-    expect(dataSprites).toEqual(assetSprites);
+    livingEntries.forEach((entry) => {
+      for (let offset = 0; offset < 15; offset += 1) {
+        expect(assetFiles.has(`${entry.sprite + offset}.png`)).toBe(true);
+      }
+    });
   });
 
   test("evolution targets, names, conditions, and jogress partners are valid", () => {

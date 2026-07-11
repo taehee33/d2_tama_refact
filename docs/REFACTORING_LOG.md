@@ -7010,3 +7010,43 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/layout/MobileTabBar.jsx`
   - `digimon-tamagotchi-frontend/src/index.css`
 - **근거:** 모바일 상단바는 채팅·알림·계정 액션에 집중하고, 서비스 이동과 계정 설정은 하단의 더보기 메뉴로 모아 한 줄 레이아웃과 메뉴 탐색성을 함께 유지한다.
+
+## [2026-07-11] Ver.3 16x16 대표 스프라이트 후보 생성
+
+- **내용:** `16x16 Digimon Sprites` 참고자료에서 현재 Ver.3 생체 디지몬 20개의 대표 16x16 PNG를 `public/Ver3_Mod_codex/`에 생성했다. `Idle Frame Only` 원본을 우선 사용하고, 누락 시 단계별 시트 첫 16x16 셀을 추출할 수 있는 생성 스크립트를 추가했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/scripts/generateVer3CodexSprites.js`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/`
+  - `docs/V3_CODEX_SPRITE_GENERATION.md`
+- **근거:** 기존 `public/Ver3_Mod_TH/`를 변경하지 않고, Ver.3 스프라이트 교체 검토용 후보 자산을 별도 폴더에 보관한다. 앱의 실제 `spriteBasePath` 전환은 별도 요청 전까지 수행하지 않는다.
+
+## [2026-07-11] Ver.3 48x48 15프레임 스프라이트 후보 생성
+
+- **내용:** Ver.3 생체 디지몬 20종에 대해 16x16 시트의 프레임을 지정 순서로 재배열하고 3배 확대해, 디지몬별 48x48 프레임 15장과 48x720 세로 합본을 `public/Ver3_Mod_codex_48/`에 생성했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/scripts/generateVer3Codex48Sprites.js`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/`
+  - `docs/V3_CODEX_48_SPRITE_GENERATION.md`
+- **근거:** DMC 스타일의 48x48 스프라이트 후보를 기존 `public/Ver3_Mod_TH/`와 런타임 경로 변경 없이 별도 폴더에 보관한다. `Centaurmon`은 자료 파일명 `Centalmon.png`를 명시 alias로 사용했고, 12프레임 시트가 없는 `Poyomon`은 VB 변환 자료의 `Poyomon_2.png`부터 `Poyomon_16.png`까지를 15프레임으로 사용한다.
+
+## [2026-07-11] Ver.3 Codex 스프라이트 폴더를 Ver.2 flat 구조로 전환
+
+- **내용:** `public/Ver3_Mod_codex_48/{sprite}/frame_01.png`부터 `frame_15.png`까지를 `public/Ver3_Mod_codex/{sprite}.png`부터 `{sprite+14}.png`까지 펼쳐 저장했다. 디지타마/사망 폼은 기존 Ver.3 TH 자산에서 복사하고, Ver.3 데이터가 참조하는 공통 공격 스프라이트는 `Ver2_Mod_Kor`에서 필요한 번호만 복사했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/`
+  - `digimon-tamagotchi-frontend/src/data/v3/digimons.js`
+  - `digimon-tamagotchi-frontend/src/data/v3/digimons.test.js`
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** Ver.2의 `public/Ver2_Mod_Kor`처럼 번호 기반 flat PNG 구조를 사용하면 기존 `spriteBasePath + "/" + sprite + ".png"` 런타임 규칙을 유지하면서 Ver.3 생체 스프라이트를 `Ver3_Mod_codex_48`에서 정리한 48x48 프레임으로 교체할 수 있다.
+
+## [2026-07-11] Ver.3 디지타마 Codex 스프라이트 교체
+
+- **내용:** `public/Ver3_Mod_codex_48/digitama_c3.gif`를 48x48 PNG로 변환해 `public/Ver3_Mod_codex_48/133.png`와 런타임용 `public/Ver3_Mod_codex/133.png`에 반영했다. flat 동기화 스크립트도 디지타마 `133.png`는 Codex 변환 PNG를 원본으로 사용하도록 수정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/133.png`
+  - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex/133.png`
+  - `digimon-tamagotchi-frontend/scripts/syncVer3CodexFlatSprites.js`
+  - `docs/V3_CODEX_FLAT_SPRITE_SYNC.md`
+- **근거:** Ver.3 디지타마도 생체 스프라이트와 같은 48x48 해상도 PNG로 맞춰, 현재 `/Ver3_Mod_codex/133.png` 런타임 참조에서 바로 표시되도록 한다.

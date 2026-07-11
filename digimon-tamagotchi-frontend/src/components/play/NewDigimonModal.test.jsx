@@ -25,7 +25,7 @@ describe("NewDigimonModal", () => {
       ).toBeInTheDocument();
       expect(screen.getByRole("img", { name: new RegExp(`^${version}`) })).toBeInTheDocument();
     });
-    expect(screen.getAllByText("(준비중)")).toHaveLength(3);
+    expect(screen.getAllByText("(준비중)")).toHaveLength(2);
   });
 
   test("디지타마 카드를 클릭하면 버전 select 값이 함께 바뀐다", () => {
