@@ -185,8 +185,6 @@ function resolveSlotIssues(slotData = {}, nowMs = Date.now()) {
   const projection = projectSlotForUrgentCare(slotData, nowMs);
   const stats = projection.status === "projected" ? projection.stats : storedStats;
   const callStatus = stats?.callStatus && typeof stats.callStatus === "object" ? stats.callStatus : {};
-  const hungerCall = normalizeCallEntry(callStatus.hunger);
-  const strengthCall = normalizeCallEntry(callStatus.strength);
   const sleepCall = normalizeCallEntry(callStatus.sleep);
   const fullness = normalizeNumber(stats.fullness, 1);
   const strength = normalizeNumber(stats.strength, 1);
@@ -206,12 +204,6 @@ function resolveSlotIssues(slotData = {}, nowMs = Date.now()) {
   }
   if (sleepCall.isActive === true && slotData?.isLightsOn !== false) {
     issues.push("💡 수면호출");
-  }
-  if (hungerCall.isLogged === true) {
-    issues.push("❗ 배고픔방치");
-  }
-  if (strengthCall.isLogged === true) {
-    issues.push("❗ 기력방치");
   }
   if (stats.isJogressReady === true) {
     issues.push("💎 조그레스대기");
