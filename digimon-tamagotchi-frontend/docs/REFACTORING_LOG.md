@@ -2442,3 +2442,73 @@
 ### 아키텍처 결정 근거
 - 저장 계약과 버전 레지스트리는 변경하지 않고 Ver.4 도메인 데이터만 보정해 Firebase/localStorage 양쪽에 동일하게 반영되도록 했습니다.
 - 원본 이미지가 제공하지 않는 값을 추정해 덮어쓰지 않아 기존 lazy update 및 애니메이션 자산 계약을 보존했습니다.
+
+### Ver.5 이미지 기준 스탯 및 진화 데이터 보정
+- 제공된 Ver.5 전체 진화 트리와 생존 로스터 상세 이미지 20장을 기준으로 감소 주기, 파워, 최소 체중, 치료 횟수, 속성, 수면 시간과 진화 조건을 보정했습니다.
+- 가즈몬과 기자몬의 케어미스·훈련·과식·수면 방해 조합은 진화 엔진의 `conditionGroups` OR 스키마로 옮겼습니다.
+- 성숙기에서 완전체, 완전체에서 궁극체, Ver.3/Ver.4와 연결되는 조그레스 경로를 이미지의 진화표와 일치시켰습니다.
+- 이미지에 없는 배변 주기·최대 과식·공격 스프라이트·진화 시간은 기존 값을 유지했습니다.
+
+### 영향받은 파일
+- `src/data/v5/digimons.js`
+- `src/data/v5/digimons.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 저장 계약, 버전 레지스트리, lazy update 알고리즘은 변경하지 않고 Ver.5 도메인 데이터만 교정했습니다.
+- 이미지에서 확인할 수 없는 내부 값은 추정하지 않아 기존 Firebase/localStorage 호환성과 애니메이션 자산 계약을 보존했습니다.
+
+### Ver.5 Codex 48×48 스프라이트 팩 생성
+- Ver.5 공식 VB 개별 프레임이 있는 8종은 `VB for DMC Sprite Conversion`을 우선 사용하고, 나머지는 `16x16 Digimon Sprites`에서 생성했습니다.
+- 16×16 시트 10종은 Ver.3과 같은 `1,2,8,9,2,12,2,12,2,3,7,6,5,10,11` 순서로 3배 확대했습니다.
+- 플라이몬은 일반 시트가 없어 idle 프레임을 15장 복제했고, 48픽셀보다 넓은 VB 프레임은 잘림 방지를 위해 nearest-neighbor contain 방식으로 48×48에 맞췄습니다.
+- 생체 디지몬 19종의 48×48 프레임 285개와 48×720 세로 합본 19개를 생성하고, 디지타마·사망 폼 정적 자산도 새 폴더에 보존했습니다.
+
+### 영향받은 파일
+- `scripts/generateVer5Codex48Sprites.js`
+- `src/data/v5/codex48Sprites.test.js`
+- `public/Ver5_Mod_codex_48/`
+- `docs/V5_CODEX_48_SPRITE_GENERATION.md`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 기존 `Ver5_Mod_TH`를 덮어쓰지 않고 별도 출력 폴더를 사용해 원본 자산과 생성 자산을 독립적으로 유지했습니다.
+- 생성 보고서에 개체별 소스, 변환 방식, 원본 크기를 기록해 이후 원본 교체나 재생성이 가능하도록 했습니다.
+
+### Ver.5 Codex 평면 스프라이트 팩 적용
+- `Ver2_Mod_Kor`의 597개 평면 번호 파일을 공통 베이스로 복제하고, Ver.5 생체 디지몬 19종의 285개 구간을 `Ver5_Mod_codex_48`에서 생성한 프레임으로 교체했습니다.
+- 디지타마·일반 사망·완전체 이상 사망 폼은 Ver.5 정적 자산으로 덮어썼습니다.
+- Ver.5 데이터의 `spriteBasePath`를 `/Ver5_Mod_codex`로 전환해 Canvas, 슬롯, 도감, 배틀 화면이 같은 평면 팩을 사용하도록 연결했습니다.
+
+### 영향받은 파일
+- `scripts/buildVer5CodexSpritePack.js`
+- `public/Ver5_Mod_codex/`
+- `src/data/v5/digimons.js`
+- `src/data/v5/digimons.test.js`
+- `src/data/v5/codexFlatSprites.test.js`
+- `api/_generated/gameProjection.cjs`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 기존 Canvas가 사용하는 `기준번호 + 프레임 인덱스` 계약을 유지해 렌더링 코드를 변경하지 않았습니다.
+- 공용 공격·메뉴·효과 자산은 검증된 Ver.2 번호 팩을 재사용하고 Ver.5 고유 디지몬 영역만 교체해 누락 가능성을 줄였습니다.
+
+### Ver.5 디지타마·오하카다몬 투명 자산 교체
+- 제공된 `ver5 133/134/135/159/160.png`를 정적 자산 source of truth로 지정하고 48×48 RGBA PNG로 정규화했습니다.
+- 밝은 중립색 중 이미지 경계와 연결된 배경만 투명화해 디지타마와 묘비 내부의 회색 픽셀을 보존했습니다.
+- 디지타마 idle `133↔134`, 부화 flashing `135`, 일반/완전체 이상 사망 폼 `159/160`을 `Ver5_Mod_codex_48`과 평면 `Ver5_Mod_codex`에 동기화했습니다.
+
+### 영향받은 파일
+- `scripts/generateVer5Codex48Sprites.js`
+- `scripts/buildVer5CodexSpritePack.js`
+- `public/Ver5_Mod_codex_48/`
+- `public/Ver5_Mod_codex/`
+- `src/data/v5/codex48Sprites.test.js`
+- `src/data/v5/codexFlatSprites.test.js`
+- `src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `docs/V5_CODEX_48_SPRITE_GENERATION.md`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 명명 원본은 그대로 보존하고 숫자 런타임 파일만 생성하므로 원본 재작업과 앱 자산 계약을 분리했습니다.
+- 기존 animation 90과 flashing 분기를 유지해 Canvas 동작을 바꾸지 않고 자산만 교체했습니다.

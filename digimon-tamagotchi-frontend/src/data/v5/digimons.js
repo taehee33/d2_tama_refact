@@ -4,7 +4,7 @@
 // - 진화 조건은 Humulos / Wikimon / 원작 차트 기준으로 정리했습니다.
 // - 스프라이트는 공식 Individual Sprites를 우선 사용하고, 누락 자산은 placeholder로 유지합니다.
 
-export const V5_SPRITE_BASE = "/Ver5_Mod_TH";
+export const V5_SPRITE_BASE = "/Ver5_Mod_codex";
 
 const V5_SPRITES = {
   Placeholder: 0,
@@ -150,7 +150,7 @@ export const digimonDataVer5 = {
       maxOverfeed: 3,
       basePower: 0,
       maxEnergy: 5,
-      minWeight: 5,
+      minWeight: 4,
       healDoses: 0,
       type: "Free",
       sleepTime: null,
@@ -174,7 +174,7 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 0,
       maxEnergy: 10,
-      minWeight: 10,
+      minWeight: 8,
       healDoses: 1,
       type: "Free",
       sleepTime: "20:00",
@@ -187,12 +187,12 @@ export const digimonDataVer5 = {
       {
         targetId: "Gazimon",
         targetName: "가즈몬",
-        conditions: { careMistakes: { max: 4 } },
+        conditions: { careMistakes: { max: 3 } },
       },
       {
         targetId: "Gizamon",
         targetName: "기자몬",
-        conditions: { careMistakes: { min: 5 } },
+        conditions: { careMistakes: { min: 4 } },
       },
     ],
   }),
@@ -208,7 +208,7 @@ export const digimonDataVer5 = {
       maxOverfeed: 4,
       basePower: 30,
       maxEnergy: 20,
-      minWeight: 20,
+      minWeight: 15,
       healDoses: 2,
       type: "Virus",
       sleepTime: "21:00",
@@ -223,22 +223,24 @@ export const digimonDataVer5 = {
         targetName: "다크티라노몬",
         conditions: {
           careMistakes: { max: 3 },
-          trainings: { max: 31 },
+          trainings: { min: 32 },
         },
       },
       {
         targetId: "Cyclomon",
         targetName: "사이클론몬",
         conditions: {
-          careMistakes: { max: 3 },
-          trainings: { min: 32 },
+          careMistakes: { min: 4 },
+          trainings: { min: 5, max: 23 },
+          overfeeds: { min: 2 },
+          sleepDisturbances: { max: 2 },
         },
       },
       {
         targetId: "Devidramon",
         targetName: "데비드라몬",
         conditions: {
-          careMistakes: { min: 4 },
+          careMistakes: { max: 3 },
           trainings: { max: 31 },
         },
       },
@@ -247,8 +249,24 @@ export const digimonDataVer5 = {
         targetName: "터스크몬",
         conditions: {
           careMistakes: { min: 4 },
-          trainings: { min: 32 },
+          trainings: { min: 24 },
+          overfeeds: { min: 2 },
+          sleepDisturbances: { max: 4 },
         },
+      },
+      {
+        targetId: "Raremon",
+        targetName: "레어몬",
+        conditionGroups: [
+          { careMistakes: { min: 4 }, trainings: { max: 4 } },
+          { careMistakes: { min: 4 }, overfeeds: { max: 1 } },
+          { careMistakes: { min: 4 }, sleepDisturbances: { min: 5 } },
+          {
+            careMistakes: { min: 4 },
+            trainings: { min: 5, max: 23 },
+            sleepDisturbances: { min: 3, max: 4 },
+          },
+        ],
       },
     ],
   }),
@@ -264,10 +282,10 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 25,
       maxEnergy: 20,
-      minWeight: 20,
+      minWeight: 15,
       healDoses: 2,
       type: "Virus",
-      sleepTime: "21:00",
+      sleepTime: "22:00",
       attackSprite: 5,
     }),
     evolutionCriteria: {
@@ -275,44 +293,59 @@ export const digimonDataVer5 = {
     },
     evolutions: [
       {
-        targetId: "Devidramon",
-        targetName: "데비드라몬",
-        conditions: {
-          trainings: { min: 5, max: 23 },
-          overfeeds: { min: 2 },
-          sleepDisturbances: { max: 2 },
-        },
-      },
-      {
-        targetId: "Tuskmon",
-        targetName: "터스크몬",
-        conditions: {
-          trainings: { min: 24 },
-          overfeeds: { min: 2 },
-          sleepDisturbances: { max: 4 },
-        },
-      },
-      {
         targetId: "Flymon",
         targetName: "플라이몬",
-        conditions: {
-          trainings: { max: 23 },
-          overfeeds: { max: 3 },
-          sleepDisturbances: { min: 3 },
-        },
+        conditionGroups: [
+          { careMistakes: { max: 3 }, trainings: { max: 7 } },
+          { careMistakes: { max: 3 }, trainings: { min: 24, max: 31 } },
+          {
+            careMistakes: { max: 3 },
+            trainings: { min: 8, max: 23 },
+            overfeeds: { min: 4 },
+          },
+          {
+            careMistakes: { max: 3 },
+            trainings: { min: 8, max: 23 },
+            sleepDisturbances: { max: 2 },
+          },
+        ],
       },
       {
         targetId: "Deltamon",
         targetName: "델타몬",
         conditions: {
+          careMistakes: { min: 4 },
           trainings: { min: 24 },
           overfeeds: { min: 4 },
           sleepDisturbances: { max: 2 },
         },
       },
       {
+        targetId: "Devidramon",
+        targetName: "데비드라몬",
+        conditions: {
+          careMistakes: { max: 3 },
+          trainings: { min: 32 },
+        },
+      },
+      {
+        targetId: "Tuskmon",
+        targetName: "터스크몬",
+        conditions: {
+          careMistakes: { max: 3 },
+          trainings: { min: 8, max: 23 },
+          overfeeds: { max: 3 },
+          sleepDisturbances: { min: 3 },
+        },
+      },
+      {
         targetId: "Raremon",
         targetName: "레어몬",
+        conditionGroups: [
+          { careMistakes: { min: 4 }, trainings: { max: 23 } },
+          { careMistakes: { min: 4 }, overfeeds: { max: 3 } },
+          { careMistakes: { min: 4 }, sleepDisturbances: { min: 3 } },
+        ],
       },
     ],
   }),
@@ -323,15 +356,15 @@ export const digimonDataVer5 = {
     stage: "Adult",
     sprite: V5_SPRITES.DarkTyranomon,
     stats: buildStats({
-      hungerCycle: 48,
-      strengthCycle: 48,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 50,
       maxEnergy: 30,
       minWeight: 40,
       healDoses: 1,
       type: "Virus",
-      sleepTime: "23:00",
+      sleepTime: "22:00",
       attackSprite: 51,
     }),
     evolutionCriteria: {
@@ -355,12 +388,12 @@ export const digimonDataVer5 = {
     stage: "Adult",
     sprite: V5_SPRITES.Cyclomon,
     stats: buildStats({
-      hungerCycle: 48,
-      strengthCycle: 48,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 45,
       maxEnergy: 30,
-      minWeight: 20,
+      minWeight: 40,
       healDoses: 2,
       type: "Virus",
       sleepTime: "23:00",
@@ -371,8 +404,8 @@ export const digimonDataVer5 = {
     },
     evolutions: [
       {
-        targetId: "MetalTyranomon",
-        targetName: "메탈티라노몬",
+        targetId: "Nanomon",
+        targetName: "나노몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -393,9 +426,9 @@ export const digimonDataVer5 = {
       basePower: 50,
       maxEnergy: 30,
       minWeight: 30,
-      healDoses: 2,
+      healDoses: 1,
       type: "Virus",
-      sleepTime: "00:00",
+      sleepTime: "23:00",
       attackSprite: 17,
     }),
     evolutionCriteria: {
@@ -403,8 +436,8 @@ export const digimonDataVer5 = {
     },
     evolutions: [
       {
-        targetId: "Nanomon",
-        targetName: "나노몬",
+        targetId: "MetalTyranomon",
+        targetName: "메탈티라노몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -424,10 +457,10 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 45,
       maxEnergy: 30,
-      minWeight: 30,
+      minWeight: 40,
       healDoses: 2,
       type: "Virus",
-      sleepTime: "23:00",
+      sleepTime: "22:00",
       attackSprite: 6,
     }),
     evolutionCriteria: {
@@ -457,9 +490,9 @@ export const digimonDataVer5 = {
       basePower: 50,
       maxEnergy: 30,
       minWeight: 20,
-      healDoses: 2,
+      healDoses: 1,
       type: "Virus",
-      sleepTime: "23:00",
+      sleepTime: "22:00",
       attackSprite: 15,
     }),
     evolutionCriteria: {
@@ -467,8 +500,8 @@ export const digimonDataVer5 = {
     },
     evolutions: [
       {
-        targetId: "ExTyranomon",
-        targetName: "엑스티라노몬",
+        targetId: "MetalTyranomon",
+        targetName: "메탈티라노몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -483,15 +516,15 @@ export const digimonDataVer5 = {
     stage: "Adult",
     sprite: V5_SPRITES.Deltamon,
     stats: buildStats({
-      hungerCycle: 48,
-      strengthCycle: 48,
+      hungerCycle: 38,
+      strengthCycle: 38,
       maxOverfeed: 2,
       basePower: 45,
       maxEnergy: 30,
-      minWeight: 20,
+      minWeight: 30,
       healDoses: 2,
       type: "Virus",
-      sleepTime: "22:00",
+      sleepTime: "21:00",
       attackSprite: 8,
     }),
     evolutionCriteria: {
@@ -499,8 +532,8 @@ export const digimonDataVer5 = {
     },
     evolutions: [
       {
-        targetId: "ExTyranomon",
-        targetName: "엑스티라노몬",
+        targetId: "Nanomon",
+        targetName: "나노몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -520,10 +553,10 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 40,
       maxEnergy: 30,
-      minWeight: 10,
+      minWeight: 20,
       healDoses: 3,
       type: "Virus",
-      sleepTime: "00:00",
+      sleepTime: "22:00",
       attackSprite: 16,
     }),
     evolutionCriteria: {
@@ -555,7 +588,7 @@ export const digimonDataVer5 = {
       minWeight: 40,
       healDoses: 1,
       type: "Virus",
-      sleepTime: "23:00",
+      sleepTime: "22:00",
       attackSprite: 23,
     }),
     evolutionCriteria: {
@@ -566,6 +599,7 @@ export const digimonDataVer5 = {
         targetId: "Mugendramon",
         targetName: "무겐드라몬",
         conditions: {
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -584,10 +618,10 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 85,
       maxEnergy: 40,
-      minWeight: 20,
+      minWeight: 5,
       healDoses: 1,
       type: "Virus",
-      sleepTime: "23:00",
+      sleepTime: "21:00",
       attackSprite: 31,
     }),
     evolutionCriteria: {
@@ -598,6 +632,7 @@ export const digimonDataVer5 = {
         targetId: "Raidenmon",
         targetName: "라이덴몬",
         conditions: {
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -611,8 +646,8 @@ export const digimonDataVer5 = {
     stage: "Perfect",
     sprite: V5_SPRITES.ExTyranomon,
     stats: buildStats({
-      hungerCycle: 59,
-      strengthCycle: 59,
+      hungerCycle: 48,
+      strengthCycle: 48,
       maxOverfeed: 2,
       basePower: 100,
       maxEnergy: 40,
@@ -630,6 +665,7 @@ export const digimonDataVer5 = {
         targetId: "Gaioumon",
         targetName: "가이오우몬",
         conditions: {
+          careMistakes: { max: 1 },
           battles: { min: 15 },
           winRatio: { min: 80 },
         },
@@ -643,13 +679,13 @@ export const digimonDataVer5 = {
     stage: "Ultimate",
     sprite: V5_SPRITES.Mugendramon,
     stats: buildStats({
-      hungerCycle: 48,
-      strengthCycle: 48,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 170,
       maxEnergy: 50,
-      minWeight: 40,
-      healDoses: 2,
+      minWeight: 50,
+      healDoses: 1,
       type: "Virus",
       sleepTime: "23:00",
       attackSprite: 52,
@@ -682,13 +718,13 @@ export const digimonDataVer5 = {
     stage: "Ultimate",
     sprite: V5_SPRITES.Raidenmon,
     stats: buildStats({
-      hungerCycle: 48,
-      strengthCycle: 48,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 150,
       maxEnergy: 50,
-      minWeight: 40,
-      healDoses: 2,
+      minWeight: 50,
+      healDoses: 1,
       type: "Virus",
       sleepTime: "23:00",
       attackSprite: 52,
@@ -701,13 +737,13 @@ export const digimonDataVer5 = {
     stage: "Ultimate",
     sprite: V5_SPRITES.Gaioumon,
     stats: buildStats({
-      hungerCycle: 59,
-      strengthCycle: 59,
+      hungerCycle: 48,
+      strengthCycle: 48,
       maxOverfeed: 2,
       basePower: 180,
       maxEnergy: 50,
-      minWeight: 50,
-      healDoses: 1,
+      minWeight: 38,
+      healDoses: 2,
       type: "Virus",
       sleepTime: "23:00",
       attackSprite: 116,
@@ -720,8 +756,8 @@ export const digimonDataVer5 = {
     stage: "Super Ultimate",
     sprite: V5_SPRITES.Millenniumon,
     stats: buildStats({
-      hungerCycle: 66,
-      strengthCycle: 66,
+      hungerCycle: 59,
+      strengthCycle: 59,
       maxOverfeed: 2,
       basePower: 200,
       maxEnergy: 50,
@@ -744,7 +780,7 @@ export const digimonDataVer5 = {
       maxOverfeed: 2,
       basePower: 200,
       maxEnergy: 50,
-      minWeight: 40,
+      minWeight: 50,
       healDoses: 1,
       type: "Virus",
       sleepTime: "23:00",

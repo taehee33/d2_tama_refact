@@ -1,4 +1,5 @@
 import { buildGameAnimationViewModel } from "./gameAnimationViewModel";
+import { digimonDataVer5, V5_SPRITE_BASE } from "../../data/v5";
 
 function createParams(overrides = {}) {
   return {
@@ -87,6 +88,52 @@ describe("buildGameAnimationViewModel", () => {
     expect(result.idleFrames).toEqual(["135"]);
     expect(result.eatFramesArr).toEqual(["135"]);
     expect(result.rejectFramesArr).toEqual(["135"]);
+  });
+
+  test("Ver.5 디지타마는 전용 idle과 부화 프레임을 사용한다", () => {
+    const baseParams = createParams({
+      selectedDigimon: "DigitamaV5",
+      digimonStats: {
+        sprite: 133,
+        isDead: false,
+        isInjured: false,
+      },
+      digimonDataForSlot: digimonDataVer5,
+    });
+
+    const idle = buildGameAnimationViewModel(baseParams);
+    const flashing = buildGameAnimationViewModel({
+      ...baseParams,
+      evolutionStage: "flashing",
+    });
+
+    expect(idle.digimonImageBase).toBe(V5_SPRITE_BASE);
+    expect(idle.idleFrames).toEqual(["133", "134"]);
+    expect(flashing.idleFrames).toEqual(["135"]);
+    expect(flashing.eatFramesArr).toEqual(["135"]);
+    expect(flashing.rejectFramesArr).toEqual(["135"]);
+  });
+
+  test.each([
+    ["Ohakadamon1V5", "159"],
+    ["Ohakadamon2V5", "160"],
+  ])("Ver.5 사망 폼 %s는 %s 고정 프레임을 사용한다", (selectedDigimon, frame) => {
+    const result = buildGameAnimationViewModel(
+      createParams({
+        selectedDigimon,
+        digimonStats: {
+          sprite: Number(frame),
+          isDead: true,
+          isInjured: false,
+        },
+        digimonDataForSlot: digimonDataVer5,
+      })
+    );
+
+    expect(result.digimonImageBase).toBe(V5_SPRITE_BASE);
+    expect(result.idleFrames).toEqual([frame]);
+    expect(result.eatFramesArr).toEqual([frame]);
+    expect(result.rejectFramesArr).toEqual([frame]);
   });
 
   test("부상 상태면 sick 애니메이션과 부상 프레임을 우선한다", () => {
