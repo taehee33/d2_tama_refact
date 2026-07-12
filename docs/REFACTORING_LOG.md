@@ -7120,3 +7120,35 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/159.png`
   - `digimon-tamagotchi-frontend/public/Ver3_Mod_codex_48/160.png`
 - **근거:** Canvas 배경 위에 흰 사각형이 보이는 문제는 PNG가 알파 채널 없이 불투명 배경을 포함해서 발생한다. 런타임과 재생성 원본 양쪽을 같은 투명 PNG로 맞춰 화면 표시와 향후 동기화 결과를 일치시킨다.
+## 2026-07-12
+
+### Ver.4 Codex 평면 스프라이트 팩 구성
+- `Ver2_Mod_Kor`의 `0.png~596.png` 평면 번호 구조를 기준으로 `Ver4_Mod_codex`를 구성하고, Ver.4 생존 디지몬 19종의 각 15프레임 구간을 `Ver4_Mod_codex_48` 결과물로 교체했습니다.
+- 제공된 Ver.4 전용 디지타마 프레임 `133·134·135`와 사망 폼 `159·160`도 숫자 파일로 정규화해 48×48 소스 폴더와 최종 평면 팩 양쪽에 반영했습니다.
+- 디지몬별 기준 스프라이트 번호에 `frame_01~15`를 연속 번호로 매핑해 기존 런타임의 숫자 기반 프레임 조회 계약과 동일하게 맞췄습니다.
+- 재생성 가능한 `buildVer4CodexSpritePack.js`와 파일 수·프레임 규격 검증을 함께 추가했습니다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/scripts/buildVer4CodexSpritePack.js`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/*`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 공용 UI/효과 프레임은 검증된 Ver.2 팩을 기준으로 유지하고, 버전별 생체 디지몬 구간만 교체하면 기존 숫자 인덱스 계약을 바꾸지 않고 Ver.4 자산을 적용할 수 있습니다.
+
+### Ver.4 Codex 48×48 스프라이트 생성
+- Ver.4 생존 디지몬 19종을 `public/Ver4_Mod_codex_48/{sprite}` 구조로 생성했습니다.
+- VB 공식 Ver.4 개별 프레임이 있는 8종은 원본 순서의 첫 15장을 사용했습니다. `_0`이 있는 6종은 `_0~_14`, `_1`부터 시작하는 유라몬·타네몬은 `_1~_15`를 사용했습니다.
+- 폭이 48px보다 큰 레오몬·메가드라몬·다크드라몬·카오스드라몬은 nearest-neighbor 비율 축소 후 48×48 투명 캔버스 중앙에 배치했습니다.
+- 나머지 11종은 16×16 시트에 `1,2,8,9,2,12,2,12,2,3,7,6,5,10,11` 순서를 적용했으며, 시트가 없는 나니몬은 idle 프레임을 15장 복제했습니다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/scripts/generateVer3Codex48Sprites.js`
+- `digimon-tamagotchi-frontend/scripts/generateVer4Codex48Sprites.js`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex_48/*`
+- `docs/V4_CODEX_48_SPRITE_GENERATION.md`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- PNG 디코더·인코더와 프레임 조립 로직은 검증된 Ver.3 생성기에서 재사용하되, 직접 실행 동작은 유지하도록 모듈 export 경계만 추가했습니다.
+- 기존 `Ver4_Mod_TH` 및 게임 데이터 경로는 바꾸지 않아 새 자산을 독립적으로 검증하고 이후 연결할 수 있게 했습니다.

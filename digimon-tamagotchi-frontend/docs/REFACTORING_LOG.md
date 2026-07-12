@@ -2425,3 +2425,20 @@
 ### 아키텍처 결정 근거
 - 이번 변경은 EVOLUTION log identity만 안정화하고, 저장 순서나 encyclopedia 동기화 정책은 바꾸지 않습니다.
 - reload/retry까지 포괄하는 idempotency는 persisted transition state 또는 recovery 설계가 필요하므로 별도 Phase로 남깁니다.
+
+## 2026-07-12
+
+### Ver.4 이미지 기준 스탯 및 진화 데이터 보정
+- 제공된 Ver.4 전체 진화 트리와 생존 로스터 상세 이미지 20장을 기준으로 개체별 감소 주기, 파워, 최소 체중, 치료 횟수, 속성, 수면 시간과 진화 조건을 보정했습니다.
+- 배고픔과 힘 감소 주기는 단계 공통값이 아니라 이미지의 개체별 값을 유지하고, 이미지에 없는 배변 주기·공격 스프라이트·진화 시간은 기존 공통 규칙을 유지했습니다.
+- 피요몬과 팔몬의 여러 대체 진화 조건은 기존 진화 엔진의 `conditionGroups` OR 스키마로 표현했습니다.
+- 레거시 호환을 위해 내부 ID `Ultimatedramon`은 유지하되 표시 이름은 이미지의 메가드라몬으로 바로잡았습니다.
+
+### 영향받은 파일
+- `src/data/v4/digimons.js`
+- `src/data/v4/digimons.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 저장 계약과 버전 레지스트리는 변경하지 않고 Ver.4 도메인 데이터만 보정해 Firebase/localStorage 양쪽에 동일하게 반영되도록 했습니다.
+- 원본 이미지가 제공하지 않는 값을 추정해 덮어쓰지 않아 기존 lazy update 및 애니메이션 자산 계약을 보존했습니다.

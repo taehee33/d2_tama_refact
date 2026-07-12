@@ -540,4 +540,15 @@ function generateSprites() {
   }
 }
 
-generateSprites();
+if (require.main === module) {
+  generateSprites();
+}
+
+module.exports = {
+  decodePng,
+  encodePng,
+  createBlankImage,
+  copyPixel,
+  extractScaledFrame,
+  appendFrameToSheet,
+};
