@@ -9,7 +9,7 @@ import {
 function NewDigimonModal({ open, onClose, onStart, isSubmitting = false }) {
   const [device, setDevice] = useState("Digital Monster Color 25th");
   const [version, setVersion] = useState("Ver.1");
-  const preparingVersions = new Set(["Ver.4", "Ver.5"]);
+  const preparingVersions = new Set(["Ver.5"]);
   const digitamaPreviews = useMemo(
     () =>
       SUPPORTED_DIGIMON_VERSIONS.map((versionLabel) => {

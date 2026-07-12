@@ -7122,6 +7122,29 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **근거:** Canvas 배경 위에 흰 사각형이 보이는 문제는 PNG가 알파 채널 없이 불투명 배경을 포함해서 발생한다. 런타임과 재생성 원본 양쪽을 같은 투명 PNG로 맞춰 화면 표시와 향후 동기화 결과를 일치시킨다.
 ## 2026-07-12
 
+### Ver.4 디지타마 경로 및 idle 깜빡임 수정
+- Ver.4 데이터가 프레임이 불완전한 `/Ver4_Mod_TH`를 계속 참조해 디지타마 카드에 구 이미지가 나오고, idle의 `134.png` 요청이 실패하면서 한 프레임씩 사라지는 문제를 수정했습니다.
+- Ver.4 전체 스프라이트 기준 경로를 `133·134·135`와 생체 프레임이 모두 포함된 `/Ver4_Mod_codex`로 전환했습니다.
+- 실제 플레이 가능한 Ver.4 카드에서 `(준비중)` 표시를 제거하고 경로 회귀 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/src/data/v4/digimons.js`
+- `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.jsx`
+- `digimon-tamagotchi-frontend/src/components/play/NewDigimonModal.test.jsx`
+- `digimon-tamagotchi-frontend/src/data/v4/digimons.test.js`
+- `docs/REFACTORING_LOG.md`
+
+### Ver.4 디지타마·사망 폼 배경 투명화
+- `Ver4_Mod_codex` 내 `133.png`, `134.png`, `135.png`, `159.png`, `160.png`의 외곽과 연결된 흰색·연회색 배경을 투명 픽셀로 변환했습니다.
+- 스프라이트 내부의 흰색 픽셀을 보존하기 위해 외곽과 연결된 저채도·고명도 영역만 제거했습니다.
+
+### 영향받은 파일
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/133.png`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/134.png`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/135.png`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/159.png`
+- `digimon-tamagotchi-frontend/public/Ver4_Mod_codex/160.png`
+
 ### Ver.4 Codex 평면 스프라이트 팩 구성
 - `Ver2_Mod_Kor`의 `0.png~596.png` 평면 번호 구조를 기준으로 `Ver4_Mod_codex`를 구성하고, Ver.4 생존 디지몬 19종의 각 15프레임 구간을 `Ver4_Mod_codex_48` 결과물로 교체했습니다.
 - 제공된 Ver.4 전용 디지타마 프레임 `133·134·135`와 사망 폼 `159·160`도 숫자 파일로 정규화해 48×48 소스 폴더와 최종 평면 팩 양쪽에 반영했습니다.

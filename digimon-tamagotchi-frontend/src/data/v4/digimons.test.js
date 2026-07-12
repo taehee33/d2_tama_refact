@@ -1,4 +1,4 @@
-import { digimonDataVer4 } from "./digimons";
+import { digimonDataVer4, V4_SPRITE_BASE } from "./digimons";
 
 const expectedStats = {
   Piyomon: [48, 30, 15, 2, "Vaccine", "21:00"],
@@ -21,6 +21,11 @@ const expectedStats = {
 };
 
 describe("Digital Monster Color Ver.4 이미지 기준 데이터", () => {
+  test("새 Codex 스프라이트 팩을 사용한다", () => {
+    expect(V4_SPRITE_BASE).toBe("/Ver4_Mod_codex");
+    expect(digimonDataVer4.DigitamaV4.spriteBasePath).toBe(V4_SPRITE_BASE);
+  });
+
   test.each(Object.entries(expectedStats))("%s의 핵심 스탯이 일치한다", (id, expected) => {
     const stats = digimonDataVer4[id].stats;
     expect([

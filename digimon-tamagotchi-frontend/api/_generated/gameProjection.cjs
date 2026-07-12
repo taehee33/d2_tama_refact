@@ -3325,7 +3325,7 @@ const digimonDataVer3 = {
 // - 진화 조건은 Humulos / Wikimon / 원작 차트 기준으로 정리했습니다.
 // - 스프라이트는 공식 Individual Sprites를 우선 사용하고, 누락 자산은 placeholder로 유지합니다.
 
-const V4_SPRITE_BASE = "/Ver4_Mod_TH";
+const V4_SPRITE_BASE = "/Ver4_Mod_codex";
 
 const V4_SPRITES = {
   Placeholder: 0,
