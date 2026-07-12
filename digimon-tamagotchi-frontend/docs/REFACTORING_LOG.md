@@ -2512,3 +2512,12 @@
 ### 아키텍처 결정 근거
 - 명명 원본은 그대로 보존하고 숫자 런타임 파일만 생성하므로 원본 재작업과 앱 자산 계약을 분리했습니다.
 - 기존 animation 90과 flashing 분기를 유지해 Canvas 동작을 바꾸지 않고 자산만 교체했습니다.
+
+### Ver.5 신규 슬롯 준비중 표시 제거
+- Ver.5가 실제 플레이 가능한 버전으로 배포됨에 따라 신규 디지몬 선택 카드의 `(준비중)` 태그를 제거했습니다.
+- Ver.5 디지타마 미리보기가 `/Ver5_Mod_codex/133.png`를 사용하는지 회귀 테스트로 고정했습니다.
+
+### 영향받은 파일
+- `src/components/play/NewDigimonModal.jsx`
+- `src/components/play/NewDigimonModal.test.jsx`
+- `docs/REFACTORING_LOG.md`

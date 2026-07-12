@@ -25,10 +25,13 @@ describe("NewDigimonModal", () => {
       ).toBeInTheDocument();
       expect(screen.getByRole("img", { name: new RegExp(`^${version}`) })).toBeInTheDocument();
     });
-    expect(screen.getAllByText("(준비중)")).toHaveLength(1);
+    expect(screen.queryByText("(준비중)")).not.toBeInTheDocument();
     expect(
       screen.getByRole("img", { name: /^Ver\.4/ })
     ).toHaveAttribute("src", "/Ver4_Mod_codex/133.png");
+    expect(
+      screen.getByRole("img", { name: /^Ver\.5/ })
+    ).toHaveAttribute("src", "/Ver5_Mod_codex/133.png");
   });
 
   test("디지타마 카드를 클릭하면 버전 select 값이 함께 바뀐다", () => {
