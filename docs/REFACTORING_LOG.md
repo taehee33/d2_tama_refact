@@ -7226,3 +7226,24 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - 두 `package-lock.json` 변경 없음
   - 게임 저장 스키마와 Firestore 경로 변경 없음
 - **아키텍처 결정 근거:** 한국은 DST가 없으므로 핵심 계산에는 반복적인 `Intl` 호출 대신 고정 UTC+9 산술을 사용한다. 시스템 시간대가 다른 브라우저·개발 PC·Vercel·GitHub Actions에서도 같은 epoch 입력이 같은 게임 상태와 같은 한국 시각 문자열을 만들며, 서버 projection도 같은 공용 소스에서 재생성해 프런트와의 결정적 parity를 유지한다.
+
+## [2026-07-16] Node 24 CI 기준선 구축
+
+- **내용:** 루트 `npm run check` 하나로 프런트 테스트, 자격증명 없는 서버 테스트, 프로덕션 빌드, 서버 projection 검사를 순서대로 실행하도록 통합했다. GitHub Actions는 PR과 main push에서 같은 명령을 실행하며, 두 lockfile을 기준으로 npm 캐시를 사용하고 검사 표시 이름을 `CI / check`로 고정했다.
+- **영향 파일:**
+  - `.nvmrc`
+  - `package.json`
+  - `.github/workflows/ci.yml`
+  - `README.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/REFACTORING_LOG.md`
+- **첫 원격 성공 증거:**
+  - 검증 대상 커밋: `ca64eb0f4db0d7c2cbe6f12f6c629bea15c4a739`
+  - 검사 이름: `CI / check`
+  - GitHub Actions 실행: https://github.com/taehee33/d2_tama_refact/actions/runs/29502955977
+  - 실행 결과: `success`
+  - 실행 환경: `ubuntu-24.04`
+  - Node 버전: `v24.18.0`
+  - npm 버전: `11.16.0`
+- **아키텍처 결정 근거:** 로컬과 원격이 같은 Node 버전, lockfile, 단일 검사 명령을 사용하게 해 테스트·빌드·생성물 검증의 차이를 줄인다. 성공 기록은 실제로 검증된 SHA와 실행 URL을 함께 남겨 이후 문서 커밋으로 HEAD가 바뀌어도 첫 원격 검증 대상을 추적할 수 있게 한다.
