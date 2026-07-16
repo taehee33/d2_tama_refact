@@ -18,6 +18,26 @@ import {
   resolveSleepLightWarningTimeout,
   trimActivityLogs,
 } from "./useGameLogic";
+import { getKstDateTimeMs } from "../utils/time";
+
+const kstDate = (
+  year,
+  monthIndex,
+  day,
+  hours,
+  minutes = 0,
+  seconds = 0
+) =>
+  new Date(
+    getKstDateTimeMs({
+      year,
+      month: monthIndex + 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+    })
+  );
 
 function createBaseStats(overrides = {}) {
   return {
@@ -292,7 +312,7 @@ describe("useGameLogic sleep-related warning rules", () => {
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: true,
       wakeUntil: null,
-      now: new Date(2026, 2, 31, 23, 0, 0),
+      now: kstDate(2026, 2, 31, 23, 0, 0),
     });
 
     expect(result).toBe("SLEEPING_LIGHT_ON");
@@ -303,8 +323,8 @@ describe("useGameLogic sleep-related warning rules", () => {
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: false,
       wakeUntil: null,
-      fastSleepStart: new Date(2026, 2, 31, 22, 59, 50).getTime(),
-      now: new Date(2026, 2, 31, 23, 0, 0),
+      fastSleepStart: kstDate(2026, 2, 31, 22, 59, 50).getTime(),
+      now: kstDate(2026, 2, 31, 23, 0, 0),
     });
 
     expect(result).toBe("FALLING_ASLEEP");
@@ -315,8 +335,8 @@ describe("useGameLogic sleep-related warning rules", () => {
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: false,
       wakeUntil: null,
-      fastSleepStart: new Date(2026, 2, 31, 22, 59, 40).getTime(),
-      now: new Date(2026, 2, 31, 23, 0, 0),
+      fastSleepStart: kstDate(2026, 2, 31, 22, 59, 40).getTime(),
+      now: kstDate(2026, 2, 31, 23, 0, 0),
     });
 
     expect(result).toBe("SLEEPING");
@@ -327,8 +347,8 @@ describe("useGameLogic sleep-related warning rules", () => {
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: false,
       wakeUntil: null,
-      napUntil: new Date(2026, 2, 31, 15, 0, 0).getTime(),
-      now: new Date(2026, 2, 31, 12, 0, 0),
+      napUntil: kstDate(2026, 2, 31, 15, 0, 0).getTime(),
+      now: kstDate(2026, 2, 31, 12, 0, 0),
     });
 
     expect(result).toBe("NAPPING");
@@ -339,8 +359,8 @@ describe("useGameLogic sleep-related warning rules", () => {
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: true,
       wakeUntil: null,
-      napUntil: new Date(2026, 2, 31, 15, 0, 0).getTime(),
-      now: new Date(2026, 2, 31, 12, 0, 0),
+      napUntil: kstDate(2026, 2, 31, 15, 0, 0).getTime(),
+      now: kstDate(2026, 2, 31, 12, 0, 0),
     });
 
     expect(result).toBe("AWAKE");
@@ -350,9 +370,9 @@ describe("useGameLogic sleep-related warning rules", () => {
     const result = getSleepStatus({
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
       isLightsOn: false,
-      wakeUntil: new Date(2026, 2, 31, 23, 10, 0).getTime(),
-      fastSleepStart: new Date(2026, 2, 31, 22, 59, 40).getTime(),
-      now: new Date(2026, 2, 31, 23, 0, 0),
+      wakeUntil: kstDate(2026, 2, 31, 23, 10, 0).getTime(),
+      fastSleepStart: kstDate(2026, 2, 31, 22, 59, 40).getTime(),
+      now: kstDate(2026, 2, 31, 23, 0, 0),
     });
 
     expect(result).toBe("AWAKE_INTERRUPTED");

@@ -1,11 +1,12 @@
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const KST_DAY_MS = 24 * 60 * 60 * 1000;
+const KST_HALF_HOUR_MS = 30 * 60 * 1000;
 
 function pad(value) {
   return String(value).padStart(2, "0");
 }
 
-function getKstDateParts(value) {
+export function getKstDateParts(value) {
   const timestamp = toEpochMs(value);
   if (timestamp == null) {
     return null;
@@ -19,7 +20,117 @@ function getKstDateParts(value) {
     hours: date.getUTCHours(),
     minutes: date.getUTCMinutes(),
     seconds: date.getUTCSeconds(),
+    milliseconds: date.getUTCMilliseconds(),
   };
+}
+
+export function getKstMinutesOfDay(value = Date.now()) {
+  const parts = getKstDateParts(value);
+  if (!parts) {
+    return null;
+  }
+
+  return parts.hours * 60 + parts.minutes;
+}
+
+export function getKstDateTimeMs(
+  {
+    year,
+    month,
+    day,
+    hours = 0,
+    minutes = 0,
+    seconds = 0,
+    milliseconds = 0,
+  } = {},
+  dayOffset = 0
+) {
+  const values = [
+    year,
+    month,
+    day,
+    hours,
+    minutes,
+    seconds,
+    milliseconds,
+    dayOffset,
+  ].map(Number);
+
+  if (values.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  const [
+    safeYear,
+    safeMonth,
+    safeDay,
+    safeHours,
+    safeMinutes,
+    safeSeconds,
+    safeMilliseconds,
+    safeDayOffset,
+  ] = values;
+
+  return (
+    Date.UTC(
+      safeYear,
+      safeMonth - 1,
+      safeDay + safeDayOffset,
+      safeHours,
+      safeMinutes,
+      safeSeconds,
+      safeMilliseconds
+    ) - KST_OFFSET_MS
+  );
+}
+
+export function getKstTimeOnDateMs(
+  baseValue,
+  hours,
+  minutes = 0,
+  dayOffset = 0
+) {
+  const parts = getKstDateParts(baseValue);
+  if (!parts) {
+    return null;
+  }
+
+  return getKstDateTimeMs(
+    {
+      year: parts.year,
+      month: parts.month,
+      day: parts.day,
+      hours,
+      minutes,
+    },
+    dayOffset
+  );
+}
+
+export function getNextKstHalfHourBoundaryMs(value = Date.now()) {
+  const timestamp = toEpochMs(value);
+  if (timestamp == null) {
+    return null;
+  }
+
+  return (
+    (Math.floor((timestamp + KST_OFFSET_MS) / KST_HALF_HOUR_MS) + 1) *
+      KST_HALF_HOUR_MS -
+    KST_OFFSET_MS
+  );
+}
+
+export function formatKstTime(value) {
+  const parts = getKstDateParts(value);
+  if (!parts) {
+    return "";
+  }
+
+  const period = parts.hours >= 12 ? "오후" : "오전";
+  const hour12 =
+    parts.hours > 12 ? parts.hours - 12 : parts.hours === 0 ? 12 : parts.hours;
+
+  return `${period} ${hour12}:${pad(parts.minutes)}`;
 }
 
 export function toEpochMs(value) {

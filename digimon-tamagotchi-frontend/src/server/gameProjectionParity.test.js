@@ -136,6 +136,58 @@ describe("서버 game projection parity", () => {
     expect(serverResult).toEqual(frontendResult);
   });
 
+  test("KST 수면 구간 projection은 실행 환경 시간대와 무관한 상태를 만든다", () => {
+    const lastSavedAt = Date.parse("2026-06-29T20:00:00+09:00");
+    const now = Date.parse("2026-06-29T22:28:00+09:00");
+    const sleepSchedule = {
+      start: 20,
+      end: 8,
+      startMinute: 0,
+      endMinute: 0,
+    };
+    const stats = createStats({
+      fullness: 5,
+      hungerCountdown: 60 * 60,
+      strength: 5,
+      strengthCountdown: 60 * 60,
+      poopCountdown: 120 * 60,
+      isLightsOn: true,
+    });
+
+    jest.setSystemTime(now);
+
+    const frontendResult = applyFrontendLazyUpdate(
+      clone(stats),
+      lastSavedAt,
+      sleepSchedule,
+      20,
+      { nowMs: now }
+    );
+    const serverResult = applyServerLazyUpdate(
+      clone(stats),
+      lastSavedAt,
+      sleepSchedule,
+      20,
+      { nowMs: now }
+    );
+
+    expect(serverResult).toEqual(frontendResult);
+    expect(frontendResult).toMatchObject({
+      fullness: 5,
+      strength: 5,
+      poopCount: 0,
+      careMistakes: 1,
+      sleepLightOnStart: lastSavedAt,
+      callStatus: {
+        sleep: {
+          isActive: true,
+          startedAt: lastSavedAt,
+          isLogged: true,
+        },
+      },
+    });
+  });
+
   test("똥 부상 로그 문구와 포함 관계가 프론트와 서버에서 같다", () => {
     const now = Date.parse("2026-06-21T13:00:00.000Z");
     const maxLastSavedAt = Date.parse("2026-06-21T12:59:00.000Z");

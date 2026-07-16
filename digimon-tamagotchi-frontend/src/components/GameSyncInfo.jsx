@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { formatSyncCountdown } from "../hooks/game-runtime/gameSyncSchedule";
+import { formatKstTime } from "../utils/time";
 
 const STATE_LABELS = {
   saving: "저장 중",
@@ -8,17 +9,6 @@ const STATE_LABELS = {
   conflict: "다른 기기의 변경사항 확인 필요",
   unavailable: "저장소 사용 불가",
 };
-
-function formatSyncTime(value) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
 
 function GameSyncInfo({ syncInfo = null, compact = false }) {
   const [now, setNow] = useState(Date.now());
@@ -45,8 +35,8 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
   const stateCountdown = useMemo(() => formatSyncCountdown(nextStateSyncAt, now), [nextStateSyncAt, now]);
   const recordCountdown = useMemo(() => formatSyncCountdown(nextRecordSyncAt, now), [nextRecordSyncAt, now]);
   const retryCountdown = useMemo(() => formatSyncCountdown(retryAt, now), [retryAt, now]);
-  const lastStateSyncedText = useMemo(() => formatSyncTime(lastStateSyncedAt), [lastStateSyncedAt]);
-  const lastRecordSyncedText = useMemo(() => formatSyncTime(lastRecordSyncedAt), [lastRecordSyncedAt]);
+  const lastStateSyncedText = useMemo(() => formatKstTime(lastStateSyncedAt), [lastStateSyncedAt]);
+  const lastRecordSyncedText = useMemo(() => formatKstTime(lastRecordSyncedAt), [lastRecordSyncedAt]);
 
   if (!syncInfo) return null;
 
