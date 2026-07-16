@@ -17,7 +17,19 @@ D2 Tamagotchi는 디지털 몬스터 컬러 휴대용 기기에서 영감을 받
 
 ## 빌드 및 개발 명령어
 
-모든 명령어는 `digimon-tamagotchi-frontend` 디렉토리에서 실행해야 합니다:
+저장소 전체 품질 검사의 기준 명령은 루트에서 실행하는 `npm run check`입니다.
+Node 24를 사용하고 루트와 프론트엔드의 두 lockfile로 각각 `npm ci`를 실행해야 합니다.
+
+```bash
+npm ci --no-audit --no-fund
+npm --prefix digimon-tamagotchi-frontend ci --no-audit --no-fund
+npm run check
+```
+
+서버 테스트는 자격증명이 제거된 환경에서 실행되며, Firestore Emulator 전용 테스트는
+현재 필수 검사에서 제외합니다. ESLint, 타입 검사, dead-code 검사는 후속 단계 범위입니다.
+
+아래 프론트엔드 개발 명령어는 `digimon-tamagotchi-frontend` 디렉토리에서 실행합니다:
 
 ```bash
 # 프론트엔드 디렉토리로 이동
