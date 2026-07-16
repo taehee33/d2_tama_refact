@@ -2,6 +2,26 @@ import {
   buildDigimonStatusMessages,
   getSummaryDigimonStatusMessages,
 } from "./digimonStatusMessages";
+import { getKstDateTimeMs } from "../utils/time";
+
+const kstDate = (
+  year,
+  monthIndex,
+  day,
+  hours,
+  minutes = 0,
+  seconds = 0
+) =>
+  new Date(
+    getKstDateTimeMs({
+      year,
+      month: monthIndex + 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+    })
+  );
 
 function createBaseStats(overrides = {}) {
   return {
@@ -30,7 +50,7 @@ describe("digimonStatusMessages", () => {
       sleepStatus: "AWAKE",
       canEvolve: true,
       sleepSchedule: { start: 23, end: 7, startMinute: 0, endMinute: 0 },
-      currentTime: new Date(2026, 3, 7, 20, 0, 0).getTime(),
+      currentTime: kstDate(2026, 3, 7, 20, 0, 0).getTime(),
     });
 
     const summaryMessages = getSummaryDigimonStatusMessages(messages, 3);
@@ -49,7 +69,7 @@ describe("digimonStatusMessages", () => {
       digimonStats: createBaseStats(),
       sleepStatus: "AWAKE",
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      currentTime: new Date(2026, 3, 7, 19, 30, 0).getTime(),
+      currentTime: kstDate(2026, 3, 7, 19, 30, 0).getTime(),
     });
 
     const sleepMessage = messages.find((message) => message.id === "time-until-sleep");
@@ -64,7 +84,7 @@ describe("digimonStatusMessages", () => {
       digimonStats: createBaseStats(),
       sleepStatus: "AWAKE",
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      currentTime: new Date(2026, 3, 7, 19, 30, 0).getTime(),
+      currentTime: kstDate(2026, 3, 7, 19, 30, 0).getTime(),
     });
 
     const sleepMessage = messages.find((message) => message.id === "time-until-sleep");
@@ -80,7 +100,7 @@ describe("digimonStatusMessages", () => {
       digimonStats: createBaseStats(),
       sleepStatus: "AWAKE",
       sleepSchedule: { start: 22, end: 6, startMinute: 0, endMinute: 0 },
-      currentTime: new Date(2026, 3, 7, 20, 1, 0).getTime(),
+      currentTime: kstDate(2026, 3, 7, 20, 1, 0).getTime(),
     });
 
     const sleepMessage = messages.find((message) => message.id === "time-until-sleep");
@@ -99,7 +119,7 @@ describe("digimonStatusMessages", () => {
       }),
       sleepStatus: "AWAKE",
       currentAnimation: "idle",
-      currentTime: new Date(2026, 3, 7, 12, 0, 0).getTime(),
+      currentTime: kstDate(2026, 3, 7, 12, 0, 0).getTime(),
     });
 
     const normalMessage = messages.find((message) => message.id === "normal-status");
@@ -112,7 +132,7 @@ describe("digimonStatusMessages", () => {
   });
 
   test("wakeUntil이 있으면 수면 방해만 남고 수면까지 메시지는 중복 생성되지 않는다", () => {
-    const now = new Date(2026, 3, 7, 22, 10, 0).getTime();
+    const now = kstDate(2026, 3, 7, 22, 10, 0).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats(),
@@ -127,7 +147,7 @@ describe("digimonStatusMessages", () => {
   });
 
   test("SLEEPING_LIGHT_ON 상태는 한국어 경고 문구와 남은 시간 힌트로 표시된다", () => {
-    const now = new Date(2026, 3, 7, 23, 10, 0).getTime();
+    const now = kstDate(2026, 3, 7, 23, 10, 0).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats(),
@@ -145,7 +165,7 @@ describe("digimonStatusMessages", () => {
   });
 
   test("처리된 수면 조명 경고는 케어미스 처리됨 문구로 표시된다", () => {
-    const now = new Date(2026, 3, 7, 23, 40, 0).getTime();
+    const now = kstDate(2026, 3, 7, 23, 40, 0).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats({
@@ -167,7 +187,7 @@ describe("digimonStatusMessages", () => {
   });
 
   test("FALLING_ASLEEP 상태는 남은 15초 카운트다운을 본문과 힌트에 표시한다", () => {
-    const now = new Date(2026, 3, 7, 23, 10, 5).getTime();
+    const now = kstDate(2026, 3, 7, 23, 10, 5).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats({
@@ -189,7 +209,7 @@ describe("digimonStatusMessages", () => {
   });
 
   test("NAPPING 상태는 남은 낮잠 시간을 본문과 힌트에 표시한다", () => {
-    const now = new Date(2026, 3, 7, 23, 10, 5).getTime();
+    const now = kstDate(2026, 3, 7, 23, 10, 5).getTime();
 
     const messages = buildDigimonStatusMessages({
       digimonStats: createBaseStats({

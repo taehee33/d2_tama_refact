@@ -114,7 +114,7 @@ test("buildCommunitySnapshot은 슬롯 문서에서 커뮤니티 스냅샷을 �
       device: "Digital Monster Color 25th",
       backgroundSettings: {
         selectedId: "forest",
-        mode: "auto",
+        mode: "0",
       },
       isLightsOn: false,
       sleepStatus: "SLEEPING",
@@ -565,8 +565,8 @@ test("createCommunityPost는 news 글을 newsContext와 이미지와 함께 저�
         summary: "저장 처리 안정화",
         version: "Ver.2.1.0",
         scope: "저장 흐름",
-        startsAt: "2026-04-12T12:00",
-        endsAt: "2026-04-12T18:00",
+        startsAt: "2026-04-12T12:00:00+09:00",
+        endsAt: "2026-04-12T18:00:00+09:00",
         featured: true,
       },
       image: {

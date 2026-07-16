@@ -1,7 +1,13 @@
 // src/utils/sleepUtils.js
 // 수면 관련 공용 유틸리티
 
-import { toEpochMs } from "./time";
+import {
+  KST_DAY_MS,
+  getKstMinutesOfDay,
+  getKstTimeOnDateMs,
+  getStartOfKstDayMs,
+  toEpochMs,
+} from "./time";
 
 function clampHour(value, fallback = 0) {
   const parsed = Number.parseInt(value, 10);
@@ -33,11 +39,14 @@ function formatTimeLabel(hour, minute = 0) {
   return `${period} ${hour12}:${String(safeMinute).padStart(2, "0")}`;
 }
 
-function buildScheduleDate(baseDate, hour, minute = 0, dayOffset = 0) {
-  const target = new Date(baseDate);
-  target.setDate(target.getDate() + dayOffset);
-  target.setHours(clampHour(hour), clampMinute(minute), 0, 0);
-  return target;
+function buildScheduleDate(baseValue, hour, minute = 0, dayOffset = 0) {
+  const timestamp = getKstTimeOnDateMs(
+    baseValue,
+    clampHour(hour),
+    clampMinute(minute),
+    dayOffset
+  );
+  return new Date(timestamp ?? Number.NaN);
 }
 
 function ensureTimestamp(value) {
@@ -152,14 +161,14 @@ export function shiftSleepScheduleByHours(schedule, offsetHours = 0) {
 
 export function isTimeWithinSleepSchedule(schedule, nowDate = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
-  const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const currentMinutes = getKstMinutesOfDay(nowDate);
   const startMinutes = toMinutesOfDay(
     normalized.start,
     normalized.startMinute
   );
   const endMinutes = toMinutesOfDay(normalized.end, normalized.endMinute);
 
-  if (startMinutes === endMinutes) {
+  if (currentMinutes == null || startMinutes === endMinutes) {
     return false;
   }
 
@@ -172,73 +181,96 @@ export function isTimeWithinSleepSchedule(schedule, nowDate = new Date()) {
 
 export function getNextSleepDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
+
   const todaySleep = buildScheduleDate(
-    now,
+    nowMs,
     normalized.start,
     normalized.startMinute
   );
 
-  if (todaySleep.getTime() > now.getTime()) {
+  if (todaySleep.getTime() > nowMs) {
     return todaySleep;
   }
 
-  return buildScheduleDate(now, normalized.start, normalized.startMinute, 1);
+  return buildScheduleDate(nowMs, normalized.start, normalized.startMinute, 1);
 }
 
 export function getMostRecentWakeDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
-  const todayWake = buildScheduleDate(now, normalized.end, normalized.endMinute);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
 
-  if (todayWake.getTime() <= now.getTime()) {
+  const todayWake = buildScheduleDate(
+    nowMs,
+    normalized.end,
+    normalized.endMinute
+  );
+
+  if (todayWake.getTime() <= nowMs) {
     return todayWake;
   }
 
-  return buildScheduleDate(now, normalized.end, normalized.endMinute, -1);
+  return buildScheduleDate(nowMs, normalized.end, normalized.endMinute, -1);
 }
 
 export function getMostRecentSleepDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
+
   const todaySleep = buildScheduleDate(
-    now,
+    nowMs,
     normalized.start,
     normalized.startMinute
   );
 
-  if (todaySleep.getTime() <= now.getTime()) {
+  if (todaySleep.getTime() <= nowMs) {
     return todaySleep;
   }
 
-  return buildScheduleDate(now, normalized.start, normalized.startMinute, -1);
+  return buildScheduleDate(nowMs, normalized.start, normalized.startMinute, -1);
 }
 
 export function getNextWakeDate(schedule, now = new Date()) {
-  const recentWake = getMostRecentWakeDate(schedule, now);
-
-  if (recentWake.getTime() > now.getTime()) {
-    return recentWake;
+  const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
   }
 
-  return buildScheduleDate(
-    recentWake,
-    recentWake.getHours(),
-    recentWake.getMinutes(),
-    1
+  const todayWake = buildScheduleDate(
+    nowMs,
+    normalized.end,
+    normalized.endMinute
   );
+  if (todayWake.getTime() > nowMs) {
+    return todayWake;
+  }
+
+  return buildScheduleDate(nowMs, normalized.end, normalized.endMinute, 1);
 }
 
 export function hasCrossedWakeTimeSince(schedule, previousTime, now = new Date()) {
-  if (!previousTime) {
+  const previousMs = ensureTimestamp(previousTime);
+  const nowMs = ensureTimestamp(now);
+  if (previousMs == null || nowMs == null) {
     return false;
   }
 
-  const previousDate =
-    previousTime instanceof Date ? previousTime : new Date(previousTime);
-  const recentWakeDate = getMostRecentWakeDate(schedule, now);
+  const recentWakeMs = getMostRecentWakeDate(schedule, nowMs).getTime();
 
   return (
-    !Number.isNaN(previousDate.getTime()) &&
-    recentWakeDate.getTime() > previousDate.getTime() &&
-    recentWakeDate.getTime() <= now.getTime()
+    Number.isFinite(recentWakeMs) &&
+    recentWakeMs > previousMs &&
+    recentWakeMs <= nowMs
   );
 }
 
@@ -313,7 +345,7 @@ export function calculateSleepSecondsInRange(startTime, endTime, schedule) {
   let current = startMs;
 
   while (current < actualEnd) {
-    if (isTimeWithinSleepSchedule(schedule, new Date(current))) {
+    if (isTimeWithinSleepSchedule(schedule, current)) {
       sleepMs += step;
     }
 
@@ -369,37 +401,35 @@ function buildScheduledSleepIntervals(startMs, endMs, schedule) {
   }
 
   const normalized = normalizeSleepSchedule(schedule);
-  const rangeStart = new Date(startMs);
-  rangeStart.setHours(0, 0, 0, 0);
+  const startMinutes = toMinutesOfDay(
+    normalized.start,
+    normalized.startMinute
+  );
+  const endMinutes = toMinutesOfDay(normalized.end, normalized.endMinute);
+  if (startMinutes === endMinutes) {
+    return [];
+  }
 
-  const rangeEnd = new Date(endMs);
-  rangeEnd.setHours(0, 0, 0, 0);
+  const rangeStart = getStartOfKstDayMs(startMs);
+  const rangeEnd = getStartOfKstDayMs(endMs);
+  if (rangeStart == null || rangeEnd == null) {
+    return [];
+  }
 
-  const daySpan = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
+  const daySpan = Math.ceil((rangeEnd - rangeStart) / KST_DAY_MS);
   const intervals = [];
 
   for (let offset = -1; offset <= daySpan + 1; offset += 1) {
-    const sleepStart = buildScheduleDate(
-      rangeStart,
-      normalized.start,
-      normalized.startMinute,
-      offset
-    );
+    const sleepStartMs =
+      rangeStart + offset * KST_DAY_MS + startMinutes * 60 * 1000;
     const sleepEndBaseOffset =
-      toMinutesOfDay(normalized.start, normalized.startMinute) <
-      toMinutesOfDay(normalized.end, normalized.endMinute)
-        ? offset
-        : offset + 1;
-    const sleepEnd = buildScheduleDate(
-      rangeStart,
-      normalized.end,
-      normalized.endMinute,
-      sleepEndBaseOffset
-    );
+      startMinutes < endMinutes ? offset : offset + 1;
+    const sleepEndMs =
+      rangeStart + sleepEndBaseOffset * KST_DAY_MS + endMinutes * 60 * 1000;
 
     const clamped = clampInterval(
-      sleepStart.getTime(),
-      sleepEnd.getTime(),
+      sleepStartMs,
+      sleepEndMs,
       startMs,
       endMs
     );

@@ -1,3 +1,5 @@
+import { formatKstTime } from "../../utils/time";
+
 export const GAME_STATE_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 export const FEED_SUMMARY_BUCKET_MS = 15 * 60 * 1000;
 
@@ -16,9 +18,6 @@ export function formatSyncCountdown(targetAt, now = Date.now()) {
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
   const relative = minutes > 0 ? `${minutes}분 ${seconds}초 후` : `${seconds}초 후`;
-  const absolute = new Date(Number(targetAt)).toLocaleTimeString("ko-KR", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const absolute = formatKstTime(Number(targetAt));
   return `${relative} · ${absolute}`;
 }

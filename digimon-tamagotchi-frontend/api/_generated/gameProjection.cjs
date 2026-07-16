@@ -132,6 +132,254 @@ const defaultStatsFile_defaultStats = {
 // 액션/복구/로드 경로 모두 같은 최대 개수를 사용한다.
 const MAX_ACTIVITY_LOGS = 100;
 
+;// ./src/utils/time.js
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const time_KST_DAY_MS = 24 * 60 * 60 * 1000;
+const KST_HALF_HOUR_MS = 30 * 60 * 1000;
+
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getKstDateParts(value) {
+  const timestamp = toEpochMs(value);
+  if (timestamp == null) {
+    return null;
+  }
+
+  const date = new Date(timestamp + KST_OFFSET_MS);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hours: date.getUTCHours(),
+    minutes: date.getUTCMinutes(),
+    seconds: date.getUTCSeconds(),
+    milliseconds: date.getUTCMilliseconds(),
+  };
+}
+
+function getKstMinutesOfDay(value = Date.now()) {
+  const parts = getKstDateParts(value);
+  if (!parts) {
+    return null;
+  }
+
+  return parts.hours * 60 + parts.minutes;
+}
+
+function getKstDateTimeMs(
+  {
+    year,
+    month,
+    day,
+    hours = 0,
+    minutes = 0,
+    seconds = 0,
+    milliseconds = 0,
+  } = {},
+  dayOffset = 0
+) {
+  const values = [
+    year,
+    month,
+    day,
+    hours,
+    minutes,
+    seconds,
+    milliseconds,
+    dayOffset,
+  ].map(Number);
+
+  if (values.some((value) => !Number.isFinite(value))) {
+    return null;
+  }
+
+  const [
+    safeYear,
+    safeMonth,
+    safeDay,
+    safeHours,
+    safeMinutes,
+    safeSeconds,
+    safeMilliseconds,
+    safeDayOffset,
+  ] = values;
+
+  return (
+    Date.UTC(
+      safeYear,
+      safeMonth - 1,
+      safeDay + safeDayOffset,
+      safeHours,
+      safeMinutes,
+      safeSeconds,
+      safeMilliseconds
+    ) - KST_OFFSET_MS
+  );
+}
+
+function getKstTimeOnDateMs(
+  baseValue,
+  hours,
+  minutes = 0,
+  dayOffset = 0
+) {
+  const parts = getKstDateParts(baseValue);
+  if (!parts) {
+    return null;
+  }
+
+  return getKstDateTimeMs(
+    {
+      year: parts.year,
+      month: parts.month,
+      day: parts.day,
+      hours,
+      minutes,
+    },
+    dayOffset
+  );
+}
+
+function getNextKstHalfHourBoundaryMs(value = Date.now()) {
+  const timestamp = toEpochMs(value);
+  if (timestamp == null) {
+    return null;
+  }
+
+  return (
+    (Math.floor((timestamp + KST_OFFSET_MS) / KST_HALF_HOUR_MS) + 1) *
+      KST_HALF_HOUR_MS -
+    KST_OFFSET_MS
+  );
+}
+
+function formatKstTime(value) {
+  const parts = getKstDateParts(value);
+  if (!parts) {
+    return "";
+  }
+
+  const period = parts.hours >= 12 ? "오후" : "오전";
+  const hour12 =
+    parts.hours > 12 ? parts.hours - 12 : parts.hours === 0 ? 12 : parts.hours;
+
+  return `${period} ${hour12}:${pad(parts.minutes)}`;
+}
+
+function toEpochMs(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (value instanceof Date) {
+    const timestamp = value.getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  if (typeof value === "object") {
+    if (typeof value.toMillis === "function") {
+      try {
+        const timestamp = value.toMillis();
+        return Number.isFinite(timestamp) ? timestamp : null;
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    if (typeof value.toDate === "function") {
+      try {
+        const date = value.toDate();
+        if (date instanceof Date) {
+          const timestamp = date.getTime();
+          return Number.isFinite(timestamp) ? timestamp : null;
+        }
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    if ("seconds" in value) {
+      const seconds = Number(value.seconds);
+      const nanoseconds =
+        value.nanoseconds != null ? Number(value.nanoseconds) : 0;
+      const timestamp = seconds * 1000 + nanoseconds / 1000000;
+      return Number.isFinite(timestamp) ? timestamp : null;
+    }
+  }
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function time_getStartOfKstDayMs(value = Date.now()) {
+  const timestamp = toEpochMs(value);
+  if (timestamp == null) {
+    return null;
+  }
+
+  return (
+    Math.floor((timestamp + KST_OFFSET_MS) / time_KST_DAY_MS) * time_KST_DAY_MS -
+    KST_OFFSET_MS
+  );
+}
+
+function time_isSameKstDay(left, right) {
+  const leftDayStart = time_getStartOfKstDayMs(left);
+  const rightDayStart = time_getStartOfKstDayMs(right);
+
+  if (leftDayStart == null || rightDayStart == null) {
+    return false;
+  }
+
+  return leftDayStart === rightDayStart;
+}
+
+function formatTimestamp(timestamp, format = "short") {
+  const parts = getKstDateParts(timestamp);
+  if (!parts) {
+    return "N/A";
+  }
+
+  const month = pad(parts.month);
+  const day = pad(parts.day);
+  const hours = pad(parts.hours);
+  const minutes = pad(parts.minutes);
+  const seconds = pad(parts.seconds);
+
+  switch (format) {
+    case "long":
+      return `${parts.year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    case "time":
+      return `${hours}:${minutes}:${seconds}`;
+    case "short":
+    default:
+      return `${month}/${day} ${hours}:${minutes}`;
+  }
+}
+
+function formatSlotCreatedAt(value) {
+  if (value == null || value === "") {
+    return "";
+  }
+
+  const timestamp = toEpochMs(value);
+  if (timestamp == null) {
+    return String(value);
+  }
+
+  return new Date(timestamp).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul",
+  });
+}
+
+
+
 ;// ./src/utils/sleepUtils.js
 // src/utils/sleepUtils.js
 // 수면 관련 공용 유틸리티
@@ -168,11 +416,14 @@ function formatTimeLabel(hour, minute = 0) {
   return `${period} ${hour12}:${String(safeMinute).padStart(2, "0")}`;
 }
 
-function buildScheduleDate(baseDate, hour, minute = 0, dayOffset = 0) {
-  const target = new Date(baseDate);
-  target.setDate(target.getDate() + dayOffset);
-  target.setHours(clampHour(hour), clampMinute(minute), 0, 0);
-  return target;
+function buildScheduleDate(baseValue, hour, minute = 0, dayOffset = 0) {
+  const timestamp = getKstTimeOnDateMs(
+    baseValue,
+    clampHour(hour),
+    clampMinute(minute),
+    dayOffset
+  );
+  return new Date(timestamp ?? Number.NaN);
 }
 
 function ensureTimestamp(value) {
@@ -287,14 +538,14 @@ function shiftSleepScheduleByHours(schedule, offsetHours = 0) {
 
 function isTimeWithinSleepSchedule(schedule, nowDate = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
-  const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const currentMinutes = getKstMinutesOfDay(nowDate);
   const startMinutes = toMinutesOfDay(
     normalized.start,
     normalized.startMinute
   );
   const endMinutes = toMinutesOfDay(normalized.end, normalized.endMinute);
 
-  if (startMinutes === endMinutes) {
+  if (currentMinutes == null || startMinutes === endMinutes) {
     return false;
   }
 
@@ -307,73 +558,96 @@ function isTimeWithinSleepSchedule(schedule, nowDate = new Date()) {
 
 function getNextSleepDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
+
   const todaySleep = buildScheduleDate(
-    now,
+    nowMs,
     normalized.start,
     normalized.startMinute
   );
 
-  if (todaySleep.getTime() > now.getTime()) {
+  if (todaySleep.getTime() > nowMs) {
     return todaySleep;
   }
 
-  return buildScheduleDate(now, normalized.start, normalized.startMinute, 1);
+  return buildScheduleDate(nowMs, normalized.start, normalized.startMinute, 1);
 }
 
 function getMostRecentWakeDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
-  const todayWake = buildScheduleDate(now, normalized.end, normalized.endMinute);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
 
-  if (todayWake.getTime() <= now.getTime()) {
+  const todayWake = buildScheduleDate(
+    nowMs,
+    normalized.end,
+    normalized.endMinute
+  );
+
+  if (todayWake.getTime() <= nowMs) {
     return todayWake;
   }
 
-  return buildScheduleDate(now, normalized.end, normalized.endMinute, -1);
+  return buildScheduleDate(nowMs, normalized.end, normalized.endMinute, -1);
 }
 
 function getMostRecentSleepDate(schedule, now = new Date()) {
   const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
+  }
+
   const todaySleep = buildScheduleDate(
-    now,
+    nowMs,
     normalized.start,
     normalized.startMinute
   );
 
-  if (todaySleep.getTime() <= now.getTime()) {
+  if (todaySleep.getTime() <= nowMs) {
     return todaySleep;
   }
 
-  return buildScheduleDate(now, normalized.start, normalized.startMinute, -1);
+  return buildScheduleDate(nowMs, normalized.start, normalized.startMinute, -1);
 }
 
 function getNextWakeDate(schedule, now = new Date()) {
-  const recentWake = getMostRecentWakeDate(schedule, now);
-
-  if (recentWake.getTime() > now.getTime()) {
-    return recentWake;
+  const normalized = normalizeSleepSchedule(schedule);
+  const nowMs = ensureTimestamp(now);
+  if (nowMs == null) {
+    return new Date(Number.NaN);
   }
 
-  return buildScheduleDate(
-    recentWake,
-    recentWake.getHours(),
-    recentWake.getMinutes(),
-    1
+  const todayWake = buildScheduleDate(
+    nowMs,
+    normalized.end,
+    normalized.endMinute
   );
+  if (todayWake.getTime() > nowMs) {
+    return todayWake;
+  }
+
+  return buildScheduleDate(nowMs, normalized.end, normalized.endMinute, 1);
 }
 
 function hasCrossedWakeTimeSince(schedule, previousTime, now = new Date()) {
-  if (!previousTime) {
+  const previousMs = ensureTimestamp(previousTime);
+  const nowMs = ensureTimestamp(now);
+  if (previousMs == null || nowMs == null) {
     return false;
   }
 
-  const previousDate =
-    previousTime instanceof Date ? previousTime : new Date(previousTime);
-  const recentWakeDate = getMostRecentWakeDate(schedule, now);
+  const recentWakeMs = getMostRecentWakeDate(schedule, nowMs).getTime();
 
   return (
-    !Number.isNaN(previousDate.getTime()) &&
-    recentWakeDate.getTime() > previousDate.getTime() &&
-    recentWakeDate.getTime() <= now.getTime()
+    Number.isFinite(recentWakeMs) &&
+    recentWakeMs > previousMs &&
+    recentWakeMs <= nowMs
   );
 }
 
@@ -448,7 +722,7 @@ function calculateSleepSecondsInRange(startTime, endTime, schedule) {
   let current = startMs;
 
   while (current < actualEnd) {
-    if (isTimeWithinSleepSchedule(schedule, new Date(current))) {
+    if (isTimeWithinSleepSchedule(schedule, current)) {
       sleepMs += step;
     }
 
@@ -504,37 +778,35 @@ function buildScheduledSleepIntervals(startMs, endMs, schedule) {
   }
 
   const normalized = normalizeSleepSchedule(schedule);
-  const rangeStart = new Date(startMs);
-  rangeStart.setHours(0, 0, 0, 0);
+  const startMinutes = toMinutesOfDay(
+    normalized.start,
+    normalized.startMinute
+  );
+  const endMinutes = toMinutesOfDay(normalized.end, normalized.endMinute);
+  if (startMinutes === endMinutes) {
+    return [];
+  }
 
-  const rangeEnd = new Date(endMs);
-  rangeEnd.setHours(0, 0, 0, 0);
+  const rangeStart = getStartOfKstDayMs(startMs);
+  const rangeEnd = getStartOfKstDayMs(endMs);
+  if (rangeStart == null || rangeEnd == null) {
+    return [];
+  }
 
-  const daySpan = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
+  const daySpan = Math.ceil((rangeEnd - rangeStart) / KST_DAY_MS);
   const intervals = [];
 
   for (let offset = -1; offset <= daySpan + 1; offset += 1) {
-    const sleepStart = buildScheduleDate(
-      rangeStart,
-      normalized.start,
-      normalized.startMinute,
-      offset
-    );
+    const sleepStartMs =
+      rangeStart + offset * KST_DAY_MS + startMinutes * 60 * 1000;
     const sleepEndBaseOffset =
-      toMinutesOfDay(normalized.start, normalized.startMinute) <
-      toMinutesOfDay(normalized.end, normalized.endMinute)
-        ? offset
-        : offset + 1;
-    const sleepEnd = buildScheduleDate(
-      rangeStart,
-      normalized.end,
-      normalized.endMinute,
-      sleepEndBaseOffset
-    );
+      startMinutes < endMinutes ? offset : offset + 1;
+    const sleepEndMs =
+      rangeStart + sleepEndBaseOffset * KST_DAY_MS + endMinutes * 60 * 1000;
 
     const clamped = clampInterval(
-      sleepStart.getTime(),
-      sleepEnd.getTime(),
+      sleepStartMs,
+      sleepEndMs,
       startMs,
       endMs
     );
@@ -632,148 +904,11 @@ function getActiveSleepLikeStartedAt(currentTime, context = {}) {
   return null;
 }
 
-;// ./src/utils/time.js
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
-const KST_DAY_MS = 24 * 60 * 60 * 1000;
-
-function pad(value) {
-  return String(value).padStart(2, "0");
-}
-
-function getKstDateParts(value) {
-  const timestamp = time_toEpochMs(value);
-  if (timestamp == null) {
-    return null;
-  }
-
-  const date = new Date(timestamp + KST_OFFSET_MS);
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-    hours: date.getUTCHours(),
-    minutes: date.getUTCMinutes(),
-    seconds: date.getUTCSeconds(),
-  };
-}
-
-function time_toEpochMs(value) {
-  if (value == null || value === "") {
-    return null;
-  }
-
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-
-  if (value instanceof Date) {
-    const timestamp = value.getTime();
-    return Number.isFinite(timestamp) ? timestamp : null;
-  }
-
-  if (typeof value === "object") {
-    if (typeof value.toMillis === "function") {
-      try {
-        const timestamp = value.toMillis();
-        return Number.isFinite(timestamp) ? timestamp : null;
-      } catch (_error) {
-        return null;
-      }
-    }
-
-    if (typeof value.toDate === "function") {
-      try {
-        const date = value.toDate();
-        if (date instanceof Date) {
-          const timestamp = date.getTime();
-          return Number.isFinite(timestamp) ? timestamp : null;
-        }
-      } catch (_error) {
-        return null;
-      }
-    }
-
-    if ("seconds" in value) {
-      const seconds = Number(value.seconds);
-      const nanoseconds =
-        value.nanoseconds != null ? Number(value.nanoseconds) : 0;
-      const timestamp = seconds * 1000 + nanoseconds / 1000000;
-      return Number.isFinite(timestamp) ? timestamp : null;
-    }
-  }
-
-  const parsed = new Date(value).getTime();
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function time_getStartOfKstDayMs(value = Date.now()) {
-  const timestamp = time_toEpochMs(value);
-  if (timestamp == null) {
-    return null;
-  }
-
-  return (
-    Math.floor((timestamp + KST_OFFSET_MS) / KST_DAY_MS) * KST_DAY_MS -
-    KST_OFFSET_MS
-  );
-}
-
-function time_isSameKstDay(left, right) {
-  const leftDayStart = time_getStartOfKstDayMs(left);
-  const rightDayStart = time_getStartOfKstDayMs(right);
-
-  if (leftDayStart == null || rightDayStart == null) {
-    return false;
-  }
-
-  return leftDayStart === rightDayStart;
-}
-
-function formatTimestamp(timestamp, format = "short") {
-  const parts = getKstDateParts(timestamp);
-  if (!parts) {
-    return "N/A";
-  }
-
-  const month = pad(parts.month);
-  const day = pad(parts.day);
-  const hours = pad(parts.hours);
-  const minutes = pad(parts.minutes);
-  const seconds = pad(parts.seconds);
-
-  switch (format) {
-    case "long":
-      return `${parts.year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    case "time":
-      return `${hours}:${minutes}:${seconds}`;
-    case "short":
-    default:
-      return `${month}/${day} ${hours}:${minutes}`;
-  }
-}
-
-function formatSlotCreatedAt(value) {
-  if (value == null || value === "") {
-    return "";
-  }
-
-  const timestamp = time_toEpochMs(value);
-  if (timestamp == null) {
-    return String(value);
-  }
-
-  return new Date(timestamp).toLocaleString("ko-KR", {
-    timeZone: "Asia/Seoul",
-  });
-}
-
-
-
 ;// ./src/utils/fridgeTime.js
 
 
 function toTimestamp(value) {
-  return time_toEpochMs(value);
+  return toEpochMs(value);
 }
 
 function toDurationMs(value) {
@@ -5159,7 +5294,7 @@ function getLifeStartDigimonId(slotVersion = "Ver.1", currentDigimonId = null) {
 const CARE_MISTAKE_SYNC_TEXT = "[기록 동기화] 과거 케어미스 기록이 없어 카운터 기준으로 보정됨";
 
 function careMistakeLedger_ensureTimestamp(value) {
-  return time_toEpochMs(value);
+  return toEpochMs(value);
 }
 
 function isSleepDisturbanceLike(log) {
@@ -5442,6 +5577,7 @@ function getDisplayCareMistakeEntries(stats = {}, activityLogs = [], options = {
 
 
 
+
 const energyRecovery_FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const energyRecovery_NAP_DURATION_MS = 3 * 60 * 60 * 1000;
 
@@ -5460,7 +5596,7 @@ function getEnergyRecoverySleepStatus(stats = {}, sleepSchedule, timestampMs) {
   }
 
   const normalizedSchedule = sleepSchedule ? normalizeSleepSchedule(sleepSchedule) : null;
-  if (normalizedSchedule && isTimeWithinSleepSchedule(normalizedSchedule, new Date(timestampMs))) {
+  if (normalizedSchedule && isTimeWithinSleepSchedule(normalizedSchedule, timestampMs)) {
     return stats.isLightsOn !== false ? "SLEEPING_LIGHT_ON" : "SLEEPING";
   }
 
@@ -5485,23 +5621,19 @@ function isFrozenAt(stats = {}, timestampMs) {
   return takeOutAtMs == null || timestampMs < takeOutAtMs;
 }
 
-function getNextHalfHourBoundaryAfter(timestampMs) {
-  const boundary = new Date(timestampMs);
-  boundary.setSeconds(0, 0);
-  if (boundary.getTime() <= timestampMs) {
-    if (boundary.getMinutes() < 30) boundary.setMinutes(30);
-    else {
-      boundary.setMinutes(0);
-      boundary.setHours(boundary.getHours() + 1);
-    }
-  }
-  return boundary.getTime();
-}
-
 function getWakeTimesInRange(sleepSchedule, startMs, endMs) {
+  const normalizedSchedule = normalizeSleepSchedule(sleepSchedule);
+  const sleepStartMinutes =
+    normalizedSchedule.start * 60 + normalizedSchedule.startMinute;
+  const wakeMinutes =
+    normalizedSchedule.end * 60 + normalizedSchedule.endMinute;
+  if (sleepStartMinutes === wakeMinutes) {
+    return new Set();
+  }
+
   const wakeTimes = new Set();
   for (
-    let wakeMs = getMostRecentWakeDate(sleepSchedule, new Date(endMs)).getTime();
+    let wakeMs = getMostRecentWakeDate(normalizedSchedule, endMs).getTime();
     wakeMs > startMs;
     wakeMs -= 24 * 60 * 60 * 1000
   ) {
@@ -5531,9 +5663,9 @@ function recoverEnergy(stats, {
   const wakeTimes = getWakeTimesInRange(sleepSchedule, recoveryStartMs, safeEndMs);
   const eventTimes = new Set(wakeTimes);
   for (
-    let boundaryMs = getNextHalfHourBoundaryAfter(recoveryStartMs);
+    let boundaryMs = getNextKstHalfHourBoundaryMs(recoveryStartMs);
     boundaryMs <= safeEndMs;
-    boundaryMs = getNextHalfHourBoundaryAfter(boundaryMs)
+    boundaryMs = getNextKstHalfHourBoundaryMs(boundaryMs)
   ) {
     eventTimes.add(boundaryMs);
   }
@@ -6152,7 +6284,7 @@ function updateAgeWithLazyUpdate(stats, lastSaved, now) {
     return updatedStats;
   }
 
-  let checkDayStart = time_getStartOfKstDayMs(lastSavedMs) + KST_DAY_MS;
+  let checkDayStart = time_getStartOfKstDayMs(lastSavedMs) + time_KST_DAY_MS;
 
   while (checkDayStart <= nowMs) {
     if (
@@ -6164,7 +6296,7 @@ function updateAgeWithLazyUpdate(stats, lastSaved, now) {
       lastAgeUpdateDateMs = checkDayStart;
     }
 
-    checkDayStart += KST_DAY_MS;
+    checkDayStart += time_KST_DAY_MS;
   }
 
   return updatedStats;

@@ -6,8 +6,27 @@ import {
   projectState,
 } from "./stats";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
+import { getKstDateTimeMs } from "../utils/time";
 
 const NOW_ISO = "2026-03-31T12:00:00.000Z";
+const kstDate = (
+  year,
+  monthIndex,
+  day,
+  hours,
+  minutes = 0,
+  seconds = 0
+) =>
+  new Date(
+    getKstDateTimeMs({
+      year,
+      month: monthIndex + 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+    })
+  );
 
 function createBaseStats(overrides = {}) {
   return {
@@ -369,8 +388,8 @@ describe("applyLazyUpdate", () => {
   });
 
   test("수면 시간은 hunger/strength/poop countdown에서 제외한다", () => {
-    const sleepWindowStart = new Date(2026, 2, 31, 22, 0, 0);
-    const sleepWindowEnd = new Date(2026, 2, 31, 23, 30, 0);
+    const sleepWindowStart = kstDate(2026, 2, 31, 22, 0, 0);
+    const sleepWindowEnd = kstDate(2026, 2, 31, 23, 30, 0);
     jest.setSystemTime(sleepWindowEnd);
 
     const result = applyLazyUpdate(
@@ -396,8 +415,8 @@ describe("applyLazyUpdate", () => {
   });
 
   test("수면 포함 긴 미접속은 수명/진화시간은 전체 경과, needs/poop은 활동 시간 기준으로 계산한다", () => {
-    const lastSavedAt = new Date(2026, 2, 31, 21, 0, 0).getTime();
-    jest.setSystemTime(new Date(2026, 3, 1, 9, 0, 0));
+    const lastSavedAt = kstDate(2026, 2, 31, 21, 0, 0).getTime();
+    jest.setSystemTime(kstDate(2026, 3, 1, 9, 0, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -413,7 +432,7 @@ describe("applyLazyUpdate", () => {
         poopCountdown: 120 * 60,
         poopCount: 0,
         isLightsOn: false,
-        wakeUntil: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+        wakeUntil: kstDate(2026, 2, 31, 22, 30, 0).getTime(),
       }),
       lastSavedAt,
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
@@ -438,14 +457,14 @@ describe("applyLazyUpdate", () => {
   });
 
   test("수면 후 기상 시 lazy projection은 energy를 최대치까지 회복한다", () => {
-    const lastSavedAt = new Date(2026, 2, 31, 5, 30, 0).getTime();
-    const now = new Date(2026, 2, 31, 7, 10, 0).getTime();
+    const lastSavedAt = kstDate(2026, 2, 31, 5, 30, 0).getTime();
+    const now = kstDate(2026, 2, 31, 7, 10, 0).getTime();
     jest.setSystemTime(now);
 
     const result = applyLazyUpdate(
       createBaseStats({
         energy: 1,
-        lastEnergyRecoveryAt: new Date(2026, 2, 31, 5, 0, 0).getTime(),
+        lastEnergyRecoveryAt: kstDate(2026, 2, 31, 5, 0, 0).getTime(),
         hungerTimer: 999,
         hungerCountdown: 999 * 60,
         strengthTimer: 999,
@@ -459,12 +478,12 @@ describe("applyLazyUpdate", () => {
     );
 
     expect(result.energy).toBe(5);
-    expect(result.lastEnergyRecoveryAt).toBe(new Date(2026, 2, 31, 7, 0, 0).getTime());
+    expect(result.lastEnergyRecoveryAt).toBe(kstDate(2026, 2, 31, 7, 0, 0).getTime());
   });
 
   test("활동 시간 lazy projection은 30분 단위로 energy를 회복하고 maxEnergy를 넘지 않는다", () => {
-    const lastSavedAt = new Date(2026, 2, 31, 10, 10, 0).getTime();
-    jest.setSystemTime(new Date(2026, 2, 31, 11, 5, 0));
+    const lastSavedAt = kstDate(2026, 2, 31, 10, 10, 0).getTime();
+    jest.setSystemTime(kstDate(2026, 2, 31, 11, 5, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -483,7 +502,7 @@ describe("applyLazyUpdate", () => {
     );
 
     expect(result.energy).toBe(5);
-    expect(result.lastEnergyRecoveryAt).toBe(new Date(2026, 2, 31, 10, 30, 0).getTime());
+    expect(result.lastEnergyRecoveryAt).toBe(kstDate(2026, 2, 31, 10, 30, 0).getTime());
   });
 
   test("낮잠 시간은 hunger/strength/poop countdown에서 제외한다", () => {
@@ -656,7 +675,7 @@ describe("applyLazyUpdate", () => {
   });
 
   test("앱이 꺼져 있는 동안 수면 시간이 시작되어 불이 켜진 채 30분을 넘기면 수면 조명 케어미스를 복원한다", () => {
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 35, 0));
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 35, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -671,12 +690,12 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: false, startedAt: null, isLogged: false },
         },
       }),
-      new Date(2026, 2, 31, 21, 55, 0).getTime(),
+      kstDate(2026, 2, 31, 21, 55, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
-    const expectedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
-    const expectedTimeout = new Date(2026, 2, 31, 22, 30, 0).getTime();
+    const expectedStart = kstDate(2026, 2, 31, 22, 0, 0).getTime();
+    const expectedTimeout = kstDate(2026, 2, 31, 22, 30, 0).getTime();
 
     expect(result.callStatus.sleep.isActive).toBe(true);
     expect(result.callStatus.sleep.startedAt).toBe(expectedStart);
@@ -695,8 +714,8 @@ describe("applyLazyUpdate", () => {
   });
 
   test("저장 경계를 넘긴 수면 조명 경고 사건은 기존 sleepLightOnStart를 이어서 계산한다", () => {
-    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 40, 0));
+    const persistedStart = kstDate(2026, 2, 31, 22, 0, 0).getTime();
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 40, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -708,11 +727,11 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: true, startedAt: persistedStart, isLogged: false },
         },
       }),
-      new Date(2026, 2, 31, 22, 20, 0).getTime(),
+      kstDate(2026, 2, 31, 22, 20, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
-    const expectedTimeout = new Date(2026, 2, 31, 22, 30, 0).getTime();
+    const expectedTimeout = kstDate(2026, 2, 31, 22, 30, 0).getTime();
 
     expect(result.callStatus.sleep.startedAt).toBe(persistedStart);
     expect(result.callStatus.sleep.isLogged).toBe(true);
@@ -729,8 +748,8 @@ describe("applyLazyUpdate", () => {
   });
 
   test("저장된 sleepLightOnStart가 있으면 lazy update는 현재 시각이 아니라 그 시작 시각을 유지한다", () => {
-    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 20, 0));
+    const persistedStart = kstDate(2026, 2, 31, 22, 0, 0).getTime();
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 20, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -742,7 +761,7 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: true, startedAt: null, isLogged: false },
         },
       }),
-      new Date(2026, 2, 31, 21, 50, 0).getTime(),
+      kstDate(2026, 2, 31, 21, 50, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
@@ -752,9 +771,9 @@ describe("applyLazyUpdate", () => {
   });
 
   test("이미 처리된 수면 조명 경고 사건은 저장 경계를 넘어도 다시 올리지 않는다", () => {
-    const persistedStart = new Date(2026, 2, 31, 22, 0, 0).getTime();
-    const timeoutOccurredAt = new Date(2026, 2, 31, 22, 30, 0).getTime();
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 50, 0));
+    const persistedStart = kstDate(2026, 2, 31, 22, 0, 0).getTime();
+    const timeoutOccurredAt = kstDate(2026, 2, 31, 22, 30, 0).getTime();
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 50, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -785,7 +804,7 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: true, startedAt: persistedStart, isLogged: true },
         },
       }),
-      new Date(2026, 2, 31, 22, 35, 0).getTime(),
+      kstDate(2026, 2, 31, 22, 35, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
@@ -954,7 +973,7 @@ describe("applyLazyUpdate", () => {
   });
 
   test("정규 수면 중 불 켜짐은 lazy update에서도 수면 조명 경고 케어미스를 복원한다", () => {
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 31, 0));
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 31, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -969,24 +988,24 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: false, startedAt: null, isLogged: false },
         },
       }),
-      new Date(2026, 2, 31, 21, 59, 0).getTime(),
+      kstDate(2026, 2, 31, 21, 59, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
     expect(result.careMistakes).toBe(1);
     expect(result.callStatus.sleep).toEqual({
       isActive: true,
-      startedAt: new Date(2026, 2, 31, 22, 0, 0).getTime(),
+      startedAt: kstDate(2026, 2, 31, 22, 0, 0).getTime(),
       isLogged: true,
     });
     expect(result.sleepLightOnStart).toBe(
-      new Date(2026, 2, 31, 22, 0, 0).getTime()
+      kstDate(2026, 2, 31, 22, 0, 0).getTime()
     );
     expect(result.careMistakeLedger).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           reasonKey: "sleep_light_warning",
-          occurredAt: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+          occurredAt: kstDate(2026, 2, 31, 22, 30, 0).getTime(),
           source: "backfill",
         }),
       ])
@@ -994,12 +1013,12 @@ describe("applyLazyUpdate", () => {
   });
 
   test("강제 기상 중이었던 시간은 수면 제외 시간으로 빼지 않는다", () => {
-    jest.setSystemTime(new Date(2026, 2, 31, 22, 5, 0));
+    jest.setSystemTime(kstDate(2026, 2, 31, 22, 5, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
         isLightsOn: false,
-        wakeUntil: new Date(2026, 2, 31, 22, 10, 0).getTime(),
+        wakeUntil: kstDate(2026, 2, 31, 22, 10, 0).getTime(),
         hungerTimer: 10,
         strengthTimer: 10,
         poopTimer: 10,
@@ -1007,7 +1026,7 @@ describe("applyLazyUpdate", () => {
         strengthCountdown: 600,
         poopCountdown: 600,
       }),
-      new Date(2026, 2, 31, 22, 0, 0).getTime(),
+      kstDate(2026, 2, 31, 22, 0, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
@@ -1015,12 +1034,12 @@ describe("applyLazyUpdate", () => {
     expect(result.strengthCountdown).toBe(300);
     expect(result.poopCountdown).toBe(300);
     expect(result.wakeUntil).toBe(
-      new Date(2026, 2, 31, 22, 10, 0).getTime()
+      kstDate(2026, 2, 31, 22, 10, 0).getTime()
     );
   });
 
   test("수면 조명 경고가 끝난 뒤 복귀해도 지난 사건의 케어미스는 lazy update에서 복원된다", () => {
-    jest.setSystemTime(new Date(2026, 3, 1, 7, 10, 0));
+    jest.setSystemTime(kstDate(2026, 3, 1, 7, 10, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
@@ -1035,7 +1054,7 @@ describe("applyLazyUpdate", () => {
           sleep: { isActive: false, startedAt: null, isLogged: false },
         },
       }),
-      new Date(2026, 2, 31, 21, 50, 0).getTime(),
+      kstDate(2026, 2, 31, 21, 50, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
@@ -1050,22 +1069,22 @@ describe("applyLazyUpdate", () => {
       expect.arrayContaining([
         expect.objectContaining({
           reasonKey: "sleep_light_warning",
-          occurredAt: new Date(2026, 2, 31, 22, 30, 0).getTime(),
+          occurredAt: kstDate(2026, 2, 31, 22, 30, 0).getTime(),
         }),
       ])
     );
   });
 
   test("끝난 낮잠으로 남아 있던 fastSleepStart와 napUntil은 lazy update에서 정리된다", () => {
-    jest.setSystemTime(new Date(2026, 2, 31, 15, 30, 0));
+    jest.setSystemTime(kstDate(2026, 2, 31, 15, 30, 0));
 
     const result = applyLazyUpdate(
       createBaseStats({
         isLightsOn: false,
-        fastSleepStart: new Date(2026, 2, 31, 11, 0, 0).getTime(),
-        napUntil: new Date(2026, 2, 31, 14, 0, 15).getTime(),
+        fastSleepStart: kstDate(2026, 2, 31, 11, 0, 0).getTime(),
+        napUntil: kstDate(2026, 2, 31, 14, 0, 15).getTime(),
       }),
-      new Date(2026, 2, 31, 14, 5, 0).getTime(),
+      kstDate(2026, 2, 31, 14, 5, 0).getTime(),
       { start: 22, end: 6, startMinute: 0, endMinute: 0 }
     );
 
