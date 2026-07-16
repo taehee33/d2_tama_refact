@@ -4,6 +4,7 @@ import {
   normalizeSleepSchedule,
 } from "../../utils/sleepUtils";
 import { toTimestamp } from "../../utils/fridgeTime";
+import { getNextKstHalfHourBoundaryMs } from "../../utils/time";
 
 const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const NAP_DURATION_MS = 3 * 60 * 60 * 1000;
@@ -23,7 +24,7 @@ export function getEnergyRecoverySleepStatus(stats = {}, sleepSchedule, timestam
   }
 
   const normalizedSchedule = sleepSchedule ? normalizeSleepSchedule(sleepSchedule) : null;
-  if (normalizedSchedule && isTimeWithinSleepSchedule(normalizedSchedule, new Date(timestampMs))) {
+  if (normalizedSchedule && isTimeWithinSleepSchedule(normalizedSchedule, timestampMs)) {
     return stats.isLightsOn !== false ? "SLEEPING_LIGHT_ON" : "SLEEPING";
   }
 
@@ -48,23 +49,19 @@ function isFrozenAt(stats = {}, timestampMs) {
   return takeOutAtMs == null || timestampMs < takeOutAtMs;
 }
 
-function getNextHalfHourBoundaryAfter(timestampMs) {
-  const boundary = new Date(timestampMs);
-  boundary.setSeconds(0, 0);
-  if (boundary.getTime() <= timestampMs) {
-    if (boundary.getMinutes() < 30) boundary.setMinutes(30);
-    else {
-      boundary.setMinutes(0);
-      boundary.setHours(boundary.getHours() + 1);
-    }
-  }
-  return boundary.getTime();
-}
-
 function getWakeTimesInRange(sleepSchedule, startMs, endMs) {
+  const normalizedSchedule = normalizeSleepSchedule(sleepSchedule);
+  const sleepStartMinutes =
+    normalizedSchedule.start * 60 + normalizedSchedule.startMinute;
+  const wakeMinutes =
+    normalizedSchedule.end * 60 + normalizedSchedule.endMinute;
+  if (sleepStartMinutes === wakeMinutes) {
+    return new Set();
+  }
+
   const wakeTimes = new Set();
   for (
-    let wakeMs = getMostRecentWakeDate(sleepSchedule, new Date(endMs)).getTime();
+    let wakeMs = getMostRecentWakeDate(normalizedSchedule, endMs).getTime();
     wakeMs > startMs;
     wakeMs -= 24 * 60 * 60 * 1000
   ) {
@@ -94,9 +91,9 @@ export function recoverEnergy(stats, {
   const wakeTimes = getWakeTimesInRange(sleepSchedule, recoveryStartMs, safeEndMs);
   const eventTimes = new Set(wakeTimes);
   for (
-    let boundaryMs = getNextHalfHourBoundaryAfter(recoveryStartMs);
+    let boundaryMs = getNextKstHalfHourBoundaryMs(recoveryStartMs);
     boundaryMs <= safeEndMs;
-    boundaryMs = getNextHalfHourBoundaryAfter(boundaryMs)
+    boundaryMs = getNextKstHalfHourBoundaryMs(boundaryMs)
   ) {
     eventTimes.add(boundaryMs);
   }

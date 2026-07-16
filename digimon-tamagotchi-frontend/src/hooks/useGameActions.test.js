@@ -19,6 +19,26 @@ import {
   buildTrainingSkipOutcome,
   wakeForInteraction,
 } from "./useGameActions";
+import { getKstDateTimeMs } from "../utils/time";
+
+const kstDate = (
+  year,
+  monthIndex,
+  day,
+  hours,
+  minutes = 0,
+  seconds = 0
+) =>
+  new Date(
+    getKstDateTimeMs({
+      year,
+      month: monthIndex + 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+    })
+  );
 
 describe("wakeForInteraction", () => {
   test("자는 중 액션 1회는 sleepDisturbances를 올리고 wakeUntil을 설정하지만 careMistakes는 올리지 않는다", () => {
@@ -75,7 +95,7 @@ describe("resolveActionSleepInteractionPlan", () => {
       },
       isLightsOn: false,
       wakeUntil: null,
-      now: new Date(2026, 3, 12, 12, 0, 0),
+      now: kstDate(2026, 3, 12, 12, 0, 0),
     });
 
     expect(result.actionSleepState.isSleepingLike).toBe(false);
@@ -84,7 +104,7 @@ describe("resolveActionSleepInteractionPlan", () => {
   });
 
   test("수면 중이고 중복 로그가 없으면 깨우기 계획을 반환한다", () => {
-    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const now = kstDate(2026, 3, 12, 23, 0, 0);
     const result = resolveActionSleepInteractionPlan({
       digimonStats: {
         activityLogs: [],
@@ -108,7 +128,7 @@ describe("resolveActionSleepInteractionPlan", () => {
   });
 
   test("같은 강제 기상 창 안의 중복 수면 방해 로그는 깨우기 계획을 막는다", () => {
-    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const now = kstDate(2026, 3, 12, 23, 0, 0);
     const duplicateLog = {
       type: "SLEEP_DISTURBANCE",
       text: "수면 방해(사유: 훈련): 10분 동안 깨어있음",

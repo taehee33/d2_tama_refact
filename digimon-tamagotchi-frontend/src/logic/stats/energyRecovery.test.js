@@ -2,8 +2,11 @@ import { recoverEnergy } from "./energyRecovery";
 import { handleEnergyRecovery } from "./stats";
 
 const schedule = { start: 22, end: 7, startMinute: 0, endMinute: 0 };
-const at = (hour, minute = 0) => new Date(2026, 2, 31, hour, minute, 0).getTime();
-const nextDayAt = (hour, minute = 0) => new Date(2026, 3, 1, hour, minute, 0).getTime();
+const pad = (value) => String(value).padStart(2, "0");
+const at = (hour, minute = 0) =>
+  Date.parse(`2026-03-31T${pad(hour)}:${pad(minute)}:00+09:00`);
+const nextDayAt = (hour, minute = 0) =>
+  Date.parse(`2026-04-01T${pad(hour)}:${pad(minute)}:00+09:00`);
 
 function createStats(overrides = {}) {
   return {
@@ -58,6 +61,40 @@ describe("recoverEnergy", () => {
 
     expect(result.energy).toBe(5);
     expect(result.lastEnergyRecoveryAt).toBe(nextDayAt(7, 15));
+  });
+
+  test("KST 자정을 넘어도 00분·30분 경계에서 회복한다", () => {
+    const result = recoverEnergy(createStats({ energy: 1 }), {
+      startMs: at(23, 45),
+      endMs: nextDayAt(0, 31),
+      sleepSchedule: {
+        start: 3,
+        end: 4,
+        startMinute: 0,
+        endMinute: 0,
+      },
+      maxEnergy: 5,
+    });
+
+    expect(result.energy).toBe(3);
+    expect(result.lastEnergyRecoveryAt).toBe(nextDayAt(0, 30));
+  });
+
+  test("시작과 종료가 같은 비활성 수면 스케줄은 기상 회복을 만들지 않는다", () => {
+    const result = recoverEnergy(createStats({ energy: 1 }), {
+      startMs: at(6, 50),
+      endMs: at(7, 10),
+      sleepSchedule: {
+        start: 7,
+        end: 7,
+        startMinute: 0,
+        endMinute: 0,
+      },
+      maxEnergy: 5,
+    });
+
+    expect(result.energy).toBe(2);
+    expect(result.lastEnergyRecoveryAt).toBe(at(7));
   });
 
   test("낮잠과 수면 중 불 켜짐 상태에서는 회복하지 않는다", () => {

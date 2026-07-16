@@ -6,6 +6,26 @@ import {
   buildHealTreatmentMessage,
   resolveAnimationSleepInteraction,
 } from "./useGameAnimations";
+import { getKstDateTimeMs } from "../utils/time";
+
+const kstDate = (
+  year,
+  monthIndex,
+  day,
+  hours,
+  minutes = 0,
+  seconds = 0
+) =>
+  new Date(
+    getKstDateTimeMs({
+      year,
+      month: monthIndex + 1,
+      day,
+      hours,
+      minutes,
+      seconds,
+    })
+  );
 
 describe("useGameAnimations helpers", () => {
   test("buildAnimationCleanOutcome는 일반 청소 결과를 조립한다", () => {
@@ -40,7 +60,7 @@ describe("useGameAnimations helpers", () => {
   });
 
   test("resolveAnimationSleepInteraction는 비수면 상태에서는 기존 스탯을 유지한다", () => {
-    const now = new Date(2026, 3, 12, 12, 0, 0);
+    const now = kstDate(2026, 3, 12, 12, 0, 0);
     const baseStats = {
       sleepDisturbances: 0,
       activityLogs: [],
@@ -67,7 +87,7 @@ describe("useGameAnimations helpers", () => {
   });
 
   test("resolveAnimationSleepInteraction는 수면 중 상호작용이면 wake helper를 호출한다", () => {
-    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const now = kstDate(2026, 3, 12, 23, 0, 0);
     const setWakeUntil = jest.fn();
     const wakeInteraction = jest.fn(() => ({
       sleepDisturbances: 1,
@@ -110,7 +130,7 @@ describe("useGameAnimations helpers", () => {
   });
 
   test("resolveAnimationSleepInteraction는 중복 수면 방해 로그가 있으면 wake helper를 건너뛴다", () => {
-    const now = new Date(2026, 3, 12, 23, 0, 0);
+    const now = kstDate(2026, 3, 12, 23, 0, 0);
     const wakeInteraction = jest.fn();
     const duplicateLog = {
       type: "SLEEP_DISTURBANCE",

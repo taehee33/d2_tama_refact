@@ -7193,3 +7193,36 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `npm run check:server-projection` 통과
   - 프런트 `npm run build` 성공
 - **아키텍처 결정 근거:** 현재 런타임의 진화 조건, 운영자 권한 판정, 통합된 API 경로를 테스트가 그대로 따르게 하며, 테스트 의존성은 주입 가능한 가짜 응답으로 격리해 실제 Firebase/Firestore 연결 없이 결정적으로 검증한다.
+
+## [2026-07-16] KST 시간 계약 통일
+
+- **내용:** 저장 timestamp는 epoch milliseconds로 유지하면서 게임의 정규 수면 스케줄, 수면 중 정지되는 스탯 계산, 에너지 00분·30분 회복 경계, 동기화 시각 표시를 고정 UTC+9(KST) 기준으로 통일했다. 공용 `time.js`에 KST 날짜·시각 변환과 표시 helper를 추가하고, `sleepUtils.js`의 시스템 로컬 `Date` getter/setter 의존성을 제거했다. 시작과 종료가 같은 수면 스케줄은 비활성으로 처리해 기상 에너지 회복도 만들지 않는다. 프런트와 서버의 lazy projection이 같은 KST 결과를 내도록 생성 bundle을 갱신했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/utils/time.js`
+  - `digimon-tamagotchi-frontend/src/utils/sleepUtils.js`
+  - `digimon-tamagotchi-frontend/src/logic/stats/energyRecovery.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/gameSyncSchedule.js`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.jsx`
+  - `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`
+  - `digimon-tamagotchi-frontend/src/utils/time.test.js`
+  - `digimon-tamagotchi-frontend/src/utils/sleepUtils.test.js`
+  - `digimon-tamagotchi-frontend/src/logic/stats/energyRecovery.test.js`
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionParity.test.js`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/digimonStatusMessages.test.js`
+  - `digimon-tamagotchi-frontend/src/data/stats.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameActions.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameAnimations.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameLogic.test.js`
+  - `tests/community-lib.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - Node `v24.18.0`, npm `11.16.0`
+  - `TZ=UTC` 프런트 전체 159개 스위트, 941개 테스트 통과
+  - `TZ=Asia/Seoul` 프런트 전체 159개 스위트, 941개 테스트 통과
+  - 자격증명 제거 환경의 서버 테스트는 두 시간대 모두 156개 통과, Firestore Emulator 전용 1개 건너뜀
+  - 서버 projection bundle 반복 생성 결과 동일
+  - 프로덕션 빌드 성공
+  - 두 `package-lock.json` 변경 없음
+  - 게임 저장 스키마와 Firestore 경로 변경 없음
+- **아키텍처 결정 근거:** 한국은 DST가 없으므로 핵심 계산에는 반복적인 `Intl` 호출 대신 고정 UTC+9 산술을 사용한다. 시스템 시간대가 다른 브라우저·개발 PC·Vercel·GitHub Actions에서도 같은 epoch 입력이 같은 게임 상태와 같은 한국 시각 문자열을 만들며, 서버 projection도 같은 공용 소스에서 재생성해 프런트와의 결정적 parity를 유지한다.

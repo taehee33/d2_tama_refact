@@ -35,6 +35,9 @@ describe("GameSyncInfo", () => {
     expect(screen.getByText("마지막 슬롯 저장 (Firestore 슬롯)")).toBeInTheDocument();
     expect(screen.getByText("활동 기록 전송 (대기 2개 · IndexedDB → Firestore logs)")).toBeInTheDocument();
     expect(screen.getByText("마지막 활동 기록 전송 (Firestore logs)")).toBeInTheDocument();
+    expect(screen.getAllByText(/오후 3:15/)).toHaveLength(2);
+    expect(screen.getByText("오후 3:00")).toBeInTheDocument();
+    expect(screen.getByText("오후 2:58")).toBeInTheDocument();
     expect(screen.getByText(/긴급 알림 계산과 Discord 전송 상태는 설정 화면/)).toBeInTheDocument();
     expect(screen.getByText(/중요한 행동은 즉시 이 기기에 보존하고 슬롯 저장/)).toBeInTheDocument();
   });
