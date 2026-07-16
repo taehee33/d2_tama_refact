@@ -28,13 +28,23 @@ describe("useGamePageEvolutionAvailability", () => {
       ({ customTime }) =>
         useGamePageEvolutionAvailability({
           isLoadingSlot: false,
-          digimonStats: { isDead: false },
+          digimonStats: {
+            isDead: false,
+            timeToEvolveSeconds: 0,
+          },
           developerMode: false,
-          ignoreEvolutionTime: true,
+          ignoreEvolutionTime: false,
           selectedDigimon: "Agumon",
           evolutionDataForSlot: {
             Agumon: {
-              evolutions: [{ target: "Greymon" }],
+              evolutionCriteria: {
+                timeToEvolveSeconds: 0,
+              },
+              evolutions: [{ targetId: "Greymon" }],
+            },
+            Greymon: {
+              id: "Greymon",
+              name: "그레이몬",
             },
           },
           setIsEvoEnabled,
