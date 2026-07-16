@@ -103,6 +103,22 @@ npm start
 
 현재 프로젝트는 `start`/`build` 시 `NODE_OPTIONS=--openssl-legacy-provider`를 사용합니다.
 
+## 품질 검사 기준선
+
+개발자 PC와 GitHub Actions는 루트의 `.nvmrc`가 지정하는 Node 24를 사용합니다.
+의존성은 루트와 프론트엔드의 기존 lockfile을 각각 그대로 사용해 설치합니다.
+
+```bash
+npm ci --no-audit --no-fund
+npm --prefix digimon-tamagotchi-frontend ci --no-audit --no-fund
+npm run check
+```
+
+`npm run check`는 프론트엔드 테스트, 자격증명 없이 실행되는 서버 테스트,
+프론트엔드 프로덕션 빌드, 서버 projection 일치 검사를 순서대로 실행합니다.
+Firestore Emulator 전용 테스트는 현재 필수 CI 기준에서 제외합니다.
+ESLint, 타입 검사, dead-code 검사는 후속 품질 단계에서 별도로 도입합니다.
+
 커뮤니티 API(`/api/community/...`)까지 함께 확인하려면 `npm start` 단독 실행만으로는 부족할 수 있습니다.
 로컬에서 커뮤니티 글 작성/댓글까지 테스트할 때는 `vercel dev`를 사용하거나,
 프론트 `.env`에 `REACT_APP_COMMUNITY_API_BASE_URL`로 실제 API origin을 지정해야 합니다.
