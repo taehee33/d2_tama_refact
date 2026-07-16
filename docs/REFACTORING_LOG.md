@@ -7175,3 +7175,21 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ### 아키텍처 결정 근거
 - PNG 디코더·인코더와 프레임 조립 로직은 검증된 Ver.3 생성기에서 재사용하되, 직접 실행 동작은 유지하도록 모듈 export 경계만 추가했습니다.
 - 기존 `Ver4_Mod_TH` 및 게임 데이터 경로는 바꾸지 않아 새 자산을 독립적으로 검증하고 이후 연결할 수 있게 했습니다.
+
+## [2026-07-13] 오래된 테스트 픽스처 및 API 경로 기대 정비
+
+- **내용:** 진화 가능 여부 hook 테스트의 디지몬 자료를 현재 `evolutionCriteria`/`targetId` 형식으로 갱신하고, 개발자 옵션을 끈 정상 조건에서도 진화 가능 상태를 검증하도록 수정했다. 커뮤니티 게시글 테스트에는 운영자 목록 가짜 응답을 주입해 실제 Firestore 운영자 조회를 차단하고 일반 사용자/운영자 표시를 함께 검증했다. 로그 보관 API 진입점 테스트에서는 현재 `config?view=archive-monitoring` 경로로 통합되어 삭제된 파일의 로드 기대를 제거했다. 실제 게임 및 API 런타임 코드는 변경하지 않았다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageEvolutionAvailability.test.js`
+  - `tests/community-lib.test.js`
+  - `tests/log-archive-entrypoints.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **검증:**
+  - 진화 hook 단일 테스트 2개 및 관련 진화 테스트 19개 통과
+  - 서비스 계정 환경 변수를 제거한 커뮤니티 API 테스트 13개 통과
+  - 로그 보관/아레나 경로 관련 테스트 14개 통과
+  - 프런트 전체 테스트 925개 통과
+  - 서버 전체 단위 테스트 156개 통과, Firestore Emulator 전용 1개 건너뜀
+  - `npm run check:server-projection` 통과
+  - 프런트 `npm run build` 성공
+- **아키텍처 결정 근거:** 현재 런타임의 진화 조건, 운영자 권한 판정, 통합된 API 경로를 테스트가 그대로 따르게 하며, 테스트 의존성은 주입 가능한 가짜 응답으로 격리해 실제 Firebase/Firestore 연결 없이 결정적으로 검증한다.
