@@ -7250,7 +7250,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 
 ## [2026-07-17] P3 장기 리팩터링 계획 기준선 갱신
 
-- **내용:** 대형 UI·hook 분리, 품질 도구, 스프라이트 자산 파이프라인을 단계적으로 진행하는 P3 장기 계획을 문서화하고, 완료된 1단계 테스트 복구·1.5단계 KST 시간 계약·Node 24 CI 기준선을 최신 `main` 상태로 반영했다. 프런트 941개와 서버 156개 테스트의 녹색 상태를 출발점으로 고정하되, lint·JSDoc 타입 검사·dead-code 검사는 P3 후속 작업으로 명확히 남겼다.
+- **내용:** 대형 UI·hook 분리, 품질 도구, 스프라이트 자산 파이프라인을 단계적으로 진행하는 P3 장기 계획을 문서화하고, 완료된 1단계 테스트 복구·1.5단계 KST 시간 계약·Node 24 CI 기준선을 최신 `main` 상태로 반영했다. 프런트 941개와 서버 156개 테스트의 녹색 상태를 출발점으로 고정하되, lint·JSDoc 타입 검사·dead-code 검사는 P3 후속 작업으로 명확히 남겼다. 저장소에서 이동된 이미지 후보 25개는 외부 이중 백업과 SHA-256 inventory를 현재 보호 수단으로 기록했다.
 - **영향 파일:**
   - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
   - `docs/REFACTORING_LOG.md`
