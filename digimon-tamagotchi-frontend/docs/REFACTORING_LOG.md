@@ -1,5 +1,29 @@
 # REFACTORING LOG
 
+## 2026-07-18 slot 긴급 알림 읽기 전용 진단 도구
+
+### 운영 데이터 최소 조회와 원인 분류
+- UID와 슬롯 번호를 인자로 받아 슬롯, 알림 상태, 최근 delivery 채널 결과 및 긴급 스케줄러 상태를 읽기 전용으로 수집하는 진단 명령을 추가했습니다.
+- UID와 delivery ID는 SHA-256 기반 식별자로 마스킹하고 webhook, 토큰, 사용자 프로필 및 전체 Firestore 문서는 출력하지 않습니다.
+- 브라우저 IndexedDB에서 확인한 `baseRevision`, `updatedAt`, `isDead`만 선택 인자로 받아 pending rollback 여부를 함께 판정할 수 있습니다.
+- 결과를 eligible 제외, projection 입력 누락, 메모리 사망 미저장, 채널 실패 후 소진, pending rollback, 복합 원인으로 분류하며 일치하는 원인이 없으면 `NEEDS_SCOPE_APPROVAL`로 중단합니다.
+
+### 사용 방법
+- `npm run notification:diagnose-slot -- --uid <UID> --slot slot5`
+- pending 확인값 포함: `--pending-base-revision <revision> --pending-updated-at <timestamp> --pending-is-dead <true|false>`
+- Firebase Admin 읽기 자격증명은 기존 `FIREBASE_SERVICE_ACCOUNT_JSON` 또는 `FIREBASE_SERVICE_ACCOUNT_PATH` 설정을 사용합니다.
+
+### 영향받은 파일
+- `scripts/slotNotificationDiagnosticCore.js`
+- `scripts/diagnoseSlotNotificationState.js`
+- `tests/slot-notification-diagnostic.test.js`
+- `package.json`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- 진단 코어와 CLI를 분리해 분류·마스킹 계약을 자격증명 없이 테스트하고, 런타임 의존성은 read API인 `getDocument`와 `runQuery`로만 제한했습니다.
+- 운영 데이터가 기존 가설과 다를 때 자동으로 수정 단계로 넘어가지 않도록 미분류 결과를 명시적인 범위 재승인 상태로 처리합니다.
+
 ## 2026-07-11 운영자 설정 메뉴 통합
 
 ### 메뉴 및 관리 화면 재구성

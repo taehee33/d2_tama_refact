@@ -15,6 +15,7 @@
     "operator:backfill": "node scripts/migrateOperatorRoles.js",
     "notification-subscribers:audit": "node scripts/backfillNotificationSubscribers.js --dry-run",
     "notification-subscribers:backfill": "node scripts/backfillNotificationSubscribers.js --apply",
+    "notification:diagnose-slot": "node scripts/diagnoseSlotNotificationState.js",
     "test:notification-api": "node --test api/_lib/notificationReports.test.js api/_lib/notificationSubscribers.test.js api/_lib/urgentCareNotifications.test.js tests/apps-script-urgent-care.test.js tests/notification-entrypoints.test.js tests/notification-subscriber-backfill.test.js",
     "test:encyclopedia-migration": "node --test tests/encyclopedia-migration.test.js",
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
