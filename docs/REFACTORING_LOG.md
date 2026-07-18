@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-18] 구형 사망 슬롯 긴급 알림 projection 복구
+
+- **내용:** 운영 slot5 읽기 전용 실측에서 저장된 사망 상태와 알림 대상 설정은 정상이지만, 구형 슬롯에 `sleepSchedule`이 없어 긴급 projection이 슬롯을 건너뛰는 원인을 확인했다. 이미 저장된 사망은 추가 lazy update가 필요 없는 terminal state로 처리하여 runtime 필드가 일부 없어도 긴급 사망 이슈를 생성하도록 수정하고 회귀 테스트를 추가했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js`
+- **근거:** 일일 보고는 저장된 사망 상태로 fallback하는 반면 긴급 알림은 projection 실패 시 슬롯을 제외해 두 경로의 결과가 달랐다. 운영 문서 backfill이나 사망 규칙 변경 없이 저장된 terminal state를 동일하게 인식하도록 경계를 맞춘다.
+
 ## [2026-07-11] Ver.3 데이터/스프라이트 정합성 보정
 
 - **내용:** 로컬 `v3 정리` 이미지 자료와 `public/Ver3_Mod_TH` 자산을 기준으로 Ver.3 디지몬 데이터의 진화 경로와 확인 가능한 스탯 수치를 보정했다. 스프라이트 번호와 PNG 파일의 1:1 정합성, key/id 일치, 진화 대상/targetName/조그레스 파트너 유효성, 어댑터 변환 필드를 검증하는 Ver.3 전용 테스트를 추가했다. 이미지에서 확인되지 않는 `attackSprite`, `maxOverfeed`, `poopCycle`, 진화까지 시간은 기존 값을 유지하고 감사 문서에 TODO로 남겼다.
