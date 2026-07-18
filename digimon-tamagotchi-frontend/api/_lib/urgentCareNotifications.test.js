@@ -371,6 +371,39 @@ test("prepare는 전체 슬롯 목록 대신 eligible 슬롯 목록만 사용한
   assert.match(payload.reports[0].messageContent, /케어미스 예정:/);
 });
 
+test("이미 사망한 저장 스냅샷은 구형 runtime 필드가 없어도 긴급 알림 대상으로 처리한다", async () => {
+  const diedAt = TEST_NOW - 12 * 60 * 60 * 1000;
+  const payload = await prepareUrgentCareNotifications({
+    subscribers: [createSubscriber()],
+    currentTime: TEST_TIME,
+    dryRun: true,
+    getDocumentByPath: async (path) => {
+      if (path === "users/user-1") return { id: "user-1", data: { tamerName: "테이머" } };
+      if (path === "users/user-1/profile/main") return { id: "main", data: {} };
+      if (path === "users/user-1/notificationState/slot1") return { id: "slot1", data: {} };
+      return null;
+    },
+    listCollectionDocuments: async () => [],
+    listEligibleSlotDocuments: async () => [
+      createProjectedSlot({
+        digimonStats: {
+          isDead: true,
+          diedAt,
+          deathReason: "STARVATION (굶주림)",
+          sleepSchedule: undefined,
+        },
+      }),
+    ],
+    commit: async () => {},
+  });
+
+  assert.equal(payload.summary.projectionUnavailable, 0);
+  assert.equal(payload.summary.projectedSlots, 1);
+  assert.equal(payload.summary.newDeliveries, 1);
+  assert.equal(payload.reports.length, 1);
+  assert.match(payload.reports[0].messageContent, /사망 판정/);
+});
+
 test("eligible 목록에 보관함 슬롯이 섞여도 서버에서 다시 제외한다", async () => {
   const payload = await prepareUrgentCareNotifications({
     subscribers: [createSubscriber()],
