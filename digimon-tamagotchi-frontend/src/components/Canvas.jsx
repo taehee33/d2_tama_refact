@@ -174,6 +174,7 @@ const Canvas = ({
   const canvasRef= useRef(null);
   const spriteCache= useRef({});
   const animationID= useRef(null);
+  const animationGeneration= useRef(0);
   const idleFramesKey = idleFrames.join("|");
   const idleMotionTimelineKey = getIdleMotionTimelineKey(idleMotionTimeline);
   const eatFramesKey = eatFrames.join("|");
@@ -181,6 +182,12 @@ const Canvas = ({
   const foodSpritesKey = foodSprites.join("|");
 
   useEffect(()=>{
+    const currentGeneration = animationGeneration.current + 1;
+    animationGeneration.current = currentGeneration;
+    let isActive = true;
+    const isCurrentGeneration = () =>
+      isActive && animationGeneration.current === currentGeneration;
+
     const initImages = () => {
       const canvas= canvasRef.current;
       if(!canvas) return;
@@ -211,6 +218,7 @@ const Canvas = ({
       const imageSources={};
       const digimonSpriteNames = new Set(frames.map((fn) => String(fn)));
       const shouldLoadIdleMotionFrames =
+        !isDead &&
         currentAnimation === "idle" &&
         idleMotionTimeline.length > 0 &&
         !isInjured &&
@@ -270,7 +278,7 @@ const Canvas = ({
       let loaded=0;
       const total= Object.keys(imageSources).length;
       if(total===0){
-        startAnimation(ctx, frames);
+        startAnimation(ctx, frames, currentGeneration);
         return;
       }
 
@@ -278,16 +286,18 @@ const Canvas = ({
         const img= new Image();
         img.src= imageSources[key];
         img.onload= ()=>{
+          if(!isCurrentGeneration()) return;
           loaded++;
           if(loaded=== total){
-            startAnimation(ctx, frames);
+            startAnimation(ctx, frames, currentGeneration);
           }
         };
         img.onerror= ()=>{
+          if(!isCurrentGeneration()) return;
           console.warn("Fail to load:", imageSources[key]);
           loaded++;
           if(loaded=== total){
-            startAnimation(ctx, frames);
+            startAnimation(ctx, frames, currentGeneration);
           }
         };
         spriteCache.current[key]= img;
@@ -300,8 +310,13 @@ const Canvas = ({
     }
     initImages();
     return ()=>{
+      isActive = false;
+      if(animationGeneration.current === currentGeneration){
+        animationGeneration.current += 1;
+      }
       if(animationID.current){
         cancelAnimationFrame(animationID.current);
+        animationID.current= null;
       }
     };
     // startAnimation은 같은 렌더 스코프의 상태를 읽는 로컬 함수로 관리
@@ -316,12 +331,13 @@ const Canvas = ({
     sleepStatus,isSleepingLikeVisualState,isRefused,isDead,isInjured,selectedDigimon,isFrozen,frozenAt,takeOutAt,evolutionStage
   ]);
 
-  function startAnimation(ctx, frames){
+  function startAnimation(ctx, frames, generation){
     let frame=0;
     const speed=25;
     let animationStartedAt = null;
 
     function animate(timestamp){
+      if(animationGeneration.current !== generation) return;
       const nowTimestamp = typeof timestamp === "number" ? timestamp : performance.now();
       if(animationStartedAt === null){
         animationStartedAt = nowTimestamp;
@@ -340,6 +356,7 @@ const Canvas = ({
       if(fridgeRenderPolicy.shouldShowDigimon && frames.length>0){
         const canUseIdleMotionTimeline =
           fridgeRenderPolicy.shouldUseIdleMotionTimeline &&
+          !isDead &&
           currentAnimation === "idle" &&
           !isInjured &&
           !isSleepingLikeVisualState &&
@@ -766,7 +783,9 @@ const Canvas = ({
 
 
       frame++;
-      animationID.current= requestAnimationFrame(animate);
+      if(animationGeneration.current === generation){
+        animationID.current= requestAnimationFrame(animate);
+      }
     }
     animate();
   }
