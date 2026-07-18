@@ -153,6 +153,22 @@ describe("buildGameAnimationViewModel", () => {
     expect(result.desiredAnimation).toBe("sick");
   });
 
+  test("사망 상태는 pain2 고정 프레임만 반환하고 idle 모션을 비운다", () => {
+    const result = buildGameAnimationViewModel(
+      createParams({
+        digimonStats: {
+          sprite: 100,
+          isDead: true,
+          isInjured: false,
+        },
+      })
+    );
+
+    expect(result.idleFrames).toEqual(["114"]);
+    expect(result.idleMotionTimeline).toEqual([]);
+    expect(result.desiredAnimation).toBe("pain2");
+  });
+
   test("수면 상태면 sleep 애니메이션과 수면 프레임을 사용한다", () => {
     const result = buildGameAnimationViewModel(
       createParams({

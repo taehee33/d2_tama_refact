@@ -38,6 +38,7 @@ export function buildGameAnimationViewModel({
     evolutionStage === "complete";
   const idleMotionTimeline =
     !Number.isFinite(safeBaseSprite) ||
+    digimonStats.isDead ||
     isDigitama ||
     isEvolutionInProgress ||
     isDeathFormDigimonId(selectedDigimon)
