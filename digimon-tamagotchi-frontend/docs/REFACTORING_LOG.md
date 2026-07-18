@@ -1,5 +1,29 @@
 # REFACTORING LOG
 
+## 2026-07-18 pending snapshot hydration 충돌 방지
+
+### 안전한 pending hydration과 terminal state 보호
+- IndexedDB pending state의 `baseRevision`과 서버 `revision`이 같은 경우에만 자동 적용 후보로 인정하도록 변경했습니다.
+- 동일 revision에서도 기존 replay action이 모두 안전한 경우만 pending 시점 snapshot을 사용하고, 현재 시각까지 기존 lazy update 코어를 다시 적용하도록 정리했습니다.
+- revision 불일치, unsafe action, 디지몬 변경 및 서버·pending 간 사망 상태 역행은 자동 병합하지 않고 기존 동기화 충돌 상태로 격리합니다.
+- 격리된 pending state는 background outbox flush가 자동 업로드하지 않고 사용자의 기존 충돌 해결 선택을 기다리도록 차단했습니다.
+
+### 테스트 보강
+- 동일 revision의 안전한 FEED replay, base revision 불일치, 서버 사망·로컬 생존 및 unsafe DEATH action을 검증했습니다.
+- hydration에서 격리된 pending state가 background flush 중 Firestore transaction으로 전달되지 않는 회귀 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `src/hooks/game-persistence/pendingHydration.js`
+- `src/hooks/game-persistence/pendingHydration.test.js`
+- `src/hooks/game-persistence/useDurableGamePersistence.js`
+- `src/hooks/game-persistence/useDurableGamePersistence.test.js`
+- `src/hooks/useGameData.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- pending 적용 판정을 순수 helper로 분리하고 기존 revision transaction·safe replay·lazy update 경계를 재사용해 별도 pending revision이나 저장 스키마를 추가하지 않았습니다.
+- terminal state 충돌을 기존 conflict UI와 outbox 보류 정책으로 연결해 자동 병합과 자동 업로드가 서로 다른 결론을 내리지 않도록 했습니다.
+
 ## 2026-07-11 운영자 설정 메뉴 통합
 
 ### 메뉴 및 관리 화면 재구성
