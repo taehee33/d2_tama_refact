@@ -37,6 +37,10 @@ import {
 } from "../utils/digimonVersionUtils";
 import { toEpochMs } from "../utils/time";
 import { evaluateSlotUrgentNotification } from "../utils/notificationApi";
+import {
+  PENDING_HYDRATION_STATUS,
+  resolvePendingHydration,
+} from "./game-persistence/pendingHydration";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -904,6 +908,7 @@ export function useGameData({
     flushOutbox,
     getPendingState,
     persistStateSnapshot,
+    quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,
     setLoadedRevision,
@@ -1286,22 +1291,50 @@ export function useGameData({
 
           {
             const pendingState = await getPendingState();
-            if (pendingState?.state?.stateSnapshot) {
-              const pendingSnapshot = pendingState.state.stateSnapshot;
+            const pendingHydration = resolvePendingHydration({
+              pendingState,
+              serverRevision: slotData.revision,
+              serverHydrationResult: hydrationResult,
+            });
+            if (pendingHydration.status === PENDING_HYDRATION_STATUS.CONFLICT) {
+              quarantinePendingState(pendingState, {
+                expectedRevision: pendingHydration.expectedRevision,
+                actualRevision: pendingHydration.actualRevision,
+                remoteData: slotData,
+                reason: pendingHydration.reason,
+              });
+            } else if (pendingHydration.status === PENDING_HYDRATION_STATUS.APPLY) {
+              const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+                digimonStats: pendingHydration.digimonStats,
+                slotRuntimeDataMap,
+                selectedDigimon: pendingHydration.selectedDigimon,
+              });
+              const pendingRuntime = buildLazyUpdateRuntimeResult({
+                baseStats: pendingHydration.digimonStats,
+                lastSavedAt: pendingHydration.lastSavedAt ?? Date.now(),
+                sleepSchedule,
+                maxEnergy,
+                selectedDigimon: pendingHydration.selectedDigimon,
+                evolutionDataForSlot,
+                dataMap,
+                slotRuntimeDataMap,
+                runtimeAdaptedDataMaps,
+              });
               hydrationResult = {
                 ...hydrationResult,
-                selectedDigimon:
-                  pendingSnapshot.selectedDigimon || hydrationResult.selectedDigimon,
+                selectedDigimon: pendingHydration.selectedDigimon,
                 rootSlotFields: resolveRootSlotFields(
-                  pendingSnapshot,
+                  pendingRuntime.digimonStats,
                   hydrationResult.rootSlotFields
                 ),
-                activityLogs:
-                  pendingSnapshot.activityLogs || hydrationResult.activityLogs,
-                digimonStats: pendingSnapshot,
+                activityLogs: pendingHydration.activityLogs,
+                digimonStats: pendingRuntime.digimonStats,
                 deathReason:
-                  pendingSnapshot.deathReason || hydrationResult.deathReason,
+                  pendingRuntime.digimonStats.deathReason || hydrationResult.deathReason,
               };
+              pendingRuntime.reconstructedLogsToPersist.forEach((log) => {
+                if (log?.type) appendLogToSubcollection(log).catch(() => {});
+              });
             }
           }
           hydrationPlan.reconstructedLogsToPersist.forEach((log) => {
