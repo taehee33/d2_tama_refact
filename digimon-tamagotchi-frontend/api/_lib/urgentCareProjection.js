@@ -329,8 +329,26 @@ function hasProjectionRuntime(slotData = {}) {
 }
 
 function projectSlotForUrgentCare(slotData = {}, nowMs = Date.now()) {
+  const storedStats = slotData?.digimonStats;
+  if (
+    storedStats &&
+    typeof storedStats === "object" &&
+    (storedStats.isDead === true || slotData.isDead === true)
+  ) {
+    // 사망은 terminal state이므로 추가 시간 투영이 필요 없다. 구형 슬롯에
+    // sleepSchedule 같은 runtime 필드가 없어도 저장된 사망 판정은 전달한다.
+    return {
+      status: "projected",
+      stats: {
+        ...storedStats,
+        isDead: true,
+        diedAt: storedStats.diedAt ?? slotData.diedAt ?? null,
+        deathReason: storedStats.deathReason ?? slotData.deathReason ?? null,
+      },
+    };
+  }
   if (!hasProjectionRuntime(slotData)) return { status: "unavailable", stats: null };
-  const stats = slotData.digimonStats;
+  const stats = storedStats;
   const lastSavedAt = toTimestamp(
     slotData.lastSavedAt ?? stats.lastSavedAt ?? slotData.lastSavedAtServer
   );
