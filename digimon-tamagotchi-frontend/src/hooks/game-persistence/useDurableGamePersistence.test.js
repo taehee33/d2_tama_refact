@@ -201,6 +201,44 @@ describe("useDurableGamePersistence", () => {
     });
     expect(await outbox.getStateMutation()).not.toBeNull();
   });
+
+  test("hydration에서 격리한 pending state는 background flush가 자동 업로드하지 않는다", async () => {
+    const order = [];
+    const outbox = createMemoryOutbox(order);
+    await outbox.putStateMutation({
+      uid: "user-1",
+      slotId: 1,
+      mutationId: "pending-1",
+      updatedAt: 100,
+      state: {
+        baseRevision: 0,
+        stateSnapshot: { isDead: false },
+        actions: [],
+      },
+    });
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+    const pendingState = await outbox.getStateMutation();
+
+    act(() => {
+      result.current.quarantinePendingState(pendingState, {
+        expectedRevision: 0,
+        actualRevision: 1,
+        remoteData: { revision: 1, digimonStats: { isDead: true } },
+        reason: "terminal_state_regression",
+      });
+    });
+    await act(async () => {
+      await result.current.flushOutbox();
+    });
+
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(await outbox.getStateMutation()).not.toBeNull();
+    expect(result.current.syncConflict).toMatchObject({
+      reason: "terminal_state_regression",
+    });
+  });
 });
 
 describe("resolveNewReplayActions", () => {

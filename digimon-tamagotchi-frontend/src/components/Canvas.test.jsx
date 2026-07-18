@@ -20,6 +20,7 @@ describe("Canvas idle motion timeline", () => {
   const originalImage = global.Image;
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
   let loadedImageSources = [];
+  let imageInstances = [];
 
   beforeAll(() => {
     HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
@@ -34,6 +35,9 @@ describe("Canvas idle motion timeline", () => {
     global.Image = class MockImage {
       constructor() {
         this.naturalWidth = 16;
+        this.onload = null;
+        this.onerror = null;
+        imageInstances.push(this);
       }
 
       set src(value) {
@@ -52,6 +56,7 @@ describe("Canvas idle motion timeline", () => {
     resetRuntimeMetrics();
     jest.clearAllMocks();
     loadedImageSources = [];
+    imageInstances = [];
   });
 
   test("같은 의미의 idle 타임라인으로 다시 렌더링되면 캔버스를 재초기화하지 않는다", async () => {
@@ -163,6 +168,57 @@ describe("Canvas idle motion timeline", () => {
     expect(loadedImageSources).toContain("/images/542.png");
     expect(loadedImageSources).not.toContain("/images/210.png");
     expect(loadedImageSources).not.toContain("/images/211.png");
+  });
+
+  test("사망 상태에서는 잘못 전달된 idle 타임라인을 무시한다", async () => {
+    render(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="pain2"
+        isDead
+        idleFrames={["114"]}
+        idleMotionTimeline={buildIdleMotionTimeline()}
+      />
+    );
+
+    await waitFor(() => {
+      expect(getCanvasInitCount()).toBe(1);
+    });
+
+    expect(loadedImageSources).toContain("/images/114.png");
+    expect(loadedImageSources).not.toContain("/images/210.png");
+    expect(loadedImageSources).not.toContain("/images/211.png");
+  });
+
+  test("이전 generation의 이미지 callback은 RAF를 시작하지 않는다", () => {
+    const requestAnimationFrameSpy = jest
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation(() => 1);
+
+    const { rerender } = render(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="idle"
+        idleFrames={["210"]}
+      />
+    );
+    const staleImages = [...imageInstances];
+
+    rerender(
+      <Canvas
+        width={300}
+        height={200}
+        currentAnimation="pain2"
+        isDead
+        idleFrames={["114"]}
+      />
+    );
+    staleImages.forEach((image) => image.onload?.());
+
+    expect(requestAnimationFrameSpy).not.toHaveBeenCalled();
+    requestAnimationFrameSpy.mockRestore();
   });
 
   test("전달받은 className을 실제 canvas에 적용한다", () => {

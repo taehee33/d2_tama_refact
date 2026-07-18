@@ -24,6 +24,53 @@
 - 진단 코어와 CLI를 분리해 분류·마스킹 계약을 자격증명 없이 테스트하고, 런타임 의존성은 read API인 `getDocument`와 `runQuery`로만 제한했습니다.
 - 운영 데이터가 기존 가설과 다를 때 자동으로 수정 단계로 넘어가지 않도록 미분류 결과를 명시적인 범위 재승인 상태로 처리합니다.
 
+## 2026-07-18 pending snapshot hydration 충돌 방지
+
+### 안전한 pending hydration과 terminal state 보호
+- IndexedDB pending state의 `baseRevision`과 서버 `revision`이 같은 경우에만 자동 적용 후보로 인정하도록 변경했습니다.
+- 동일 revision에서도 기존 replay action이 모두 안전한 경우만 pending 시점 snapshot을 사용하고, 현재 시각까지 기존 lazy update 코어를 다시 적용하도록 정리했습니다.
+- revision 불일치, unsafe action, 디지몬 변경 및 서버·pending 간 사망 상태 역행은 자동 병합하지 않고 기존 동기화 충돌 상태로 격리합니다.
+- 격리된 pending state는 background outbox flush가 자동 업로드하지 않고 사용자의 기존 충돌 해결 선택을 기다리도록 차단했습니다.
+
+### 테스트 보강
+- 동일 revision의 안전한 FEED replay, base revision 불일치, 서버 사망·로컬 생존 및 unsafe DEATH action을 검증했습니다.
+- hydration에서 격리된 pending state가 background flush 중 Firestore transaction으로 전달되지 않는 회귀 테스트를 추가했습니다.
+
+### 영향받은 파일
+- `src/hooks/game-persistence/pendingHydration.js`
+- `src/hooks/game-persistence/pendingHydration.test.js`
+- `src/hooks/game-persistence/useDurableGamePersistence.js`
+- `src/hooks/game-persistence/useDurableGamePersistence.test.js`
+- `src/hooks/useGameData.js`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- pending 적용 판정을 순수 helper로 분리하고 기존 revision transaction·safe replay·lazy update 경계를 재사용해 별도 pending revision이나 저장 스키마를 추가하지 않았습니다.
+- terminal state 충돌을 기존 conflict UI와 outbox 보류 정책으로 연결해 자동 병합과 자동 업로드가 서로 다른 결론을 내리지 않도록 했습니다.
+
+## 2026-07-18 사망 상태 애니메이션 정합성 개선
+
+### 사망 프레임 고정과 비동기 렌더 경합 차단
+- 사망 상태 ViewModel이 기존 `pain2` 고정 프레임과 함께 빈 idle 이동 타임라인을 반환하도록 변경했습니다.
+- Canvas가 사망 상태에서는 외부에서 잘못 전달된 idle 이동 타임라인도 무시해 기존 중앙 고정 위치로 렌더링하도록 이중 방어를 추가했습니다.
+- 이미지 preload와 RAF 루프에 렌더 generation 검사를 추가해 effect 정리 이후 완료된 이전 이미지 callback이 애니메이션을 다시 시작하지 못하게 했습니다.
+- effect 변경 및 unmount 시 현재 generation의 RAF를 취소하고 참조를 초기화하도록 정리했습니다.
+
+### 테스트 보강
+- 사망 상태 ViewModel의 빈 이동 타임라인과 `pain2` 고정 프레임을 검증했습니다.
+- Canvas에 잘못된 이동 타임라인이 전달된 경우와 이전 generation 이미지 callback이 뒤늦게 실행되는 경우를 회귀 테스트로 고정했습니다.
+
+### 영향받은 파일
+- `src/hooks/game-runtime/gameAnimationViewModel.js`
+- `src/hooks/game-runtime/gameAnimationViewModel.test.js`
+- `src/components/Canvas.jsx`
+- `src/components/Canvas.test.jsx`
+- `docs/REFACTORING_LOG.md`
+
+### 아키텍처 결정 근거
+- ViewModel의 정상 계약과 Canvas의 최종 렌더 안전장치를 분리해 상위 상태 갱신 순서와 무관하게 terminal state가 움직이지 않도록 했습니다.
+- Firestore, 게임 규칙, 알림 및 저장 계약은 변경하지 않고 렌더링 경계에만 수정 범위를 한정했습니다.
+
 ## 2026-07-11 운영자 설정 메뉴 통합
 
 ### 메뉴 및 관리 화면 재구성

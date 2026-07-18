@@ -247,6 +247,7 @@ export function useDurableGamePersistence({
       localState: record?.state?.stateSnapshot || null,
       remoteData: conflictError.remoteData || null,
       actions: record?.state?.actions || [],
+      reason: conflictError.reason || null,
     };
     conflictRef.current = conflict;
     setSyncConflict(conflict);
@@ -254,6 +255,18 @@ export function useDurableGamePersistence({
     setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
     return false;
   }, []);
+
+  const quarantinePendingState = useCallback((record, {
+    expectedRevision,
+    actualRevision,
+    remoteData = null,
+    reason = "unsafe_pending_hydration",
+  } = {}) => holdRevisionConflict(record, {
+    expectedRevision: normalizeGameRevision(expectedRevision),
+    actualRevision: normalizeGameRevision(actualRevision),
+    remoteData,
+    reason,
+  }), [holdRevisionConflict]);
 
   const commitStateRecord = useCallback(async (record) => {
     if (!record || !currentUser?.uid || !slotId || !isFirebaseAvailable) return false;
@@ -587,7 +600,11 @@ export function useDurableGamePersistence({
     let syncedRecordCount = 0;
     try {
       stateRecord = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
-      if (stateRecord) hasConflict = !(await commitStateRecord(stateRecord));
+      if (stateRecord && conflictRef.current) {
+        hasConflict = true;
+      } else if (stateRecord) {
+        hasConflict = !(await commitStateRecord(stateRecord));
+      }
 
       const activityEvents = await outbox.listActivityEvents({ uid: currentUser.uid, slotId });
       for (const event of activityEvents) {
@@ -782,6 +799,7 @@ export function useDurableGamePersistence({
     flushOutbox,
     getPendingState,
     persistStateSnapshot,
+    quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,
     setLoadedRevision,
