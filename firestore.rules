@@ -23,6 +23,55 @@ service cloud.firestore {
         request.resource.data.record.seasonId is int;
     }
 
+    function hasArenaCombatIdentityFields(data) {
+      return data.keys().hasAll([
+          "arenaIdentitySchemaVersion",
+          "digimonInstanceId",
+          "combatRevision"
+        ]);
+    }
+
+    function hasValidArenaCombatIdentity(data) {
+      return hasArenaCombatIdentityFields(data) &&
+        data.arenaIdentitySchemaVersion == 1 &&
+        data.digimonInstanceId is string &&
+        data.digimonInstanceId.size() > 0 &&
+        data.combatRevision is int &&
+        data.combatRevision >= 1;
+    }
+
+    function isStrictArenaIdentityUpdateValid() {
+      return hasValidArenaCombatIdentity(request.resource.data) &&
+        request.resource.data.arenaIdentitySchemaVersion == resource.data.arenaIdentitySchemaVersion &&
+        (
+          (
+            request.resource.data.digimonInstanceId == resource.data.digimonInstanceId &&
+            request.resource.data.selectedDigimon == resource.data.selectedDigimon &&
+            request.resource.data.combatRevision == resource.data.combatRevision
+          ) ||
+          (
+            request.resource.data.digimonInstanceId == resource.data.digimonInstanceId &&
+            request.resource.data.selectedDigimon != resource.data.selectedDigimon &&
+            request.resource.data.combatRevision == resource.data.combatRevision + 1
+          ) ||
+          (
+            request.resource.data.digimonInstanceId != resource.data.digimonInstanceId &&
+            request.resource.data.combatRevision == 1
+          )
+        );
+    }
+
+    function isArenaSlotCreateValid() {
+      return hasValidArenaCombatIdentity(request.resource.data) &&
+        request.resource.data.selectedDigimon is string &&
+        request.resource.data.selectedDigimon.size() > 0;
+    }
+
+    function isArenaSlotUpdateValid() {
+      // bridge 기간에는 아직 backfill되지 않은 legacy slot만 기존 update를 허용한다.
+      return !hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid();
+    }
+
     // 공식 관리 경계: 사용자 문서와 슬롯/로그
     match /users/{userId} {
       allow read, write: if isOwner(userId);
@@ -40,7 +89,10 @@ service cloud.firestore {
       }
 
       match /slots/{slotId} {
-        allow read, write: if isOwner(userId);
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isArenaSlotCreateValid();
+        allow update: if isOwner(userId) && isArenaSlotUpdateValid();
+        allow delete: if isOwner(userId);
 
         match /logs/{logId} {
           allow read, write: if isOwner(userId);
@@ -86,6 +138,40 @@ service cloud.firestore {
     match /arena_battle_logs/{logId} {
       allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    // Ghost V2 정본은 Admin SDK/API만 쓸 수 있다.
+    match /arena_ghosts/{ghostId} {
+      allow read, write: if false;
+    }
+
+    match /arena_ghost_owners/{ownerUid} {
+      allow read, write: if false;
+    }
+
+    match /arena_ghost_registrations/{registrationKey} {
+      allow read, write: if false;
+    }
+
+    match /arena_combat_records/{combatIdentityId} {
+      allow read, write: if false;
+    }
+
+    match /arena_season_records/{recordId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /arena_battles/{battleId} {
+      allow read, write: if false;
+    }
+
+    match /arena_mirror_outbox/{jobId} {
+      allow read, write: if false;
+    }
+
+    match /arena_archive_outbox/{jobId} {
+      allow read, write: if false;
     }
 
     match /season_archives/{archiveId} {

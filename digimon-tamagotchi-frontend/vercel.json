@@ -2,6 +2,34 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/arena/ghosts/:ghostId",
+      "destination": "/api/arena-v2?operation=ghost-item&ghostId=:ghostId"
+    },
+    {
+      "source": "/api/arena/ghosts",
+      "destination": "/api/arena-v2?operation=ghost-collection"
+    },
+    {
+      "source": "/api/arena/battles",
+      "destination": "/api/arena-v2?operation=battle"
+    },
+    {
+      "source": "/api/arena/battles/complete",
+      "destination": "/api/arena-v2?operation=legacy-complete"
+    },
+    {
+      "source": "/api/arena/jobs/mirror-sync",
+      "destination": "/api/arena-v2?operation=mirror-sync"
+    },
+    {
+      "source": "/api/arena/jobs/archive-sync",
+      "destination": "/api/arena-v2?operation=archive-sync"
+    },
+    {
+      "source": "/api/logs/arena-battles/archive",
+      "destination": "/api/arena-v2?operation=legacy-archive"
+    },
+    {
       "source": "/api/notifications/daily-digimon-report",
       "destination": "/api/notifications/daily"
     },
@@ -12,6 +40,16 @@
     {
       "source": "/api/notifications/urgent-digimon-care/ack",
       "destination": "/api/notifications/ack"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/arena/jobs/mirror-sync",
+      "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/arena/jobs/archive-sync",
+      "schedule": "10 0 * * *"
     }
   ]
 }

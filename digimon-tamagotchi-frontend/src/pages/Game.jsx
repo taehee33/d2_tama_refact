@@ -180,6 +180,8 @@ function Game({ immersive = false }){
     setArenaEnemyId,
     myArenaEntryId,
     setMyArenaEntryId,
+    arenaBattleSession,
+    setArenaBattleSession,
     currentSeasonId,
     setCurrentSeasonId,
     seasonName,
@@ -371,10 +373,10 @@ function Game({ immersive = false }){
     evolutionDataForSlot,
   });
 
-  const setSelectedDigimonAndSave = useCallback(async (name) => {
+  const setSelectedDigimonAndSave = useCallback(async (name, options = {}) => {
     setSelectedDigimon(name);
     if (saveSelectedDigimon) {
-      await saveSelectedDigimon(name);
+      await saveSelectedDigimon(name, options);
     }
   }, [saveSelectedDigimon, setSelectedDigimon]);
 
@@ -623,6 +625,10 @@ function Game({ immersive = false }){
     setArenaEnemyId,
     myArenaEntryId,
     setMyArenaEntryId,
+    arenaBattleSession,
+    setArenaBattleSession,
+    currentUser,
+    setDigimonStats,
     toggleModal,
     setBattleType,
     setCurrentQuestArea,

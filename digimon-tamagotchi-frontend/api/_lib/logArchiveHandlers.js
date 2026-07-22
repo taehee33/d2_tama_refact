@@ -3,6 +3,7 @@
 const { randomUUID } = require("crypto");
 const { verifyRequestUser } = require("./auth");
 const { createCommunityError } = require("./community");
+const { ArenaError } = require("./arenaErrors");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
 const {
   ARENA_BATTLE_ARCHIVE_TABLE,
@@ -489,6 +490,13 @@ function createArenaBattleArchivePostHandler(deps = {}) {
   return async function arenaBattleArchivePostHandler(req, res) {
     if (!allowMethods(req, res, ["POST"])) {
       return;
+    }
+
+    if (deps.allowLegacyArenaWrites !== true) {
+      return handleApiError(res, new ArenaError(
+        "ARENA_CLIENT_UPGRADE_REQUIRED",
+        "새 아레나가 적용되었습니다. 새로고침 후 다시 시도해 주세요."
+      ));
     }
 
     const requestId = createArchiveMonitorRequestId();

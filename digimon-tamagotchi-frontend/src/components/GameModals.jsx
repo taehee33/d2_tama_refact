@@ -12,6 +12,7 @@ import QuestSelectionModal from "./QuestSelectionModal";
 import CommunicationModal from "./CommunicationModal";
 import SparringModal from "./SparringModal";
 import ArenaScreen from "./ArenaScreen";
+import ArenaGhostScreen from "./ArenaGhostScreen";
 import AdminModal from "./AdminModal";
 import DeathPopup from "./DeathPopup";
 import DigimonInfoModal from "./DigimonInfoModal";
@@ -49,6 +50,7 @@ import {
 } from "../logic/evolution/developerOptions";
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
+import { ARENA_GHOST_V2_ENABLED } from "../config/arenaFeatures";
 
 export function applyStatsPopupChange(nextStats, setDigimonStats, setDigimonStatsAndSave) {
   if (!nextStats) return;
@@ -110,6 +112,8 @@ export default function GameModals({
     battleType,
     sparringEnemySlot,
     arenaChallenger,
+    arenaBattleSession,
+    setArenaBattleSession,
     arenaRefreshKey,
     currentSeasonId,
     activityLogs,
@@ -598,20 +602,31 @@ export default function GameModals({
 
       {/* Arena Screen */}
       {modals.arenaScreen && (
-        <ArenaScreen
-          onClose={() => toggleModal('arenaScreen', false)}
-          onStartBattle={handleArenaBattleStart}
-          currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
-          currentSeasonId={currentSeasonId}
-          refreshKey={arenaRefreshKey}
-          seasonName={seasonName}
-          seasonDuration={seasonDuration}
-          isDevMode={developerMode}
-          onOpenAdmin={() => toggleModal('admin', true)}
-          selectedDigimon={selectedDigimon}
-          digimonStats={digimonStats}
-          digimonNickname={digimonNickname || null}
-        />
+        ARENA_GHOST_V2_ENABLED ? (
+          <ArenaGhostScreen
+            onClose={() => toggleModal('arenaScreen', false)}
+            onStartBattle={handleArenaBattleStart}
+            currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
+            selectedDigimon={selectedDigimon}
+            digimonStats={digimonStats}
+            digimonNickname={digimonNickname || null}
+          />
+        ) : (
+          <ArenaScreen
+            onClose={() => toggleModal('arenaScreen', false)}
+            onStartBattle={handleArenaBattleStart}
+            currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
+            currentSeasonId={currentSeasonId}
+            refreshKey={arenaRefreshKey}
+            seasonName={seasonName}
+            seasonDuration={seasonDuration}
+            isDevMode={developerMode}
+            onOpenAdmin={() => toggleModal('admin', true)}
+            selectedDigimon={selectedDigimon}
+            digimonStats={digimonStats}
+            digimonNickname={digimonNickname || null}
+          />
+        )
       )}
 
       {/* Sparring Modal */}
@@ -653,6 +668,8 @@ export default function GameModals({
           battleType={battleType}
           sparringEnemySlot={sparringEnemySlot}
           arenaChallenger={arenaChallenger}
+          arenaBattleSession={arenaBattleSession}
+          onArenaRematch={() => handleArenaBattleStart(arenaChallenger)}
           onBattleComplete={handleBattleComplete}
           onQuestClear={handleQuestComplete}
           onClose={() => {
@@ -670,6 +687,7 @@ export default function GameModals({
             setArenaChallenger(null);
             setArenaEnemyId(null);
             setMyArenaEntryId(null);
+            if (setArenaBattleSession) setArenaBattleSession(null);
           }}
         />
       )}

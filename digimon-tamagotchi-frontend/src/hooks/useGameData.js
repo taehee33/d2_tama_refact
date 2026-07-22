@@ -12,6 +12,7 @@ import {
   orderBy,
   limit,
   getDocs,
+  runTransaction,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../firebase";
@@ -41,6 +42,12 @@ import {
   PENDING_HYDRATION_STATUS,
   resolvePendingHydration,
 } from "./game-persistence/pendingHydration";
+import {
+  buildFormTransitionCombatIdentity,
+  createNewLifeCombatIdentity,
+  hasValidCombatIdentity,
+  preserveOrCreateCombatIdentity,
+} from "../logic/arena/combatIdentity";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -877,8 +884,9 @@ export function useGameData({
   );
 
   const buildUpdateDataForSnapshot = useCallback((statsSnapshot, nowMs = Date.now()) => {
-    const effectiveSelectedDigimon =
-      statsSnapshot?.selectedDigimon || selectedDigimon || null;
+    // stats snapshot 안의 selectedDigimon은 다음 형태를 미리 담을 수 있다.
+    // top-level 형태 변경은 saveSelectedDigimon transaction에서 combatRevision과 함께만 쓴다.
+    const effectiveSelectedDigimon = selectedDigimon || null;
     const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
       isLightsOn,
       wakeUntil,
@@ -1472,26 +1480,49 @@ export function useGameData({
    * UI 상태 반영은 호출 측에서 담당하고, 여기서는 영속화만 처리합니다.
    *
    * @param {string} nextSelectedDigimon
+   * @param {{ newLife?: boolean }} options
    */
   const saveSelectedDigimon = useCallback(
-    async (nextSelectedDigimon) => {
+    async (nextSelectedDigimon, options = {}) => {
       if (!slotId || !currentUser || !isFirebaseAvailable || !nextSelectedDigimon) {
         return;
       }
 
       try {
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-        await updateDoc(slotRef, {
-          selectedDigimon: nextSelectedDigimon,
-          digimonDisplayName: buildDigimonDisplayName(
-            nextSelectedDigimon,
-            digimonNickname,
-            evolutionDataForSlot
-          ),
-          isLightsOn,
-          wakeUntil,
-          dailySleepMistake: deleteField(),
-          updatedAt: serverTimestamp(),
+        await runTransaction(db, async (transaction) => {
+          const slotSnapshot = await transaction.get(slotRef);
+          if (!slotSnapshot.exists()) {
+            throw new Error("형태를 저장할 슬롯 문서를 찾을 수 없습니다.");
+          }
+
+          const slotData = slotSnapshot.data() || {};
+          const sameForm = slotData.selectedDigimon === nextSelectedDigimon;
+          let combatIdentity;
+          if (options.newLife === true) {
+            combatIdentity = createNewLifeCombatIdentity();
+          } else if (sameForm) {
+            combatIdentity = preserveOrCreateCombatIdentity(slotData);
+          } else if (hasValidCombatIdentity(slotData)) {
+            combatIdentity = buildFormTransitionCombatIdentity(slotData);
+          } else {
+            // bridge 기간의 legacy slot은 첫 형태 전환 write에서 identity를 함께 채운다.
+            combatIdentity = createNewLifeCombatIdentity();
+          }
+
+          transaction.update(slotRef, {
+            ...combatIdentity,
+            selectedDigimon: nextSelectedDigimon,
+            digimonDisplayName: buildDigimonDisplayName(
+              nextSelectedDigimon,
+              digimonNickname,
+              evolutionDataForSlot
+            ),
+            isLightsOn,
+            wakeUntil,
+            dailySleepMistake: deleteField(),
+            updatedAt: serverTimestamp(),
+          });
         });
       } catch (saveError) {
         console.error("디지몬 이름 저장 오류:", saveError);

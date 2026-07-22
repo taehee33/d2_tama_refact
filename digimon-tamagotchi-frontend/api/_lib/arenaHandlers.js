@@ -22,6 +22,7 @@ const { allowMethods, handleApiError, parseJsonBody, sendJson } = require("./htt
 const { getArchiveMonitoringSnapshot, upsertArchiveRow } = require("./logArchiveHandlers");
 const { getSupabaseAdmin } = require("./supabaseAdmin");
 const { ARENA_BATTLE_ARCHIVE_TABLE, buildArenaBattleArchiveRecord } = require("./logArchives");
+const { ArenaError } = require("./arenaErrors");
 
 const ARENA_CONFIG_PATH = "game_settings/arena_config";
 const ARENA_ARCHIVE_COLLECTION = "season_archives";
@@ -861,6 +862,13 @@ function createArenaBattleCompleteHandler(deps = {}) {
   return async function arenaBattleCompleteHandler(req, res) {
     if (!allowMethods(req, res, ["POST"])) {
       return;
+    }
+
+    if (deps.allowLegacyArenaWrites !== true) {
+      return handleApiError(res, new ArenaError(
+        "ARENA_CLIENT_UPGRADE_REQUIRED",
+        "새 아레나가 적용되었습니다. 새로고침 후 다시 시도해 주세요."
+      ));
     }
 
     try {

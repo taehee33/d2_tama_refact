@@ -143,7 +143,7 @@ export function useGamePageActionFlows({
       setSelectedDigimon(initialDigimonId);
       setDigimonStats(nextStatsWithLogs);
       await setDigimonStatsAndSave(nextStatsWithLogs, nextActivityLogs);
-      await setSelectedDigimonAndSave(initialDigimonId);
+      await setSelectedDigimonAndSave(initialDigimonId, { newLife: true });
       toggleModal("deathModal", false);
       setHasSeenDeathPopup(false);
     } catch (error) {

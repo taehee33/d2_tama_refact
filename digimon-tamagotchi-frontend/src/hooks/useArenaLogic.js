@@ -4,6 +4,8 @@
 import { useEffect } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
+import { ARENA_GHOST_V2_ENABLED } from "../config/arenaFeatures";
+import { submitArenaGhostBattle } from "../utils/arenaApi";
 
 export function buildArenaConfigState(config = {}) {
   const nextConfig = {};
@@ -23,15 +25,17 @@ export function buildArenaConfigState(config = {}) {
   return nextConfig;
 }
 
-export function buildArenaBattlePlan({ challenger, myEntryId = null }) {
-  if (!challenger?.id) {
+export function buildArenaBattlePlan({ challenger, myEntryId = null, battleSession = null }) {
+  const enemyId = challenger?.ghostId || challenger?.id;
+  if (!enemyId) {
     return null;
   }
 
   return {
     challenger,
-    enemyId: challenger.id,
+    enemyId,
     myArenaEntryId: myEntryId,
+    ...(battleSession ? { arenaBattleSession: battleSession } : {}),
     battleType: "arena",
     currentQuestArea: null,
     currentQuestRound: 0,
@@ -40,6 +44,13 @@ export function buildArenaBattlePlan({ challenger, myEntryId = null }) {
       { name: "arenaScreen", isOpen: false },
     ],
   };
+}
+
+export function createArenaBattleRequestId() {
+  if (typeof window !== "undefined" && typeof window.crypto?.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+  return `arena-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function commitArenaConfigState(config, setters) {
@@ -83,6 +94,12 @@ export function useArenaLogic({
   setArenaChallenger,
   setArenaEnemyId,
   setMyArenaEntryId,
+  setArenaBattleSession,
+  currentUser,
+  setDigimonStats,
+  arenaGhostV2Enabled = ARENA_GHOST_V2_ENABLED,
+  submitGhostBattle = submitArenaGhostBattle,
+  createBattleRequestId = createArenaBattleRequestId,
   toggleModal,
   setBattleType,
   setCurrentQuestArea,
@@ -131,24 +148,45 @@ export function useArenaLogic({
    * @param {Object} challenger - 도전자 정보
    * @param {string|null} myEntryId - 내 아레나 엔트리 ID
    */
-  const handleArenaBattleStart = (challenger, myEntryId = null) => {
-    const battlePlan = buildArenaBattlePlan({ challenger, myEntryId });
+  const handleArenaBattleStart = async (challenger, myEntryId = null) => {
+    let nextBattleSession = null;
+    if (arenaGhostV2Enabled) {
+      if (!currentUser || !slotId || !challenger?.ghostId) {
+        throw new Error("Ghost 배틀 요청 정보가 올바르지 않습니다.");
+      }
+      nextBattleSession = await submitGhostBattle(currentUser, {
+        requestId: createBattleRequestId(),
+        attackerSlotId: slotId,
+        defenderGhostId: challenger.ghostId,
+      });
+    }
+
+    const battlePlan = buildArenaBattlePlan({
+      challenger,
+      myEntryId,
+      battleSession: nextBattleSession,
+    });
 
     if (!battlePlan) {
       console.error("Arena Challenger에 Document ID가 없습니다:", challenger);
       alert("배틀을 시작할 수 없습니다. Challenger 데이터에 문제가 있습니다.");
-      return;
+      return null;
     }
 
     setArenaChallenger(battlePlan.challenger);
     setArenaEnemyId(battlePlan.enemyId);
     setMyArenaEntryId(battlePlan.myArenaEntryId);
+    if (setArenaBattleSession) setArenaBattleSession(battlePlan.arenaBattleSession);
+    if (nextBattleSession?.attackerSlotOutcome?.digimonStats && setDigimonStats) {
+      setDigimonStats(nextBattleSession.attackerSlotOutcome.digimonStats);
+    }
     setBattleType(battlePlan.battleType);
     setCurrentQuestArea(battlePlan.currentQuestArea);
     setCurrentQuestRound(battlePlan.currentQuestRound);
     battlePlan.modalUpdates.forEach(({ name, isOpen }) => {
       toggleModal(name, isOpen);
     });
+    return nextBattleSession;
   };
 
   /**
@@ -177,4 +215,3 @@ export function useArenaLogic({
     },
   };
 }
-

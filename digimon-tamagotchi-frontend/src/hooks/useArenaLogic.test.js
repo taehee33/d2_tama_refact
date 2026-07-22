@@ -93,6 +93,37 @@ describe("useArenaLogic", () => {
     mockDoc.mockReturnValue("arena-config-ref");
   });
 
+  test("V2 배틀은 서버 session을 받아 슬롯 stats를 hydrate하고 모달을 전환한다", async () => {
+    const submitGhostBattle = jest.fn().mockResolvedValue({
+      battleId: "battle-1",
+      attackerSlotOutcome: { slotId: "4", revision: 9, digimonStats: { power: 12, battles: 3 } },
+    });
+    const params = createParams({
+      slotId: 4,
+      currentUser: { uid: "user-1" },
+      setArenaBattleSession: jest.fn(),
+      setDigimonStats: jest.fn(),
+      arenaGhostV2Enabled: true,
+      submitGhostBattle,
+      createBattleRequestId: () => "request-1",
+    });
+    const { result } = renderHook(() => useArenaLogic(params));
+
+    await act(async () => {
+      await result.current.handleArenaBattleStart({ ghostId: "ghost-2", ownerDisplayName: "상대" });
+    });
+
+    expect(submitGhostBattle).toHaveBeenCalledWith(params.currentUser, {
+      requestId: "request-1",
+      attackerSlotId: 4,
+      defenderGhostId: "ghost-2",
+    });
+    expect(params.setArenaBattleSession).toHaveBeenCalledWith(expect.objectContaining({ battleId: "battle-1" }));
+    expect(params.setDigimonStats).toHaveBeenCalledWith({ power: 12, battles: 3 });
+    expect(params.toggleModal).toHaveBeenCalledWith("battleScreen", true);
+    expect(params.toggleModal).toHaveBeenCalledWith("arenaScreen", false);
+  });
+
   afterEach(() => {
     alertSpy.mockRestore();
     errorSpy.mockRestore();

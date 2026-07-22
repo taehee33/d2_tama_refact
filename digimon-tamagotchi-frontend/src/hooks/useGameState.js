@@ -149,6 +149,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [arenaChallenger, setArenaChallenger] = useState(null);
   const [arenaEnemyId, setArenaEnemyId] = useState(null);
   const [myArenaEntryId, setMyArenaEntryId] = useState(null);
+  const [arenaBattleSession, setArenaBattleSession] = useState(null);
   
   // 시즌 관련
   const [currentSeasonId, setCurrentSeasonId] = useState(defaultSeasonId);
@@ -471,6 +472,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       setArenaEnemyId,
       myArenaEntryId,
       setMyArenaEntryId,
+      arenaBattleSession,
+      setArenaBattleSession,
       
       // 시즌
       currentSeasonId,

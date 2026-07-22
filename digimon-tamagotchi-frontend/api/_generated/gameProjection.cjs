@@ -39,7 +39,17 @@ __webpack_require__.r(__webpack_exports__);
 
 // EXPORTS
 __webpack_require__.d(__webpack_exports__, {
+  ARENA_BATTLE_RULES_VERSION: () => (/* reexport */ ARENA_BATTLE_RULES_VERSION),
   applyLazyUpdate: () => (/* reexport */ applyLazyUpdate),
+  calculateArenaBattle: () => (/* reexport */ calculateArenaBattle),
+  calculateArenaHitRate: () => (/* reexport */ calculateArenaHitRate),
+  calculatePower: () => (/* reexport */ calculatePower),
+  createSeededRandom: () => (/* reexport */ createSeededRandom),
+  findDigimonEntryAcrossVersions: () => (/* reexport */ findDigimonEntryAcrossVersions),
+  getDigimonEntryByVersion: () => (/* reexport */ getDigimonEntryByVersion),
+  getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
+  isStarterDigimonId: () => (/* reexport */ digimonVersionUtils_isStarterDigimonId),
+  normalizeDigimonVersionLabel: () => (/* reexport */ normalizeDigimonVersionLabel),
   projectState: () => (/* reexport */ projectState)
 });
 
@@ -7574,7 +7584,300 @@ function applyLazyUpdate(
   });
 }
 
+;// ./src/logic/battle/hitrate.js
+// src/logic/battle/hitrate.js
+// Digital Monster Color 매뉴얼 기반 배틀 히트레이트 계산 로직
+
+/**
+ * 히트레이트 계산
+ * 매뉴얼: hitrate = ((playerPower * 100)/(playerPower + opponentPower)) + attributeAdvantage
+ *
+ * @param {Object} playerStats - 플레이어 디지몬 스탯
+ * @param {Object} opponentStats - 상대 디지몬 스탯
+ * @returns {number} 히트레이트 (0-100)
+ */
+function calculateHitrate(playerStats, opponentStats) {
+  const playerPower = playerStats.power || 0;
+  const opponentPower = opponentStats.power || 0;
+
+  // 기본 히트레이트 계산
+  const baseHitrate = (playerPower * 100) / (playerPower + opponentPower);
+
+  // 속성 상성 보너스
+  const attributeAdvantage = getAttributeAdvantage(
+    playerStats.type,
+    opponentStats.type
+  );
+
+  const hitrate = baseHitrate + attributeAdvantage;
+
+  // 0-100 범위로 제한
+  return Math.max(0, Math.min(100, hitrate));
+}
+
+/**
+ * 속성 상성 계산
+ * 매뉴얼:
+ * - Vaccine is strong against Virus (+5%)
+ * - Virus is strong against Data (+5%)
+ * - Data is strong against Vaccine (+5%)
+ * - Free has no strength or weakness (0%)
+ *
+ * @param {string|null} playerType - 플레이어 속성
+ * @param {string|null} opponentType - 상대 속성
+ * @returns {number} 속성 보너스 (-5, 0, 또는 +5)
+ */
+function getAttributeAdvantage(playerType, opponentType) {
+  if (!playerType || !opponentType || playerType === "Free" || opponentType === "Free") {
+    return 0;
+  }
+
+  // Vaccine > Virus
+  if (playerType === "Vaccine" && opponentType === "Virus") {
+    return 5;
+  }
+
+  // Virus > Data
+  if (playerType === "Virus" && opponentType === "Data") {
+    return 5;
+  }
+
+  // Data > Vaccine
+  if (playerType === "Data" && opponentType === "Vaccine") {
+    return 5;
+  }
+
+  // 역방향은 불리함
+  if (
+    (playerType === "Virus" && opponentType === "Vaccine") ||
+    (playerType === "Data" && opponentType === "Virus") ||
+    (playerType === "Vaccine" && opponentType === "Data")
+  ) {
+    return -5;
+  }
+
+  return 0;
+}
+
+/**
+ * 파워 계산 (Base Power + 보너스)
+ * 매뉴얼: Base Power + Strength Hearts 보너스 + Traited Egg 보너스 + Effort 보너스
+ *
+ * @param {Object} stats - 디지몬 스탯
+ * @param {Object} digimonData - 디지몬 데이터
+ * @param {boolean} returnDetails - 상세 정보 반환 여부
+ * @returns {number|Object} 최종 파워 또는 { power, details }
+ */
+function calculatePower(stats, digimonData, returnDetails = false) {
+  const basePower = digimonData?.stats?.basePower ?? 0;
+  let power = basePower;
+
+  const details = {
+    basePower,
+    strengthBonus: 0,
+    traitedEggBonus: 0,
+    effortBonus: 0,
+  };
+
+  if (!digimonData?.stats) {
+    return returnDetails ? { power: 0, details } : 0;
+  }
+
+  // Strength Hearts 보너스 (가득 찬 경우)
+  // strength >= 6이면 5로 계산
+  const effectiveStrength = Math.min(5, stats.strength || 0);
+  if (effectiveStrength >= 5) {
+    const stage = digimonData?.stage;
+    let strengthBonus = 0;
+    if (stage === "Child") strengthBonus = 5;
+    else if (stage === "Adult") strengthBonus = 8;
+    else if (stage === "Perfect") strengthBonus = 15;
+    else if (stage === "Ultimate" || stage === "Super Ultimate") strengthBonus = 25;
+
+    power += strengthBonus;
+    details.strengthBonus = strengthBonus;
+  }
+
+  // Traited Egg 보너스
+  if (stats.traitedEgg) {
+    const stage = digimonData?.stage;
+    let traitedEggBonus = 0;
+    if (stage === "Child") traitedEggBonus = 5;
+    else if (stage === "Adult") traitedEggBonus = 8;
+    else if (stage === "Perfect") traitedEggBonus = 15;
+    else if (stage === "Ultimate" || stage === "Super Ultimate") traitedEggBonus = 25;
+
+    power += traitedEggBonus;
+    details.traitedEggBonus = traitedEggBonus;
+  }
+
+  // Effort 보너스 (effort 값 * 5)
+  const effectiveEffort = Math.min(5, stats.effort || 0);
+  if (effectiveEffort > 0) {
+    const effortBonus = effectiveEffort * 5;
+    power += effortBonus;
+    details.effortBonus = effortBonus;
+  }
+
+  if (returnDetails) {
+    return { power, details };
+  }
+
+  return power;
+}
+
+/**
+ * 부상 확률 계산
+ * 매뉴얼: "you have a 20% chance of getting injured when you win, and a 10% chance when you lose."
+ * "That 10% chance is increased by 10% for every Protein Overdose you have, for a maximum of 80%."
+ *
+ * @param {boolean} won - 승리 여부
+ * @param {number} proteinOverdose - 프로틴 과다 수치
+ * @returns {number} 부상 확률 (0-100)
+ */
+function calculateInjuryChance(won, proteinOverdose) {
+  if (won) {
+    return 20; // 승리 시 20%
+  } else {
+    // 패배 시 10% + (프로틴 과다 * 10%)
+    return Math.min(80, 10 + proteinOverdose * 10);
+  }
+}
+
+
+;// ./src/logic/arena/calculator.js
+
+
+const ARENA_BATTLE_RULES_VERSION = "arena-ghost-v1";
+const TARGET_HITS = 3;
+const MAX_ROUNDS = 100;
+
+function hashSeed(seed) {
+  const value = String(seed || "");
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededRandom(seed) {
+  let state = hashSeed(seed);
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function calculateArenaHitRate(attackerPower, defenderPower, attributeBonus = 0) {
+  const leftPower = Math.max(0, Number(attackerPower) || 0);
+  const rightPower = Math.max(0, Number(defenderPower) || 0);
+  const totalPower = leftPower + rightPower;
+  const baseRate = totalPower === 0 ? 50 : (leftPower * 100) / totalPower;
+  return Math.max(0, Math.min(100, baseRate + attributeBonus));
+}
+
+function normalizeParticipant(participant = {}, fallbackName) {
+  return {
+    name:
+      typeof participant.name === "string" && participant.name.trim()
+        ? participant.name.trim().slice(0, 80)
+        : fallbackName,
+    power: Math.max(0, Math.trunc(Number(participant.power) || 0)),
+    attribute:
+      typeof participant.attribute === "string" ? participant.attribute : "Free",
+  };
+}
+
+function calculateArenaBattle({
+  seed,
+  attacker,
+  defender,
+  battleRulesVersion = ARENA_BATTLE_RULES_VERSION,
+} = {}) {
+  if (battleRulesVersion !== ARENA_BATTLE_RULES_VERSION) {
+    throw new Error(`지원하지 않는 아레나 배틀 규칙입니다: ${battleRulesVersion}`);
+  }
+  if (typeof seed !== "string" || !seed.trim()) {
+    throw new Error("결정적 아레나 배틀 seed가 필요합니다.");
+  }
+
+  const normalizedAttacker = normalizeParticipant(attacker, "공격자");
+  const normalizedDefender = normalizeParticipant(defender, "방어자");
+  const attackerBonus = getAttributeAdvantage(
+    normalizedAttacker.attribute,
+    normalizedDefender.attribute
+  );
+  const defenderBonus = getAttributeAdvantage(
+    normalizedDefender.attribute,
+    normalizedAttacker.attribute
+  );
+  const attackerHitRate = calculateArenaHitRate(
+    normalizedAttacker.power,
+    normalizedDefender.power,
+    attackerBonus
+  );
+  const defenderHitRate = calculateArenaHitRate(
+    normalizedDefender.power,
+    normalizedAttacker.power,
+    defenderBonus
+  );
+  const random = createSeededRandom(seed);
+  const replay = [];
+  let attackerHits = 0;
+  let defenderHits = 0;
+  let round = 0;
+
+  while (attackerHits < TARGET_HITS && defenderHits < TARGET_HITS && round < MAX_ROUNDS) {
+    round += 1;
+    const attackerRoll = random() * 100;
+    const attackerHit = attackerRoll < attackerHitRate;
+    if (attackerHit) attackerHits += 1;
+    replay.push({
+      round,
+      actor: "attacker",
+      hit: attackerHit,
+      roll: Number(attackerRoll.toFixed(2)),
+      hitRate: Number(attackerHitRate.toFixed(2)),
+      attackerHits,
+      defenderHits,
+    });
+    if (attackerHits >= TARGET_HITS) break;
+
+    const defenderRoll = random() * 100;
+    const defenderHit = defenderRoll < defenderHitRate;
+    if (defenderHit) defenderHits += 1;
+    replay.push({
+      round,
+      actor: "defender",
+      hit: defenderHit,
+      roll: Number(defenderRoll.toFixed(2)),
+      hitRate: Number(defenderHitRate.toFixed(2)),
+      attackerHits,
+      defenderHits,
+    });
+  }
+
+  return {
+    battleRulesVersion,
+    winner: attackerHits >= TARGET_HITS ? "attacker" : "defender",
+    rounds: round,
+    attackerHits,
+    defenderHits,
+    attackerHitRate: Number(attackerHitRate.toFixed(2)),
+    defenderHitRate: Number(defenderHitRate.toFixed(2)),
+    replay,
+  };
+}
+
 ;// ./src/server/gameProjectionEntry.js
+
+
+
 
 
 module.exports = __webpack_exports__;

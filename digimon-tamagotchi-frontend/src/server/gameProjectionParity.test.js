@@ -2,9 +2,11 @@ import {
   applyLazyUpdate as applyFrontendLazyUpdate,
   projectState as projectFrontendState,
 } from "../data/stats";
+import { calculateArenaBattle as calculateFrontendArenaBattle } from "../logic/arena/calculator";
 
 const {
   applyLazyUpdate: applyServerLazyUpdate,
+  calculateArenaBattle: calculateServerArenaBattle,
   projectState: projectServerState,
 } = require("../../api/_generated/gameProjection.cjs");
 
@@ -52,6 +54,16 @@ describe("서버 game projection parity", () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  test("결정적 Arena battle 결과와 replay가 서버 bundle과 같다", () => {
+    const input = {
+      seed: "parity-seed",
+      attacker: { name: "공격몬", power: 108, attribute: "Vaccine" },
+      defender: { name: "방어몬", power: 101, attribute: "Virus" },
+      battleRulesVersion: "arena-ghost-v1",
+    };
+    expect(calculateServerArenaBattle(input)).toEqual(calculateFrontendArenaBattle(input));
   });
 
   test.each([

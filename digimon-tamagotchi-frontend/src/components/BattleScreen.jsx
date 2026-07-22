@@ -141,6 +141,50 @@ export function shouldKeepArenaBattleScreenOpenAfterComplete(options = {}) {
   return Boolean(options.keepBattleScreenOpen);
 }
 
+export function buildArenaSessionBattleResult(session) {
+  if (!session?.battleId || !session?.defenderGhost?.snapshot) return null;
+  const attacker = session.attacker || {};
+  const defender = session.defenderGhost.snapshot || {};
+  const power = session.powerBreakdown || {};
+  const replay = Array.isArray(session.replay) ? session.replay : [];
+  const finalReplayEvent = replay[replay.length - 1] || {};
+  return {
+    battleId: session.battleId,
+    win: session.result?.attackerWon === true,
+    logs: replay.map((event) => ({
+      ...event,
+      attacker: event.actor === "attacker" ? "user" : "enemy",
+    })),
+    enemy: {
+      name: defender.digimonName || defender.digimonId || "Ghost",
+      power: Number(power.defenderEffective || defender.combatPowerAtCapture || 0),
+      attribute: defender.attribute || null,
+      isBoss: false,
+      sprite: defender.sprite ?? 0,
+      spriteBasePath: defender.spriteBasePath || null,
+      attackSprite: defender.attackSprite ?? defender.sprite ?? 0,
+      digimonId: defender.digimonId || defender.digimonName,
+      slotVersion: defender.gameVersion || "Ver.1",
+    },
+    isAreaClear: false,
+    reward: null,
+    rounds: finalReplayEvent.round || 0,
+    userHits: finalReplayEvent.attackerHits || 0,
+    enemyHits: finalReplayEvent.defenderHits || 0,
+    userPower: Number(power.attackerEffective || attacker.combatPowerAtCapture || 0),
+    enemyPower: Number(power.defenderEffective || defender.combatPowerAtCapture || 0),
+    userPowerDetails: {
+      basePower: Number(power.attackerBase || attacker.combatPowerAtCapture || 0),
+      activeGhostBonus: Number(power.attackerActiveGhostBonus || 0),
+    },
+    enemyPowerDetails: {
+      basePower: Number(power.defenderBase || defender.combatPowerAtCapture || 0),
+      ghostDefenseBonus: Number(power.defenderGhostDefenseBonus || 0),
+    },
+    archive: session.archive || null,
+  };
+}
+
 export default function BattleScreen({
   userDigimon,
   userStats,
@@ -152,6 +196,8 @@ export default function BattleScreen({
   battleType,
   sparringEnemySlot,
   arenaChallenger,
+  arenaBattleSession,
+  onArenaRematch,
   onBattleComplete,
   onQuestClear,
   onClose,
@@ -307,6 +353,8 @@ export default function BattleScreen({
           userPower: battleResult.userPower,
           userPowerDetails: battleResult.userPowerDetails,
         };
+      } else if (battleType === 'arena' && arenaBattleSession) {
+        result = buildArenaSessionBattleResult(arenaBattleSession);
       } else if (battleType === 'arena' && arenaChallenger) {
         // Arena 모드: arenaChallenger 데이터 사용
         const {
@@ -399,7 +447,7 @@ export default function BattleScreen({
       setBattleState("ready");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, arenaBattleRunId]);
+  }, [battleState, userDigimon, userStats, areaId, roundIndex, questVersion, battleType, sparringEnemySlot, arenaChallenger, arenaBattleSession, arenaBattleRunId]);
 
   // 적 디지몬 데이터 가져오기 (퀘스트 버전에 따라 Ver.1/Ver.2 도감 사용)
   const getEnemyDigimonData = () => {
@@ -621,6 +669,10 @@ export default function BattleScreen({
   };
 
   const completeArenaBattleOnce = async (options = {}) => {
+    if (battleType === "arena" && arenaBattleSession) {
+      completedBattleRef.current = arenaBattleSession.battleId || true;
+      return true;
+    }
     if (!shouldCompleteArenaBattleBeforeAction({
       battleType,
       battleResult,
@@ -658,6 +710,7 @@ export default function BattleScreen({
     if (battleType === 'arena') {
       const completed = await completeArenaBattleOnce();
       if (!completed) return;
+      if (arenaBattleSession) onClose();
       return;
     }
 
@@ -672,6 +725,18 @@ export default function BattleScreen({
   const handleRematch = async () => {
     const completed = await completeArenaBattleOnce({ keepBattleScreenOpen: true });
     if (!completed) return;
+
+    if (arenaBattleSession && onArenaRematch) {
+      try {
+        setIsCompletingBattle(true);
+        await onArenaRematch();
+      } catch (error) {
+        alert(error?.message || "재전투를 시작하지 못했습니다.");
+        return;
+      } finally {
+        if (isMountedRef.current) setIsCompletingBattle(false);
+      }
+    }
 
     console.log("🔍 [BattleScreen] 재전투 시작 - 상태 초기화");
     // 배틀 상태만 리셋하여 새로운 배틀 시작
@@ -702,6 +767,7 @@ export default function BattleScreen({
     if (battleType === 'arena') {
       const completed = await completeArenaBattleOnce();
       if (!completed) return;
+      if (arenaBattleSession) onClose();
       return;
     }
 

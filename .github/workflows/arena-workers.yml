@@ -1,0 +1,43 @@
+name: Arena Ghost Workers
+
+on:
+  schedule:
+    - cron: "2-57/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arena-ghost-workers
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: ${{ matrix.worker }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    strategy:
+      fail-fast: false
+      matrix:
+        worker:
+          - mirror-sync
+          - archive-sync
+
+    steps:
+      - name: Invoke protected worker
+        env:
+          ARENA_CRON_SECRET: ${{ secrets.ARENA_CRON_SECRET }}
+          ARENA_WORKER: ${{ matrix.worker }}
+        run: |
+          test -n "$ARENA_CRON_SECRET"
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 2 \
+            --retry-all-errors \
+            --connect-timeout 10 \
+            --max-time 90 \
+            --header "Authorization: Bearer $ARENA_CRON_SECRET" \
+            "https://dthama.vercel.app/api/arena/jobs/$ARENA_WORKER"

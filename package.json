@@ -16,6 +16,9 @@
     "notification-subscribers:audit": "node scripts/backfillNotificationSubscribers.js --dry-run",
     "notification-subscribers:backfill": "node scripts/backfillNotificationSubscribers.js --apply",
     "notification:diagnose-slot": "node scripts/diagnoseSlotNotificationState.js",
+    "arena:ghost:audit": "node scripts/auditArenaGhostReadiness.js",
+    "arena:identity:backfill": "node scripts/backfillArenaCombatIdentity.js",
+    "arena:ghost:migrate": "node scripts/migrateArenaGhosts.js",
     "test:notification-api": "node --test api/_lib/notificationReports.test.js api/_lib/notificationSubscribers.test.js api/_lib/urgentCareNotifications.test.js tests/apps-script-urgent-care.test.js tests/notification-entrypoints.test.js tests/notification-subscriber-backfill.test.js",
     "test:encyclopedia-migration": "node --test tests/encyclopedia-migration.test.js",
     "test:nickname-migration": "node --test tests/nickname-index-migration.test.js",
@@ -26,7 +29,8 @@
     "check": "npm run test:frontend && npm run test:server && npm run build:frontend && npm run check:server-projection",
     "build:server-projection": "node scripts/buildServerGameProjection.js",
     "check:server-projection": "node scripts/checkServerGameProjection.js",
-    "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore-emulator.test.js\""
+    "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore-emulator.test.js\"",
+    "test:arena-emulator": "firebase emulators:exec --only firestore \"node --test --test-concurrency=1 tests/arena-firestore-rules.test.js tests/arena-transaction-emulator.test.js tests/arena-ghost-emulator.test.js tests/arena-battle-emulator.test.js tests/arena-ghost-migration-emulator.test.js\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",
@@ -34,6 +38,8 @@
     "firebase-admin": "^13.7.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "firebase": "^12.16.0",
     "firebase-tools": "^13.0.0"
   }
 }

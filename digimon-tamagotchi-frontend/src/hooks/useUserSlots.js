@@ -17,6 +17,7 @@ import { sortSlotsByRecentActivity } from "../utils/slotRecency";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 import { buildPlayHubProjectedSlot } from "../utils/playHubSlotProjection";
 import { toEpochMs } from "../utils/time";
+import { createNewLifeCombatIdentity } from "../logic/arena/combatIdentity";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
@@ -136,6 +137,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
       const createdAt = Date.now();
 
       await setDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
+        ...createNewLifeCombatIdentity(),
         selectedDigimon: startingDigimon,
         digimonStats: {},
         slotName: `슬롯${slotId}`,

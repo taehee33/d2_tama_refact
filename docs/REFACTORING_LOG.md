@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-18] 아레나 Ghost 시스템 최종 구현 계획 확정
+
+- **내용:** 진화·사망 후에도 등록 당시 Ghost를 불변 snapshot으로 보존하면서, 현재 형태 전적과 Ghost 자체 방어 전적을 분리하는 최종 도메인·구현 계약을 문서화했다. `digimonInstanceId + combatRevision` 기반 연결 판정, `formRecordMirror`와 `ownDefenseRecord`의 쓰기 행렬, 서버 단일 요청 배틀, request 멱등성, transaction 밖 고정 RNG seed, Firestore 정본 transaction, 배틀 시점 evidence를 가진 mirror outbox, Supabase replay archive outbox, 계정 시즌 랭킹, legacy migration, UI 상태, Rules·index·테스트·rollout·rollback 게이트를 PR0~PR7 실행 계획으로 고정했다. 런타임 코드와 저장 스키마는 아직 변경하지 않았다.
+- **영향 파일:**
+  - `docs/ARENA_GHOST_SYSTEM_IMPLEMENTATION_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 현재 슬롯 snapshot을 기존 엔트리에 계속 덮어쓰면 등록 당시 Ghost의 의미가 사라지고, 모든 전적을 Ghost별로 분리하면 동일 현재 형태의 공격·연결 방어 기록이 단절된다. 현재 형태 record, 연결 기간 mirror, Ghost 실제 방어 record, 계정 시즌 record를 물리적으로 분리하고 서버 transaction·outbox 경계를 명시하면 진화·사망·재시도·외부 archive 실패에도 각 전적의 의미와 정확히 한 번 반영을 유지할 수 있다.
+
 ## [2026-07-18] 구형 사망 슬롯 긴급 알림 projection 복구
 
 - **내용:** 운영 slot5 읽기 전용 실측에서 저장된 사망 상태와 알림 대상 설정은 정상이지만, 구형 슬롯에 `sleepSchedule`이 없어 긴급 projection이 슬롯을 건너뛰는 원인을 확인했다. 이미 저장된 사망은 추가 lazy update가 필요 없는 terminal state로 처리하여 runtime 필드가 일부 없어도 긴급 사망 이슈를 생성하도록 수정하고 회귀 테스트를 추가했다.
@@ -7263,3 +7271,110 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 이미 완료된 회귀 방지 기준선과 앞으로 도입할 품질 게이트를 구분해야 CI가 있다는 이유만으로 정적 품질 부채까지 해결된 것으로 오판하지 않는다. 저장·lazy update·조그레스 batch처럼 위험한 경계는 characterization test와 독립 품질 명령이 녹색인 작은 체크포인트에서만 분리한다.
+
+## [2026-07-18] 아레나 Ghost PR0~PR2 기반 구현
+
+- **내용:** 확정된 Ghost 구현 계획에 따라 운영 legacy 자료를 읽기 전용으로 감사하고, 슬롯 combat identity, absent-only backfill, bridge Rules, 결정적 서버 배틀 계산기, Admin SDK transaction 경계를 추가했다. 신규 Ghost 조회·등록·삭제 API는 서버가 슬롯을 projection하고 master data로 snapshot과 power를 만들며 owner registry·registration lock·현재 형태 전적을 Firestore transaction으로 함께 처리한다. V2 클라이언트는 구조화된 오류와 schema version 2 계약을 사용한다. 기존 아레나 UI와 legacy complete 경로는 feature flag가 꺼진 상태로 유지하며 운영 backfill과 Rules/index 배포는 실행하지 않았다.
+- **운영 감사:** legacy entry 14개, 소유자 9명, 불완전 snapshot 8개, 배틀 로그 1,264개, 현재 entry를 찾을 수 없는 과거 로그 1,177개, identity 누락 슬롯 30개를 확인했다. backfill dry-run은 대상 30개·오류 0개였고 `--apply`는 실행하지 않았다.
+- **영향 파일:**
+  - `docs/ARENA_GHOST_PR0_AUDIT.md`
+  - `scripts/auditArenaGhostReadiness.js`
+  - `scripts/backfillArenaCombatIdentity.js`
+  - `digimon-tamagotchi-frontend/src/logic/arena/*`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useUserSlots.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGamePageActionFlows.js`
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionEntry.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaDomain.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaErrors.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaTransactions.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaGhostHandlers.js`
+  - `digimon-tamagotchi-frontend/api/arena/ghosts/*`
+  - `api/_lib/arenaDomain.js`, `api/_lib/arenaErrors.js`, `api/_lib/arenaTransactions.js`
+  - `api/arena/ghosts/*`
+  - `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+  - `firestore.rules`, `firestore.indexes.json`
+  - 관련 package/lockfile과 테스트 파일
+- **검증:** 프런트 전체 163개 suite·962개 테스트, 자격증명 제거 서버 전체 176개 중 172개 테스트 통과(Emulator 전용 4개 skip), Firestore Emulator Rules·Admin transaction·Ghost 경쟁 테스트 3개가 통과했다. 동일 identity 동시 등록은 1건만 성공하고 서로 다른 4건 경쟁에서도 계정 Ghost가 3개를 넘지 않았다. 프로덕션 build도 성공했다.
+- **아키텍처 결정 근거:** combat identity와 Ghost 정본 쓰기를 대형 UI/hook에서 분리해 순수 helper와 서버 transaction 경계로 고정했다. 현재 슬롯의 일반 저장 revision과 형태 전환 revision을 분리하고, top-level `selectedDigimon`은 `combatRevision`과 같은 transaction/write에서만 변경한다. legacy 자료는 이름이나 슬롯 ID로 재연결하지 않고 불완전 snapshot도 migration에서 disabled 상태로 보존한다.
+
+## [2026-07-19] 아레나 Ghost PR3 서버 확정 배틀·outbox 구현
+
+- **내용:** 클라이언트 결과를 받지 않는 `POST /api/arena/battles`를 추가하고 서버 seed 기반 결정적 엔진 결과를 공격 슬롯 비용·육성 전적, 공격/방어 combat record, 연결 Ghost mirror, 양 계정 시즌 전적, 불변 battle/summary, mirror/archive outbox와 하나의 Admin SDK transaction으로 확정했다. `attackerUid + requestId` 기반 결정적 battle 문서를 멱등 경계로 사용해 재요청과 다중 탭에서도 슬롯 비용과 전적을 한 번만 적용한다. 배틀 시점 snapshot의 timestamp를 ISO 문자열로 고정해 최초 응답과 Firestore에서 복원한 멱등 응답이 같은 JSON 계약을 유지한다.
+- **worker:** mirror worker는 `{attempts, nextAttemptAt}` generation을 transaction에서 다시 확인하고 versioned frozen-input projector 결과를 current combat record·Ghost mirror와 원자 반영한다. archive worker는 Firestore lease claim, Supabase insert-once와 payload hash 충돌 검사, ready/failed finalize 및 30일 TTL 정리를 구현했다. 두 endpoint는 `CRON_SECRET`으로 보호하고 Vercel 5분 Cron 설정을 추가했다.
+- **시즌:** `arena_season_records`의 공격·방어·legacy 합계 불변식을 서버에서 매번 재계산하며, 예상 season ID를 확인하는 CAS 방식의 다음 시즌 전환 service를 추가했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/arenaBattleService.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaBattleHandlers.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaJobs.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaJobHandlers.js`
+  - `digimon-tamagotchi-frontend/api/arena/battles/index.js`
+  - `digimon-tamagotchi-frontend/api/arena/jobs/*`
+  - `api/_lib/arenaBattleService.js`, `api/_lib/arenaBattleHandlers.js`, `api/_lib/arenaJobs.js`, `api/_lib/arenaJobHandlers.js`
+  - `api/arena/battles/index.js`, `api/arena/jobs/*`
+  - `digimon-tamagotchi-frontend/src/utils/arenaApi.js`
+  - `digimon-tamagotchi-frontend/vercel.json`
+  - `firestore.indexes.json`
+  - `supabase/migrations/20260719_arena_battle_archive_v2.sql`
+  - 관련 단위·entrypoint·Firestore Emulator 테스트
+- **검증:** 조작 필드 거부, 동일 request 멱등 응답, 슬롯 비용 1회, 공격/방어 시즌 write matrix, archive 실패 후 복구, mirror worker 동시 실행 exactly-once를 검증했다. 프런트 전체 163개 suite·963개 테스트, 자격증명 제거 서버 전체 184개 중 179개가 통과했고 Emulator 전용 5개는 skip됐다. Firestore Emulator의 Rules·등록·배틀·worker transaction 테스트 4개와 프로덕션 build가 통과했다.
+- **아키텍처 결정 근거:** 기존 `/api/arena/battles/complete`와 UI는 PR5 전역 cutover까지 유지하되 새 정본 경계와 섞지 않는다. Supabase 장애는 이미 확정된 Firestore 배틀을 롤백하지 않고 outbox 재시도로 복구한다. 운영 Rules·index·migration 배포와 V2 활성화는 수행하지 않았다.
+
+## [2026-07-22] 아레나 Ghost PR4 migration dry-run·Emulator canary 구현
+
+- **내용:** legacy `arena_entries`를 삭제하지 않고 같은 문서 ID의 Ghost V2 문서로 복제하는 migration 도구를 추가했다. 정상 snapshot은 active, 불완전하거나 지원하지 않는 snapshot은 disabled로 보존하고 현재 슬롯 identity에는 연결하지 않는다. 기존 승패는 `legacyRecord`에 원형 보존하며 현재 시즌 합계는 계정별 `legacyUnclassifiedWins/Losses`로만 반영해 공격/방어를 추측하지 않는다. owner당 3개 초과 자료도 모두 owner registry에 유지한다.
+- **안전장치:** dry-run이 기본값이며 apply에는 명시적 project, 동일한 confirm-project, 명시적 자격증명 확인이 필요하다. limit·resume cursor·JSON report를 지원하고, schemaVersion과 deterministic old entry ID로 재실행을 멱등 처리한다. 접두사 없는 legacy ID를 새 Ghost API가 안전하게 조회·배틀·삭제할 수 있도록 Ghost ID 검증을 Firestore 문서 ID 계약으로 확장했다.
+- **영향 파일:**
+  - `scripts/migrateArenaGhosts.js`
+  - `tests/arena-ghost-migration.test.js`
+  - `tests/arena-ghost-migration-emulator.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaDomain.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaGhostHandlers.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaBattleService.js`
+  - `package.json`
+  - `docs/ARENA_GHOST_PR4_MIGRATION.md`
+  - `docs/REFACTORING_LOG.md`
+- **검증:** 격리된 Firestore Emulator에서 dry-run 0-write, cursor resume, active/disabled 변환, 4개 초과 보존, 시즌 11승 7패 원형 보존, old entry ID 로그 연결, apply 재실행 0-write와 원본 보존을 검증했다. 아레나 Emulator 통합 테스트 5개, 프런트 전체 163개 suite·963개 테스트, 자격증명 제거 서버 전체 191개 중 185개가 통과했고 Emulator 전용 6개는 skip됐다. 프로덕션 build도 통과했다.
+- **운영 적용:** `d2tamarefact`에서 사전 dry-run으로 legacy entry 14개, 소유자 9명, 현재 시즌 전적 9건, 오류·anomaly·용량 초과 0건을 확인했다. 명시적 project 확인과 service account 자격증명으로 additive migration을 적용해 active Ghost 14건과 시즌 전적 9건을 총 37회 write로 반영했으며 원본 삭제는 0건이었다. 직후 재실행한 dry-run에서 Ghost 14건과 시즌 전적 9건이 모두 skip되고 추가 write 예정 0건, 오류 0건으로 확인되어 멱등성과 사후 정합성 검증을 통과했다.
+- **아키텍처 결정 근거:** legacy entry에는 신뢰할 combat identity와 공격/방어 구분이 없으므로 이름·slotId로 현재 생명에 연결하거나 승패를 임의 분할하지 않는다. PR5 UI cutover 전에 preview에서 dual-read 비교와 canary 검증을 완료할 수 있도록 migration은 additive·resume-safe 도구로 유지한다.
+
+## [2026-07-22] 아레나 Ghost PR5 프런트 V2 cutover 구현
+
+- **내용:** 기본 비활성 `REACT_APP_ARENA_GHOST_V2` flag 뒤에 V2 전용 Arena hook과 presenter를 추가했다. 내 Ghost는 연결·이전 형태·사망 원본·legacy 상태, 등록 형태 전적, Ghost 방어 전적, pending mirror를 분리해 표시한다. 현재 디지몬은 props만 사용하며 Ghost가 0개여도 상대 공격이 가능하다. 등록·삭제는 identifier-only Ghost API를 사용하고 3/3 직접 삭제 안내, 중복 identity 카드 강조, maintenance 구조화 오류를 처리한다.
+- **서버 확정 배틀:** V2 배틀 시작 시 새 request ID로 `POST /api/arena/battles`를 먼저 호출한다. `BattleScreen`은 서버가 반환한 participant snapshot, power breakdown, result, replay만 재생하고 client `simulateBattle()`과 legacy complete 저장을 실행하지 않는다. `attackerSlotOutcome.digimonStats`를 즉시 hydrate하며 재전투는 새 request ID를 사용한다.
+- **기록:** V2 summary의 immutable snapshot으로 공격·Ghost 방어 기록을 표시한다. 현재 combat identity, 내 Ghost, 삭제된 Ghost·이전 기록 필터를 유지하고 archive pending/failed/ready/legacy 상태와 ready replay 조회를 분리했다. 로그인하지 않은 localStorage 환경에는 온라인 전용 안내를 표시한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/config/arenaFeatures.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useArenaGhosts.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useArenaBattleHistory.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useArenaLogic.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostHistory.jsx`
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 관련 테스트, `README.md`, `docs/ARENA_GHOST_PR5_CUTOVER.md`
+- **검증:** V2 대표 타깃 6개 suite·34개 테스트와 `REACT_APP_ARENA_GHOST_V2=true` 프로덕션 빌드가 통과했다. 전체 검사에서 프런트 165개 suite·972개 테스트, 자격증명 제거 서버 191개 중 185개가 통과했고 Emulator 전용 6개는 skip됐으며 기본 flag 프로덕션 빌드도 성공했다. 마지막 projection check는 생성물이 현재 미커밋 작업에 포함돼 HEAD와 다르다는 이유로 종료됐지만, 생성 스크립트 연속 실행 전후 SHA-256이 동일해 산출물 결정성은 확인했다.
+- **아키텍처 결정 근거:** 1,800줄 규모 legacy `ArenaScreen`에 V2 저장·session 책임을 추가하지 않고 전용 hook/presenter로 분리해 flag가 꺼진 기존 흐름을 보존한다. Production 활성화는 PR6의 legacy 전역 write 동결, Rules/index/Cron/Supabase 검증과 결합해야 하므로 PR5 구현만으로 flag를 켜지 않는다.
+
+## [2026-07-22] 아레나 Ghost PR6 운영 전환 준비
+
+- **내용:** 운영 슬롯 27건에 combat identity를 absent-only 방식으로 백필하고 재검증에서 추가 변경 0건을 확인했다. Supabase archive V2 migration과 Firestore final Rules·복합 인덱스를 반영했으며, cutover 배포부터 legacy `/api/arena/battles/complete`와 사용자 archive POST가 `ARENA_CLIENT_UPGRADE_REQUIRED`(426)를 반환하도록 전역 차단했다.
+- **보존 정리:** 운영 Firebase 프로젝트의 결제 비활성화로 Firestore TTL field override를 적용할 수 없어 제거했다. 대신 기존 archive Cron이 `purgeAfter`가 지난 ready outbox만 실행당 최대 50건 삭제한다. failed/pending 작업과 battle log·Supabase replay 정본은 삭제하지 않는다.
+- **배포 제약:** Vercel Hobby가 5분 Cron 배포를 거부하므로 maintenance 배포에는 mirror/archive를 각각 UTC 00:05/00:10 일일 실행으로 임시 등록한다. V2 write 활성화 전 5분 외부 scheduler 또는 Vercel Pro 전환을 확정해야 하며, 일일 cadence를 정상 운영 기준으로 간주하지 않는다.
+- **Function 한도 대응:** Vercel Hobby의 12개 Serverless Function 제한을 지키기 위해 외부 URL 계약은 rewrites로 유지하고 Ghost·battle·worker와 차단된 legacy write 진입점 7개를 단일 `api/arena-v2.js` router로 묶었다. 각 요청의 인증·validation·transaction은 기존 domain handler가 그대로 담당한다.
+- **운영 배포:** Supabase `20260719_arena_battle_archive_v2.sql`, Firestore final Rules·인덱스, Vercel `CRON_SECRET`·`REACT_APP_ARENA_GHOST_V2=true`를 반영하고 deployment `dpl_BGh1CASzJN86C9zGHhgyZpWnoLbQ`를 `https://dthama.vercel.app`에 배포했다. 운영 smoke에서 홈 200, legacy complete/archive 426, 미인증 mirror worker 401, 미인증 Ghost API 401을 확인했다. `game_settings/arena_config.mode`는 아직 `active`가 아니므로 V2 mutation은 maintenance 상태다.
+- **남은 gate:** Vercel Sensitive 환경값은 pull 시 마스킹되므로 로컬 수동 worker 호출에는 사용할 수 없었다. Vercel Hobby의 일일 Cron은 배포되었지만 목표 cadence가 아니므로 5분 외부 scheduler 또는 Vercel Pro가 준비되기 전에는 `mode=active`를 쓰지 않는다.
+- **외부 scheduler:** GitHub Actions `Arena Ghost Workers` workflow를 추가해 매시 2분부터 5분 간격으로 mirror/archive worker를 병렬 호출한다. 고정 concurrency group으로 이전 실행과 겹치지 않게 하고, 각 호출은 repository secret `ARENA_CRON_SECRET`, 90초 제한, 일시 오류 2회 재시도를 사용한다. Vercel의 일일 Cron은 GitHub 스케줄 지연·중단 시 보조 복구 경로로 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/arenaJobs.js`
+  - `digimon-tamagotchi-frontend/api/_lib/arenaHandlers.js`
+  - `digimon-tamagotchi-frontend/api/_lib/logArchiveHandlers.js`
+  - `.github/workflows/arena-workers.yml`
+  - 관련 서버 테스트
+  - `firestore.indexes.json`
+  - `docs/ARENA_GHOST_SYSTEM_IMPLEMENTATION_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** V2 쓰기가 시작된 뒤 legacy 결과를 다시 정본에 반영하면 전적이 두 경로로 갈라지므로 legacy write는 런타임 환경 변수로 재개하지 않고 테스트 dependency injection에서만 허용한다. 완료 outbox 정리는 보존된 Supabase replay와 분리된 파생 운영 문서이므로 결제 의존 TTL 대신 bounded Cron 정리로 동일한 30일 보존 계약을 유지한다.

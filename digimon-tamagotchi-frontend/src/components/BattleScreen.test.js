@@ -2,6 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { simulateBattle } from "../logic/battle/calculator";
 import BattleScreen, {
+  buildArenaSessionBattleResult,
   buildBattleAreaClassName,
   buildArenaEnemyBattleData,
   buildDigimonImpactClassName,
@@ -11,6 +12,25 @@ import BattleScreen, {
   shouldCompleteArenaBattleBeforeAction,
   shouldKeepArenaBattleScreenOpenAfterComplete,
 } from "./BattleScreen";
+
+test("서버 확정 아레나 session을 replay 전용 화면 결과로 변환한다", () => {
+  const result = buildArenaSessionBattleResult({
+    battleId: "battle-1",
+    attacker: { digimonName: "그레이몬", combatPowerAtCapture: 10 },
+    defenderGhost: { ghostId: "ghost-1", snapshot: { digimonName: "엔젤몬", combatPowerAtCapture: 8, sprite: 3 } },
+    powerBreakdown: { attackerBase: 10, attackerActiveGhostBonus: 2, attackerEffective: 12, defenderBase: 8, defenderGhostDefenseBonus: 1, defenderEffective: 9 },
+    result: { attackerWon: true },
+    replay: [{ round: 1, actor: "attacker", hit: true, attackerHits: 1, defenderHits: 0 }],
+    archive: { archiveId: "battle-1", status: "pending" },
+  });
+
+  expect(result.win).toBe(true);
+  expect(result.logs[0]).toEqual(expect.objectContaining({ attacker: "user", hit: true }));
+  expect(result.userPower).toBe(12);
+  expect(result.enemyPower).toBe(9);
+  expect(result.userPowerDetails.activeGhostBonus).toBe(2);
+  expect(result.enemyPowerDetails.ghostDefenseBonus).toBe(1);
+});
 
 jest.mock("../logic/battle/calculator", () => ({
   ...jest.requireActual("../logic/battle/calculator"),

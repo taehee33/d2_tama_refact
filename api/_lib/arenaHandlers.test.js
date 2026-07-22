@@ -633,8 +633,19 @@ test("arena set operator handler blocks removing the last operator", async () =>
   assert.equal(res.body.error, "마지막 운영자 권한은 해제할 수 없습니다.");
 });
 
+test("arena battle complete handler blocks legacy writes after cutover", async () => {
+  const handler = createArenaBattleCompleteHandler();
+  const res = createMockRes();
+
+  await handler({ method: "POST", headers: {}, body: {} }, res);
+
+  assert.equal(res.statusCode, 426);
+  assert.equal(res.body.error.code, "ARENA_CLIENT_UPGRADE_REQUIRED");
+});
+
 test("arena battle complete handler rejects foreign myEntryId", async () => {
   const handler = createArenaBattleCompleteHandler({
+    allowLegacyArenaWrites: true,
     verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com" }),
     getDocument: async (path) => {
       if (path.endsWith("/my-entry")) {
@@ -696,6 +707,7 @@ test("arena battle complete handler stores ready archive status and summary log"
   let capturedWrites = null;
 
   const handler = createArenaBattleCompleteHandler({
+    allowLegacyArenaWrites: true,
     verifyRequestUser: async () => ({ uid: "user-1", email: "user-1@example.com", name: "테스터" }),
     getDocument: async (path) => {
       if (path.endsWith("/my-entry")) {

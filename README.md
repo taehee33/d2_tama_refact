@@ -192,6 +192,9 @@ npm run nickname:cleanup
 
 - `REACT_APP_COMMUNITY_API_BASE_URL`
   - 프론트와 API가 같은 Vercel 프로젝트면 비워도 됩니다.
+- `REACT_APP_ARENA_GHOST_V2`
+  - `true`일 때만 서버 확정 Ghost 아레나 V2 UI를 사용합니다.
+  - Preview 검증 전에는 설정하지 않으며, Production 활성화는 legacy write 동결·migration·Rules/index/Cron 검증을 함께 수행하는 전역 cutover에서만 진행합니다.
 - 기존 채팅 유지용:
   - `REACT_APP_SUPABASE_URL`
   - `REACT_APP_SUPABASE_ANON_KEY`

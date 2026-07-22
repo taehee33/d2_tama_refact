@@ -91,9 +91,20 @@ function createSupabaseMock({ upsertRow = null, selectRow = null, monitorInsertE
   return { supabase, state };
 }
 
+test("arena archive post blocks legacy client writes after cutover", async () => {
+  const handler = createArenaBattleArchivePostHandler();
+  const res = createMockRes();
+
+  await handler({ method: "POST", headers: {}, body: {} }, res);
+
+  assert.equal(res.statusCode, 426);
+  assert.equal(res.body.error.code, "ARENA_CLIENT_UPGRADE_REQUIRED");
+});
+
 test("arena archive post stores required fields and returns minimal payload", async () => {
   const { supabase, state } = createSupabaseMock();
   const handler = createArenaBattleArchivePostHandler({
+    allowLegacyArenaWrites: true,
     verifyRequestUser: async () => ({ uid: "user-1" }),
     getSupabaseAdminClient: () => supabase,
   });
@@ -304,6 +315,7 @@ test("monitoring insert failure does not change archive success response", async
     monitorInsertError: { message: "monitor insert failed" },
   });
   const handler = createArenaBattleArchivePostHandler({
+    allowLegacyArenaWrites: true,
     verifyRequestUser: async () => ({ uid: "user-1" }),
     getSupabaseAdminClient: () => supabase,
   });

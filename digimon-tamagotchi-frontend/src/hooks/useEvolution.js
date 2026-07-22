@@ -513,6 +513,7 @@ export function useEvolution({
         lastSavedAtServer: serverTimestamp(),
         updatedAt: serverTimestamp(),
         revision: increment(1),
+        combatRevision: increment(1),
       });
       batch.update(slotBRef, {
         digimonStats: partnerStatsForDb,
@@ -693,6 +694,7 @@ export function useEvolution({
             clearJogressStatus: false,
           }),
           revision: increment(1),
+          combatRevision: increment(1),
         }
       );
       await batch.commit();
@@ -780,6 +782,7 @@ export function useEvolution({
             serverTimestampValue,
           }),
           revision: increment(1),
+          combatRevision: increment(1),
         }
       );
       if (refreshGameRevision) {
@@ -923,6 +926,7 @@ export function useEvolution({
             serverTimestampValue,
           }),
           revision: increment(1),
+          combatRevision: increment(1),
         }
       );
       await updateDoc(roomRef, buildCompletedJogressRoomUpdate(serverTimestampValue));

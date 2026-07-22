@@ -1,5 +1,7 @@
 "use strict";
 
+const { isArenaError, toArenaErrorPayload } = require("./arenaErrors");
+
 function sendJson(res, status, payload) {
   if (typeof res.status === "function" && typeof res.json === "function") {
     res.status(status).json(payload);
@@ -98,6 +100,16 @@ function getBearerToken(req) {
 }
 
 function handleApiError(res, error) {
+  if (isArenaError(error)) {
+    if (
+      error.code === "ARENA_MAINTENANCE" &&
+      Number.isFinite(Number(error.details?.retryAfterSeconds))
+    ) {
+      res.setHeader("Retry-After", String(error.details.retryAfterSeconds));
+    }
+    return sendJson(res, error.status, toArenaErrorPayload(error));
+  }
+
   if (error?.status) {
     return sendError(res, error.status, error.message);
   }

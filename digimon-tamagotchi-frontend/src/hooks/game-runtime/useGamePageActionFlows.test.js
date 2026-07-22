@@ -147,7 +147,9 @@ describe("useGamePageActionFlows", () => {
     expect(setSelectedDigimon).toHaveBeenCalledWith("Digitama");
     expect(setDigimonStats).toHaveBeenCalled();
     expect(setDigimonStatsAndSave).toHaveBeenCalled();
-    expect(setSelectedDigimonAndSave).toHaveBeenCalledWith("Digitama");
+    expect(setSelectedDigimonAndSave).toHaveBeenCalledWith("Digitama", {
+      newLife: true,
+    });
     expect(toggleModal).toHaveBeenCalledWith("deathModal", false);
     expect(setHasSeenDeathPopup).toHaveBeenCalledWith(false);
     expect(appendLogToSubcollection).toHaveBeenCalled();
