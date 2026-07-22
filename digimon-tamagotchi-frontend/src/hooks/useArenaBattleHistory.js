@@ -1,6 +1,51 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { collection, getDocs, limit, orderBy, query, startAfter, where } from "firebase/firestore";
 import { db } from "../firebase";
+
+export const ARENA_HISTORY_PAGE_SIZE = 5;
+
+function createHistoryStream(fieldName) {
+  return {
+    fieldName,
+    queue: [],
+    cursor: null,
+    initialized: false,
+    hasMore: true,
+  };
+}
+
+function createHistoryPager() {
+  return {
+    attack: createHistoryStream("attackerId"),
+    defense: createHistoryStream("defenderId"),
+  };
+}
+
+function getOccurredAtTime(log) {
+  return log?.occurredAt?.getTime?.() || 0;
+}
+
+export function takeNextArenaHistoryPage({ attackQueue = [], defenseQueue = [], seenBattleIds = new Set(), pageSize = ARENA_HISTORY_PAGE_SIZE }) {
+  const remainingAttack = [...attackQueue];
+  const remainingDefense = [...defenseQueue];
+  const page = [];
+
+  while (page.length < pageSize && (remainingAttack.length > 0 || remainingDefense.length > 0)) {
+    const attack = remainingAttack[0];
+    const defense = remainingDefense[0];
+    const takeAttack = !defense || (attack && getOccurredAtTime(attack) >= getOccurredAtTime(defense));
+    const selected = takeAttack ? remainingAttack.shift() : remainingDefense.shift();
+    if (!selected || seenBattleIds.has(selected.battleId)) continue;
+    seenBattleIds.add(selected.battleId);
+    page.push(selected);
+  }
+
+  return {
+    page,
+    attackQueue: remainingAttack,
+    defenseQueue: remainingDefense,
+  };
+}
 
 export function normalizeArenaBattleSummary(log = {}, currentUid = null) {
   const attacker = log.attackerSnapshot || {};
@@ -58,38 +103,105 @@ export function filterArenaBattleHistory(logs, filter) {
 export function useArenaBattleHistory({ currentUser, isOnline }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
+  const pagerRef = useRef(createHistoryPager());
+  const seenBattleIdsRef = useRef(new Set());
+
+  const fetchStream = useCallback(async (stream) => {
+    if (!currentUser || !db || (stream.initialized && !stream.hasMore)) return;
+    const constraints = [
+      where(stream.fieldName, "==", currentUser.uid),
+      orderBy("timestamp", "desc"),
+    ];
+    if (stream.cursor) constraints.push(startAfter(stream.cursor));
+    constraints.push(limit(ARENA_HISTORY_PAGE_SIZE));
+
+    const snapshot = await getDocs(query(collection(db, "arena_battle_logs"), ...constraints));
+    const nextLogs = snapshot.docs.map((documentSnapshot) =>
+      normalizeArenaBattleSummary(
+        { id: documentSnapshot.id, ...documentSnapshot.data() },
+        currentUser.uid
+      )
+    );
+    stream.queue.push(...nextLogs);
+    stream.cursor = snapshot.docs[snapshot.docs.length - 1] || stream.cursor;
+    stream.initialized = true;
+    stream.hasMore = snapshot.docs.length === ARENA_HISTORY_PAGE_SIZE;
+  }, [currentUser]);
+
+  const collectNextPage = useCallback(async () => {
+    const pager = pagerRef.current;
+    const page = [];
+
+    while (page.length < ARENA_HISTORY_PAGE_SIZE) {
+      await Promise.all(
+        Object.values(pager)
+          .filter((stream) => stream.queue.length === 0 && (!stream.initialized || stream.hasMore))
+          .map((stream) => fetchStream(stream))
+      );
+
+      const result = takeNextArenaHistoryPage({
+        attackQueue: pager.attack.queue,
+        defenseQueue: pager.defense.queue,
+        seenBattleIds: seenBattleIdsRef.current,
+        pageSize: ARENA_HISTORY_PAGE_SIZE - page.length,
+      });
+      pager.attack.queue = result.attackQueue;
+      pager.defense.queue = result.defenseQueue;
+      page.push(...result.page);
+
+      const canContinue = Object.values(pager).some((stream) =>
+        stream.queue.length > 0 || (!stream.initialized || stream.hasMore)
+      );
+      if (!canContinue || result.page.length === 0) break;
+    }
+
+    setHasMore(Object.values(pager).some((stream) => stream.queue.length > 0 || stream.hasMore));
+    return page;
+  }, [fetchStream]);
 
   const refresh = useCallback(async () => {
     if (!currentUser || !isOnline || !db) {
       setLogs([]);
+      setHasMore(false);
       return;
     }
     setLoading(true);
     setError("");
+    pagerRef.current = createHistoryPager();
+    seenBattleIdsRef.current = new Set();
     try {
-      const logsRef = collection(db, "arena_battle_logs");
-      const [attack, defense] = await Promise.all([
-        getDocs(query(logsRef, where("attackerId", "==", currentUser.uid), orderBy("timestamp", "desc"))),
-        getDocs(query(logsRef, where("defenderId", "==", currentUser.uid), orderBy("timestamp", "desc"))),
-      ]);
-      const unique = new Map();
-      for (const snapshot of [...attack.docs, ...defense.docs]) {
-        unique.set(snapshot.id, normalizeArenaBattleSummary({ id: snapshot.id, ...snapshot.data() }, currentUser.uid));
-      }
-      setLogs([...unique.values()].sort((left, right) =>
-        (right.occurredAt?.getTime() || 0) - (left.occurredAt?.getTime() || 0)
-      ));
+      setLogs(await collectNextPage());
     } catch (loadError) {
       setError(loadError?.message || "배틀 기록을 불러오지 못했습니다.");
+      setHasMore(false);
     } finally {
       setLoading(false);
     }
-  }, [currentUser, isOnline]);
+  }, [collectNextPage, currentUser, isOnline]);
+
+  const loadMore = useCallback(async () => {
+    if (!currentUser || !isOnline || !db || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const nextPage = await collectNextPage();
+      if (nextPage.length > 0) setLogs((currentLogs) => [...currentLogs, ...nextPage]);
+    } catch (loadError) {
+      setError(loadError?.message || "추가 배틀 기록을 불러오지 못했습니다.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [collectNextPage, currentUser, hasMore, isOnline, loadingMore]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return useMemo(() => ({ logs, loading, error, refresh }), [error, loading, logs, refresh]);
+  return useMemo(
+    () => ({ logs, loading, loadingMore, hasMore, error, refresh, loadMore }),
+    [error, hasMore, loadMore, loading, loadingMore, logs, refresh]
+  );
 }

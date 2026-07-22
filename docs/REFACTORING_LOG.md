@@ -7421,3 +7421,32 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 리뷰 액션과 전투 진행 액션의 렌더러를 분리해 시각적 위치를 독립적으로 관리하고, 승리·패배 화면에 동일한 정보 계층을 적용했다.
+
+## [2026-07-22] 내 Ghost Power 상세 및 빈 슬롯 표시
+
+- **내용:** 내 Ghost 카드에 등록 당시 Power를 표시하고, 상세 보기에서 고정 방어 보너스 +1과 최종 방어 Power 계산을 확인할 수 있게 했다. 최대 3칸 중 비어 있는 자리는 점선 테두리의 `빈 슬롯` 카드로 표시해 추가 등록 가능 공간을 명확히 했다. 등록 버튼과 완료 안내의 `현재 형태` 표현은 사용자가 더 직관적으로 이해할 수 있도록 `현재 디지몬`으로 변경했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/arena/ArenaGhostPowerBreakdown.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** Ghost 스냅샷에 정확히 보존된 등록 Power만 사용하고 과거 Base·보너스를 추정하지 않는다. 방어 Power 표시는 독립 하위 컴포넌트로 분리해 Ghost 카드 조립 책임과 계산 표시 책임을 나눴으며 저장/API 계약은 변경하지 않았다.
+
+## [2026-07-22] 아레나 배틀 기록 5건 cursor 더보기
+
+- **내용:** 아레나 배틀 기록이 전체 문서를 한 번에 읽던 방식을 제거하고, 공격 기록과 Ghost 방어 기록을 각각 최근순 cursor 쿼리로 최대 5건씩 읽은 뒤 클라이언트에서 시간순 병합하도록 변경했다. 화면에는 최근 5건만 먼저 표시하고 `기록 더보기`를 누를 때 다음 5건을 이어서 불러온다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/useArenaBattleHistory.js`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostHistory.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostHistory.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 기존 공격자·방어자 복합 인덱스를 그대로 사용하고 각 쿼리의 cursor와 미표시 버퍼를 별도로 유지한다. 따라서 Firestore 경로·문서 스키마·인덱스를 변경하지 않으면서 두 역할의 기록이 섞인 전체 시간순 페이지를 정확히 구성하고 초기 읽기를 전체 이력에서 최대 10건으로 제한한다.
+
+## [2026-07-22] Ghost 카드 등록일 표시
+
+- **내용:** 내 Ghost와 도전 상대 카드에 `Ghost 등록일`을 연·월·일 형식으로 표시한다. 등록일이 없는 비정상 또는 이전 데이터에는 `등록일 정보 없음`을 표시한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 양쪽 Ghost DTO에 이미 포함된 `registeredAt`을 재사용하므로 Firestore 추가 조회, API 변경, 데이터 마이그레이션 없이 presenter에서만 날짜를 포맷한다.

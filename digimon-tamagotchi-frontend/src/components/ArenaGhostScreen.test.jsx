@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import ArenaGhostScreen, { getGhostLinkLabel } from "./ArenaGhostScreen";
+import ArenaGhostScreen, { formatGhostRegisteredAt, getGhostLinkLabel } from "./ArenaGhostScreen";
 
 const mockUseAuth = jest.fn();
 const mockUseArenaGhosts = jest.fn();
@@ -48,6 +48,8 @@ describe("ArenaGhostScreen", () => {
     expect(getGhostLinkLabel("evolved")).toContain("이전 형태");
     expect(getGhostLinkLabel("dead")).toContain("원본 디지몬 사망");
     expect(getGhostLinkLabel("legacy")).toBe("이전 아레나 기록");
+    expect(formatGhostRegisteredAt("2026-07-22T03:00:00.000Z")).toBe("2026. 7. 22.");
+    expect(formatGhostRegisteredAt(null)).toBe("등록일 정보 없음");
   });
 
   test("오프라인 모드에서 온라인 전용 안내를 표시한다", () => {
@@ -63,6 +65,7 @@ describe("ArenaGhostScreen", () => {
       ownerDisplayName: "상대 테이머",
       status: "active",
       canBattle: true,
+      registeredAt: "2026-07-21T03:00:00.000Z",
       snapshot: { digimonName: "엔젤몬", sprite: 1, combatPowerAtCapture: 12 },
       ownDefenseRecord: { wins: 2, losses: 1 },
     };
@@ -81,7 +84,10 @@ describe("ArenaGhostScreen", () => {
     );
 
     expect(screen.getByText("등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getAllByText("빈 슬롯")).toHaveLength(3);
+    expect(screen.getAllByLabelText(/빈 Ghost 슬롯/)).toHaveLength(3);
     expect(screen.getByText("상대 테이머의 ???")).toBeInTheDocument();
+    expect(screen.getByText("Ghost 등록일: 2026. 7. 21.")).toBeInTheDocument();
     expect(screen.queryByText("엔젤몬")).not.toBeInTheDocument();
     expect(screen.queryByText(/Power 12/)).not.toBeInTheDocument();
     expect(screen.queryByText(/방어 보너스/)).not.toBeInTheDocument();
@@ -105,7 +111,8 @@ describe("ArenaGhostScreen", () => {
         ghostId: "ghost-mine",
         status: "active",
         linkStatus: "evolved",
-        snapshot: { digimonName: "엔젤몬", stage: "Adult", sprite: 1 },
+        registeredAt: "2026-07-22T03:00:00.000Z",
+        snapshot: { digimonName: "엔젤몬", stage: "Adult", sprite: 1, combatPowerAtCapture: 50 },
         formRecordMirror: { attackWins: 2, attackLosses: 1, defenseWins: 1, defenseLosses: 0 },
         ownDefenseRecord: { wins: 4, losses: 3 },
         legacyRecord: { wins: 5, losses: 2 },
@@ -138,7 +145,16 @@ describe("ArenaGhostScreen", () => {
     expect(currentRecord.querySelectorAll(".text-emerald-600")).toHaveLength(2);
     expect(currentRecord.querySelectorAll(".text-red-600")).toHaveLength(2);
     expect(screen.getByText("형태 전적 동기화 중 · 삭제 잠시 불가")).toBeInTheDocument();
+    expect(screen.getByText("Ghost 등록일: 2026. 7. 22.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "삭제" })).toBeDisabled();
+    expect(screen.getByText("등록 Power")).toBeInTheDocument();
+    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getAllByText("빈 슬롯")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "엔젤몬 Ghost Power 상세 펼치기" }));
+    expect(screen.getByText("등록 당시 Power: 50")).toBeInTheDocument();
+    expect(screen.getByText("Ghost 방어 보너스: +1")).toBeInTheDocument();
+    expect(screen.getByText("최종 방어 Power = 50 + 1 = 51")).toBeInTheDocument();
   });
 
   test("현재 디지몬 이미지와 Power 상세 및 V2 배틀 공식을 표시한다", () => {
@@ -170,6 +186,7 @@ describe("ArenaGhostScreen", () => {
       "/images/v1/123.png"
     );
     expect(screen.getByText("성숙기", { exact: false })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "현재 디지몬 Ghost 등록" })).toBeInTheDocument();
     expect(screen.getByLabelText("최종 공격 Power 38")).toHaveTextContent("36 + Ghost 2 = 38");
 
     fireEvent.click(screen.getByRole("button", { name: "Power 상세 펼치기 ▼" }));

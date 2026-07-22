@@ -77,7 +77,7 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
       const result = await registerArenaGhost(currentUser, currentSlotId);
       await refresh();
       setHighlightedGhostId(result?.ghost?.ghostId || null);
-      setNotice("현재 형태를 Ghost로 등록했습니다.");
+      setNotice("현재 디지몬을 Ghost로 등록했습니다.");
       return result;
     } catch (error) {
       const existingGhostId = error?.details?.existingGhostId || null;

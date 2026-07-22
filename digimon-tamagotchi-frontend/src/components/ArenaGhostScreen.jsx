@@ -5,6 +5,7 @@ import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 import { translateStage } from "../utils/stageTranslator";
 import ArenaGhostHistory from "./ArenaGhostHistory";
 import ArenaBattleGuide from "./arena/ArenaBattleGuide";
+import ArenaGhostPowerBreakdown from "./arena/ArenaGhostPowerBreakdown";
 import ArenaPowerBreakdown from "./arena/ArenaPowerBreakdown";
 
 function RecordValues({ wins = 0, losses = 0 }) {
@@ -36,6 +37,20 @@ export function getGhostLinkLabel(linkStatus) {
     case "legacy": return "이전 아레나 기록";
     default: return "연결 상태 확인 불가";
   }
+}
+
+export function formatGhostRegisteredAt(value) {
+  const date = value instanceof Date ? value : new Date(value || 0);
+  if (!value || Number.isNaN(date.getTime())) return "등록일 정보 없음";
+  return `${date.getFullYear()}. ${date.getMonth() + 1}. ${date.getDate()}.`;
+}
+
+function GhostRegisteredAt({ value }) {
+  return (
+    <p className="text-xs text-gray-500">
+      Ghost 등록일: {formatGhostRegisteredAt(value)}
+    </p>
+  );
 }
 
 function GhostSprite({ snapshot, size = "w-16 h-16", concealed = false }) {
@@ -75,6 +90,8 @@ export default function ArenaGhostScreen({
   const registrationBlocked = isDead || isStarter || arena.capacity.used >= arena.capacity.limit;
   const currentRecord = arena.currentFormRecord || {};
   const activeGhostCount = Math.min(3, arena.myGhosts.filter((ghost) => ghost.status === "active").length);
+  const ghostCapacityLimit = Math.max(0, Number(arena.capacity.limit) || 3);
+  const emptyGhostSlotCount = Math.max(0, ghostCapacityLimit - arena.myGhosts.length);
   const currentSpriteBasePath = currentDigimonData?.spriteBasePath || "/images";
 
   const handleDelete = async (ghost) => {
@@ -165,7 +182,7 @@ export default function ArenaGhostScreen({
                 disabled={registrationBlocked || Boolean(arena.mutationKey)}
                 className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {arena.mutationKey === "register" ? "등록 중..." : "현재 형태 Ghost 등록"}
+                {arena.mutationKey === "register" ? "등록 중..." : "현재 디지몬 Ghost 등록"}
               </button>
             </div>
           </div>
@@ -175,10 +192,12 @@ export default function ArenaGhostScreen({
 
         <section className="mb-7">
           <h3 className="mb-3 text-xl font-bold">내 Ghost ({arena.capacity.used}/{arena.capacity.limit})</h3>
-          {arena.loading ? <p>Ghost 정보를 불러오는 중...</p> : arena.myGhosts.length === 0 ? (
-            <p className="rounded border border-dashed p-4 text-gray-600">등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {arena.loading ? <p>Ghost 정보를 불러오는 중...</p> : (
+            <>
+              {arena.myGhosts.length === 0 && (
+                <p className="mb-3 text-sm text-gray-600">등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.</p>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {arena.myGhosts.map((ghost) => (
                 <article
                   key={ghost.ghostId}
@@ -190,6 +209,7 @@ export default function ArenaGhostScreen({
                       <h4 className="font-bold">{ghost.snapshot?.digimonName || ghost.snapshot?.digimonId}</h4>
                       <p className="text-xs">{translateStage(ghost.snapshot?.stage)}</p>
                       <p className="text-xs font-semibold text-blue-700">{getGhostLinkLabel(ghost.linkStatus)}</p>
+                      <GhostRegisteredAt value={ghost.registeredAt} />
                     </div>
                   </div>
                   <RecordLine label="등록 형태 전적" record={ghost.formRecordMirror} />
@@ -199,6 +219,7 @@ export default function ArenaGhostScreen({
                   >
                     Ghost 방어 전적: <RecordValues wins={ghost.ownDefenseRecord?.wins} losses={ghost.ownDefenseRecord?.losses} />
                   </p>
+                  <ArenaGhostPowerBreakdown snapshot={ghost.snapshot} />
                   {ghost.legacyRecord && <RecordLine label="이전 아레나 전적 · 공격/방어 구분 없음" record={ghost.legacyRecord} legacy />}
                   {ghost.pendingMirrorCount > 0 && <p className="mt-1 text-xs font-bold text-amber-700">형태 전적 동기화 중 · 삭제 잠시 불가</p>}
                   {ghost.status !== "active" && <p className="mt-1 text-xs font-bold text-red-700">배틀할 수 없는 이전 Ghost</p>}
@@ -211,7 +232,21 @@ export default function ArenaGhostScreen({
                   </button>
                 </article>
               ))}
-            </div>
+              {Array.from({ length: emptyGhostSlotCount }, (_, index) => (
+                <article
+                  key={`empty-ghost-slot-${index + 1}`}
+                  aria-label={`빈 Ghost 슬롯 ${index + 1}`}
+                  className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center text-gray-500"
+                >
+                  <div aria-hidden="true" className="mb-3 flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white text-2xl text-gray-400">
+                    —
+                  </div>
+                  <h4 className="font-bold text-gray-600">빈 슬롯</h4>
+                  <p className="mt-1 text-xs">Ghost를 등록할 수 있습니다.</p>
+                </article>
+              ))}
+              </div>
+            </>
           )}
         </section>
 
@@ -228,6 +263,7 @@ export default function ArenaGhostScreen({
                     <GhostSprite snapshot={ghost.snapshot} size="h-14 w-14" concealed />
                     <div>
                       <h4 className="font-bold">{ghost.ownerDisplayName}의 ???</h4>
+                      <GhostRegisteredAt value={ghost.registeredAt} />
                       <p
                         aria-label={`Ghost 방어: ${ghost.ownDefenseRecord?.wins || 0}승 ${ghost.ownDefenseRecord?.losses || 0}패`}
                         className="text-xs text-gray-600"

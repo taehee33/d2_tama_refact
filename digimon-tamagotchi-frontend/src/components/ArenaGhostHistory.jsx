@@ -40,7 +40,10 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
   return (
     <section className="mt-7 border-t pt-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-xl font-bold">배틀 기록</h3>
+        <div>
+          <h3 className="text-xl font-bold">배틀 기록</h3>
+          <p className="text-xs text-gray-500">최근 기록부터 5개씩 불러옵니다.</p>
+        </div>
         <div className="flex gap-2">
           <select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded border px-2 py-1 text-sm" aria-label="배틀 기록 필터">
             {filters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -73,6 +76,18 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
               </article>
             );
           })}
+        </div>
+      )}
+      {!history.loading && history.hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={history.loadMore}
+            disabled={history.loadingMore}
+            className="min-w-32 rounded-lg border border-blue-300 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {history.loadingMore ? "불러오는 중..." : "기록 더보기"}
+          </button>
         </div>
       )}
       {replay && (
