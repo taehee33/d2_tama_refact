@@ -792,32 +792,33 @@ export default function BattleScreen({
     onClose();
   };
 
-  const renderArenaResultActions = () => (
-    <>
+  const renderArenaResultReviewButton = () => (
+    <button
+      onClick={() => setShowLogReview(true)}
+      disabled={isCompletingBattle}
+      className="arena-result-review-button disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      Review Log
+    </button>
+  );
+
+  const renderArenaResultActionButtons = () => (
+    <div className="arena-result-actions">
       <button
-        onClick={() => setShowLogReview(true)}
+        onClick={handleRematch}
         disabled={isCompletingBattle}
-        className="arena-result-review-button disabled:cursor-not-allowed disabled:opacity-60"
+        className="arena-result-action-button arena-result-action-button--rematch disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Review Log
+        {isCompletingBattle ? "저장 중..." : "재전투"}
       </button>
-      <div className="arena-result-actions">
-        <button
-          onClick={handleRematch}
-          disabled={isCompletingBattle}
-          className="arena-result-action-button arena-result-action-button--rematch disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isCompletingBattle ? "저장 중..." : "재전투"}
-        </button>
-        <button
-          onClick={handleExit}
-          disabled={isCompletingBattle}
-          className="arena-result-action-button arena-result-action-button--return disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isCompletingBattle ? "저장 중..." : "Return to Arena"}
-        </button>
-      </div>
-    </>
+      <button
+        onClick={handleExit}
+        disabled={isCompletingBattle}
+        className="arena-result-action-button arena-result-action-button--return disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isCompletingBattle ? "저장 중..." : "Return to Arena"}
+      </button>
+    </div>
   );
 
   if (battleState === "loading") {
@@ -1429,10 +1430,11 @@ export default function BattleScreen({
                 </>
               ) : battleType === 'arena' ? (
                 <div className="arena-result-modal">
-                  {renderArenaResultActions()}
+                  {renderArenaResultReviewButton()}
                   <div className="text-4xl font-bold text-green-600 mb-4">WIN!</div>
+                  <p className="text-sm text-gray-600 mb-4">Arena 전투에서 승리했습니다!</p>
                   <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
-                  <p className="text-sm text-gray-600 mb-6">Arena 전투에서 승리했습니다!</p>
+                  {renderArenaResultActionButtons()}
                 </div>
               ) : (
                 <>
@@ -1510,10 +1512,11 @@ export default function BattleScreen({
               <div className="battle-result text-center pb-4">
                 {battleType === 'arena' ? (
                   <div className="arena-result-modal">
-                    {renderArenaResultActions()}
+                    {renderArenaResultReviewButton()}
                     <div className="text-3xl sm:text-4xl font-bold text-red-600 mb-4">LOSE...</div>
+                    <p className="text-sm text-gray-600 mb-4">Arena 전투에서 패배했습니다.</p>
                     <p className="text-gray-700 mb-4">아레나 결과 저장 대기</p>
-                    <p className="text-sm text-gray-600 mb-6">Arena 전투에서 패배했습니다.</p>
+                    {renderArenaResultActionButtons()}
                   </div>
                 ) : (
                   <>

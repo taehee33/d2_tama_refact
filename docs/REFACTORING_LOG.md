@@ -7412,3 +7412,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
   - `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
 - **아키텍처 결정 근거:** Ghost Power는 임의의 저장 캐시가 아니라 버전별 마스터와 단일 `calculatePower` 공식에서 파생해야 한다. legacy 원본을 보존한 채 파생 snapshot만 교정하고 projection 버전을 기록해 재실행 시 쓰기가 발생하지 않도록 했다.
+
+## [2026-07-22] 아레나 전투 결과 안내·버튼 순서 개선
+
+- **내용:** 아레나 승패 결과 문구를 `WIN`/`LOSE` 제목 바로 아래에 배치하고, `재전투`와 `Return to Arena` 버튼을 `아레나 결과 저장 대기` 안내 아래로 이동했다. `Review Log`는 기존처럼 결과 카드 우측 상단에 유지한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 리뷰 액션과 전투 진행 액션의 렌더러를 분리해 시각적 위치를 독립적으로 관리하고, 승리·패배 화면에 동일한 정보 계층을 적용했다.

@@ -321,13 +321,13 @@ describe("BattleScreen arena helper", () => {
   });
 });
 
-function buildArenaBattleResult(message = "공격 성공") {
+function buildArenaBattleResult(message = "공격 성공", won = true) {
   return {
-    won: true,
-    log: [{ attacker: "user", hit: true, message }],
+    won,
+    log: [{ attacker: won ? "user" : "enemy", hit: true, message }],
     rounds: 1,
-    userHits: 1,
-    enemyHits: 0,
+    userHits: won ? 1 : 0,
+    enemyHits: won ? 0 : 1,
     userPower: 50,
     userPowerDetails: {
       basePower: 50,
@@ -338,8 +338,11 @@ function buildArenaBattleResult(message = "공격 성공") {
   };
 }
 
-function renderArenaBattleScreen(onBattleComplete = jest.fn(() => Promise.resolve({ id: "saved" }))) {
-  simulateBattle.mockReturnValueOnce(buildArenaBattleResult("첫 전투"));
+function renderArenaBattleScreen(
+  onBattleComplete = jest.fn(() => Promise.resolve({ id: "saved" })),
+  { won = true } = {}
+) {
+  simulateBattle.mockReturnValueOnce(buildArenaBattleResult("첫 전투", won));
 
   render(
     <BattleScreen
@@ -389,6 +392,22 @@ async function finishSingleLogBattle() {
   await waitFor(() => expect(screen.getByText("WIN!")).toBeInTheDocument());
 }
 
+async function finishSingleLogDefeat() {
+  fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+
+  await act(async () => {
+    jest.advanceTimersByTime(2600);
+  });
+
+  await waitFor(() => expect(screen.getByText("LOSE...")).toBeInTheDocument());
+}
+
+function expectDocumentOrder(firstElement, secondElement) {
+  expect(
+    firstElement.compareDocumentPosition(secondElement) & Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy();
+}
+
 describe("BattleScreen arena result modal", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -416,6 +435,28 @@ describe("BattleScreen arena result modal", () => {
     expect(screen.getByRole("button", { name: "Return to Arena" })).toHaveClass(
       "arena-result-action-button--return"
     );
+
+    const resultTitle = screen.getByText("WIN!");
+    const resultMessage = screen.getByText("Arena 전투에서 승리했습니다!");
+    const savePendingMessage = screen.getByText("아레나 결과 저장 대기");
+    expectDocumentOrder(resultTitle, resultMessage);
+    expectDocumentOrder(resultMessage, savePendingMessage);
+    expectDocumentOrder(savePendingMessage, screen.getByRole("button", { name: "재전투" }));
+    expectDocumentOrder(savePendingMessage, screen.getByRole("button", { name: "Return to Arena" }));
+  });
+
+  test("아레나 패배 문구와 액션을 결과 안내 순서대로 표시한다", async () => {
+    renderArenaBattleScreen(undefined, { won: false });
+
+    await finishSingleLogDefeat();
+
+    const resultTitle = screen.getByText("LOSE...");
+    const resultMessage = screen.getByText("Arena 전투에서 패배했습니다.");
+    const savePendingMessage = screen.getByText("아레나 결과 저장 대기");
+    expectDocumentOrder(resultTitle, resultMessage);
+    expectDocumentOrder(resultMessage, savePendingMessage);
+    expectDocumentOrder(savePendingMessage, screen.getByRole("button", { name: "재전투" }));
+    expectDocumentOrder(savePendingMessage, screen.getByRole("button", { name: "Return to Arena" }));
   });
 
   test("재전투는 아레나 결과를 저장하되 전투 화면을 유지하고 같은 상대 새 배틀을 만든다", async () => {
