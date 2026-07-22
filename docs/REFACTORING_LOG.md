@@ -7378,3 +7378,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/ARENA_GHOST_SYSTEM_IMPLEMENTATION_PLAN.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** V2 쓰기가 시작된 뒤 legacy 결과를 다시 정본에 반영하면 전적이 두 경로로 갈라지므로 legacy write는 런타임 환경 변수로 재개하지 않고 테스트 dependency injection에서만 허용한다. 완료 outbox 정리는 보존된 Supabase replay와 분리된 파생 운영 문서이므로 결제 의존 TTL 대신 bounded Cron 정리로 동일한 30일 보존 계약을 유지한다.
+
+## [2026-07-22] 아레나 Ghost 도전 상대 정보 은닉·전적 색상 통일
+
+- **내용:** 도전 상대 카드에서 디지몬 이름을 `???`로 대체하고 Power·방어 보너스 문구를 제거했다. 상대 스프라이트에만 강한 흐림·흑백·명도 처리를 적용하고 대체 텍스트에서도 실제 디지몬 이름을 노출하지 않는다. 현재 형태, 등록 형태, 이전 아레나, 내 Ghost 방어, 상대 Ghost 방어의 승·패 표시는 공통 렌더러를 사용해 각각 초록색과 빨간색으로 통일했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 은닉 범위를 도전 전 presenter에만 한정해 서버 DTO와 Firestore 계약을 변경하지 않고, 배틀 시작 시에는 기존 원본 Ghost 객체를 그대로 전달해 서버 확정 배틀과 결과 공개 흐름을 보존한다. 승·패 색상은 공통 UI helper로 관리하되 텍스트 표기를 유지해 색상만으로 결과를 구분하지 않도록 한다.

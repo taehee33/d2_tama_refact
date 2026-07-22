@@ -58,15 +58,16 @@ describe("ArenaGhostScreen", () => {
 
   test("Ghost가 없어도 상대 도전 버튼을 제공한다", async () => {
     const onStartBattle = jest.fn().mockResolvedValue({ battleId: "battle-1" });
+    const opponent = {
+      ghostId: "ghost-enemy",
+      ownerDisplayName: "상대 테이머",
+      status: "active",
+      canBattle: true,
+      snapshot: { digimonName: "엔젤몬", sprite: 1, combatPowerAtCapture: 12 },
+      ownDefenseRecord: { wins: 2, losses: 1 },
+    };
     mockUseArenaGhosts.mockReturnValue(createArenaState({
-      opponents: [{
-        ghostId: "ghost-enemy",
-        ownerDisplayName: "상대 테이머",
-        status: "active",
-        canBattle: true,
-        snapshot: { digimonName: "엔젤몬", sprite: 1, combatPowerAtCapture: 12 },
-        ownDefenseRecord: { wins: 2, losses: 1 },
-      }],
+      opponents: [opponent],
     }));
 
     render(
@@ -80,8 +81,21 @@ describe("ArenaGhostScreen", () => {
     );
 
     expect(screen.getByText("등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.")).toBeInTheDocument();
+    expect(screen.getByText("상대 테이머의 ???")).toBeInTheDocument();
+    expect(screen.queryByText("엔젤몬")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Power 12/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/방어 보너스/)).not.toBeInTheDocument();
+
+    const concealedSprite = screen.getByRole("img", { name: "정체를 알 수 없는 상대 Ghost" });
+    expect(concealedSprite).toHaveClass("blur-lg", "grayscale", "brightness-50", "contrast-150");
+    expect(concealedSprite).toHaveAttribute("draggable", "false");
+
+    const opponentRecord = screen.getByLabelText("Ghost 방어: 2승 1패");
+    expect(opponentRecord.querySelector(".text-emerald-600")).toHaveTextContent("2승");
+    expect(opponentRecord.querySelector(".text-red-600")).toHaveTextContent("1패");
+
     fireEvent.click(screen.getByRole("button", { name: "도전" }));
-    await waitFor(() => expect(onStartBattle).toHaveBeenCalledWith(expect.objectContaining({ ghostId: "ghost-enemy" })));
+    await waitFor(() => expect(onStartBattle).toHaveBeenCalledWith(opponent));
   });
 
   test("등록 형태와 Ghost 방어 전적을 분리하고 pending 삭제를 차단한다", () => {
@@ -94,6 +108,7 @@ describe("ArenaGhostScreen", () => {
         snapshot: { digimonName: "엔젤몬", stage: "Adult", sprite: 1 },
         formRecordMirror: { attackWins: 2, attackLosses: 1, defenseWins: 1, defenseLosses: 0 },
         ownDefenseRecord: { wins: 4, losses: 3 },
+        legacyRecord: { wins: 5, losses: 2 },
         pendingMirrorCount: 1,
       }],
     }));
@@ -107,8 +122,21 @@ describe("ArenaGhostScreen", () => {
       />
     );
 
-    expect(screen.getByText("등록 형태 전적: 3승 1패")).toBeInTheDocument();
-    expect(screen.getByText("Ghost 방어 전적: 4승 3패")).toBeInTheDocument();
+    const formRecord = screen.getByLabelText("등록 형태 전적: 3승 1패");
+    expect(formRecord.querySelector(".text-emerald-600")).toHaveTextContent("3승");
+    expect(formRecord.querySelector(".text-red-600")).toHaveTextContent("1패");
+
+    const defenseRecord = screen.getByLabelText("Ghost 방어 전적: 4승 3패");
+    expect(defenseRecord.querySelector(".text-emerald-600")).toHaveTextContent("4승");
+    expect(defenseRecord.querySelector(".text-red-600")).toHaveTextContent("3패");
+
+    const legacyRecord = screen.getByLabelText("이전 아레나 전적 · 공격/방어 구분 없음: 5승 2패");
+    expect(legacyRecord.querySelector(".text-emerald-600")).toHaveTextContent("5승");
+    expect(legacyRecord.querySelector(".text-red-600")).toHaveTextContent("2패");
+
+    const currentRecord = screen.getByLabelText("현재 형태 전적: 공격 1승 2패 · 방어 3승 4패");
+    expect(currentRecord.querySelectorAll(".text-emerald-600")).toHaveLength(2);
+    expect(currentRecord.querySelectorAll(".text-red-600")).toHaveLength(2);
     expect(screen.getByText("형태 전적 동기화 중 · 삭제 잠시 불가")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "삭제" })).toBeDisabled();
   });
