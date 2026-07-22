@@ -7398,3 +7398,17 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
   - 관련 테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** Power 계산과 공식 안내를 대형 presenter에 직접 추가하지 않고 전용 하위 컴포넌트로 분리했다. 표시 계산은 클라이언트의 기존 순수 `calculatePower`를 재사용하지만 실제 배틀 결과는 계속 서버가 projection과 transaction 안에서 재계산·확정하므로 저장/API 계약은 바뀌지 않는다.
+
+## [2026-07-22] 구형 Arena Ghost Power 전체 재계산 및 상대 테이머명 복구
+
+- **내용:** 구형 아레나 등록이 `digimonStats.power`의 캐시값 `0`을 공식 계산보다 우선 저장하고, V2 마이그레이션이 이를 그대로 `combatPowerAtCapture`에 복사하던 문제를 수정했다. 마이그레이션은 이제 등록 당시 버전의 마스터 데이터와 Strength, Traited Egg, Effort를 사용해 Power를 다시 계산하며, 이미 생성된 legacy Ghost도 멱등적으로 보정한다. V2 배틀 결과 화면에는 도전 상대 DTO의 테이머명을 전달해 `Arena - undefined의 ...` 표기도 제거했다.
+- **운영 반영:** 운영 Ghost 15개를 감사한 결과 legacy 14개 중 13개의 Power 불일치를 확인했다. 13개를 공식 계산값으로 보정하고, 정상적으로 Power 0인 Tokomon 2개(legacy 1, native V2 1)는 유지했다. 원본 `arena_entries`와 과거 배틀 기록은 삭제하거나 수정하지 않았다. 적용 후 dry-run에서 Power 불일치, 보정 대상, 오류, 추가 쓰기가 모두 0임을 확인했다.
+- **영향 파일:**
+  - `scripts/migrateArenaGhosts.js`
+  - `tests/arena-ghost-migration.test.js`
+  - `tests/arena-ghost-migration-emulator.test.js`
+  - `digimon-tamagotchi-frontend/src/components/ArenaScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaScreen.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/BattleScreen.test.js`
+- **아키텍처 결정 근거:** Ghost Power는 임의의 저장 캐시가 아니라 버전별 마스터와 단일 `calculatePower` 공식에서 파생해야 한다. legacy 원본을 보존한 채 파생 snapshot만 교정하고 projection 버전을 기록해 재실행 시 쓰기가 발생하지 않도록 했다.

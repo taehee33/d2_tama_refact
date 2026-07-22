@@ -141,7 +141,7 @@ export function shouldKeepArenaBattleScreenOpenAfterComplete(options = {}) {
   return Boolean(options.keepBattleScreenOpen);
 }
 
-export function buildArenaSessionBattleResult(session) {
+export function buildArenaSessionBattleResult(session, challenger = null) {
   if (!session?.battleId || !session?.defenderGhost?.snapshot) return null;
   const attacker = session.attacker || {};
   const defender = session.defenderGhost.snapshot || {};
@@ -165,6 +165,7 @@ export function buildArenaSessionBattleResult(session) {
       attackSprite: defender.attackSprite ?? defender.sprite ?? 0,
       digimonId: defender.digimonId || defender.digimonName,
       slotVersion: defender.gameVersion || "Ver.1",
+      tamerName: challenger?.ownerDisplayName || challenger?.tamerName || challenger?.trainerName || "상대 테이머",
     },
     isAreaClear: false,
     reward: null,
@@ -354,7 +355,7 @@ export default function BattleScreen({
           userPowerDetails: battleResult.userPowerDetails,
         };
       } else if (battleType === 'arena' && arenaBattleSession) {
-        result = buildArenaSessionBattleResult(arenaBattleSession);
+        result = buildArenaSessionBattleResult(arenaBattleSession, arenaChallenger);
       } else if (battleType === 'arena' && arenaChallenger) {
         // Arena 모드: arenaChallenger 데이터 사용
         const {

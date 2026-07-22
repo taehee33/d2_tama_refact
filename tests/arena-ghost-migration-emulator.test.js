@@ -103,6 +103,7 @@ test("legacy Ghost migration이 dry-run·resume·원형 보존·재실행 멱등
   assert.deepEqual(ghostSnapshots.map((snapshot) => snapshot.id), ids);
   assert.equal(ghostSnapshots[3].data().status, "disabled");
   assert.equal(ghostSnapshots[0].data().sourceCombatIdentityId, null);
+  assert.equal(ghostSnapshots[0].data().snapshot.combatPowerAtCapture, 30);
   assert.equal(ghostSnapshots[0].data().legacyRecord.breakdownKnown, false);
   const owner = (await db.doc("arena_ghost_owners/owner-1").get()).data();
   assert.deepEqual(owner.ghostIds, ids);
@@ -122,6 +123,27 @@ test("legacy Ghost migration이 dry-run·resume·원형 보존·재실행 멱등
   assert.equal(rerun.seasonRecordsSkipped, 1);
   assert.equal(rerun.writesPerformed, 0);
   assert.equal((await db.collection("arena_entries").get()).size, 4);
+
+  await db.doc("arena_ghosts/legacy-a").update({
+    "snapshot.combatPowerAtCapture": 0,
+    "migration.schemaVersion": 1,
+    "migration.powerProjectionVersion": 0,
+  });
+  const repairDryRun = await runMigration(options(projectId), { db, now: new Date(now.getTime() + 1500) });
+  assert.equal(repairDryRun.correctedGhostsPlanned, 1);
+  assert.equal(repairDryRun.powerMismatchesPlanned, 1);
+  assert.deepEqual(repairDryRun.ghostPowerCorrections, [{
+    ghostId: "legacy-a",
+    gameVersion: "Ver.1",
+    digimonId: "Agumon",
+    previousPower: 0,
+    correctedPower: 30,
+  }]);
+  const repaired = await runMigration(applyOptions, { db, now: new Date(now.getTime() + 1600) });
+  assert.equal(repaired.correctedGhostsApplied, 1);
+  assert.equal(repaired.powerMismatchesApplied, 1);
+  assert.equal(repaired.writesPerformed, 1);
+  assert.equal((await db.doc("arena_ghosts/legacy-a").get()).data().snapshot.combatPowerAtCapture, 30);
 
   const postApplyDryRun = await runMigration(options(projectId), { db, now: new Date(now.getTime() + 2000) });
   assert.equal(postApplyDryRun.created, 0);

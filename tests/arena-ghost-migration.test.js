@@ -44,6 +44,29 @@ test("legacy entry ID와 승패 원형을 그대로 Ghost에 보존하고 identi
     wins: 10, losses: 4, seasonWins: 3, seasonLosses: 1, seasonId: 12,
     breakdownKnown: false,
   });
+  assert.equal(plan.ghost.snapshot.combatPowerAtCapture, 30);
+  assert.deepEqual(plan.ghost.migration, {
+    schemaVersion: 2,
+    sourceCollection: "arena_entries",
+    sourceDocumentId: "oldEntry20CharId",
+    powerProjectionVersion: 1,
+  });
+});
+
+test("저장된 power가 0이어도 버전별 마스터와 보너스로 전투 Power를 다시 계산한다", () => {
+  const plan = buildLegacyGhostPlan(legacyEntry("andromon-entry", {
+    digimonSnapshot: {
+      digimonId: "Andromon",
+      digimonName: "안드로몬",
+      slotVersion: "Ver.3",
+      stage: "Perfect",
+      sprite: 375,
+      stats: { power: 0, strength: 5, traitedEgg: true, effort: 2, type: "Vaccine" },
+    },
+  }));
+
+  assert.equal(plan.status, "active");
+  assert.equal(plan.ghost.snapshot.combatPowerAtCapture, 140);
 });
 
 test("불완전하거나 지원하지 않는 snapshot은 삭제하지 않고 disabled 계획으로 만든다", () => {

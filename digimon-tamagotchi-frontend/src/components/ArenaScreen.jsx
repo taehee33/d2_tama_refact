@@ -71,6 +71,10 @@ function getArenaDigimonName(digimonId, slotVersion = null, fallbackName = "Unkn
   return getArenaDigimonData(digimonId, slotVersion)?.name || digimonId || fallbackName;
 }
 
+export function calculateArenaSnapshotPower(stats = {}, digimonData = {}) {
+  return Number(calculatePower(stats, digimonData) || 0);
+}
+
 export function normalizeArenaLeaderboardEntry(entry = {}, fallbackSeasonId = CURRENT_SEASON_ID) {
   const rawRecord = entry.record && typeof entry.record === "object" ? entry.record : {};
   const rawSnapshot =
@@ -863,8 +867,8 @@ export default function ArenaScreen({
     const digimonData = getDigimonDataForSlot(slot.selectedDigimon, slot.version);
     const stats = slot.digimonStats || {};
     
-    // Power 계산: stats.power가 있으면 사용, 없으면 calculatePower로 계산
-    const calculatedPower = stats.power ?? calculatePower(stats, digimonData) ?? digimonData?.stats?.basePower ?? 0;
+    // 저장된 stats.power는 과거 캐시일 수 있으므로 현재 공식으로 항상 다시 계산합니다.
+    const calculatedPower = calculateArenaSnapshotPower(stats, digimonData);
     
     return {
       digimonId: slot.selectedDigimon,

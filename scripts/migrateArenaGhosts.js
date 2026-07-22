@@ -13,10 +13,11 @@ const {
   createSeasonRecordId,
 } = require("../digimon-tamagotchi-frontend/api/_lib/arenaDomain");
 const {
+  calculatePower,
   getDigimonEntryByVersion,
 } = require("../digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs");
 
-const MIGRATION_SCHEMA_VERSION = 1;
+const MIGRATION_SCHEMA_VERSION = 2;
 
 function parsePositiveInteger(value, label) {
   const parsed = Number(value);
@@ -130,12 +131,14 @@ function analyzeLegacySnapshot(entry = {}, now = new Date()) {
   const gameVersion = normalizeString(source.slotVersion, "Ver.1");
   const digimonId = normalizeString(source.digimonId || source.digimonName);
   const master = digimonId ? getDigimonEntryByVersion(gameVersion, digimonId) : null;
-  const rawPower = Number(source.stats?.power);
+  const sourceStats = source.stats && typeof source.stats === "object" ? source.stats : null;
+  const storedPower = Number(sourceStats?.power);
+  const projectedPower = master && sourceStats ? Number(calculatePower(sourceStats, master)) : Number.NaN;
   const issues = [];
   if (!digimonId) issues.push("missing_digimon_id");
   if (!master) issues.push("unsupported_master_data");
-  if (!source.stats || typeof source.stats !== "object") issues.push("missing_stats");
-  if (!Number.isFinite(rawPower) || rawPower < 0) issues.push("invalid_power");
+  if (!sourceStats) issues.push("missing_stats");
+  if (!Number.isFinite(projectedPower) || projectedPower < 0) issues.push("invalid_power_projection");
   const capturedAt = toDate(entry.createdAt, now);
   const snapshot = {
     gameVersion,
@@ -146,12 +149,20 @@ function analyzeLegacySnapshot(entry = {}, now = new Date()) {
     spriteBasePath: normalizeString(source.spriteBasePath, master?.spriteBasePath || "").slice(0, 180),
     sprite: Math.max(0, normalizeInteger(source.sprite ?? master?.sprite)),
     attackSprite: Math.max(0, normalizeInteger(source.attackSprite ?? master?.stats?.attackSprite ?? source.sprite)),
-    combatPowerAtCapture: Number.isFinite(rawPower) ? Math.max(0, Math.trunc(rawPower)) : 0,
+    combatPowerAtCapture: Number.isFinite(projectedPower) ? Math.max(0, Math.trunc(projectedPower)) : 0,
     ageAtCapture: normalizeInteger(source.stats?.age),
     weightAtCapture: normalizeInteger(source.stats?.weight),
     capturedAt,
   };
-  return { snapshot, issues, usable: issues.length === 0 };
+  return {
+    snapshot,
+    issues,
+    usable: issues.length === 0,
+    powerProjection: {
+      storedPower: Number.isFinite(storedPower) ? Math.max(0, Math.trunc(storedPower)) : null,
+      projectedPower: snapshot.combatPowerAtCapture,
+    },
+  };
 }
 
 function buildLegacyGhostPlan({ id, data }, now = new Date()) {
@@ -188,6 +199,7 @@ function buildLegacyGhostPlan({ id, data }, now = new Date()) {
         schemaVersion: MIGRATION_SCHEMA_VERSION,
         sourceCollection: "arena_entries",
         sourceDocumentId: id,
+        powerProjectionVersion: 1,
       },
     },
   };
@@ -249,6 +261,16 @@ function isLegacyGhostEquivalent(existing = {}, plan) {
     existing.migration?.sourceDocumentId === plan.ghostId;
 }
 
+function legacyGhostNeedsCorrection(existing = {}, plan) {
+  return legacyGhostPowerMismatch(existing, plan) ||
+    existing.status !== plan.ghost.status ||
+    normalizeInteger(existing.migration?.powerProjectionVersion) !== 1;
+}
+
+function legacyGhostPowerMismatch(existing = {}, plan) {
+  return normalizeInteger(existing.snapshot?.combatPowerAtCapture) !== plan.ghost.snapshot.combatPowerAtCapture;
+}
+
 function seasonAggregateMatches(existing = {}, aggregate) {
   return existing.schemaVersion === 1 &&
     existing.seasonId === aggregate.seasonId &&
@@ -265,15 +287,28 @@ async function applyGhostPlan(db, plan, now) {
     const ownerRef = db.doc(`arena_ghost_owners/${plan.ownerUid}`);
     const [ghostSnapshot, ownerSnapshot] = await transaction.getAll(ghostRef, ownerRef);
     if (ghostSnapshot.exists) {
-      if (!isLegacyGhostEquivalent(ghostSnapshot.data() || {}, plan)) {
+      const existingGhost = ghostSnapshot.data() || {};
+      if (!isLegacyGhostEquivalent(existingGhost, plan)) {
         return { outcome: "error", code: "ghost_id_conflict" };
+      }
+      const powerChanged = legacyGhostPowerMismatch(existingGhost, plan);
+      const correctedGhost = legacyGhostNeedsCorrection(existingGhost, plan);
+      if (correctedGhost) {
+        transaction.update(ghostRef, {
+          status: plan.ghost.status,
+          "snapshot.combatPowerAtCapture": plan.ghost.snapshot.combatPowerAtCapture,
+          "migration.schemaVersion": MIGRATION_SCHEMA_VERSION,
+          "migration.powerProjectionVersion": 1,
+          "migration.powerRepairedAt": now,
+          updatedAt: now,
+        });
       }
       const ids = Array.isArray(ownerSnapshot.data?.()?.ghostIds) ? ownerSnapshot.data().ghostIds : [];
       if (!ids.includes(plan.ghostId)) {
         transaction.set(ownerRef, { schemaVersion: 1, ghostIds: [...ids, plan.ghostId], updatedAt: now });
-        return { outcome: "repaired_registry" };
+        return { outcome: "repaired_registry", correctedGhost, powerChanged };
       }
-      return { outcome: "skipped" };
+      return { outcome: "skipped", correctedGhost, powerChanged };
     }
     const ids = Array.isArray(ownerSnapshot.data?.()?.ghostIds) ? ownerSnapshot.data().ghostIds : [];
     transaction.create(ghostRef, plan.ghost);
@@ -321,10 +356,11 @@ async function runMigration(options, dependencies = {}) {
   }
   const db = dependencies.db || getFirestore();
   const now = dependencies.now || new Date();
-  const [entrySnapshot, logSnapshot, configSnapshot] = await Promise.all([
+  const [entrySnapshot, logSnapshot, configSnapshot, allGhostSnapshot] = await Promise.all([
     db.collection("arena_entries").get(),
     db.collection("arena_battle_logs").get(),
     db.doc("game_settings/arena_config").get(),
+    db.collection("arena_ghosts").get(),
   ]);
   const allEntries = entrySnapshot.docs
     .map((doc) => ({ id: doc.id, data: doc.data() || {} }))
@@ -372,6 +408,11 @@ async function runMigration(options, dependencies = {}) {
     disabled: 0,
     errors: 0,
     repairedOwnerRegistries: 0,
+    correctedGhostsPlanned: 0,
+    correctedGhostsApplied: 0,
+    powerMismatchesPlanned: 0,
+    powerMismatchesApplied: 0,
+    ghostPowerCorrections: [],
     seasonRecordsChanged: 0,
     seasonRecordsSkipped: 0,
     writesPerformed: 0,
@@ -379,6 +420,18 @@ async function runMigration(options, dependencies = {}) {
     nextResumeAfter: selectedEntries.at(-1)?.id || null,
     processedEntryIds: selectedEntries.map((entry) => entry.id),
     sourceCounts: { arenaEntries: allEntries.length, battleLogs: logSnapshot.size },
+    allGhostCounts: {
+      total: allGhostSnapshot.size,
+      legacy: allGhostSnapshot.docs.filter((snapshot) => snapshot.data()?.legacy === true).length,
+      nativeV2: allGhostSnapshot.docs.filter((snapshot) => snapshot.data()?.legacy !== true).length,
+    },
+    nativeV2GhostPowers: allGhostSnapshot.docs
+      .filter((snapshot) => snapshot.data()?.legacy !== true)
+      .map((snapshot) => ({
+        gameVersion: snapshot.data()?.snapshot?.gameVersion || null,
+        digimonId: snapshot.data()?.snapshot?.digimonId || null,
+        combatPowerAtCapture: normalizeInteger(snapshot.data()?.snapshot?.combatPowerAtCapture),
+      })),
     targetCountsBefore: {
       matchingGhosts: ghostSnapshots.filter((snapshot) => snapshot.exists).length,
       ownerRegistries: ownerSnapshots.filter((snapshot) => snapshot.exists).length,
@@ -412,10 +465,24 @@ async function runMigration(options, dependencies = {}) {
       }
       const existingGhost = ghostSnapshotById.get(plan.ghostId);
       if (existingGhost?.exists) {
-        if (!isLegacyGhostEquivalent(existingGhost.data() || {}, plan)) {
+        const existingData = existingGhost.data() || {};
+        if (!isLegacyGhostEquivalent(existingData, plan)) {
           report.errors += 1;
           report.anomalies.push({ ghostId: plan.ghostId, codes: ["ghost_id_conflict"] });
           continue;
+        }
+        if (legacyGhostNeedsCorrection(existingData, plan)) {
+          report.correctedGhostsPlanned += 1;
+        }
+        if (legacyGhostPowerMismatch(existingData, plan)) {
+          report.powerMismatchesPlanned += 1;
+          report.ghostPowerCorrections.push({
+            ghostId: plan.ghostId,
+            gameVersion: plan.ghost.snapshot.gameVersion,
+            digimonId: plan.ghost.snapshot.digimonId,
+            previousPower: normalizeInteger(existingData.snapshot?.combatPowerAtCapture),
+            correctedPower: plan.ghost.snapshot.combatPowerAtCapture,
+          });
         }
         const ownerIds = ownerSnapshotByUid.get(plan.ownerUid)?.data?.()?.ghostIds;
         if (!Array.isArray(ownerIds) || !ownerIds.includes(plan.ghostId)) report.repairedOwnerRegistries += 1;
@@ -426,6 +493,11 @@ async function runMigration(options, dependencies = {}) {
     }
     try {
       const result = await applyGhostPlan(db, plan, now);
+      if (result.correctedGhost) {
+        report.correctedGhostsApplied += 1;
+        report.writesPerformed += 1;
+      }
+      if (result.powerChanged) report.powerMismatchesApplied += 1;
       if (result.outcome === "created") {
         if (plan.status === "disabled") report.disabled += 1;
         else report.created += 1;
@@ -492,6 +564,8 @@ module.exports = {
   buildLegacyGhostPlan,
   buildSeasonRecordPatch,
   isLegacyGhostEquivalent,
+  legacyGhostNeedsCorrection,
+  legacyGhostPowerMismatch,
   parseArgs,
   runMigration,
   seasonAggregateMatches,

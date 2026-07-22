@@ -1,11 +1,19 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ArenaScreen, {
+  calculateArenaSnapshotPower,
   getLeaderboardStats,
   getBattleReplayUiState,
   hasBattleReplayArchive,
   normalizeArenaLeaderboardEntry,
 } from "./ArenaScreen";
+
+test("아레나 snapshot Power는 저장된 0 대신 마스터와 현재 보너스로 다시 계산한다", () => {
+  expect(calculateArenaSnapshotPower(
+    { power: 0, strength: 5, traitedEgg: true, effort: 2 },
+    { stage: "Perfect", stats: { basePower: 100 } }
+  )).toBe(140);
+});
 
 const mockUseAuth = jest.fn();
 const mockGetDocs = jest.fn();
