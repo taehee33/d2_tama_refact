@@ -4,6 +4,8 @@ import { useArenaGhosts } from "../hooks/useArenaGhosts";
 import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 import { translateStage } from "../utils/stageTranslator";
 import ArenaGhostHistory from "./ArenaGhostHistory";
+import ArenaBattleGuide from "./arena/ArenaBattleGuide";
+import ArenaPowerBreakdown from "./arena/ArenaPowerBreakdown";
 
 function RecordValues({ wins = 0, losses = 0 }) {
   return (
@@ -57,6 +59,7 @@ export default function ArenaGhostScreen({
   selectedDigimon,
   digimonStats,
   digimonNickname,
+  currentDigimonData,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
   const [startingGhostId, setStartingGhostId] = useState(null);
@@ -71,6 +74,8 @@ export default function ArenaGhostScreen({
   const isStarter = isStarterDigimonId(selectedDigimon);
   const registrationBlocked = isDead || isStarter || arena.capacity.used >= arena.capacity.limit;
   const currentRecord = arena.currentFormRecord || {};
+  const activeGhostCount = Math.min(3, arena.myGhosts.filter((ghost) => ghost.status === "active").length);
+  const currentSpriteBasePath = currentDigimonData?.spriteBasePath || "/images";
 
   const handleDelete = async (ghost) => {
     const name = ghost?.snapshot?.digimonName || "이 Ghost";
@@ -122,29 +127,51 @@ export default function ArenaGhostScreen({
         )}
 
         <section className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <h3 className="font-bold">현재 디지몬</h3>
-          <p className="text-lg">{digimonNickname ? `${digimonNickname}(${selectedDigimon})` : selectedDigimon || "없음"}</p>
-          <p className="text-sm text-gray-600">슬롯 {currentSlotId} · {isDead ? "사망 상태" : isStarter ? "등록 불가 단계" : "공격 및 등록 가능"}</p>
-          <p
-            aria-label={`현재 형태 전적: 공격 ${currentRecord.attackWins || 0}승 ${currentRecord.attackLosses || 0}패 · 방어 ${currentRecord.defenseWins || 0}승 ${currentRecord.defenseLosses || 0}패`}
-            className="mt-2 text-sm"
-          >
-            현재 형태 전적: 공격 <RecordValues wins={currentRecord.attackWins} losses={currentRecord.attackLosses} />
-            {" · "}
-            방어 <RecordValues wins={currentRecord.defenseWins} losses={currentRecord.defenseLosses} />
-          </p>
-          <p className="text-sm">기본 Power {digimonStats?.power || 0} + 활성 Ghost 보너스 {Math.min(3, arena.myGhosts.filter((ghost) => ghost.status === "active").length)}</p>
-          {arena.capacity.used >= arena.capacity.limit && (
-            <p className="mt-2 text-sm text-amber-800">새 Ghost를 등록하려면 기존 Ghost를 직접 삭제해 주세요.</p>
-          )}
-          <button
-            onClick={arena.registerCurrentGhost}
-            disabled={registrationBlocked || Boolean(arena.mutationKey)}
-            className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {arena.mutationKey === "register" ? "등록 중..." : "현재 형태 Ghost 등록"}
-          </button>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+            <div className="flex shrink-0 justify-center rounded-lg border border-blue-200 bg-white p-3 sm:w-36">
+              <img
+                src={`${currentSpriteBasePath}/${currentDigimonData?.sprite ?? 0}.png`}
+                alt={`현재 디지몬 ${selectedDigimon || "없음"}`}
+                className="h-24 w-24 object-contain pixelated"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-bold">현재 디지몬</h3>
+              <p className="text-lg">{digimonNickname ? `${digimonNickname}(${selectedDigimon})` : selectedDigimon || "없음"}</p>
+              <p className="text-sm text-gray-600">
+                슬롯 {currentSlotId}
+                {currentDigimonData?.stage ? ` · ${translateStage(currentDigimonData.stage)}` : ""}
+                {currentDigimonData?.stats?.type ? ` · ${currentDigimonData.stats.type}` : ""}
+                {` · ${isDead ? "사망 상태" : isStarter ? "등록 불가 단계" : "공격 및 등록 가능"}`}
+              </p>
+              <p
+                aria-label={`현재 형태 전적: 공격 ${currentRecord.attackWins || 0}승 ${currentRecord.attackLosses || 0}패 · 방어 ${currentRecord.defenseWins || 0}승 ${currentRecord.defenseLosses || 0}패`}
+                className="mt-2 text-sm"
+              >
+                현재 형태 전적: 공격 <RecordValues wins={currentRecord.attackWins} losses={currentRecord.attackLosses} />
+                {" · "}
+                방어 <RecordValues wins={currentRecord.defenseWins} losses={currentRecord.defenseLosses} />
+              </p>
+              <ArenaPowerBreakdown
+                digimonStats={digimonStats}
+                currentDigimonData={currentDigimonData}
+                activeGhostCount={activeGhostCount}
+              />
+              {arena.capacity.used >= arena.capacity.limit && (
+                <p className="mt-2 text-sm text-amber-800">새 Ghost를 등록하려면 기존 Ghost를 직접 삭제해 주세요.</p>
+              )}
+              <button
+                onClick={arena.registerCurrentGhost}
+                disabled={registrationBlocked || Boolean(arena.mutationKey)}
+                className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {arena.mutationKey === "register" ? "등록 중..." : "현재 형태 Ghost 등록"}
+              </button>
+            </div>
+          </div>
         </section>
+
+        <ArenaBattleGuide />
 
         <section className="mb-7">
           <h3 className="mb-3 text-xl font-bold">내 Ghost ({arena.capacity.used}/{arena.capacity.limit})</h3>

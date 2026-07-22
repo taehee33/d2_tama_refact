@@ -7387,3 +7387,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 은닉 범위를 도전 전 presenter에만 한정해 서버 DTO와 Firestore 계약을 변경하지 않고, 배틀 시작 시에는 기존 원본 Ghost 객체를 그대로 전달해 서버 확정 배틀과 결과 공개 흐름을 보존한다. 승·패 색상은 공통 UI helper로 관리하되 텍스트 표기를 유지해 색상만으로 결과를 구분하지 않도록 한다.
+
+## [2026-07-22] 아레나 Ghost 현재 디지몬·Power 상세·배틀 가이드 복구
+
+- **내용:** V2 전환 과정에서 단순화됐던 현재 디지몬 영역에 실제 스프라이트, 단계와 속성을 다시 표시했다. 기존 아레나의 Power 상세 UX를 V2 공식에 맞게 분리해 Base, Strength, Traited Egg, Effort, 활성 Ghost 보너스와 최종 공격 Power를 확인할 수 있게 했다. 서버 확정 배틀의 3회 명중 승리, 최대 라운드, 공격·방어 Power, 히트레이트·속성 상성, 배틀 후 반영 내용을 접이식 가이드로 복구했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/arena/ArenaPowerBreakdown.jsx`
+  - `digimon-tamagotchi-frontend/src/components/arena/ArenaBattleGuide.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - 관련 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** Power 계산과 공식 안내를 대형 presenter에 직접 추가하지 않고 전용 하위 컴포넌트로 분리했다. 표시 계산은 클라이언트의 기존 순수 `calculatePower`를 재사용하지만 실제 배틀 결과는 계속 서버가 projection과 transaction 안에서 재계산·확정하므로 저장/API 계약은 바뀌지 않는다.

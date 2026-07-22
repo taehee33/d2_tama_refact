@@ -140,4 +140,49 @@ describe("ArenaGhostScreen", () => {
     expect(screen.getByText("형태 전적 동기화 중 · 삭제 잠시 불가")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "삭제" })).toBeDisabled();
   });
+
+  test("현재 디지몬 이미지와 Power 상세 및 V2 배틀 공식을 표시한다", () => {
+    mockUseArenaGhosts.mockReturnValue(createArenaState({
+      myGhosts: [
+        { ghostId: "ghost-1", status: "active", snapshot: { digimonName: "A" }, pendingMirrorCount: 0 },
+        { ghostId: "ghost-2", status: "active", snapshot: { digimonName: "B" }, pendingMirrorCount: 0 },
+      ],
+      capacity: { used: 2, limit: 3 },
+    }));
+
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={2}
+        selectedDigimon="엔젤몬"
+        digimonStats={{ strength: 5, traitedEgg: true, effort: 2 }}
+        currentDigimonData={{
+          sprite: 123,
+          spriteBasePath: "/images/v1",
+          stage: "Adult",
+          stats: { basePower: 10, type: "Vaccine" },
+        }}
+      />
+    );
+
+    expect(screen.getByRole("img", { name: "현재 디지몬 엔젤몬" })).toHaveAttribute(
+      "src",
+      "/images/v1/123.png"
+    );
+    expect(screen.getByText("성숙기", { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText("최종 공격 Power 38")).toHaveTextContent("36 + Ghost 2 = 38");
+
+    fireEvent.click(screen.getByRole("button", { name: "Power 상세 펼치기 ▼" }));
+    expect(screen.getByText("Base Power: 10")).toBeInTheDocument();
+    expect(screen.getByText("Strength 보너스: +8")).toBeInTheDocument();
+    expect(screen.getByText("Traited Egg 보너스: +8")).toBeInTheDocument();
+    expect(screen.getByText("Effort 보너스: +10")).toBeInTheDocument();
+    expect(screen.getByText("최종 공격 Power = 36 + 2 = 38")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "펼치기 ▼" }));
+    expect(screen.getByText("먼저 3번 명중한 쪽이 승리")).toBeInTheDocument();
+    expect(screen.getByText(/공격자 Power × 100/)).toBeInTheDocument();
+    expect(screen.getByText("방어: Ghost 등록 당시 Power + 고정 방어 보너스 1")).toBeInTheDocument();
+    expect(screen.getByText("Weight -4g, Energy -1")).toBeInTheDocument();
+  });
 });

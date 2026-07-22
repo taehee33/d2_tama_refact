@@ -610,6 +610,7 @@ export default function GameModals({
             selectedDigimon={selectedDigimon}
             digimonStats={digimonStats}
             digimonNickname={digimonNickname || null}
+            currentDigimonData={currentDigimonData}
           />
         ) : (
           <ArenaScreen
