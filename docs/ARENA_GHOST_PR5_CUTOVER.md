@@ -35,6 +35,18 @@ Preview에서만 먼저 켜고 다음 항목을 검증한다.
 
 Production에서는 사용자별 cohort를 사용하지 않는다. maintenance 창에서 legacy write를 전역 동결한 뒤 V2를 전체 사용자에게 동시에 활성화한다.
 
+## 운영 활성화 결과
+
+2026-07-22에 PR6 전역 cutover를 완료했다.
+
+- Production build flag `REACT_APP_ARENA_GHOST_V2=true`
+- `game_settings/arena_config.mode=active`
+- `minArenaClientSchemaVersion=2`
+- legacy complete와 사용자 archive POST는 426 유지
+- GitHub Actions mirror/archive worker는 5분 간격, Vercel Cron은 일일 복구 경로
+- 최종 identity dry-run 변경 0건, migration dry-run write 0건
+- Production worker 직접 호출과 Actions 수동 실행 성공
+
 ## Rollback
 
 - V2 write 전 오류: Preview flag를 끄고 legacy 운영 경로를 유지한다.
