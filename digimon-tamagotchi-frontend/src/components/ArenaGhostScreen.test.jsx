@@ -104,6 +104,50 @@ describe("ArenaGhostScreen", () => {
     await waitFor(() => expect(onStartBattle).toHaveBeenCalledWith(opponent));
   });
 
+  test("상대 Ghost 응답 전에는 빈 상태 대신 로딩 상태를 표시한다", () => {
+    mockUseArenaGhosts.mockReturnValue(createArenaState({
+      loading: true,
+      myGhostsLoading: true,
+      opponentsLoading: true,
+      opponents: [],
+    }));
+
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={4}
+        selectedDigimon="스컬그레이몬"
+        digimonStats={{ power: 10 }}
+      />
+    );
+
+    expect(screen.getByText("도전 상대 로딩 중...")).toBeInTheDocument();
+    expect(screen.queryByText("현재 도전할 수 있는 Ghost가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  test("내 Ghost와 도전 상대 로딩 상태를 독립적으로 표시한다", () => {
+    mockUseArenaGhosts.mockReturnValue(createArenaState({
+      loading: true,
+      myGhostsLoading: false,
+      opponentsLoading: true,
+      myGhosts: [],
+      opponents: [],
+    }));
+
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={4}
+        selectedDigimon="스컬그레이몬"
+        digimonStats={{ power: 10 }}
+      />
+    );
+
+    expect(screen.getByText("등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.")).toBeInTheDocument();
+    expect(screen.queryByText("Ghost 정보를 불러오는 중...")).not.toBeInTheDocument();
+    expect(screen.getByText("도전 상대 로딩 중...")).toBeInTheDocument();
+  });
+
   test("등록 형태와 Ghost 방어 전적을 분리하고 pending 삭제를 차단한다", () => {
     mockUseArenaGhosts.mockReturnValue(createArenaState({
       capacity: { used: 1, limit: 3 },

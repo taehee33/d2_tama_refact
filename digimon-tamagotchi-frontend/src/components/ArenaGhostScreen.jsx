@@ -93,6 +93,8 @@ export default function ArenaGhostScreen({
   const ghostCapacityLimit = Math.max(0, Number(arena.capacity.limit) || 3);
   const emptyGhostSlotCount = Math.max(0, ghostCapacityLimit - arena.myGhosts.length);
   const currentSpriteBasePath = currentDigimonData?.spriteBasePath || "/images";
+  const myGhostsLoading = arena.myGhostsLoading ?? arena.loading;
+  const opponentsLoading = arena.opponentsLoading ?? arena.loading;
 
   const handleDelete = async (ghost) => {
     const name = ghost?.snapshot?.digimonName || "이 Ghost";
@@ -192,7 +194,7 @@ export default function ArenaGhostScreen({
 
         <section className="mb-7">
           <h3 className="mb-3 text-xl font-bold">내 Ghost ({arena.capacity.used}/{arena.capacity.limit})</h3>
-          {arena.loading ? <p>Ghost 정보를 불러오는 중...</p> : (
+          {myGhostsLoading ? <p>Ghost 정보를 불러오는 중...</p> : (
             <>
               {arena.myGhosts.length === 0 && (
                 <p className="mb-3 text-sm text-gray-600">등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.</p>
@@ -255,7 +257,9 @@ export default function ArenaGhostScreen({
             <h3 className="text-xl font-bold">도전 상대</h3>
             <button onClick={arena.refresh} disabled={arena.loading} className="rounded border px-3 py-1 text-sm">새로고침</button>
           </div>
-          {arena.opponents.length === 0 ? <p className="rounded border border-dashed p-4 text-gray-600">현재 도전할 수 있는 Ghost가 없습니다.</p> : (
+          {opponentsLoading ? (
+            <p className="rounded border border-dashed p-4 text-gray-600">도전 상대 로딩 중...</p>
+          ) : arena.opponents.length === 0 ? <p className="rounded border border-dashed p-4 text-gray-600">현재 도전할 수 있는 Ghost가 없습니다.</p> : (
             <div className="grid gap-3 sm:grid-cols-2">
               {arena.opponents.map((ghost) => (
                 <article key={ghost.ghostId} className="flex items-center justify-between rounded-xl border p-3">

@@ -32,7 +32,8 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
   const [capacity, setCapacity] = useState(EMPTY_CAPACITY);
   const [currentCombatIdentityId, setCurrentCombatIdentityId] = useState(null);
   const [currentFormRecord, setCurrentFormRecord] = useState(null);
-  const [loading, setLoading] = useState(Boolean(currentUser && isOnline));
+  const [myGhostsLoading, setMyGhostsLoading] = useState(Boolean(currentUser && isOnline));
+  const [opponentsLoading, setOpponentsLoading] = useState(Boolean(currentUser && isOnline));
   const [mutationKey, setMutationKey] = useState(null);
   const [notice, setNotice] = useState("");
   const [highlightedGhostId, setHighlightedGhostId] = useState(null);
@@ -42,26 +43,32 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
       setMyGhosts([]);
       setOpponents([]);
       setCapacity(EMPTY_CAPACITY);
-      setLoading(false);
+      setMyGhostsLoading(false);
+      setOpponentsLoading(false);
       return;
     }
 
-    setLoading(true);
+    setMyGhostsLoading(true);
+    setOpponentsLoading(true);
     setNotice("");
-    try {
-      const [mine, opponentResult] = await Promise.all([
-        fetchArenaGhosts(currentUser, { scope: "mine", slotId: currentSlotId }),
-        fetchArenaGhosts(currentUser, { scope: "opponents", limit: 30 }),
-      ]);
+    const mineRequest = fetchArenaGhosts(currentUser, { scope: "mine", slotId: currentSlotId })
+      .then((mine) => {
       setMyGhosts(Array.isArray(mine?.ghosts) ? mine.ghosts : []);
-      setOpponents(Array.isArray(opponentResult?.ghosts) ? opponentResult.ghosts : []);
       setCapacity(mine?.capacity || EMPTY_CAPACITY);
       setCurrentCombatIdentityId(mine?.currentCombatIdentityId || null);
       setCurrentFormRecord(mine?.currentFormRecord || null);
-    } catch (error) {
-      setNotice(getArenaGhostErrorNotice(error));
-    } finally {
-      setLoading(false);
+      })
+      .finally(() => setMyGhostsLoading(false));
+    const opponentsRequest = fetchArenaGhosts(currentUser, { scope: "opponents", limit: 30 })
+      .then((opponentResult) => {
+        setOpponents(Array.isArray(opponentResult?.ghosts) ? opponentResult.ghosts : []);
+      })
+      .finally(() => setOpponentsLoading(false));
+
+    const results = await Promise.allSettled([mineRequest, opponentsRequest]);
+    const failedResult = results.find((result) => result.status === "rejected");
+    if (failedResult) {
+      setNotice(getArenaGhostErrorNotice(failedResult.reason));
     }
   }, [currentSlotId, currentUser, isOnline]);
 
@@ -113,7 +120,9 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     capacity,
     currentCombatIdentityId,
     currentFormRecord,
-    loading,
+    loading: myGhostsLoading || opponentsLoading,
+    myGhostsLoading,
+    opponentsLoading,
     mutationKey,
     notice,
     highlightedGhostId,

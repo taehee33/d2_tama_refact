@@ -7450,3 +7450,13 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 양쪽 Ghost DTO에 이미 포함된 `registeredAt`을 재사용하므로 Firestore 추가 조회, API 변경, 데이터 마이그레이션 없이 presenter에서만 날짜를 포맷한다.
+
+## [2026-07-24] Ghost 목록 독립 로딩 상태 개선
+
+- **내용:** 도전 상대 요청이 완료되기 전 빈 배열을 `현재 도전할 수 있는 Ghost가 없습니다.`로 잘못 표시하던 문제를 수정해 `도전 상대 로딩 중...`을 표시한다. 내 Ghost와 도전 상대의 loading state를 분리해 두 병렬 요청 중 먼저 끝난 영역은 즉시 렌더링한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/useArenaGhosts.js`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`
+  - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 조회 API와 Firestore 데이터 구조는 유지하면서 요청별 완료 시점에 상태를 반영한다. 전체 `loading`은 기존 호출부 호환성을 위해 두 상태의 OR 값으로 보존한다.
