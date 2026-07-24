@@ -115,9 +115,15 @@ npm run check
 ```
 
 `npm run check`는 프론트엔드 테스트, 자격증명 없이 실행되는 서버 테스트,
-프론트엔드 프로덕션 빌드, 서버 projection 일치 검사를 순서대로 실행합니다.
+API 단일 원본 계약 검사, 프론트엔드 프로덕션 빌드, 서버 projection 일치 검사를 순서대로 실행합니다.
 Firestore Emulator 전용 테스트는 현재 필수 CI 기준에서 제외합니다.
 ESLint, 타입 검사, dead-code 검사는 후속 품질 단계에서 별도로 도입합니다.
+
+## API 배포 단일 원본
+
+Vercel 프로젝트의 Root Directory는 `digimon-tamagotchi-frontend`입니다. 따라서 실제 서버리스 API 구현과 진입점은 모두 `digimon-tamagotchi-frontend/api`만 사용합니다. 저장소 루트에는 별도 `api/` 구현을 두지 않으며, 서버 테스트도 `tests/api`에서 실제 배포 구현을 직접 불러옵니다.
+
+현재 배포 진입점은 11개이고 Vercel Hobby 함수 상한 12개를 넘지 않습니다. 외부 `/api/*` 주소의 통합 라우팅은 `digimon-tamagotchi-frontend/vercel.json`의 rewrite와 `arena-v2.js`, `notifications/[operation].js`가 담당합니다. `npm run check:api-single-source`는 진입점 누락·추가, 루트 중복 구현, 깨진 호환 shim을 검사합니다. 자세한 구조는 [API 배포 구조](./docs/API_DEPLOYMENT_STRUCTURE.md)를 참고하세요.
 
 커뮤니티 API(`/api/community/...`)까지 함께 확인하려면 `npm start` 단독 실행만으로는 부족할 수 있습니다.
 로컬에서 커뮤니티 글 작성/댓글까지 테스트할 때는 `vercel dev`를 사용하거나,
