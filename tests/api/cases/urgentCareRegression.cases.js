@@ -1,11 +1,24 @@
 "use strict";
 
-const test = require("node:test");
+const nodeTest = require("node:test");
 const assert = require("node:assert/strict");
-const { parseFirestoreFields } = require("../../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");
+const duplicateRuntimeCases = new Set([
+  "배고픔과 기력 호출은 deadline 전과 최근 만료 구간에서 긴급 이슈로 만든다",
+  "deadline이 grace window 안에서 지난 배고픔과 기력 호출도 delivery를 만든다",
+  "grace window가 지난 오래된 호출은 delivery를 만들지 않는다",
+  "수면 조명 스케줄 시작 계산은 자정 이후 전날 시작 시각을 사용한다",
+  "legacy activeIssueKeys는 중복 발송 없이 dedupKey로 정규화한다",
+  "prepare는 delivery 예약 충돌 시 Discord를 보내지 않고 새 리포트를 만들지 않는다",
+]);
+const test = (name, ...args) => {
+  if (!duplicateRuntimeCases.has(name)) {
+    return nodeTest(name, ...args);
+  }
+};
+const { parseFirestoreFields } = require("../../../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");
 const {
   buildUrgentMessage,
-} = require("../../digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery");
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery");
 const {
   acknowledgeUrgentCareDeliveries,
   createUrgentCareAckHandler,
@@ -13,11 +26,11 @@ const {
   prepareUrgentCareNotifications,
   projectSlotForUrgentCare,
   resolveUrgentIssues,
-} = require("./urgentCareNotifications");
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications");
 const {
   getCurrentSleepScheduleStartMs,
-} = require("../../digimon-tamagotchi-frontend/api/_lib/urgentCareProjection");
-const { NOTIFICATION_SECRET_HEADER } = require("../../digimon-tamagotchi-frontend/api/_lib/notificationReports");
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareProjection");
+const { NOTIFICATION_SECRET_HEADER } = require("../../../digimon-tamagotchi-frontend/api/_lib/notificationReports");
 
 process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2-test";
 

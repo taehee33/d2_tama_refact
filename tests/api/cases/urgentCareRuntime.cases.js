@@ -13,10 +13,10 @@ const {
   listEligibleNotificationSlots,
   prepareUrgentCareNotifications,
   resolveUrgentIssues,
-} = require("./urgentCareNotifications");
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications");
 const {
   getCurrentSleepScheduleStartMs,
-} = require("./urgentCareProjection");
+} = require("../../../digimon-tamagotchi-frontend/api/_lib/urgentCareProjection");
 
 const TEST_TIME = new Date("2026-06-25T01:00:00.000Z");
 const TEST_NOW = TEST_TIME.getTime();
