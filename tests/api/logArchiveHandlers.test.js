@@ -6,13 +6,13 @@ const {
   createArenaBattleArchivePostHandler,
   createArenaBattleReplayGetHandler,
   createJogressArchivePostHandler,
-} = require("./logArchiveHandlers");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/logArchiveHandlers");
 const {
   buildArenaBattleArchiveRecord,
   buildJogressArchiveRecord,
   mapArenaBattleArchiveRow,
   mapJogressArchiveRow,
-} = require("./logArchives");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/logArchives");
 
 function createMockRes() {
   return {

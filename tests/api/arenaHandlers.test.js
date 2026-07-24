@@ -9,7 +9,7 @@ const {
   createArenaSeasonEndHandler,
   createArenaSetOperatorHandler,
   createArenaUserDirectoryHandler,
-} = require("./arenaHandlers");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/arenaHandlers");
 const {
   parseFirestoreFields,
 } = require("../../digimon-tamagotchi-frontend/api/_lib/firestoreAdmin");

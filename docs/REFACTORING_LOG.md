@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-07-25] Vercel API 단일 원본화
+
+- **내용:** Vercel의 실제 Root Directory인 `digimon-tamagotchi-frontend/api`를 유일한 API 구현으로 확정하고 저장소 루트의 중복 구현·복사본·구형 wrapper·깨진 `archive-monitoring` shim을 모두 제거했다. 루트에 있던 유효 서버 테스트는 `tests/api/`로 이동해 실제 배포 구현을 직접 검사하도록 바꿨고, 긴급 알림 두 테스트 묶음은 고유 사례를 보존하면서 중복 6개를 한 번만 실행하도록 통합했다. 배포 진입점 11개, 커뮤니티 4개, 알림 9개 operation, 아레나 관리자·운영자 상태 분기를 고정하는 계약 테스트와 API 단일 원본 검사 스크립트를 `npm run check`에 추가했다.
+- **영향 파일:**
+  - `api/**` (삭제)
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications.test.js` (테스트 전용 위치로 이동)
+  - `tests/api/**`
+  - `tests/firestore-emulator.test.js`
+  - `tests/notification-entrypoints.test.js`
+  - `scripts/checkApiSingleSource.js`
+  - `package.json`
+  - `README.md`
+  - `docs/API_DEPLOYMENT_STRUCTURE.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 실제 배포되지 않는 루트 구현을 테스트하면 CI가 녹색이어도 운영 코드와 검증 대상이 달라질 수 있다. 배포 디렉터리를 단일 정본으로 만들고 테스트·CI가 그 경계를 직접 검사하면 권한, 프로필, `authorIsOperator`, 알림, 아레나 동작을 바꾸지 않으면서 중복 재발과 깨진 shim을 PR 단계에서 차단할 수 있다. 현재 배포 진입점은 11개로 Vercel Hobby 상한 12개를 충족한다.
+
 ## [2026-07-18] 아레나 Ghost 시스템 최종 구현 계획 확정
 
 - **내용:** 진화·사망 후에도 등록 당시 Ghost를 불변 snapshot으로 보존하면서, 현재 형태 전적과 Ghost 자체 방어 전적을 분리하는 최종 도메인·구현 계약을 문서화했다. `digimonInstanceId + combatRevision` 기반 연결 판정, `formRecordMirror`와 `ownDefenseRecord`의 쓰기 행렬, 서버 단일 요청 배틀, request 멱등성, transaction 밖 고정 RNG seed, Firestore 정본 transaction, 배틀 시점 evidence를 가진 mirror outbox, Supabase replay archive outbox, 계정 시즌 랭킹, legacy migration, UI 상태, Rules·index·테스트·rollout·rollback 게이트를 PR0~PR7 실행 계획으로 고정했다. 런타임 코드와 저장 스키마는 아직 변경하지 않았다.

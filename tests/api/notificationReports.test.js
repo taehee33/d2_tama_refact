@@ -9,7 +9,7 @@ const {
   normalizeDiscordWebhookUrl,
   resolveActiveDeathDiseaseCounters,
   resolveSlotIssues,
-} = require("./notificationReports");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/notificationReports");
 
 const HOUR_FOR_TEST = 60 * 60 * 1000;
 

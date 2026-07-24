@@ -14,7 +14,7 @@ const {
   SUPPORT_BOARD_CATEGORY_BUG,
   validateCommentPayload,
   validatePostPayload,
-} = require("./community");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/community");
 
 function createCommentSupabaseMock({ postAuthorUid = "post-owner" } = {}) {
   return {
@@ -279,7 +279,10 @@ test("listCommunityPosts returns latest 3 preview comments per post", async () =
     },
   };
 
-  const posts = await listCommunityPosts({ supabase });
+  const posts = await listCommunityPosts({
+    supabase,
+    listOperatorRolesFn: async () => [],
+  });
 
   assert.equal(posts[0].commentCount, 4);
   assert.deepEqual(
@@ -373,6 +376,7 @@ test("listCommunityPosts resolves free board image url when image_path exists", 
   const posts = await listCommunityPosts({
     supabase,
     boardId: BOARD_ID_FREE,
+    listOperatorRolesFn: async () => [],
   });
 
   assert.equal(posts[0].imagePath, "free/user-1/post-1/image.png");
@@ -396,6 +400,7 @@ test("createCommunityComment notifies post author when another user comments", a
     },
     postId: "post-1",
     input: { body: "댓글" },
+    listOperatorRolesFn: async () => [],
     notifyCommunityCommentFn: async (payload) => {
       notifications.push(payload);
     },
@@ -423,6 +428,7 @@ test("createCommunityComment skips notification for own post comments", async ()
     },
     postId: "post-1",
     input: { body: "내 글 댓글" },
+    listOperatorRolesFn: async () => [],
     notifyCommunityCommentFn: async (payload) => {
       notifications.push(payload);
     },
@@ -716,10 +722,10 @@ test("listCommunityPosts filters by news board category and marks editor permiss
     category: "",
   };
 
-  const previousUids = process.env.NEWS_EDITOR_UIDS;
-  const previousEmails = process.env.NEWS_EDITOR_EMAILS;
-  process.env.NEWS_EDITOR_UIDS = "editor-1";
-  process.env.NEWS_EDITOR_EMAILS = "";
+  const isOperatorIdentityFn = async (identity) => identity?.uid === "editor-1";
+  const listOperatorRolesFn = async () => [
+    { uid: "editor-1", isOperator: true },
+  ];
 
   const supabase = {
     from(table) {
@@ -818,18 +824,18 @@ test("listCommunityPosts filters by news board category and marks editor permiss
     category: "patch",
     viewerUid: "editor-1",
     decodedToken: { uid: "editor-1", email: "editor@example.com" },
+    isOperatorIdentityFn,
+    listOperatorRolesFn,
   });
 
   assert.equal(state.boardId, "news");
   assert.equal(state.category, "category:patch");
   assert.equal(posts[0].canManage, true);
-  assert.deepEqual(getCommunityBoardViewer({
+  assert.deepEqual(await getCommunityBoardViewer({
     boardId: BOARD_ID_NEWS,
     decodedToken: { uid: "editor-1" },
+    isOperatorIdentityFn,
   }), {
     canCreate: true,
   });
-
-  process.env.NEWS_EDITOR_UIDS = previousUids;
-  process.env.NEWS_EDITOR_EMAILS = previousEmails;
 });

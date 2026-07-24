@@ -8,7 +8,7 @@ const {
   acknowledgeUrgentCareDeliveries,
   listPendingUrgentDeliveries,
   prepareUrgentCareNotifications,
-} = require("../api/_lib/urgentCareNotifications");
+} = require("../digimon-tamagotchi-frontend/api/_lib/urgentCareNotifications");
 const {
   commitWrites,
   getDocument,

@@ -9,7 +9,7 @@ const {
   createUserNotification,
   getUserNotificationStatus,
   markUserNotificationsRead,
-} = require("./userNotifications");
+} = require("../../digimon-tamagotchi-frontend/api/_lib/userNotifications");
 
 process.env.FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2-test";
 
