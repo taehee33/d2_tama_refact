@@ -6,6 +6,7 @@ const { initializeApp, deleteApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const {
   acknowledgeUrgentCareDeliveries,
+  listPendingUrgentDeliveries,
   prepareUrgentCareNotifications,
 } = require("../api/_lib/urgentCareNotifications");
 const {
@@ -73,6 +74,7 @@ test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·
   });
   await slotRef.set({
     revision: 0,
+    notificationEligible: true,
     selectedDigimon: "Agumon",
     isLightsOn: true,
     lastSavedAt: now,
@@ -111,6 +113,7 @@ test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·
     subscribers: restoredSubscribers,
     getDocumentByPath: getDocument,
     listCollectionDocuments: listDocuments,
+    listPendingDeliveryDocuments: listPendingUrgentDeliveries,
     commit: commitWrites,
     currentTime: new Date(now),
   };

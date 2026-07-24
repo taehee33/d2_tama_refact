@@ -7504,3 +7504,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
   - 관련 Jest 테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 별도의 비교 스키마를 만들면 저장 payload와 drift가 생길 수 있으므로 `sanitizeDigimonStatsForSlotDocument`를 canonical 비교에도 재사용한다. revision은 snapshot 내용과 별도로 먼저 판정하고, activity·battle 로그 및 서버 commit timestamp와 UI 전용 필드는 비교에서 제외한다. 동일 pending 정리는 현재 uid·slotId·load generation과 mutationId가 모두 일치할 때만 허용해 다른 슬롯이나 새 pending을 삭제하지 않는다.
+
+## [2026-07-24] P0 배포 게이트 — Firestore Emulator fixture 현행화
+
+- **내용:** 긴급 케어 Emulator 슬롯에 현재 알림 대상 조회 계약인 `notificationEligible: true`를 추가하고, 두 번째 준비 요청이 실제 pending delivery를 조회하도록 `listPendingUrgentDeliveries`를 연결했다. revision 충돌, eventId 멱등성, 알림 delivery 예약·재사용·ack 멱등성 검증을 다시 통과시켰다.
+- **영향 파일:**
+  - `tests/firestore-emulator.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 런타임 알림 조회·예약 계약은 변경하지 않고 오래된 통합 테스트 fixture와 의존성 주입만 운영 코드의 현재 경계에 맞췄다. 따라서 P0 저장·복구 구현과 무관한 테스트 drift를 제거하면서 실제 Firestore Emulator 검증 범위를 유지한다.
