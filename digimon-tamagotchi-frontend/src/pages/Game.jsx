@@ -40,6 +40,9 @@ import GameHeaderPanel from "../components/layout/GameHeaderPanel";
 import GamePageView from "../components/layout/GamePageView";
 import GamePageToolbar from "../components/layout/GamePageToolbar";
 import GameSyncConflictDialog from "../components/GameSyncConflictDialog";
+import GameSlotLoadState, {
+  GameLocalPersistenceWarning,
+} from "../components/GameSlotLoadState";
 import ImmersiveGameView from "../components/layout/ImmersiveGameView";
 import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSection";
 import ImmersiveLandscapeStatusPanel from "../components/layout/ImmersiveLandscapeStatusPanel";
@@ -339,6 +342,9 @@ function Game({ immersive = false }){
     syncConflict,
     resolveSyncConflict,
     refreshGameRevision,
+    persistencePhase,
+    retrySlotLoad,
+    slotLoadError,
   } = useGameData({
     slotId,
     currentUser,
@@ -372,6 +378,8 @@ function Game({ immersive = false }){
     isLoadingSlot,
     evolutionDataForSlot,
   });
+  const isGameplayReady = persistencePhase === "ready" && syncConflict == null;
+  const shouldBlockGameRuntime = !isGameplayReady;
 
   const setSelectedDigimonAndSave = useCallback(async (name, options = {}) => {
     setSelectedDigimon(name);
@@ -391,7 +399,8 @@ function Game({ immersive = false }){
     setCustomTime,
     slotId,
     currentUser,
-    isLoadingSlot,
+    isLoadingSlot: isLoadingSlot || shouldBlockGameRuntime,
+    isGameplayReady,
     digimonStats,
     selectedDigimon,
     digimonDataForSlot,
@@ -413,7 +422,7 @@ function Game({ immersive = false }){
 
   useGamePagePersistenceEffects({
     slotId,
-    isLoadingSlot,
+    isLoadingSlot: isLoadingSlot || shouldBlockGameRuntime,
     selectedDigimon,
     digimonStats,
     activityLogs,
@@ -1357,15 +1366,18 @@ function Game({ immersive = false }){
     />
   );
 
-  // 로딩 중일 때 표시
-  if (isLoadingSlot) {
+  if (persistencePhase === "idle" || persistencePhase === "loading" || isLoadingSlot) {
+    return <GameSlotLoadState phase="loading" />;
+  }
+
+  if (persistencePhase === "failed") {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-          <p className="mt-2 text-gray-600">슬롯 데이터 로딩 중...</p>
-        </div>
-      </div>
+      <GameSlotLoadState
+        phase="failed"
+        error={slotLoadError}
+        onRetry={retrySlotLoad}
+        onBack={() => navigate("/play")}
+      />
     );
   }
 
@@ -1558,6 +1570,9 @@ function Game({ immersive = false }){
 
   return (
     <>
+      {syncInfo?.localPersistenceStatus === "unavailable" ? (
+        <GameLocalPersistenceWarning />
+      ) : null}
       <GamePageView
         isMobile={isMobile}
         isImmersive={isImmersive}
@@ -1572,6 +1587,7 @@ function Game({ immersive = false }){
       <GameSyncConflictDialog
         conflict={syncConflict}
         onResolve={resolveSyncConflict}
+        persistencePhase={persistencePhase}
       />
       
       {ADS_ENABLED && !isImmersive ? (

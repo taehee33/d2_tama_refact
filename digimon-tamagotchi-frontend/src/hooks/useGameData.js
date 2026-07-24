@@ -24,7 +24,10 @@ import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { filterEntriesForSlotCreation } from "../utils/slotLogUtils";
-import { useDurableGamePersistence } from "./game-persistence/useDurableGamePersistence";
+import {
+  GAME_PERSISTENCE_PHASE,
+  useDurableGamePersistence,
+} from "./game-persistence/useDurableGamePersistence";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { resolveSlotNotificationEligible } from "../utils/notificationEligibility";
@@ -80,6 +83,19 @@ export function raiseGameSaveError(error, setError) {
     setError(error);
   }
   throw error;
+}
+
+export function createNextSlotLoadAccess(currentAccess = {}) {
+  return {
+    ...currentAccess,
+    phase: GAME_PERSISTENCE_PHASE.LOADING,
+    generation: (Number(currentAccess.generation) || 0) + 1,
+    loadedIdentity: null,
+  };
+}
+
+export function isCurrentSlotLoadRequest(access, generation) {
+  return access?.generation === generation;
 }
 
 export function createGameSaveQueue() {
@@ -230,6 +246,23 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
   } = stats || {};
 
   return cleanObject(normalizeGameTimingFields(digimonStatsOnly));
+}
+
+/**
+ * pending과 서버 슬롯을 비교할 때 실제 슬롯 저장 직렬화 계약을 그대로 사용합니다.
+ * 로그와 서버 커밋 timestamp/UI 필드는 sanitize 단계에서 제외됩니다.
+ */
+export function buildComparableSlotSnapshot({
+  stats = {},
+  selectedDigimon = null,
+  rootSlotFields = { isLightsOn: true, wakeUntil: null },
+} = {}) {
+  const comparableRootFields = resolveRootSlotFields(stats, rootSlotFields);
+  return {
+    selectedDigimon: selectedDigimon || stats.selectedDigimon || null,
+    digimonStats: sanitizeDigimonStatsForSlotDocument(stats),
+    ...comparableRootFields,
+  };
 }
 
 /**
@@ -867,6 +900,18 @@ export function useGameData({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [slotLoadError, setSlotLoadError] = useState(null);
+  const [slotLoadRetryRevision, setSlotLoadRetryRevision] = useState(0);
+  const [persistencePhase, setPersistencePhase] = useState(GAME_PERSISTENCE_PHASE.IDLE);
+  const persistenceAccessRef = useRef({
+    phase: GAME_PERSISTENCE_PHASE.IDLE,
+    generation: 0,
+    loadedIdentity: null,
+  });
+  const updatePersistenceAccess = useCallback((patch) => {
+    persistenceAccessRef.current = { ...persistenceAccessRef.current, ...patch };
+    if (patch.phase) setPersistencePhase(patch.phase);
+  }, []);
   const saveQueueRef = useRef(null);
   if (!saveQueueRef.current) {
     saveQueueRef.current = createGameSaveQueue();
@@ -913,6 +958,9 @@ export function useGameData({
   const {
     appendBattleLog: appendBattleLogToSubcollection,
     appendLog: appendLogToSubcollection,
+    canStartGameplayWrite,
+    captureSaveContext,
+    clearPendingStateAfterHydration,
     flushOutbox,
     getPendingState,
     persistStateSnapshot,
@@ -931,6 +979,7 @@ export function useGameData({
     stateSyncError,
     recordSyncError,
     stateSyncStatus,
+    localPersistenceStatus,
   } = useDurableGamePersistence({
     slotId,
     currentUser,
@@ -942,20 +991,32 @@ export function useGameData({
     isLightsOn,
     wakeUntil,
     setDigimonStats,
-    setSelectedDigimon,
-    setIsLightsOn,
-    setWakeUntil,
     buildUpdateDataForSnapshot,
     normalizeStats: normalizeGameTimingFields,
     saveQueue: saveQueueRef.current,
+    persistenceAccessRef,
+    onPersistenceAccessChange: updatePersistenceAccess,
   });
+
+  const retrySlotLoad = useCallback(() => {
+    // 현재 요청을 즉시 stale 처리해 effect 재실행 전의 늦은 응답도 반영되지 않게 한다.
+    updatePersistenceAccess(createNextSlotLoadAccess(persistenceAccessRef.current));
+    setLoadedRevision(null, null);
+    setSlotLoadError(null);
+    setError(null);
+    setIsLoadingSlot(true);
+    setIsLoading(true);
+    setSlotLoadRetryRevision((revision) => revision + 1);
+  }, [setIsLoadingSlot, setLoadedRevision, updatePersistenceAccess]);
 
   /**
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
    * @param {Object} newStats - 새로운 스탯
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
    */
-  async function executeSaveStats(newStats, updatedLogs = null) {
+  async function executeSaveStats(newStats, updatedLogs = null, saveContext = null) {
+    // 예약 이후 슬롯/사용자/세대가 바뀌었으면 React setter를 포함해 아무 작업도 하지 않는다.
+    if (!canStartGameplayWrite(saveContext)) return false;
     // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
     const isNewStart = newStats.isDead === false && 
                        newStats.evolutionStage === "Digitama" && 
@@ -1004,6 +1065,7 @@ export function useGameData({
     } else {
       baseStats = await applyLazyUpdateForAction();
     }
+    if (!canStartGameplayWrite(saveContext)) return false;
     const nowMs = Date.now();
     
     // Activity Logs 처리: 함수형 업데이트로 확실히 누적
@@ -1102,6 +1164,7 @@ export function useGameData({
           statsSnapshot: statsForState,
           updatedLogs,
           nowMs,
+          saveContext,
         });
         if (!didPersist) {
           const conflictError = new Error("다른 기기의 변경사항 확인이 필요합니다.");
@@ -1121,11 +1184,13 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(authError);
     }
+    return true;
   }
 
   function saveStats(newStats, updatedLogs = null) {
+    const saveContext = captureSaveContext();
     return saveQueueRef.current.enqueue(() =>
-      executeSaveStats(newStats, updatedLogs)
+      executeSaveStats(newStats, updatedLogs, saveContext)
     );
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
@@ -1222,6 +1287,11 @@ export function useGameData({
   useEffect(() => {
     if (!slotId) return;
 
+    const nextLoadAccess = createNextSlotLoadAccess(persistenceAccessRef.current);
+    const generation = nextLoadAccess.generation;
+    updatePersistenceAccess(nextLoadAccess);
+    setLoadedRevision(null, null);
+
     // Firebase 로그인 필수
     if (!isFirebaseAvailable || !currentUser) {
       setIsLoadingSlot(false);
@@ -1234,9 +1304,11 @@ export function useGameData({
       setIsLoadingSlot(true);
       setIsLoading(true);
       setError(null);
+      setSlotLoadError(null);
       try {
         const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
         const slotSnap = await getDoc(slotRef);
+        if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
         
         if (slotSnap.exists()) {
           const slotData = slotSnap.data();
@@ -1261,6 +1333,7 @@ export function useGameData({
               legacyActivityLogs: savedStats.activityLogs || slotData.activityLogs || [],
               legacyBattleLogs: savedStats.battleLogs || [],
             });
+          if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
 
           const loadedCollectionsState = buildLoadedSlotCollectionsState({
             savedStats,
@@ -1269,14 +1342,7 @@ export function useGameData({
           });
           savedStats = loadedCollectionsState.savedStats;
 
-          // proteinCount 필드 제거 (마이그레이션)
-          if (loadedCollectionsState.needsProteinCountCleanup) {
-            // Firestore에서도 제거
-            const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-            await updateDoc(slotRef, {
-              'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거
-            });
-          }
+          // hydration 중에는 정리 쓰기를 하지 않는다. 다음 정상 저장 payload에서 제거된다.
 
           const hydrationPlan = buildLoadedSlotHydrationPlan({
             slotData,
@@ -1293,16 +1359,38 @@ export function useGameData({
           });
           hydrationResult = hydrationPlan.hydrationResult;
           setLoadedRevision(
-            slotData.revision,
+            slotData.revision ?? 0,
             hydrationResult?.digimonStats || savedStats
           );
 
+          const reconstructedLogsToPersist = [
+            ...(hydrationPlan.reconstructedLogsToPersist || []),
+          ];
           {
-            const pendingState = await getPendingState();
+            let pendingState = null;
+            try {
+              pendingState = await getPendingState();
+            } catch (localPersistenceError) {
+              console.warn("로컬 pending 조회 오류:", localPersistenceError);
+            }
+            if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
             const pendingHydration = resolvePendingHydration({
               pendingState,
               serverRevision: slotData.revision,
               serverHydrationResult: hydrationResult,
+              localComparableSnapshot: pendingState?.state?.stateSnapshot
+                ? buildComparableSlotSnapshot({
+                    stats: pendingState.state.stateSnapshot,
+                    selectedDigimon: pendingState.state.stateSnapshot.selectedDigimon,
+                    rootSlotFields: hydrationResult.rootSlotFields,
+                  })
+                : null,
+              serverComparableSnapshot: buildComparableSlotSnapshot({
+                // canonical 비교는 lazy update 이후 runtime이 아니라 Firestore 저장본을 사용한다.
+                stats: savedStats,
+                selectedDigimon: savedName,
+                rootSlotFields,
+              }),
             });
             if (pendingHydration.status === PENDING_HYDRATION_STATUS.CONFLICT) {
               quarantinePendingState(pendingState, {
@@ -1310,7 +1398,15 @@ export function useGameData({
                 actualRevision: pendingHydration.actualRevision,
                 remoteData: slotData,
                 reason: pendingHydration.reason,
+                classification: pendingHydration.classification,
+                localSavedAt: pendingHydration.localSavedAt,
               });
+            } else if (pendingHydration.status === PENDING_HYDRATION_STATUS.CLEANUP) {
+              try {
+                await clearPendingStateAfterHydration(pendingState, { generation });
+              } catch (cleanupError) {
+                console.warn("동일한 로컬 pending 정리 오류:", cleanupError);
+              }
             } else if (pendingHydration.status === PENDING_HYDRATION_STATUS.APPLY) {
               const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
                 digimonStats: pendingHydration.digimonStats,
@@ -1340,19 +1436,17 @@ export function useGameData({
                 deathReason:
                   pendingRuntime.digimonStats.deathReason || hydrationResult.deathReason,
               };
-              pendingRuntime.reconstructedLogsToPersist.forEach((log) => {
-                if (log?.type) appendLogToSubcollection(log).catch(() => {});
-              });
+              reconstructedLogsToPersist.push(
+                ...(pendingRuntime.reconstructedLogsToPersist || [])
+              );
             }
           }
-          hydrationPlan.reconstructedLogsToPersist.forEach((log) => {
-            if (log?.type) appendLogToSubcollection(log).catch(() => {});
-          });
 
           // 로드 직후에는 Firestore 쓰기 하지 않음 (Lazy Update는 메모리만 반영, 다음 액션 시 saveStats에서 저장)
           // updatedAt이 불필요하게 자주 바뀌는 것과 비용 절감을 위해 제거
 
           if (hydrationResult) {
+            if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
             setSlotName(hydrationResult.slotName);
             setSlotCreatedAt(hydrationResult.slotCreatedAt);
             setSlotDevice(hydrationResult.slotDevice);
@@ -1375,64 +1469,58 @@ export function useGameData({
             if (hydrationResult.deathReason) {
               setDeathReason(hydrationResult.deathReason);
             }
+
+            updatePersistenceAccess({
+              phase: GAME_PERSISTENCE_PHASE.READY,
+              loadedIdentity: { uid: currentUser.uid, slotId },
+            });
+            reconstructedLogsToPersist.forEach((log) => {
+              if (log?.type) appendLogToSubcollection(log).catch(() => {});
+            });
           }
         } else {
-          setLoadedRevision(0, null);
-          // 슬롯 문서 없음 (잘못된 slotId 등) — v1 기본값
-          const fallbackDataMap = getAdaptedDataMap("Ver.1");
-          const fallbackHydration = buildFallbackSlotHydrationResult({
-            slotId,
-            dataMap: fallbackDataMap,
-            slotVersionLabel: "Ver.1",
-          });
-          setSelectedDigimon(fallbackHydration.selectedDigimon);
-          setDigimonStats(fallbackHydration.digimonStats);
-          setSlotName(fallbackHydration.slotName);
-          // 새 슬롯이면 배경화면 설정도 기본값으로 설정
-          if (setBackgroundSettings) {
-            setBackgroundSettings(fallbackHydration.backgroundSettings);
-          }
-          if (setImmersiveSettings) {
-            setImmersiveSettings(fallbackHydration.immersiveSettings);
-          }
+          const notFoundError = new Error("슬롯 문서를 찾을 수 없습니다.");
+          notFoundError.code = "SLOT_NOT_FOUND";
+          throw notFoundError;
         }
       } catch (error) {
+        if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
         console.error("슬롯 로드 오류:", error);
         setError(error);
-        const pendingState = await getPendingState().catch(() => null);
-        const fallbackDataMap = getAdaptedDataMap("Ver.1");
-        const fallbackHydration = buildFallbackSlotHydrationResult({
-          slotId,
-          dataMap: fallbackDataMap,
-          slotVersionLabel: "Ver.1",
+        setSlotLoadError(error);
+        updatePersistenceAccess({
+          phase: GAME_PERSISTENCE_PHASE.FAILED,
+          loadedIdentity: null,
         });
-        if (pendingState?.state?.stateSnapshot) {
-          fallbackHydration.digimonStats = pendingState.state.stateSnapshot;
-          fallbackHydration.selectedDigimon =
-            pendingState.state.stateSnapshot.selectedDigimon ||
-            fallbackHydration.selectedDigimon;
-        }
-        setSelectedDigimon(fallbackHydration.selectedDigimon);
-        setDigimonStats(fallbackHydration.digimonStats);
-        if (setImmersiveSettings) {
-          setImmersiveSettings(fallbackHydration.immersiveSettings);
-        }
       } finally {
-        setIsLoadingSlot(false);
-        setIsLoading(false);
+        if (isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) {
+          setIsLoadingSlot(false);
+          setIsLoading(false);
+        }
       }
     };
 
     loadSlot();
+    return () => {
+      if (isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) {
+        persistenceAccessRef.current = {
+          ...persistenceAccessRef.current,
+          phase: GAME_PERSISTENCE_PHASE.LOADING,
+          generation: generation + 1,
+          loadedIdentity: null,
+        };
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotId, currentUser, isFirebaseAvailable, navigate]);
+  }, [slotId, currentUser, isFirebaseAvailable, navigate, slotLoadRetryRevision]);
 
   /**
    * 배경화면 설정 저장 함수 (참조 안정화: useCallback으로 1초마다 리렌더 시 불필요한 저장 방지)
    * @param {Object} newBackgroundSettings - 새로운 배경화면 설정
    */
   const saveBackgroundSettings = useCallback(async (newBackgroundSettings) => {
-    if (!slotId) return;
+    const saveContext = captureSaveContext();
+    if (!slotId || !canStartGameplayWrite(saveContext)) return false;
 
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
@@ -1450,10 +1538,11 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
 
   const saveImmersiveSettings = useCallback(async (newImmersiveSettings) => {
-    if (!slotId) return;
+    const saveContext = captureSaveContext();
+    if (!slotId || !canStartGameplayWrite(saveContext)) return false;
 
     const normalizedSettings = normalizeImmersiveSettings(newImmersiveSettings);
 
@@ -1473,7 +1562,7 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
 
   /**
    * 선택된 디지몬 이름과 표시명을 슬롯 루트 문서에 저장합니다.
@@ -1484,7 +1573,14 @@ export function useGameData({
    */
   const saveSelectedDigimon = useCallback(
     async (nextSelectedDigimon, options = {}) => {
-      if (!slotId || !currentUser || !isFirebaseAvailable || !nextSelectedDigimon) {
+      const saveContext = captureSaveContext();
+      if (
+        !slotId ||
+        !currentUser ||
+        !isFirebaseAvailable ||
+        !nextSelectedDigimon ||
+        !canStartGameplayWrite(saveContext)
+      ) {
         return;
       }
 
@@ -1537,6 +1633,8 @@ export function useGameData({
       evolutionDataForSlot,
       isLightsOn,
       wakeUntil,
+      canStartGameplayWrite,
+      captureSaveContext,
     ]
   );
 
@@ -1549,7 +1647,7 @@ export function useGameData({
     if (!slotId || !currentUser || !isFirebaseAvailable || !statsSnapshot) {
       return;
     }
-    return saveQueueRef.current.enqueue(() => executeSaveStats(statsSnapshot));
+    return saveStats(statsSnapshot);
   };
 
   return {
@@ -1574,10 +1672,15 @@ export function useGameData({
       lastRecordSyncedAt,
       stateSyncError,
       recordSyncError,
+      localPersistenceStatus,
+      persistencePhase,
     },
     syncConflict,
     resolveSyncConflict,
     refreshGameRevision,
+    persistencePhase,
+    retrySlotLoad,
+    slotLoadError,
     isLoading,
     error,
   };

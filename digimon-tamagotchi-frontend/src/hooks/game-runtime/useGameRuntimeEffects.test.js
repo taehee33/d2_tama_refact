@@ -3,7 +3,6 @@ import { useGameRuntimeEffects } from "./useGameRuntimeEffects";
 
 const mockUseGameClock = jest.fn();
 const mockUseGamePeriodicSync = jest.fn();
-const mockUseGameSaveOnLeave = jest.fn();
 const mockUseGameRealtimeLoop = jest.fn();
 const mockUseGameSleepStatusLoop = jest.fn();
 const mockUseTakeOutCleanup = jest.fn();
@@ -14,10 +13,6 @@ jest.mock("./useGameClock", () => ({
 
 jest.mock("./useGamePeriodicSync", () => ({
   useGamePeriodicSync: (...args) => mockUseGamePeriodicSync(...args),
-}));
-
-jest.mock("./useGameSaveOnLeave", () => ({
-  useGameSaveOnLeave: (...args) => mockUseGameSaveOnLeave(...args),
 }));
 
 jest.mock("./useGameRealtimeLoop", () => ({
@@ -36,7 +31,6 @@ describe("useGameRuntimeEffects", () => {
   beforeEach(() => {
     mockUseGameClock.mockReset();
     mockUseGamePeriodicSync.mockReset();
-    mockUseGameSaveOnLeave.mockReset();
     mockUseGameRealtimeLoop.mockReset();
     mockUseGameSleepStatusLoop.mockReset();
     mockUseTakeOutCleanup.mockReset();
@@ -48,6 +42,7 @@ describe("useGameRuntimeEffects", () => {
       slotId: "1",
       currentUser: { uid: "user-1" },
       isLoadingSlot: false,
+      isGameplayReady: true,
       digimonStats: {
         takeOutAt: 1234,
       },
@@ -80,13 +75,8 @@ describe("useGameRuntimeEffects", () => {
       setDigimonStatsAndSave: options.setDigimonStatsAndSave,
       nextSyncAt: options.nextStateSyncAt,
     });
-    expect(mockUseGameSaveOnLeave).toHaveBeenCalledWith({
-      slotId: "1",
-      currentUser: options.currentUser,
-      digimonStats: options.digimonStats,
-      setDigimonStatsAndSave: options.setDigimonStatsAndSave,
-    });
     expect(mockUseGameRealtimeLoop).toHaveBeenCalledWith({
+      enabled: true,
       digimonStats: options.digimonStats,
       setDigimonStats: options.setDigimonStats,
       setActivityLogs: options.setActivityLogs,
@@ -117,5 +107,27 @@ describe("useGameRuntimeEffects", () => {
       takeOutAt: 1234,
       setDigimonStats: options.setDigimonStats,
     });
+  });
+
+  test("게임 상태가 ready가 아니면 realtime loop를 비활성화한다", () => {
+    renderHook(() => useGameRuntimeEffects({
+      setCustomTime: jest.fn(),
+      slotId: "1",
+      currentUser: { uid: "user-1" },
+      isLoadingSlot: true,
+      isGameplayReady: false,
+      digimonStats: {},
+      digimonDataForSlot: {},
+      setDigimonStats: jest.fn(),
+      setActivityLogs: jest.fn(),
+      setSleepStatus: jest.fn(),
+      setIsSleeping: jest.fn(),
+      setDeathReason: jest.fn(),
+      setHasSeenDeathPopup: jest.fn(),
+    }));
+
+    expect(mockUseGameRealtimeLoop).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false })
+    );
   });
 });

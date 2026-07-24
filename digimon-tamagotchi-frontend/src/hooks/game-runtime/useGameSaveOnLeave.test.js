@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { useGameSaveOnLeave } from "./useGameSaveOnLeave";
 
 describe("useGameSaveOnLeave", () => {
@@ -11,28 +11,21 @@ describe("useGameSaveOnLeave", () => {
     jest.useRealTimers();
   });
 
-  test("pagehide에서 가장 최신 snapshot 저장을 요청한다", async () => {
+  test("pagehide에서 신규 snapshot 저장을 시작하지 않는다", () => {
     const save = jest.fn().mockResolvedValue(undefined);
-    const { rerender } = renderHook(
-      ({ stats }) => useGameSaveOnLeave({
-        slotId: 1,
-        currentUser: { uid: "user-1" },
-        digimonStats: stats,
-        setDigimonStatsAndSave: save,
-      }),
-      { initialProps: { stats: { energy: 1 } } }
-    );
-    rerender({ stats: { energy: 2 } });
+    renderHook(() => useGameSaveOnLeave({
+      slotId: 1,
+      currentUser: { uid: "user-1" },
+      digimonStats: { energy: 2 },
+      setDigimonStatsAndSave: save,
+    }));
 
-    await act(async () => {
-      window.dispatchEvent(new Event("pagehide"));
-      await Promise.resolve();
-    });
-
-    expect(save).toHaveBeenCalledWith({ energy: 2 });
+    window.dispatchEvent(new Event("pagehide"));
+    window.dispatchEvent(new Event("beforeunload"));
+    expect(save).not.toHaveBeenCalled();
   });
 
-  test("visibilitychange와 pagehide가 연속 발생해도 저장 요청을 중복하지 않는다", async () => {
+  test("visibilitychange에서도 신규 snapshot 저장을 시작하지 않는다", () => {
     const save = jest.fn().mockResolvedValue(undefined);
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -45,12 +38,7 @@ describe("useGameSaveOnLeave", () => {
       setDigimonStatsAndSave: save,
     }));
 
-    await act(async () => {
-      document.dispatchEvent(new Event("visibilitychange"));
-      window.dispatchEvent(new Event("pagehide"));
-      await Promise.resolve();
-    });
-
-    expect(save).toHaveBeenCalledTimes(1);
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(save).not.toHaveBeenCalled();
   });
 });

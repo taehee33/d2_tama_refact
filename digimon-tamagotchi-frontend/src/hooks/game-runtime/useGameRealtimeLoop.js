@@ -81,6 +81,7 @@ export function shouldPersistRealtimeUpdate(
 }
 
 export function useGameRealtimeLoop({
+  enabled = true,
   digimonStats,
   setDigimonStats,
   setActivityLogs,
@@ -145,7 +146,7 @@ export function useGameRealtimeLoop({
   ]);
 
   useEffect(() => {
-    if (digimonStats.isDead) {
+    if (!enabled || digimonStats.isDead) {
       return;
     }
 
@@ -602,6 +603,7 @@ export function useGameRealtimeLoop({
     };
   }, [
     digimonStats.isDead,
+    enabled,
     setActivityLogs,
     setDeathReason,
     setDigimonStats,

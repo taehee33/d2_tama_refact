@@ -7460,3 +7460,47 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.test.jsx`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 조회 API와 Firestore 데이터 구조는 유지하면서 요청별 완료 시점에 상태를 반영한다. 전체 `loading`은 기존 호출부 호환성을 위해 두 상태의 OR 값으로 보존한다.
+
+## [2026-07-24] P0 저장·복구 안정화 PR1A — 로드 전 신규 쓰기 차단
+
+- **내용:** 슬롯 persistence 상태를 `idle/loading/ready/recovering/failed`로 분리하고, 로드 세대와 `uid/slotId/revision` identity가 확인된 `ready` 상태에서만 게임 snapshot·활동 로그·배틀 로그·IndexedDB outbox·설정 저장을 허용하도록 fail-closed 가드를 추가했다. 예약 저장은 호출 시점 context를 캡처하되 실행 시점의 최신 revision으로 직렬 커밋하며, 슬롯 변경 뒤 남은 과거 세대 작업은 setter와 영속화 전에 폐기한다. Firestore 로드 실패와 `SLOT_NOT_FOUND`에서는 starter 상태를 더 이상 주입하지 않고, IndexedDB 실패는 서버 hydration과 분리해 로컬 임시 저장소만 unavailable로 표시한다. hydration 중 proteinCount 정리와 재구성 로그 쓰기는 제거하거나 `ready` 이후로 이동했으며, `pagehide`·`beforeunload`·숨김 전환에서 신규 snapshot 저장을 시작하던 종료 훅을 비활성화했다. 검증되지 않은 `local` 충돌 복구 호출도 transaction 전에 즉시 거부한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameSaveOnLeave.js`
+  - 관련 Jest 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 로딩 상태와 충돌 상태를 분리하고 모든 신규 쓰기를 하나의 명시적 identity 계약으로 제한하면 초기 React state나 이전 슬롯 closure가 서버 데이터로 승격될 수 없다. `requestedAtRevision`은 진단용으로 보존하고 실제 base revision은 직렬 저장 큐 실행 시점의 최신 값을 사용해 동일 세대의 정상 연속 저장을 유지한다. 브라우저 종료 이벤트의 비동기 성공에 의존하지 않고 행동 직후 저장과 기존 lazy update를 정합성 기준으로 유지한다.
+
+## [2026-07-24] P0 저장·복구 안정화 PR1B — 안전한 로드 실패 화면과 재시도
+
+- **내용:** 슬롯 로드 오류를 일반 저장 오류와 분리한 `slotLoadError`와 `retrySlotLoad` 계약을 추가했다. 재시도·슬롯 이탈 시 기존 generation을 즉시 무효화하고 Firestore 문서, 로그 컬렉션, IndexedDB pending 조회의 각 비동기 경계 뒤에서 최신 요청인지 재검사해 오래된 성공·실패가 UI나 conflict 상태에 반영되지 않게 했다. `idle/loading`에서는 안전한 로딩 presenter만, `failed`에서는 데이터 미변경 안내와 `다시 시도`·`플레이 허브로 돌아가기` 동선만 표시한다. `ready` 전에는 realtime loop와 주기·설정 persistence 효과를 비활성화하며, IndexedDB만 unavailable인 경우 게임은 계속 표시하면서 서버 저장 지속 경고를 노출한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameSlotLoadState.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRuntimeEffects.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/useGameRealtimeLoop.js`
+  - 관련 Jest 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 로드 화면을 대형 `Game.jsx`에 직접 조립하지 않고 작은 presenter로 분리해 게임 화면·조작 UI가 검증 전 상태를 렌더링하지 않도록 했다. 요청 취소를 네트워크 API에만 의존하지 않고 단조 증가 generation으로 판정하면 재시도와 route 전환이 겹쳐도 최신 hydration 하나만 상태 변경 권한을 가진다.
+
+## [2026-07-24] P0 저장·복구 안정화 PR2 — 파괴적인 로컬 복구 제거
+
+- **내용:** 충돌 모달에서 `이 기기 상태 사용` 선택을 제거하고 서버 복구만 제공한다. 서버 복구는 conflict의 uid·slotId·generation identity를 확인한 뒤 phase를 `recovering`으로 전환하고, 기존 `remoteData`가 아니라 Firestore 슬롯 문서를 새로 조회한다. 조회된 snapshot을 React runtime setter에 직접 적용하지 않으며, 현재 conflict에 대응하는 IndexedDB state pending만 삭제하고 재조회로 삭제를 확인한 경우에만 페이지를 reload한다. 활동·배틀·먹이 outbox는 보존한다. 서버 조회, pending identity, pending 삭제 확인이 실패하거나 복구 도중 슬롯 generation이 바뀌면 reload하지 않고 conflict와 pending을 유지하며, 같은 슬롯의 실패는 `ready`로 돌아가 모달에서 재시도할 수 있다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncConflictDialog.jsx`
+  - 관련 Jest 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** conflict payload는 모달이 열린 시점의 과거 snapshot이므로 복구 정본으로 사용할 수 없다. 서버를 다시 읽고 runtime 전체를 reload 후 기존 hydration·lazy update에 맡기면 진화 시간과 스탯을 현재 시각 기준으로 한 번만 재구성할 수 있다. state pending과 기록 outbox의 삭제 권한을 분리해 서버 상태 선택이 사용자 활동 이력까지 파괴하지 않게 한다.
+
+## [2026-07-24] P0 저장·복구 안정화 PR3 — Pending 분류와 사용자 진단 개선
+
+- **내용:** 로컬 state pending을 `UNSENT_LOCAL_SAVE`, `TRUE_REMOTE_CONFLICT`, `INVALID_LOCAL_SNAPSHOT`, `TERMINAL_STATE_MISMATCH`, `FORM_MISMATCH`로 분류한다. 같은 revision에서는 실제 슬롯 저장 직렬화 결과로 만든 canonical snapshot을 비교해 동일하면 state pending만 자동 정리하고, 안전한 action만 있으면 기존 replay를 적용하며, 위험하거나 유효하지 않은 차이는 원인별로 격리한다. 충돌 모달에는 분류별 한국어 설명, 서버·기기 revision, 로컬 저장 시각과 서버 복구 시 폐기 범위를 표시하고, UID와 snapshot 본문을 제외한 진단 정보 복사를 추가했다. 복구 실패 결과와 오류 코드도 현재 conflict에 남겨 재시도와 진단에 사용한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/pendingHydration.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncConflictDialog.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 관련 Jest 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 별도의 비교 스키마를 만들면 저장 payload와 drift가 생길 수 있으므로 `sanitizeDigimonStatsForSlotDocument`를 canonical 비교에도 재사용한다. revision은 snapshot 내용과 별도로 먼저 판정하고, activity·battle 로그 및 서버 commit timestamp와 UI 전용 필드는 비교에서 제외한다. 동일 pending 정리는 현재 uid·slotId·load generation과 mutationId가 모두 일치할 때만 허용해 다른 슬롯이나 새 pending을 삭제하지 않는다.

@@ -1,11 +1,13 @@
 import {
   buildFallbackSlotHydrationResult,
+  createNextSlotLoadAccess,
   createGameSaveQueue,
   buildLazyUpdateRuntimeResult,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
   buildLoadedSlotHydrationPlan,
   buildLoadedSlotRuntimeState,
+  buildComparableSlotSnapshot,
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   loadSlotCollectionsState,
@@ -15,6 +17,7 @@ import {
   resolveRootSlotFields,
   raiseGameSaveError,
   sanitizeDigimonStatsForSlotDocument,
+  isCurrentSlotLoadRequest,
 } from "./useGameData";
 import { buildFeedSummaryUpdate } from "./game-persistence/useDurableGamePersistence";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
@@ -28,6 +31,26 @@ describe("raiseGameSaveError", () => {
 
     expect(() => raiseGameSaveError(error, setError)).toThrow(error);
     expect(setError).toHaveBeenCalledWith(error);
+  });
+});
+
+describe("slot load generation", () => {
+  test("재시도마다 generation을 올리고 이전 loaded identity를 폐기한다", () => {
+    const first = createNextSlotLoadAccess({
+      phase: "failed",
+      generation: 4,
+      loadedIdentity: { uid: "user-1", slotId: 1 },
+    });
+    const second = createNextSlotLoadAccess(first);
+
+    expect(first).toMatchObject({ phase: "loading", generation: 5, loadedIdentity: null });
+    expect(second).toMatchObject({ phase: "loading", generation: 6, loadedIdentity: null });
+  });
+
+  test("최신 generation의 응답만 현재 요청으로 인정한다", () => {
+    const access = { generation: 8 };
+    expect(isCurrentSlotLoadRequest(access, 8)).toBe(true);
+    expect(isCurrentSlotLoadRequest(access, 7)).toBe(false);
   });
 });
 
@@ -197,6 +220,36 @@ describe("sanitizeDigimonStatsForSlotDocument", () => {
     expect(result.callStatus.hunger.startedAt).toBe(
       Date.parse("2026-04-07T03:00:00.000Z")
     );
+  });
+});
+
+describe("buildComparableSlotSnapshot", () => {
+  test("슬롯 저장 allowlist를 재사용해 로그·UI 시각은 빼고 게임 identity와 root 상태는 포함한다", () => {
+    const result = buildComparableSlotSnapshot({
+      stats: {
+        selectedDigimon: "Agumon",
+        fullness: 4,
+        combatIdentity: { lifeId: "life-1" },
+        evolutionStageStartedAt: new Date("2026-07-24T00:00:00.000Z"),
+        activityLogs: [{ type: "FEED" }],
+        battleLogs: [{ result: "win" }],
+        lastSavedAt: 123,
+        isLightsOn: false,
+        wakeUntil: 456,
+      },
+      rootSlotFields: { isLightsOn: true, wakeUntil: null },
+    });
+
+    expect(result).toEqual({
+      selectedDigimon: "Agumon",
+      digimonStats: {
+        fullness: 4,
+        combatIdentity: { lifeId: "life-1" },
+        evolutionStageStartedAt: Date.parse("2026-07-24T00:00:00.000Z"),
+      },
+      isLightsOn: false,
+      wakeUntil: 456,
+    });
   });
 });
 
