@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.js", "tests/**/*.test.js"],
+      "project": ["scripts/**/*.js", "tests/**/*.js"]
+    },
+    "digimon-tamagotchi-frontend": {
+      "entry": [
+        "src/index.js",
+        "src/setupTests.js",
+        "src/**/*.{test,spec}.{js,jsx}",
+        "api/*.js",
+        "api/{arena,community,logs,notifications,operator}/**/*.js",
+        "api/_lib/*.test.js",
+        "scripts/*.js"
+      ],
+      "project": ["src/**/*.{js,jsx}", "api/**/*.{js,cjs}", "scripts/**/*.js"]
+    }
+  }
+}
