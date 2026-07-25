@@ -7553,3 +7553,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `tests/firestore-emulator.test.js`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 런타임 알림 조회·예약 계약은 변경하지 않고 오래된 통합 테스트 fixture와 의존성 주입만 운영 코드의 현재 경계에 맞췄다. 따라서 P0 저장·복구 구현과 무관한 테스트 drift를 제거하면서 실제 Firestore Emulator 검증 범위를 유지한다.
+
+## [2026-07-25] C2 dead-code 비차단 기준선 구축
+
+- **내용:** Node 24에서 호환되는 Knip `6.29.0`을 루트 개발 의존성으로 고정하고, 루트 스크립트·테스트와 프론트엔드 source·API·스크립트를 분리한 workspace 분석 설정을 추가했다. strict 실행은 설정 오류 없이 후보 297건을 보고하고 종료 코드 1을 반환했으므로 `npm run check`에는 포함하지 않았다. 대신 항상 종료 코드 0인 `deadcode:report`를 제공하고, 전체 후보·유형별 건수·동적 참조·generated 경계·후속 분류를 기준선 문서에 기록했다. 코드 삭제와 자동 수정, 광범위 ignore는 수행하지 않았다.
+- **CI 근거:** 구현 커밋 `e73e62db29466dc4ba8561e0145dc5783833d2fd`를 대상으로 GitHub Actions `check`가 성공했다: https://github.com/taehee33/d2_tama_refact/actions/runs/30142753841/job/89638992978
+- **영향 파일:**
+  - `package.json`
+  - `package-lock.json`
+  - `knip.json`
+  - `docs/quality/deadcode-baseline.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 정적 분석 후보는 Vercel 진입점, CommonJS 테스트 주입, 생성 source처럼 실제 런타임 계약을 놓칠 수 있다. 따라서 첫 도입에서는 후보를 빌드 차단 조건으로 승격하지 않고 재현 가능한 보고서와 검토 대기열만 만든다. 후보가 제거되거나 오탐 근거가 좁은 설정으로 확정된 뒤 strict 검사를 필수 게이트로 승격한다.
