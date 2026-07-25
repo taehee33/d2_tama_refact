@@ -6,6 +6,7 @@ export {
   createSeededRandom,
 } from "../logic/arena/calculator";
 export { calculatePower } from "../logic/battle/hitrate";
+export { formatKstTime } from "../utils/time";
 export {
   findDigimonEntryAcrossVersions,
   getDigimonEntryByVersion,

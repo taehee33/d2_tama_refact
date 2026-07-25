@@ -46,6 +46,7 @@ __webpack_require__.d(__webpack_exports__, {
   calculatePower: () => (/* reexport */ calculatePower),
   createSeededRandom: () => (/* reexport */ createSeededRandom),
   findDigimonEntryAcrossVersions: () => (/* reexport */ findDigimonEntryAcrossVersions),
+  formatKstTime: () => (/* reexport */ formatKstTime),
   getDigimonEntryByVersion: () => (/* reexport */ getDigimonEntryByVersion),
   getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
   isStarterDigimonId: () => (/* reexport */ digimonVersionUtils_isStarterDigimonId),
@@ -7875,6 +7876,7 @@ function calculateArenaBattle({
 }
 
 ;// ./src/server/gameProjectionEntry.js
+
 
 
 
