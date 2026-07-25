@@ -7569,6 +7569,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ## [2026-07-25] C3 품질 도구 문서 정합성 반영
 
 - **내용:** C2 병합 `main` SHA `738be423f08b8800582437e2a28563ad66a645ab`와 Node `24.14.0`에서 품질 지표를 다시 측정해 사용자·에이전트 가이드와 P3 장기 계획을 현재 실행 계약에 맞췄다. 운영 lint 313파일 0 errors/0 warnings와 제한 typecheck root 25파일·실제 source 36파일 0 errors는 필수 `npm run check`로, 테스트 lint 168파일 177 errors와 Knip `6.29.0` 후보 297건은 비차단 진단으로 명시했다. 전체 logic checkJs 9파일 28 errors, Phase 1D console/logger, ESLint 9, TypeScript 5, 전체 logic 확대는 후속 작업으로 유지했다.
+- **CI 근거:** 문서 정합성 커밋 `87b8d0531ada14e8c0098d10f9513d7bed1e58ed`를 대상으로 GitHub Actions `check`가 성공했다: https://github.com/taehee33/d2_tama_refact/actions/runs/30143505617/job/89641059270
 - **영향 파일:**
   - `README.md`
   - `AGENTS.md`
