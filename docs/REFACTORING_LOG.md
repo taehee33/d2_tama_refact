@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-07-25] C1 운영 ESLint·제한 checkJs 품질 게이트 구축
+
+- **내용:** CRA 5가 사용하는 `eslint@8.57.1`, `eslint-config-react-app@7.0.1`, `typescript@4.9.5`를 프런트 직접 개발 의존성으로 고정하고, 운영 코드 ESLint와 제한된 JavaScript 타입 검사를 루트 `npm run check`의 선행 필수 게이트로 추가했다. 테스트 lint는 기존 부채를 숨기지 않는 엄격 비차단 진단 명령으로 분리했다.
+- **공식 기준선:** `d6866063d1c8e5344d20544026fe66912d4a5c14`, Node `24.14.0`, npm `10.9.2`. JS/JSX 481개 중 운영 313개와 테스트 168개가 교집합·누락 없이 분류됐다. 운영 lint는 0 errors/0 warnings, 테스트 lint는 정상 ESLint 진단 exit 1과 177 errors/0 warnings다. checkJs는 root 25개, 정적 import 포함 실제 source 36개를 검사해 0 errors로 통과했다.
+- **첫 PR CI 증거:** 커밋 `e7f5f59e70f7c9a390c5386acf1162f2ad388858`에서 GitHub `CI / check`가 성공했다. 실행: https://github.com/taehee33/d2_tama_refact/actions/runs/30142141030/job/89637325833
+- **영향 파일:**
+  - `package.json`
+  - `digimon-tamagotchi-frontend/package.json`
+  - `digimon-tamagotchi-frontend/package-lock.json`
+  - `digimon-tamagotchi-frontend/tsconfig.checkjs.json`
+  - `digimon-tamagotchi-frontend/src/repositories/SlotRepository.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 운영 코드와 이미 green인 순수 로직 영역부터 필수 게이트로 고정해 새 부채 유입을 막는다. 테스트 lint 177건과 전체 logic의 기존 타입 부채는 오류 예산이나 suppress로 숨기지 않고 후속 정리 대상으로 남기며, `lint:tests`는 `npm run check`와 필수 CI에 포함하지 않는다.
+
 ## [2026-07-25] 긴급 알림 KST 시간 포맷 Node 24 호환성 고정
 
 - **내용:** 긴급 케어 알림의 시작·케어미스 예정 시간이 Node/ICU 버전에 따라 `오후` 또는 `PM`으로 달라지던 문제를 수정했다. 기존 `src/utils/time.js`의 결정적 `formatKstTime()`을 서버 projection bundle에 노출하고 긴급 알림 projection이 이를 재사용하도록 변경했으며, KST 자정·오전·정오·오후·유효하지 않은 입력에서 프런트와 생성 서버 bundle의 결과가 같은지 parity 테스트로 고정했다.
