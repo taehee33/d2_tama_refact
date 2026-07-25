@@ -29,3 +29,5 @@ firebase/service-account.json
 # 4. OS 관련 파일
 .DS_Store
 .vercel
+.gstack/
+supabase/.temp/
