@@ -7557,6 +7557,7 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 ## [2026-07-25] C2 dead-code 비차단 기준선 구축
 
 - **내용:** Node 24에서 호환되는 Knip `6.29.0`을 루트 개발 의존성으로 고정하고, 루트 스크립트·테스트와 프론트엔드 source·API·스크립트를 분리한 workspace 분석 설정을 추가했다. strict 실행은 설정 오류 없이 후보 297건을 보고하고 종료 코드 1을 반환했으므로 `npm run check`에는 포함하지 않았다. 대신 항상 종료 코드 0인 `deadcode:report`를 제공하고, 전체 후보·유형별 건수·동적 참조·generated 경계·후속 분류를 기준선 문서에 기록했다. 코드 삭제와 자동 수정, 광범위 ignore는 수행하지 않았다.
+- **CI 근거:** 구현 커밋 `e73e62db29466dc4ba8561e0145dc5783833d2fd`를 대상으로 GitHub Actions `check`가 성공했다: https://github.com/taehee33/d2_tama_refact/actions/runs/30142753841/job/89638992978
 - **영향 파일:**
   - `package.json`
   - `package-lock.json`
