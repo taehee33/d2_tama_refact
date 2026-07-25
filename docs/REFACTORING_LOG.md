@@ -7577,3 +7577,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 실제 CI 차단 게이트와 기존 부채를 같은 “완료” 상태로 표현하면 후속 리팩터링의 실패 원인을 구분할 수 없다. 녹색 범위와 비차단 기준선을 수치·명령 단위로 분리하고, strict 승격 조건과 버전 업그레이드를 별도 후속으로 남겨 문서가 현재 자동화 계약을 정확히 설명하도록 했다.
+
+## [2026-07-25] 로컬 도구 임시 상태 Git 추적 제외
+
+- **내용:** gstack 작업 상태와 Supabase CLI가 생성하는 `.temp` 디렉터리를 `.gitignore`에 추가했다. 이미 추적되던 Supabase 임시 파일 8개는 로컬 파일을 유지한 채 Git 인덱스에서 제외했다.
+- **영향 파일:**
+  - `.gitignore`
+  - `supabase/.temp/*`의 기존 추적 파일 8개
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 개인 도구 상태와 Supabase 로컬 연결 메타데이터는 소스·배포 입력이 아니며 환경마다 달라진다. 저장소에서 추적하지 않아야 불필요한 변경과 로컬 환경 정보의 재커밋을 방지할 수 있다.
