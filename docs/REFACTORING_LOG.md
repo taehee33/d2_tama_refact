@@ -7565,3 +7565,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/quality/deadcode-baseline.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 정적 분석 후보는 Vercel 진입점, CommonJS 테스트 주입, 생성 source처럼 실제 런타임 계약을 놓칠 수 있다. 따라서 첫 도입에서는 후보를 빌드 차단 조건으로 승격하지 않고 재현 가능한 보고서와 검토 대기열만 만든다. 후보가 제거되거나 오탐 근거가 좁은 설정으로 확정된 뒤 strict 검사를 필수 게이트로 승격한다.
+
+## [2026-07-25] C3 품질 도구 문서 정합성 반영
+
+- **내용:** C2 병합 `main` SHA `738be423f08b8800582437e2a28563ad66a645ab`와 Node `24.14.0`에서 품질 지표를 다시 측정해 사용자·에이전트 가이드와 P3 장기 계획을 현재 실행 계약에 맞췄다. 운영 lint 313파일 0 errors/0 warnings와 제한 typecheck root 25파일·실제 source 36파일 0 errors는 필수 `npm run check`로, 테스트 lint 168파일 177 errors와 Knip `6.29.0` 후보 297건은 비차단 진단으로 명시했다. 전체 logic checkJs 9파일 28 errors, Phase 1D console/logger, ESLint 9, TypeScript 5, 전체 logic 확대는 후속 작업으로 유지했다.
+- **CI 근거:** 문서 정합성 커밋 `87b8d0531ada14e8c0098d10f9513d7bed1e58ed`를 대상으로 GitHub Actions `check`가 성공했다: https://github.com/taehee33/d2_tama_refact/actions/runs/30143505617/job/89641059270
+- **영향 파일:**
+  - `README.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 실제 CI 차단 게이트와 기존 부채를 같은 “완료” 상태로 표현하면 후속 리팩터링의 실패 원인을 구분할 수 없다. 녹색 범위와 비차단 기준선을 수치·명령 단위로 분리하고, strict 승격 조건과 버전 업그레이드를 별도 후속으로 남겨 문서가 현재 자동화 계약을 정확히 설명하도록 했다.

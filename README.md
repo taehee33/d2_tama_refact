@@ -114,10 +114,21 @@ npm --prefix digimon-tamagotchi-frontend ci --no-audit --no-fund
 npm run check
 ```
 
-`npm run check`는 프론트엔드 테스트, 자격증명 없이 실행되는 서버 테스트,
-API 단일 원본 계약 검사, 프론트엔드 프로덕션 빌드, 서버 projection 일치 검사를 순서대로 실행합니다.
-Firestore Emulator 전용 테스트는 현재 필수 CI 기준에서 제외합니다.
-ESLint, 타입 검사, dead-code 검사는 후속 품질 단계에서 별도로 도입합니다.
+`npm run check`는 운영 코드 ESLint, 제한적 JSDoc 타입 검사, 프론트엔드 테스트,
+자격증명 없이 실행되는 서버 테스트, API 단일 원본 계약 검사, 프론트엔드 프로덕션 빌드,
+서버 projection 일치 검사를 순서대로 실행합니다. Firestore Emulator 전용 테스트는 현재 필수 CI 기준에서 제외합니다.
+
+독립 품질 명령과 2026-07-25 Node 24 기준선은 다음과 같습니다.
+
+- `npm run lint`: 필수 CI 검사. 운영 JS/JSX 313개, 0 errors / 0 warnings.
+- `npm run typecheck`: 필수 CI 검사. `tsconfig.checkjs.json`의 root 25개와 정적 import를 포함한 실제 source 36개, 0 errors.
+- `npm run lint:tests`: 엄격 비차단 진단. 테스트 JS/JSX 168개, 177 errors / 0 warnings이며 `check`에는 포함하지 않습니다.
+- `npm run deadcode`: Knip `6.29.0` strict 진단. 후보 297건이 남아 있어 정상적으로 종료 코드 1을 반환합니다.
+- `npm run deadcode:report`: 같은 후보를 출력하되 CI를 차단하지 않는 보고서 명령입니다.
+
+전체 `src/logic/**` checkJs에는 현재 9개 파일에서 28 errors가 남아 있습니다. ESLint 9,
+TypeScript 5, 전체 logic 타입 범위 확대와 테스트 lint 정리는 별도 후속 작업입니다.
+dead-code 후보 전체 목록과 분류는 [dead-code 기준선](./docs/quality/deadcode-baseline.md)을 참고하세요.
 
 ## API 배포 단일 원본
 
