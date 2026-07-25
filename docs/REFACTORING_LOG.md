@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-07-25] 긴급 알림 KST 시간 포맷 Node 24 호환성 고정
+
+- **내용:** 긴급 케어 알림의 시작·케어미스 예정 시간이 Node/ICU 버전에 따라 `오후` 또는 `PM`으로 달라지던 문제를 수정했다. 기존 `src/utils/time.js`의 결정적 `formatKstTime()`을 서버 projection bundle에 노출하고 긴급 알림 projection이 이를 재사용하도록 변경했으며, KST 자정·오전·정오·오후·유효하지 않은 입력에서 프런트와 생성 서버 bundle의 결과가 같은지 parity 테스트로 고정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionEntry.js`
+  - `digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareProjection.js`
+  - `digimon-tamagotchi-frontend/src/server/gameProjectionParity.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** ECMA-402가 허용하는 구현·로케일 데이터 차이를 사용자에게 저장·전송되는 한국어 문자열 계약에 노출하지 않는다. 새 포매터를 중복 구현하지 않고 이미 검증된 KST 산술 helper를 프런트와 서버 생성물의 단일 원본으로 사용해 실행 환경과 무관한 결과를 보장한다.
+
 ## [2026-07-25] Vercel API 단일 원본화
 
 - **내용:** Vercel의 실제 Root Directory인 `digimon-tamagotchi-frontend/api`를 유일한 API 구현으로 확정하고 저장소 루트의 중복 구현·복사본·구형 wrapper·깨진 `archive-monitoring` shim을 모두 제거했다. 루트에 있던 유효 서버 테스트는 `tests/api/`로 이동해 실제 배포 구현을 직접 검사하도록 바꿨고, 긴급 알림 두 테스트 묶음은 고유 사례를 보존하면서 중복 6개를 한 번만 실행하도록 통합했다. 배포 진입점 11개, 커뮤니티 4개, 알림 9개 operation, 아레나 관리자·운영자 상태 분기를 고정하는 계약 테스트와 API 단일 원본 검사 스크립트를 `npm run check`에 추가했다.

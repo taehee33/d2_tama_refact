@@ -3,10 +3,12 @@ import {
   projectState as projectFrontendState,
 } from "../data/stats";
 import { calculateArenaBattle as calculateFrontendArenaBattle } from "../logic/arena/calculator";
+import { formatKstTime as formatFrontendKstTime } from "../utils/time";
 
 const {
   applyLazyUpdate: applyServerLazyUpdate,
   calculateArenaBattle: calculateServerArenaBattle,
+  formatKstTime: formatServerKstTime,
   projectState: projectServerState,
 } = require("../../api/_generated/gameProjection.cjs");
 
@@ -54,6 +56,17 @@ describe("서버 game projection parity", () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  test.each([
+    ["KST 자정", "2026-06-30T00:05:00+09:00", "오전 12:05"],
+    ["KST 오전", "2026-06-30T09:07:00+09:00", "오전 9:07"],
+    ["KST 정오", "2026-06-30T12:00:00+09:00", "오후 12:00"],
+    ["KST 오후", "2026-06-30T20:05:00+09:00", "오후 8:05"],
+    ["유효하지 않은 값", Number.NaN, ""],
+  ])("%s 시간 포맷이 프론트와 서버 bundle에서 같다", (_name, value, expected) => {
+    expect(formatFrontendKstTime(value)).toBe(expected);
+    expect(formatServerKstTime(value)).toBe(expected);
   });
 
   test("결정적 Arena battle 결과와 replay가 서버 bundle과 같다", () => {

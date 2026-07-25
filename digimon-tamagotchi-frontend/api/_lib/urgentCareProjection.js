@@ -1,6 +1,9 @@
 "use strict";
 
-const { applyLazyUpdate } = require("../_generated/gameProjection.cjs");
+const {
+  applyLazyUpdate,
+  formatKstTime,
+} = require("../_generated/gameProjection.cjs");
 
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -157,15 +160,6 @@ function getCurrentSleepScheduleStartMs(schedule, nowMs) {
     return kstWallTimeToUtcMs(dateParts, normalized.start, normalized.startMinute, -1);
   }
   return null;
-}
-
-function formatKstTime(nowMs) {
-  if (!Number.isFinite(Number(nowMs))) return "";
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: KST_TIME_ZONE,
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(Number(nowMs)));
 }
 
 function formatRemainingMs(remainingMs) {
