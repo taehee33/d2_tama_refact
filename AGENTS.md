@@ -27,7 +27,16 @@ npm run check
 ```
 
 서버 테스트는 자격증명이 제거된 환경에서 실행되며, Firestore Emulator 전용 테스트는
-현재 필수 검사에서 제외합니다. ESLint, 타입 검사, dead-code 검사는 후속 단계 범위입니다.
+현재 필수 검사에서 제외합니다. `npm run check`에는 운영 ESLint와 제한적 JSDoc 타입 검사가 포함됩니다.
+
+- `npm run lint`: 필수 검사. 운영 JS/JSX 313개, 0 errors / 0 warnings.
+- `npm run typecheck`: 필수 검사. root 25개, 정적 import 포함 실제 source 36개, 0 errors.
+- `npm run lint:tests`: 엄격 비차단 진단. 테스트 168개, 177 errors / 0 warnings.
+- `npm run deadcode`: Knip `6.29.0` strict 진단. 후보 297건 때문에 현재 종료 코드 1.
+- `npm run deadcode:report`: 동일 후보를 출력하는 비차단 보고서.
+
+`lint:tests`와 `deadcode`는 `check`에 포함하지 않습니다. 전체 `src/logic/**` checkJs의 9개 파일·28 errors,
+ESLint 9, TypeScript 5, 전체 logic 타입 범위 확대는 후속 작업입니다.
 
 아래 프론트엔드 개발 명령어는 `digimon-tamagotchi-frontend` 디렉토리에서 실행합니다:
 

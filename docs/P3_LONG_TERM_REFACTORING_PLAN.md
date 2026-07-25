@@ -1,10 +1,10 @@
 # P3 장기 리팩터링 실행 계획
 
-**상태:** 실행 전 계획
+**상태:** 진행 중 — Phase 1A·1B·1C 기준선 완료, 1D 미완료
 
 **작성일:** 2026-07-13
 
-**기준선 갱신일:** 2026-07-17
+**기준선 갱신일:** 2026-07-25
 
 **대상:** `digimon-tamagotchi-frontend`
 
@@ -24,7 +24,7 @@
 
 ## 2. 확인된 현재 기준선
 
-2026-07-17 기준이다. 대형 파일과 품질 도구 부채 수치는 2026-07-13 정적 분석 결과를 유지하고, 테스트·시간 계약·CI 상태는 병합된 최신 `main`으로 갱신했다.
+2026-07-25 Node 24와 C2 병합 `main` 기준이다. 대형 파일 수치는 기존 정적 분석 결과를 유지하고, 품질 도구·테스트·CI 기준선은 실제 명령으로 다시 측정했다.
 
 | 항목 | 현재 상태 | 의미 |
 |---|---:|---|
@@ -33,13 +33,15 @@
 | `useGameData.js` | 1,520줄 | 로드/저장, payload, lazy update, 복구 정책이 혼재 |
 | `useGameActions.js` | 1,447줄 | 다수의 순수 builder와 액션 오케스트레이션이 혼재 |
 | `useEvolution.js` | 1,021줄 | 일반 진화와 조그레스 저장/배치 쓰기가 혼재 |
-| 프런트 테스트 | 159 suite, 941 test 전부 통과 | 1단계에서 기존 실패를 정비하고 녹색 기준선을 복구함 |
-| 서버 테스트 | 156개 통과, Firestore Emulator 전용 1개 건너뜀 | 자격증명이 없는 결정적 단위 테스트 기준선 |
+| 프런트 테스트 | 167 suite, 1,014 test 전부 통과 | Node 24 필수 `check`의 현재 녹색 기준선 |
+| 서버 테스트 | 189개 중 183개 통과, Emulator 관련 6개 건너뜀 | 자격증명이 없는 결정적 단위 테스트 기준선 |
 | 1.5단계 시간 계약 | `TZ=UTC`, `TZ=Asia/Seoul` 결과 동일 | 수면·스탯·동기화 표시를 고정 UTC+9(KST)로 통일함 |
 | Node 24 CI | `ubuntu-24.04`, `CI / check` 성공 | PR과 `main` push가 같은 `npm run check`를 실행함 |
-| 전체 ESLint | 166 errors, 1 warning | 오류 대부분은 테스트의 Testing Library 규칙 부채 |
-| 운영 코드 ESLint | 0 errors, 1 warning | `SlotRepository.js`의 미사용 `where` |
-| JSDoc | 52개 파일에 타입 태그 존재 | 전면 TypeScript보다 `checkJs` 확장이 현실적 |
+| 운영 코드 ESLint | 313파일, 0 errors, 0 warnings | ESLint `8.57.1`의 필수 CI 게이트 |
+| 테스트 ESLint | 168파일, 177 errors, 0 warnings | 엄격 비차단 `lint:tests`; 별도 정리 대기 |
+| 제한 JSDoc 타입 검사 | root 25파일, import 포함 실제 source 36파일, 0 errors | TypeScript `4.9.5`의 필수 CI green island |
+| 전체 logic checkJs | 9파일, 28 errors | suppress 없이 별도 범위 확대 작업으로 유지 |
+| dead-code | Knip `6.29.0`, 후보 297건 | strict는 exit 1, `deadcode:report`만 비차단 제공 |
 | 테스트 로그 | 전체 실행에서 `console.log` 출력 블록 62개 | 전역 숨김이 아니라 발생 지점 정리가 필요 |
 | 스프라이트 후보 | 25개 | 저장소 밖 `D2_LOCAL_ARCHIVE/sprite-inbox`에 SHA-256 목록과 함께 보존, 저장소 승격 여부는 별도 결정 |
 
@@ -111,12 +113,12 @@ flowchart LR
 
 1. D1의 공식 저장 계약을 확정하고, D2의 저장소 승격 기준을 문서에 반영한다.
 2. 완료된 1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 기준선을 P3의 선행 조건으로 고정한다.
-3. 프런트 941개, 서버 156개, build와 server projection 검사 결과를 기준선으로 기록한다.
+3. 프런트 1,014개, 서버 189개(183 pass, 6 skip), build와 server projection 검사 결과를 기준선으로 기록한다.
 4. `StatsPopup`, `ArenaScreen`, 일반 진화, 조그레스, 슬롯 저장/로드의 현재 동작을 characterization test로 보강할 목록을 확정한다.
 
 #### 종료 조건
 
-- 프런트 159개 test suite·941개 test와 서버 156개 test가 통과하고, Firestore Emulator 전용 1개만 명시적으로 건너뛴다.
+- 프런트 167개 test suite·1,014개 test와 서버 189개 중 183개가 통과하고, Emulator 관련 6개만 명시적으로 건너뛴다.
 - `TZ=UTC`와 `TZ=Asia/Seoul`에서 시간 의존 테스트 결과가 같다.
 - Node 24·Ubuntu 24.04의 `CI / check`가 PR과 `main` push에서 성공한다.
 - `NODE_OPTIONS=--openssl-legacy-provider npm run build`가 통과한다.
@@ -129,26 +131,36 @@ flowchart LR
 
 #### 1A. ESLint
 
-- `eslint`와 필요한 plugin을 직접 `devDependencies`로 고정한다.
-- 운영 코드용 `npm run lint`와 테스트 코드 부채 확인용 `npm run lint:tests`를 분리한다.
-- 먼저 운영 코드의 1개 warning을 제거하고 `lint`를 차단 게이트로 만든다.
-- 테스트의 기존 166개 오류는 규칙별 목록을 기록하고 작은 묶음으로 정리한다. 리팩터링 중 건드린 테스트에서는 오류 수가 증가하지 않아야 한다.
+**상태:** 기준선 완료. 운영 lint는 필수 CI, 테스트 lint는 엄격 비차단 진단으로 도입했다.
+
+- `eslint` `8.57.1`과 `eslint-config-react-app` `7.0.1`을 직접 `devDependencies`로 고정했다.
+- 운영 코드용 `npm run lint`와 테스트 코드 부채 확인용 `npm run lint:tests`를 분리했다.
+- 운영 313파일의 0 errors / 0 warnings를 `npm run check`의 차단 게이트로 만들었다.
+- 테스트 168파일의 기존 177 errors / 0 warnings를 비차단 기준선으로 기록했다. 리팩터링 중 건드린 테스트에서는 오류 수가 증가하지 않아야 한다.
 - P3 종료 시 `lint:tests`도 0 errors가 되거나, 팀이 의도적으로 끈 규칙만 설정 파일에 근거와 함께 남긴다.
 
 #### 1B. JSDoc 타입 검사
 
-- 직접 버전의 `typescript`와 `tsconfig.checkjs.json`을 추가한다.
-- 첫 범위는 `src/logic/**`와 공유 pure utility로 제한한다.
-- `npm run typecheck`를 추가하고, 이후 추출되는 pure helper를 매 단계 include 범위에 추가한다.
+**상태:** 제한 green island 완료. 전체 logic 확대는 미완료다.
+
+- TypeScript `4.9.5`와 `tsconfig.checkjs.json`을 추가했다.
+- 첫 범위는 root 25파일과 정적 import를 포함한 실제 source 36파일이며 0 errors다.
+- `npm run typecheck`를 필수 `check`에 추가했고, 이후 추출되는 pure helper를 매 단계 include 범위에 추가한다.
+- 전체 `src/logic/**` 측정은 9파일에서 28 errors이며 현재 필수 범위에는 넣지 않는다.
 - hook/component 전체 `checkJs`는 오류를 숨기는 대규모 suppress 없이 별도 후속 단계에서 확대한다.
 
 #### 1C. dead-code 검사
 
-- `knip`을 직접 의존성으로 추가하고 `npm run deadcode`를 만든다.
-- CRA entrypoint, test, script, Firebase 동적 참조를 명시적으로 설정한다.
-- 첫 실행은 report-only다. `src/data/nonuse/` 등 후보는 사용 여부와 보관 이유를 분류한 뒤 별도 커밋에서만 삭제한다.
+**상태:** report-only 기준선 완료. strict 승격과 후보 정리는 미완료다.
+
+- Knip `6.29.0`을 직접 의존성으로 추가하고 `npm run deadcode`와 `npm run deadcode:report`를 만들었다.
+- 루트와 프론트엔드의 CRA entrypoint, API, test, script 범위를 workspace별로 명시했다.
+- 후보 297건이 남아 있어 strict 명령은 정상적으로 exit 1이며 필수 `check`에는 포함하지 않았다. 전체 후보와 분류는 `docs/quality/deadcode-baseline.md`에 기록했다.
+- `src/data/nonuse/` 등 후보는 사용 여부와 보관 이유를 재검증한 뒤 별도 커밋에서만 삭제한다.
 
 #### 1D. console 정책
+
+**상태:** 미완료. 공용 logger 도입과 기존 raw console 정리는 후속 작업이다.
 
 - 테스트 중 반복되는 raw `console.log`는 발생 지점에서 제거한다.
 - 필요한 운영 오류는 `console.warn/error` 또는 공용 logger로 유지하고, 해당 테스트에서 `jest.spyOn`으로 검증한다.
@@ -158,7 +170,8 @@ flowchart LR
 #### 종료 조건
 
 - `npm run lint`, `npm run typecheck`, 전체 test, build가 각각 독립적으로 성공한다.
-- `npm run lint:tests`, `npm run deadcode`의 기존 부채가 수치와 파일 목록으로 기록된다.
+- `npm run lint:tests`의 168파일·177 errors와 `npm run deadcode`의 후보 297건이 수치와 파일 목록으로 기록됐다.
+- dead-code strict 승격, 테스트 lint 0 errors, 전체 logic 28 errors 정리는 후속 완료 조건으로 유지한다.
 - 변경된 파일에서 불필요한 `console.log`가 0개다.
 
 ### Phase 2. `StatsPopup.jsx` 분리
@@ -462,8 +475,8 @@ P3는 다음 조건을 모두 만족할 때 완료한다.
 가장 먼저 진행할 실제 작업은 다음 네 체크포인트로 제한한다.
 
 1. D1/D2 결정 문서화
-2. 현재 941/941 프런트·156개 서버 테스트와 KST/CI 기준선을 characterization 목록에 연결
-3. 독립 운영 코드 ESLint 명령 + logic 범위 `checkJs` 도입
+2. 현재 1,014/1,014 프런트·서버 183 pass/6 skip과 KST/CI 기준선을 characterization 목록에 연결
+3. 독립 운영 코드 ESLint 명령 + 제한 logic/pure utility 범위 `checkJs` 도입 — 완료
 4. `StatsPopup` characterization test 보강
 
-1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 구축은 완료된 선행 기준선이다. 위 네 단계 중 남은 D1/D2 문서 결정과 품질 도구·characterization test가 녹색이 된 뒤에만 `StatsPopup.jsx` 본체 분리를 시작한다. `lint`, 타입 검사, dead-code 검사는 아직 P3 후속 작업이며 현재 CI 완료로 간주하지 않는다.
+1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 구축과 Phase 1A·1B·1C 기준선은 완료됐다. 운영 `lint`와 제한 `typecheck`는 필수 CI이며 dead-code는 report-only다. 남은 D1/D2 문서 결정, Phase 1D console/logger 정책, 테스트 lint 177 errors, 전체 logic 28 errors, dead-code 후보 정리와 characterization test가 후속 작업이다. ESLint 9와 TypeScript 5 업그레이드는 이 기준선과 분리해 진행한다.
