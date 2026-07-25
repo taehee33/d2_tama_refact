@@ -25,6 +25,9 @@
     "prebuild": "node scripts/buildServerGameProjection.js",
     "build": "NODE_OPTIONS=--openssl-legacy-provider react-scripts build",
     "test": "react-scripts test",
+    "lint": "eslint src --ext .js,.jsx --ignore-pattern '**/*.test.*' --ignore-pattern '**/*.spec.*' --ignore-pattern '**/tests/**' --ignore-pattern '**/__tests__/**' --ignore-pattern setupTests.js --report-unused-disable-directives --max-warnings=0",
+    "lint:tests": "eslint \"src/**/*.{test,spec}.{js,jsx}\" \"src/**/{tests,__tests__}/**/*.{js,jsx}\" src/setupTests.js --no-error-on-unmatched-pattern --report-unused-disable-directives --max-warnings=0",
+    "typecheck": "tsc --project tsconfig.checkjs.json --pretty false",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -47,7 +50,10 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "eslint": "8.57.1",
+    "eslint-config-react-app": "7.0.1",
     "postcss": "^8.4.21",
-    "tailwindcss": "^3.3.3"
+    "tailwindcss": "^3.3.3",
+    "typescript": "4.9.5"
   }
 }

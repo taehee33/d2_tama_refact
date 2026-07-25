@@ -1,0 +1,50 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "jsx": "react-jsx",
+    "types": ["react-scripts"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "files": [
+    "src/logic/encyclopediaMaster.js",
+    "src/logic/arena/combatIdentity.js",
+    "src/logic/battle/hitrate.js",
+    "src/logic/battle/types.js",
+    "src/utils/backgroundUtils.js",
+    "src/utils/chatUnreadUtils.js",
+    "src/utils/communitySnapshotUtils.js",
+    "src/utils/digimonLogSnapshot.js",
+    "src/utils/digimonVersionUtils.js",
+    "src/utils/encyclopediaSummary.js",
+    "src/utils/immersiveSettings.js",
+    "src/utils/internalCounterTimerDisplay.js",
+    "src/utils/jogressUtils.js",
+    "src/utils/routeLayout.js",
+    "src/utils/slotViewUtils.js",
+    "src/utils/stageTranslator.js"
+  ],
+  "include": [
+    "src/logic/evolution/**/*.js",
+    "src/logic/food/**/*.js",
+    "src/logic/training/**/*.js",
+    "src/components/stats-popup/statsPopup*.js"
+  ],
+  "exclude": [
+    "src/**/*.test.js",
+    "src/**/*.test.jsx",
+    "src/**/tests/**",
+    "src/**/__tests__/**",
+    "node_modules",
+    "build"
+  ]
+}
