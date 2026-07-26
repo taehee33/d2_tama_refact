@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import StatsPopup from "../../StatsPopup";
 import {
   createStats,
@@ -241,6 +241,7 @@ describe("StatsPopup 외부 동작 계약", () => {
 
     expect(setIntervalSpy).toHaveBeenCalledTimes(1);
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    act(() => setIntervalSpy.mock.calls[0][0]());
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalledWith(intervalToken);
   });
