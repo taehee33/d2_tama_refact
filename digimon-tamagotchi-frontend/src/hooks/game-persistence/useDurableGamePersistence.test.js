@@ -197,6 +197,211 @@ describe("useDurableGamePersistence", () => {
     expect(result.current.stateSyncError).toBe("");
   });
 
+  test("receipt API는 원격 성공과 exact local cleanup 결과를 반환한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    mockRunTransaction.mockImplementation(async (_db, callback) => callback({
+      get: async () => ({ exists: () => true, data: () => ({ revision: 0 }) }),
+      update: jest.fn(),
+    }));
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 3 },
+        nowMs: 100,
+        commandId: "command-1",
+      });
+    });
+
+    expect(receipt).toEqual({
+      status: "synced",
+      commandId: "command-1",
+      mutationId: expect.any(String),
+      blockedReason: null,
+      localCleanup: "complete",
+      errorCode: null,
+    });
+  });
+
+  test("원격 실패 시 durable outbox가 있으면 queued, 없으면 failed receipt를 반환한다", async () => {
+    mockRunTransaction.mockRejectedValue(new Error("offline"));
+    const durableOutbox = createMemoryOutbox([]);
+    const durable = renderHook(() =>
+      useDurableGamePersistence(createHookParams(durableOutbox))
+    );
+    const unavailable = renderHook(() =>
+      useDurableGamePersistence(createHookParams(null))
+    );
+
+    let queuedReceipt;
+    let failedReceipt;
+    await act(async () => {
+      queuedReceipt = await durable.result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 4 },
+        nowMs: 200,
+        commandId: "queued-command",
+      });
+      failedReceipt = await unavailable.result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 5 },
+        nowMs: 300,
+        commandId: "failed-command",
+      });
+    });
+
+    expect(queuedReceipt).toMatchObject({
+      status: "queued",
+      commandId: "queued-command",
+      localCleanup: "not-needed",
+      errorCode: "UNKNOWN",
+    });
+    expect(failedReceipt).toMatchObject({
+      status: "failed",
+      commandId: "failed-command",
+      localCleanup: "not-needed",
+      errorCode: "UNKNOWN",
+    });
+    expect(await durableOutbox.getStateMutation()).not.toBeNull();
+  });
+
+  test("stale generation command는 blocked receipt로 구분한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    const params = createHookParams(outbox);
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+    const staleContext = result.current.captureSaveContext();
+    params.persistenceAccessRef.current = {
+      ...params.persistenceAccessRef.current,
+      generation: 2,
+    };
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 5 },
+        nowMs: 300,
+        commandId: "stale-command",
+        saveContext: staleContext,
+      });
+    });
+
+    expect(receipt).toMatchObject({
+      status: "blocked",
+      commandId: "stale-command",
+      mutationId: null,
+      blockedReason: "generation-changed",
+    });
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+  });
+
+  test("revision 충돌은 conflict receipt로 반환하고 pending을 보존한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    mockRunTransaction.mockImplementation(async (_db, callback) => callback({
+      get: async () => ({
+        exists: () => true,
+        data: () => ({ revision: 2, digimonStats: { fullness: 2 } }),
+      }),
+      update: jest.fn(),
+    }));
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 5 },
+        nowMs: 300,
+        commandId: "conflict-command",
+      });
+    });
+
+    expect(receipt).toMatchObject({
+      status: "conflict",
+      commandId: "conflict-command",
+      localCleanup: "not-needed",
+    });
+    expect(await outbox.getStateMutation()).not.toBeNull();
+  });
+
+  test("기존 pending 위 put 실패 fallback은 같은 mutationId와 baseRevision으로 원격 저장한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    await outbox.putStateMutation({
+      uid: "user-1",
+      slotId: 1,
+      mutationId: "pending-existing",
+      updatedAt: 100,
+      queuedAt: 100,
+      state: {
+        baseRevision: 4,
+        stateSnapshot: { fullness: 2 },
+        actions: [],
+        hasUnreplayableChanges: true,
+      },
+    });
+    outbox.putStateMutation = jest.fn().mockRejectedValue(new Error("indexeddb unavailable"));
+    const update = jest.fn();
+    mockRunTransaction.mockImplementation(async (_db, callback) => callback({
+      get: async () => ({ exists: () => true, data: () => ({ revision: 4 }) }),
+      update,
+    }));
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 5 },
+        nowMs: 400,
+        commandId: "fallback-command",
+      });
+    });
+
+    expect(receipt).toMatchObject({
+      status: "synced",
+      commandId: "fallback-command",
+      mutationId: "pending-existing",
+      localCleanup: "failed",
+    });
+    expect(update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      revision: 5,
+      digimonStats: { fullness: 5 },
+    }));
+    expect(await outbox.getStateMutation()).toBeNull();
+  });
+
+  test("원격 성공 후 exact cleanup 실패 mutation은 같은 세션 자동 flush에서 제외한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    outbox.deleteStateMutation = jest.fn().mockResolvedValue(false);
+    mockRunTransaction.mockImplementation(async (_db, callback) => callback({
+      get: async () => ({ exists: () => true, data: () => ({ revision: 0 }) }),
+      update: jest.fn(),
+    }));
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { fullness: 5 },
+        nowMs: 500,
+        commandId: "cleanup-command",
+      });
+    });
+    expect(receipt).toMatchObject({ status: "synced", localCleanup: "failed" });
+    expect(await outbox.getStateMutation()).not.toBeNull();
+
+    await act(async () => {
+      await result.current.flushOutbox();
+    });
+
+    expect(mockRunTransaction).toHaveBeenCalledTimes(1);
+    expect(result.current.stateSyncError).toContain("이전 대기 항목");
+  });
+
   test("같은 generation의 저장 A·B는 실행 시점 최신 revision으로 연속 커밋한다", async () => {
     const order = [];
     const outbox = createMemoryOutbox(order);
