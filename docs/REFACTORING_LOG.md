@@ -7669,3 +7669,19 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.test.js`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** receipt는 새 command 저장 경계에서 부분 성공과 재시도를 판단하기 위한 내부 계약이고, legacy adapter는 기존 호출자의 제어 흐름을 보존한다. outbox 스키마나 Firestore 경로·transaction 횟수를 늘리지 않고 기존 pending identity를 재사용해야 로컬 put 실패와 원격 성공이 교차해도 stale pending을 안전하게 무력화할 수 있다.
+
+## [2026-07-26] A+2 StatsPopup 명령 기반 저장과 혼재 호출 보호
+
+- **내용:** StatsPopup의 숫자·불리언 편집을 오래된 전체 stats snapshot 저장에서 schema v1 사건 명령으로 전환했다. 명령은 공용 직렬 저장 큐 안에서 IndexedDB pending, 마지막 동기화 상태, 현재 메모리 상태 순으로 최신 기준 상태를 선택하고 실행 시각까지 lazy update를 한 번 적용한 뒤 순수 reducer로 반영한다. 저장 결과는 A+1 receipt를 통해 `저장 중`, `저장됨`, `연결되면 동기화`, 실패·차단·충돌 상태로 표시하며 실패한 동일 intent를 사용자가 다시 시도할 수 있다.
+- **혼재 보호:** 기존 `saveStats(fullSnapshot)` 호출은 호출 당시 snapshot과 요청값의 차이만 최신 상태에 적용한다. 앞서 성공 또는 대기열 저장된 StatsPopup 명령의 필드를 legacy 호출이 실제로 바꾸지 않았다면 command patch를 다시 적용하고, 같은 필드를 의도적으로 바꾼 경우에는 뒤의 legacy intent를 우선한다.
+- **테스트:** 배변·부상 연쇄 timestamp, pending 우선 선택과 Firestore 추가 read 부재, 30분 lazy projection 단일 적용, 명령/legacy 순서 조정, 저장 receipt 상태·재시도·동기 예외·Promise 완료 역전 방어, 실제 팝업 실패 UI를 검증했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/logic/stats/statsPopupCommands.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `digimon-tamagotchi-frontend/src/components/stats-popup/useStatsPopupController.js`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 관련 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** UI snapshot을 저장 큐에 넘기면 대기 중 lazy update나 앞선 저장 결과를 덮어쓸 수 있다. 작은 사건 명령을 큐의 최신 durable 상태에 reduce하면 호출 순서를 보존하면서 시간 투영을 한 번만 수행할 수 있다. Firestore 경로·문서 스키마·transaction/write 횟수와 전역 lazy update 규칙은 변경하지 않고, 야행성 모드의 로그 원자화는 다음 A+3 단계로 분리한다.

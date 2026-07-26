@@ -20,6 +20,7 @@ export default function StatsPopup({
   slotVersion = "Ver.1",
   onClose,
   devMode=false,
+  onSaveCommand,
   onChangeStats,
   sleepSchedule = null, // 수면 스케줄 { start, end }
   sleepStatus = "AWAKE", // 수면 상태
@@ -41,6 +42,10 @@ export default function StatsPopup({
     currentStageStartedAt,
     currentLifeStartedAt,
     canEdit,
+    saveStatus,
+    saveMessage,
+    canRetrySave,
+    handleRetrySave,
     handleNumericChange,
     handleBooleanChange,
     handleNocturnalToggle,
@@ -52,6 +57,7 @@ export default function StatsPopup({
     selectedDigimonId,
     slotVersion,
     devMode,
+    onSaveCommand,
     onChangeStats,
     sleepSchedule,
     sleepStatus,
@@ -169,6 +175,30 @@ export default function StatsPopup({
             ✕
           </button>
         </div>
+
+        {saveMessage && (
+          <div
+            className={`stats-popup-modal__save-status flex-shrink-0 mb-3 rounded px-3 py-2 text-sm ${
+              saveStatus === "failed" || saveStatus === "blocked" || saveStatus === "conflict"
+                ? "bg-red-50 text-red-700"
+                : saveStatus === "queued"
+                  ? "bg-amber-50 text-amber-700"
+                  : "bg-blue-50 text-blue-700"
+            }`}
+            role="status"
+          >
+            <span>{saveMessage}</span>
+            {canRetrySave && (
+              <button
+                type="button"
+                className="ml-2 rounded bg-red-600 px-2 py-1 text-xs font-bold text-white"
+                onClick={handleRetrySave}
+              >
+                다시 시도
+              </button>
+            )}
+          </div>
+        )}
         
         {/* 탭 UI (상단 고정) */}
         <div className="stats-popup-modal__tabs flex-shrink-0 flex gap-2 mb-4 border-b">

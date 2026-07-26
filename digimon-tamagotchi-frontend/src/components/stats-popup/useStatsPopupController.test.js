@@ -30,6 +30,24 @@ function createProps(overrides = {}) {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+async function flushSavePromises() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe("useStatsPopupController", () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -82,6 +100,97 @@ describe("useStatsPopupController", () => {
       isInjured: true,
       injuredAt: now,
     }));
+  });
+
+  test("명령 저장 경로에서는 전체 stats 대신 사건 intent만 전달한다", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    const onChangeStats = jest.fn();
+    const onSaveCommand = jest.fn().mockResolvedValue({ status: "synced" });
+    const props = createProps({ onChangeStats, onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("poopCount", 8));
+    expect(onChangeStats).not.toHaveBeenCalled();
+    expect(result.current.saveStatus).toBe("saving");
+    await flushSavePromises();
+    expect(onSaveCommand).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      type: "setPoopCount",
+      field: "poopCount",
+      value: 8,
+      occurredAt: now,
+    });
+    expect(result.current.saveStatus).toBe("synced");
+    expect(result.current.saveMessage).toBe("저장됨");
+  });
+
+  test.each([
+    ["queued", "연결되면 동기화"],
+    ["blocked", "슬롯 변경으로 저장하지 않음"],
+    ["conflict", "다른 기기의 변경사항 확인 필요"],
+  ])("%s 영수증을 사용자 상태로 반영한다", async (status, message) => {
+    const onSaveCommand = jest.fn().mockResolvedValue({ status });
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("fullness", 3));
+    await flushSavePromises();
+
+    expect(result.current.saveStatus).toBe(status);
+    expect(result.current.saveMessage).toBe(message);
+    expect(result.current.canRetrySave).toBe(false);
+  });
+
+  test("실패한 intent를 같은 사건 시각으로 재시도한다", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    const onSaveCommand = jest.fn()
+      .mockResolvedValueOnce({ status: "failed" })
+      .mockResolvedValueOnce({ status: "synced" });
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleBooleanChange("isInjured", true));
+    await flushSavePromises();
+    expect(result.current.saveStatus).toBe("failed");
+    expect(result.current.canRetrySave).toBe(true);
+
+    act(() => result.current.handleRetrySave());
+    await flushSavePromises();
+    expect(onSaveCommand).toHaveBeenNthCalledWith(2, onSaveCommand.mock.calls[0][0]);
+    expect(result.current.saveStatus).toBe("synced");
+  });
+
+  test("동기 예외도 저장 실패로 수렴시킨다", async () => {
+    const onSaveCommand = jest.fn(() => {
+      throw new Error("즉시 실패");
+    });
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("fullness", 2));
+    await flushSavePromises();
+
+    expect(result.current.saveStatus).toBe("failed");
+    expect(result.current.canRetrySave).toBe(true);
+  });
+
+  test("늦게 끝난 이전 저장이 최신 저장 상태를 덮어쓰지 않는다", async () => {
+    const first = createDeferred();
+    const second = createDeferred();
+    const onSaveCommand = jest.fn()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("fullness", 2));
+    act(() => result.current.handleNumericChange("strength", 3));
+    await act(async () => second.resolve({ status: "queued" }));
+    expect(result.current.saveStatus).toBe("queued");
+
+    await act(async () => first.resolve({ status: "failed" }));
+    expect(result.current.saveStatus).toBe("queued");
+    expect(result.current.canRetrySave).toBe(false);
   });
 
   test("야행성 로그 append 시작 후 stats callback을 호출한다", () => {

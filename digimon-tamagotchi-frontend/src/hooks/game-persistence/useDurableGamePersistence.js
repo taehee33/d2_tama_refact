@@ -1147,6 +1147,23 @@ export function useDurableGamePersistence({
     }
   }, [currentUser?.uid, outbox, slotId]);
 
+  const getLatestStateSnapshot = useCallback(async (saveContext = null) => {
+    if (!canStartGameplayWrite(saveContext)) return null;
+    let pendingState = null;
+    if (outbox && currentUser?.uid && slotId) {
+      pendingState = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+    }
+    if (!canStartGameplayWrite(saveContext)) return null;
+    return {
+      statsSnapshot:
+        pendingState?.state?.stateSnapshot ||
+        lastSyncedStatsRef.current ||
+        digimonStats ||
+        {},
+      pendingState,
+    };
+  }, [canStartGameplayWrite, currentUser?.uid, digimonStats, outbox, slotId]);
+
   const clearPendingStateAfterHydration = useCallback(async (record, { generation } = {}) => {
     if (!record || !outbox || !currentUser?.uid || !slotId) return false;
     const access = activeAccessRef.current;
@@ -1184,6 +1201,7 @@ export function useDurableGamePersistence({
     captureSaveContext,
     clearPendingStateAfterHydration,
     flushOutbox,
+    getLatestStateSnapshot,
     getPendingState,
     persistStateSnapshot,
     persistStateSnapshotReceipt,

@@ -177,6 +177,7 @@ export default function GameModals({
     handleDeathConfirm,
     resetDigimon,
     setDigimonStatsAndSave,
+    saveStatsCommand,
     setSelectedDigimonAndSave,
     setCurrentQuestArea,
     setCurrentQuestRound,
@@ -302,6 +303,7 @@ export default function GameModals({
           slotVersion={slotVersion || "Ver.1"}
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}
+          onSaveCommand={saveStatsCommand}
           onChangeStats={(ns) => applyStatsPopupChange(ns, setDigimonStats, setDigimonStatsAndSave)}
           sleepSchedule={ui?.sleepSchedule || null}
           sleepStatus={ui?.sleepStatus || "AWAKE"}

@@ -46,6 +46,12 @@ import {
   resolvePendingHydration,
 } from "./game-persistence/pendingHydration";
 import {
+  applyStatsPopupCommand,
+  buildStatsPopupCommandPatch,
+  getStatsPopupCommandPrimaryField,
+  reconcileLegacySaveWithCommands,
+} from "../logic/stats/statsPopupCommands";
+import {
   buildFormTransitionCombatIdentity,
   createNewLifeCombatIdentity,
   hasValidCombatIdentity,
@@ -525,6 +531,7 @@ export function buildLoadedSlotCollectionsState({
  * @param {Object} [params.dataMap]
  * @param {Object} [params.slotRuntimeDataMap]
  * @param {Object} [params.runtimeAdaptedDataMaps]
+ * @param {number|null} [params.nowMs]
  * @param {Object|null} [params.evolutionDataForSlot]
  * @returns {{ digimonStats: Object, reconstructedLogsToPersist: Array }}
  */
@@ -704,6 +711,7 @@ export function buildLazyUpdateRuntimeResult({
   dataMap = null,
   slotRuntimeDataMap = null,
   runtimeAdaptedDataMaps = {},
+  nowMs = null,
 } = {}) {
   const prevLogCount = Array.isArray(baseStats.activityLogs)
     ? baseStats.activityLogs.length
@@ -719,6 +727,9 @@ export function buildLazyUpdateRuntimeResult({
     repairCareMistakeLedger(
       applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
         digimonSnapshot,
+        ...(nowMs != null && Number.isFinite(Number(nowMs))
+          ? { nowMs: Number(nowMs) }
+          : {}),
       }),
       baseStats.activityLogs || []
     ).nextStats
@@ -916,6 +927,12 @@ export function useGameData({
   if (!saveQueueRef.current) {
     saveQueueRef.current = createGameSaveQueue();
   }
+  const saveOperationSequenceRef = useRef(0);
+  const statsPopupCommandLedgerRef = useRef(new Map());
+  useEffect(() => {
+    statsPopupCommandLedgerRef.current.clear();
+    saveOperationSequenceRef.current = 0;
+  }, [currentUser?.uid, slotId]);
   const slotRuntimeDataMap = digimonDataVer1;
   const runtimeAdaptedDataMaps = useMemo(
     () => adaptedDataMapsByVersion || {},
@@ -962,8 +979,10 @@ export function useGameData({
     captureSaveContext,
     clearPendingStateAfterHydration,
     flushOutbox,
+    getLatestStateSnapshot,
     getPendingState,
     persistStateSnapshot,
+    persistStateSnapshotReceipt,
     quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,
@@ -1014,7 +1033,12 @@ export function useGameData({
    * @param {Object} newStats - 새로운 스탯
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
    */
-  async function executeSaveStats(newStats, updatedLogs = null, saveContext = null) {
+  async function executeSaveStats(
+    newStats,
+    updatedLogs = null,
+    saveContext = null,
+    legacyMetadata = null
+  ) {
     // 예약 이후 슬롯/사용자/세대가 바뀌었으면 React setter를 포함해 아무 작업도 하지 않는다.
     if (!canStartGameplayWrite(saveContext)) return false;
     // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
@@ -1067,6 +1091,20 @@ export function useGameData({
     }
     if (!canStartGameplayWrite(saveContext)) return false;
     const nowMs = Date.now();
+    let effectiveNewStats = newStats;
+    if (!isNewStart && legacyMetadata) {
+      const reconciled = reconcileLegacySaveWithCommands({
+        latestStats: baseStats,
+        requestedStats: newStats,
+        invocationStats: legacyMetadata.invocationStats,
+        legacySequence: legacyMetadata.sequence,
+        commandEntries: Array.from(statsPopupCommandLedgerRef.current.values()),
+      });
+      effectiveNewStats = reconciled.stats;
+      reconciled.supersededFields.forEach((field) => {
+        statsPopupCommandLedgerRef.current.delete(field);
+      });
+    }
     
     // Activity Logs 처리: 함수형 업데이트로 확실히 누적
     let finalLogs;
@@ -1099,18 +1137,18 @@ export function useGameData({
     
     // 새로운 시작일 때는 newStats의 사망 관련 필드를 확실히 보존
     const effectiveSelectedDigimon =
-      newStats.selectedDigimon ||
+      effectiveNewStats.selectedDigimon ||
       digimonStats?.selectedDigimon ||
       selectedDigimon ||
       null;
-    const rootSlotFields = resolveRootSlotFields(newStats, {
+    const rootSlotFields = resolveRootSlotFields(effectiveNewStats, {
       isLightsOn,
       wakeUntil,
     });
 
     const finalStats = {
       ...mergedStats,
-      ...newStats, // newStats의 모든 필드를 최종적으로 덮어씀
+      ...effectiveNewStats, // 큐 실행 시점의 최신 상태에 호출자의 변경 의도를 적용
       // 새로운 시작일 때 사망 관련 필드 강제 보존
       ...(isNewStart ? {
         isDead: false,
@@ -1189,11 +1227,102 @@ export function useGameData({
 
   function saveStats(newStats, updatedLogs = null) {
     const saveContext = captureSaveContext();
+    const sequence = ++saveOperationSequenceRef.current;
+    const invocationStats = digimonStats || {};
     return saveQueueRef.current.enqueue(() =>
-      executeSaveStats(newStats, updatedLogs, saveContext)
+      executeSaveStats(newStats, updatedLogs, saveContext, {
+        sequence,
+        invocationStats,
+      })
     );
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
+
+  function saveStatsCommand(intent) {
+    const saveContext = captureSaveContext();
+    const sequence = ++saveOperationSequenceRef.current;
+    const occurredAt = Number.isFinite(Number(intent?.occurredAt))
+      ? Number(intent.occurredAt)
+      : Date.now();
+    const commandId = `stats-popup:${occurredAt}:${sequence}`;
+    const command = {
+      ...intent,
+      occurredAt,
+      commandId,
+      sequence,
+      context: {
+        uid: saveContext?.uid ?? null,
+        slotId: saveContext?.slotId ?? null,
+        generation: saveContext?.generation ?? null,
+      },
+    };
+
+    return saveQueueRef.current.enqueue(async () => {
+      const latestState = await getLatestStateSnapshot(saveContext);
+      if (!latestState) {
+        return persistStateSnapshotReceipt({
+          statsSnapshot: {},
+          updatedLogs: null,
+          nowMs: Date.now(),
+          saveContext,
+          commandId,
+        });
+      }
+
+      const executionNow = Date.now();
+      const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
+      const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+        digimonStats: baseStats,
+        slotRuntimeDataMap,
+        selectedDigimon,
+      });
+      const lazyUpdateResult = buildLazyUpdateRuntimeResult({
+        baseStats,
+        lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? executionNow,
+        sleepSchedule,
+        maxEnergy,
+        selectedDigimon:
+          baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
+        evolutionDataForSlot,
+        slotRuntimeDataMap,
+        runtimeAdaptedDataMaps,
+        nowMs: executionNow,
+      });
+      const projectedStats = lazyUpdateResult.digimonStats;
+      const reducedStats = applyStatsPopupCommand(projectedStats, command);
+      const effectiveSelectedDigimon =
+        reducedStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null;
+      const finalStats = normalizeGameTimingFields({
+        ...reducedStats,
+        ...(effectiveSelectedDigimon ? { selectedDigimon: effectiveSelectedDigimon } : {}),
+        lastSavedAt: executionNow,
+      });
+      const receipt = await persistStateSnapshotReceipt({
+        statsSnapshot: finalStats,
+        updatedLogs: null,
+        nowMs: executionNow,
+        saveContext,
+        commandId,
+      });
+
+      if (receipt.status === "synced" || receipt.status === "queued") {
+        const primaryField = getStatsPopupCommandPrimaryField(command);
+        if (primaryField) {
+          statsPopupCommandLedgerRef.current.set(primaryField, {
+            sequence,
+            command,
+            patch: buildStatsPopupCommandPatch(projectedStats, finalStats, command),
+          });
+        }
+        setDigimonStats(finalStats);
+        lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
+          if (log?.type) appendLogToSubcollection(log).catch(() => {});
+        });
+        checkDeathStatus(finalStats);
+      }
+      return receipt;
+    });
+  }
 
   /**
    * 액션 전에 Lazy Update 적용하는 헬퍼 함수
@@ -1652,6 +1781,7 @@ export function useGameData({
 
   return {
     saveStats,
+    saveStatsCommand,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
     saveImmersiveSettings,

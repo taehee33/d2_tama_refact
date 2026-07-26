@@ -161,6 +161,34 @@ describe("useDurableGamePersistence", () => {
     jest.useRealTimers();
   });
 
+  test("명령 reducer의 기준 상태로 메모리보다 최신인 pending 스냅샷을 우선한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    await outbox.putStateMutation({
+      uid: "user-1",
+      slotId: 1,
+      mutationId: "pending-command-base",
+      updatedAt: 100,
+      state: {
+        baseRevision: 0,
+        stateSnapshot: { fullness: 4, strength: 3, lastSavedAt: 100 },
+        actions: [],
+      },
+    });
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let latest;
+    await act(async () => {
+      latest = await result.current.getLatestStateSnapshot();
+    });
+
+    expect(latest.statsSnapshot).toEqual({ fullness: 4, strength: 3, lastSavedAt: 100 });
+    expect(latest.pendingState.mutationId).toBe("pending-command-base");
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(getDoc).not.toHaveBeenCalled();
+  });
+
   test("Firestore transaction 전에 상태를 outbox에 기록하고 성공 후 같은 mutation을 삭제한다", async () => {
     jest.useFakeTimers();
     jest.setSystemTime(1_000);
