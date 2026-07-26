@@ -211,6 +211,71 @@ describe("useStatsPopupController", () => {
     expect(onChangeStats).toHaveBeenCalledWith(expect.objectContaining({ isNocturnal: true }));
   });
 
+  test("야행성 명령은 toggle 함수가 아니라 최초 고정 목표값을 전달한다", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    const onChangeStats = jest.fn();
+    const onSaveCommand = jest.fn().mockResolvedValue({ status: "saved" });
+    const props = createProps({
+      stats: { isNocturnal: false },
+      onChangeStats,
+      onSaveCommand,
+    });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNocturnalToggle());
+    await flushSavePromises();
+
+    expect(onChangeStats).not.toHaveBeenCalled();
+    expect(onSaveCommand).toHaveBeenCalledWith({
+      schemaVersion: 1,
+      type: "setNocturnal",
+      field: "isNocturnal",
+      value: true,
+      occurredAt: now,
+    });
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  test("부모 갱신 전 빠른 야행성 두 입력도 true→false 고정 목표값으로 만든다", async () => {
+    const onSaveCommand = jest.fn().mockResolvedValue({ status: "saved" });
+    const props = createProps({ stats: { isNocturnal: false }, onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => {
+      result.current.handleNocturnalToggle();
+      result.current.handleNocturnalToggle();
+    });
+    await flushSavePromises();
+
+    expect(onSaveCommand.mock.calls.map(([intent]) => intent.value)).toEqual([true, false]);
+  });
+
+  test("야행성 부분 실패는 동일 intent와 component receipt로 선택 재시도한다", async () => {
+    const partialReceipt = {
+      status: "warning",
+      retryable: true,
+      state: { status: "synced" },
+      log: { status: "failed" },
+      _retry: { command: { commandId: "command-1" } },
+    };
+    const onSaveCommand = jest.fn()
+      .mockResolvedValueOnce(partialReceipt)
+      .mockResolvedValueOnce({ status: "saved" });
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNocturnalToggle());
+    await flushSavePromises();
+    expect(result.current.saveMessage).toBe("일부만 저장됨");
+    expect(result.current.canRetrySave).toBe(true);
+
+    const firstIntent = onSaveCommand.mock.calls[0][0];
+    act(() => result.current.handleRetrySave());
+    await flushSavePromises();
+    expect(onSaveCommand).toHaveBeenNthCalledWith(2, firstIntent, partialReceipt);
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
   test("외부 활동 로그가 저장 stats 로그보다 최신일 때 표시 입력으로 사용한다", () => {
     const activityLogs = [{ text: "즉시 로그" }];
     const props = createProps({ activityLogs });

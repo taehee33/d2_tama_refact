@@ -83,6 +83,12 @@ export function buildPersistentActivityLogPayload(logEntry = {}) {
     ...(transitionId ? { transitionId } : {}),
     ...(logEntry?.digimonId ? { digimonId: logEntry.digimonId } : {}),
     ...(logEntry?.digimonName ? { digimonName: logEntry.digimonName } : {}),
+    ...(logEntry?.actionKind ? { actionKind: logEntry.actionKind } : {}),
+    ...(logEntry?.targetField ? { targetField: logEntry.targetField } : {}),
+    ...(typeof logEntry?.targetValue === "boolean"
+      ? { targetValue: logEntry.targetValue }
+      : {}),
+    ...(logEntry?.commandId ? { commandId: logEntry.commandId } : {}),
   };
 }
 

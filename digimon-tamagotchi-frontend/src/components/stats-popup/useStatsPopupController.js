@@ -42,8 +42,13 @@ export default function useStatsPopupController({
   const [activeTab, setActiveTab] = useState("NEW");
   const [editableStats, setEditableStats] = useState(() => ({ ...(stats || {}) }));
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [saveState, setSaveState] = useState({ status: "idle", failedIntent: null });
+  const [saveState, setSaveState] = useState({
+    status: "idle",
+    failedIntent: null,
+    failedReceipt: null,
+  });
   const saveSequenceRef = useRef(0);
+  const nocturnalTargetRef = useRef(Boolean(stats?.isNocturnal));
   const isUsingEditableStats = devMode && activeTab === "OLD";
   const currentStats = isUsingEditableStats ? editableStats : stats;
   const statsLogs = currentStats?.activityLogs ?? [];
@@ -59,6 +64,10 @@ export default function useStatsPopupController({
   useEffect(() => {
     if (!isUsingEditableStats) setEditableStats({ ...(stats || {}) });
   }, [isUsingEditableStats, stats]);
+
+  useEffect(() => {
+    nocturnalTargetRef.current = Boolean(stats?.isNocturnal);
+  }, [stats?.isNocturnal]);
 
   const sleepViewModel = useMemo(
     () => buildSleepViewModel({ stats: currentStats || {}, sleepStatus, isLightsOn }),
@@ -117,27 +126,46 @@ export default function useStatsPopupController({
     submitStatsCommand(buildStatsPopupCommandIntent({ field, value, occurredAt }));
   }
 
-  function submitStatsCommand(intent) {
+  function submitStatsCommand(intent, previousReceipt = null) {
     const requestSequence = ++saveSequenceRef.current;
-    setSaveState({ status: "saving", failedIntent: null });
-    Promise.resolve().then(() => onSaveCommand(intent)).then((receipt) => {
+    setSaveState({ status: "saving", failedIntent: null, failedReceipt: null });
+    Promise.resolve().then(() => previousReceipt
+      ? onSaveCommand(intent, previousReceipt)
+      : onSaveCommand(intent)).then((receipt) => {
       if (requestSequence !== saveSequenceRef.current) return;
       const status = receipt?.status || "failed";
-      if (status === "failed") {
-        setSaveState({ status, failedIntent: intent });
+      if ((status === "failed" || status === "warning") && (receipt?.retryable ?? true)) {
+        setSaveState({
+          status,
+          failedIntent: intent,
+          failedReceipt: receipt?._retry ? receipt : null,
+        });
         return;
       }
       if (status === "blocked" || status === "conflict") {
         setEditableStats({ ...(stats || {}) });
+        nocturnalTargetRef.current = Boolean(stats?.isNocturnal);
       }
-      setSaveState({ status, failedIntent: null });
+      setSaveState({ status, failedIntent: null, failedReceipt: null });
     }).catch(() => {
       if (requestSequence !== saveSequenceRef.current) return;
-      setSaveState({ status: "failed", failedIntent: intent });
+      setSaveState({ status: "failed", failedIntent: intent, failedReceipt: null });
     });
   }
 
   function handleNocturnalToggle() {
+    if (onSaveCommand) {
+      const occurredAt = Date.now();
+      const targetValue = !nocturnalTargetRef.current;
+      nocturnalTargetRef.current = targetValue;
+      setEditableStats({ ...(currentStats || {}), isNocturnal: targetValue });
+      submitStatsCommand(buildStatsPopupCommandIntent({
+        field: "isNocturnal",
+        value: targetValue,
+        occurredAt,
+      }));
+      return;
+    }
     if (!onChangeStats) return;
     const mutation = buildStatsPopupNocturnalMutation({
       stats,
@@ -170,14 +198,19 @@ export default function useStatsPopupController({
       saving: "저장 중",
       synced: "저장됨",
       queued: "연결되면 동기화",
+      saved: "상태와 활동 기록 저장됨",
+      pending: "연결되면 상태와 활동 기록 동기화",
+      warning: "일부만 저장됨",
       failed: "저장 실패",
       blocked: "슬롯 변경으로 저장하지 않음",
       conflict: "다른 기기의 변경사항 확인 필요",
     }[saveState.status] || "",
-    canRetrySave: saveState.status === "failed" && Boolean(saveState.failedIntent),
+    canRetrySave:
+      (saveState.status === "failed" || saveState.status === "warning") &&
+      Boolean(saveState.failedIntent),
     handleRetrySave: () => {
       if (saveState.failedIntent && onSaveCommand) {
-        submitStatsCommand(saveState.failedIntent);
+        submitStatsCommand(saveState.failedIntent, saveState.failedReceipt);
       }
     },
     handleNumericChange: commitStatChange,
