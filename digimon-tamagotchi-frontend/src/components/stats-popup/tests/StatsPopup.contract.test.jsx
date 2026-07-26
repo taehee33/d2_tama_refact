@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import StatsPopup from "../../StatsPopup";
 import {
   createStats,
@@ -233,6 +233,16 @@ describe("StatsPopup 외부 동작 계약", () => {
     expect(screen.getByText(/냉장고에 넣어서 얼어있음/)).toBeInTheDocument();
   });
 
+  test("낮잠 중에는 남은 시간을 시·분 단위로 표시한다", () => {
+    jest.spyOn(Date, "now").mockReturnValue(STATS_POPUP_NOW_MS);
+    renderPopup({
+      sleepStatus: "NAPPING",
+      stats: { napUntil: STATS_POPUP_NOW_MS + 2 * 60 * 60 * 1000 + 5 * 60 * 1000 },
+    });
+
+    expect(screen.getByText(/2시간 5분 남음/)).toBeInTheDocument();
+  });
+
   test("화면 갱신 interval을 하나 등록하고 unmount에서 정리한다", () => {
     const intervalToken = 9876;
     const setIntervalSpy = jest.spyOn(global, "setInterval").mockReturnValue(intervalToken);
@@ -241,7 +251,53 @@ describe("StatsPopup 외부 동작 계약", () => {
 
     expect(setIntervalSpy).toHaveBeenCalledTimes(1);
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1000);
+    act(() => setIntervalSpy.mock.calls[0][0]());
     unmount();
     expect(clearIntervalSpy).toHaveBeenCalledWith(intervalToken);
+  });
+
+  test("케어미스·수면 방해·부상 이력 아코디언을 펼쳐 현재 이력을 표시한다", () => {
+    const activityLogs = [
+      {
+        type: "SLEEP_DISTURBANCE",
+        text: "수면 중 강제로 깨움",
+        timestamp: STATS_POPUP_NOW_MS - 2000,
+      },
+      {
+        type: "POOP",
+        text: "Pooped (Total: 8) - Injury: Too much poop (8 piles)",
+        timestamp: STATS_POPUP_NOW_MS - 1000,
+        digimonId: "Agumon",
+        digimonName: "아구몬",
+      },
+    ];
+    renderPopup({
+      activityLogs,
+      stats: {
+        birthTime: STATS_POPUP_NOW_MS - 10000,
+        careMistakes: 1,
+        careMistakeLedger: [{
+          id: "tease:1",
+          occurredAt: STATS_POPUP_NOW_MS - 3000,
+          reasonKey: "tease",
+          text: "케어미스(사유: 괜히 괴롭히기): 0 → 1",
+          source: "interaction",
+          resolvedAt: null,
+          resolvedBy: null,
+        }],
+        sleepDisturbances: 1,
+        injuries: 1,
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /수면 방해 이력 \(1건\)/ }));
+    expect(screen.getByText("수면 중 강제로 깨움")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /현재 활성 케어미스 이력 \(1건\)/ }));
+    expect(screen.getByText("케어미스(사유: 괜히 괴롭히기): 0 → 1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /부상 이력 \(1건\)/ }));
+    expect(screen.getByText("💩 똥 8개로 인한 부상")).toBeInTheDocument();
+    expect(screen.getByText("당시 디지몬: 아구몬")).toBeInTheDocument();
   });
 });
