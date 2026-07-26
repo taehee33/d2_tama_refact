@@ -233,6 +233,16 @@ describe("StatsPopup 외부 동작 계약", () => {
     expect(screen.getByText(/냉장고에 넣어서 얼어있음/)).toBeInTheDocument();
   });
 
+  test("낮잠 중에는 남은 시간을 시·분 단위로 표시한다", () => {
+    jest.spyOn(Date, "now").mockReturnValue(STATS_POPUP_NOW_MS);
+    renderPopup({
+      sleepStatus: "NAPPING",
+      stats: { napUntil: STATS_POPUP_NOW_MS + 2 * 60 * 60 * 1000 + 5 * 60 * 1000 },
+    });
+
+    expect(screen.getByText(/2시간 5분 남음/)).toBeInTheDocument();
+  });
+
   test("화면 갱신 interval을 하나 등록하고 unmount에서 정리한다", () => {
     const intervalToken = 9876;
     const setIntervalSpy = jest.spyOn(global, "setInterval").mockReturnValue(intervalToken);
