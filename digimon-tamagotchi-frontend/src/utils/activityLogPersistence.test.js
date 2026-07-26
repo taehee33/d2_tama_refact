@@ -102,4 +102,25 @@ describe("activityLogPersistence", () => {
     expect(payload.transitionId).toBeUndefined();
     expect(payload.eventId).toMatch(/^activity:train:123456789:/);
   });
+
+  test("StatsPopup 변경 요청의 선택 메타데이터와 고정 eventId를 보존한다", () => {
+    const payload = buildPersistentActivityLogPayload({
+      type: "ACTION",
+      text: "야행성 모드 ON 변경 요청",
+      timestamp: 123456789,
+      eventId: "stats-popup:command-1:activity",
+      actionKind: "stats-change-request",
+      targetField: "isNocturnal",
+      targetValue: true,
+      commandId: "command-1",
+    });
+
+    expect(payload).toMatchObject({
+      eventId: "stats-popup:command-1:activity",
+      actionKind: "stats-change-request",
+      targetField: "isNocturnal",
+      targetValue: true,
+      commandId: "command-1",
+    });
+  });
 });

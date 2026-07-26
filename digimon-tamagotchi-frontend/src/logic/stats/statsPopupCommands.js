@@ -24,6 +24,23 @@ export function buildStatsPopupCommandIntent({ field, value, occurredAt = Date.n
   };
 }
 
+export function buildStatsPopupNocturnalRequestLog(command = {}) {
+  const targetValue = Boolean(command.value);
+  const commandId = String(command.commandId || "").trim();
+  return {
+    type: "ACTION",
+    text: targetValue
+      ? "야행성 모드 ON 변경 요청: 수면/기상 시간을 3시간 늦춥니다 🌙"
+      : "야행성 모드 OFF 변경 요청: 일반 수면 시간으로 복귀합니다 ☀️",
+    timestamp: command.occurredAt,
+    eventId: command.eventId || `${commandId}:activity`,
+    actionKind: "stats-change-request",
+    targetField: "isNocturnal",
+    targetValue,
+    commandId,
+  };
+}
+
 export function getStatsPopupCommandPrimaryField(command = {}) {
   if (command.type === STATS_POPUP_COMMAND_TYPE.SET_POOP_COUNT) return "poopCount";
   if (command.type === STATS_POPUP_COMMAND_TYPE.SET_INJURY_STATE) return "isInjured";

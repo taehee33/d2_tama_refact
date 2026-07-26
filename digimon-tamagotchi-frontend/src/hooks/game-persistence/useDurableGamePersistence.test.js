@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { getDoc } from "firebase/firestore";
+import { getDoc, setDoc } from "firebase/firestore";
 import {
   canUseGameplayPersistence,
   GAME_PERSISTENCE_PHASE,
@@ -155,10 +155,138 @@ describe("isCurrentConflictIdentity", () => {
 describe("useDurableGamePersistence", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRunTransaction.mockReset();
+    getDoc.mockReset();
+    setDoc.mockReset();
+    setDoc.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  test("활동 로그 receipt는 고정 eventId로 원격 저장 결과를 반환한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    outbox.putActivityEvent = jest.fn().mockResolvedValue(undefined);
+    outbox.deleteActivityEvent = jest.fn().mockResolvedValue(undefined);
+    setDoc.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistActivityLogReceipt({
+        logEntry: {
+          type: "ACTION",
+          text: "야행성 모드 ON 변경 요청",
+          timestamp: 100,
+          eventId: "stats-popup:command-1:activity",
+        },
+        commandId: "command-1",
+      });
+    });
+
+    expect(receipt).toMatchObject({
+      status: "synced",
+      commandId: "command-1",
+      eventId: "stats-popup:command-1:activity",
+    });
+    expect(outbox.putActivityEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "stats-popup:command-1:activity",
+    }));
+    expect(outbox.deleteActivityEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "stats-popup:command-1:activity",
+    }));
+  });
+
+  test("로그 원격 실패는 outbox 성공 여부에 따라 queued와 failed를 구분한다", async () => {
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const durableOutbox = createMemoryOutbox([]);
+    durableOutbox.putActivityEvent = jest.fn().mockResolvedValue(undefined);
+    setDoc.mockRejectedValue(new Error("offline"));
+    const durable = renderHook(() =>
+      useDurableGamePersistence(createHookParams(durableOutbox))
+    );
+
+    let queued;
+    await act(async () => {
+      queued = await durable.result.current.persistActivityLogReceipt({
+        logEntry: { type: "ACTION", text: "요청", timestamp: 100, eventId: "event-1" },
+      });
+    });
+    expect(queued.status).toBe("queued");
+
+    const brokenOutbox = createMemoryOutbox([]);
+    brokenOutbox.putActivityEvent = jest.fn().mockRejectedValue(new Error("indexeddb offline"));
+    const broken = renderHook(() =>
+      useDurableGamePersistence(createHookParams(brokenOutbox))
+    );
+    let failed;
+    await act(async () => {
+      failed = await broken.result.current.persistActivityLogReceipt({
+        logEntry: { type: "ACTION", text: "요청", timestamp: 100, eventId: "event-1" },
+      });
+    });
+    expect(failed.status).toBe("failed");
+    expect(consoleSpy).toHaveBeenCalled();
+  });
+
+  test("로그 재시도는 같은 eventId의 문서를 멱등하게 다시 사용한다", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const outbox = createMemoryOutbox([]);
+    outbox.putActivityEvent = jest.fn().mockResolvedValue(undefined);
+    outbox.deleteActivityEvent = jest.fn().mockResolvedValue(undefined);
+    setDoc
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+    const input = {
+      logEntry: {
+        type: "ACTION",
+        text: "야행성 모드 ON 변경 요청",
+        timestamp: 100,
+        eventId: "stats-popup:command-1:activity",
+      },
+      commandId: "command-1",
+    };
+
+    let first;
+    let second;
+    await act(async () => {
+      first = await result.current.persistActivityLogReceipt(input);
+      second = await result.current.persistActivityLogReceipt(input);
+    });
+
+    expect(first).toMatchObject({ status: "queued", eventId: input.logEntry.eventId });
+    expect(second).toMatchObject({ status: "synced", eventId: input.logEntry.eventId });
+    expect(setDoc.mock.calls[0][0]).toBe(setDoc.mock.calls[1][0]);
+    expect(outbox.putActivityEvent).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ eventId: input.logEntry.eventId })
+    );
+  });
+
+  test("로그 receipt도 state와 같은 저장 context가 오래되면 write 없이 blocked된다", async () => {
+    const outbox = createMemoryOutbox([]);
+    outbox.putActivityEvent = jest.fn();
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistActivityLogReceipt({
+        logEntry: { type: "ACTION", text: "요청", timestamp: 100, eventId: "event-1" },
+        saveContext: { uid: "user-1", slotId: 1, generation: 0 },
+      });
+    });
+
+    expect(receipt).toMatchObject({ status: "blocked", blockedReason: "generation-changed" });
+    expect(outbox.putActivityEvent).not.toHaveBeenCalled();
+    expect(setDoc).not.toHaveBeenCalled();
   });
 
   test("명령 reducer의 기준 상태로 메모리보다 최신인 pending 스냅샷을 우선한다", async () => {

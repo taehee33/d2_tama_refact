@@ -189,6 +189,32 @@ describe("StatsPopup 외부 동작 계약", () => {
     }));
   });
 
+  test("명령 경로의 야행성 부분 실패를 표시하고 legacy callback을 호출하지 않는다", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(STATS_POPUP_NOW_MS);
+    const onChangeStats = jest.fn();
+    const appendLogToSubcollection = jest.fn();
+    const onSaveCommand = jest.fn().mockResolvedValue({
+      status: "warning",
+      retryable: true,
+      state: { status: "synced" },
+      log: { status: "failed" },
+      _retry: { command: { commandId: "command-1" } },
+    });
+    renderPopup({ onChangeStats, appendLogToSubcollection, onSaveCommand });
+
+    fireEvent.click(screen.getByRole("button", { name: "OFF ☀️" }));
+
+    expect(await screen.findByText("일부만 저장됨")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
+    expect(onSaveCommand).toHaveBeenCalledWith(expect.objectContaining({
+      type: "setNocturnal",
+      value: true,
+      occurredAt: STATS_POPUP_NOW_MS,
+    }));
+    expect(onChangeStats).not.toHaveBeenCalled();
+    expect(appendLogToSubcollection).not.toHaveBeenCalled();
+  });
+
   test("야행성 로그 append rejection을 무시하고 stats callback 결과를 유지한다", async () => {
     const appendLogToSubcollection = jest.fn(() => Promise.reject(new Error("로그 저장 실패")));
     const onChangeStats = jest.fn();

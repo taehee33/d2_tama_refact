@@ -181,7 +181,7 @@ export default function StatsPopup({
             className={`stats-popup-modal__save-status flex-shrink-0 mb-3 rounded px-3 py-2 text-sm ${
               saveStatus === "failed" || saveStatus === "blocked" || saveStatus === "conflict"
                 ? "bg-red-50 text-red-700"
-                : saveStatus === "queued"
+                : saveStatus === "queued" || saveStatus === "pending" || saveStatus === "warning"
                   ? "bg-amber-50 text-amber-700"
                   : "bg-blue-50 text-blue-700"
             }`}

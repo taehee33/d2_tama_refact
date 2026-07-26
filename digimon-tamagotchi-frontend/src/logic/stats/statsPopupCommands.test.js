@@ -2,6 +2,7 @@ import {
   applyStatsPopupCommand,
   buildStatsPopupCommandIntent,
   buildStatsPopupCommandPatch,
+  buildStatsPopupNocturnalRequestLog,
   reconcileLegacySaveWithCommands,
 } from "./statsPopupCommands";
 
@@ -65,6 +66,23 @@ describe("StatsPopup intent command", () => {
       poopCount: 8,
       poopReachedMaxAt: 2_000,
       lastPoopPenaltyAt: 2_000,
+    });
+  });
+
+  test("야행성 로그는 완료가 아닌 변경 요청이며 command/event identity를 공유한다", () => {
+    expect(buildStatsPopupNocturnalRequestLog({
+      commandId: "stats-popup:1000:1",
+      occurredAt: 1_000,
+      value: true,
+    })).toEqual({
+      type: "ACTION",
+      text: "야행성 모드 ON 변경 요청: 수면/기상 시간을 3시간 늦춥니다 🌙",
+      timestamp: 1_000,
+      eventId: "stats-popup:1000:1:activity",
+      actionKind: "stats-change-request",
+      targetField: "isNocturnal",
+      targetValue: true,
+      commandId: "stats-popup:1000:1",
     });
   });
 });

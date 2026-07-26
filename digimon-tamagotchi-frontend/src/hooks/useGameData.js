@@ -48,9 +48,15 @@ import {
 import {
   applyStatsPopupCommand,
   buildStatsPopupCommandPatch,
+  buildStatsPopupNocturnalRequestLog,
   getStatsPopupCommandPrimaryField,
   reconcileLegacySaveWithCommands,
 } from "../logic/stats/statsPopupCommands";
+import {
+  deriveOverallReceipt,
+  isStatsPopupRetrySuperseded,
+  persistStatsPopupReceiptComponents,
+} from "../logic/stats/statsPopupSaveReceipt";
 import {
   buildFormTransitionCombatIdentity,
   createNewLifeCombatIdentity,
@@ -929,8 +935,10 @@ export function useGameData({
   }
   const saveOperationSequenceRef = useRef(0);
   const statsPopupCommandLedgerRef = useRef(new Map());
+  const latestStatsPopupCommandSequenceRef = useRef(new Map());
   useEffect(() => {
     statsPopupCommandLedgerRef.current.clear();
+    latestStatsPopupCommandSequenceRef.current.clear();
     saveOperationSequenceRef.current = 0;
   }, [currentUser?.uid, slotId]);
   const slotRuntimeDataMap = digimonDataVer1;
@@ -983,6 +991,7 @@ export function useGameData({
     getPendingState,
     persistStateSnapshot,
     persistStateSnapshotReceipt,
+    persistActivityLogReceipt,
     quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,
@@ -1238,14 +1247,16 @@ export function useGameData({
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
 
-  function saveStatsCommand(intent) {
-    const saveContext = captureSaveContext();
-    const sequence = ++saveOperationSequenceRef.current;
-    const occurredAt = Number.isFinite(Number(intent?.occurredAt))
-      ? Number(intent.occurredAt)
+  function saveStatsCommand(intent, retryReceipt = null) {
+    const retryData = retryReceipt?._retry || null;
+    const saveContext = retryData?.saveContext || captureSaveContext();
+    const operationSequence = ++saveOperationSequenceRef.current;
+    const occurredAt = Number.isFinite(Number(retryData?.command?.occurredAt ?? intent?.occurredAt))
+      ? Number(retryData?.command?.occurredAt ?? intent.occurredAt)
       : Date.now();
-    const commandId = `stats-popup:${occurredAt}:${sequence}`;
-    const command = {
+    const sequence = retryData?.command?.sequence ?? operationSequence;
+    const commandId = retryData?.command?.commandId || `stats-popup:${occurredAt}:${sequence}`;
+    const command = retryData?.command || {
       ...intent,
       occurredAt,
       commandId,
@@ -1256,71 +1267,129 @@ export function useGameData({
         generation: saveContext?.generation ?? null,
       },
     };
+    const primaryField = getStatsPopupCommandPrimaryField(command);
+    const isNocturnalCommand = command.type === "setNocturnal";
+    const logEntry = isNocturnalCommand
+      ? retryData?.logEntry || buildStatsPopupNocturnalRequestLog(command)
+      : null;
+    if (!retryData && primaryField) {
+      latestStatsPopupCommandSequenceRef.current.set(primaryField, sequence);
+    }
 
     return saveQueueRef.current.enqueue(async () => {
-      const latestState = await getLatestStateSnapshot(saveContext);
-      if (!latestState) {
-        return persistStateSnapshotReceipt({
-          statsSnapshot: {},
-          updatedLogs: null,
-          nowMs: Date.now(),
-          saveContext,
+      if (
+        retryData &&
+        primaryField &&
+        isStatsPopupRetrySuperseded({
+          retrySequence: sequence,
+          latestSequence: latestStatsPopupCommandSequenceRef.current.get(primaryField),
+        })
+      ) {
+        const blocked = {
+          status: "blocked",
           commandId,
-        });
+          blockedReason: null,
+          localCleanup: "not-needed",
+          errorCode: "stats-popup/superseded-command",
+        };
+        if (!isNocturnalCommand) return blocked;
+        return {
+          ...deriveOverallReceipt({ state: blocked, log: blocked }),
+          commandId,
+          eventId: logEntry?.eventId || null,
+          errorCode: blocked.errorCode,
+        };
       }
 
-      const executionNow = Date.now();
-      const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
-      const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
-        digimonStats: baseStats,
-        slotRuntimeDataMap,
-        selectedDigimon,
-      });
-      const lazyUpdateResult = buildLazyUpdateRuntimeResult({
-        baseStats,
-        lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? executionNow,
-        sleepSchedule,
-        maxEnergy,
-        selectedDigimon:
-          baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
-        evolutionDataForSlot,
-        slotRuntimeDataMap,
-        runtimeAdaptedDataMaps,
-        nowMs: executionNow,
-      });
-      const projectedStats = lazyUpdateResult.digimonStats;
-      const reducedStats = applyStatsPopupCommand(projectedStats, command);
-      const effectiveSelectedDigimon =
-        reducedStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null;
-      const finalStats = normalizeGameTimingFields({
-        ...reducedStats,
-        ...(effectiveSelectedDigimon ? { selectedDigimon: effectiveSelectedDigimon } : {}),
-        lastSavedAt: executionNow,
-      });
-      const receipt = await persistStateSnapshotReceipt({
-        statsSnapshot: finalStats,
-        updatedLogs: null,
-        nowMs: executionNow,
-        saveContext,
-        commandId,
-      });
-
-      if (receipt.status === "synced" || receipt.status === "queued") {
-        const primaryField = getStatsPopupCommandPrimaryField(command);
-        if (primaryField) {
-          statsPopupCommandLedgerRef.current.set(primaryField, {
-            sequence,
-            command,
-            patch: buildStatsPopupCommandPatch(projectedStats, finalStats, command),
+      const persistStateComponent = async () => {
+        const latestState = await getLatestStateSnapshot(saveContext);
+        if (!latestState) {
+          return persistStateSnapshotReceipt({
+            statsSnapshot: {},
+            updatedLogs: null,
+            nowMs: Date.now(),
+            saveContext,
+            commandId,
           });
+        } else {
+          const executionNow = Date.now();
+          const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
+          const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+            digimonStats: baseStats,
+            slotRuntimeDataMap,
+            selectedDigimon,
+          });
+          const lazyUpdateResult = buildLazyUpdateRuntimeResult({
+            baseStats,
+            lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? executionNow,
+            sleepSchedule,
+            maxEnergy,
+            selectedDigimon:
+              baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
+            evolutionDataForSlot,
+            slotRuntimeDataMap,
+            runtimeAdaptedDataMaps,
+            nowMs: executionNow,
+          });
+          const projectedStats = lazyUpdateResult.digimonStats;
+          const reducedStats = applyStatsPopupCommand(projectedStats, command);
+          const activityLogs = isNocturnalCommand
+            ? [
+                ...(reducedStats.activityLogs || []).filter(
+                  (entry) => entry?.eventId !== logEntry.eventId
+                ),
+                logEntry,
+              ]
+            : reducedStats.activityLogs;
+          const effectiveSelectedDigimon =
+            reducedStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null;
+          const finalStats = normalizeGameTimingFields({
+            ...reducedStats,
+            ...(activityLogs ? { activityLogs } : {}),
+            ...(effectiveSelectedDigimon ? { selectedDigimon: effectiveSelectedDigimon } : {}),
+            lastSavedAt: executionNow,
+          });
+          const stateReceipt = await persistStateSnapshotReceipt({
+            statsSnapshot: finalStats,
+            updatedLogs: isNocturnalCommand ? activityLogs : null,
+            nowMs: executionNow,
+            saveContext,
+            commandId,
+          });
+
+          if (stateReceipt.status === "synced" || stateReceipt.status === "queued") {
+            if (primaryField) {
+              statsPopupCommandLedgerRef.current.set(primaryField, {
+                sequence,
+                command,
+                patch: buildStatsPopupCommandPatch(projectedStats, finalStats, command),
+              });
+            }
+            setDigimonStats(finalStats);
+            lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
+              if (log?.type) appendLogToSubcollection(log).catch(() => {});
+            });
+            checkDeathStatus(finalStats);
+          }
+          return stateReceipt;
         }
-        setDigimonStats(finalStats);
-        lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
-          if (log?.type) appendLogToSubcollection(log).catch(() => {});
-        });
-        checkDeathStatus(finalStats);
-      }
-      return receipt;
+      };
+
+      if (!isNocturnalCommand) return persistStateComponent();
+      const overallReceipt = await persistStatsPopupReceiptComponents({
+        previousReceipt: retryData ? retryReceipt : null,
+        persistState: persistStateComponent,
+        persistLog: () => persistActivityLogReceipt({ logEntry, saveContext, commandId }),
+      });
+      return {
+        ...overallReceipt,
+        commandId,
+        eventId: logEntry.eventId,
+        commandSequence: sequence,
+        errorCode:
+          overallReceipt.state?.errorCode || overallReceipt.log?.errorCode || null,
+        _retry: { command, saveContext, logEntry },
+      };
     });
   }
 

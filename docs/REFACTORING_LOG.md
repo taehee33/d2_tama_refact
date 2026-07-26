@@ -7685,3 +7685,19 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
   - 관련 테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** UI snapshot을 저장 큐에 넘기면 대기 중 lazy update나 앞선 저장 결과를 덮어쓸 수 있다. 작은 사건 명령을 큐의 최신 durable 상태에 reduce하면 호출 순서를 보존하면서 시간 투영을 한 번만 수행할 수 있다. Firestore 경로·문서 스키마·transaction/write 횟수와 전역 lazy update 규칙은 변경하지 않고, 야행성 모드의 로그 원자화는 다음 A+3 단계로 분리한다.
+
+## [2026-07-26] A+3 야행성 상태·활동 기록 부분 실패 복구
+
+- **내용:** 야행성 변경을 현재 값을 다시 뒤집는 toggle 재실행이 아니라 최초 `occurredAt`과 고정 목표값을 가진 `setNocturnal` 명령으로 전환했다. 저장 경계가 state와 activity log에 같은 commandId·uid·slotId·generation을 적용하고, 로그를 완료 이력이 아닌 `야행성 모드 ON/OFF 변경 요청`으로 기록한다. 로그 payload에는 하위 호환 선택 메타데이터 `actionKind`, `targetField`, `targetValue`, `commandId`를 추가한다.
+- **부분 실패와 재시도:** state와 log receipt를 독립 수집한 뒤 순수 `deriveOverallReceipt()`로 saved/pending/warning/conflict/blocked/failed를 계산한다. 한 구성요소가 예외를 던져도 다른 결과를 계속 수집하며, 재시도는 failed 구성요소만 실행한다. queued/synced 구성요소는 다시 호출하지 않고 로그는 최초 eventId를 재사용한다. 같은 필드에 더 최신 command가 생기면 이전 retry는 저장 전에 폐기한다.
+- **테스트:** 5×4 전체 20개 receipt 조합, state-only/log-only 선택 재시도, 구성요소 예외 격리, 고정 eventId 멱등 재시도, stale context write 차단, 빠른 야행성 true→false 목표값, 부분 실패 UI와 legacy callback 미호출을 검증했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/logic/stats/statsPopupSaveReceipt.js`
+  - `digimon-tamagotchi-frontend/src/logic/stats/statsPopupCommands.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `digimon-tamagotchi-frontend/src/components/stats-popup/useStatsPopupController.js`
+  - `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.js`
+  - 관련 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** Firestore state 문서와 log subcollection 사이에 새 cross-document transaction을 만들지 않고 기존 state transaction 1회와 log write 1회를 유지한다. 각 결과와 내구성 outbox 여부를 드러내고 결정적 identity로 실패 부분만 재시도하면 기존 경로·스키마·정상 write 횟수를 바꾸지 않으면서 부분 성공을 안전하게 복구할 수 있다.

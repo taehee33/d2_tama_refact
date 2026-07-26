@@ -749,24 +749,64 @@ export function useDurableGamePersistence({
     throw outcome.error || new Error("게임 상태 저장에 실패했습니다.");
   }, [persistStateSnapshotOperation]);
 
-  const appendLog = useCallback(async (logEntry) => {
-    const saveContext = captureSaveContext();
+  const persistActivityLogOperation = useCallback(async ({
+    logEntry,
+    saveContext = null,
+    commandId = null,
+  }) => {
     if (
       !slotId ||
       !currentUser ||
       !isFirebaseAvailable ||
       !logEntry?.type ||
       !canStartGameplayWrite(saveContext)
-    ) return false;
+    ) {
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+            commandId,
+            blockedReason: resolveGameplayWriteBlockedReason({
+              currentUid: currentUser?.uid || null,
+              currentSlotId: slotId,
+              currentGeneration: activeAccessRef.current?.generation,
+              saveContext,
+              isFirebaseAvailable,
+            }),
+          }),
+          eventId: logEntry?.eventId || null,
+        },
+        remoteSucceeded: false,
+      };
+    }
     const payload = buildPersistentActivityLogPayload({
       ...logEntry,
       timestamp: toEpochMs(logEntry?.timestamp) ?? Date.now(),
     });
     const eventId = getPersistentActivityLogDocId(payload);
+    let localRecordIsDurable = false;
 
     if (outbox && eventId) {
       try {
-        if (!canStartGameplayWrite(saveContext)) return false;
+        if (!canStartGameplayWrite(saveContext)) {
+          return {
+            receipt: {
+              ...createGameSaveReceipt({
+                status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+                commandId,
+                blockedReason: resolveGameplayWriteBlockedReason({
+                  currentUid: currentUser.uid,
+                  currentSlotId: slotId,
+                  currentGeneration: activeAccessRef.current?.generation,
+                  saveContext,
+                  isFirebaseAvailable,
+                }),
+              }),
+              eventId,
+            },
+            remoteSucceeded: false,
+          };
+        }
         if (isFeedActivityLog(payload)) {
           await outbox.putFeedEvent({
             uid: currentUser.uid,
@@ -787,6 +827,7 @@ export function useDurableGamePersistence({
             payload,
           });
         }
+        localRecordIsDurable = true;
         await refreshOutboxStatus();
       } catch (error) {
         console.error("[appendLogToSubcollection] outbox 오류:", error);
@@ -795,26 +836,101 @@ export function useDurableGamePersistence({
         setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       }
     }
-    if (!shouldPersistActivityLog(payload)) return;
-    if (!canStartGameplayWrite(saveContext)) return false;
+    if (!shouldPersistActivityLog(payload)) {
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
+            commandId,
+          }),
+          eventId,
+        },
+        remoteSucceeded: true,
+      };
+    }
+    if (!canStartGameplayWrite(saveContext)) {
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+            commandId,
+            blockedReason: resolveGameplayWriteBlockedReason({
+              currentUid: currentUser.uid,
+              currentSlotId: slotId,
+              currentGeneration: activeAccessRef.current?.generation,
+              saveContext,
+              isFirebaseAvailable,
+            }),
+          }),
+          eventId,
+        },
+        remoteSucceeded: false,
+      };
+    }
 
     try {
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       await setDoc(doc(collection(slotRef, "logs"), eventId), payload, { merge: true });
+      let localCleanup = GAME_SAVE_LOCAL_CLEANUP.NOT_NEEDED;
       if (outbox) {
-        await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId });
+        try {
+          await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId });
+          localCleanup = GAME_SAVE_LOCAL_CLEANUP.COMPLETE;
+        } catch (cleanupError) {
+          localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+          setRecordSyncError(formatSyncError(
+            cleanupError,
+            "원격 로그는 저장됐지만 이 기기의 대기 기록을 정리하지 못했습니다."
+          ));
+        }
       }
       setLastRecordSyncedAt(Date.now());
-      setRecordSyncError("");
+      if (localCleanup !== GAME_SAVE_LOCAL_CLEANUP.FAILED) setRecordSyncError("");
       await refreshOutboxStatus();
-      return true;
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
+            commandId,
+            localCleanup,
+          }),
+          eventId,
+        },
+        remoteSucceeded: true,
+      };
     } catch (error) {
       console.error("[appendLogToSubcollection] 오류:", error);
       setRecordSyncError(formatSyncError(error));
       setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
-      return false;
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: localRecordIsDurable
+              ? GAME_SAVE_RECEIPT_STATUS.QUEUED
+              : GAME_SAVE_RECEIPT_STATUS.FAILED,
+            commandId,
+            errorCode: normalizeGameSaveErrorCode(error),
+          }),
+          eventId,
+        },
+        remoteSucceeded: false,
+      };
     }
-  }, [canStartGameplayWrite, captureSaveContext, currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+  }, [activeAccessRef, canStartGameplayWrite, currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+
+  const persistActivityLogReceipt = useCallback(async (input) => {
+    const outcome = await persistActivityLogOperation(input);
+    return outcome.receipt;
+  }, [persistActivityLogOperation]);
+
+  const appendLog = useCallback(async (logEntry) => {
+    const outcome = await persistActivityLogOperation({
+      logEntry,
+      saveContext: captureSaveContext(),
+    });
+    if (!shouldPersistActivityLog(logEntry)) return;
+    return outcome.remoteSucceeded;
+  }, [captureSaveContext, persistActivityLogOperation]);
 
   const appendBattleLog = useCallback(async (entry) => {
     const saveContext = captureSaveContext();
@@ -1205,6 +1321,7 @@ export function useDurableGamePersistence({
     getPendingState,
     persistStateSnapshot,
     persistStateSnapshotReceipt,
+    persistActivityLogReceipt,
     quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,
