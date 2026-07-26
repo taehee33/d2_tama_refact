@@ -1568,6 +1568,7 @@ function Game({ immersive = false }){
           isEvolving,
           setIsEvolving,
         }}
+        saveContextKey={`${currentUser?.uid || "anonymous"}:${slotId || "none"}`}
       />
     ) : null;
 

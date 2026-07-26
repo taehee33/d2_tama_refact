@@ -10,6 +10,20 @@ const STATE_LABELS = {
   unavailable: "저장소 사용 불가",
 };
 
+export function formatPendingAge(oldestPendingAt, now = Date.now()) {
+  const startedAt = Number(oldestPendingAt);
+  if (!Number.isFinite(startedAt) || startedAt <= 0) return "";
+  const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1_000));
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  if (days > 0) return `${days}일 ${hours}시간`;
+  if (hours > 0) return `${hours}시간 ${minutes}분`;
+  if (minutes > 0) return `${minutes}분 ${seconds}초`;
+  return `${seconds}초`;
+}
+
 function GameSyncInfo({ syncInfo = null, compact = false }) {
   const [now, setNow] = useState(Date.now());
   const {
@@ -20,6 +34,8 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
     nextRecordSyncAt = null,
     retryAt = null,
     pendingRecordCount = 0,
+    pendingSaveCount = pendingRecordCount,
+    oldestPendingAt = null,
     lastStateSyncedAt = null,
     lastRecordSyncedAt = null,
     stateSyncError = "",
@@ -27,16 +43,20 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
   } = syncInfo || {};
 
   useEffect(() => {
-    if (!nextStateSyncAt && !nextRecordSyncAt && !retryAt) return undefined;
+    if (!nextStateSyncAt && !nextRecordSyncAt && !retryAt && !oldestPendingAt) return undefined;
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [nextRecordSyncAt, nextStateSyncAt, retryAt]);
+  }, [nextRecordSyncAt, nextStateSyncAt, oldestPendingAt, retryAt]);
 
   const stateCountdown = useMemo(() => formatSyncCountdown(nextStateSyncAt, now), [nextStateSyncAt, now]);
   const recordCountdown = useMemo(() => formatSyncCountdown(nextRecordSyncAt, now), [nextRecordSyncAt, now]);
   const retryCountdown = useMemo(() => formatSyncCountdown(retryAt, now), [retryAt, now]);
   const lastStateSyncedText = useMemo(() => formatKstTime(lastStateSyncedAt), [lastStateSyncedAt]);
   const lastRecordSyncedText = useMemo(() => formatKstTime(lastRecordSyncedAt), [lastRecordSyncedAt]);
+  const oldestPendingAge = useMemo(
+    () => formatPendingAge(oldestPendingAt, now),
+    [oldestPendingAt, now]
+  );
 
   if (!syncInfo) return null;
 
@@ -115,6 +135,15 @@ function GameSyncInfo({ syncInfo = null, compact = false }) {
           <div className="flex flex-wrap justify-between gap-2 text-rose-700">
             <dt>활동 기록 오류 (IndexedDB → Firestore logs)</dt>
             <dd className="max-w-[70%] text-right">{recordSyncError}</dd>
+          </div>
+        ) : null}
+        {pendingSaveCount > 0 ? (
+          <div className="flex flex-wrap justify-between gap-2 text-amber-700">
+            <dt>전체 저장 대기</dt>
+            <dd className="font-semibold">
+              {pendingSaveCount}개
+              {oldestPendingAge ? ` · 가장 오래된 대기 ${oldestPendingAge}` : ""}
+            </dd>
           </div>
         ) : null}
       </dl>

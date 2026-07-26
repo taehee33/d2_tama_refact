@@ -106,7 +106,7 @@ describe("StatsPopup 외부 동작 계약", () => {
     expect(onSaveCommand).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
-    expect(await screen.findByText("저장됨")).toBeInTheDocument();
+    expect(await screen.findByText("변경사항 저장됨")).toBeInTheDocument();
     expect(onSaveCommand).toHaveBeenCalledTimes(2);
     expect(onSaveCommand.mock.calls[1][0]).toEqual(onSaveCommand.mock.calls[0][0]);
   });
@@ -204,7 +204,7 @@ describe("StatsPopup 외부 동작 계약", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "OFF ☀️" }));
 
-    expect(await screen.findByText("일부만 저장됨")).toBeInTheDocument();
+    expect(await screen.findByText("일부 저장 실패")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeInTheDocument();
     expect(onSaveCommand).toHaveBeenCalledWith(expect.objectContaining({
       type: "setNocturnal",

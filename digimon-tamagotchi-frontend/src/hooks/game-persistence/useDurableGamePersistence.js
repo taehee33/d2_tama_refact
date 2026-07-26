@@ -222,6 +222,8 @@ export function useDurableGamePersistence({
   const [nextStateSyncAt, setNextStateSyncAt] = useState(null);
   const [nextRecordSyncAt, setNextRecordSyncAt] = useState(null);
   const [pendingRecordCount, setPendingRecordCount] = useState(0);
+  const [pendingSaveCount, setPendingSaveCount] = useState(0);
+  const [oldestPendingAt, setOldestPendingAt] = useState(null);
   const [syncConflict, setSyncConflict] = useState(null);
   const [lastStateSyncedAt, setLastStateSyncedAt] = useState(null);
   const [lastRecordSyncedAt, setLastRecordSyncedAt] = useState(null);
@@ -292,6 +294,8 @@ export function useDurableGamePersistence({
     setNextStateSyncAt(null);
     setNextRecordSyncAt(null);
     setPendingRecordCount(0);
+    setPendingSaveCount(0);
+    setOldestPendingAt(null);
     setLastStateSyncedAt(null);
     setLastRecordSyncedAt(null);
     setStateSyncError("");
@@ -320,9 +324,20 @@ export function useDurableGamePersistence({
     ]);
     const pendingFeedEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
     const recordCount = activityEvents.length + battleEvents.length + pendingFeedEvents.length;
+    const pendingItems = [
+      ...(stateRecord ? [stateRecord] : []),
+      ...activityEvents,
+      ...battleEvents,
+      ...pendingFeedEvents,
+    ];
+    const pendingTimestamps = pendingItems
+      .map((item) => Number(item?.queuedAt ?? item?.occurredAt ?? item?.updatedAt))
+      .filter((value) => Number.isFinite(value) && value > 0);
     setStateSyncStatus(stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED);
     if (!stateRecord) setStateSyncError("");
     setPendingRecordCount(recordCount);
+    setPendingSaveCount(recordCount + (stateRecord ? 1 : 0));
+    setOldestPendingAt(pendingTimestamps.length ? Math.min(...pendingTimestamps) : null);
     if (activityEvents.length || battleEvents.length) {
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.LOCAL);
     } else if (pendingFeedEvents.length) {
@@ -1330,6 +1345,8 @@ export function useDurableGamePersistence({
     nextRecordSyncAt,
     nextStateSyncAt,
     pendingRecordCount,
+    pendingSaveCount,
+    oldestPendingAt,
     recordSyncStatus,
     retryAt,
     lastStateSyncedAt,

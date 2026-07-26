@@ -88,6 +88,7 @@ export default function GameModals({
   data,
   ui,
   flags,
+  saveContextKey = null,
 }) {
   const [backgroundSettingsReturnTarget, setBackgroundSettingsReturnTarget] = React.useState("collection");
 
@@ -301,6 +302,7 @@ export default function GameModals({
           digimonDataMap={newDigimonDataVer1}
           selectedDigimonId={selectedDigimon}
           slotVersion={slotVersion || "Ver.1"}
+          saveContextKey={saveContextKey}
           onClose={() => toggleModal?.('stats', false) || (() => {})}
           devMode={developerMode}
           onSaveCommand={saveStatsCommand}

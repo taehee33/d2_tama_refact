@@ -31,6 +31,7 @@ export default function useStatsPopupController({
   digimonDataMap,
   selectedDigimonId,
   slotVersion,
+  saveContextKey = null,
   devMode,
   onSaveCommand,
   onChangeStats,
@@ -49,6 +50,8 @@ export default function useStatsPopupController({
   });
   const saveSequenceRef = useRef(0);
   const nocturnalTargetRef = useRef(Boolean(stats?.isNocturnal));
+  const isMountedRef = useRef(true);
+  const latestStatsRef = useRef(stats);
   const isUsingEditableStats = devMode && activeTab === "OLD";
   const currentStats = isUsingEditableStats ? editableStats : stats;
   const statsLogs = currentStats?.activityLogs ?? [];
@@ -62,12 +65,28 @@ export default function useStatsPopupController({
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      saveSequenceRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isUsingEditableStats) setEditableStats({ ...(stats || {}) });
   }, [isUsingEditableStats, stats]);
 
   useEffect(() => {
+    latestStatsRef.current = stats;
     nocturnalTargetRef.current = Boolean(stats?.isNocturnal);
-  }, [stats?.isNocturnal]);
+  }, [stats]);
+
+  useEffect(() => {
+    saveSequenceRef.current += 1;
+    setSaveState({ status: "idle", failedIntent: null, failedReceipt: null, receipt: null });
+    setEditableStats({ ...(latestStatsRef.current || {}) });
+    nocturnalTargetRef.current = Boolean(latestStatsRef.current?.isNocturnal);
+  }, [saveContextKey]);
 
   const sleepViewModel = useMemo(
     () => buildSleepViewModel({ stats: currentStats || {}, sleepStatus, isLightsOn }),
@@ -128,17 +147,21 @@ export default function useStatsPopupController({
 
   function submitStatsCommand(intent, previousReceipt = null) {
     const requestSequence = ++saveSequenceRef.current;
-    setSaveState({ status: "saving", failedIntent: null, failedReceipt: null });
+    setSaveState({ status: "saving", failedIntent: null, failedReceipt: null, receipt: null });
     Promise.resolve().then(() => previousReceipt
       ? onSaveCommand(intent, previousReceipt)
       : onSaveCommand(intent)).then((receipt) => {
-      if (requestSequence !== saveSequenceRef.current) return;
-      const status = receipt?.status || "failed";
-      if ((status === "failed" || status === "warning") && (receipt?.retryable ?? true)) {
+      if (!isMountedRef.current || requestSequence !== saveSequenceRef.current) return;
+      const rawStatus = receipt?.status || "failed";
+      const status = receipt?.localCleanup === "failed" ? "warning" : rawStatus;
+      const retryable = receipt?.retryable === true ||
+        (rawStatus === "failed" && receipt?.retryable !== false);
+      if ((status === "failed" || status === "warning") && retryable) {
         setSaveState({
           status,
           failedIntent: intent,
           failedReceipt: receipt?._retry ? receipt : null,
+          receipt,
         });
         return;
       }
@@ -146,10 +169,15 @@ export default function useStatsPopupController({
         setEditableStats({ ...(stats || {}) });
         nocturnalTargetRef.current = Boolean(stats?.isNocturnal);
       }
-      setSaveState({ status, failedIntent: null, failedReceipt: null });
+      setSaveState({ status, failedIntent: null, failedReceipt: null, receipt });
     }).catch(() => {
-      if (requestSequence !== saveSequenceRef.current) return;
-      setSaveState({ status: "failed", failedIntent: intent, failedReceipt: null });
+      if (!isMountedRef.current || requestSequence !== saveSequenceRef.current) return;
+      setSaveState({
+        status: "failed",
+        failedIntent: intent,
+        failedReceipt: null,
+        receipt: null,
+      });
     });
   }
 
@@ -180,6 +208,30 @@ export default function useStatsPopupController({
     });
   }
 
+  const saveMessages = {
+    saving: "변경사항 저장 중",
+    synced: "변경사항 저장됨",
+    queued: "기기에 저장됨 · 연결되면 동기화",
+    saved: "상태와 활동 기록 저장됨",
+    pending: "기기에 저장됨 · 연결되면 상태와 활동 기록 동기화",
+    warning: "일부 저장 실패",
+    failed: "저장 실패",
+    blocked: "슬롯 변경으로 저장하지 않음",
+    conflict: "다른 기기의 변경사항 확인 필요",
+  };
+  let saveMessage = saveMessages[saveState.status] || "";
+  if (
+    saveState.status === "blocked" &&
+    saveState.receipt?.errorCode === "stats-popup/superseded-command"
+  ) {
+    saveMessage = "더 최신 변경이 있어 이전 재시도를 취소함";
+  } else if (
+    saveState.status === "warning" &&
+    saveState.receipt?.localCleanup === "failed"
+  ) {
+    saveMessage = "원격 저장 완료 · 기기 대기 항목 정리 필요";
+  }
+
   return {
     activeTab,
     setActiveTab,
@@ -194,17 +246,7 @@ export default function useStatsPopupController({
     currentLifeStartedAt: currentStats?.birthTime ?? null,
     canEdit: Boolean(onSaveCommand || onChangeStats),
     saveStatus: saveState.status,
-    saveMessage: {
-      saving: "저장 중",
-      synced: "저장됨",
-      queued: "연결되면 동기화",
-      saved: "상태와 활동 기록 저장됨",
-      pending: "연결되면 상태와 활동 기록 동기화",
-      warning: "일부만 저장됨",
-      failed: "저장 실패",
-      blocked: "슬롯 변경으로 저장하지 않음",
-      conflict: "다른 기기의 변경사항 확인 필요",
-    }[saveState.status] || "",
+    saveMessage,
     canRetrySave:
       (saveState.status === "failed" || saveState.status === "warning") &&
       Boolean(saveState.failedIntent),
