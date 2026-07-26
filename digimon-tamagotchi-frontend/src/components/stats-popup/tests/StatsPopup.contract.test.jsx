@@ -92,6 +92,25 @@ describe("StatsPopup 외부 동작 계약", () => {
     }));
   });
 
+  test("명령 저장 실패를 표시하고 사용자가 같은 intent를 재시도할 수 있다", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(STATS_POPUP_NOW_MS);
+    const onSaveCommand = jest.fn()
+      .mockResolvedValueOnce({ status: "failed" })
+      .mockResolvedValueOnce({ status: "synced" });
+    renderPopup({ onSaveCommand });
+    openOldTab();
+
+    fireEvent.change(screen.getByLabelText(/^Fullness:/), { target: { value: "2" } });
+    expect(await screen.findByText("저장 실패")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("저장 실패");
+    expect(onSaveCommand).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(await screen.findByText("저장됨")).toBeInTheDocument();
+    expect(onSaveCommand).toHaveBeenCalledTimes(2);
+    expect(onSaveCommand.mock.calls[1][0]).toEqual(onSaveCommand.mock.calls[0][0]);
+  });
+
   test("부상 ON은 timestamp를 만들고 OFF는 timestamp와 회복 투약 횟수를 초기화한다", () => {
     jest.spyOn(Date, "now").mockReturnValue(STATS_POPUP_NOW_MS);
     const onChangeStats = jest.fn();

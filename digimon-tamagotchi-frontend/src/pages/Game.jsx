@@ -331,6 +331,7 @@ function Game({ immersive = false }){
   // useGameData 훅 호출 (데이터 저장/로딩 로직)
   const {
     saveStats: setDigimonStatsAndSave,
+    saveStatsCommand,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
     saveBackgroundSettings,
     saveImmersiveSettings,
@@ -991,6 +992,7 @@ function Game({ immersive = false }){
           resetDigimon,
           setDigimonStats,
           setDigimonStatsAndSave,
+          saveStatsCommand,
           setSelectedDigimonAndSave,
           setCurrentQuestArea,
           setCurrentQuestRound,
@@ -1061,6 +1063,7 @@ function Game({ immersive = false }){
       resetDigimon,
       setDigimonStats,
       setDigimonStatsAndSave,
+      saveStatsCommand,
       setSelectedDigimonAndSave,
       setCurrentQuestArea,
       setCurrentQuestRound,

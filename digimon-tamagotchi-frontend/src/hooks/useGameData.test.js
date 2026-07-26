@@ -628,6 +628,51 @@ describe("buildLazyUpdateRuntimeResult", () => {
 
     nowSpy.mockRestore();
   });
+
+  test("30분 지난 pending 스냅샷을 실행 시각까지 한 번만 투영한다", () => {
+    const lastSavedAt = Date.parse("2026-07-26T11:30:00.000Z");
+    const executionNow = Date.parse("2026-07-26T12:00:00.000Z");
+    const dataMap = {
+      Agumon: {
+        name: "아구몬",
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Child",
+        evolutionStage: "Child",
+        stats: { maxEnergy: 10 },
+      },
+    };
+    const pendingStats = {
+      ...initializeStats("Agumon", {}, dataMap),
+      selectedDigimon: "Agumon",
+      evolutionStage: "Child",
+      lifespanSeconds: 100,
+      timeToEvolveSeconds: 10_000,
+      lastSavedAt,
+      activityLogs: [],
+    };
+
+    const first = buildLazyUpdateRuntimeResult({
+      baseStats: pendingStats,
+      lastSavedAt,
+      selectedDigimon: "Agumon",
+      dataMap,
+      nowMs: executionNow,
+    }).digimonStats;
+    const second = buildLazyUpdateRuntimeResult({
+      baseStats: first,
+      lastSavedAt: first.lastSavedAt,
+      selectedDigimon: "Agumon",
+      dataMap,
+      nowMs: executionNow,
+    }).digimonStats;
+
+    expect(first.lifespanSeconds).toBe(1_900);
+    expect(first.lastSavedAt).toBe(executionNow);
+    expect(second.lifespanSeconds).toBe(first.lifespanSeconds);
+    expect(second.timeToEvolveSeconds).toBe(first.timeToEvolveSeconds);
+  });
 });
 
 describe("resolveActionLazyUpdateRuntimeContext", () => {
