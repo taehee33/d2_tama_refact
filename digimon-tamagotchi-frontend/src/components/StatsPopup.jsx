@@ -16,7 +16,6 @@ import {
   buildOverviewViewModel,
   buildSleepViewModel,
   formatStatsPopupDuration,
-  formatStatsPopupValueWithOverflow,
   getStatsPopupElapsedTimeExcludingFridge as getElapsedTimeExcludingFridge,
 } from "./stats-popup/statsPopupViewModel";
 import {
@@ -24,7 +23,9 @@ import {
   buildStatsPopupStatMutation,
 } from "./stats-popup/statsPopupMutations";
 import CareHistorySection from "./stats-popup/CareHistorySection";
+import DeveloperStatsSection from "./stats-popup/DeveloperStatsSection";
 import DiagnosticNotice from "./stats-popup/DiagnosticNotice";
+import StatsOverviewSection from "./stats-popup/StatsOverviewSection";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -285,14 +286,9 @@ export default function StatsPopup({
   
   // stats 내부 항목 구조 분해
   const {
-    fullness, maxOverfeed, timeToEvolveSeconds, lifespanSeconds,
-    age, sprite, evolutionStage, weight, isDead,
+    fullness, lifespanSeconds, isDead,
     deathReason=null,
-    hungerTimer, strengthTimer, poopTimer,
-    maxEnergy, maxStamina, minWeight, healing, attribute, power,
-    attackSprite, altAttackSprite, careMistakes,
-    strength, effort, winRate,
-    energy,
+    strength,
     poopCount=0,
     poopReachedMaxAt: rawPoopReachedMaxAt=null,
     lastPoopPenaltyAt: rawLastPoopPenaltyAt=null,
@@ -301,23 +297,11 @@ export default function StatsPopup({
     hungerZeroFrozenDurationMs=0,
     lastStrengthZeroAt=null,
     strengthZeroFrozenDurationMs=0,
-    trainings=0,
-    overfeeds=0,
     sleepDisturbances=0,
-    battles=0,
-    battlesWon=0,
-    battlesLost=0,
-    totalBattles=0,
-    totalBattlesWon=0,
-    totalBattlesLost=0,
-    totalReincarnations=0,
-    normalReincarnations=0,
-    perfectReincarnations=0,
     isInjured=false,
     injuredAt=null,
     injuryFrozenDurationMs=0,
     injuries=0,
-    healedDosesCurrent=0,
     fastSleepStart=null,
     napUntil=null,
     isNocturnal=false,
@@ -339,20 +323,7 @@ export default function StatsPopup({
     }),
     [currentStats, digimonData, sleepSchedule, currentTime]
   );
-  const {
-    speciesData,
-    currentSleepSchedule,
-    sleepTime,
-    speciesHungerTimer,
-    speciesStrengthTimer,
-    speciesPower,
-    speciesHealDoses,
-    wakeEnergyRecoveryText,
-    nextEnergyRecoveryText,
-    hungerTimerDisplay,
-    strengthTimerDisplay,
-    poopTimerDisplay,
-  } = overviewViewModel;
+  const { currentSleepSchedule } = overviewViewModel;
   const currentStageStartedAt = currentStats?.evolutionStageStartedAt ?? null;
   const currentLifeStartedAt = currentStats?.birthTime ?? null;
   const healthRiskViewModel = useMemo(
@@ -383,320 +354,36 @@ export default function StatsPopup({
   }
 
   // devMode에서 select로 변경
-  function handleChange(field, e){
-    const val = parseInt(e.target.value, 10);
-    commitStatChange(field, val);
+  function handleChange(field, value){
+    commitStatChange(field, value);
   }
 
   function handleBooleanToggle(field, nextValue) {
     commitStatChange(field, nextValue);
   }
 
-  // devMode용 select range
-  const possibleFullness = [];
-  for(let i=0; i<= 5 + (maxOverfeed||0); i++){
-    possibleFullness.push(i);
-  }
-  const possibleWeight= [];
-  for(let w=0; w<=50; w++){
-    possibleWeight.push(w);
-  }
-  const possibleMistakes= [];
-  for(let c=0; c<10; c++){
-    possibleMistakes.push(c);
-  }
-  const possiblePoop= [];
-  for(let i=0; i<=8; i++){
-    possiblePoop.push(i);
-  }
-  const possibleStrength = [];
-  // strength는 5를 넘을 수 있으며, proteinOverdose 트리거 포인트는 9, 13, 17, 21, 25, 29, 33
-  // proteinOverdose 최대값 7을 달성하려면 strength가 최소 33까지 필요
-  for(let i=0; i<=33; i++){
-    possibleStrength.push(i);
-  }
-  // proteinCount 제거됨 - strength로 통합
-  const possibleInjuries= [];
-  for(let i=0; i<=15; i++){
-    possibleInjuries.push(i);
-  }
-  const possibleHealedDoses= [];
-  for(let i=0; i<=5; i++){
-    possibleHealedDoses.push(i);
-  }
-  const possibleEffort = [];
-  for(let i=0; i<=5; i++){
-    possibleEffort.push(i);
-  }
-  const possibleEnergy = [];
-  // energy는 0부터 maxEnergy까지 (최대 100으로 제한)
-  const maxEnergyValue = maxEnergy || maxStamina || 100;
-  for(let i=0; i<=maxEnergyValue; i++){
-    possibleEnergy.push(i);
-  }
-  
   // Old 탭 렌더링
   const renderOldTab = () => (
-    <>
-      {/* 기본 스탯 표시 */}
-      <ul className="text-sm space-y-1">
-          <li>Age: {age || 0}</li>
-          <li>Sprite: {sprite}</li>
-          <li>Stage: {evolutionStage}</li>
-          <li>Strength: {strength || 0}</li>
-          <li>Energy (DP): {energy || 0}</li>
-          <li>Effort: {effort || 0}</li>
-          <li>WinRate: {winRate || 0}%</li>
-          <li>CareMistakes: {careMistakes || 0} <span className="text-gray-500 text-xs">(진화 구간 기준)</span></li>
-
-          <li>Lifespan: {formatStatsPopupDuration(lifespanSeconds)}</li>
-          <li>TimeToEvolve: {formatStatsPopupDuration(timeToEvolveSeconds)}</li>
-          <li>Fullness: {formatStatsPopupValueWithOverflow(fullness)}</li>
-          <li>Weight: {weight || 0}</li>
-          <li>MaxOverfeed: {maxOverfeed || 0}</li>
-          <li>isDead: {isDead ? "Yes" : "No"}</li>
-
-          <li>HungerTimer: {hungerTimer || 0} min</li>
-          <li>StrengthTimer: {strengthTimer || 0} min</li>
-          <li>PoopTimer: {poopTimer || 0} min</li>
-
-          <li>MaxEnergy: {maxEnergy || maxStamina || 0}</li>
-          <li>MinWeight: {minWeight || 0}</li>
-          <li>Healing: {healing || 0}</li>
-          <li>Attribute: {attribute || 0}</li>
-          <li>Power: {power || 0}</li>
-          <li>Attack Sprite: {attackSprite || 0}</li>
-          <li>Alt Attack Sprite: {altAttackSprite || 0}</li>
-          <li>Training: {trainings}회</li>
-
-          <li>PoopCount: {poopCount}</li>
-          <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
-          <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
-          
-          {/* 부상 관련 필드 */}
-          <li className="mt-2 pt-2 border-t border-gray-300">--- 부상 관련 필드 ---</li>
-          <li>isInjured: {isInjured ? "Yes" : "No"}</li>
-          <li>injuredAt: {formatTimestamp(injuredAt)}</li>
-          <li>injuries: {injuries || 0}</li>
-          <li>healedDosesCurrent: {healedDosesCurrent || 0}</li>
-          
-          {/* 매뉴얼 기반 추가 필드 */}
-          <li className="mt-2 pt-2 border-t border-gray-300">--- 매뉴얼 기반 필드 ---</li>
-          <li>Protein Overdose: {stats.proteinOverdose || 0}</li>
-          <li>Overfeeds: {stats.overfeeds || 0}</li>
-          <li>Battles: {stats.battles || 0}</li>
-          <li>Battles Won: {stats.battlesWon || 0}</li>
-          <li>Battles Lost: {stats.battlesLost || 0}</li>
-          <li>Battles for Evolution: {stats.battlesForEvolution || 0}</li>
-        </ul>
-
-        {/* devMode => select box */}
-        {devMode && onChangeStats && (
-          <div className="mt-2 border p-2 text-sm">
-            <h3 className="font-bold mb-1">[Dev Mode] 스탯 수정</h3>
-
-            {/* fullness */}
-            <label className="block mt-1">
-              Fullness:
-              <select
-                value={fullness}
-                onChange={(e)=> handleChange("fullness",e)}
-                className="border ml-2"
-              >
-                {possibleFullness.map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </label>
-
-            {/* proteinCount */}
-            {/* proteinCount 제거됨 - strength로 통합 */}
-
-            {/* strength */}
-            <label className="block mt-1">
-              Strength:
-              <select
-                value={strength || 0}
-                onChange={(e)=> handleChange("strength",e)}
-                className="border ml-2"
-              >
-                {possibleStrength.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </label>
-
-            {/* effort */}
-            <label className="block mt-1">
-              Effort:
-              <select
-                value={effort || 0}
-                onChange={(e)=> handleChange("effort",e)}
-                className="border ml-2"
-              >
-                {possibleEffort.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </label>
-
-            {/* energy */}
-            <label className="block mt-1">
-              Energy:
-              <select
-                value={energy || 0}
-                onChange={(e)=> handleChange("energy",e)}
-                className="border ml-2"
-              >
-                {possibleEnergy.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </label>
-
-            {/* weight */}
-            <label className="block mt-1">
-              Weight:
-              <select
-                value={weight}
-                onChange={(e)=> handleChange("weight",e)}
-                className="border ml-2"
-              >
-                {possibleWeight.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </label>
-
-            {/* careMistakes */}
-            <label className="block mt-1">
-              CareMistakes:
-              <select
-                value={careMistakes || 0}
-                onChange={(e)=> handleChange("careMistakes",e)}
-                className="border ml-2"
-              >
-                {possibleMistakes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
-
-            {/* poopCount */}
-            <label className="block mt-1">
-              PoopCount:
-              <select
-                value={poopCount}
-                onChange={(e)=> handleChange("poopCount",e)}
-                className="border ml-2"
-              >
-                {possiblePoop.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
-            
-            {/* 부상 관련 필드 */}
-            <div className="mt-2 pt-2 border-t border-gray-300">
-              <h4 className="font-bold text-xs mb-1">부상 상태 테스트</h4>
-              
-              {/* isInjured */}
-              <button
-                type="button"
-                onClick={() => handleBooleanToggle("isInjured", !(isInjured || false))}
-                className={`mt-1 flex w-full items-center justify-between rounded border px-3 py-2 text-left transition-colors ${
-                  isInjured
-                    ? "border-red-400 bg-red-50 text-red-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-                aria-pressed={isInjured || false}
-              >
-                <span className="flex items-center gap-2">
-                  <span className="text-lg leading-none" aria-hidden="true">
-                    {isInjured ? "☑" : "☐"}
-                  </span>
-                  <span>isInjured (부상 상태)</span>
-                </span>
-                <span className="text-xs font-semibold">
-                  {isInjured ? "ON" : "OFF"}
-                </span>
-              </button>
-              
-              {/* injuries */}
-              <label className="block mt-1">
-                injuries (부상 횟수):
-                <select
-                  value={injuries || 0}
-                  onChange={(e)=> handleChange("injuries",e)}
-                  className="border ml-2"
-                >
-                  {possibleInjuries.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </label>
-              
-              {/* healedDosesCurrent */}
-              <label className="block mt-1">
-                healedDosesCurrent (치료제 투여 횟수):
-                <select
-                  value={healedDosesCurrent || 0}
-                  onChange={(e)=> handleChange("healedDosesCurrent",e)}
-                  className="border ml-2"
-                >
-                  {possibleHealedDoses.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </label>
-            </div>
-          </div>
-        )}
-    </>
+    <DeveloperStatsSection
+      stats={currentStats}
+      sourceStats={stats}
+      devMode={devMode}
+      canEdit={Boolean(onChangeStats)}
+      onNumericChange={handleChange}
+      onBooleanChange={handleBooleanToggle}
+    />
   );
   
   // New 탭 렌더링 (Ver.1 스펙 뷰)
   const renderNewTab = () => (
     <div className="space-y-4 text-sm">
-      {/* Sec 1. 종(Species) 고정 파라미터 */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">1. 종(Species) 고정 파라미터</h3>
-        <ul className="space-y-1">
-          <li>Power: {speciesPower}</li>
-          <li>Min Weight: {speciesData.minWeight || minWeight || 0}</li>
-          <li>Sleep Time: {sleepTime}</li>
-          <li>Heal Doses: {speciesHealDoses}</li>
-          <li>Energy (DP): {speciesData.maxEnergy || maxEnergy || maxStamina || 0}</li>
-          <li>Hunger Loss: {speciesHungerTimer} Minutes</li>
-          <li>Strength Loss: {speciesStrengthTimer} Minutes</li>
-        </ul>
-      </div>
-      
-      {/* Sec 2. 개체(Instance) 상태값 */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">2. 개체(Instance) 상태값</h3>
-        <ul className="space-y-1">
-          <li>Age: {age || 0} days</li>
-          <li>Weight: {weight || 0}g</li>
-          <li>Hunger (Fullness): {formatStatsPopupValueWithOverflow(fullness)}/5</li>
-          <li>Strength: {formatStatsPopupValueWithOverflow(strength || 0)}/5</li>
-          <li className="ml-4 text-xs text-gray-600">
-            • Protein Overdose: {stats.proteinOverdose || 0}/7
-            {stats.proteinOverdose > 0 && (
-              <span className="text-red-600 ml-1">
-                (배틀 패배 시 부상 확률: {10 + (stats.proteinOverdose || 0) * 10}%)
-              </span>
-            )}
-          </li>
-          <li>Energy (Current): {energy || 0}/{maxEnergy || maxStamina || 0}</li>
-          <li className="ml-4 text-xs text-gray-600">
-            • 기상 시간 회복 (max): {wakeEnergyRecoveryText}
-          </li>
-          <li className="ml-4 text-xs text-gray-600">
-            • 30분마다 회복 (+1): {nextEnergyRecoveryText}
-          </li>
-          <li>Win Ratio: {winRate || 0}%</li>
-          <li className="mt-2 pt-1 border-t">Flags:</li>
-          <li>- isSleeping: {isSleepingLikeStatus ? 'Yes' : 'No'}</li>
-          <li>- isInjured: {isInjured ? 'Yes' : 'No'}</li>
-          <li>- isDead: {isDead ? 'Yes' : 'No'}</li>
-          <li>- PoopCount: {poopCount}/8</li>
-          <li>- Sick: {isInjured ? 'Yes' : 'No'}</li>
-        </ul>
-      </div>
-      
-      {/* Sec 3. 행동 델타 규칙 (Action Delta) */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">3. 행동 델타 규칙 (Action Delta)</h3>
-        <ul className="space-y-1 font-mono text-xs">
-          <li>Food: W+1, Hun+1</li>
-          <li>Protein: W+2, Str+1, En+1</li>
-          <li>Train: W-2, En-1, Str+1(Success)</li>
-          <li>Battle: W-4, En-1</li>
-        </ul>
-      </div>
+      <StatsOverviewSection
+        stats={currentStats}
+        sourceStats={stats}
+        overview={overviewViewModel}
+        isSleepingLikeStatus={isSleepingLikeStatus}
+        part="summary"
+      />
       
       {/* Sec 4. 수면 정보 */}
       <div className="border-b pb-2">
@@ -1005,78 +692,13 @@ export default function StatsPopup({
         formatTimestamp={formatTimestamp}
       />
 
-      {/* Sec 6. 진화 판정 카운터 */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">6. 진화 판정 카운터</h3>
-        <ul className="space-y-1">
-          <li title="현재 시스템에서는 아직 해소되지 않은 케어미스 수를 표시합니다. 놀아주기/간식주기로 감소할 수 있으며, 진화 판정도 현재 값을 그대로 사용합니다.">
-            Care Mistakes: {careMistakes || 0}
-            <span className="text-gray-500 text-xs font-normal ml-1">(현재 활성 기준, 감소 가능)</span>
-          </li>
-          <li>Training Count: {trainings || 0}</li>
-          <li>Overfeeds: {overfeeds || 0}</li>
-          <li title="실제로 잠든 상태에서 강제로 깨운 횟수만 집계됩니다.">Sleep Disturbances: {sleepDisturbances || 0} (진화 구간 기준)</li>
-          <li className="mt-2 pt-1 border-t">
-            <strong>배틀 기록 (현재 디지몬):</strong>
-          </li>
-          <li className="ml-2">배틀: {battles || 0} (승: {battlesWon || 0}, 패: {battlesLost || 0})</li>
-          <li className="ml-2">승률: {battles > 0 ? Math.round((battlesWon / battles) * 100) : 0}%</li>
-          <li className="mt-2 pt-1 border-t">
-            <strong>배틀 기록 (이번 생애):</strong>
-          </li>
-          <li className="ml-2">총 배틀: {totalBattles || 0} (승: {totalBattlesWon || 0}, 패: {totalBattlesLost || 0})</li>
-          <li className="ml-2">총 승률: {totalBattles > 0 ? Math.round((totalBattlesWon / totalBattles) * 100) : 0}%</li>
-          <li className="mt-2 pt-1 border-t">
-            <strong>환생 기록:</strong>
-          </li>
-          <li className="ml-2">토탈 환생 횟수: {totalReincarnations || 0}회</li>
-          <li className="ml-2">일반 사망 환생: {normalReincarnations || 0}회</li>
-          <li className="ml-2">Perfect 이상 환생: {perfectReincarnations || 0}회</li>
-        </ul>
-      </div>
-      
-      {/* Sec 7. 내부/고급 카운터 */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">7. 내부/고급 카운터</h3>
-        {isFrozen && (
-          <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded">
-            <div className="text-blue-600 font-semibold text-sm">
-              🧊 냉장고에 넣어서 얼어서 멈춤
-            </div>
-            <div className="text-[10px] text-blue-500 mt-1">
-              모든 타이머가 멈춰있습니다. 냉장고에서 꺼내면 타이머가 다시 시작됩니다.
-            </div>
-          </div>
-        )}
-        <ul className="space-y-1">
-          <li>
-            HungerTimer: {hungerTimerDisplay.label}
-            {hungerTimerDisplay.showCountdown
-              ? ` (남은 시간: ${hungerTimerDisplay.countdownLabel})`
-              : ""}
-            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
-          </li>
-          <li>
-            StrengthTimer: {strengthTimerDisplay.label}
-            {strengthTimerDisplay.showCountdown
-              ? ` (남은 시간: ${strengthTimerDisplay.countdownLabel})`
-              : ""}
-            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
-          </li>
-          <li>
-            PoopTimer: {poopTimerDisplay.label}
-            {poopTimerDisplay.showCountdown
-              ? ` (남은 시간: ${poopTimerDisplay.countdownLabel})`
-              : ""}
-            {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}
-          </li>
-          <li>PoopCount: {poopCount}/8 {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
-          <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
-          <li>Lifespan: {formatStatsPopupDuration(lifespanSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>Time to Evolve: {formatStatsPopupDuration(timeToEvolveSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-        </ul>
-      </div>
+      <StatsOverviewSection
+        stats={currentStats}
+        sourceStats={stats}
+        overview={overviewViewModel}
+        isSleepingLikeStatus={isSleepingLikeStatus}
+        part="counters"
+      />
       
       {/* Sec 8. 사망/질병 카운터 */}
       <div className="pb-2">
