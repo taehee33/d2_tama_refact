@@ -45,7 +45,7 @@
 | 테스트 로그 | 전체 실행에서 `console.log` 출력 블록 62개 | 전역 숨김이 아니라 발생 지점 정리가 필요 |
 | 스프라이트 후보 | 25개 | 저장소 밖 `D2_LOCAL_ARCHIVE/sprite-inbox`에 SHA-256 목록과 함께 보존, 저장소 승격 여부는 별도 결정 |
 
-현재 인증/저장 설명서는 Firestore를 슬롯 원본으로, localStorage를 보조 저장소로 설명한다. 반면 저장소 작업 가이드에는 이중 저장소 지원이 적혀 있어 `useGameData.js` 작업 전 계약 확정이 필요하다.
+공식 저장 계약은 Firestore를 슬롯 정본으로, IndexedDB outbox를 미전송 변경의 내구성 있는 임시 전송 대기함으로, localStorage를 설정·보조 데이터 저장소로 확정했다. outbox 우선 기록 순서는 Firestore의 정본 지위를 바꾸지 않는다.
 
 ## 3. 변경하지 않을 것
 
@@ -62,15 +62,16 @@ P3의 기본값은 구조 리팩터링이며 다음 계약은 바꾸지 않는�
 
 ## 4. 실행 전 결정 게이트
 
-### D1. 공식 슬롯 저장 계약
+### D1. 공식 슬롯 저장 계약 — 해결됨 (2026-07-26)
 
-**권장안:** 현재 런타임과 `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`에 맞춰 Firestore를 슬롯의 단일 원본으로, localStorage를 UI 설정·보조값 저장소로 공식화한다.
+**확정안:** 현재 런타임과 `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`에 맞춰 Firestore를 슬롯의 공식 정본으로, IndexedDB outbox를 미전송 변경의 내구성 있는 임시 전송 대기함으로, localStorage를 UI 설정·보조값 저장소로 공식화한다.
 
-- 이 안을 선택하면 오래된 localStorage 슬롯 분기는 호출처를 확인한 뒤 별도 호환성 정리 단계에서 제거한다.
+- outbox를 먼저 기록하는 실행 순서는 Firestore의 정본 지위를 바꾸지 않는다.
+- 오래된 localStorage 슬롯 분기는 호출처를 확인한 뒤 별도 호환성 정리 단계에서 제거한다.
 - 완전 오프라인 이중 저장소를 다시 지원하려면 repository 계약 테스트, 충돌 정책, 마이그레이션을 포함한 별도 프로젝트로 분리한다.
-- 결정 전에는 기존 localStorage 분기나 `repositories` 구현을 삭제하거나 새 저장 경계로 채택하지 않는다.
+- 기존 localStorage 분기나 `repositories` 구현은 호출처 확인 없이 삭제하거나 새 저장 경계로 채택하지 않는다.
 
-**차단 범위:** Phase 2~5의 순수 계산/UI 추출은 진행할 수 있지만, Phase 6 `useGameData.js` 저장 경계 확정은 D1 결정 전 시작하지 않는다.
+**결과:** D1 미결정 차단은 해제됐다. Phase 6은 Phase 0~5 녹색과 기존 revision/outbox 계약 테스트를 충족한 뒤 시작한다.
 
 ### D2. 스프라이트 원본 보관 정책
 
@@ -88,7 +89,7 @@ P3에서는 단계적 JSDoc `checkJs`를 사용한다. 전면 TypeScript 전환�
 
 ```mermaid
 flowchart LR
-  D1["D1 저장 계약"] --> P6["Phase 6 useGameData"]
+  D1["D1 저장 계약 확정"] --> P6["Phase 6 useGameData"]
   P0["Phase 0 계약·기준선"] --> P1["Phase 1 품질 도구"]
   P1 --> P2["Phase 2 StatsPopup"]
   P2 --> P3["Phase 3 ArenaScreen"]
@@ -111,7 +112,7 @@ flowchart LR
 
 #### 작업
 
-1. D1의 공식 저장 계약을 확정하고, D2의 저장소 승격 기준을 문서에 반영한다.
+1. 확정된 D1 공식 저장 계약과 D2 저장소 승격 기준을 문서에 반영한다.
 2. 완료된 1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 기준선을 P3의 선행 조건으로 고정한다.
 3. 프런트 1,014개, 서버 189개(183 pass, 6 skip), build와 server projection 검사 결과를 기준선으로 기록한다.
 4. `StatsPopup`, `ArenaScreen`, 일반 진화, 조그레스, 슬롯 저장/로드의 현재 동작을 characterization test로 보강할 목록을 확정한다.
@@ -354,8 +355,8 @@ presenter는 props를 렌더링하고 사용자 intent만 callback으로 전달�
 3. Firestore SDK 호출은 저장 adapter로 이동한다.
 4. 기존 `useDurableGamePersistence.js`와 역할을 합의해 중복 retry/outbox 구현을 만들지 않는다.
 5. `useGameData.js`에는 repository 선택, load/save lifecycle, React state 연결만 남긴다.
-6. D1이 Firestore 단일 원본이면 잘못된 `local` mode 표시는 모든 호출처를 확인한 별도 호환성 커밋에서 정리한다.
-7. D1이 이중 저장소 복원이라면 Phase 6을 중단하고 repository contract, 충돌 정책, 로컬→클라우드 마이그레이션을 별도 계획으로 확장한다.
+6. 확정된 Firestore 정본 계약과 다른 `local` mode 표시는 모든 호출처를 확인한 별도 호환성 커밋에서 정리한다.
+7. 완전 오프라인 이중 저장소 복원 요구가 생기면 Phase 6 범위에 섞지 않고 repository contract, 충돌 정책, 로컬→클라우드 마이그레이션을 별도 계획으로 확장한다.
 
 #### 종료 조건
 
@@ -449,7 +450,7 @@ Firebase와 localStorage 관련 테스트는 D1에서 확정한 공식 모드와
 
 | 위험 | 대응 |
 |---|---|
-| 저장 계약을 잘못 전제 | D1 전에는 저장 구현을 삭제·교체하지 않음 |
+| 저장 계약을 잘못 전제 | 확정된 D1과 contract test를 기준으로 저장 구현 삭제·교체를 제한 |
 | lazy update 또는 쓰기 횟수 회귀 | 시간 고정 테스트와 persistence 호출 횟수 검증 |
 | Arena query/index 회귀 | repository contract test로 path/query/fallback 고정 |
 | 조그레스 부분 저장 | batch atomicity, revision, outbox 테스트 선행 |
@@ -493,9 +494,9 @@ P3는 다음 조건을 모두 만족할 때 완료한다.
 
 가장 먼저 진행할 실제 작업은 다음 네 체크포인트로 제한한다.
 
-1. D1/D2 결정 문서화
+1. D1 확정 계약과 D2 정책 문서화
 2. 현재 1,014/1,014 프런트·서버 183 pass/6 skip과 KST/CI 기준선을 characterization 목록에 연결
 3. 독립 운영 코드 ESLint 명령 + 제한 logic/pure utility 범위 `checkJs` 도입 — 완료
 4. `StatsPopup` characterization test 보강
 
-1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 구축과 Phase 1A·1B·1C 기준선은 완료됐다. 운영 `lint`와 제한 `typecheck`는 필수 CI이며 dead-code는 report-only다. 남은 D1/D2 문서 결정, Phase 1D console/logger 정책, 테스트 lint 177 errors, 전체 logic 28 errors, dead-code 후보 정리와 characterization test가 후속 작업이다. ESLint 9와 TypeScript 5 업그레이드는 이 기준선과 분리해 진행한다.
+1단계 테스트 복구, 1.5단계 KST 계약, Node 24 CI 구축과 Phase 1A·1B·1C 기준선은 완료됐고 D1 저장 계약도 확정됐다. 운영 `lint`와 제한 `typecheck`는 필수 CI이며 dead-code는 report-only다. 남은 D2 문서 결정, Phase 1D console/logger 정책, 테스트 lint 177 errors, 전체 logic 28 errors, dead-code 후보 정리와 characterization test가 후속 작업이다. ESLint 9와 TypeScript 5 업그레이드는 이 기준선과 분리해 진행한다.

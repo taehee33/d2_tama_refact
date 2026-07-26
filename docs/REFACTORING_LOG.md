@@ -7646,3 +7646,15 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `supabase/.temp/*`의 기존 추적 파일 8개
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 개인 도구 상태와 Supabase 로컬 연결 메타데이터는 소스·배포 입력이 아니며 환경마다 달라진다. 저장소에서 추적하지 않아야 불필요한 변경과 로컬 환경 정보의 재커밋을 방지할 수 있다.
+
+## [2026-07-26] A+ G0 공식 저장 계약 정렬
+
+- **내용:** 서로 충돌하던 이중 저장소 설명을 현재 런타임 계약에 맞춰 통일했다. Firestore를 슬롯 데이터의 공식 정본으로, IndexedDB state/activity outbox를 아직 전달되지 않은 변경의 내구성 있는 임시 전송 대기함으로, localStorage를 설정·보조 데이터 저장소로 명시했다. outbox 우선 기록 순서가 Firestore의 정본 지위를 바꾸지 않으며 완전 오프라인 localStorage 슬롯 모드는 현재 공식 지원하지 않는다는 경계도 고정했다. P3의 D1 미결정 게이트는 해결 상태로 갱신했다.
+- **기준점:** A+ 기준 SHA `f20eac5b7607e54b33ab115a59a0e20df3e74e0a`
+- **영향 파일:**
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`
+  - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 로컬 outbox의 내구성과 슬롯 정본의 권한은 서로 다른 책임이다. 전송 대기함을 먼저 기록해 네트워크 실패에 대비하되 Firestore revision·충돌 흐름을 공식 정본 경계로 유지하면, 로컬 보존을 별도 오프라인 슬롯 모드로 오해하지 않고 후속 StatsPopup 저장 신뢰성 작업의 기준 상태를 하나로 고정할 수 있다.
