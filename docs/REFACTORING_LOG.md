@@ -7,6 +7,7 @@
 ## [2026-07-26] Discord 긴급 케어 진행 타임라인 정렬
 
 - **내용:** 긴급 케어 진행 표시를 `시작 시각 → 20칸 바 → 케어미스 예정 시각` 한 줄과, 바 중앙에 정렬된 퍼센트 한 줄로 변경했다. Discord 환경에서 공백 정렬이 유지되도록 고정폭 코드 블록을 사용한다.
+- **테스트:** 사용자 예시의 23% 중앙 정렬, KST 자정 표기, 종료·역전·예정 시각 누락 타이밍의 미표시, 숫자가 아닌 경과 시간의 0% 안전 처리를 검증한다.
 - **영향 파일:**
   - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.js`
   - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.test.js`

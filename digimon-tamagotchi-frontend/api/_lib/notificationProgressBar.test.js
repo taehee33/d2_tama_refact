@@ -22,6 +22,13 @@ test("알림 진행률 계산 결과는 바와 퍼센트를 개별 제공한다"
   });
 });
 
+test("숫자가 아닌 경과 시간은 시작 시점 진행률로 안전하게 처리한다", () => {
+  assert.deepEqual(calculateNotificationProgress(Number.NaN, 10), {
+    bar: "░░░░░░░░░░░░░░░░░░░░",
+    percentage: 0,
+  });
+});
+
 test("알림 진행 바는 시작 전과 임계치 초과를 0~100% 범위로 제한한다", () => {
   assert.equal(formatNotificationProgressBar(-1, 100), "`░░░░░░░░░░░░░░░░░░░░` 0%");
   assert.equal(formatNotificationProgressBar(101, 100), "`████████████████████` 100%");
