@@ -208,6 +208,27 @@ test("시작 시각이 없는 긴급 이슈에는 진행 바를 추정하지 않
   assert.doesNotMatch(message, /[█░]/);
 });
 
+test("긴급 진행 바는 시작·예정 시각 사이에 놓고 퍼센트를 중앙 정렬한다", () => {
+  const startedAt = Date.parse("2026-07-26T03:50:00.000Z");
+  const message = buildUrgentMessage("히히히", [{
+    slotId: "slot2",
+    digimonName: "오거몬",
+    issues: [{
+      key: "strength_call",
+      label: "🔋 기력 호출",
+      startedAt,
+      deadlineAt: startedAt + 10 * 60_000,
+      remainingMs: 7.7 * 60_000,
+      detailLines: ["남은 시간: 8분"],
+    }],
+  }], "2026. 7. 26. PM 12:52:43");
+
+  assert.match(
+    message,
+    /```text\n12:50 █████░{15} 1:00\n {14}23%\n```/
+  );
+});
+
 test("13시간 오프라인 상태를 서버에서 계산해 사망을 판정한다", () => {
   const now = Date.parse("2026-06-21T13:00:00.000Z");
   const result = projectSlotForUrgentCare({

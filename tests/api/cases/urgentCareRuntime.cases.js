@@ -522,7 +522,10 @@ test("KST 수면 시간이고 불이 켜져 있으면 수면 알림과 30분 데
   assert.match(payload.reports[0].messageContent, /시작:/);
   assert.match(payload.reports[0].messageContent, /케어미스 예정:/);
   assert.match(payload.reports[0].messageContent, /남은 시간:/);
-  assert.match(payload.reports[0].messageContent, /> `███░{17}` 16%/);
+  assert.match(
+    payload.reports[0].messageContent,
+    /```text\n11:00 ███░{17} 11:30\n {14}16%\n```/
+  );
 });
 
 test("저장된 sleep call이 없어도 수면 스케줄 시작 시각으로 수면 조명 알림을 만든다", async () => {

@@ -2,7 +2,7 @@
 
 const crypto = require("node:crypto");
 const { formatKstDate } = require("./kstDateFormat");
-const { formatNotificationProgressBar } = require("./notificationProgressBar");
+const { calculateNotificationProgress } = require("./notificationProgressBar");
 
 const FIRESTORE_WRITE_BATCH_SIZE = 450;
 
@@ -20,7 +20,14 @@ async function commitInBatches(writes, commit) {
   }
 }
 
-function resolveIssueProgressLine(issue) {
+function formatKstClock(timestamp) {
+  const kstDate = new Date(timestamp + 9 * 60 * 60 * 1000);
+  const hour = kstDate.getUTCHours() % 12 || 12;
+  const minute = String(kstDate.getUTCMinutes()).padStart(2, "0");
+  return `${hour}:${minute}`;
+}
+
+function resolveIssueProgressLines(issue) {
   const startedAt = issue?.startedAt == null ? Number.NaN : Number(issue.startedAt);
   const deadlineAt = issue?.deadlineAt == null ? Number.NaN : Number(issue.deadlineAt);
   const remainingMs = issue?.remainingMs == null ? Number.NaN : Number(issue.remainingMs);
@@ -32,9 +39,23 @@ function resolveIssueProgressLine(issue) {
     thresholdMs <= 0 ||
     remainingMs <= 0
   ) {
-    return null;
+    return [];
   }
-  return formatNotificationProgressBar(thresholdMs - remainingMs, thresholdMs);
+  const progress = calculateNotificationProgress(thresholdMs - remainingMs, thresholdMs);
+  if (!progress) return [];
+
+  const startLabel = formatKstClock(startedAt);
+  const deadlineLabel = formatKstClock(deadlineAt);
+  const percentageLabel = `${progress.percentage}%`;
+  const percentageIndent = " ".repeat(
+    startLabel.length + 1 + Math.floor((progress.bar.length - percentageLabel.length) / 2)
+  );
+  return [
+    "```text",
+    `${startLabel} ${progress.bar} ${deadlineLabel}`,
+    `${percentageIndent}${percentageLabel}`,
+    "```",
+  ];
 }
 
 function buildUrgentMessage(tamerName, slotAlerts, generatedAt, options = {}) {
@@ -53,13 +74,13 @@ function buildUrgentMessage(tamerName, slotAlerts, generatedAt, options = {}) {
     return [
       `🐾 **${slot?.digimonName || "알 수 없는 디지몬"}** · \`${slotLabel}\``,
       ...issues.flatMap((issue) => {
-        const progressLine = resolveIssueProgressLine(issue);
+        const progressLines = resolveIssueProgressLines(issue);
         return [
           `> ${issue.label}`,
           ...(Array.isArray(issue?.detailLines)
             ? issue.detailLines.map((line) => `> ${line}`)
             : []),
-          ...(progressLine ? [`> ${progressLine}`] : []),
+          ...progressLines,
         ];
       }),
       "",
