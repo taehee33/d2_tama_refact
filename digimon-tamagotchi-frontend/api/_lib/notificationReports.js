@@ -6,7 +6,7 @@ const {
   listNotificationSubscribers,
   normalizeDiscordWebhookUrl,
 } = require("./notificationSubscribers");
-const { formatNotificationProgressBar } = require("./notificationProgressBar");
+const { calculateNotificationProgress } = require("./notificationProgressBar");
 const { formatKstDate } = require("./kstDateFormat");
 const { projectSlotForUrgentCare } = require("./urgentCareProjection");
 
@@ -64,6 +64,31 @@ function getEffectiveElapsedMs(startedAt, nowMs, excludedMs = 0) {
   return Math.max(0, nowMs - startMs - Math.max(0, normalizeNumber(excludedMs, 0)));
 }
 
+function formatKstCompactDateTime(timestamp) {
+  const kstDate = new Date(timestamp + 9 * HOUR_MS);
+  const month = kstDate.getUTCMonth() + 1;
+  const day = kstDate.getUTCDate();
+  const hour = String(kstDate.getUTCHours()).padStart(2, "0");
+  const minute = String(kstDate.getUTCMinutes()).padStart(2, "0");
+  return `${month}/${day} ${hour}:${minute}`;
+}
+
+function buildDailyProgressTimeline(elapsedMs, thresholdMs, deadlineMs) {
+  const progress = calculateNotificationProgress(elapsedMs, thresholdMs);
+  if (!progress) return [];
+
+  const startLabel = formatKstCompactDateTime(deadlineMs - thresholdMs);
+  const deadlineLabel = formatKstCompactDateTime(deadlineMs);
+  const percentageLabel = `${progress.percentage}%`;
+  const percentageIndent = " ".repeat(
+    startLabel.length + 1 + Math.floor((progress.bar.length - percentageLabel.length) / 2)
+  );
+  return [
+    `\`${startLabel} ${progress.bar} ${deadlineLabel}\``,
+    `\`${percentageIndent}${percentageLabel}\``,
+  ];
+}
+
 function buildTimedCounter({ label, startedAt, thresholdMs, excludedMs, nowMs, repeat = false }) {
   const elapsedTotalMs = getEffectiveElapsedMs(startedAt, nowMs, excludedMs);
   if (elapsedTotalMs == null) return `${label}: 시작 시간 확인 불가`;
@@ -76,7 +101,7 @@ function buildTimedCounter({ label, startedAt, thresholdMs, excludedMs, nowMs, r
   return [
     `${label}: 경과 ${formatDuration(elapsedMs)} · ${status}`,
     `데드라인 ${formatKstDate(deadlineMs)}`,
-    formatNotificationProgressBar(elapsedMs, thresholdMs),
+    ...buildDailyProgressTimeline(elapsedMs, thresholdMs, deadlineMs),
   ].join("\n");
 }
 
