@@ -121,11 +121,11 @@ describe("useStatsPopupController", () => {
       occurredAt: now,
     });
     expect(result.current.saveStatus).toBe("synced");
-    expect(result.current.saveMessage).toBe("저장됨");
+    expect(result.current.saveMessage).toBe("변경사항 저장됨");
   });
 
   test.each([
-    ["queued", "연결되면 동기화"],
+    ["queued", "기기에 저장됨 · 연결되면 동기화"],
     ["blocked", "슬롯 변경으로 저장하지 않음"],
     ["conflict", "다른 기기의 변경사항 확인 필요"],
   ])("%s 영수증을 사용자 상태로 반영한다", async (status, message) => {
@@ -266,7 +266,7 @@ describe("useStatsPopupController", () => {
 
     act(() => result.current.handleNocturnalToggle());
     await flushSavePromises();
-    expect(result.current.saveMessage).toBe("일부만 저장됨");
+    expect(result.current.saveMessage).toBe("일부 저장 실패");
     expect(result.current.canRetrySave).toBe(true);
 
     const firstIntent = onSaveCommand.mock.calls[0][0];
@@ -274,6 +274,64 @@ describe("useStatsPopupController", () => {
     await flushSavePromises();
     expect(onSaveCommand).toHaveBeenNthCalledWith(2, firstIntent, partialReceipt);
     expect(result.current.saveStatus).toBe("saved");
+  });
+
+  test("원격 저장 후 로컬 cleanup 경고에는 재시도를 노출하지 않는다", async () => {
+    const onSaveCommand = jest.fn().mockResolvedValue({
+      status: "synced",
+      localCleanup: "failed",
+      retryable: false,
+    });
+    const props = createProps({ onSaveCommand });
+    const { result } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("fullness", 2));
+    await flushSavePromises();
+
+    expect(result.current.saveStatus).toBe("warning");
+    expect(result.current.saveMessage).toBe("원격 저장 완료 · 기기 대기 항목 정리 필요");
+    expect(result.current.canRetrySave).toBe(false);
+  });
+
+  test("저장 중 context가 바뀌면 overlay와 상태를 초기화하고 이전 완료를 폐기한다", async () => {
+    const deferred = createDeferred();
+    const onSaveCommand = jest.fn().mockReturnValue(deferred.promise);
+    let props = createProps({
+      stats: { fullness: 1 },
+      onSaveCommand,
+      saveContextKey: "user-1:slot-1",
+    });
+    const { result, rerender } = renderHook(() => useStatsPopupController(props));
+    act(() => result.current.setActiveTab("OLD"));
+    act(() => result.current.handleNumericChange("fullness", 3));
+    expect(result.current.currentStats.fullness).toBe(3);
+    expect(result.current.saveStatus).toBe("saving");
+
+    props = createProps({
+      stats: { fullness: 4 },
+      onSaveCommand,
+      saveContextKey: "user-1:slot-2",
+    });
+    rerender();
+    expect(result.current.currentStats.fullness).toBe(4);
+    expect(result.current.saveStatus).toBe("idle");
+
+    await act(async () => deferred.resolve({ status: "queued" }));
+    expect(result.current.currentStats.fullness).toBe(4);
+    expect(result.current.saveStatus).toBe("idle");
+  });
+
+  test("unmount 뒤 완료된 저장은 controller 상태를 갱신하지 않는다", async () => {
+    const deferred = createDeferred();
+    const onSaveCommand = jest.fn().mockReturnValue(deferred.promise);
+    const props = createProps({ onSaveCommand });
+    const { result, unmount } = renderHook(() => useStatsPopupController(props));
+
+    act(() => result.current.handleNumericChange("fullness", 2));
+    unmount();
+    await act(async () => deferred.resolve({ status: "synced" }));
+
+    expect(onSaveCommand).toHaveBeenCalledTimes(1);
   });
 
   test("외부 활동 로그가 저장 stats 로그보다 최신일 때 표시 입력으로 사용한다", () => {

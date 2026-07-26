@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import GameSyncInfo from "./GameSyncInfo";
+import GameSyncInfo, { formatPendingAge } from "./GameSyncInfo";
 
 describe("GameSyncInfo", () => {
   beforeEach(() => {
@@ -51,6 +51,8 @@ describe("GameSyncInfo", () => {
           recordSyncStatus: "local",
           retryAt: new Date("2026-06-21T15:05:28+09:00").getTime(),
           pendingRecordCount: 3,
+          pendingSaveCount: 4,
+          oldestPendingAt: new Date("2026-06-21T14:55:00+09:00").getTime(),
           stateSyncError: "offline",
           recordSyncError: "permission denied",
         }}
@@ -62,6 +64,8 @@ describe("GameSyncInfo", () => {
     expect(screen.getByText("offline")).toBeInTheDocument();
     expect(screen.getByText("활동 기록 오류 (IndexedDB → Firestore logs)")).toBeInTheDocument();
     expect(screen.getByText("permission denied")).toBeInTheDocument();
+    expect(screen.getByText("전체 저장 대기")).toBeInTheDocument();
+    expect(screen.getByText("4개 · 가장 오래된 대기 5분 28초")).toBeInTheDocument();
   });
 
   test("로컬 모드는 서버 카운트다운 없이 기기 저장 상태를 표시한다", () => {
@@ -69,5 +73,15 @@ describe("GameSyncInfo", () => {
     expect(screen.getByText("현재 슬롯 · 이 기기에 저장됨")).toBeInTheDocument();
     expect(screen.getByText("이 카드는 현재 슬롯과 활동 기록 저장 상태만 표시합니다.")).toBeInTheDocument();
     expect(screen.queryByText("다음 슬롯 저장 (Firestore 슬롯)")).not.toBeInTheDocument();
+  });
+});
+
+describe("formatPendingAge", () => {
+  test.each([
+    [1_000, 31_000, "30초"],
+    [1_000, 3_721_000, "1시간 2분"],
+    [1_000, 90_001_000, "1일 1시간"],
+  ])("%s부터 %s까지의 대기 시간을 %s로 표시한다", (startedAt, now, expected) => {
+    expect(formatPendingAge(startedAt, now)).toBe(expected);
   });
 });

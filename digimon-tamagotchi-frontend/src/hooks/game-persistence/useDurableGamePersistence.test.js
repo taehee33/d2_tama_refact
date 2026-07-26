@@ -269,6 +269,31 @@ describe("useDurableGamePersistence", () => {
     );
   });
 
+  test("동기화 정보에 전체 pending 수와 가장 오래된 대기 시각을 노출한다", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    const outbox = createMemoryOutbox([]);
+    const pendingEvents = [
+      { eventId: "event-old", occurredAt: 1_000, payload: {} },
+      { eventId: "event-new", occurredAt: 2_000, payload: {} },
+    ];
+    outbox.listActivityEvents = jest.fn().mockResolvedValue(pendingEvents);
+    outbox.putActivityEvent = jest.fn().mockResolvedValue(undefined);
+    setDoc.mockRejectedValue(new Error("offline"));
+    const { result } = renderHook(() =>
+      useDurableGamePersistence(createHookParams(outbox))
+    );
+
+    await act(async () => {
+      await result.current.persistActivityLogReceipt({
+        logEntry: { type: "ACTION", text: "요청", timestamp: 2_000, eventId: "event-new" },
+      });
+    });
+
+    expect(result.current.pendingRecordCount).toBe(2);
+    expect(result.current.pendingSaveCount).toBe(2);
+    expect(result.current.oldestPendingAt).toBe(1_000);
+  });
+
   test("로그 receipt도 state와 같은 저장 context가 오래되면 write 없이 blocked된다", async () => {
     const outbox = createMemoryOutbox([]);
     outbox.putActivityEvent = jest.fn();

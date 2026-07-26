@@ -7701,3 +7701,20 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/utils/activityLogPersistence.js`
   - 관련 테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** Firestore state 문서와 log subcollection 사이에 새 cross-document transaction을 만들지 않고 기존 state transaction 1회와 log write 1회를 유지한다. 각 결과와 내구성 outbox 여부를 드러내고 결정적 identity로 실패 부분만 재시도하면 기존 경로·스키마·정상 write 횟수를 바꾸지 않으면서 부분 성공을 안전하게 복구할 수 있다.
+
+## [2026-07-26] A+4 StatsPopup 저장 UX·수명주기·pending 관측성 정리
+
+- **내용:** StatsPopup 저장 문구를 원격 저장, 기기 대기, 부분 실패, 로컬 cleanup 경고로 구분하고 실제 복구 가능한 failed 구성요소가 있을 때만 `다시 시도`를 표시한다. 같은 필드의 최신 명령으로 폐기된 retry도 별도 문구로 안내한다. UID·slot 조합의 내부 context key가 바뀌면 optimistic overlay와 저장 UI를 초기화하고 이전 Promise 완료를 무시한다.
+- **수명주기:** controller에 mount/sequence guard를 추가해 모달 close·reopen과 unmount 뒤 늦은 Promise가 로컬 UI를 갱신하지 않게 했다. 부모 게임 계층의 실제 저장 작업은 취소하지 않으므로 모달을 닫아도 outbox/Firestore 처리는 계속된다.
+- **관측성:** 기존 outbox 상태 집계에서 state·activity·battle·feed pending의 전체 개수와 가장 오래된 대기 시각을 계산해 `GameSyncInfo`에 한국어 경과 시간으로 표시한다. 기존 1초 동기화 카드 갱신 interval을 재사용하며 새 타이머·Firestore polling은 추가하지 않는다.
+- **테스트:** cleanup 경고의 재시도 미표시, context 변경 overlay 원복, unmount 완료 무시, 기존 Promise 순서 역전 방어, pending 전체 수·최장 대기 시간, 경과 시간 포맷을 검증했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `digimon-tamagotchi-frontend/src/components/stats-popup/useStatsPopupController.js`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameSyncInfo.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameData.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - 관련 테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 저장 실행은 이미 부모 hook과 durable outbox가 소유하므로 모달 수명주기에서는 표시 상태만 폐기해야 한다. pending 관측값도 기존 IndexedDB 목록 조회 결과에서 계산하면 저장 비용과 개인정보 노출 없이 복구 지연을 확인할 수 있다.
