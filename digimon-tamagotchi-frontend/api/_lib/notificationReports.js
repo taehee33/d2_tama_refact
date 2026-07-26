@@ -6,6 +6,7 @@ const {
   listNotificationSubscribers,
   normalizeDiscordWebhookUrl,
 } = require("./notificationSubscribers");
+const { formatNotificationProgressBar } = require("./notificationProgressBar");
 const { formatKstDate } = require("./kstDateFormat");
 const { projectSlotForUrgentCare } = require("./urgentCareProjection");
 
@@ -72,7 +73,11 @@ function buildTimedCounter({ label, startedAt, thresholdMs, excludedMs, nowMs, r
   const isDanger = !repeat && elapsedTotalMs >= thresholdMs;
   const deadlineMs = nowMs + remainingMs;
   const status = isDanger ? "위험 단계" : `남음 ${formatDuration(remainingMs)}`;
-  return `${label}: 경과 ${formatDuration(elapsedMs)} · ${status} · 데드라인 ${formatKstDate(deadlineMs)}`;
+  return [
+    `${label}: 경과 ${formatDuration(elapsedMs)} · ${status}`,
+    `데드라인 ${formatKstDate(deadlineMs)}`,
+    formatNotificationProgressBar(elapsedMs, thresholdMs),
+  ].join("\n");
 }
 
 function resolveActiveDeathDiseaseCounters(slotData = {}, nowMs = Date.now(), projectedStats = null) {
@@ -103,7 +108,11 @@ function formatSlotReportEntry({ digimonName, slotId, issues = [], counters = []
   issues.forEach((issue) => lines.push(`  - ${issue}`));
   if (counters.length > 0) {
     lines.push("  - ⏳ **진행 중 카운터**");
-    counters.forEach((counter) => lines.push(`    - ${counter}`));
+    counters.forEach((counter) => {
+      const [firstLine, ...continuationLines] = counter.split("\n");
+      lines.push(`    - ${firstLine}`);
+      continuationLines.forEach((line) => lines.push(`      ${line}`));
+    });
   }
   return lines.join("\n");
 }

@@ -191,6 +191,23 @@ test("긴급 Discord 메시지는 대상 수와 디지몬별 상태를 읽기 �
   ].join("\n"));
 });
 
+test("시작 시각이 없는 긴급 이슈에는 진행 바를 추정하지 않는다", () => {
+  const message = buildUrgentMessage("한솔", [{
+    slotId: "slot1",
+    digimonName: "아구몬",
+    issues: [{
+      key: "hunger_call",
+      label: "🍖 배고픔 호출",
+      startedAt: null,
+      deadlineAt: Date.parse("2026-07-26T12:10:00.000Z"),
+      remainingMs: 5 * 60_000,
+      detailLines: ["남은 시간: 5분"],
+    }],
+  }], "2026. 7. 26. PM 9:05:00");
+
+  assert.doesNotMatch(message, /[█░]/);
+});
+
 test("13시간 오프라인 상태를 서버에서 계산해 사망을 판정한다", () => {
   const now = Date.parse("2026-06-21T13:00:00.000Z");
   const result = projectSlotForUrgentCare({
