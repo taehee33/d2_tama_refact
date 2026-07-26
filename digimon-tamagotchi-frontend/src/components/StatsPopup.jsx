@@ -4,16 +4,25 @@ import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
 import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
 import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
 import {
-  getDisplayCareMistakeEntries,
   getActiveCareMistakeEntries,
+  getDisplayCareMistakeEntries,
 } from "../logic/stats/careMistakeLedger";
 import { getDisplayInjuryEntries } from "../logic/stats/injuryHistory";
-import {
-  buildCallStatusViewModel,
-  normalizeSleepStatusForDisplay,
-} from "../utils/callStatusUtils";
-import { getInternalCounterTimerDisplay } from "../utils/internalCounterTimerDisplay";
+import { buildCallStatusViewModel } from "../utils/callStatusUtils";
 import { toEpochMs } from "../utils/time";
+import {
+  buildCareViewModel,
+  buildHealthRiskViewModel,
+  buildOverviewViewModel,
+  buildSleepViewModel,
+  formatStatsPopupDuration,
+  formatStatsPopupValueWithOverflow,
+  getStatsPopupElapsedTimeExcludingFridge as getElapsedTimeExcludingFridge,
+} from "./stats-popup/statsPopupViewModel";
+import {
+  buildStatsPopupNocturnalMutation,
+  buildStatsPopupStatMutation,
+} from "./stats-popup/statsPopupMutations";
 
 /**
  * 수면 방해 이력 아코디언 컴포넌트
@@ -256,45 +265,6 @@ function InjuryHistory({
   );
 }
 
-// 시간 포맷 (일/시간/분/초)
-function formatTime(sec=0){
-  const safeSec = typeof sec === 'number' && Number.isFinite(sec) ? sec : 0;
-  const d = Math.floor(safeSec / 86400);
-  const r = safeSec % 86400;
-  const h = Math.floor(r / 3600);
-  const m = Math.floor((r % 3600) / 60);
-  const s = r % 60;
-  return `${d} day ${h} hour ${m} min ${s} sec`;
-}
-
-// 진화까지 남은 시간 포맷 (일/시간/분/초)
-function formatTimeToEvolve(sec=0){
-  const safeSec = typeof sec === 'number' && Number.isFinite(sec) ? sec : 0;
-  const d = Math.floor(safeSec / 86400);
-  const r = safeSec % 86400;
-  const h = Math.floor(r / 3600);
-  const m = Math.floor((r % 3600) / 60);
-  const s = r % 60;
-  return `${d} day ${h} hour ${m} min ${s} sec`;
-}
-
-// fullness => 예) 7 => "5(+2)"
-function fullnessDisplay(fullness=0, maxOverfeed=0){
-  const base = Math.min(5, fullness);
-  let over = 0;
-  if(fullness > 5){
-    over = fullness - 5;
-  }
-  return `${base}${over>0 ? "(+" + over + ")" : ""}`;
-}
-
-// strength => 예) strength가 8이면 "5(+3)" (5 이상일 때)
-function strengthDisplay(strength=0){
-  const base = Math.min(5, strength);
-  const over = strength > 5 ? strength - 5 : 0;
-  return `${base}${over>0 ? "(+" + over + ")" : ""}`;
-}
-
 // timestamp 포맷팅은 utils/dateUtils에서 import
 const formatTimestamp = formatTimestampUtil;
 
@@ -351,56 +321,38 @@ export default function StatsPopup({
     }
   }, [isUsingEditableStats, stats]);
 
-  const statsForCallUi = useMemo(
-    () => ({
-      ...(currentStats || {}),
-      activityLogs: displayActivityLogs,
+  const sleepViewModel = useMemo(
+    () => buildSleepViewModel({
+      stats: currentStats || {},
+      sleepStatus,
+      isLightsOn,
     }),
-    [currentStats, displayActivityLogs]
+    [currentStats, sleepStatus, isLightsOn]
   );
-
-  const callStatusViewModel = useMemo(
-    () =>
-      buildCallStatusViewModel({
-        digimonStats: statsForCallUi,
+  const careViewModel = useMemo(
+    () => buildCareViewModel({
+        stats: currentStats || {},
+        activityLogs: displayActivityLogs,
         sleepStatus,
         isLightsOn,
-        currentTime,
+        currentTimeMs: currentTime,
+        buildCallStatusFn: buildCallStatusViewModel,
+        getDisplayCareMistakesFn: getDisplayCareMistakeEntries,
+        getActiveCareMistakesFn: getActiveCareMistakeEntries,
       }),
-    [statsForCallUi, sleepStatus, isLightsOn, currentTime]
+    [currentStats, displayActivityLogs, sleepStatus, isLightsOn, currentTime]
   );
-
-  const activeCallMap = useMemo(
-    () => new Map(callStatusViewModel.activeCalls.map((call) => [call.type, call])),
-    [callStatusViewModel.activeCalls]
-  );
-  const visibleSleepStatus = normalizeSleepStatusForDisplay(sleepStatus);
-  const isSleepLightCareMistakeProcessed =
-    visibleSleepStatus === "SLEEPING_LIGHT_ON" &&
-    isLightsOn &&
-    currentStats?.callStatus?.sleep?.isLogged === true;
-  const isSleepingLikeStatus = [
-    "NAPPING",
-    "SLEEPING",
-    "SLEEPING_LIGHT_ON",
-  ].includes(visibleSleepStatus);
-  const sleepStatusLabel = (() => {
-    switch (visibleSleepStatus) {
-      case "FALLING_ASLEEP":
-        return "잠들기 준비 중";
-      case "NAPPING":
-        return "낮잠 중";
-      case "SLEEPING":
-        return "수면 중";
-      case "SLEEPING_LIGHT_ON":
-        return "수면 중(불 켜짐 경고!)";
-      case "AWAKE_INTERRUPTED":
-        return "강제 기상 중";
-      case "AWAKE":
-      default:
-        return "깨어있음";
-    }
-  })();
+  const {
+    visibleSleepStatus,
+    isSleepLightCareMistakeProcessed,
+    isSleepingLikeStatus,
+    sleepStatusLabel,
+  } = sleepViewModel;
+  const {
+    activeCallMap,
+    careMistakeHistoryEntries,
+    careMistakeDiagnosticMessage,
+  } = careViewModel;
   
   // stats 내부 항목 구조 분해
   const {
@@ -437,9 +389,6 @@ export default function StatsPopup({
     injuryFrozenDurationMs=0,
     injuries=0,
     healedDosesCurrent=0,
-    hungerCountdown=0,
-    strengthCountdown=0,
-    poopCountdown=0,
     fastSleepStart=null,
     napUntil=null,
     isNocturnal=false,
@@ -451,74 +400,45 @@ export default function StatsPopup({
 
   const poopReachedMaxAt = rawPoopReachedMaxAt ?? legacyLastMaxPoopTime;
   const lastPoopPenaltyAt = rawLastPoopPenaltyAt ?? poopReachedMaxAt;
-  const hungerTimerDisplay = getInternalCounterTimerDisplay({
-    evolutionStage,
-    timerKind: "hunger",
-    timerMinutes: hungerTimer,
-    countdownSeconds: hungerCountdown,
-  });
-  const strengthTimerDisplay = getInternalCounterTimerDisplay({
-    evolutionStage,
-    timerKind: "strength",
-    timerMinutes: strengthTimer,
-    countdownSeconds: strengthCountdown,
-  });
-  const poopTimerDisplay = getInternalCounterTimerDisplay({
-    evolutionStage,
-    timerKind: "poop",
-    timerMinutes: poopTimer,
-    countdownSeconds: poopCountdown,
-  });
+  const overviewViewModel = useMemo(
+    () => buildOverviewViewModel({
+      stats: currentStats || {},
+      digimonData,
+      sleepSchedule,
+      currentTimeMs: currentTime,
+      getTimeUntilWakeFn: getTimeUntilWake,
+    }),
+    [currentStats, digimonData, sleepSchedule, currentTime]
+  );
+  const {
+    speciesData,
+    currentSleepSchedule,
+    sleepTime,
+    speciesHungerTimer,
+    speciesStrengthTimer,
+    speciesPower,
+    speciesHealDoses,
+    wakeEnergyRecoveryText,
+    nextEnergyRecoveryText,
+    hungerTimerDisplay,
+    strengthTimerDisplay,
+    poopTimerDisplay,
+  } = overviewViewModel;
   const currentStageStartedAt = currentStats?.evolutionStageStartedAt ?? null;
   const currentLifeStartedAt = currentStats?.birthTime ?? null;
-
-  const careMistakeHistoryEntries = useMemo(
-    () =>
-      getDisplayCareMistakeEntries(
-        currentStats || {},
-        displayActivityLogs || [],
-        { currentStageStartedAt }
-      ).entries,
-    [currentStageStartedAt, currentStats, displayActivityLogs]
-  );
-  const rawActiveCareMistakeCount = useMemo(
-    () => getActiveCareMistakeEntries(currentStats?.careMistakeLedger || []).length,
-    [currentStats?.careMistakeLedger]
-  );
-  const injuryHistoryEntries = useMemo(
-    () =>
-      getDisplayInjuryEntries({
-        activityLogs: displayActivityLogs,
-        battleLogs: currentStats?.battleLogs || stats?.battleLogs || [],
-        currentLifeStartedAt,
-        currentDigimonId: selectedDigimonId,
-        slotVersion,
-        digimonDataMap,
-      }),
-    [
-      currentLifeStartedAt,
-      currentStats?.battleLogs,
-      digimonDataMap,
-      displayActivityLogs,
+  const healthRiskViewModel = useMemo(
+    () => buildHealthRiskViewModel({
+      stats: currentStats || {},
+      fallbackStats: stats || {},
+      activityLogs: displayActivityLogs,
       selectedDigimonId,
       slotVersion,
-      stats?.battleLogs,
-    ]
+      digimonDataMap,
+      getDisplayInjuriesFn: getDisplayInjuryEntries,
+    }),
+    [currentStats, stats, displayActivityLogs, selectedDigimonId, slotVersion, digimonDataMap]
   );
-  const careMistakeDiagnosticMessage = useMemo(() => {
-    if ((careMistakes || 0) === rawActiveCareMistakeCount) {
-      return null;
-    }
-
-    return "진단: 현재 케어미스 값과 원본 이력이 완전히 일치하지 않습니다. 과거 중복 로그나 레거시 슬롯 데이터가 남아 있을 수 있으며, 기존 기록은 유지한 채 새 로그부터만 중복을 막습니다.";
-  }, [careMistakes, rawActiveCareMistakeCount]);
-  const injuryDiagnosticMessage = useMemo(() => {
-    if ((injuries || 0) === injuryHistoryEntries.length) {
-      return null;
-    }
-
-    return "진단: 이번 생 누적 부상 횟수와 표시 이력이 완전히 일치하지 않습니다. 과거 중복 로그, 레거시 기록, 또는 과거 재구성 집계 방식 차이로 보일 수 있으며 기존 데이터는 수정하지 않습니다.";
-  }, [injuries, injuryHistoryEntries.length]);
+  const { injuryHistoryEntries, injuryDiagnosticMessage } = healthRiskViewModel;
 
   const renderCallDetail = (call) => {
     if (!call) return null;
@@ -548,33 +468,12 @@ export default function StatsPopup({
 
   function commitStatChange(field, val) {
     if(!onChangeStats) return;
-    const baseStats = currentStats || {};
-    // 기존 값
-    const oldPoopCount = baseStats.poopCount || 0;
-
-    const newStats = { ...baseStats, [field]: val };
-
-    // poopCount가 8 이상이 되는 순간 즉시 부상 시각과 다음 추가 부상 기준 시각을 함께 세팅
-    if(field === "poopCount") {
-      if(oldPoopCount < 8 && val >= 8 && !newStats.poopReachedMaxAt) {
-        const now = Date.now();
-        newStats.poopReachedMaxAt = now;
-        newStats.lastPoopPenaltyAt = now;
-      } else if (val < 8) {
-        newStats.poopReachedMaxAt = null;
-        newStats.lastPoopPenaltyAt = null;
-      }
-    }
-    
-    // isInjured가 true로 설정될 때 injuredAt이 없으면 현재 시간으로 설정
-    if(field === "isInjured" && val === true && !newStats.injuredAt) {
-      newStats.injuredAt = Date.now();
-    }
-    // isInjured가 false로 설정될 때 injuredAt 초기화
-    if(field === "isInjured" && val === false) {
-      newStats.injuredAt = null;
-      newStats.healedDosesCurrent = 0;
-    }
+    const newStats = buildStatsPopupStatMutation({
+      stats: currentStats || {},
+      field,
+      value: val,
+      nowMs: Date.now(),
+    });
 
     setEditableStats(newStats);
     onChangeStats(newStats);
@@ -633,110 +532,6 @@ export default function StatsPopup({
     possibleEnergy.push(i);
   }
   
-  /**
-   * 냉장고 시간을 제외한 경과 시간 계산
-   * @param {number} startTime - 시작 시간 (timestamp)
-   * @param {number} endTime - 종료 시간 (timestamp, 기본값: 현재 시간)
-   * @param {number|null} frozenAt - 냉장고에 넣은 시간 (timestamp)
-   * @param {number|null} takeOutAt - 냉장고에서 꺼낸 시간 (timestamp)
-   * @returns {number} 냉장고 시간을 제외한 경과 시간 (밀리초)
-   */
-  // 절대 시각 기반: 경과 시간은 항상 >= 0 (음수/미래 시각 차단 → T_rem = max(0, deadline - now) 일관성)
-  const getElapsedTimeExcludingFridge = (startTime, endTime = currentTime, frozenAt = null, takeOutAt = null, extraExcludedMs = 0) => {
-    const pausedMs = Number.isFinite(Number(extraExcludedMs)) ? Math.max(0, Number(extraExcludedMs)) : 0;
-    if (!frozenAt || !startTime) {
-      return Math.max(0, (endTime - startTime) - pausedMs);
-    }
-    const frozenTime = typeof frozenAt === 'number' ? frozenAt : new Date(frozenAt).getTime();
-    const takeOutTime = takeOutAt ? (typeof takeOutAt === 'number' ? takeOutAt : new Date(takeOutAt).getTime()) : endTime;
-    if (frozenTime < startTime) return Math.max(0, endTime - startTime);
-    if (frozenTime >= endTime) return Math.max(0, endTime - startTime);
-    
-    // 냉장고에 넣은 시간부터 꺼낸 시간(또는 현재)까지의 시간을 제외
-    const frozenDuration = takeOutTime - frozenTime;
-    const totalElapsed = endTime - startTime;
-    
-    // 냉장고 시간을 제외한 경과 시간 반환
-    return Math.max(0, totalElapsed - frozenDuration - pausedMs);
-  };
-  
-  // 종족 고정 파라미터 추출
-  const speciesData = digimonData?.stats || {};
-  // props로 받은 sleepSchedule이 있으면 사용, 없으면 speciesData에서 가져옴
-  const currentSleepSchedule = sleepSchedule || speciesData.sleepSchedule || {};
-  
-  // Energy 회복까지 남은 시간 계산 함수들
-  const getTimeUntilNextEnergyRecovery = () => {
-    const now = new Date(currentTime);
-    const currentMinute = now.getMinutes();
-    
-    // 다음 정각(00분) 또는 30분까지 남은 시간 계산
-    let nextRecoveryTime = new Date(now);
-    nextRecoveryTime.setSeconds(0);
-    nextRecoveryTime.setMilliseconds(0);
-    
-    if (currentMinute < 30) {
-      // 다음 30분까지
-      nextRecoveryTime.setMinutes(30);
-    } else {
-      // 다음 정각까지
-      nextRecoveryTime.setMinutes(0);
-      nextRecoveryTime.setHours(nextRecoveryTime.getHours() + 1);
-    }
-    
-    const diffMs = nextRecoveryTime.getTime() - now.getTime();
-    const diffMinutes = Math.floor(diffMs / 60000);
-    const diffSeconds = Math.floor((diffMs % 60000) / 1000);
-    
-    if (diffMinutes > 0) {
-      return `${diffMinutes}분 ${diffSeconds}초 후`;
-    } else {
-      return `${diffSeconds}초 후`;
-    }
-  };
-  
-  // 기상 시간까지 남은 시간 (기상 시 maxEnergy 회복)
-  const getTimeUntilWakeForEnergy = () => {
-    if (!currentSleepSchedule || currentSleepSchedule.end === undefined) {
-      return "정보 없음";
-    }
-    return getTimeUntilWake(currentSleepSchedule, new Date(currentTime));
-  };
-  
-  // Sleep Time 포맷팅 (HH:MM 형식을 12시간 형식으로 변환)
-  const formatSleepTime = () => {
-    // sleepSchedule 형식: { start: 20, end: 8 }
-    if (currentSleepSchedule.start !== undefined) {
-      const startHour = currentSleepSchedule.start;
-      const endHour = currentSleepSchedule.end;
-      const startPeriod = startHour >= 12 ? 'PM' : 'AM';
-      const endPeriod = endHour >= 12 ? 'PM' : 'AM';
-      const startHour12 = startHour > 12 ? startHour - 12 : (startHour === 0 ? 12 : startHour);
-      const endHour12 = endHour > 12 ? endHour - 12 : (endHour === 0 ? 12 : endHour);
-      return `${startHour12}:00 ${startPeriod} - ${endHour12}:00 ${endPeriod}`;
-    }
-    // "HH:MM" 형식 (예: "20:00")
-    const sleepTimeStr = speciesData.sleepTime;
-    if (!sleepTimeStr || sleepTimeStr === 'N/A' || sleepTimeStr === null) return 'N/A';
-    const [hour, minute] = sleepTimeStr.split(':').map(Number);
-    if (isNaN(hour)) return sleepTimeStr;
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
-    return `${hour12}:${minute.toString().padStart(2, '0')} ${period}`;
-  };
-  
-  const sleepTime = formatSleepTime();
-  
-  // hungerCycle을 hungerTimer로 변환 (분 단위)
-  const speciesHungerTimer = speciesData.hungerCycle || hungerTimer || 0;
-  const speciesStrengthTimer = speciesData.strengthCycle || strengthTimer || 0;
-  
-  // Power (basePower)
-  const speciesPower = speciesData.basePower || power || 0;
-  
-  // Heal Doses (기본값 1)
-  const speciesHealDoses = speciesData.healDoses || 1;
-
   // Old 탭 렌더링
   const renderOldTab = () => (
     <>
@@ -751,9 +546,9 @@ export default function StatsPopup({
           <li>WinRate: {winRate || 0}%</li>
           <li>CareMistakes: {careMistakes || 0} <span className="text-gray-500 text-xs">(진화 구간 기준)</span></li>
 
-          <li>Lifespan: {formatTime(lifespanSeconds)}</li>
-          <li>TimeToEvolve: {formatTimeToEvolve(timeToEvolveSeconds)}</li>
-          <li>Fullness: {fullnessDisplay(fullness, maxOverfeed)}</li>
+          <li>Lifespan: {formatStatsPopupDuration(lifespanSeconds)}</li>
+          <li>TimeToEvolve: {formatStatsPopupDuration(timeToEvolveSeconds)}</li>
+          <li>Fullness: {formatStatsPopupValueWithOverflow(fullness)}</li>
           <li>Weight: {weight || 0}</li>
           <li>MaxOverfeed: {maxOverfeed || 0}</li>
           <li>isDead: {isDead ? "Yes" : "No"}</li>
@@ -962,8 +757,8 @@ export default function StatsPopup({
         <ul className="space-y-1">
           <li>Age: {age || 0} days</li>
           <li>Weight: {weight || 0}g</li>
-          <li>Hunger (Fullness): {fullnessDisplay(fullness, maxOverfeed)}/5</li>
-          <li>Strength: {strengthDisplay(strength || 0)}/5</li>
+          <li>Hunger (Fullness): {formatStatsPopupValueWithOverflow(fullness)}/5</li>
+          <li>Strength: {formatStatsPopupValueWithOverflow(strength || 0)}/5</li>
           <li className="ml-4 text-xs text-gray-600">
             • Protein Overdose: {stats.proteinOverdose || 0}/7
             {stats.proteinOverdose > 0 && (
@@ -974,10 +769,10 @@ export default function StatsPopup({
           </li>
           <li>Energy (Current): {energy || 0}/{maxEnergy || maxStamina || 0}</li>
           <li className="ml-4 text-xs text-gray-600">
-            • 기상 시간 회복 (max): {getTimeUntilWakeForEnergy()}
+            • 기상 시간 회복 (max): {wakeEnergyRecoveryText}
           </li>
           <li className="ml-4 text-xs text-gray-600">
-            • 30분마다 회복 (+1): {getTimeUntilNextEnergyRecovery()}
+            • 30분마다 회복 (+1): {nextEnergyRecoveryText}
           </li>
           <li>Win Ratio: {winRate || 0}%</li>
           <li className="mt-2 pt-1 border-t">Flags:</li>
@@ -1052,34 +847,16 @@ export default function StatsPopup({
             return sleepStatusLabel;
           })()}</li>
           <li>잠들기: {(() => {
-            // 디버깅: 값 확인 (개발 모드에서만)
-            if (devMode) {
-              console.log('[StatsPopup 잠들기] fastSleepStart:', fastSleepStart);
-              console.log('[StatsPopup 잠들기] isLightsOn:', isLightsOn);
-              console.log('[StatsPopup 잠들기] currentTime:', currentTime);
-            }
-            
             // fastSleepStart가 있고 불이 꺼져 있을 때 (wakeUntil과 관계없이 표시)
             if (visibleSleepStatus === 'FALLING_ASLEEP' && fastSleepStart && !isLightsOn) {
               const elapsed = currentTime - fastSleepStart;
               const remainingSeconds = Math.max(0, 15 - Math.floor(elapsed / 1000));
-              
-              if (devMode) {
-                console.log('[StatsPopup 잠들기] elapsed:', elapsed);
-                console.log('[StatsPopup 잠들기] remainingSeconds:', remainingSeconds);
-              }
-              
+
               if (remainingSeconds > 0 && remainingSeconds <= 15) {
                 return <span className="text-blue-500 font-semibold">{remainingSeconds}초 후 잠들어요</span>;
               } else if (remainingSeconds <= 0) {
                 // 15초가 지났으면 즉시 잠들 수 있음
                 return <span className="text-green-500 font-semibold">즉시 잠들 수 있음</span>;
-              }
-            } else {
-              // 조건 불만족 시 이유 출력 (개발 모드에서만)
-              if (devMode) {
-                if (!fastSleepStart) console.log('[StatsPopup 잠들기] fastSleepStart가 없음');
-                if (isLightsOn) console.log('[StatsPopup 잠들기] 불이 켜져 있음');
               }
             }
             
@@ -1283,17 +1060,14 @@ export default function StatsPopup({
             <button
               onClick={() => {
                 if (!onChangeStats) return;
-                const newMode = !isNocturnal;
-                const updatedStats = { ...stats, isNocturnal: newMode };
-                
-                // Activity Log 추가
-                const currentLogs = displayActivityLogs;
-                const logText = newMode 
-                  ? '야행성 모드 ON: 수면/기상 시간이 3시간씩 미뤄집니다 🌙'
-                  : '야행성 모드 OFF: 일반 수면 시간으로 복귀합니다 ☀️';
-                const updatedLogs = addActivityLog(currentLogs, "ACTION", logText);
-                if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-                onChangeStats({ ...updatedStats, activityLogs: updatedLogs });
+                const mutation = buildStatsPopupNocturnalMutation({
+                  stats,
+                  activityLogs: displayActivityLogs,
+                  nowMs: Date.now(),
+                  addActivityLogFn: addActivityLog,
+                });
+                if (appendLogToSubcollection) appendLogToSubcollection(mutation.logPayload).catch(() => {});
+                onChangeStats(mutation.nextStats);
               }}
               className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
                 isNocturnal 
@@ -1470,8 +1244,8 @@ export default function StatsPopup({
           <li>PoopCount: {poopCount}/8 {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
           <li>PoopReachedMaxAt: {formatTimestamp(poopReachedMaxAt)}</li>
           <li>LastPoopPenaltyAt: {formatTimestamp(lastPoopPenaltyAt)}</li>
-          <li>Lifespan: {formatTime(lifespanSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
-          <li>Time to Evolve: {formatTimeToEvolve(timeToEvolveSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
+          <li>Lifespan: {formatStatsPopupDuration(lifespanSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
+          <li>Time to Evolve: {formatStatsPopupDuration(timeToEvolveSeconds)} {isFrozen && <span className="text-blue-600 text-xs">🧊 멈춤</span>}</li>
         </ul>
       </div>
       
@@ -2058,7 +1832,7 @@ export default function StatsPopup({
                 </div>
                 <div className="space-y-1 text-xs">
                   <div className="text-gray-500 mb-2">
-                    현재 수명: {formatTime(currentLifespan)}
+                    현재 수명: {formatStatsPopupDuration(currentLifespan)}
                     {isFrozen && (
                       <div className="text-blue-600 font-semibold mt-1">
                         🧊 냉장고에 넣어서 얼어서 멈춤 (수명이 증가하지 않습니다)
