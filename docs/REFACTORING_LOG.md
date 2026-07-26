@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-07-26] `StatsPopup` 동작 보존 분리 완료
+
+- **내용:** `StatsPopup.jsx`의 사용자 문구·스타일·props·callback 및 저장 계약을 고정한 뒤 순수 helper, presenter, controller, persistence adapter를 A1~A7로 순차 추출했다. 파일은 2,158줄에서 205줄로 1,953줄(90.5%) 감소했으며, 런타임 구조 완료 기준 main SHA는 `02eb87f2dae621f5fc168e70a65f198e478e0bc0`이다.
+- **병합 증거:** A1 [PR #17](https://github.com/taehee33/d2_tama_refact/pull/17) / `0876de6b7c2f4bd14d468e73d418cfd82d6c2644`, A2 [PR #19](https://github.com/taehee33/d2_tama_refact/pull/19) / `f753111f0ef4a5872d49658af764c6a11d022fd7`, A3 [PR #20](https://github.com/taehee33/d2_tama_refact/pull/20) / `5800fc8597384e0b7e5ffaa9cd195eb5d3d0dc01`, A4 [PR #21](https://github.com/taehee33/d2_tama_refact/pull/21) / `9d6aee084b812c5cd7d845d6c2a88a2ec19bd9b8`, A5 [PR #22](https://github.com/taehee33/d2_tama_refact/pull/22) / `5848013c9bd06ec6f2d92f5b9840163e6228ffb4`, A6 [PR #23](https://github.com/taehee33/d2_tama_refact/pull/23) / `29e01bc34b81cfe686b7ea921661e586f8f16dba`, A7 [PR #24](https://github.com/taehee33/d2_tama_refact/pull/24) / `02eb87f2dae621f5fc168e70a65f198e478e0bc0`.
+- **검증 결과:** A0 직접 테스트 8개와 `StatsPopup.jsx` line coverage 47.19%에서 시작해 A7 직접 테스트 33개, `StatsPopup.jsx`·`useStatsPopupController.js`·`statsPopupPersistenceAdapter.js` line coverage 100%로 마쳤다. 각 단계에서 `npm run check`, Preview, lockfile hash, Knip 기준선을 확인했다. callback payload·횟수·호출 순서·호출 방식은 유지했고, Firebase 경로와 저장 횟수도 변경하지 않았다.
+- **책임 경계:** `statsPopupViewModel.js`는 표시값·시간·label 계산, `statsPopupMutations.js`는 개발자 변경 결과와 payload 조립, section presenter는 렌더링과 intent 전달, `useStatsPopupController.js`는 popup 로컬 상태·시간 갱신·view model·intent 오케스트레이션, `statsPopupPersistenceAdapter.js`는 기존 로그 append와 stats commit 경계를 담당한다. `StatsPopup.jsx`에는 modal shell과 section 조립만 남겼다.
+- **HealthRiskSection 추가 근거:** 계획에 처음 열거한 네 presenter만으로는 수면 외 건강 위험 UI와 부상 이력의 큰 렌더링 블록이 shell에 남았다. 이를 `HealthRiskSection.jsx`로 옮겨 위험 상태 표시와 관련 intent를 응집하고, modal shell이 다시 도메인 렌더링 책임을 갖지 않게 했다.
+- **A+ 후속:** 저장 신뢰성 변경은 이번 동작 보존 범위에서 시작하지 않았다. 오래된 `editableStats` 전체 snapshot 덮어쓰기, Promise 소유권, 로그/stats 부분 실패의 오류 UI·재시도·rollback·원자성을 다음 단계에서 별도 계약과 설계 검토 후 다룬다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/StatsPopup.jsx`
+  - `digimon-tamagotchi-frontend/src/components/StatsPopup*.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/stats-popup/**`
+  - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 고위험 UI의 저장 신뢰성 개선과 구조 분리를 한 번에 수행하면 회귀 원인을 구분하기 어렵다. 먼저 관찰 가능한 DOM·callback·Firebase 계약을 테스트로 고정하고 pure/presenter/controller/adapter 경계를 기계적으로 분리해, A+가 작은 저장 경계에서 명시적 계약 변경으로 진행될 기반을 만들었다.
+
+---
+
 ## [2026-07-26] Discord 일일보고 카운터 시각화
 
 - **내용:** 배고픔·힘 0, 똥 8개, 부상 방치 카운터의 경과·남은 시간과 데드라인을 각각 독립된 줄로 표시한다. 긴급 케어 알림에도 시작과 케어미스 예정 시각이 모두 확인된 이슈에 같은 진행 표시를 추가했다. 20칸 텍스트 진행 바와 퍼센트를 사용하고 Discord에서 칸 너비가 안정적으로 보이도록 인라인 코드로 표시했다.

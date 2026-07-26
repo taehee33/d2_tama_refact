@@ -178,18 +178,17 @@ flowchart LR
 
 **위험도:** 높음
 
-**원칙:** 문구·스타일·props를 바꾸지 않는 기계적 추출부터 시작한다.
+**상태:** 완료. A1~A7을 순차 병합했으며 런타임 구조 완료 기준 main SHA는 `02eb87f2dae621f5fc168e70a65f198e478e0bc0`이다.
 
-#### 2A. 동작 고정 테스트
+**원칙:** 문구·스타일·props·저장 계약을 바꾸지 않는 동작 보존 추출로 진행했다.
 
-- 기존/신규 탭 렌더링
-- 수면 상태와 기상/소등 동작
-- 냉장고 경과 시간 표시
-- 케어미스·부상 이력
-- 개발자 모드 스탯 변경과 poop/injury 연쇄 결과
-- 로그 append와 `onChangeStats` 호출 순서
+#### 2A. 동작 고정 테스트 — 완료
 
-#### 2B. 순수 계산 추출
+- 기존/신규 탭, 수면 상태와 기상/소등, 냉장고 경과 시간, 케어미스·부상 이력을 characterization test로 고정했다.
+- 개발자 모드 스탯 변경과 poop/injury 연쇄 결과, 로그 append와 `onChangeStats` 호출 순서·횟수·인자를 계약 테스트로 고정했다.
+- 기준선은 직접 테스트 8개, `StatsPopup.jsx` line coverage 47.19%였고, 최종 직접 검증은 33개 테스트와 `StatsPopup.jsx`·controller·adapter line coverage 100%다.
+
+#### 2B. 순수 계산 추출 — 완료
 
 `src/components/stats-popup/` 아래에 다음 책임을 둔다.
 
@@ -199,21 +198,37 @@ flowchart LR
 
 모든 helper는 입력과 반환값만 가지며 React state, DOM, Firebase를 참조하지 않는다.
 
-#### 2C. UI presenter 추출
+#### 2C. UI presenter 추출 — 완료
 
 - `StatsOverviewSection.jsx`
 - `SleepSection.jsx`
 - `CareHistorySection.jsx`
 - `DeveloperStatsSection.jsx`
+- `HealthRiskSection.jsx`
+- `DiagnosticNotice.jsx`
 
 presenter는 props를 렌더링하고 사용자 intent만 callback으로 전달한다.
 
-#### 2D. controller와 저장 경계 분리
+`HealthRiskSection`은 수면 외 건강 위험 UI와 부상 이력이 하나의 큰 렌더링 블록으로 남아 shell을 1,048줄로 유지했기 때문에 추가했다. 위험 상태 표시와 관련 intent를 한 경계로 옮겨 modal shell의 책임을 조립으로 제한했다.
+
+#### 2D. controller와 저장 경계 분리 — 완료
 
 - `useStatsPopupController.js`가 popup 로컬 상태와 사용자 이벤트를 오케스트레이션한다.
 - payload 조립은 `statsPopupMutations.js`에서 수행한다.
 - 로그 append와 stats commit은 기존 callback 계약을 감싼 persistence adapter에서만 실행한다.
 - Firestore 경로, 저장 횟수와 호출 순서는 바꾸지 않는다.
+
+`StatsPopup.jsx`는 최종 2,158줄에서 205줄로 줄었고 modal shell과 section 조립만 담당한다. controller는 탭·편집값·시간 갱신·view model·intent를 소유하고, persistence adapter는 기존 로그 append와 stats commit 호출 방식을 보존한다. callback payload·횟수·호출 순서와 Firebase 경로·저장 횟수는 변경하지 않았다.
+
+#### 병합 증거
+
+- A1 PR #17 / merge `0876de6b7c2f4bd14d468e73d418cfd82d6c2644`
+- A2 PR #19 / merge `f753111f0ef4a5872d49658af764c6a11d022fd7`
+- A3 PR #20 / merge `5800fc8597384e0b7e5ffaa9cd195eb5d3d0dc01`
+- A4 PR #21 / merge `9d6aee084b812c5cd7d845d6c2a88a2ec19bd9b8`
+- A5 PR #22 / merge `5848013c9bd06ec6f2d92f5b9840163e6228ffb4`
+- A6 PR #23 / merge `29e01bc34b81cfe686b7ea921661e586f8f16dba`
+- A7 PR #24 / merge `02eb87f2dae621f5fc168e70a65f198e478e0bc0`
 
 #### 종료 조건
 
@@ -221,6 +236,10 @@ presenter는 props를 렌더링하고 사용자 intent만 callback으로 전달�
 - `StatsPopup.jsx`와 presenter에 payload 조립 또는 Firestore 호출이 없다.
 - 추출한 pure helper에 단위 테스트가 있다.
 - 기존 스냅샷/DOM, callback 횟수·인자, 전체 test와 build가 동일하게 통과한다.
+
+#### 즉시 후속 A+
+
+구조 분리는 완료했지만 저장 신뢰성 개선은 의도적으로 시작하지 않았다. 다음 단계에서는 오래된 `editableStats` 전체 snapshot 덮어쓰기, Promise 소유권, 로그/stats 부분 실패의 오류 UI·재시도·rollback·원자성을 별도 계약과 설계 검토 후 다룬다. 이 단계는 Firestore 저장 계약과 호출 방식을 바꿀 수 있으므로 Phase 2의 동작 보존 범위와 분리한다.
 
 ### Phase 3. `ArenaScreen.jsx` 분리
 
