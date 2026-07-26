@@ -30,6 +30,14 @@ import {
   getFeedSummaryBucketEndAt,
   getNextStateSyncAt,
 } from "../game-runtime/gameSyncSchedule";
+import {
+  GAME_SAVE_BLOCKED_REASON,
+  GAME_SAVE_LOCAL_CLEANUP,
+  GAME_SAVE_RECEIPT_STATUS,
+  createGameSaveReceipt,
+  normalizeGameSaveErrorCode,
+  resolveGameplayWriteBlockedReason,
+} from "./gameSaveReceipt";
 
 export const GAME_SYNC_STATUS = {
   SAVING: "saving",
@@ -240,6 +248,7 @@ export function useDurableGamePersistence({
   const revisionRef = useRef(activeAccessRef.current?.loadedRevision ?? null);
   const lastSyncedStatsRef = useRef(null);
   const conflictRef = useRef(null);
+  const cleanupFailedMutationIdsRef = useRef(new Set());
 
   const captureSaveContext = useCallback(() => ({
     uid: currentUser?.uid ?? null,
@@ -287,6 +296,7 @@ export function useDurableGamePersistence({
     setLastRecordSyncedAt(null);
     setStateSyncError("");
     setRecordSyncError("");
+    cleanupFailedMutationIdsRef.current.clear();
     conflictRef.current = null;
     setSyncConflict(null);
   }, [currentUser?.uid, outbox, slotId]);
@@ -374,14 +384,84 @@ export function useDurableGamePersistence({
     localSavedAt,
   }), [holdRevisionConflict]);
 
-  const commitStateRecord = useCallback(async (record) => {
+  const cleanupCommittedStateRecord = useCallback(async (record, { localWriteFailed = false } = {}) => {
+    if (!outbox || !record?.mutationId || !currentUser?.uid || !slotId) {
+      return localWriteFailed
+        ? GAME_SAVE_LOCAL_CLEANUP.FAILED
+        : GAME_SAVE_LOCAL_CLEANUP.NOT_NEEDED;
+    }
+
+    let cleanup = localWriteFailed
+      ? GAME_SAVE_LOCAL_CLEANUP.FAILED
+      : GAME_SAVE_LOCAL_CLEANUP.COMPLETE;
+    try {
+      const didDelete = await outbox.deleteStateMutation({
+        uid: currentUser.uid,
+        slotId,
+        mutationId: record.mutationId,
+      });
+      const remainingState = await outbox.getStateMutation({
+        uid: currentUser.uid,
+        slotId,
+      });
+      if (!didDelete || remainingState?.mutationId === record.mutationId) {
+        cleanupFailedMutationIdsRef.current.add(record.mutationId);
+        cleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+      } else {
+        cleanupFailedMutationIdsRef.current.delete(record.mutationId);
+      }
+    } catch (error) {
+      cleanupFailedMutationIdsRef.current.add(record.mutationId);
+      setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
+      setStateSyncError(formatSyncError(error, "원격 저장 후 로컬 대기 항목을 정리하지 못했습니다."));
+      cleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+    }
+    return cleanup;
+  }, [currentUser?.uid, outbox, slotId]);
+
+  const commitStateRecordWithReceipt = useCallback(async (record, {
+    commandId = null,
+    saveContext = null,
+    localRecordIsDurable = false,
+    localWriteFailed = false,
+  } = {}) => {
+    const resolvedCommandId = commandId || record?.commandId || record?.mutationId || null;
+    const mutationId = record?.mutationId || null;
+    if (conflictRef.current) {
+      return {
+        receipt: createGameSaveReceipt({
+          status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+          commandId: resolvedCommandId,
+          mutationId,
+        }),
+        error: null,
+      };
+    }
     if (
       !record ||
       !currentUser?.uid ||
       !slotId ||
       !isFirebaseAvailable ||
-      !canStartGameplayWrite()
-    ) return false;
+      !canStartGameplayWrite(saveContext)
+    ) {
+      return {
+        receipt: createGameSaveReceipt({
+          status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+          commandId: resolvedCommandId,
+          mutationId,
+          blockedReason: !slotId
+            ? GAME_SAVE_BLOCKED_REASON.SLOT_CHANGED
+            : resolveGameplayWriteBlockedReason({
+                currentUid: currentUser?.uid,
+                currentSlotId: slotId,
+                currentGeneration: activeAccessRef.current?.generation,
+                saveContext,
+                isFirebaseAvailable,
+              }),
+        }),
+        error: null,
+      };
+    }
     const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
     const stateEnvelope = record.state || {};
     const localSnapshot = stateEnvelope.stateSnapshot || {};
@@ -400,22 +480,40 @@ export function useDurableGamePersistence({
       setStateSyncError("");
       setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
       setNextStateSyncAt(getNextStateSyncAt());
-      if (outbox) {
-        await outbox.deleteStateMutation({
-          uid: currentUser.uid,
-          slotId,
-          mutationId: record.mutationId,
-        });
-      }
+      let localCleanup = await cleanupCommittedStateRecord(record, { localWriteFailed });
       conflictRef.current = null;
       setSyncConflict(null);
-      await refreshOutboxStatus();
-      return true;
+      try {
+        await refreshOutboxStatus();
+      } catch (refreshError) {
+        setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
+        setStateSyncError(formatSyncError(refreshError, "원격 저장 후 로컬 상태 확인에 실패했습니다."));
+        localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+      }
+      return {
+        receipt: createGameSaveReceipt({
+          status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
+          commandId: resolvedCommandId,
+          mutationId,
+          localCleanup,
+        }),
+        error: null,
+      };
     } catch (commitError) {
       if (!(commitError instanceof GameRevisionConflictError)) {
         setStateSyncError(formatSyncError(commitError));
-        setStateSyncStatus(outbox ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
-        throw commitError;
+        setStateSyncStatus(localRecordIsDurable ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
+        return {
+          receipt: createGameSaveReceipt({
+            status: localRecordIsDurable
+              ? GAME_SAVE_RECEIPT_STATUS.QUEUED
+              : GAME_SAVE_RECEIPT_STATUS.FAILED,
+            commandId: resolvedCommandId,
+            mutationId,
+            errorCode: normalizeGameSaveErrorCode(commitError),
+          }),
+          error: commitError,
+        };
       }
 
       const remoteRootFields = {
@@ -432,7 +530,15 @@ export function useDurableGamePersistence({
             stateEnvelope.actions || []
           );
       if (replayResult.status !== "replayed") {
-        return holdRevisionConflict(record, commitError);
+        holdRevisionConflict(record, commitError);
+        return {
+          receipt: createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+            commandId: resolvedCommandId,
+            mutationId,
+          }),
+          error: null,
+        };
       }
 
       const replayedSnapshot = {
@@ -443,13 +549,41 @@ export function useDurableGamePersistence({
           replayResult.stats?.selectedDigimon ||
           selectedDigimon || null,
       };
-      const replayCommit = await commitRevisionedSlot({
-        db,
-        slotRef,
-        baseRevision: commitError.actualRevision,
-        updateData: buildUpdateDataForSnapshot(replayedSnapshot),
-        runTransaction,
-      });
+      let replayCommit;
+      try {
+        replayCommit = await commitRevisionedSlot({
+          db,
+          slotRef,
+          baseRevision: commitError.actualRevision,
+          updateData: buildUpdateDataForSnapshot(replayedSnapshot),
+          runTransaction,
+        });
+      } catch (replayError) {
+        if (replayError instanceof GameRevisionConflictError) {
+          holdRevisionConflict(record, replayError);
+          return {
+            receipt: createGameSaveReceipt({
+              status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+              commandId: resolvedCommandId,
+              mutationId,
+            }),
+            error: null,
+          };
+        }
+        setStateSyncError(formatSyncError(replayError));
+        setStateSyncStatus(localRecordIsDurable ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
+        return {
+          receipt: createGameSaveReceipt({
+            status: localRecordIsDurable
+              ? GAME_SAVE_RECEIPT_STATUS.QUEUED
+              : GAME_SAVE_RECEIPT_STATUS.FAILED,
+            commandId: resolvedCommandId,
+            mutationId,
+            errorCode: normalizeGameSaveErrorCode(replayError),
+          }),
+          error: replayError,
+        };
+      }
       revisionRef.current = replayCommit.revision;
       lastSyncedStatsRef.current = replayedSnapshot;
       setLastStateSyncedAt(Date.now());
@@ -461,31 +595,52 @@ export function useDurableGamePersistence({
         activityLogs: previous?.activityLogs || [],
         battleLogs: previous?.battleLogs || [],
       }));
-      if (outbox) {
-        await outbox.deleteStateMutation({
-          uid: currentUser.uid,
-          slotId,
-          mutationId: record.mutationId,
-        });
-      }
+      let localCleanup = await cleanupCommittedStateRecord(record, { localWriteFailed });
       conflictRef.current = null;
       setSyncConflict(null);
-      await refreshOutboxStatus();
-      return true;
+      try {
+        await refreshOutboxStatus();
+      } catch (refreshError) {
+        setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
+        setStateSyncError(formatSyncError(refreshError, "원격 저장 후 로컬 상태 확인에 실패했습니다."));
+        localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+      }
+      return {
+        receipt: createGameSaveReceipt({
+          status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
+          commandId: resolvedCommandId,
+          mutationId,
+          localCleanup,
+        }),
+        error: null,
+      };
     }
   }, [
+    activeAccessRef,
     buildUpdateDataForSnapshot,
     canStartGameplayWrite,
+    cleanupCommittedStateRecord,
     currentUser,
     holdRevisionConflict,
     isFirebaseAvailable,
     normalizeStats,
-    outbox,
     refreshOutboxStatus,
     selectedDigimon,
     setDigimonStats,
     slotId,
   ]);
+
+  const commitStateRecord = useCallback(async (record) => {
+    const outcome = await commitStateRecordWithReceipt(record, {
+      localRecordIsDurable: true,
+    });
+    if (outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.SYNCED) return true;
+    if (
+      outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.CONFLICT ||
+      outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.BLOCKED
+    ) return false;
+    throw outcome.error || new Error("게임 상태 저장에 실패했습니다.");
+  }, [commitStateRecordWithReceipt]);
 
   const queueStateSnapshot = useCallback(async ({ statsSnapshot, updatedLogs, nowMs, saveContext }) => {
     if (!outbox || !currentUser?.uid || !slotId || !canStartGameplayWrite(saveContext)) return null;
@@ -507,10 +662,10 @@ export function useDurableGamePersistence({
     ];
 
     if (!canStartGameplayWrite(saveContext)) return null;
-    return outbox.putStateMutation({
+    const candidateRecord = {
       uid: currentUser.uid,
       slotId,
-      mutationId: createMutationId(nowMs),
+      mutationId: existing?.mutationId || createMutationId(nowMs),
       updatedAt: nowMs,
       queuedAt: existing?.queuedAt ?? nowMs,
       state: {
@@ -523,18 +678,36 @@ export function useDurableGamePersistence({
           (updatedLogs ? nextActions.length === 0 || nextActions.some((action) => !action.safe) : true)
         ),
       },
-    });
+    };
+    try {
+      const storedRecord = await outbox.putStateMutation(candidateRecord);
+      return { ...storedRecord, localRecordIsDurable: true };
+    } catch (error) {
+      error.gameSaveFallbackRecord = candidateRecord;
+      throw error;
+    }
   }, [activityLogs, canStartGameplayWrite, currentUser, digimonStats, outbox, slotId]);
 
-  const persistStateSnapshot = useCallback(async ({ statsSnapshot, updatedLogs, nowMs, saveContext }) => {
-    if (!canStartGameplayWrite(saveContext)) return false;
+  const persistStateSnapshotOperation = useCallback(async ({
+    statsSnapshot,
+    updatedLogs,
+    nowMs,
+    saveContext,
+    commandId = null,
+  }) => {
+    if (!canStartGameplayWrite(saveContext)) {
+      return commitStateRecordWithReceipt(null, { commandId, saveContext });
+    }
     setStateSyncStatus(GAME_SYNC_STATUS.SAVING);
     let record = null;
+    let localWriteFailed = false;
     if (outbox && currentUser?.uid && slotId) {
       try {
         record = await queueStateSnapshot({ statsSnapshot, updatedLogs, nowMs, saveContext });
         setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } catch (error) {
+        localWriteFailed = true;
+        record = error.gameSaveFallbackRecord || null;
         console.error("로컬 outbox 저장 오류:", error);
         setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
         setStateSyncError(formatSyncError(error, "이 기기의 임시 저장소를 사용할 수 없습니다."));
@@ -553,8 +726,28 @@ export function useDurableGamePersistence({
         hasUnreplayableChanges: true,
       },
     };
-    return commitStateRecord(recordToCommit);
-  }, [canStartGameplayWrite, commitStateRecord, currentUser?.uid, outbox, queueStateSnapshot, slotId]);
+    return commitStateRecordWithReceipt(recordToCommit, {
+      commandId,
+      saveContext,
+      localRecordIsDurable: Boolean(record?.localRecordIsDurable),
+      localWriteFailed,
+    });
+  }, [canStartGameplayWrite, commitStateRecordWithReceipt, currentUser?.uid, outbox, queueStateSnapshot, slotId]);
+
+  const persistStateSnapshotReceipt = useCallback(async (input) => {
+    const outcome = await persistStateSnapshotOperation(input);
+    return outcome.receipt;
+  }, [persistStateSnapshotOperation]);
+
+  const persistStateSnapshot = useCallback(async (input) => {
+    const outcome = await persistStateSnapshotOperation(input);
+    if (outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.SYNCED) return true;
+    if (
+      outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.CONFLICT ||
+      outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.BLOCKED
+    ) return false;
+    throw outcome.error || new Error("게임 상태 저장에 실패했습니다.");
+  }, [persistStateSnapshotOperation]);
 
   const appendLog = useCallback(async (logEntry) => {
     const saveContext = captureSaveContext();
@@ -741,6 +934,12 @@ export function useDurableGamePersistence({
       stateRecord = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
       if (stateRecord && conflictRef.current) {
         hasConflict = true;
+      } else if (
+        stateRecord &&
+        cleanupFailedMutationIdsRef.current.has(stateRecord.mutationId)
+      ) {
+        setStateSyncError("원격 저장은 완료됐지만 이 기기의 이전 대기 항목을 정리하지 못했습니다.");
+        setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } else if (stateRecord) {
         hasConflict = !(await commitStateRecord(stateRecord));
       }
@@ -987,6 +1186,7 @@ export function useDurableGamePersistence({
     flushOutbox,
     getPendingState,
     persistStateSnapshot,
+    persistStateSnapshotReceipt,
     quarantinePendingState,
     refreshGameRevision,
     resolveSyncConflict,

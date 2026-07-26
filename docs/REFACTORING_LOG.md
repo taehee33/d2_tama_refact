@@ -7658,3 +7658,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 로컬 outbox의 내구성과 슬롯 정본의 권한은 서로 다른 책임이다. 전송 대기함을 먼저 기록해 네트워크 실패에 대비하되 Firestore revision·충돌 흐름을 공식 정본 경계로 유지하면, 로컬 보존을 별도 오프라인 슬롯 모드로 오해하지 않고 후속 StatsPopup 저장 신뢰성 작업의 기준 상태를 하나로 고정할 수 있다.
+
+## [2026-07-26] A+1 구조화된 저장 receipt와 outbox 정리 안전장치
+
+- **내용:** 기존 state 저장 내부 결과를 `synced`, `queued`, `conflict`, `blocked`, `failed` receipt로 구분하고, 기존 `persistStateSnapshot`과 `saveStats` 호출자는 성공 boolean·충돌 false·원격 오류 rejection 계약을 그대로 사용하도록 legacy 변환 경계를 유지했다. 기존 pending 위 IndexedDB put이 실패하면 동일 mutation ID와 base revision으로 원격 fallback을 시도하고, 원격 성공 뒤에는 exact mutation ID 삭제 결과를 재조회해 검증한다. 삭제가 실패한 mutation은 같은 세션의 자동 flush 대상에서 제외해 이미 반영된 과거 snapshot이 재전송되지 않게 했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/gameSaveReceipt.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/gameSaveReceipt.test.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** receipt는 새 command 저장 경계에서 부분 성공과 재시도를 판단하기 위한 내부 계약이고, legacy adapter는 기존 호출자의 제어 흐름을 보존한다. outbox 스키마나 Firestore 경로·transaction 횟수를 늘리지 않고 기존 pending identity를 재사용해야 로컬 put 실패와 원격 성공이 교차해도 stale pending을 안전하게 무력화할 수 있다.
