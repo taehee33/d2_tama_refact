@@ -208,6 +208,77 @@ test("시작 시각이 없는 긴급 이슈에는 진행 바를 추정하지 않
   assert.doesNotMatch(message, /[█░]/);
 });
 
+test("종료되었거나 역전된 긴급 타이밍에는 진행 바를 표시하지 않는다", () => {
+  const startedAt = Date.parse("2026-07-26T03:50:00.000Z");
+  const message = buildUrgentMessage("히히히", [{
+    slotId: "slot2",
+    digimonName: "오거몬",
+    issues: [
+      {
+        key: "expired_call",
+        label: "종료된 호출",
+        startedAt,
+        deadlineAt: startedAt + 10 * 60_000,
+        remainingMs: 0,
+      },
+      {
+        key: "reversed_call",
+        label: "역전된 호출",
+        startedAt,
+        deadlineAt: startedAt,
+        remainingMs: 60_000,
+      },
+      {
+        key: "missing_deadline",
+        label: "예정 시각 누락",
+        startedAt,
+        deadlineAt: null,
+        remainingMs: 60_000,
+      },
+    ],
+  }], "2026. 7. 26. PM 12:52:43");
+
+  assert.doesNotMatch(message, /[█░]/);
+});
+
+test("긴급 진행 바는 시작·예정 시각 사이에 놓고 퍼센트를 중앙 정렬한다", () => {
+  const startedAt = Date.parse("2026-07-26T03:50:00.000Z");
+  const message = buildUrgentMessage("히히히", [{
+    slotId: "slot2",
+    digimonName: "오거몬",
+    issues: [{
+      key: "strength_call",
+      label: "🔋 기력 호출",
+      startedAt,
+      deadlineAt: startedAt + 10 * 60_000,
+      remainingMs: 7.7 * 60_000,
+      detailLines: ["남은 시간: 8분"],
+    }],
+  }], "2026. 7. 26. PM 12:52:43");
+
+  assert.match(
+    message,
+    /```text\n12:50 █████░{15} 1:00\n {14}23%\n```/
+  );
+});
+
+test("긴급 진행 바는 KST 자정을 12시로 표시한다", () => {
+  const startedAt = Date.parse("2026-07-26T14:50:00.000Z");
+  const message = buildUrgentMessage("히히히", [{
+    slotId: "slot2",
+    digimonName: "오거몬",
+    issues: [{
+      key: "midnight_call",
+      label: "자정 호출",
+      startedAt,
+      deadlineAt: startedAt + 20 * 60_000,
+      remainingMs: 10 * 60_000,
+    }],
+  }], "2026. 7. 27. AM 12:00:00");
+
+  assert.match(message, /11:50 ██████████░{10} 12:10/);
+});
+
 test("13시간 오프라인 상태를 서버에서 계산해 사망을 판정한다", () => {
   const now = Date.parse("2026-06-21T13:00:00.000Z");
   const result = projectSlotForUrgentCare({

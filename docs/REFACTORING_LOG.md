@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-07-26] Discord 긴급 케어 진행 타임라인 정렬
+
+- **내용:** 긴급 케어 진행 표시를 `시작 시각 → 20칸 바 → 케어미스 예정 시각` 한 줄과, 바 중앙에 정렬된 퍼센트 한 줄로 변경했다. Discord 환경에서 공백 정렬이 유지되도록 고정폭 코드 블록을 사용한다.
+- **테스트:** 사용자 예시의 23% 중앙 정렬, KST 자정 표기, 종료·역전·예정 시각 누락 타이밍의 미표시, 숫자가 아닌 경과 시간의 0% 안전 처리를 검증한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.js`
+  - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery.js`
+  - `tests/api/cases/urgentCareRuntime.cases.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 공용 helper가 바와 퍼센트 계산값을 함께 제공하고, 긴급 케어 Discord 조립 경계에서만 시각·정렬을 입힌다. 일일보고 표시, 인앱 알림 본문, 저장 계약과 lazy update 규칙은 변경하지 않는다.
+
+---
+
 ## [2026-07-26] `StatsPopup` 동작 보존 분리 완료
 
 - **내용:** `StatsPopup.jsx`의 사용자 문구·스타일·props·callback 및 저장 계약을 고정한 뒤 순수 helper, presenter, controller, persistence adapter를 A1~A7로 순차 추출했다. 파일은 2,158줄에서 205줄로 1,953줄(90.5%) 감소했으며, 런타임 구조 완료 기준 main SHA는 `02eb87f2dae621f5fc168e70a65f198e478e0bc0`이다.
