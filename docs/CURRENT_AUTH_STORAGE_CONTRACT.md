@@ -2,14 +2,15 @@
 
 **문서 상태:** current  
 **작성일:** 2026-03-29  
-**검증 기준:** 현재 코드 기준 정적 확인  
+**최종 갱신:** 2026-07-26
+**검증 기준:** `f20eac5b7607e54b33ab115a59a0e20df3e74e0a` 기준 계약 정렬
 **대상 앱:** `digimon-tamagotchi-frontend`
 
 이 문서는 다음 질문에 답하기 위해 작성되었습니다.
 
 - 로그인 없이 플레이 가능한가?
 - 슬롯은 어디에 저장되는가?
-- localStorage에는 지금 무엇이 들어가는가?
+- IndexedDB outbox와 localStorage에는 지금 무엇이 들어가는가?
 - repositories는 실제로 쓰이고 있는가?
 - 앞으로 어떤 방향을 공식 계약으로 잡는 것이 좋은가?
 - Firebase에 Oracle Cloud를 붙이면 구조가 어떻게 달라질 수 있는가?
@@ -25,10 +26,12 @@
 - 로그인 방식은 `Google 로그인` 또는 `게스트(익명) 로그인`이다.
 - 게스트 로그인도 현재는 `Firebase Auth` 기반이다.
 - 슬롯 저장의 공식 저장소는 `Firestore`다.
-- `localStorage`는 보조 저장소다.
+- IndexedDB outbox는 Firestore에 아직 전달되지 않은 변경을 내구성 있게 임시 보관하는 전송 대기함이다.
+- outbox를 먼저 기록하는 실행 순서는 Firestore의 정본 지위를 바꾸지 않는다.
+- `localStorage`는 설정·보조 데이터용이며 현재 공식 슬롯 저장소가 아니다.
 - `repositories` 폴더는 남아 있지만, 현재 메인 런타임 저장 경계는 아니다.
 
-즉, 현재는 `완전 오프라인 localStorage 슬롯 모드`를 공식 지원한다고 보기 어렵습니다.
+즉, 현재는 `완전 오프라인 localStorage 슬롯 모드`를 공식 지원하지 않습니다.
 
 ## 2. 로그인 없이 플레이 가능한가?
 
@@ -111,10 +114,23 @@ users/abc123/slots/slot2
 
 즉 아래처럼 이해하는 것이 안전합니다.
 
-- 공식 슬롯 저장: Firestore
+- 공식 슬롯 정본: Firestore
+- 미전송 변경의 내구성 있는 임시 보관: IndexedDB state/activity outbox
 - localStorage: 보조값/설정/레거시 흔적
 
-## 4. localStorage는 지금 무엇에 쓰이고 있는가?
+저장 실행에서 IndexedDB outbox를 Firestore보다 먼저 기록할 수 있지만, 이는 네트워크 실패에도 변경을 보존하기 위한 순서입니다. outbox는 별도의 슬롯 정본이나 완전 오프라인 슬롯 저장소가 아닙니다.
+
+## 4. IndexedDB outbox와 localStorage는 지금 무엇에 쓰이고 있는가?
+
+### IndexedDB outbox
+
+현재 state/activity outbox는 Firestore 전송이 끝나지 않은 변경을 기기 안에 내구성 있게 임시 보관합니다. 원격 저장 성공 뒤에는 대응하는 pending 항목을 정리하며, 네트워크 실패 시에는 기존 재시도·충돌 정책에 따라 전송을 이어갑니다.
+
+- Firestore가 공식 정본이라는 계약은 유지됩니다.
+- outbox는 localStorage 슬롯 모드가 아닙니다.
+- outbox 기록이 먼저 성공해도 해당 변경은 원격 전송 대기 상태입니다.
+
+### localStorage
 
 ### 현재 실제로 확인되는 범주
 
@@ -240,17 +256,18 @@ users/abc123/slots/slot2
 - `src/pages/Game.jsx`
 - `src/contexts/AuthContext.jsx`
 
-## 6. 추천 방향: 지금 무엇을 공식 계약으로 잡는 것이 좋은가?
+## 6. 확정 방향: 현재 공식 계약은 무엇인가?
 
 현재 코드 상태와 유지보수 비용을 함께 보면, 아래 방향을 추천합니다.
 
-### 추천 결론
+### 확정 결론
 
-- `Firebase-first`
+- `Firestore canonical + local durable outbox`
 - `로그인 필수`
 - `게스트 로그인 허용`
-- `슬롯 저장은 Firestore`
-- `localStorage는 보조 저장`
+- `슬롯 정본은 Firestore`
+- `IndexedDB outbox는 미전송 변경의 임시 전송 대기함`
+- `localStorage는 설정·보조 데이터용`
 - `repositories는 현재 실사용 경계 아님`
 
 ### 왜 이 방향이 좋은가?

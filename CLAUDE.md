@@ -61,23 +61,14 @@ npm test
 
 ## 아키텍처 개요
 
-### 이중 저장소 아키텍처
+### 공식 저장 계약
 
-애플리케이션은 독립적으로 동작할 수 있는 두 가지 저장소 모드를 지원합니다:
-
-**모드 1: Firebase (클라우드 저장소)**
-- Firebase Auth를 통한 구글 인증 필요
-- Firestore의 `users/{uid}/slots/{slotId}` 경로에 데이터 저장
-- 실시간 동기화 기능
-- 프로덕션 모드
-
-**모드 2: localStorage (오프라인 모드)**
-- 인증 불필요
-- 브라우저 기반 저장소만 사용
-- Firebase 없이도 완전히 작동
-- 개발/테스트 모드
-
-**모드 감지:** 앱은 Firebase 사용 가능 여부와 사용자 인증 상태에 따라 자동으로 사용할 모드를 감지합니다. 저장소 계층을 추상화한 리포지토리 패턴을 사용하여 모드 간 원활한 전환이 가능합니다.
+- Firestore의 `users/{uid}/slots/{slotId}` 문서가 슬롯 데이터의 공식 정본입니다.
+- 플레이와 공식 슬롯 저장에는 Google 또는 익명 Firebase Auth 로그인이 필요합니다.
+- IndexedDB state/activity outbox는 Firestore에 아직 전달되지 않은 변경을 기기 안에 내구성 있게 임시 보관하는 전송 대기함입니다.
+- outbox를 먼저 기록하는 실행 순서는 Firestore의 정본 지위를 바꾸지 않습니다.
+- localStorage는 UI 설정, 개발자 옵션, 보조 데이터와 레거시 흔적에만 사용하며 현재 공식 슬롯 저장소가 아닙니다.
+- 완전 오프라인 localStorage 슬롯 모드는 현재 공식 지원하지 않습니다.
 
 ### Lazy Update 알고리즘 (핵심 성능 패턴)
 
@@ -118,14 +109,14 @@ npm test
 
 ### 리포지토리 패턴
 
-데이터 접근은 리포지토리를 통해 추상화되어 있습니다:
+저장소에는 아래 리포지토리 구현이 남아 있습니다:
 
 - **`LocalStorageSlotRepository`** - 브라우저 localStorage 구현
 - **`UserSlotRepository`** - Firestore 구현
 
 두 리포지토리 모두 동일한 인터페이스를 구현합니다: `getSlot()`, `saveSlot()`, `getAllSlots()`, `deleteSlot()`.
 
-이를 통해 비즈니스 로직 변경 없이 어떤 저장소 백엔드든 사용할 수 있습니다.
+다만 현재 메인 런타임 저장 경계는 `useGameData`와 `game-persistence` 계층이며, 이 리포지토리 구현은 레거시·참고 경계입니다. 새 저장 기능에서 localStorage 슬롯 모드를 공식 경계로 채택하지 마세요.
 
 ### 순수 비즈니스 로직 계층
 
@@ -222,7 +213,7 @@ digimon-tamagotchi-frontend/src/
 1. **순수 로직 업데이트:** `/src/logic/`에서 함수를 추가/수정 (순수 함수로 유지)
 2. **필요시 Hook 추가:** 상태 관리가 필요하면 `/src/hooks/`에서 Hook 생성 또는 업데이트
 3. **UI 컴포넌트 업데이트:** `/src/components/`에서 컴포넌트 수정 또는 생성
-4. **두 모드 모두 테스트:** Firebase와 localStorage 양쪽에서 기능이 작동하는지 확인
+4. **공식 저장 계약 테스트:** Firestore 정본 저장과 IndexedDB outbox의 실패·복구를 확인하고, localStorage를 건드린 경우에는 보조 설정 동작만 확인
 5. **변경사항 문서화:** 날짜, 설명, 영향받은 파일을 `docs/REFACTORING_LOG.md`에 업데이트
 
 ### 코드 스타일 요구사항 (.cursorrules에서)
@@ -291,7 +282,7 @@ REACT_APP_FIREBASE_MESSAGING_SENDER_ID=xxx
 REACT_APP_FIREBASE_APP_ID=xxx
 ```
 
-**Graceful Degradation:** Firebase가 설정되지 않은 경우, 앱은 자동으로 localStorage 모드로 폴백됩니다. 에러가 발생하지 않습니다.
+**Firebase 미설정:** 공식 슬롯 저장은 localStorage로 폴백하지 않습니다. Firebase Auth/Firestore를 사용할 수 없으면 슬롯 로드·저장을 안전하게 차단하고 오류 상태로 처리해야 합니다.
 
 ## 일반적인 디버깅 절차
 
@@ -305,7 +296,7 @@ REACT_APP_FIREBASE_APP_ID=xxx
 ## 중요한 프로젝트 제약사항
 
 1. **Firestore 쓰기를 위한 실시간 타이머 절대 사용 금지** - 항상 lazy update 패턴 사용
-2. **두 저장소 모드 모두 지원** - 코드는 Firebase와 localStorage 모두에서 작동해야 함
+2. **공식 저장 경계 유지** - Firestore를 슬롯 정본으로, IndexedDB outbox를 전송 대기함으로 유지하고 localStorage를 공식 슬롯 저장소로 사용하지 않음
 3. **모든 주요 변경사항 문서화** - REFACTORING_LOG.md 업데이트
 4. **한국어 우선** - 모든 UI 텍스트는 한국어로
 5. **순수 함수** - `/logic/`의 비즈니스 로직은 부작용 없이 유지
