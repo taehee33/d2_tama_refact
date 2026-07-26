@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-07-26] Discord 일일보고 카운터 시각화
+
+- **내용:** 배고픔·힘 0, 똥 8개, 부상 방치 카운터의 경과·남은 시간과 데드라인을 각각 독립된 줄로 표시한다. 긴급 케어 알림에도 시작과 케어미스 예정 시각이 모두 확인된 이슈에 같은 진행 표시를 추가했다. 20칸 텍스트 진행 바와 퍼센트를 사용하고 Discord에서 칸 너비가 안정적으로 보이도록 인라인 코드로 표시했다.
+- **테스트:** 복수 일일보고 카운터의 3줄 들여쓰기, 2시간 경과 시점의 16% 진행 바, 긴급 수면 조명 알림과 기력 호출의 진행 바를 검증했다. 시작 시각이 없는 이슈에는 진행 바를 추정하지 않는 경계값도 고정했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/api/_lib/notificationReports.js`
+  - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.js`
+  - `digimon-tamagotchi-frontend/api/_lib/notificationProgressBar.test.js`
+  - `digimon-tamagotchi-frontend/api/_lib/urgentCareDelivery.js`
+  - `tests/api/notificationReports.test.js`
+  - `tests/api/cases/urgentCareRegression.cases.js`
+  - `tests/api/cases/urgentCareRuntime.cases.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 일일보고와 긴급 케어가 공용 순수 진행 바 포맷터를 사용하게 해 표시 규칙의 중복을 막았다. 긴급 진행 바는 Discord 메시지 조립 경계에서만 추가해 인앱 알림 본문에 마크다운 문자가 노출되지 않게 했다. 기존 상태 투영·저장 계약·lazy update 규칙은 변경하지 않았다.
+
+---
+
 ## [2026-07-25] C1 운영 ESLint·제한 checkJs 품질 게이트 구축
 
 - **내용:** CRA 5가 사용하는 `eslint@8.57.1`, `eslint-config-react-app@7.0.1`, `typescript@4.9.5`를 프런트 직접 개발 의존성으로 고정하고, 운영 코드 ESLint와 제한된 JavaScript 타입 검사를 루트 `npm run check`의 선행 필수 게이트로 추가했다. 테스트 lint는 기존 부채를 숨기지 않는 엄격 비차단 진단 명령으로 분리했다.

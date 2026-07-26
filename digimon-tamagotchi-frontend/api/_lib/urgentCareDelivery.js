@@ -2,6 +2,7 @@
 
 const crypto = require("node:crypto");
 const { formatKstDate } = require("./kstDateFormat");
+const { formatNotificationProgressBar } = require("./notificationProgressBar");
 
 const FIRESTORE_WRITE_BATCH_SIZE = 450;
 
@@ -19,6 +20,23 @@ async function commitInBatches(writes, commit) {
   }
 }
 
+function resolveIssueProgressLine(issue) {
+  const startedAt = issue?.startedAt == null ? Number.NaN : Number(issue.startedAt);
+  const deadlineAt = issue?.deadlineAt == null ? Number.NaN : Number(issue.deadlineAt);
+  const remainingMs = issue?.remainingMs == null ? Number.NaN : Number(issue.remainingMs);
+  const thresholdMs = deadlineAt - startedAt;
+  if (
+    !Number.isFinite(startedAt) ||
+    !Number.isFinite(deadlineAt) ||
+    !Number.isFinite(remainingMs) ||
+    thresholdMs <= 0 ||
+    remainingMs <= 0
+  ) {
+    return null;
+  }
+  return formatNotificationProgressBar(thresholdMs - remainingMs, thresholdMs);
+}
+
 function buildUrgentMessage(tamerName, slotAlerts, generatedAt, options = {}) {
   const safeSlotAlerts = Array.isArray(slotAlerts) ? slotAlerts : [];
   const issueCount = safeSlotAlerts.reduce(
@@ -34,12 +52,16 @@ function buildUrgentMessage(tamerName, slotAlerts, generatedAt, options = {}) {
     const issues = Array.isArray(slot?.issues) ? slot.issues : [];
     return [
       `🐾 **${slot?.digimonName || "알 수 없는 디지몬"}** · \`${slotLabel}\``,
-      ...issues.flatMap((issue) => [
-        `> ${issue.label}`,
-        ...(Array.isArray(issue?.detailLines)
-          ? issue.detailLines.map((line) => `> ${line}`)
-          : []),
-      ]),
+      ...issues.flatMap((issue) => {
+        const progressLine = resolveIssueProgressLine(issue);
+        return [
+          `> ${issue.label}`,
+          ...(Array.isArray(issue?.detailLines)
+            ? issue.detailLines.map((line) => `> ${line}`)
+            : []),
+          ...(progressLine ? [`> ${progressLine}`] : []),
+        ];
+      }),
       "",
     ];
   });
