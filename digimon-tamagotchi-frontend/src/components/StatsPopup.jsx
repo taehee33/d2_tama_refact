@@ -1,8 +1,8 @@
 // src/components/StatsPopup.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
-import { getTimeUntilSleep, getTimeUntilWake, formatSleepSchedule } from "../utils/sleepUtils";
-import { addActivityLog, isSleepDisturbanceLog } from "../hooks/useGameLogic";
+import { getTimeUntilWake } from "../utils/sleepUtils";
+import { addActivityLog } from "../hooks/useGameLogic";
 import {
   getActiveCareMistakeEntries,
   getDisplayCareMistakeEntries,
@@ -25,75 +25,8 @@ import {
 import CareHistorySection from "./stats-popup/CareHistorySection";
 import DeveloperStatsSection from "./stats-popup/DeveloperStatsSection";
 import DiagnosticNotice from "./stats-popup/DiagnosticNotice";
+import SleepSection from "./stats-popup/SleepSection";
 import StatsOverviewSection from "./stats-popup/StatsOverviewSection";
-
-/**
- * 수면 방해 이력 아코디언 컴포넌트
- * currentStageStartedAt: 현재 진화 단계 시작 시각(ms). 이 시점 이후 로그만 표시해 카운터와 일치시킴.
- */
-function SleepDisturbanceHistory({ activityLogs, formatTimestamp, currentStageStartedAt }) {
-  const [isOpen, setIsOpen] = useState(false);
-  
-  // 수면 방해 관련 로그 필터링 + 현재 진화 단계 시작 시점 이후만 표시
-  const sleepDisturbanceLogs = (activityLogs || []).filter(log => {
-    return isSleepDisturbanceLog(log);
-  }).filter(log => {
-    const logMs = ensureTimestamp(log.timestamp);
-    if (logMs == null) return false;
-    if (currentStageStartedAt == null || currentStageStartedAt === undefined) return true;
-    return logMs >= currentStageStartedAt;
-  }).sort((a, b) => {
-    // 최신순 정렬
-    const timestampA = ensureTimestamp(a.timestamp);
-    const timestampB = ensureTimestamp(b.timestamp);
-    return (timestampB || 0) - (timestampA || 0);
-  });
-  
-  return (
-    <div className="mt-2 border-t pt-2">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left flex items-center justify-between py-1 px-2 hover:bg-gray-100 rounded transition-colors"
-      >
-        <span className="text-sm font-semibold text-gray-700">
-          수면 방해 이력 ({sleepDisturbanceLogs.length}건)
-        </span>
-        <span className="text-gray-500 text-xs">
-          {isOpen ? '▲ 접기' : '▼ 펼치기'}
-        </span>
-      </button>
-      
-      {isOpen && (
-        <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
-          {sleepDisturbanceLogs.length === 0 ? (
-            <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
-              수면 방해 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
-            </div>
-          ) : (
-            sleepDisturbanceLogs.map((log, index) => {
-              const timestamp = ensureTimestamp(log.timestamp);
-              const formattedTime = timestamp ? formatTimestamp(timestamp) : '시간 정보 없음';
-              
-              return (
-                <div
-                  key={index}
-                  className="text-xs p-2 bg-red-50 border border-red-200 rounded"
-                >
-                  <div className="font-semibold text-red-700">
-                    {log.text || '수면 방해 발생'}
-                  </div>
-                  <div className="text-red-600 mt-1">
-                    {formattedTime}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /**
  * 부상 이력 아코디언 컴포넌트
@@ -297,14 +230,10 @@ export default function StatsPopup({
     hungerZeroFrozenDurationMs=0,
     lastStrengthZeroAt=null,
     strengthZeroFrozenDurationMs=0,
-    sleepDisturbances=0,
     isInjured=false,
     injuredAt=null,
     injuryFrozenDurationMs=0,
     injuries=0,
-    fastSleepStart=null,
-    napUntil=null,
-    isNocturnal=false,
     isFrozen=false,
     frozenAt=null,
     takeOutAt=null,
@@ -362,6 +291,20 @@ export default function StatsPopup({
     commitStatChange(field, nextValue);
   }
 
+  function handleNocturnalToggle() {
+    if (!onChangeStats) return;
+    const mutation = buildStatsPopupNocturnalMutation({
+      stats,
+      activityLogs: displayActivityLogs,
+      nowMs: Date.now(),
+      addActivityLogFn: addActivityLog,
+    });
+    if (appendLogToSubcollection) {
+      appendLogToSubcollection(mutation.logPayload).catch(() => {});
+    }
+    onChangeStats(mutation.nextStats);
+  }
+
   // Old 탭 렌더링
   const renderOldTab = () => (
     <DeveloperStatsSection
@@ -385,297 +328,19 @@ export default function StatsPopup({
         part="summary"
       />
       
-      {/* Sec 4. 수면 정보 */}
-      <div className="border-b pb-2">
-        <h3 className="font-bold text-base mb-2">4. {isFrozen ? '냉장고 상태' : '수면 정보'}</h3>
-        {isFrozen ? (
-          <ul className="space-y-1">
-            <li className="text-blue-600 font-semibold">🧊 냉장고에 넣어서 얼어있음 (수면 개념 없음)</li>
-          </ul>
-        ) : (
-        <ul className="space-y-1">
-          <li>수면 시간: {currentSleepSchedule && currentSleepSchedule.start !== undefined ? (
-            <span>
-              {formatSleepSchedule(currentSleepSchedule)}
-              {isNocturnal && <span className="text-blue-500 ml-1">🦉 야행성 🌙</span>}
-            </span>
-          ) : '정보 없음'}</li>
-          <li>수면 상태: {(() => {
-            // 낮잠 중인지 확인
-            const isNapTime = napUntil && currentTime < napUntil;
-            
-            if (visibleSleepStatus === 'AWAKE') {
-              return '깨어있음';
-            } else if (visibleSleepStatus === 'SLEEPING' || visibleSleepStatus === 'NAPPING') {
-              if (isNapTime) {
-                // 낮잠 중: 남은 시간 계산
-                const remainingMs = napUntil - currentTime;
-                const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
-                const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / 60000);
-                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-                
-                let timeText = '';
-                if (remainingHours > 0) {
-                  timeText = `${remainingHours}시간 ${remainingMinutes}분`;
-                } else if (remainingMinutes > 0) {
-                  timeText = `${remainingMinutes}분 ${remainingSeconds}초`;
-                } else {
-                  timeText = `${remainingSeconds}초`;
-                }
-                
-                return <span>낮잠 중 😴 <span className="text-blue-600">({timeText} 남음)</span></span>;
-              } else {
-                return '수면 중 😴';
-              }
-            } else if (visibleSleepStatus === 'SLEEPING_LIGHT_ON') {
-              return '수면 중(불 켜짐 경고!)';
-            } else if (visibleSleepStatus === 'FALLING_ASLEEP') {
-              return '잠들기 준비 중';
-            } else if (visibleSleepStatus === 'AWAKE_INTERRUPTED') {
-              return '강제 기상 중';
-            }
-            return sleepStatusLabel;
-          })()}</li>
-          <li>잠들기: {(() => {
-            // fastSleepStart가 있고 불이 꺼져 있을 때 (wakeUntil과 관계없이 표시)
-            if (visibleSleepStatus === 'FALLING_ASLEEP' && fastSleepStart && !isLightsOn) {
-              const elapsed = currentTime - fastSleepStart;
-              const remainingSeconds = Math.max(0, 15 - Math.floor(elapsed / 1000));
-
-              if (remainingSeconds > 0 && remainingSeconds <= 15) {
-                return <span className="text-blue-500 font-semibold">{remainingSeconds}초 후 잠들어요</span>;
-              } else if (remainingSeconds <= 0) {
-                // 15초가 지났으면 즉시 잠들 수 있음
-                return <span className="text-green-500 font-semibold">즉시 잠들 수 있음</span>;
-              }
-            }
-            
-            // 조건이 아닐 때 수면 상태 값 그대로 표시
-            const statusText = sleepStatusLabel;
-            return <span className="text-gray-500">{statusText}</span>;
-          })()}</li>
-          <li>조명 상태: {isLightsOn ? <span className="text-yellow-600 font-semibold">켜짐 🔆</span> : <span className="text-blue-600 font-semibold">꺼짐 🌙</span>}</li>
-          {visibleSleepStatus === 'AWAKE' && !wakeUntil && currentSleepSchedule && currentSleepSchedule.start !== undefined && (
-            <li>수면까지: {getTimeUntilSleep(currentSleepSchedule, new Date())}</li>
-          )}
-          {visibleSleepStatus === 'SLEEPING' && (() => {
-            // 낮잠 중인지 확인
-            const isNapTime = napUntil && currentTime < napUntil;
-            
-            if (isNapTime) {
-              // 낮잠 중: napUntil까지 남은 시간 계산
-              const remainingMs = napUntil - currentTime;
-              const remainingHours = Math.floor(remainingMs / (60 * 60 * 1000));
-              const remainingMinutes = Math.floor((remainingMs % (60 * 60 * 1000)) / 60000);
-              const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-              
-              let timeText = '';
-              if (remainingHours > 0) {
-                timeText = `${remainingHours}시간 ${remainingMinutes}분`;
-              } else if (remainingMinutes > 0) {
-                timeText = `${remainingMinutes}분 ${remainingSeconds}초`;
-              } else {
-                timeText = `${remainingSeconds}초`;
-              }
-              
-              return (
-                <li className="text-blue-600 font-semibold">
-                  낮잠 중: {timeText} 후 기상
-                </li>
-              );
-            } else if (currentSleepSchedule && currentSleepSchedule.start !== undefined) {
-              // 정규 수면 중: 정규 수면 시간의 기상 시간 계산
-              return (
-                <li>기상까지: {getTimeUntilWake(currentSleepSchedule, new Date())}</li>
-              );
-            }
-            return null;
-          })()}
-          {wakeUntil && currentTime < wakeUntil && (() => {
-            const remainingMs = wakeUntil - currentTime;
-            const remainingMinutes = Math.floor(remainingMs / 60000);
-            const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-            return (
-              <li className="text-orange-600 font-semibold">
-                수면 방해 중: {remainingMinutes}분 {remainingSeconds}초 후 다시 잠들 예정
-                <span className="text-yellow-600 ml-2">(강제로 깨운 횟수로만 수면 방해가 집계됩니다)</span>
-              </li>
-            );
-          })()}
-          {/* 빠른 잠들기 안내 */}
-          {!isLightsOn && fastSleepStart && visibleSleepStatus === 'FALLING_ASLEEP' && (() => {
-            const elapsedSinceFastSleepStart = currentTime - fastSleepStart;
-            const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
-            if (remainingSeconds > 0 && remainingSeconds <= 15) {
-              return (
-                <li className="text-green-600 text-sm">
-                  💡 빠른 잠들기: {remainingSeconds}초 후 자동으로 잠듭니다
-                </li>
-              );
-            } else if (remainingSeconds <= 0) {
-              // 15초가 지났으면 즉시 잠들 수 있음
-              return (
-                <li className="text-green-600 text-sm">
-                  💡 빠른 잠들기: 즉시 잠들 수 있습니다 (wakeUntil 만료 시 자동 잠듦)
-                </li>
-              );
-            }
-            return null;
-          })()}
-          {/* 수면상태확인 항목 (항상 표시, 조건에 따라 다른 메시지) */}
-          {(() => {
-            // 수면 중이고 불이 켜져 있을 때만 카운트다운
-            if (visibleSleepStatus === 'SLEEPING_LIGHT_ON' && isLightsOn && sleepLightOnStart) {
-              const elapsedMs = currentTime - sleepLightOnStart;
-              const thresholdMs = 30 * 60 * 1000; // 30분
-              const remainingMs = thresholdMs - elapsedMs;
-              if (remainingMs > 0) {
-                const remainingMinutes = Math.floor(remainingMs / 60000);
-                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-                return (
-                  <li className="text-yellow-600 font-semibold">
-                    수면상태확인: 수면 중(불 켜짐 경고!) → {remainingMinutes}분 {remainingSeconds}초 남음 (30분 초과 시 케어 미스)
-                  </li>
-                );
-              } else {
-                return (
-                  <li className="text-red-600 font-semibold">
-                    수면상태확인: 케어 미스 발생! (불을 30분 이상 켜둠)
-                  </li>
-                );
-              }
-            }
-            // 수면 시간이고 불이 꺼져 있을 때
-            else if (visibleSleepStatus === 'SLEEPING' && !isLightsOn) {
-              return (
-                <li className="text-green-600 font-semibold">
-                  수면상태확인: 수면 중, 조명(꺼짐!) → 잠자는 중 ✓
-                </li>
-              );
-            }
-            // 수면 시간이 아니거나 수면 방해로 깨어있을 때
-            else if (visibleSleepStatus === 'AWAKE' || visibleSleepStatus === 'AWAKE_INTERRUPTED') {
-              if (wakeUntil && currentTime < wakeUntil) {
-                // 15초 빠른 잠들기 대기 중인지 확인 (fastSleepStart가 있고 15초 안 지났을 때)
-                const isWaitingFastSleep = !isLightsOn && stats.fastSleepStart;
-                if (isWaitingFastSleep) {
-                  const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
-                  const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
-                  if (remainingSeconds > 0 && remainingSeconds <= 15) {
-                    return (
-                      <li className="text-blue-500">
-                        수면상태확인: 잠들기 준비 중 ({remainingSeconds}초 남음)
-                      </li>
-                    );
-                  }
-                }
-                const remainingMs = wakeUntil - currentTime;
-                const remainingMinutes = Math.floor(remainingMs / 60000);
-                const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
-                return (
-                  <li className="text-orange-500">
-                    수면상태확인: {isLightsOn ? (
-                      `강제 기상 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
-                    ) : (
-                      `강제 기상 회복 중 (${remainingMinutes}분 ${remainingSeconds}초 남음)`
-                    )}
-                  </li>
-                );
-              } else {
-                // 수면 시간이 아니고 wakeUntil도 없을 때
-                const isWaitingFastSleep = !isLightsOn && stats.fastSleepStart;
-                if (isWaitingFastSleep) {
-                  const elapsedSinceFastSleepStart = currentTime - stats.fastSleepStart;
-                  const remainingSeconds = Math.max(0, 15 - Math.floor(elapsedSinceFastSleepStart / 1000));
-                  if (remainingSeconds > 0 && remainingSeconds <= 15) {
-                    return (
-                      <li className="text-blue-500">
-                        수면상태확인: 잠들기 준비 중 ({remainingSeconds}초 남음)
-                      </li>
-                    );
-                  }
-                }
-                return (
-                  <li className="text-gray-500">
-                    수면상태확인: 수면 시간이 아님
-                  </li>
-                );
-              }
-            }
-            // 수면 중(불 켜짐 경고!) 상태이지만 sleepLightOnStart가 없을 때 (방금 불을 켠 경우)
-            else if (visibleSleepStatus === 'SLEEPING_LIGHT_ON' && isLightsOn && !sleepLightOnStart) {
-              return (
-                <li className="text-yellow-500">
-                  수면상태확인: 수면 중(불 켜짐 경고!) → 카운트 시작 대기 중
-                </li>
-              );
-            }
-            // 기타 상태
-            else {
-              return (
-                <li className="text-gray-500">
-                  수면상태확인: 현재 상태 - {sleepStatusLabel}
-                </li>
-              );
-            }
-          })()}
-          <li>
-                수면 방해 횟수: {sleepDisturbances || 0}회
-                <span
-                  className="text-gray-500 text-xs ml-1"
-                  title="실제로 잠든 상태에서 강제로 깨운 횟수만 집계됩니다. 현재 진화 단계 시작 이후의 이력 기준입니다."
-                >
-                  (진화 구간 기준)
-                </span>
-              </li>
-        </ul>
-        )}
-        
-        {/* 수면 방해 이력 아코디언 */}
-        {!isFrozen && sleepDisturbances > 0 && (
-          <SleepDisturbanceHistory 
-            activityLogs={displayActivityLogs} 
-            formatTimestamp={formatTimestamp}
-            currentStageStartedAt={currentStageStartedAt}
-          />
-        )}
-        
-        {/* 야행성 모드 토글 버튼 */}
-        <div className="mt-3 pt-3 border-t">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">🦉 야행성 모드 🌙</span>
-              {isNocturnal && <span className="text-xs text-blue-500 font-semibold">(활성화됨)</span>}
-            </div>
-            <button
-              onClick={() => {
-                if (!onChangeStats) return;
-                const mutation = buildStatsPopupNocturnalMutation({
-                  stats,
-                  activityLogs: displayActivityLogs,
-                  nowMs: Date.now(),
-                  addActivityLogFn: addActivityLog,
-                });
-                if (appendLogToSubcollection) appendLogToSubcollection(mutation.logPayload).catch(() => {});
-                onChangeStats(mutation.nextStats);
-              }}
-              className={`px-4 py-2 rounded font-semibold text-sm transition-colors ${
-                isNocturnal 
-                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {isNocturnal ? 'ON 🌙' : 'OFF ☀️'}
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
-            {isNocturnal 
-              ? '수면 시간과 기상 시간이 각각 3시간씩 미뤄집니다. (예: 22시 → 새벽 1시, 6시 → 9시)'
-              : '야행성 모드를 활성화하면 수면 시간과 기상 시간이 각각 3시간씩 미뤄집니다.'}
-          </p>
-        </div>
-      </div>
-      
+      <SleepSection
+        stats={currentStats}
+        currentTime={currentTime}
+        currentSleepSchedule={currentSleepSchedule}
+        visibleSleepStatus={visibleSleepStatus}
+        sleepStatusLabel={sleepStatusLabel}
+        isLightsOn={isLightsOn}
+        wakeUntil={wakeUntil}
+        sleepLightOnStart={sleepLightOnStart}
+        activityLogs={displayActivityLogs}
+        currentStageStartedAt={currentStageStartedAt}
+        onToggleNocturnal={handleNocturnalToggle}
+      />
       <CareHistorySection
         fullness={fullness}
         strength={strength}
