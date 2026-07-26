@@ -1,29 +1,12 @@
 // src/components/StatsPopup.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React from "react";
 import { formatTimestamp as formatTimestampUtil } from "../utils/dateUtils";
-import { getTimeUntilWake } from "../utils/sleepUtils";
-import { addActivityLog } from "../hooks/useGameLogic";
-import {
-  getActiveCareMistakeEntries,
-  getDisplayCareMistakeEntries,
-} from "../logic/stats/careMistakeLedger";
-import { getDisplayInjuryEntries } from "../logic/stats/injuryHistory";
-import { buildCallStatusViewModel } from "../utils/callStatusUtils";
-import {
-  buildCareViewModel,
-  buildHealthRiskViewModel,
-  buildOverviewViewModel,
-  buildSleepViewModel,
-} from "./stats-popup/statsPopupViewModel";
-import {
-  buildStatsPopupNocturnalMutation,
-  buildStatsPopupStatMutation,
-} from "./stats-popup/statsPopupMutations";
 import CareHistorySection from "./stats-popup/CareHistorySection";
 import DeveloperStatsSection from "./stats-popup/DeveloperStatsSection";
 import HealthRiskSection from "./stats-popup/HealthRiskSection";
 import SleepSection from "./stats-popup/SleepSection";
 import StatsOverviewSection from "./stats-popup/StatsOverviewSection";
+import useStatsPopupController from "./stats-popup/useStatsPopupController";
 
 
 // timestamp 포맷팅은 utils/dateUtils에서 import
@@ -45,54 +28,36 @@ export default function StatsPopup({
   isLightsOn = false, // 조명 상태
   appendLogToSubcollection, // Firestore logs 서브컬렉션에 로그 추가 (선택)
 }){
-  const [activeTab, setActiveTab] = useState('NEW'); // 'OLD' | 'NEW'
-  const [editableStats, setEditableStats] = useState(() => ({ ...(stats || {}) }));
-  const isUsingEditableStats = devMode && activeTab === "OLD";
-  const currentStats = isUsingEditableStats ? editableStats : stats;
-  // 이력 표시: 틱에서 setActivityLogs로 갱신된 prop이 더 많거나 같으면 사용(즉시 반영), 아니면 stats.activityLogs
-  const statsLogs = currentStats?.activityLogs ?? [];
-  const displayActivityLogs = (activityLogsProp != null && activityLogsProp.length >= statsLogs.length)
-    ? activityLogsProp
-    : statsLogs;
-  
-  // 실시간 업데이트를 위한 상태
-  const [currentTime, setCurrentTime] = useState(Date.now());
-
-  // 1초마다 현재 시간 업데이트
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!isUsingEditableStats) {
-      setEditableStats({ ...(stats || {}) });
-    }
-  }, [isUsingEditableStats, stats]);
-
-  const sleepViewModel = useMemo(
-    () => buildSleepViewModel({
-      stats: currentStats || {},
-      sleepStatus,
-      isLightsOn,
-    }),
-    [currentStats, sleepStatus, isLightsOn]
-  );
-  const careViewModel = useMemo(
-    () => buildCareViewModel({
-        stats: currentStats || {},
-        activityLogs: displayActivityLogs,
-        sleepStatus,
-        isLightsOn,
-        currentTimeMs: currentTime,
-        buildCallStatusFn: buildCallStatusViewModel,
-        getDisplayCareMistakesFn: getDisplayCareMistakeEntries,
-        getActiveCareMistakesFn: getActiveCareMistakeEntries,
-      }),
-    [currentStats, displayActivityLogs, sleepStatus, isLightsOn, currentTime]
-  );
+  const {
+    activeTab,
+    setActiveTab,
+    currentStats,
+    displayActivityLogs,
+    currentTime,
+    sleepViewModel,
+    careViewModel,
+    overviewViewModel,
+    healthRiskViewModel,
+    currentStageStartedAt,
+    currentLifeStartedAt,
+    canEdit,
+    handleNumericChange,
+    handleBooleanChange,
+    handleNocturnalToggle,
+  } = useStatsPopupController({
+    stats,
+    activityLogs: activityLogsProp,
+    digimonData,
+    digimonDataMap,
+    selectedDigimonId,
+    slotVersion,
+    devMode,
+    onChangeStats,
+    sleepSchedule,
+    sleepStatus,
+    isLightsOn,
+    appendLogToSubcollection,
+  });
   const {
     visibleSleepStatus,
     isSleepLightCareMistakeProcessed,
@@ -104,87 +69,24 @@ export default function StatsPopup({
     careMistakeHistoryEntries,
     careMistakeDiagnosticMessage,
   } = careViewModel;
-  
-  // stats 내부 항목 구조 분해
   const {
     fullness,
     strength,
-    lastHungerZeroAt=null,
-    lastStrengthZeroAt=null,
-    isFrozen=false,
+    lastHungerZeroAt = null,
+    lastStrengthZeroAt = null,
+    isFrozen = false,
   } = currentStats || {};
-  const overviewViewModel = useMemo(
-    () => buildOverviewViewModel({
-      stats: currentStats || {},
-      digimonData,
-      sleepSchedule,
-      currentTimeMs: currentTime,
-      getTimeUntilWakeFn: getTimeUntilWake,
-    }),
-    [currentStats, digimonData, sleepSchedule, currentTime]
-  );
   const { currentSleepSchedule } = overviewViewModel;
-  const currentStageStartedAt = currentStats?.evolutionStageStartedAt ?? null;
-  const currentLifeStartedAt = currentStats?.birthTime ?? null;
-  const healthRiskViewModel = useMemo(
-    () => buildHealthRiskViewModel({
-      stats: currentStats || {},
-      fallbackStats: stats || {},
-      activityLogs: displayActivityLogs,
-      selectedDigimonId,
-      slotVersion,
-      digimonDataMap,
-      getDisplayInjuriesFn: getDisplayInjuryEntries,
-    }),
-    [currentStats, stats, displayActivityLogs, selectedDigimonId, slotVersion, digimonDataMap]
-  );
   const { injuryHistoryEntries, injuryDiagnosticMessage } = healthRiskViewModel;
-
-  function commitStatChange(field, val) {
-    if(!onChangeStats) return;
-    const newStats = buildStatsPopupStatMutation({
-      stats: currentStats || {},
-      field,
-      value: val,
-      nowMs: Date.now(),
-    });
-
-    setEditableStats(newStats);
-    onChangeStats(newStats);
-  }
-
-  // devMode에서 select로 변경
-  function handleChange(field, value){
-    commitStatChange(field, value);
-  }
-
-  function handleBooleanToggle(field, nextValue) {
-    commitStatChange(field, nextValue);
-  }
-
-  function handleNocturnalToggle() {
-    if (!onChangeStats) return;
-    const mutation = buildStatsPopupNocturnalMutation({
-      stats,
-      activityLogs: displayActivityLogs,
-      nowMs: Date.now(),
-      addActivityLogFn: addActivityLog,
-    });
-    if (appendLogToSubcollection) {
-      appendLogToSubcollection(mutation.logPayload).catch(() => {});
-    }
-    onChangeStats(mutation.nextStats);
-  }
-
   // Old 탭 렌더링
   const renderOldTab = () => (
     <DeveloperStatsSection
       stats={currentStats}
       sourceStats={stats}
       devMode={devMode}
-      canEdit={Boolean(onChangeStats)}
-      onNumericChange={handleChange}
-      onBooleanChange={handleBooleanToggle}
+      canEdit={canEdit}
+      onNumericChange={handleNumericChange}
+      onBooleanChange={handleBooleanChange}
     />
   );
   
