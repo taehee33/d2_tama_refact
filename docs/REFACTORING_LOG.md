@@ -7718,3 +7718,14 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/hooks/game-persistence/useDurableGamePersistence.js`
   - 관련 테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 저장 실행은 이미 부모 hook과 durable outbox가 소유하므로 모달 수명주기에서는 표시 상태만 폐기해야 한다. pending 관측값도 기존 IndexedDB 목록 조회 결과에서 계산하면 저장 비용과 개인정보 노출 없이 복구 지연을 확인할 수 있다.
+
+## [2026-07-28] A+5 StatsPopup 저장 신뢰성 최종 검증·운영 문서화
+
+- **내용:** G0과 A+1~A+4에서 확정한 Firestore canonical·IndexedDB durable outbox 계약, schema v1 intent command, 구조화된 receipt, legacy full-save 혼재 보호, 야행성 state/log 선택 재시도, 수명주기 guard와 pending 관측성을 하나의 운영 문서로 정리했다. P3의 StatsPopup 즉시 후속 A+를 완료 상태로 전환하고 비용·경로·스키마 불변식, 장애 점검과 역순 rollback 절차를 명시했다.
+- **병합·운영 증거:** G0 PR #28, A+1 PR #29, A+2 PR #30, A+3 PR #31, A+4 PR #32를 순차 병합했다. A+4 main `a24888d6bec1b4920760ed114e755372f9b8c381`의 CI와 Production deployment가 성공했으며 공개 운영 도메인 `/landing`은 200, 앱 정적 자산 정상 응답, 새 로그 기준 콘솔 오류 없음으로 확인했다. 인증된 실제 슬롯은 승인되지 않은 운영 쓰기를 피하기 위해 변경하지 않았다.
+- **검증:** Node 24.14.0에서 관련 직접 테스트 12 suite·178 test, Firestore Emulator revision/conflict 1 test, `npm run lint`, `npm run typecheck`, `npm run check`를 통과했다. 전체 check는 프런트 182 suite·1,154 test와 서버 193 pass·6 Emulator-only skip, production build·server projection 성공이다. `deadcode:report`는 report-only로 실행해 unused files 26, unused dependencies 3, unlisted dependencies 4, unused exports 248, duplicate exports 19를 후속 기준선으로 남겼다. 두 lockfile SHA-256은 A+0과 동일하고 `git diff --check`도 성공했다.
+- **영향 파일:**
+  - `docs/STATS_POPUP_STORAGE_RELIABILITY.md`
+  - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 구현 세부사항과 운영 대응을 한 문서에 모으면 Firestore 정본과 로컬 outbox의 역할, 부분 성공의 의미, 비용 불변식을 다음 변경에서도 같은 기준으로 검증할 수 있다. 문서 PR을 런타임 PR 뒤에 분리해 최종 증거만 기록하며 코드·저장 계약·의존성은 변경하지 않는다.
