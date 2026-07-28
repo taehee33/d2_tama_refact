@@ -84,8 +84,10 @@ function buildDailyProgressTimeline(elapsedMs, thresholdMs, deadlineMs) {
     startLabel.length + 1 + Math.floor((progress.bar.length - percentageLabel.length) / 2)
   );
   return [
-    `\`${startLabel} ${progress.bar} ${deadlineLabel}\``,
-    `\`${percentageIndent}${percentageLabel}\``,
+    "```text",
+    `${startLabel} ${progress.bar} ${deadlineLabel}`,
+    `${percentageIndent}${percentageLabel}`,
+    "```",
   ];
 }
 
