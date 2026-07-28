@@ -48,5 +48,6 @@
     "firebase": "^12.16.0",
     "firebase-tools": "^13.0.0",
     "knip": "6.29.0"
-  }
+  },
+  "version": "0.0.0.1"
 }
