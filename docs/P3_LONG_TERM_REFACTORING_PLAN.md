@@ -4,7 +4,7 @@
 
 **작성일:** 2026-07-13
 
-**기준선 갱신일:** 2026-07-25
+**기준선 갱신일:** 2026-07-26
 
 **대상:** `digimon-tamagotchi-frontend`
 
@@ -238,9 +238,13 @@ presenter는 props를 렌더링하고 사용자 intent만 callback으로 전달�
 - 추출한 pure helper에 단위 테스트가 있다.
 - 기존 스냅샷/DOM, callback 횟수·인자, 전체 test와 build가 동일하게 통과한다.
 
-#### 즉시 후속 A+
+#### 즉시 후속 A+ — 완료 (2026-07-26)
 
-구조 분리는 완료했지만 저장 신뢰성 개선은 의도적으로 시작하지 않았다. 다음 단계에서는 오래된 `editableStats` 전체 snapshot 덮어쓰기, Promise 소유권, 로그/stats 부분 실패의 오류 UI·재시도·rollback·원자성을 별도 계약과 설계 검토 후 다룬다. 이 단계는 Firestore 저장 계약과 호출 방식을 바꿀 수 있으므로 Phase 2의 동작 보존 범위와 분리한다.
+G0과 A+1~A+4를 순차 병합해 StatsPopup 저장 신뢰성 후속을 완료했다. 오래된 `editableStats` 전체 snapshot 대신 schema v1 intent command를 기존 직렬 큐의 최신 durable 상태에 적용하며, pending lazy projection, legacy full-save 혼재 보호, 구조화된 receipt, 야행성 state/log 부분 실패와 선택 재시도, 수명주기 guard와 pending 관측성을 추가했다.
+
+Firestore 경로·슬롯 문서·IndexedDB outbox 스키마와 정상 read/write 횟수는 바꾸지 않았다. 구현 계약, 단계별 병합 증거, 비용 불변식과 운영 복구 절차는 `docs/STATS_POPUP_STORAGE_RELIABILITY.md`를 정본으로 사용한다.
+
+최종 직접 테스트 178개와 Firestore Emulator revision/conflict 검사, 전체 `npm run check`가 성공했다. `deadcode:report`의 현재 비차단 진단은 unused files 26, unused dependencies 3, unlisted dependencies 4, unused exports 248, duplicate exports 19이며 Phase 1C의 기존 297건 기준선과 함께 후속 품질 정리 대상으로 둔다.
 
 ### Phase 3. `ArenaScreen.jsx` 분리
 
