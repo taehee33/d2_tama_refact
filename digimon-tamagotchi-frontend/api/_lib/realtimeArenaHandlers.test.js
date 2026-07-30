@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createRealtimeBattleCommandHandler } = require("./realtimeArenaHandlers");
+const { createRealtimeBattleCollectionHandler, createRealtimeBattleCommandHandler } = require("./realtimeArenaHandlers");
 
 function createResponse() {
   return {
@@ -41,4 +41,25 @@ test("realtime handler 인증 오류는 내부 상세 없이 Arena 오류로 정
   assert.equal(response.statusCode, 401);
   assert.equal(response.body.error.code, "ARENA_AUTH_REQUIRED");
   assert.doesNotMatch(JSON.stringify(response.body), /token secret/);
+});
+
+test("realtime collection GET은 인증된 사용자에게 정제된 대기방 목록을 반환한다", async (t) => {
+  const previousMode = process.env.REALTIME_ARENA_MODE;
+  process.env.REALTIME_ARENA_MODE = "active";
+  t.after(() => { if (previousMode === undefined) delete process.env.REALTIME_ARENA_MODE; else process.env.REALTIME_ARENA_MODE = previousMode; });
+  const rooms = [{ battleId: "rtb_room", digimonName: "레오몬", stage: "Adult", isOwn: false }];
+  const handler = createRealtimeBattleCollectionHandler({
+    verifyRequestUser: async () => ({ uid: "guest" }),
+    listWaitingBattles: async ({ uid }) => {
+      assert.equal(uid, "guest");
+      return rooms;
+    },
+  });
+  const response = createResponse();
+
+  await handler({ method: "GET", headers: { "x-arena-client-schema-version": "1" } }, response);
+
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.body, { rooms });
+  assert.equal(response.headers["Cache-Control"], "private, no-store");
 });

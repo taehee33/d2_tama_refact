@@ -1,4 +1,4 @@
-import { createRealtimeArenaBattle, sendRealtimeArenaCommand } from "./realtimeArenaApi";
+import { createRealtimeArenaBattle, listRealtimeArenaBattles, sendRealtimeArenaCommand } from "./realtimeArenaApi";
 
 describe("realtimeArenaApi", () => {
   const currentUser = { getIdToken: jest.fn(async () => "token-1") };
@@ -25,5 +25,15 @@ describe("realtimeArenaApi", () => {
     await sendRealtimeArenaCommand(currentUser, "rtb_a/b", { command: "restore", requestId: "request-2" });
     expect(global.fetch.mock.calls[0][0]).toBe("/api/arena/realtime/battles/rtb_a%2Fb/commands");
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ command: "restore", requestId: "request-2" });
+  });
+
+  test("대기방 목록은 인증된 GET과 no-store로 조회한다", async () => {
+    await listRealtimeArenaBattles(currentUser);
+    expect(global.fetch).toHaveBeenCalledWith("/api/arena/realtime/battles", expect.objectContaining({
+      method: "GET",
+      cache: "no-store",
+      headers: expect.objectContaining({ Authorization: "Bearer token-1" }),
+    }));
+    expect(global.fetch.mock.calls[0][1].body).toBeUndefined();
   });
 });

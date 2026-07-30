@@ -36,3 +36,23 @@ test("참가자 정보 복구 전에는 호스트 제어를 노출하지 않는�
   expect(screen.getByText("참가자 정보를 복구하는 중입니다.")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "방 취소" })).not.toBeInTheDocument();
 });
+
+test("로비는 대기 중인 방을 표시하고 목록에서 참가한다", () => {
+  const onJoin = jest.fn();
+  render(
+    <RealtimeArenaLobby
+      battle={null}
+      viewer={null}
+      busy={false}
+      rooms={[{ battleId: "rtb_room", digimonName: "레오몬", stage: "Adult", expiresAt: new Date(Date.now() + 600000).toISOString(), isOwn: false }]}
+      onRefreshRooms={jest.fn()}
+      onCreate={jest.fn()}
+      onJoin={onJoin}
+    />
+  );
+  expect(screen.getByRole("heading", { name: "대기 중인 방" })).toBeInTheDocument();
+  expect(screen.getByText("레오몬")).toBeInTheDocument();
+  expect(screen.getByText(/성숙기/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "참가" }));
+  expect(onJoin).toHaveBeenCalledWith("rtb_room");
+});

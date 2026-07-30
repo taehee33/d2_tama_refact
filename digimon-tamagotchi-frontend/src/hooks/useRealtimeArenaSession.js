@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
-import { createRealtimeArenaBattle, sendRealtimeArenaCommand } from "../utils/realtimeArenaApi";
+import { createRealtimeArenaBattle, listRealtimeArenaBattles, sendRealtimeArenaCommand } from "../utils/realtimeArenaApi";
 
 const SESSION_KEY = "realtime_arena_active_battle_id";
 
@@ -36,6 +36,9 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [remainingMs, setRemainingMs] = useState(0);
+  const [rooms, setRooms] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
+  const [roomsError, setRoomsError] = useState("");
   const timeoutStartedRef = useRef("");
   const restoreStartedRef = useRef(false);
 
@@ -55,6 +58,23 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     if (payload?.viewer) setViewer(payload.viewer);
     return payload;
   }, [setBattleId]);
+
+  const refreshRooms = useCallback(async () => {
+    if (!currentUser) return [];
+    setRoomsLoading(true);
+    setRoomsError("");
+    try {
+      const payload = await listRealtimeArenaBattles(currentUser);
+      const nextRooms = Array.isArray(payload?.rooms) ? payload.rooms : [];
+      setRooms(nextRooms);
+      return nextRooms;
+    } catch (roomError) {
+      setRoomsError(roomError.message);
+      return [];
+    } finally {
+      setRoomsLoading(false);
+    }
+  }, [currentUser]);
 
   const runCommand = useCallback(async (command, extra = {}, requestId = createRequestId()) => {
     if (!currentUser || !battleId) return null;
@@ -94,6 +114,11 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     void restore();
     return unsubscribe;
   }, [battleId, currentUser, restore]);
+
+  useEffect(() => {
+    if (!currentUser || battleId) return;
+    void refreshRooms();
+  }, [battleId, currentUser, refreshRooms]);
 
   useEffect(() => {
     if (!battle?.deadlineAt || battle.status !== "selecting") {
@@ -152,5 +177,5 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     setError("");
   }, [setBattleId]);
 
-  return { battleId, battle, viewer, busy, error, remainingMs, createBattle, joinBattle, runCommand, restore, closeSession };
+  return { battleId, battle, viewer, busy, error, remainingMs, rooms, roomsLoading, roomsError, refreshRooms, createBattle, joinBattle, runCommand, restore, closeSession };
 }
