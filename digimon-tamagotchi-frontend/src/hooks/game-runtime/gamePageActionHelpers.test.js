@@ -1,4 +1,5 @@
 import {
+  buildEvolutionButtonPresentation,
   buildResetDigimonState,
   resolveDigimonDataFromMap,
   shouldEnableEvolutionButton,
@@ -13,6 +14,36 @@ const { checkEvolution } = jest.requireMock("../../logic/evolution/checker");
 describe("gamePageActionHelpers", () => {
   beforeEach(() => {
     checkEvolution.mockReset();
+  });
+
+  test("진화 가능 상태에서는 진화! 문구를 반환한다", () => {
+    expect(
+      buildEvolutionButtonPresentation({
+        hasNormalEvolution: true,
+        isEvoEnabled: true,
+        isEvolving: false,
+      })
+    ).toEqual({ isAvailable: true, label: "진화!" });
+  });
+
+  test("진화 불가능 상태에서는 진화? 문구를 반환한다", () => {
+    expect(
+      buildEvolutionButtonPresentation({
+        hasNormalEvolution: true,
+        isEvoEnabled: false,
+        isEvolving: false,
+      })
+    ).toEqual({ isAvailable: false, label: "진화?" });
+  });
+
+  test("진화 진행 중인 회색 상태에서는 진화? 문구를 반환한다", () => {
+    expect(
+      buildEvolutionButtonPresentation({
+        hasNormalEvolution: true,
+        isEvoEnabled: true,
+        isEvolving: true,
+      })
+    ).toEqual({ isAvailable: false, label: "진화?" });
   });
 
   test("buildResetDigimonState는 환생 카운트와 사망 관련 상태를 초기화한다", () => {

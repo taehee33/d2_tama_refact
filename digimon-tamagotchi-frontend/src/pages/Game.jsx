@@ -14,6 +14,7 @@ import { useGameAnimations } from "../hooks/useGameAnimations";
 import { useArenaLogic } from "../hooks/useArenaLogic";
 import { useGamePageActionFlows } from "../hooks/game-runtime/useGamePageActionFlows";
 import { useGamePageEvolutionAvailability } from "../hooks/game-runtime/useGamePageEvolutionAvailability";
+import { buildEvolutionButtonPresentation } from "../hooks/game-runtime/gamePageActionHelpers";
 import {
   resolvePrimaryMenuAction,
   useGameHandlers,
@@ -1151,6 +1152,11 @@ function Game({ immersive = false }){
     >
       {(() => {
         const openJogressFlow = () => toggleModal("jogressModeSelect", true);
+        const evolutionButtonPresentation = buildEvolutionButtonPresentation({
+          hasNormalEvolution: jogressControls.hasNormalEvolution,
+          isEvoEnabled,
+          isEvolving: jogressControls.isEvolving,
+        });
         return (
           <>
             {jogressControls.showEvolutionButton && (
@@ -1160,7 +1166,7 @@ function Game({ immersive = false }){
                 className={`px-4 py-2 text-white rounded pixel-art-button flex items-center justify-center ${
                   jogressControls.isEvolving
                     ? "bg-gray-500 cursor-not-allowed"
-                    : jogressControls.hasNormalEvolution && isEvoEnabled
+                    : evolutionButtonPresentation.isAvailable
                       ? "bg-green-500 hover:bg-green-600"
                       : "bg-gray-600 hover:bg-gray-500"
                 } ${isMobile ? "evolution-button-mobile" : ""}`}
@@ -1171,7 +1177,9 @@ function Game({ immersive = false }){
                     : undefined
                 }
               >
-                <span className="whitespace-nowrap">진화!</span>
+                <span className="whitespace-nowrap">
+                  {evolutionButtonPresentation.label}
+                </span>
               </button>
             )}
             {jogressControls.canJogressEvolve && (
