@@ -36,6 +36,7 @@ function createHarness() {
   };
   store.set("users/host/slots/slot1", { selectedDigimon: "Agumon", name: "아구몬", stage: "Adult", attribute: "Vaccine", power: 50, version: "Ver.1", digimonStats: {} });
   store.set("users/guest/slots/slot2", { selectedDigimon: "Gabumon", name: "파피몬", stage: "Adult", attribute: "Data", power: 50, version: "Ver.1", digimonStats: {} });
+  store.set("users/intruder/slots/slot3", { selectedDigimon: "Agumon", name: "아구몬", stage: "Adult", attribute: "Vaccine", power: 50, version: "Ver.1", digimonStats: {} });
   return { store, writes, deps: { db, runTransaction, projectSlot } };
 }
 
@@ -95,4 +96,66 @@ test("기한이 지난 restore는 현재 라운드 하나만 timeout 처리하�
   assert.equal(restored.battle.resolvedRounds.length, 1);
   assert.deepEqual(restored.battle.resolvedRounds[0].timeoutSides, ["host", "guest"]);
   assert.equal(restored.battle.deadlineAt.toISOString(), "2026-07-30T00:10:07.000Z");
+});
+
+test("취소 완료 후 같은 요청을 재시도하면 영수증을 재생한다", async () => {
+  const harness = createHarness();
+  const created = await createRealtimeBattle({
+    uid: "host",
+    slotId: "slot1",
+    requestId: "create-cancel",
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:00.000Z") },
+  });
+  const input = { requestId: "cancel-1" };
+  const cancelled = await commandRealtimeLobby({
+    uid: "host",
+    battleId: created.battle.battleId,
+    command: "cancel",
+    input,
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+  });
+  const replayed = await commandRealtimeLobby({
+    uid: "host",
+    battleId: created.battle.battleId,
+    command: "cancel",
+    input,
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:02.000Z") },
+  });
+  assert.equal(cancelled.battle.status, "cancelled");
+  assert.equal(replayed.replayed, true);
+  assert.equal(replayed.battle.stateVersion, cancelled.battle.stateVersion);
+});
+
+test("게스트 영수증은 UID에 묶여 다른 사용자의 같은 requestId를 재생하지 않는다", async () => {
+  const harness = createHarness();
+  const created = await createRealtimeBattle({
+    uid: "host",
+    slotId: "slot1",
+    requestId: "create-leave",
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:00.000Z") },
+  });
+  const battleId = created.battle.battleId;
+  await commandRealtimeLobby({
+    uid: "guest",
+    battleId,
+    command: "join",
+    input: { requestId: "shared-request", slotId: "slot2" },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+  });
+  await commandRealtimeLobby({
+    uid: "guest",
+    battleId,
+    command: "leave",
+    input: { requestId: "leave-1" },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:02.000Z") },
+  });
+  const joined = await commandRealtimeLobby({
+    uid: "intruder",
+    battleId,
+    command: "join",
+    input: { requestId: "shared-request", slotId: "slot3" },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") },
+  });
+  assert.equal(joined.replayed, false);
+  assert.equal(joined.battle.guestUid, "intruder");
 });

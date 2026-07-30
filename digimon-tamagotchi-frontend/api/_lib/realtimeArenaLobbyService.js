@@ -119,11 +119,9 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
       transaction.set(publicRef, expiredBattle);
       return { battle: expiredBattle, secret, role: currentRole, status: "resolved", replayed: false };
     }
-    assertWaiting(battle);
     let nextBattle = { ...battle };
     let nextSecret = { ...secret };
     let role = getRole(battle, uid);
-    const receiptRole = role || "guest";
     const requestId = normalizeRequestId(input.requestId);
     const requestHash = createRequestHash({
       command,
@@ -131,11 +129,18 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
       ...(command === "join" ? { slotId: normalizeSlotId(input.slotId) } : {}),
       ...(command === "set-ready" ? { ready: input.ready } : {}),
     });
-    const previousReceipt = secret.latestCommandReceipts?.[receiptRole]?.[command];
+    const receiptRole = (role ? [role] : ["host", "guest"]).find((candidateRole) => {
+      const receipt = secret.latestCommandReceipts?.[candidateRole]?.[command];
+      return receipt?.requestId === requestId && receipt?.uid === uid;
+    });
+    const previousReceipt = receiptRole
+      ? secret.latestCommandReceipts?.[receiptRole]?.[command]
+      : null;
     if (previousReceipt?.requestId === requestId) {
       if (previousReceipt.requestHash !== requestHash) throw new ArenaError("ARENA_IDEMPOTENCY_CONFLICT", "같은 requestId가 다른 명령에 사용되었습니다.");
       return { battle, secret, role: receiptRole, replayed: true };
     }
+    assertWaiting(battle);
 
     if (command === "join") {
       if (role === "host") throw new ArenaError("ARENA_REALTIME_FORBIDDEN", "호스트는 자신의 방에 게스트로 참가할 수 없습니다.");
@@ -221,7 +226,7 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
         ...(nextSecret.latestCommandReceipts || {}),
         [role]: {
           ...(nextSecret.latestCommandReceipts?.[role] || {}),
-          [command]: { requestId, requestHash, stateVersion: nextBattle.stateVersion },
+          [command]: { uid, requestId, requestHash, stateVersion: nextBattle.stateVersion },
         },
       },
       updatedAt: nowTimestamp,

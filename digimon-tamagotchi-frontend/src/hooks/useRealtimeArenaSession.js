@@ -137,13 +137,13 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   }, [applyPayload, currentUser, slotId]);
 
   const joinBattle = useCallback(async (targetBattleId) => {
-    setBattleId(targetBattleId.trim());
+    const normalizedBattleId = targetBattleId.trim();
     setBusy(true);
     setError("");
-    try { return applyPayload(await sendRealtimeArenaCommand(currentUser, targetBattleId.trim(), { command: "join", requestId: createRequestId(), slotId })); }
-    catch (joinError) { setBattleId(""); setError(joinError.message); throw joinError; }
+    try { return applyPayload(await sendRealtimeArenaCommand(currentUser, normalizedBattleId, { command: "join", requestId: createRequestId(), slotId })); }
+    catch (joinError) { setError(joinError.message); throw joinError; }
     finally { setBusy(false); }
-  }, [applyPayload, currentUser, setBattleId, slotId]);
+  }, [applyPayload, currentUser, slotId]);
 
   const closeSession = useCallback(() => {
     setBattleId("");

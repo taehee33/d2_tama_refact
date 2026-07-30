@@ -6,9 +6,9 @@
 
 ## [2026-07-30] 실시간 아레나 MVP 기반·서버·UI 구현
 
-- **내용:** 실행 계획의 PR1~PR6 범위에 따라 `mvp-0` 순수 규칙 엔진, immutable rules snapshot, 공용 슬롯 projection, direct-ID 로비, public/secret Firestore 상태, secret-only 첫 행동 제출, `battleId + round` 멱등 판정, timeout·복구·포기, 참가자 전용 Rules, feature flag 기반 최소 한국어 UI를 구현했다. 랭크·보상·영구 전적·Ably·Supabase archive·자동 매칭은 계획대로 제외했다.
+- **내용:** 실행 계획의 PR1~PR6 범위에 따라 `mvp-0` 순수 규칙 엔진, immutable rules snapshot, 공용 슬롯 projection, direct-ID 로비, public/secret Firestore 상태, secret-only 첫 행동 제출, `battleId + round` 멱등 판정, timeout·복구·포기, 참가자 전용 Rules, feature flag 기반 최소 한국어 UI를 구현했다. 로비 명령 영수증은 UID에 묶고 상태 검사 전에 재생하며, 게스트는 참가 API 성공 후에만 참가자 전용 Firestore 구독을 시작한다. 랭크·보상·영구 전적·Ably·Supabase archive·자동 매칭은 계획대로 제외했다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/**`, `digimon-tamagotchi-frontend/api/_lib/realtimeArena*.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/**`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, `digimon-tamagotchi-frontend/src/utils/realtimeArenaApi.js`, `digimon-tamagotchi-frontend/api/arena-v2.js`, `digimon-tamagotchi-frontend/vercel.json`, `firestore.rules`, `tests/realtime-arena-*.test.js`, `package.json`, `digimon-tamagotchi-frontend/tsconfig.checkjs.json`.
-- **검증:** Adult 3×3 행동·속성·power gap·HP 비율·timeout fixture 19개, 서버 로비/라운드 단위 테스트, API allowlist·캐시·배포 rewrite 테스트, React API·표시 테스트를 추가했다. Firestore Emulator에서 첫 제출 전후 public data와 `updateTime` 불변, 중복 두 번째 제출의 단일 판정, 참가자 public get과 모든 public write/secret 접근 차단을 확인했다.
+- **검증:** Adult 3×3 행동·속성·power gap·HP 비율·timeout fixture 19개, 서버 로비/라운드 단위 테스트, API allowlist·캐시·배포 rewrite 테스트, React API·표시·구독 순서 테스트를 추가했다. 취소 후 동일 요청 재생과 다른 UID의 영수증 격리를 서버 단위 테스트로 고정했다. Firestore Emulator에서 첫 제출 전후 public data와 `updateTime` 불변, 중복 두 번째 제출의 단일 판정, 참가자 public get과 모든 public write/secret 접근 차단을 확인했다.
 - **아키텍처 결정 근거:** Firestore public 문서는 실제 공개 전이 때만 쓰고 미해결 action과 viewer 제출 상태는 secret/API 응답에만 둔다. 서버 코드에는 특정 `firebase-admin` 설치본의 `Timestamp` 객체를 저장하지 않고 네이티브 `Date`를 전달해 Firestore가 Timestamp로 정규화하도록 하여 번들 경계의 타입 충돌을 제거했다. UI 1초 표시는 로컬 계산만 수행하며 timeout 시 라운드별 API 호출을 최대 한 번 시작한다.
 
 ---

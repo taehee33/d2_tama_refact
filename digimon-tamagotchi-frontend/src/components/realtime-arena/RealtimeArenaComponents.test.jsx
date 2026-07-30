@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import RealtimeArenaActionPanel from "./RealtimeArenaActionPanel";
+import RealtimeArenaLobby from "./RealtimeArenaLobby";
 import RealtimeArenaResult from "./RealtimeArenaResult";
 
 test("행동 패널은 세 행동을 한국어로 표시하고 한 번 선택한다", () => {
@@ -21,4 +22,17 @@ test("결과는 친선전이며 랭크와 보상에 반영되지 않음을 알�
   render(<RealtimeArenaResult battle={{ result: { outcome: "host_win", reason: "ko" } }} onCloseSession={() => {}} />);
   expect(screen.getByText("호스트 승리")).toBeInTheDocument();
   expect(screen.getByText(/랭크, 보상 및 육성 전적에는 반영되지 않습니다/)).toBeInTheDocument();
+});
+
+test("참가자 정보 복구 전에는 호스트 제어를 노출하지 않는다", () => {
+  render(
+    <RealtimeArenaLobby
+      battle={{ battleId: "rtb_test", hostUid: "host", guestUid: null, lobby: { host: { ready: false }, guest: null } }}
+      viewer={null}
+      busy={false}
+      onCancel={jest.fn()}
+    />
+  );
+  expect(screen.getByText("참가자 정보를 복구하는 중입니다.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "방 취소" })).not.toBeInTheDocument();
 });
