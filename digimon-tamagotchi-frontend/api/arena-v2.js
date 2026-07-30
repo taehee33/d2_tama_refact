@@ -6,6 +6,10 @@ const { createArenaJobHandler } = require("./_lib/arenaJobHandlers");
 const { createArenaBattleCompleteHandler } = require("./_lib/arenaHandlers");
 const { createArenaBattleArchivePostHandler } = require("./_lib/logArchiveHandlers");
 const { sendJson } = require("./_lib/http");
+const {
+  createRealtimeBattleCollectionHandler,
+  createRealtimeBattleCommandHandler,
+} = require("./_lib/realtimeArenaHandlers");
 
 const handlers = Object.freeze({
   "archive-sync": createArenaJobHandler("archive"),
@@ -15,6 +19,8 @@ const handlers = Object.freeze({
   "legacy-archive": createArenaBattleArchivePostHandler(),
   "legacy-complete": createArenaBattleCompleteHandler(),
   "mirror-sync": createArenaJobHandler("mirror"),
+  "realtime-battle-collection": createRealtimeBattleCollectionHandler(),
+  "realtime-battle-command": createRealtimeBattleCommandHandler(),
 });
 
 module.exports = async function arenaV2Router(req, res) {

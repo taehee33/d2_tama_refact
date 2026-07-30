@@ -40,10 +40,13 @@ __webpack_require__.r(__webpack_exports__);
 // EXPORTS
 __webpack_require__.d(__webpack_exports__, {
   ARENA_BATTLE_RULES_VERSION: () => (/* reexport */ ARENA_BATTLE_RULES_VERSION),
+  DEFAULT_REALTIME_ARENA_RULES_VERSION: () => (/* reexport */ DEFAULT_REALTIME_ARENA_RULES_VERSION),
   applyLazyUpdate: () => (/* reexport */ applyLazyUpdate),
+  assertRealtimeArenaRules: () => (/* reexport */ assertRealtimeArenaRules),
   calculateArenaBattle: () => (/* reexport */ calculateArenaBattle),
   calculateArenaHitRate: () => (/* reexport */ calculateArenaHitRate),
   calculatePower: () => (/* reexport */ calculatePower),
+  createRealtimeArenaRulesSnapshot: () => (/* reexport */ createRealtimeArenaRulesSnapshot),
   createSeededRandom: () => (/* reexport */ createSeededRandom),
   findDigimonEntryAcrossVersions: () => (/* reexport */ findDigimonEntryAcrossVersions),
   formatKstTime: () => (/* reexport */ formatKstTime),
@@ -51,7 +54,8 @@ __webpack_require__.d(__webpack_exports__, {
   getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
   isStarterDigimonId: () => (/* reexport */ digimonVersionUtils_isStarterDigimonId),
   normalizeDigimonVersionLabel: () => (/* reexport */ normalizeDigimonVersionLabel),
-  projectState: () => (/* reexport */ projectState)
+  projectState: () => (/* reexport */ projectState),
+  resolveRealtimeArenaRound: () => (/* reexport */ resolveRealtimeArenaRound)
 });
 
 ;// ./src/data/defaultStatsFile.js
@@ -7875,7 +7879,185 @@ function calculateArenaBattle({
   };
 }
 
+;// ./src/logic/realtime-arena/rulesets.js
+const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-0";
+
+const MVP_0 = {
+  schemaVersion: 1,
+  maxRounds: 7,
+  selectionWindowMs: 7000,
+  eligibleStages: ["Child", "Adult", "Perfect", "Ultimate", "Super Ultimate"],
+  matchingScope: "same_stage_only",
+  hpByStage: { Child: 10, Adult: 13, Perfect: 16, Ultimate: 19, "Super Ultimate": 20 },
+  baseAttackByStage: { Child: 2, Adult: 3, Perfect: 4, Ultimate: 5, "Super Ultimate": 5 },
+  powerGap: { formulaId: "floor_sqrt_positive_gap_over_unit", unit: 25 },
+  attribute: {
+    formulaId: "one_way_cycle_bonus",
+    advantageBonus: 1,
+    disadvantagePenalty: 0,
+    freeIsNeutral: true,
+  },
+  specialAttack: {
+    bonus: 1,
+    reducedVsAttackFormulaId: "ceil_ratio",
+    reducedVsAttackNumerator: 1,
+    reducedVsAttackDenominator: 4,
+    guardPenetrationFormulaId: "ceil_ratio",
+    guardPenetrationNumerator: 1,
+    guardPenetrationDenominator: 2,
+  },
+  timeout: { missingAction: "no_action", consecutiveLossCount: 2 },
+};
+
+function deepFreeze(value) {
+  Object.values(value).forEach((nested) => {
+    if (nested && typeof nested === "object" && !Object.isFrozen(nested)) deepFreeze(nested);
+  });
+  return Object.freeze(value);
+}
+
+const REALTIME_ARENA_RULESETS = deepFreeze({
+  [DEFAULT_REALTIME_ARENA_RULES_VERSION]: MVP_0,
+});
+
+function clonePlain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function assertRealtimeArenaRules(rules) {
+  if (!rules || rules.schemaVersion !== 1) throw new Error("지원하지 않는 실시간 아레나 규칙입니다.");
+  if (rules.powerGap?.formulaId !== "floor_sqrt_positive_gap_over_unit") throw new Error("지원하지 않는 power gap 공식입니다.");
+  if (rules.attribute?.formulaId !== "one_way_cycle_bonus") throw new Error("지원하지 않는 속성 공식입니다.");
+  if (rules.specialAttack?.reducedVsAttackFormulaId !== "ceil_ratio" || rules.specialAttack?.guardPenetrationFormulaId !== "ceil_ratio") {
+    throw new Error("지원하지 않는 특수공격 공식입니다.");
+  }
+  if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
+  if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
+  return rules;
+}
+
+function createRealtimeArenaRulesSnapshot(version = DEFAULT_REALTIME_ARENA_RULES_VERSION) {
+  const rules = REALTIME_ARENA_RULESETS[version];
+  if (!rules) throw new Error(`알 수 없는 실시간 아레나 규칙 버전입니다: ${version}`);
+  return clonePlain(assertRealtimeArenaRules(rules));
+}
+
+;// ./src/logic/realtime-arena/damage.js
+const ATTRIBUTE_ADVANTAGE = Object.freeze({ Vaccine: "Virus", Virus: "Data", Data: "Vaccine" });
+
+function getRealtimeArenaAttributeBonus(attackerAttribute, defenderAttribute, rules) {
+  if (attackerAttribute === "Free" || defenderAttribute === "Free") return 0;
+  return ATTRIBUTE_ADVANTAGE[attackerAttribute] === defenderAttribute
+    ? Number(rules.attribute.advantageBonus)
+    : 0;
+}
+
+function calculateRealtimeArenaDamage({ attacker, defender, rules }) {
+  const baseAttack = Number(rules.baseAttackByStage[attacker.stage]);
+  if (!Number.isFinite(baseAttack)) throw new Error("지원하지 않는 디지몬 단계입니다.");
+  const positiveGap = Math.max(0, Number(attacker.sourcePower) - Number(defender.sourcePower));
+  const powerGapAttack = Math.floor(Math.sqrt(positiveGap / Number(rules.powerGap.unit)));
+  const attributeAttack = getRealtimeArenaAttributeBonus(attacker.attribute, defender.attribute, rules);
+  const normal = baseAttack + powerGapAttack + attributeAttack;
+  const special = normal + Number(rules.specialAttack.bonus);
+  const reducedVsAttack = Math.ceil(
+    special * Number(rules.specialAttack.reducedVsAttackNumerator) /
+      Number(rules.specialAttack.reducedVsAttackDenominator)
+  );
+  const guardPenetration = Math.ceil(
+    special * Number(rules.specialAttack.guardPenetrationNumerator) /
+      Number(rules.specialAttack.guardPenetrationDenominator)
+  );
+  return { normal, special, reducedVsAttack, guardPenetration, powerGapAttack, attributeAttack };
+}
+
+;// ./src/logic/realtime-arena/actionMatchup.js
+const REALTIME_ARENA_ACTIONS = Object.freeze(["attack", "guard", "special_attack"]);
+
+function isRealtimeArenaAction(value) {
+  return REALTIME_ARENA_ACTIONS.includes(value);
+}
+
+function outgoingDamage(action, opponentAction, damage) {
+  if (action === "no_action" || opponentAction === "no_action") {
+    if (action === "attack") return damage.normal;
+    if (action === "special_attack") return damage.special;
+    return 0;
+  }
+  if (action === "attack") return opponentAction === "attack" || opponentAction === "special_attack" ? damage.normal : 0;
+  if (action === "guard") return 0;
+  if (action === "special_attack") {
+    if (opponentAction === "attack") return damage.reducedVsAttack;
+    if (opponentAction === "guard") return damage.guardPenetration;
+    return damage.special;
+  }
+  throw new Error("허용되지 않은 실시간 아레나 행동입니다.");
+}
+
+function resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage, guestDamage }) {
+  return {
+    hostDamageTaken: outgoingDamage(guestAction, hostAction, guestDamage),
+    guestDamageTaken: outgoingDamage(hostAction, guestAction, hostDamage),
+  };
+}
+
+;// ./src/logic/realtime-arena/outcome.js
+function determineRealtimeArenaOutcome({ currentHp, participants, round, maxRounds, timeoutStreaks, timeoutLossCount }) {
+  const hostKo = currentHp.host <= 0;
+  const guestKo = currentHp.guest <= 0;
+  if (hostKo && guestKo) return { outcome: "draw", reason: "simultaneous_ko" };
+  if (hostKo) return { outcome: "guest_win", reason: "ko" };
+  if (guestKo) return { outcome: "host_win", reason: "ko" };
+  const hostTimedOut = timeoutStreaks.host >= timeoutLossCount;
+  const guestTimedOut = timeoutStreaks.guest >= timeoutLossCount;
+  if (hostTimedOut && guestTimedOut) return { outcome: "draw", reason: "double_timeout" };
+  if (hostTimedOut) return { outcome: "guest_win", reason: "timeout" };
+  if (guestTimedOut) return { outcome: "host_win", reason: "timeout" };
+  if (round < maxRounds) return null;
+  const hostRatioCross = currentHp.host * participants.guest.maxHp;
+  const guestRatioCross = currentHp.guest * participants.host.maxHp;
+  if (hostRatioCross === guestRatioCross) return { outcome: "draw", reason: "max_round" };
+  return { outcome: hostRatioCross > guestRatioCross ? "host_win" : "guest_win", reason: "max_round" };
+}
+
+;// ./src/logic/realtime-arena/resolveRound.js
+
+
+
+
+
+function resolveRealtimeArenaRound({ battleState, hostAction, guestAction, rules }) {
+  assertRealtimeArenaRules(rules);
+  const allowed = ["attack", "guard", "special_attack", "no_action"];
+  if (!allowed.includes(hostAction) || !allowed.includes(guestAction)) throw new Error("허용되지 않은 행동입니다.");
+  const hostDamage = calculateRealtimeArenaDamage({ attacker: battleState.participants.host, defender: battleState.participants.guest, rules });
+  const guestDamage = calculateRealtimeArenaDamage({ attacker: battleState.participants.guest, defender: battleState.participants.host, rules });
+  const damage = resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage, guestDamage });
+  const currentHp = {
+    host: Math.max(0, Number(battleState.currentHp.host) - damage.hostDamageTaken),
+    guest: Math.max(0, Number(battleState.currentHp.guest) - damage.guestDamageTaken),
+  };
+  const timeoutSides = [];
+  if (hostAction === "no_action") timeoutSides.push("host");
+  if (guestAction === "no_action") timeoutSides.push("guest");
+  const timeoutStreaks = {
+    host: hostAction === "no_action" ? Number(battleState.timeoutStreaks.host || 0) + 1 : 0,
+    guest: guestAction === "no_action" ? Number(battleState.timeoutStreaks.guest || 0) + 1 : 0,
+  };
+  const result = determineRealtimeArenaOutcome({
+    currentHp,
+    participants: battleState.participants,
+    round: battleState.round,
+    maxRounds: rules.maxRounds,
+    timeoutStreaks,
+    timeoutLossCount: rules.timeout.consecutiveLossCount,
+  });
+  return { ...damage, currentHp, timeoutSides, timeoutStreaks, result };
+}
+
 ;// ./src/server/gameProjectionEntry.js
+
+
 
 
 

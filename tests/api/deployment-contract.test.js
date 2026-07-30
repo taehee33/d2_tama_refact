@@ -120,6 +120,14 @@ test("배포 API 진입점은 현재 11개 계약과 일치하고 Hobby 상한 1
   }
 });
 
+test("실시간 아레나 public URL은 arena-v2의 두 operation으로만 rewrite한다", () => {
+  const vercel = JSON.parse(fs.readFileSync(path.join(REPOSITORY_ROOT, "digimon-tamagotchi-frontend/vercel.json"), "utf8"));
+  const rewrites = new Map(vercel.rewrites.map((rewrite) => [rewrite.source, rewrite.destination]));
+  assert.equal(rewrites.get("/api/arena/realtime/battles"), "/api/arena-v2?operation=realtime-battle-collection");
+  assert.equal(rewrites.get("/api/arena/realtime/battles/:battleId/commands"), "/api/arena-v2?operation=realtime-battle-command&battleId=:battleId");
+  assert.equal(listDeployedEntrypoints().filter((entrypoint) => entrypoint.includes("realtime")).length, 0);
+});
+
 test("커뮤니티 API 네 진입점은 실제 배포 디렉터리에서 로드된다", () => {
   assert.equal(COMMUNITY_ENTRYPOINTS.length, 4);
   for (const entrypoint of COMMUNITY_ENTRYPOINTS) {

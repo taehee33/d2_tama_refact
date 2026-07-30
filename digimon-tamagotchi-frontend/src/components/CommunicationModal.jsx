@@ -3,8 +3,9 @@
 
 import React from "react";
 import "../styles/Battle.css";
+import { REALTIME_ARENA_MVP_ENABLED } from "../config/arenaFeatures";
 
-export default function CommunicationModal({ onClose, onSparringStart, onArenaStart }) {
+export default function CommunicationModal({ onClose, onSparringStart, onArenaStart, onRealtimeStart }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-5"
@@ -52,14 +53,27 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             아레나 [PvP(Ghost)]
           </button>
           
-          <button
-            className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
-            disabled
-            title="Coming Soon"
-          >
-            실시간 배틀
-            <span className="text-xs block mt-1">Coming Soon</span>
-          </button>
+          {REALTIME_ARENA_MVP_ENABLED ? (
+            <button
+              onClick={() => {
+                onRealtimeStart();
+                onClose();
+              }}
+              className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors"
+            >
+              실시간 배틀
+              <span className="text-xs block mt-1">친선전 MVP</span>
+            </button>
+          ) : (
+            <button
+              className="px-6 py-3 bg-gray-400 text-white rounded-lg font-bold cursor-not-allowed opacity-60"
+              disabled
+              title="Coming Soon"
+            >
+              실시간 배틀
+              <span className="text-xs block mt-1">Coming Soon</span>
+            </button>
+          )}
           
           <button
             onClick={onClose}

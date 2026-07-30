@@ -27,6 +27,8 @@
 
 ## 먼저 읽으면 좋은 문서
 
+- 실시간 아레나 MVP 개발 실행 계획:
+  [REALTIME_ARENA_MVP_IMPLEMENTATION_PLAN.md](./docs/REALTIME_ARENA_MVP_IMPLEMENTATION_PLAN.md)
 - 현재 인증/저장 계약 상세:
   [CURRENT_AUTH_STORAGE_CONTRACT.md](./docs/CURRENT_AUTH_STORAGE_CONTRACT.md)
 - 현재 코드 기준 구조 설명:

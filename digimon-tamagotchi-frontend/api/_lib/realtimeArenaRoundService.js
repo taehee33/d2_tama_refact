@@ -1,0 +1,198 @@
+"use strict";
+
+const { ArenaError } = require("./arenaErrors");
+const { getArenaFirestore } = require("./arenaTransactions");
+const { resolveRealtimeArenaRound } = require("../_generated/gameProjection.cjs");
+const {
+  assertParticipant,
+  createRequestHash,
+  normalizeRequestId,
+} = require("./realtimeArenaDomain");
+
+function toMillis(value) {
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?.toDate === "function") return value.toDate().getTime();
+  return new Date(value).getTime();
+}
+
+function getRunner(db, deps) {
+  return deps.runTransaction || ((callback) => db.runTransaction(callback));
+}
+
+function emptyRoundSecret() {
+  return { hostSubmission: null, guestSubmission: null, resolved: false, resolvedAt: null, resolutionType: null, resultHash: null };
+}
+
+function viewerFor(secret, role, round) {
+  const roundSecret = secret.roundSecrets?.[String(round)];
+  return { role, hasSubmitted: Boolean(roundSecret?.[`${role}Submission`]) };
+}
+
+function assertRulesInvariant(battle, secret) {
+  if (!battle.rulesSnapshot || !battle.rulesSnapshotHash || battle.rulesSnapshotHash !== secret.rulesSnapshotHash || battle.rulesVersion !== secret.rulesVersion) {
+    throw new ArenaError("ARENA_REALTIME_INVARIANT_VIOLATION", "실시간 배틀 규칙 정합성이 손상되었습니다.");
+  }
+}
+
+function assertExpectedState(battle, input) {
+  if (input.expectedStateVersion !== undefined && Number(input.expectedStateVersion) !== Number(battle.stateVersion)) {
+    throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "배틀 상태가 변경되었습니다. 최신 상태를 복구해 주세요.");
+  }
+}
+
+function resolveStoredRound({ battle, secret, resolutionType, now }) {
+  assertRulesInvariant(battle, secret);
+  const key = String(battle.round);
+  const roundSecret = secret.roundSecrets?.[key] || emptyRoundSecret();
+  if (roundSecret.resolved) {
+    return { battle, secret, resolvedRound: (battle.resolvedRounds || []).find((item) => item.round === battle.round) || null, alreadyResolved: true };
+  }
+  const hostAction = roundSecret.hostSubmission?.action || "no_action";
+  const guestAction = roundSecret.guestSubmission?.action || "no_action";
+  const transition = resolveRealtimeArenaRound({ battleState: battle, hostAction, guestAction, rules: battle.rulesSnapshot });
+  const nowTimestamp = new Date(now.getTime());
+  const resultHash = createRequestHash({
+    battleId: battle.battleId,
+    round: battle.round,
+    hostAction,
+    guestAction,
+    ...transition,
+  });
+  const resolvedRound = {
+    round: battle.round,
+    hostAction,
+    guestAction,
+    hostDamageTaken: transition.hostDamageTaken,
+    guestDamageTaken: transition.guestDamageTaken,
+    hostHpAfter: transition.currentHp.host,
+    guestHpAfter: transition.currentHp.guest,
+    timeoutSides: transition.timeoutSides,
+    resolutionType,
+    resolvedAt: nowTimestamp,
+    resultHash,
+  };
+  const finished = Boolean(transition.result);
+  const nextRound = finished ? battle.round : battle.round + 1;
+  const nextBattle = {
+    ...battle,
+    status: finished ? "finished" : "selecting",
+    round: nextRound,
+    stateVersion: Number(battle.stateVersion) + 1,
+    deadlineAt: finished ? null : new Date(now.getTime() + Number(battle.rulesSnapshot.selectionWindowMs)),
+    currentHp: transition.currentHp,
+    timeoutStreaks: transition.timeoutStreaks,
+    resolvedRounds: [...(battle.resolvedRounds || []), resolvedRound],
+    result: transition.result,
+    updatedAt: nowTimestamp,
+    finishedAt: finished ? nowTimestamp : null,
+  };
+  const nextRoundSecrets = {
+    ...(secret.roundSecrets || {}),
+    [key]: { ...roundSecret, resolved: true, resolvedAt: nowTimestamp, resolutionType, resultHash },
+  };
+  if (!finished) nextRoundSecrets[String(nextRound)] = emptyRoundSecret();
+  const nextSecret = { ...secret, secretVersion: Number(secret.secretVersion) + 1, roundSecrets: nextRoundSecrets, updatedAt: nowTimestamp };
+  return { battle: nextBattle, secret: nextSecret, resolvedRound, alreadyResolved: false };
+}
+
+async function commandRealtimeRound({ uid, battleId, command, input = {}, deps = {} }) {
+  const db = deps.db || getArenaFirestore();
+  const now = deps.now || new Date();
+  return getRunner(db, deps)(async (transaction) => {
+    const publicRef = db.doc(`realtimeArenaBattles/${battleId}`);
+    const secretRef = db.doc(`realtimeArenaBattleSecrets/${battleId}`);
+    const [publicSnapshot, secretSnapshot] = await transaction.getAll(publicRef, secretRef);
+    if (!publicSnapshot.exists || !secretSnapshot.exists) throw new ArenaError("ARENA_REALTIME_BATTLE_NOT_FOUND", "실시간 배틀 방을 찾을 수 없습니다.");
+    let battle = publicSnapshot.data();
+    let secret = secretSnapshot.data();
+    const role = assertParticipant(battle, uid);
+
+    if (["finished", "cancelled", "expired"].includes(battle.status)) {
+      const requestedRound = Number(input.round);
+      const resolvedRound = (battle.resolvedRounds || []).find((item) => item.round === requestedRound) ||
+        (command === "resolve-timeout" ? (battle.resolvedRounds || []).at(-1) || null : null);
+      return { battle, secret, role, status: "replayed", resolvedRound, wrotePublic: false, wroteSecret: false };
+    }
+    if (toMillis(battle.expiresAt) <= now.getTime()) {
+      battle = { ...battle, status: "expired", deadlineAt: null, stateVersion: Number(battle.stateVersion) + 1, updatedAt: new Date(now.getTime()), finishedAt: new Date(now.getTime()) };
+      transaction.set(publicRef, battle);
+      return { battle, secret, role, status: "resolved", resolvedRound: null, wrotePublic: true, wroteSecret: false };
+    }
+    if (battle.status === "waiting" && command === "restore") {
+      return { battle, secret, role, status: "accepted", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+    }
+    if (battle.status !== "selecting") throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "진행 중인 실시간 배틀에서만 사용할 수 있는 명령입니다.");
+    assertRulesInvariant(battle, secret);
+
+    const deadlinePassed = toMillis(battle.deadlineAt) <= now.getTime();
+    if (deadlinePassed) {
+      const timeoutResolution = resolveStoredRound({ battle, secret, resolutionType: "timeout", now });
+      battle = timeoutResolution.battle;
+      secret = timeoutResolution.secret;
+      transaction.set(publicRef, battle);
+      transaction.set(secretRef, secret);
+      return { battle, secret, role, status: "resolved", resolvedRound: timeoutResolution.resolvedRound, wrotePublic: true, wroteSecret: true };
+    }
+
+    if (command === "restore") return { battle, secret, role, status: "accepted", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+    if (command === "resolve-timeout") throw new ArenaError("ARENA_REALTIME_TIMEOUT_NOT_REACHED", "아직 행동 선택 시간이 남아 있습니다.");
+    if (command === "forfeit") {
+      const nowTimestamp = new Date(now.getTime());
+      battle = {
+        ...battle,
+        status: "finished",
+        stateVersion: Number(battle.stateVersion) + 1,
+        deadlineAt: null,
+        result: { outcome: role === "host" ? "guest_win" : "host_win", reason: "forfeit" },
+        updatedAt: nowTimestamp,
+        finishedAt: nowTimestamp,
+      };
+      transaction.set(publicRef, battle);
+      return { battle, secret, role, status: "resolved", resolvedRound: null, wrotePublic: true, wroteSecret: false };
+    }
+    if (command !== "submit-action") throw new ArenaError("ARENA_INVALID_REQUEST", "지원하지 않는 전투 명령입니다.");
+
+    const requestedRound = Number(input.round);
+    if (!Number.isInteger(requestedRound) || requestedRound !== battle.round) {
+      const stored = (battle.resolvedRounds || []).find((item) => item.round === requestedRound);
+      if (stored) return { battle, secret, role, status: "replayed", resolvedRound: stored, wrotePublic: false, wroteSecret: false };
+      throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "현재 라운드와 요청 라운드가 다릅니다.");
+    }
+    if (!Number.isInteger(Number(input.expectedStateVersion))) throw new ArenaError("ARENA_INVALID_REQUEST", "expectedStateVersion 값이 올바르지 않습니다.");
+    assertExpectedState(battle, input);
+    if (!["attack", "guard", "special_attack"].includes(input.action)) throw new ArenaError("ARENA_INVALID_REQUEST", "행동 값이 올바르지 않습니다.");
+    const requestId = normalizeRequestId(input.requestId);
+    const requestHash = createRequestHash({ command, battleId, round: requestedRound, expectedStateVersion: Number(input.expectedStateVersion), action: input.action });
+    const key = String(battle.round);
+    const roundSecret = secret.roundSecrets?.[key] || emptyRoundSecret();
+    const submissionKey = `${role}Submission`;
+    const previous = roundSecret[submissionKey];
+    if (previous) {
+      if (previous.action !== input.action || (previous.requestId === requestId && previous.requestHash !== requestHash)) {
+        throw new ArenaError("ARENA_REALTIME_ACTION_MISMATCH", "이미 제출한 라운드 행동은 변경할 수 없습니다.");
+      }
+      return { battle, secret, role, status: "replayed", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+    }
+    const nextRoundSecret = {
+      ...roundSecret,
+      [submissionKey]: { action: input.action, requestId, requestHash, submittedAt: new Date(now.getTime()) },
+    };
+    secret = {
+      ...secret,
+      secretVersion: Number(secret.secretVersion) + 1,
+      roundSecrets: { ...(secret.roundSecrets || {}), [key]: nextRoundSecret },
+      updatedAt: new Date(now.getTime()),
+    };
+    const opponentKey = `${role === "host" ? "guest" : "host"}Submission`;
+    if (!nextRoundSecret[opponentKey]) {
+      transaction.set(secretRef, secret);
+      return { battle, secret, role, status: "accepted", resolvedRound: null, wrotePublic: false, wroteSecret: true };
+    }
+    const resolution = resolveStoredRound({ battle, secret, resolutionType: "both_submitted", now });
+    transaction.set(publicRef, resolution.battle);
+    transaction.set(secretRef, resolution.secret);
+    return { battle: resolution.battle, secret: resolution.secret, role, status: "resolved", resolvedRound: resolution.resolvedRound, wrotePublic: true, wroteSecret: true };
+  });
+}
+
+module.exports = { commandRealtimeRound, resolveStoredRound, viewerFor };

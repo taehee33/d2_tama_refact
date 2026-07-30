@@ -166,6 +166,19 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // 실시간 아레나 public 상태는 두 참가자만 단일 문서로 읽는다.
+    // 생성과 갱신은 서버 Admin SDK만 수행하며 collection list는 허용하지 않는다.
+    match /realtimeArenaBattles/{battleId} {
+      allow get: if isSignedIn() &&
+        (resource.data.hostUid == request.auth.uid || resource.data.guestUid == request.auth.uid);
+      allow list, create, update, delete: if false;
+    }
+
+    // 미해결 행동과 서버 계산 근거는 클라이언트에 절대 노출하지 않는다.
+    match /realtimeArenaBattleSecrets/{battleId} {
+      allow read, write: if false;
+    }
+
     match /arena_mirror_outbox/{jobId} {
       allow read, write: if false;
     }

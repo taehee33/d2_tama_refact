@@ -36,7 +36,7 @@
     "build:server-projection": "node scripts/buildServerGameProjection.js",
     "check:server-projection": "node scripts/checkServerGameProjection.js",
     "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore-emulator.test.js\"",
-    "test:arena-emulator": "firebase emulators:exec --only firestore \"node --test --test-concurrency=1 tests/arena-firestore-rules.test.js tests/arena-transaction-emulator.test.js tests/arena-ghost-emulator.test.js tests/arena-battle-emulator.test.js tests/arena-ghost-migration-emulator.test.js\""
+    "test:arena-emulator": "firebase emulators:exec --only firestore \"node --test --test-concurrency=1 tests/arena-firestore-rules.test.js tests/realtime-arena-firestore-rules.test.js tests/realtime-arena-emulator.test.js tests/arena-transaction-emulator.test.js tests/arena-ghost-emulator.test.js tests/arena-battle-emulator.test.js tests/arena-ghost-migration-emulator.test.js\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",
@@ -49,5 +49,5 @@
     "firebase-tools": "^13.0.0",
     "knip": "6.29.0"
   },
-  "version": "0.0.0.2"
+  "version": "0.1.0.0"
 }

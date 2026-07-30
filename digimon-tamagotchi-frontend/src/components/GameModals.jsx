@@ -51,6 +51,7 @@ import {
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 import { ARENA_GHOST_V2_ENABLED } from "../config/arenaFeatures";
+import RealtimeArenaScreen from "./realtime-arena/RealtimeArenaScreen";
 
 export function applyStatsPopupChange(nextStats, setDigimonStats, setDigimonStatsAndSave) {
   if (!nextStats) return;
@@ -396,6 +397,14 @@ export default function GameModals({
           onClose={() => toggleModal('communication', false)}
           onSparringStart={handleSparringStart}
           onArenaStart={handleArenaStart}
+          onRealtimeStart={() => toggleModal('realtimeArena', true)}
+        />
+      )}
+
+      {modals.realtimeArena && (
+        <RealtimeArenaScreen
+          currentSlotId={typeof slotId === 'number' ? slotId : (slotId ? parseInt(slotId) : null)}
+          onClose={() => toggleModal('realtimeArena', false)}
         />
       )}
 

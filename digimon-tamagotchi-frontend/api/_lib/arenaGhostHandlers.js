@@ -20,11 +20,9 @@ const {
 const { ArenaError } = require("./arenaErrors");
 const { getArenaFirestore, runArenaTransaction } = require("./arenaTransactions");
 const { allowMethods, handleApiError, parseJsonBody, sendJson } = require("./http");
-const { projectSlotForUrgentCare } = require("./urgentCareProjection");
+const { projectArenaSlot } = require("./arenaSlotProjection");
 const {
-  calculatePower,
   getDigimonEntryByVersion,
-  isStarterDigimonId,
 } = require("../_generated/gameProjection.cjs");
 
 const ARENA_CONFIG_PATH = "game_settings/arena_config";
@@ -41,64 +39,6 @@ function toDate(value) {
 
 function toIsoString(value) {
   return toDate(value)?.toISOString() || null;
-}
-
-function resolveProjectionTime(requestReceivedAt, snapshot) {
-  const requestMs = requestReceivedAt.getTime();
-  const updateMs = toDate(snapshot?.updateTime)?.getTime() || 0;
-  return new Date(Math.max(requestMs, updateMs));
-}
-
-function projectArenaSlot(slotSnapshot, requestReceivedAt) {
-  if (!slotSnapshot?.exists) {
-    throw new ArenaError("ARENA_SLOT_NOT_FOUND", "아레나에 사용할 슬롯을 찾을 수 없습니다.");
-  }
-  const slot = slotSnapshot.data() || {};
-  const projectionAsOf = resolveProjectionTime(requestReceivedAt, slotSnapshot);
-  const projection = projectSlotForUrgentCare(slot, projectionAsOf.getTime());
-  if (projection.status !== "projected" || !projection.stats) {
-    throw new ArenaError(
-      "ARENA_SLOT_PROJECTION_UNAVAILABLE",
-      "현재 디지몬 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-      null,
-      null,
-      { retryable: true }
-    );
-  }
-  if (projection.stats.isDead === true) {
-    throw new ArenaError("ARENA_SLOT_DEAD", "사망한 디지몬은 Ghost로 등록할 수 없습니다.");
-  }
-  if (isStarterDigimonId(slot.selectedDigimon)) {
-    throw new ArenaError("ARENA_SLOT_STARTER", "디지타마는 Ghost로 등록할 수 없습니다.");
-  }
-  if (
-    slot.arenaIdentitySchemaVersion !== ARENA_IDENTITY_SCHEMA_VERSION ||
-    typeof slot.digimonInstanceId !== "string" ||
-    !slot.digimonInstanceId.trim() ||
-    !Number.isInteger(slot.combatRevision) ||
-    slot.combatRevision < 1
-  ) {
-    throw new ArenaError(
-      "ARENA_COMBAT_IDENTITY_STALE",
-      "현재 슬롯의 아레나 identity를 갱신한 뒤 다시 시도해 주세요."
-    );
-  }
-  const digimon = getDigimonEntryByVersion(slot.version || "Ver.1", slot.selectedDigimon);
-  if (!digimon) {
-    throw new ArenaError(
-      "ARENA_COMBAT_IDENTITY_STALE",
-      "현재 형태와 지원 데이터가 일치하지 않습니다."
-    );
-  }
-  const powerResult = calculatePower(projection.stats, digimon, true);
-  return {
-    slot,
-    projectedStats: projection.stats,
-    digimon,
-    power: Number(powerResult?.power || 0),
-    powerDetails: powerResult?.details || {},
-    projectionAsOf,
-  };
 }
 
 function getClientSchemaVersion(req) {
