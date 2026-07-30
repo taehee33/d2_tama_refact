@@ -44,15 +44,32 @@ test("로비는 대기 중인 방을 표시하고 목록에서 참가한다", ()
       battle={null}
       viewer={null}
       busy={false}
-      rooms={[{ battleId: "rtb_room", digimonName: "레오몬", stage: "Adult", expiresAt: new Date(Date.now() + 600000).toISOString(), isOwn: false }]}
+      rooms={[{ battleId: "rtb_room", ownerDisplayName: "레오몬 테이머", expiresAt: new Date(Date.now() + 600000).toISOString(), isOwn: false }]}
       onRefreshRooms={jest.fn()}
       onCreate={jest.fn()}
       onJoin={onJoin}
     />
   );
   expect(screen.getByRole("heading", { name: "대기 중인 방" })).toBeInTheDocument();
-  expect(screen.getByText("레오몬")).toBeInTheDocument();
-  expect(screen.getByText(/성숙기/)).toBeInTheDocument();
+  expect(screen.getByText("레오몬 테이머의 ???")).toBeInTheDocument();
+  expect(screen.queryByText(/^레오몬$/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "참가" }));
   expect(onJoin).toHaveBeenCalledWith("rtb_room");
+});
+
+test("대기방이 없으면 직접 방을 만들도록 안내한다", () => {
+  render(<RealtimeArenaLobby battle={null} viewer={null} busy={false} rooms={[]} onRefreshRooms={jest.fn()} onCreate={jest.fn()} onJoin={jest.fn()} />);
+  expect(screen.getByText("아직 대기 중인 방이 없습니다. 직접 방을 만들어 첫 대결을 시작해 보세요.")).toBeInTheDocument();
+});
+
+test("방을 만든 사람에게 만료까지 남은 시간을 표시한다", () => {
+  render(
+    <RealtimeArenaLobby
+      battle={{ battleId: "rtb_host", hostUid: "host", guestUid: null, expiresAt: new Date(Date.now() + 600000).toISOString(), lobby: { host: { ready: false }, guest: null } }}
+      viewer={{ role: "host" }}
+      busy={false}
+      onCancel={jest.fn()}
+    />
+  );
+  expect(screen.getByText(/방 만료까지 10분 남았습니다/)).toBeInTheDocument();
 });

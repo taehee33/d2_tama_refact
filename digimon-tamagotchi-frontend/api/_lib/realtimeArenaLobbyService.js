@@ -29,6 +29,10 @@ function toTimestamp(date) {
   return new Date(date.getTime());
 }
 
+function resolveOwnerDisplayName(root = {}, profile = {}) {
+  return profile.tamerName || root.tamerName || root.displayName || "알 수 없는 테이머";
+}
+
 async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
   const db = deps.db || getArenaFirestore();
   const now = deps.now || new Date();
@@ -40,7 +44,15 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
     const publicRef = db.doc(`realtimeArenaBattles/${battleId}`);
     const secretRef = db.doc(`realtimeArenaBattleSecrets/${battleId}`);
     const slotRef = db.doc(`users/${uid}/slots/${canonicalSlotId}`);
-    const [publicSnapshot, secretSnapshot, slotSnapshot] = await transaction.getAll(publicRef, secretRef, slotRef);
+    const userRef = db.doc(`users/${uid}`);
+    const profileRef = db.doc(`users/${uid}/profile/main`);
+    const [publicSnapshot, secretSnapshot, slotSnapshot, userSnapshot, profileSnapshot] = await transaction.getAll(
+      publicRef,
+      secretRef,
+      slotRef,
+      userRef,
+      profileRef
+    );
     if (publicSnapshot.exists) {
       if (secretSnapshot.data()?.createRequestHash !== requestHash || publicSnapshot.data()?.hostUid !== uid) {
         throw new ArenaError("ARENA_IDEMPOTENCY_CONFLICT", "같은 requestId가 다른 방 생성 요청에 사용되었습니다.");
@@ -49,7 +61,7 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
     }
     const validationRules = createRealtimeArenaRulesSnapshot();
     const projected = projectRealtimeArenaSlot(slotSnapshot, now, validationRules, { requireCombatIdentity: false }, deps);
-    const hostPreview = buildParticipantSnapshot(projected, validationRules);
+    buildParticipantSnapshot(projected, validationRules);
     const publicData = {
       schemaVersion: REALTIME_ARENA_SCHEMA_VERSION,
       battleId,
@@ -57,11 +69,7 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
       hostUid: uid,
       guestUid: null,
       listing: {
-        hostDigimonName: hostPreview.public.digimonName,
-        stage: hostPreview.public.stage,
-        version: hostPreview.public.version,
-        spriteBasePath: hostPreview.public.spriteBasePath,
-        sprite: hostPreview.public.sprite,
+        ownerDisplayName: resolveOwnerDisplayName(userSnapshot.data() || {}, profileSnapshot.data() || {}),
       },
       lobby: { host: { ready: false }, guest: null },
       rulesVersion: null,
@@ -161,9 +169,8 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
       );
       const guestProjected = projectRealtimeArenaSlot(slotSnapshot, now, rulesForValidation, { requireCombatIdentity: false }, deps);
       const hostProjected = projectRealtimeArenaSlot(hostSlotSnapshot, now, rulesForValidation, { requireCombatIdentity: false }, deps);
-      const guestPreview = buildParticipantSnapshot(guestProjected, rulesForValidation);
-      const hostPreview = buildParticipantSnapshot(hostProjected, rulesForValidation);
-      if (guestPreview.public.stage !== hostPreview.public.stage) throw new ArenaError("ARENA_REALTIME_STAGE_MISMATCH", "같은 단계의 디지몬 방에만 참가할 수 있습니다.");
+      buildParticipantSnapshot(guestProjected, rulesForValidation);
+      buildParticipantSnapshot(hostProjected, rulesForValidation);
       role = "guest";
       nextBattle = { ...battle, guestUid: uid, lobby: { host: { ready: false }, guest: { ready: false } } };
       nextSecret = { ...secret, participants: { ...secret.participants, guest: { uid, slotId, digimonInstanceId: null, combatRevision: null, powerBreakdown: null, capturedAt: null } } };
@@ -195,7 +202,6 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
           const guestProjected = projectRealtimeArenaSlot(guestSlot, now, rulesSnapshot, { projectionAsOf, requireCombatIdentity: false }, deps);
           const host = buildParticipantSnapshot(hostProjected, rulesSnapshot);
           const guest = buildParticipantSnapshot(guestProjected, rulesSnapshot);
-          if (host.public.stage !== guest.public.stage) throw new ArenaError("ARENA_REALTIME_STAGE_MISMATCH", "같은 단계의 디지몬끼리만 실시간 배틀을 시작할 수 있습니다.");
           nextBattle = {
             ...nextBattle,
             status: "selecting",

@@ -17,11 +17,7 @@ function serializeWaitingRoom(doc, uid) {
   return {
     battleId: doc.id,
     isOwn: battle.hostUid === uid,
-    digimonName: listing.hostDigimonName || "디지몬",
-    stage: listing.stage || null,
-    version: listing.version || null,
-    spriteBasePath: listing.spriteBasePath || "",
-    sprite: Number(listing.sprite || 0),
+    ownerDisplayName: listing.ownerDisplayName || "알 수 없는 테이머",
     createdAt: timestampToIso(battle.createdAt),
     expiresAt: timestampToIso(battle.expiresAt),
   };

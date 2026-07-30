@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-30] 실시간 아레나 교차 단계·익명 대기방 개선
+
+- **내용:** 성장기 이상 참가 자격은 유지하면서 새 기본 규칙 `mvp-1`에서 같은 단계 제한을 제거해 서로 다른 단계의 디지몬도 실시간 배틀을 시작할 수 있게 했다. 기존 `mvp-0` 규칙은 그대로 보존한다. 대기방 목록은 Ghost 아레나와 같이 `테이머명의 ???`로 표시하고 서버 DTO에서도 디지몬 이름·단계·버전·스프라이트를 제거했다. 빈 대기방 안내 문구를 행동 중심으로 바꾸고, 방을 만든 사람에게 만료까지 남은 시간을 로컬 타이머로 표시한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/rulesets.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaLobbyService.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaListingService.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaLobby.jsx`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, 관련 테스트와 계획·변경 기록 문서.
+- **아키텍처 결정 근거:** 단계별 HP·공격력과 HP 비율 판정은 기존 rules snapshot이 이미 지원하므로 새 `mvp-1`의 매칭 범위만 `eligible_stages`로 넓힌다. 과거 snapshot의 의미가 바뀌지 않도록 `mvp-0`은 수정하지 않는다. 공개 목록 API에는 참가 결정에 필요하지 않은 디지몬 정보를 보내지 않으며, 남은 시간 표시는 기존 `expiresAt`을 클라이언트에서 계산해 Firestore 타이머 쓰기를 추가하지 않는다.
+
+---
+
 ## [2026-07-30] 실시간 아레나 참가 문구·대기방 목록 개선
 
 - **내용:** 유년기 디지몬으로 방을 만들 때 lazy projection의 런타임 오류가 먼저 노출되던 순서를 바로잡아 `성장기 이상의 디지몬만 실시간 배틀에 참가할 수 있습니다.`라는 참가 조건을 먼저 안내한다. 실시간 배틀 로비에는 최신 대기방의 디지몬 이름·단계·남은 시간과 참가 버튼을 표시하고, 초대받은 방 ID 직접 입력도 그대로 유지한다.

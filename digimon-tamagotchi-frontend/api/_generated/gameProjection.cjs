@@ -7880,7 +7880,7 @@ function calculateArenaBattle({
 }
 
 ;// ./src/logic/realtime-arena/rulesets.js
-const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-0";
+const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-1";
 
 const MVP_0 = {
   schemaVersion: 1,
@@ -7909,6 +7909,11 @@ const MVP_0 = {
   timeout: { missingAction: "no_action", consecutiveLossCount: 2 },
 };
 
+const MVP_1 = {
+  ...MVP_0,
+  matchingScope: "eligible_stages",
+};
+
 function deepFreeze(value) {
   Object.values(value).forEach((nested) => {
     if (nested && typeof nested === "object" && !Object.isFrozen(nested)) deepFreeze(nested);
@@ -7917,7 +7922,8 @@ function deepFreeze(value) {
 }
 
 const REALTIME_ARENA_RULESETS = deepFreeze({
-  [DEFAULT_REALTIME_ARENA_RULES_VERSION]: MVP_0,
+  "mvp-0": MVP_0,
+  "mvp-1": MVP_1,
 });
 
 function clonePlain(value) {
