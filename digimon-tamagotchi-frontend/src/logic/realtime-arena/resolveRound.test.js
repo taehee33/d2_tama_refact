@@ -12,10 +12,15 @@ const state = (overrides = {}) => ({
   ...overrides,
 });
 
-describe("실시간 아레나 mvp-0 규칙", () => {
+describe("실시간 아레나 규칙", () => {
   test("registry와 중첩 규칙은 배포 후 변경할 수 없도록 고정한다", () => {
     expect(Object.isFrozen(REALTIME_ARENA_RULESETS)).toBe(true);
     expect(Object.isFrozen(REALTIME_ARENA_RULESETS["mvp-0"].hpByStage)).toBe(true);
+  });
+
+  test("mvp-0은 같은 단계 규칙을 보존하고 mvp-1은 성장기 이상 전체로 확장한다", () => {
+    expect(REALTIME_ARENA_RULESETS["mvp-0"].matchingScope).toBe("same_stage_only");
+    expect(REALTIME_ARENA_RULESETS["mvp-1"].matchingScope).toBe("eligible_stages");
   });
 
   test.each([

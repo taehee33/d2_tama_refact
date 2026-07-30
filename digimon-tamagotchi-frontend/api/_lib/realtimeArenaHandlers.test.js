@@ -47,7 +47,7 @@ test("realtime collection GET은 인증된 사용자에게 정제된 대기방 �
   const previousMode = process.env.REALTIME_ARENA_MODE;
   process.env.REALTIME_ARENA_MODE = "active";
   t.after(() => { if (previousMode === undefined) delete process.env.REALTIME_ARENA_MODE; else process.env.REALTIME_ARENA_MODE = previousMode; });
-  const rooms = [{ battleId: "rtb_room", digimonName: "레오몬", stage: "Adult", isOwn: false }];
+  const rooms = [{ battleId: "rtb_room", ownerDisplayName: "테이머", isOwn: false }];
   const handler = createRealtimeBattleCollectionHandler({
     verifyRequestUser: async () => ({ uid: "guest" }),
     listWaitingBattles: async ({ uid }) => {

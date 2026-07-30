@@ -69,7 +69,9 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
       setRooms(nextRooms);
       return nextRooms;
     } catch (roomError) {
-      setRoomsError(roomError.message);
+      setRoomsError(roomError?.code === "ARENA_INTERNAL_ERROR"
+        ? "대기 중인 방을 불러오지 못했습니다. 잠시 후 새로고침해 주세요."
+        : roomError.message);
       return [];
     } finally {
       setRoomsLoading(false);

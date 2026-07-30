@@ -35,6 +35,7 @@ function createHarness() {
     };
   };
   store.set("users/host/slots/slot1", { selectedDigimon: "Agumon", name: "아구몬", stage: "Adult", attribute: "Vaccine", power: 50, version: "Ver.1", digimonStats: {} });
+  store.set("users/host", { displayName: "호스트 테이머" });
   store.set("users/guest/slots/slot2", { selectedDigimon: "Gabumon", name: "파피몬", stage: "Adult", attribute: "Data", power: 50, version: "Ver.1", digimonStats: {} });
   store.set("users/intruder/slots/slot3", { selectedDigimon: "Agumon", name: "아구몬", stage: "Adult", attribute: "Vaccine", power: 50, version: "Ver.1", digimonStats: {} });
   return { store, writes, deps: { db, runTransaction, projectSlot } };
@@ -49,15 +50,33 @@ async function startBattle(harness) {
   return { battleId, started };
 }
 
-test("양쪽 준비가 모이면 같은 transaction에서 mvp-0 snapshot과 1라운드를 고정한다", async () => {
+test("양쪽 준비가 모이면 같은 transaction에서 mvp-1 snapshot과 1라운드를 고정한다", async () => {
   const harness = createHarness();
   const { started } = await startBattle(harness);
   assert.equal(started.battle.status, "selecting");
   assert.equal(started.battle.round, 1);
-  assert.equal(started.battle.rulesVersion, "mvp-0");
+  assert.equal(started.battle.rulesVersion, "mvp-1");
   assert.deepEqual(started.battle.currentHp, { host: 13, guest: 13 });
   assert.equal(started.battle.participants.host.stage, "Adult");
   assert.equal(started.battle.participants.guest.stage, "Adult");
+});
+
+test("서로 다른 성장 단계도 참가하고 배틀을 시작할 수 있다", async () => {
+  const harness = createHarness();
+  harness.store.set("users/guest/slots/slot2", { selectedDigimon: "WarGreymon", name: "워그레이몬", stage: "Ultimate", attribute: "Vaccine", power: 80, version: "Ver.1", digimonStats: {} });
+
+  const { started } = await startBattle(harness);
+
+  assert.equal(started.battle.participants.host.stage, "Adult");
+  assert.equal(started.battle.participants.guest.stage, "Ultimate");
+  assert.deepEqual(started.battle.currentHp, { host: 13, guest: 19 });
+});
+
+test("방 생성 목록 정보에는 테이머명만 저장하고 디지몬 정보는 저장하지 않는다", async () => {
+  const harness = createHarness();
+  const created = await createRealtimeBattle({ uid: "host", slotId: "slot1", requestId: "create-blind", deps: harness.deps });
+
+  assert.deepEqual(created.battle.listing, { ownerDisplayName: "호스트 테이머" });
 });
 
 test("첫 행동은 secret만 쓰고 두 번째 행동은 public 라운드를 정확히 한 번 판정한다", async () => {

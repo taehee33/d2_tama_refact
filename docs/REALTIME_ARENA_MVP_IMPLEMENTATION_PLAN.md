@@ -143,7 +143,7 @@
 
 - 로그인 사용자만 방 생성·참가
 - 호스트·게스트 각각 현재 슬롯 하나 선택
-- `Child` 이상, 정확히 같은 단계끼리만 시작 허용
+- `mvp-0`은 `Child` 이상 같은 단계 시작을 보존하고, `mvp-1`부터 `Child` 이상이면 서로 다른 단계끼리도 시작 허용
 - 준비 상태와 전투 시작
 - 같은 기준 시각의 서버 슬롯 projection
 - `mvp-0` 규칙 snapshot 고정
@@ -196,7 +196,8 @@ const REALTIME_ARENA_RULESETS = {
       "Ultimate",
       "Super Ultimate",
     ],
-    matchingScope: "same_stage_only",
+    matchingScope: "same_stage_only", // mvp-0
+    // mvp-1: "eligible_stages"
     hpByStage: {
       Child: 10,
       Adult: 13,
@@ -665,7 +666,6 @@ POST /api/arena/realtime/battles/{battleId}/commands
 | `ARENA_REALTIME_ACTION_MISMATCH` | 409 | 같은 라운드 action 변경 또는 request payload 충돌 |
 | `ARENA_REALTIME_TIMEOUT_NOT_REACHED` | 409 | deadline 전 timeout 요청 |
 | `ARENA_REALTIME_STAGE_INELIGIBLE` | 422 | `Child` 미만 또는 지원하지 않는 stage |
-| `ARENA_REALTIME_STAGE_MISMATCH` | 422 | 양쪽 stage 불일치 |
 | `ARENA_REALTIME_INVARIANT_VIOLATION` | 500 | public/secret/rules hash 불일치 |
 
 이미 판정된 라운드의 정상 재시도는 오류가 아니라 200과 저장된 동일 결과를 반환한다.
