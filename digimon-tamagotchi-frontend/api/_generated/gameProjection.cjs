@@ -7971,7 +7971,6 @@ function calculateRealtimeArenaDamage({ attacker, defender, rules }) {
   return { normal, special, reducedVsAttack, guardPenetration, powerGapAttack, attributeAttack };
 }
 
-
 ;// ./src/logic/realtime-arena/actionMatchup.js
 const REALTIME_ARENA_ACTIONS = Object.freeze(["attack", "guard", "special_attack"]);
 
@@ -8002,7 +8001,6 @@ function resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage
   };
 }
 
-
 ;// ./src/logic/realtime-arena/outcome.js
 function determineRealtimeArenaOutcome({ currentHp, participants, round, maxRounds, timeoutStreaks, timeoutLossCount }) {
   const hostKo = currentHp.host <= 0;
@@ -8021,7 +8019,6 @@ function determineRealtimeArenaOutcome({ currentHp, participants, round, maxRoun
   if (hostRatioCross === guestRatioCross) return { outcome: "draw", reason: "max_round" };
   return { outcome: hostRatioCross > guestRatioCross ? "host_win" : "guest_win", reason: "max_round" };
 }
-
 
 ;// ./src/logic/realtime-arena/resolveRound.js
 
@@ -8057,7 +8054,6 @@ function resolveRealtimeArenaRound({ battleState, hostAction, guestAction, rules
   });
   return { ...damage, currentHp, timeoutSides, timeoutStreaks, result };
 }
-
 
 ;// ./src/server/gameProjectionEntry.js
 
