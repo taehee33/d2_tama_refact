@@ -4,6 +4,7 @@ const { verifyRequestUser } = require("./auth");
 const { ArenaError, toArenaErrorPayload } = require("./arenaErrors");
 const { allowMethods, parseJsonBody, sendJson } = require("./http");
 const { createRealtimeBattle, commandRealtimeLobby } = require("./realtimeArenaLobbyService");
+const { listWaitingRealtimeBattles } = require("./realtimeArenaListingService");
 const { commandRealtimeRound, viewerFor } = require("./realtimeArenaRoundService");
 const {
   REALTIME_ARENA_CLIENT_SCHEMA_VERSION,
@@ -63,10 +64,16 @@ function createRealtimeBattleCollectionHandler(deps = {}) {
   const verifyUser = deps.verifyRequestUser || verifyRequestUser;
   return async function handler(req, res) {
     setPrivateHeaders(res);
-    if (!allowMethods(req, res, ["POST"])) return;
+    if (!allowMethods(req, res, ["GET", "POST"])) return;
     try {
       assertClientVersion(req);
       const user = await verifyUser(req);
+      if (req.method === "GET") {
+        assertServerMode(user.uid, "list");
+        const rooms = await (deps.listWaitingBattles || listWaitingRealtimeBattles)({ uid: user.uid, deps });
+        sendJson(res, 200, { rooms });
+        return;
+      }
       assertServerMode(user.uid, "create");
       const input = await parseJsonBody(req);
       assertOnlyKeys(input, ["requestId", "slotId"]);

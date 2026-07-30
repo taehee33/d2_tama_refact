@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-07-30] 실시간 아레나 참가 문구·대기방 목록 개선
+
+- **내용:** 유년기 디지몬으로 방을 만들 때 lazy projection의 런타임 오류가 먼저 노출되던 순서를 바로잡아 `성장기 이상의 디지몬만 실시간 배틀에 참가할 수 있습니다.`라는 참가 조건을 먼저 안내한다. 실시간 배틀 로비에는 최신 대기방의 디지몬 이름·단계·남은 시간과 참가 버튼을 표시하고, 초대받은 방 ID 직접 입력도 그대로 유지한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/api/_lib/realtimeArenaSlotProjection.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaListingService.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaLobbyService.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaHandlers.js`, `digimon-tamagotchi-frontend/src/utils/realtimeArenaApi.js`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/**`, `firestore.indexes.json` 및 관련 테스트.
+- **검증:** 푸니몬처럼 projection runtime이 부족한 유년기 슬롯에서도 단계 오류가 우선되는지, 목록에서 만료·참가 완료 방과 UID가 제외되는지, 최신순 정렬·GET 인증·no-store·로비 자동 조회·목록 참가 동작을 서버와 React 테스트로 고정했다.
+- **아키텍처 결정 근거:** 참가자 전용 Firestore Rules의 `list` 차단은 유지하고, 인증된 서버 API가 공개 가능한 최소 필드만 직렬화한다. 서버에서 `status + createdAt` 인덱스로 최근 후보를 제한한 뒤 만료·정원 상태를 재검증해 전체 컬렉션 노출과 무제한 읽기를 피한다. 목록 조회는 읽기 전용이며 Firestore 실시간 쓰기 타이머나 슬롯 저장 계약은 변경하지 않는다.
+
+---
+
 ## [2026-07-30] 실시간 아레나 MVP 기반·서버·UI 구현
 
 - **내용:** 실행 계획의 PR1~PR6 범위에 따라 `mvp-0` 순수 규칙 엔진, immutable rules snapshot, 공용 슬롯 projection, direct-ID 로비, public/secret Firestore 상태, secret-only 첫 행동 제출, `battleId + round` 멱등 판정, timeout·복구·포기, 참가자 전용 Rules, feature flag 기반 최소 한국어 UI를 구현했다. 로비 명령 영수증은 UID에 묶고 상태 검사 전에 재생하며, 게스트는 참가 API 성공 후에만 참가자 전용 Firestore 구독을 시작한다. 랭크·보상·영구 전적·Ably·Supabase archive·자동 매칭은 계획대로 제외했다.

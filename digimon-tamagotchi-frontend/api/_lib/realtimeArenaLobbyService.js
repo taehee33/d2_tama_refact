@@ -2,7 +2,7 @@
 
 const { ArenaError } = require("./arenaErrors");
 const { getArenaFirestore } = require("./arenaTransactions");
-const { projectArenaSlot } = require("./arenaSlotProjection");
+const { projectRealtimeArenaSlot } = require("./realtimeArenaSlotProjection");
 const {
   DEFAULT_REALTIME_ARENA_RULES_VERSION,
   createRealtimeArenaRulesSnapshot,
@@ -47,14 +47,22 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
       }
       return { battle: publicSnapshot.data(), role: "host", replayed: true };
     }
-    const projected = (deps.projectSlot || projectArenaSlot)(slotSnapshot, now, { requireCombatIdentity: false });
-    buildParticipantSnapshot(projected, createRealtimeArenaRulesSnapshot());
+    const validationRules = createRealtimeArenaRulesSnapshot();
+    const projected = projectRealtimeArenaSlot(slotSnapshot, now, validationRules, { requireCombatIdentity: false }, deps);
+    const hostPreview = buildParticipantSnapshot(projected, validationRules);
     const publicData = {
       schemaVersion: REALTIME_ARENA_SCHEMA_VERSION,
       battleId,
       status: "waiting",
       hostUid: uid,
       guestUid: null,
+      listing: {
+        hostDigimonName: hostPreview.public.digimonName,
+        stage: hostPreview.public.stage,
+        version: hostPreview.public.version,
+        spriteBasePath: hostPreview.public.spriteBasePath,
+        sprite: hostPreview.public.sprite,
+      },
       lobby: { host: { ready: false }, guest: null },
       rulesVersion: null,
       rulesSnapshot: null,
@@ -151,8 +159,8 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
         db.doc(`users/${uid}/slots/${slotId}`),
         db.doc(`users/${secret.participants.host.uid}/slots/${secret.participants.host.slotId}`)
       );
-      const guestProjected = (deps.projectSlot || projectArenaSlot)(slotSnapshot, now, { requireCombatIdentity: false });
-      const hostProjected = (deps.projectSlot || projectArenaSlot)(hostSlotSnapshot, now, { requireCombatIdentity: false });
+      const guestProjected = projectRealtimeArenaSlot(slotSnapshot, now, rulesForValidation, { requireCombatIdentity: false }, deps);
+      const hostProjected = projectRealtimeArenaSlot(hostSlotSnapshot, now, rulesForValidation, { requireCombatIdentity: false }, deps);
       const guestPreview = buildParticipantSnapshot(guestProjected, rulesForValidation);
       const hostPreview = buildParticipantSnapshot(hostProjected, rulesForValidation);
       if (guestPreview.public.stage !== hostPreview.public.stage) throw new ArenaError("ARENA_REALTIME_STAGE_MISMATCH", "같은 단계의 디지몬 방에만 참가할 수 있습니다.");
@@ -183,8 +191,8 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
           const rulesVersion = DEFAULT_REALTIME_ARENA_RULES_VERSION;
           const rulesSnapshot = createRealtimeArenaRulesSnapshot(rulesVersion);
           const rulesSnapshotHash = createRequestHash({ rulesVersion, rulesSnapshot });
-          const hostProjected = (deps.projectSlot || projectArenaSlot)(hostSlot, now, { projectionAsOf, requireCombatIdentity: false });
-          const guestProjected = (deps.projectSlot || projectArenaSlot)(guestSlot, now, { projectionAsOf, requireCombatIdentity: false });
+          const hostProjected = projectRealtimeArenaSlot(hostSlot, now, rulesSnapshot, { projectionAsOf, requireCombatIdentity: false }, deps);
+          const guestProjected = projectRealtimeArenaSlot(guestSlot, now, rulesSnapshot, { projectionAsOf, requireCombatIdentity: false }, deps);
           const host = buildParticipantSnapshot(hostProjected, rulesSnapshot);
           const guest = buildParticipantSnapshot(guestProjected, rulesSnapshot);
           if (host.public.stage !== guest.public.stage) throw new ArenaError("ARENA_REALTIME_STAGE_MISMATCH", "같은 단계의 디지몬끼리만 실시간 배틀을 시작할 수 있습니다.");
