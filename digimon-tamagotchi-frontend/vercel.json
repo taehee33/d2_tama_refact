@@ -2,6 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/arena/realtime/battles/:battleId/commands",
+      "destination": "/api/arena-v2?operation=realtime-battle-command&battleId=:battleId"
+    },
+    {
+      "source": "/api/arena/realtime/battles",
+      "destination": "/api/arena-v2?operation=realtime-battle-collection"
+    },
+    {
       "source": "/api/arena/ghosts/:ghostId",
       "destination": "/api/arena-v2?operation=ghost-item&ghostId=:ghostId"
     },

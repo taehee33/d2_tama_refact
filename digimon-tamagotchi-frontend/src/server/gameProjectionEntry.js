@@ -8,6 +8,12 @@ export {
 export { calculatePower } from "../logic/battle/hitrate";
 export { formatKstTime } from "../utils/time";
 export {
+  DEFAULT_REALTIME_ARENA_RULES_VERSION,
+  createRealtimeArenaRulesSnapshot,
+  assertRealtimeArenaRules,
+} from "../logic/realtime-arena/rulesets";
+export { resolveRealtimeArenaRound } from "../logic/realtime-arena/resolveRound";
+export {
   findDigimonEntryAcrossVersions,
   getDigimonEntryByVersion,
   getStarterDigimonId,
