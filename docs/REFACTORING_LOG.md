@@ -4,6 +4,49 @@
 
 ---
 
+## [2026-07-30] 실시간 아레나 MVP 기반·서버·UI 구현
+
+- **내용:** 실행 계획의 PR1~PR6 범위에 따라 `mvp-0` 순수 규칙 엔진, immutable rules snapshot, 공용 슬롯 projection, direct-ID 로비, public/secret Firestore 상태, secret-only 첫 행동 제출, `battleId + round` 멱등 판정, timeout·복구·포기, 참가자 전용 Rules, feature flag 기반 최소 한국어 UI를 구현했다. 랭크·보상·영구 전적·Ably·Supabase archive·자동 매칭은 계획대로 제외했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/**`, `digimon-tamagotchi-frontend/api/_lib/realtimeArena*.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/**`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, `digimon-tamagotchi-frontend/src/utils/realtimeArenaApi.js`, `digimon-tamagotchi-frontend/api/arena-v2.js`, `digimon-tamagotchi-frontend/vercel.json`, `firestore.rules`, `tests/realtime-arena-*.test.js`, `package.json`, `digimon-tamagotchi-frontend/tsconfig.checkjs.json`.
+- **검증:** Adult 3×3 행동·속성·power gap·HP 비율·timeout fixture 19개, 서버 로비/라운드 단위 테스트, API allowlist·캐시·배포 rewrite 테스트, React API·표시 테스트를 추가했다. Firestore Emulator에서 첫 제출 전후 public data와 `updateTime` 불변, 중복 두 번째 제출의 단일 판정, 참가자 public get과 모든 public write/secret 접근 차단을 확인했다.
+- **아키텍처 결정 근거:** Firestore public 문서는 실제 공개 전이 때만 쓰고 미해결 action과 viewer 제출 상태는 secret/API 응답에만 둔다. 서버 코드에는 특정 `firebase-admin` 설치본의 `Timestamp` 객체를 저장하지 않고 네이티브 `Date`를 전달해 Firestore가 Timestamp로 정규화하도록 하여 번들 경계의 타입 충돌을 제거했다. UI 1초 표시는 로컬 계산만 수행하며 timeout 시 라운드별 API 호출을 최대 한 번 시작한다.
+
+---
+
+## [2026-07-30] 실시간 아레나 MVP 개발 실행 계획 확정
+
+- **내용:** 확정된 Firebase Auth·Vercel `arena-v2`·Firestore public/secret 정본 계약과 밸런스 보고서를 실제 개발 순서로 변환했다. 임시 규칙 `mvp-0 = R2 + S1 + H2 + P25 + M1`을 immutable snapshot으로 고정하고, 순수 rules engine부터 로비 transaction, secret 행동 제출, `battleId + round` 정확히 한 번 판정, timeout·재접속, Rules·Emulator, 최소 React UI, Preview 2계정 검증까지 PR0~PR7 단계로 나눴다.
+- **영향 파일:**
+  - `docs/REALTIME_ARENA_MVP_IMPLEMENTATION_PLAN.md`
+  - `docs/README.md`
+  - `README.md`
+  - `docs/REFACTORING_LOG.md`
+- **검증:** 기존 `arena-v2` 라우터, Ghost 슬롯 projection, 서버 projection bundle, Firestore Rules·인덱스, Arena 단위·Emulator 테스트, 모달/UI 진입점과 package scripts를 읽기 전용으로 확인했다. 새 Vercel 진입점 없이 operation 두 개로 연결하고, direct-ID 초대형 MVP에는 새 복합 인덱스가 필요하지 않음을 계획에 반영했다. 문서 외 프로덕션 코드, 테스트, Rules, 인덱스, 설정, lockfile과 데이터는 변경하지 않았다.
+- **아키텍처 결정 근거:** 현재 판정표의 약한 지배 문제를 사용자 자산에 남기지 않기 위해 rank·보상·영구 경쟁 전적은 보류한다. 기반 상태 머신과 규칙 계산을 분리해 `mvp-0`을 수정하지 않고 `mvp-1`을 추가할 수 있게 하며, 첫 행동 public metadata 비노출, viewer `private, no-store`, current-round-only timeout, zero timer write를 출시 차단 불변식으로 둔다.
+
+---
+
+## [2026-07-30] 실시간 아레나 192개 밸런스 조합 분석 완료
+
+- **내용:** 운영 Firebase·Supabase·Ably에 접근하지 않고 Ver.1~Ver.5 정적 데이터 84체와 `calculatePower()` 코드상 이론 범위를 사용해 R·S·H·P·M의 192개 조합을 전수 분석했다. 동일 단계 1,870 ordered matchup, 인접 단계 포함 4,410 matchup, 상태별 혼합전략과 한 라운드 지배 관계를 검증했다. 현 판정표를 유지할 때의 조건부 수치로 `R2 + S1 + H2 + P25 + M1`을 선택했지만, 공격의 방어 약지배와 HP 우세 측 최종 방어 굳히기가 남아 최종 판정은 `행동 판정표 구조 재검토 필요`로 기록했다.
+- **영향 파일:**
+  - `docs/REALTIME_ARENA_BALANCE_ANALYSIS_REPORT.md`
+  - `docs/REFACTORING_LOG.md`
+- **검증:** Node 24.14.0에서 192/192 후보와 M1·M2 `calculatePower()` 24×24 상태 그리드를 계산했다. 확률 혼합전략은 seed `20260730`, matchup·정책 쌍당 32회로 재현했으며 정규화한 전수 결과 SHA-256은 `9cd28280bbf05672d104ae8a596be8bbf8a8f453049d9c575fe784b444535789`이다. 실제 슬롯 표본이 없어 이론 커버리지와 실측 분포를 분리해 한계로 남겼다.
+- **아키텍처 결정 근거:** 확정된 Firestore 정본·Vercel 서버 권위·secret 행동·timeout 계약은 재논의하지 않았다. 다섯 숫자 후보 안에서 가장 덜 위험한 값을 고르되 구조적 지배 행동을 수치 확정으로 숨기지 않아, 후속 판정표 검토와 익명화 슬롯 표본 검증의 경계를 분명히 했다. 프로덕션 코드, 테스트, Rules, 인덱스, 설정, lockfile과 데이터는 변경하지 않았다.
+
+---
+
+## [2026-07-30] 실시간 아레나 밸런스 최종 분석 요청서 확정
+
+- **내용:** 이전 실시간 아레나 분석 요청과 후속 리뷰를 하나의 독립 실행 지시서로 통합했다. 아키텍처와 서버 상태 계약은 고정하고, 운영 데이터 접근 없이 공격 대 특수공격 약화 피해, 특수공격 보너스, 단계별 HP·기본 공격력, `powerGapUnit`, 매칭 범위의 192개 후보 조합만 수치·전략 관점에서 비교하도록 범위를 닫았다.
+- **영향 파일:**
+  - `docs/REALTIME_ARENA_BALANCE_ANALYSIS_REQUEST.md`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** Firestore 단일 정본, 기존 Vercel `arena-v2` 서버 권위 판정, secret 행동 상태, viewer 전용 projection, 라운드 멱등성, timeout 복구와 no fast-forward 계약을 재검토 대상에서 제외해 다음 분석이 전투 수치 결정에만 집중하도록 했다. 런타임 코드, 저장 경로, Rules와 데이터는 변경하지 않았다.
+
+---
+
 ## [2026-07-28] Discord 일일보고 진행 바 줄바꿈 고정
 
 - **내용:** 일일보고의 시간형 카운터 진행 표시를 긴급 케어 알림과 같은 고정폭 코드 블록으로 변경해, 데드라인 문장 뒤에 이어 붙지 않고 항상 다음 줄에서 시작하도록 개선했다.
