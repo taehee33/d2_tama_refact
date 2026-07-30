@@ -42,6 +42,20 @@ export function resolveDigimonDataFromMap(dataMap = {}, digimonId) {
   return null;
 }
 
+export function buildEvolutionButtonPresentation({
+  hasNormalEvolution,
+  isEvoEnabled,
+  isEvolving,
+}) {
+  const isAvailable =
+    hasNormalEvolution && isEvoEnabled && !isEvolving;
+
+  return {
+    isAvailable,
+    label: isAvailable ? "진화!" : "진화?",
+  };
+}
+
 export function buildResetDigimonState({
   currentStats,
   normalizedSlotVersion,

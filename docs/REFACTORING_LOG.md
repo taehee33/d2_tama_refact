@@ -47,6 +47,19 @@
 
 ---
 
+## [2026-07-30] 진화 버튼 상태별 문구 구분
+
+- **내용:** 일반 진화가 가능해 버튼이 초록색인 때에만 `진화!`를 표시하고, 조건 미충족 또는 진화 진행 중으로 버튼이 회색인 때에는 `진화?`를 표시하도록 개선했다.
+- **테스트:** 진화 가능, 조건 미충족, 진화 진행 중의 세 상태에서 버튼 가용 여부와 문구가 일치하는지 검증한다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/gamePageActionHelpers.js`
+  - `digimon-tamagotchi-frontend/src/hooks/game-runtime/gamePageActionHelpers.test.js`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 버튼 색상과 문구의 판정을 순수 helper 하나에서 계산해 두 UI 표현이 서로 엇갈리지 않게 한다. 진화 로직, 저장 계약, Firestore 경로와 lazy update 규칙에는 영향이 없다.
+
+---
+
 ## [2026-07-28] Discord 일일보고 진행 바 줄바꿈 고정
 
 - **내용:** 일일보고의 시간형 카운터 진행 표시를 긴급 케어 알림과 같은 고정폭 코드 블록으로 변경해, 데드라인 문장 뒤에 이어 붙지 않고 항상 다음 줄에서 시작하도록 개선했다.
