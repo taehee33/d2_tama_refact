@@ -58,7 +58,8 @@ __webpack_require__.d(__webpack_exports__, {
   projectState: () => (/* reexport */ projectState),
   resolveRealtimeArenaRound: () => (/* reexport */ resolveRealtimeArenaRound),
   selectRealtimeArenaCpuAction: () => (/* reexport */ selectRealtimeArenaCpuAction),
-  selectRealtimeArenaCpuOpponent: () => (/* reexport */ selectRealtimeArenaCpuOpponent)
+  selectRealtimeArenaCpuOpponent: () => (/* reexport */ selectRealtimeArenaCpuOpponent),
+  selectRealtimeArenaFallbackAction: () => (/* reexport */ selectRealtimeArenaFallbackAction)
 });
 
 ;// ./src/data/defaultStatsFile.js
@@ -7883,7 +7884,7 @@ function calculateArenaBattle({
 }
 
 ;// ./src/logic/realtime-arena/rulesets.js
-const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-1";
+const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-2";
 
 const MVP_0 = {
   schemaVersion: 1,
@@ -7917,6 +7918,16 @@ const MVP_1 = {
   matchingScope: "eligible_stages",
 };
 
+const MVP_2 = {
+  ...MVP_1,
+  presentationWindowMs: 2200,
+  selectionMode: "latest_until_deadline",
+  timeout: {
+    missingAction: "deterministic_random",
+    consecutiveLossCount: null,
+  },
+};
+
 function deepFreeze(value) {
   Object.values(value).forEach((nested) => {
     if (nested && typeof nested === "object" && !Object.isFrozen(nested)) deepFreeze(nested);
@@ -7927,6 +7938,7 @@ function deepFreeze(value) {
 const REALTIME_ARENA_RULESETS = deepFreeze({
   "mvp-0": MVP_0,
   "mvp-1": MVP_1,
+  "mvp-2": MVP_2,
 });
 
 function clonePlain(value) {
@@ -7942,6 +7954,9 @@ function assertRealtimeArenaRules(rules) {
   }
   if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
   if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
+  if (rules.presentationWindowMs !== undefined && (!Number.isFinite(rules.presentationWindowMs) || rules.presentationWindowMs < 0)) {
+    throw new Error("라운드 판정 연출 시간이 올바르지 않습니다.");
+  }
   return rules;
 }
 
@@ -8017,8 +8032,9 @@ function determineRealtimeArenaOutcome({ currentHp, participants, round, maxRoun
   if (hostKo && guestKo) return { outcome: "draw", reason: "simultaneous_ko" };
   if (hostKo) return { outcome: "guest_win", reason: "ko" };
   if (guestKo) return { outcome: "host_win", reason: "ko" };
-  const hostTimedOut = timeoutStreaks.host >= timeoutLossCount;
-  const guestTimedOut = timeoutStreaks.guest >= timeoutLossCount;
+  const timeoutLossEnabled = Number.isInteger(timeoutLossCount) && timeoutLossCount > 0;
+  const hostTimedOut = timeoutLossEnabled && timeoutStreaks.host >= timeoutLossCount;
+  const guestTimedOut = timeoutLossEnabled && timeoutStreaks.guest >= timeoutLossCount;
   if (hostTimedOut && guestTimedOut) return { outcome: "draw", reason: "double_timeout" };
   if (hostTimedOut) return { outcome: "guest_win", reason: "timeout" };
   if (guestTimedOut) return { outcome: "host_win", reason: "timeout" };
@@ -8138,6 +8154,11 @@ function selectRealtimeArenaCpuAction({ seed, battleId, round, currentHp, partic
     if (roll < boundary) return ACTIONS[index];
   }
   return "special_attack";
+}
+
+function selectRealtimeArenaFallbackAction({ seed, battleId, round, role }) {
+  const index = Math.floor(seededRatio(`fallback-action:${seed}:${battleId}:${round}:${role}`) * ACTIONS.length);
+  return ACTIONS[index] || "special_attack";
 }
 
 ;// ./src/server/gameProjectionEntry.js

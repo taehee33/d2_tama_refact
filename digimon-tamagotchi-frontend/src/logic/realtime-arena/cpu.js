@@ -76,3 +76,8 @@ export function selectRealtimeArenaCpuAction({ seed, battleId, round, currentHp,
   }
   return "special_attack";
 }
+
+export function selectRealtimeArenaFallbackAction({ seed, battleId, round, role }) {
+  const index = Math.floor(seededRatio(`fallback-action:${seed}:${battleId}:${round}:${role}`) * ACTIONS.length);
+  return ACTIONS[index] || "special_attack";
+}

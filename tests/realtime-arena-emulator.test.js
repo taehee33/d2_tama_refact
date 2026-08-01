@@ -8,12 +8,12 @@ const { commandRealtimeRound } = require("../digimon-tamagotchi-frontend/api/_li
 const { createRequestHash } = require("../digimon-tamagotchi-frontend/api/_lib/realtimeArenaDomain");
 const { createRealtimeArenaRulesSnapshot } = require("../digimon-tamagotchi-frontend/api/_generated/gameProjection.cjs");
 
-test("실시간 아레나 transaction은 첫 제출 metadata를 숨기고 동시 판정을 한 번만 commit한다", { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
+test("실시간 아레나 mvp-2 transaction은 선택을 숨기고 deadline 판정을 한 번만 commit한다", { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
   const projectId = process.env.FIREBASE_PROJECT_ID || "d2tamarefact";
   const app = initializeApp({ projectId }, `realtime-arena-${Date.now()}`);
   const db = getFirestore(app);
   const battleId = `rtb_${"a".repeat(43)}`;
-  const rulesVersion = "mvp-0";
+  const rulesVersion = "mvp-2";
   const rulesSnapshot = createRealtimeArenaRulesSnapshot(rulesVersion);
   const rulesSnapshotHash = createRequestHash({ rulesVersion, rulesSnapshot });
   const startedAt = new Date("2026-07-30T00:00:00.000Z");
@@ -24,19 +24,19 @@ test("실시간 아레나 transaction은 첫 제출 metadata를 숨기고 동시
     await deleteApp(app);
   });
   await db.doc(`realtimeArenaBattles/${battleId}`).set({
-    schemaVersion: 1, battleId, status: "selecting", hostUid: "host", guestUid: "guest",
+    schemaVersion: 1, battleId, mode: "pvp", status: "selecting", hostUid: "host", guestUid: "guest",
     lobby: { host: { ready: true }, guest: { ready: true } }, rulesVersion, rulesSnapshot, rulesSnapshotHash,
     participants: {
       host: { stage: "Adult", attribute: "Free", sourcePower: 50, maxHp: 13, baseAttack: 3 },
       guest: { stage: "Adult", attribute: "Free", sourcePower: 50, maxHp: 13, baseAttack: 3 },
     },
-    round: 1, maxRounds: 7, stateVersion: 4, deadlineAt: Timestamp.fromDate(deadlineAt),
+    round: 1, maxRounds: 7, stateVersion: 4, selectionOpensAt: Timestamp.fromDate(startedAt), presentationEndsAt: null, deadlineAt: Timestamp.fromDate(deadlineAt),
     currentHp: { host: 13, guest: 13 }, timeoutStreaks: { host: 0, guest: 0 }, resolvedRounds: [], result: null,
     createdAt: Timestamp.fromDate(startedAt), updatedAt: Timestamp.fromDate(startedAt), startedAt: Timestamp.fromDate(startedAt), finishedAt: null,
     expiresAt: Timestamp.fromDate(new Date("2026-07-31T00:00:00.000Z")),
   });
   await db.doc(`realtimeArenaBattleSecrets/${battleId}`).set({
-    schemaVersion: 1, battleId, secretVersion: 1,
+    schemaVersion: 1, battleId, secretVersion: 1, battleSeed: "emulator-battle-seed",
     participants: { host: { uid: "host", slotId: "slot1" }, guest: { uid: "guest", slotId: "slot1" } },
     rulesVersion, rulesSnapshotHash,
     roundSecrets: { "1": { hostSubmission: null, guestSubmission: null, resolved: false, resolvedAt: null, resolutionType: null, resultHash: null } },
@@ -45,7 +45,7 @@ test("실시간 아레나 transaction은 첫 제출 metadata를 숨기고 동시
   const before = await db.doc(`realtimeArenaBattles/${battleId}`).get();
   await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
-    input: { requestId: "host-1", round: 1, expectedStateVersion: 4, action: "attack" },
+    input: { requestId: "host-1", round: 1, expectedStateVersion: 4, action: "attack", selectionRevision: 1 },
     deps: { db, now: new Date("2026-07-30T00:00:03.000Z") },
   });
   const afterFirst = await db.doc(`realtimeArenaBattles/${battleId}`).get();
@@ -54,18 +54,32 @@ test("실시간 아레나 transaction은 첫 제출 metadata를 숨기고 동시
   const results = await Promise.all([
     commandRealtimeRound({
       uid: "guest", battleId, command: "submit-action",
-      input: { requestId: "guest-1", round: 1, expectedStateVersion: 4, action: "special_attack" },
+      input: { requestId: "guest-1", round: 1, expectedStateVersion: 4, action: "special_attack", selectionRevision: 1 },
       deps: { db, now: new Date("2026-07-30T00:00:04.000Z") },
     }),
     commandRealtimeRound({
       uid: "guest", battleId, command: "submit-action",
-      input: { requestId: "guest-1", round: 1, expectedStateVersion: 4, action: "special_attack" },
+      input: { requestId: "guest-1", round: 1, expectedStateVersion: 4, action: "special_attack", selectionRevision: 1 },
       deps: { db, now: new Date("2026-07-30T00:00:04.000Z") },
     }),
   ]);
-  assert.ok(results.every((result) => result.status === "resolved" || result.status === "replayed"));
+  assert.ok(results.every((result) => result.status === "accepted" || result.status === "replayed"));
+  const beforeDeadline = await db.doc(`realtimeArenaBattles/${battleId}`).get();
+  assert.deepEqual(beforeDeadline.data(), before.data());
+  const deadlineResults = await Promise.all([
+    commandRealtimeRound({
+      uid: "host", battleId, command: "resolve-timeout", input: { requestId: "deadline-host" },
+      deps: { db, now: new Date("2026-07-30T00:00:08.000Z") },
+    }),
+    commandRealtimeRound({
+      uid: "guest", battleId, command: "resolve-timeout", input: { requestId: "deadline-guest" },
+      deps: { db, now: new Date("2026-07-30T00:00:08.000Z") },
+    }),
+  ]);
+  assert.ok(deadlineResults.every((result) => result.status === "resolved" || result.status === "replayed"));
   const finalBattle = (await db.doc(`realtimeArenaBattles/${battleId}`).get()).data();
   assert.equal(finalBattle.round, 2);
   assert.equal(finalBattle.resolvedRounds.length, 1);
   assert.equal(finalBattle.stateVersion, 5);
+  assert.deepEqual(finalBattle.resolvedRounds[0].selectionSources, { host: "manual", guest: "manual" });
 });

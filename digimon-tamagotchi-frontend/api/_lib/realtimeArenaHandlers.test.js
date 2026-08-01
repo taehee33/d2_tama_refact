@@ -24,7 +24,7 @@ test("realtime command handler는 command별 allowlist와 private no-store를 �
   const response = createResponse();
   await handler({
     method: "POST",
-    headers: { "x-arena-client-schema-version": "1" },
+    headers: { "x-arena-client-schema-version": "2" },
     query: { battleId: `rtb_${"a".repeat(43)}` },
     body: { command: "submit-action", requestId: "request-1", round: 1, expectedStateVersion: 1, action: "attack", uid: "forged" },
   }, response);
@@ -37,7 +37,7 @@ test("realtime command handler는 command별 allowlist와 private no-store를 �
 test("realtime handler 인증 오류는 내부 상세 없이 Arena 오류로 정규화한다", async () => {
   const handler = createRealtimeBattleCommandHandler({ verifyRequestUser: async () => { const error = new Error("token secret"); error.status = 401; throw error; } });
   const response = createResponse();
-  await handler({ method: "POST", headers: { "x-arena-client-schema-version": "1" }, query: {}, body: {} }, response);
+  await handler({ method: "POST", headers: { "x-arena-client-schema-version": "2" }, query: {}, body: {} }, response);
   assert.equal(response.statusCode, 401);
   assert.equal(response.body.error.code, "ARENA_AUTH_REQUIRED");
   assert.doesNotMatch(JSON.stringify(response.body), /token secret/);
@@ -57,7 +57,7 @@ test("realtime collection GET은 인증된 사용자에게 정제된 대기방 �
   });
   const response = createResponse();
 
-  await handler({ method: "GET", headers: { "x-arena-client-schema-version": "1" } }, response);
+  await handler({ method: "GET", headers: { "x-arena-client-schema-version": "2" } }, response);
 
   assert.equal(response.statusCode, 200);
   assert.deepEqual(response.body, { rooms });
@@ -80,7 +80,7 @@ test("realtime collection POST는 cpu 모드를 CPU 생성 서비스로 전달�
 
   await handler({
     method: "POST",
-    headers: { "x-arena-client-schema-version": "1" },
+    headers: { "x-arena-client-schema-version": "2" },
     body: { requestId: "create-cpu", slotId: "slot1", mode: "cpu" },
   }, response);
 

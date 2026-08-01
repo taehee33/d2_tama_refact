@@ -3,6 +3,7 @@ import { resolveRealtimeArenaRound } from "./resolveRound";
 import { createRealtimeArenaRulesSnapshot, REALTIME_ARENA_RULESETS } from "./rulesets";
 
 const rules = createRealtimeArenaRulesSnapshot();
+const legacyRules = createRealtimeArenaRulesSnapshot("mvp-1");
 const adult = (overrides = {}) => ({ stage: "Adult", attribute: "Free", sourcePower: 50, maxHp: 13, ...overrides });
 const state = (overrides = {}) => ({
   participants: { host: adult(), guest: adult() },
@@ -21,6 +22,7 @@ describe("실시간 아레나 규칙", () => {
   test("mvp-0은 같은 단계 규칙을 보존하고 mvp-1은 성장기 이상 전체로 확장한다", () => {
     expect(REALTIME_ARENA_RULESETS["mvp-0"].matchingScope).toBe("same_stage_only");
     expect(REALTIME_ARENA_RULESETS["mvp-1"].matchingScope).toBe("eligible_stages");
+    expect(REALTIME_ARENA_RULESETS["mvp-2"].selectionMode).toBe("latest_until_deadline");
   });
 
   test.each([
@@ -65,12 +67,17 @@ describe("실시간 아레나 규칙", () => {
   });
 
   test("같은 참가자의 두 번째 연속 no_action은 패배다", () => {
-    const result = resolveRealtimeArenaRound({ battleState: state({ timeoutStreaks: { host: 1, guest: 0 } }), hostAction: "no_action", guestAction: "guard", rules });
+    const result = resolveRealtimeArenaRound({ battleState: state({ timeoutStreaks: { host: 1, guest: 0 } }), hostAction: "no_action", guestAction: "guard", rules: legacyRules });
     expect(result.result).toEqual({ outcome: "guest_win", reason: "timeout" });
   });
 
   test("양쪽의 두 번째 연속 no_action은 무승부다", () => {
-    const result = resolveRealtimeArenaRound({ battleState: state({ timeoutStreaks: { host: 1, guest: 1 } }), hostAction: "no_action", guestAction: "no_action", rules });
+    const result = resolveRealtimeArenaRound({ battleState: state({ timeoutStreaks: { host: 1, guest: 1 } }), hostAction: "no_action", guestAction: "no_action", rules: legacyRules });
     expect(result.result).toEqual({ outcome: "draw", reason: "double_timeout" });
+  });
+
+  test("mvp-2는 시간 초과 연속 패배를 적용하지 않는다", () => {
+    const result = resolveRealtimeArenaRound({ battleState: state({ timeoutStreaks: { host: 2, guest: 0 } }), hostAction: "attack", guestAction: "guard", rules });
+    expect(result.result).toBeNull();
   });
 });

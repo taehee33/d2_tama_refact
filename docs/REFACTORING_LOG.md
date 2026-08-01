@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-08-02] 실시간 아레나 선택 변경·자동 선택·판정 애니메이션 개선
+
+- **내용:** 새 기본 규칙 `mvp-2`에서 7초 동안 행동을 변경하고 마감 시 마지막 서버 저장 선택으로 판정하도록 개선했다. 아무 행동도 저장되지 않은 참가자는 비밀 시드로 공격·방어·특수공격 중 하나를 결정적으로 자동 선택하며 더 이상 `no_action` 연속 패배를 적용하지 않는다. 양쪽 행동은 판정 뒤 동시에 공개하고 공격 스프라이트, 중앙 방패, 피격 흔들림, 실제 피해 숫자와 HP 바 변화를 약 2.2초 동안 보여준 뒤 다음 선택시간 7초를 시작한다.
+- **서버 정합성:** 행동 요청에 단조 증가하는 `selectionRevision`을 추가해 늦게 도착한 이전 요청이 최신 선택을 덮어쓰지 못하게 했다. 비밀 문서의 `battleSeed`와 `battleId + round + role`로 미선택 행동을 재현하며, public 판정에는 행동 출처 `manual/auto/cpu`만 기록한다. 기존 `mvp-0/1` snapshot과 즉시 판정·timeout 의미는 수정하지 않는다.
+- **UI·복구:** 참가자 전용 viewer 응답으로 자신의 선택과 revision만 복구하고 상대의 현재 선택은 마감 전 노출하지 않는다. 서버의 `selectionOpensAt`·`presentationEndsAt`을 기준으로 연출과 다음 선택을 구분해 별도 Firestore 타이머 쓰기 없이 재접속·백그라운드 복귀를 처리한다. reduced-motion 환경에서는 이동 효과 없이 행동·피해·최종 HP를 즉시 표시한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/**`, `digimon-tamagotchi-frontend/api/_lib/realtimeArena*.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/**`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, 관련 테스트와 `docs/REALTIME_ARENA_MVP_IMPLEMENTATION_PLAN.md`.
+- **아키텍처 결정 근거:** Ghost 배틀의 대형 화면을 직접 재사용하지 않고 공격·피격의 시각 언어와 훈련 방패 표현만 실시간 배틀 전용 presenter에 적용한다. 판정 결과는 서버 정본을 그대로 재생하며 클라이언트 애니메이션이 피해량이나 다음 deadline을 계산해 저장하지 않는다.
+
+---
+
 ## [2026-08-01] 실시간 아레나 VS CPU 연습전 추가
 
 - **내용:** 실시간 배틀 로비에 확인 절차가 있는 `CPU와 배틀` 진입점을 추가했다. CPU 배틀은 사람 대기방을 만들지 않고 사용자 슬롯을 projection한 뒤 Ver.1~5 정적 데이터에서 전투력이 가까운 참가 가능 디지몬을 자동 선택해 즉시 1라운드를 시작한다. 전투 화면에서 CPU 이름·단계·스프라이트를 공개하고 결과는 사용자 관점의 승리·패배·무승부로 표시하며 랭크·보상·육성 전적에는 반영하지 않는다.

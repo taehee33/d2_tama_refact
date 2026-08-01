@@ -1,4 +1,4 @@
-export const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-1";
+export const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-2";
 
 const MVP_0 = {
   schemaVersion: 1,
@@ -32,6 +32,16 @@ const MVP_1 = {
   matchingScope: "eligible_stages",
 };
 
+const MVP_2 = {
+  ...MVP_1,
+  presentationWindowMs: 2200,
+  selectionMode: "latest_until_deadline",
+  timeout: {
+    missingAction: "deterministic_random",
+    consecutiveLossCount: null,
+  },
+};
+
 function deepFreeze(value) {
   Object.values(value).forEach((nested) => {
     if (nested && typeof nested === "object" && !Object.isFrozen(nested)) deepFreeze(nested);
@@ -42,6 +52,7 @@ function deepFreeze(value) {
 export const REALTIME_ARENA_RULESETS = deepFreeze({
   "mvp-0": MVP_0,
   "mvp-1": MVP_1,
+  "mvp-2": MVP_2,
 });
 
 function clonePlain(value) {
@@ -57,6 +68,9 @@ export function assertRealtimeArenaRules(rules) {
   }
   if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
   if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
+  if (rules.presentationWindowMs !== undefined && (!Number.isFinite(rules.presentationWindowMs) || rules.presentationWindowMs < 0)) {
+    throw new Error("라운드 판정 연출 시간이 올바르지 않습니다.");
+  }
   return rules;
 }
 

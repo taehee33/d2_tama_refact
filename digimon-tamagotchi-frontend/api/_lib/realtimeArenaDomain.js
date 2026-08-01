@@ -5,7 +5,7 @@ const { ArenaError } = require("./arenaErrors");
 const { createCanonicalRequestHash, normalizeSlotId } = require("./arenaDomain");
 
 const REALTIME_ARENA_SCHEMA_VERSION = 1;
-const REALTIME_ARENA_CLIENT_SCHEMA_VERSION = 1;
+const REALTIME_ARENA_CLIENT_SCHEMA_VERSION = 2;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_.:-]{1,120}$/;
 
 function assertOnlyKeys(input, allowedKeys) {
@@ -51,6 +51,8 @@ function serializeBattle(battle) {
     finishedAt: timestampToIso(battle.finishedAt),
     expiresAt: timestampToIso(battle.expiresAt),
     deadlineAt: timestampToIso(battle.deadlineAt),
+    selectionOpensAt: timestampToIso(battle.selectionOpensAt),
+    presentationEndsAt: timestampToIso(battle.presentationEndsAt),
     resolvedRounds: (battle.resolvedRounds || []).map((round) => ({ ...round, resolvedAt: timestampToIso(round.resolvedAt) })),
   };
 }

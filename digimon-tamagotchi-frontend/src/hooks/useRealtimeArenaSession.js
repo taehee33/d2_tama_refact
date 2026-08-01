@@ -20,6 +20,8 @@ function normalizePublicBattle(data, battleId) {
     ...data,
     battleId,
     deadlineAt: toIso(data.deadlineAt),
+    selectionOpensAt: toIso(data.selectionOpensAt),
+    presentationEndsAt: toIso(data.presentationEndsAt),
     createdAt: toIso(data.createdAt),
     updatedAt: toIso(data.updatedAt),
     startedAt: toIso(data.startedAt),
@@ -36,11 +38,17 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [remainingMs, setRemainingMs] = useState(0);
+  const [clockMs, setClockMs] = useState(Date.now());
+  const [optimisticAction, setOptimisticAction] = useState(null);
+  const [selectionSavingCount, setSelectionSavingCount] = useState(0);
+  const [recovering, setRecovering] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomsError, setRoomsError] = useState("");
   const timeoutStartedRef = useRef("");
   const restoreStartedRef = useRef(false);
+  const selectionRevisionRef = useRef(0);
+  const activeRoundRef = useRef(null);
 
   const setBattleId = useCallback((value) => {
     setBattleIdState(value);
@@ -51,11 +59,27 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   }, []);
 
   const applyPayload = useCallback((payload) => {
+    let roundChanged = false;
     if (payload?.battle) {
+      roundChanged = activeRoundRef.current !== null && activeRoundRef.current !== payload.battle.round;
+      activeRoundRef.current = payload.battle.round;
       setBattle(payload.battle);
       setBattleId(payload.battle.battleId);
+      if (roundChanged) {
+        setOptimisticAction(null);
+        selectionRevisionRef.current = 0;
+      }
     }
-    if (payload?.viewer) setViewer(payload.viewer);
+    if (payload?.viewer) {
+      setViewer((previous) => {
+        if (
+          !roundChanged &&
+          previous?.role === payload.viewer.role &&
+          Number(previous.selectionRevision || 0) > Number(payload.viewer.selectionRevision || 0)
+        ) return previous;
+        return payload.viewer;
+      });
+    }
     return payload;
   }, [setBattleId]);
 
@@ -95,8 +119,12 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   const restore = useCallback(async () => {
     if (restoreStartedRef.current || !battleId || !currentUser) return null;
     restoreStartedRef.current = true;
+    setRecovering(true);
     try { return await runCommand("restore"); }
-    finally { restoreStartedRef.current = false; }
+    finally {
+      restoreStartedRef.current = false;
+      setRecovering(false);
+    }
   }, [battleId, currentUser, runCommand]);
 
   useEffect(() => {
@@ -106,8 +134,13 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
       (snapshot) => {
         if (!snapshot.exists()) return;
         const next = normalizePublicBattle(snapshot.data(), snapshot.id);
+        activeRoundRef.current = next.round;
         setBattle((previous) => {
-          if (previous?.round !== next.round) setViewer((value) => value ? { ...value, hasSubmitted: false } : value);
+          if (previous?.round !== next.round) {
+            setViewer((value) => value ? { ...value, hasSubmitted: false, selectedAction: null, selectionRevision: 0 } : value);
+            setOptimisticAction(null);
+            selectionRevisionRef.current = 0;
+          }
           return next;
         });
       },
@@ -123,15 +156,27 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   }, [battleId, currentUser, refreshRooms]);
 
   useEffect(() => {
-    if (!battle?.deadlineAt || battle.status !== "selecting") {
+    const shouldTick = battle?.status === "selecting" || Boolean(
+      battle?.status === "finished" && battle.presentationEndsAt && new Date(battle.presentationEndsAt).getTime() > Date.now()
+    );
+    if (!shouldTick) {
       setRemainingMs(0);
       return undefined;
     }
-    const tick = () => setRemainingMs(Math.max(0, new Date(battle.deadlineAt).getTime() - Date.now()));
+    const tick = () => {
+      const now = Date.now();
+      setClockMs(now);
+      setRemainingMs(battle?.deadlineAt ? Math.max(0, new Date(battle.deadlineAt).getTime() - now) : 0);
+    };
     tick();
-    const interval = window.setInterval(tick, 250);
+    const interval = window.setInterval(tick, 100);
     return () => window.clearInterval(interval);
-  }, [battle?.deadlineAt, battle?.status]);
+  }, [battle?.deadlineAt, battle?.presentationEndsAt, battle?.status]);
+
+  useEffect(() => {
+    selectionRevisionRef.current = Math.max(selectionRevisionRef.current, Number(viewer?.selectionRevision || 0));
+    if (viewer?.selectedAction) setOptimisticAction(viewer.selectedAction);
+  }, [viewer?.selectedAction, viewer?.selectionRevision]);
 
   useEffect(() => {
     if (
@@ -180,7 +225,68 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     setBattle(null);
     setViewer(null);
     setError("");
+    setOptimisticAction(null);
+    selectionRevisionRef.current = 0;
+    activeRoundRef.current = null;
   }, [setBattleId]);
 
-  return { battleId, battle, viewer, busy, error, remainingMs, rooms, roomsLoading, roomsError, refreshRooms, createBattle, createCpuBattle, joinBattle, runCommand, restore, closeSession };
+  const selectAction = useCallback(async (action) => {
+    if (!currentUser || !battleId || !battle || battle.status !== "selecting") return null;
+    const selectionRevision = selectionRevisionRef.current + 1;
+    selectionRevisionRef.current = selectionRevision;
+    setOptimisticAction(action);
+    setSelectionSavingCount((count) => count + 1);
+    setError("");
+    try {
+      return applyPayload(await sendRealtimeArenaCommand(currentUser, battleId, {
+        command: "submit-action",
+        requestId: createRequestId(),
+        round: battle.round,
+        expectedStateVersion: battle.stateVersion,
+        action,
+        selectionRevision,
+      }));
+    } catch (selectionError) {
+      setError(selectionError.message);
+      if (selectionRevision === selectionRevisionRef.current) setOptimisticAction(viewer?.selectedAction || null);
+      throw selectionError;
+    } finally {
+      setSelectionSavingCount((count) => Math.max(0, count - 1));
+    }
+  }, [applyPayload, battle, battleId, currentUser, viewer?.selectedAction]);
+
+  const presentationEndsAtMs = battle?.presentationEndsAt ? new Date(battle.presentationEndsAt).getTime() : 0;
+  const presentationActive = Boolean(
+    presentationEndsAtMs > clockMs && (battle?.resolvedRounds?.length || 0) > 0
+  );
+  const selectionOpen = Boolean(
+    battle?.status === "selecting" &&
+    (!battle.selectionOpensAt || new Date(battle.selectionOpensAt).getTime() <= clockMs)
+  );
+
+  return {
+    battleId,
+    battle,
+    viewer,
+    busy,
+    error,
+    remainingMs,
+    rooms,
+    roomsLoading,
+    roomsError,
+    refreshRooms,
+    createBattle,
+    createCpuBattle,
+    joinBattle,
+    runCommand,
+    restore,
+    closeSession,
+    selectAction,
+    selectedAction: optimisticAction || viewer?.selectedAction || null,
+    selectionSaving: selectionSavingCount > 0,
+    recovering,
+    presentationActive,
+    selectionOpen,
+    clockMs,
+  };
 }

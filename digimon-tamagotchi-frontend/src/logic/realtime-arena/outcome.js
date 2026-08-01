@@ -4,8 +4,9 @@ export function determineRealtimeArenaOutcome({ currentHp, participants, round, 
   if (hostKo && guestKo) return { outcome: "draw", reason: "simultaneous_ko" };
   if (hostKo) return { outcome: "guest_win", reason: "ko" };
   if (guestKo) return { outcome: "host_win", reason: "ko" };
-  const hostTimedOut = timeoutStreaks.host >= timeoutLossCount;
-  const guestTimedOut = timeoutStreaks.guest >= timeoutLossCount;
+  const timeoutLossEnabled = Number.isInteger(timeoutLossCount) && timeoutLossCount > 0;
+  const hostTimedOut = timeoutLossEnabled && timeoutStreaks.host >= timeoutLossCount;
+  const guestTimedOut = timeoutLossEnabled && timeoutStreaks.guest >= timeoutLossCount;
   if (hostTimedOut && guestTimedOut) return { outcome: "draw", reason: "double_timeout" };
   if (hostTimedOut) return { outcome: "guest_win", reason: "timeout" };
   if (guestTimedOut) return { outcome: "host_win", reason: "timeout" };

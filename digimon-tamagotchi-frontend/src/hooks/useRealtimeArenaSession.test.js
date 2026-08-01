@@ -15,6 +15,8 @@ jest.mock("../utils/realtimeArenaApi", () => ({
 }));
 
 beforeEach(() => {
+  sessionStorage.clear();
+  jest.clearAllMocks();
   listRealtimeArenaBattles.mockResolvedValue({ rooms: [] });
 });
 
@@ -57,4 +59,35 @@ test("로비에 진입하면 대기방 목록을 불러온다", async () => {
 
   await waitFor(() => expect(result.current.rooms).toHaveLength(1));
   expect(listRealtimeArenaBattles).toHaveBeenCalledWith(currentUser);
+});
+
+test("복구 응답의 내 선택을 강조하고 다음 selectionRevision으로 변경한다", async () => {
+  sessionStorage.setItem("realtime_arena_active_battle_id", "rtb_active");
+  const battle = {
+    battleId: "rtb_active",
+    status: "selecting",
+    round: 1,
+    stateVersion: 4,
+    deadlineAt: new Date(Date.now() + 7000).toISOString(),
+    selectionOpensAt: new Date(Date.now() - 1000).toISOString(),
+    resolvedRounds: [],
+  };
+  sendRealtimeArenaCommand
+    .mockResolvedValueOnce({ battle, viewer: { role: "host", hasSubmitted: true, selectedAction: "guard", selectionRevision: 2 } })
+    .mockResolvedValueOnce({ battle, viewer: { role: "host", hasSubmitted: true, selectedAction: "attack", selectionRevision: 3 } });
+  const currentUser = { uid: "host", getIdToken: jest.fn() };
+  const { result, unmount } = renderHook(() => useRealtimeArenaSession({ currentUser, slotId: "slot1" }));
+
+  await waitFor(() => expect(result.current.selectedAction).toBe("guard"));
+  await act(async () => {
+    await result.current.selectAction("attack");
+  });
+
+  expect(sendRealtimeArenaCommand).toHaveBeenLastCalledWith(currentUser, "rtb_active", expect.objectContaining({
+    command: "submit-action",
+    action: "attack",
+    selectionRevision: 3,
+  }));
+  expect(result.current.selectedAction).toBe("attack");
+  unmount();
 });

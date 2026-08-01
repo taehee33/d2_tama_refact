@@ -1,6 +1,7 @@
 import {
   createRealtimeArenaCpuCandidates,
   selectRealtimeArenaCpuAction,
+  selectRealtimeArenaFallbackAction,
   selectRealtimeArenaCpuOpponent,
 } from "./cpu";
 import { createRealtimeArenaRulesSnapshot } from "./rulesets";
@@ -29,4 +30,10 @@ test("CPU 행동은 플레이어가 제출할 현재 행동 없이 배틀 상태
   };
   expect(selectRealtimeArenaCpuAction(input)).toBe(selectRealtimeArenaCpuAction(input));
   expect(["attack", "guard", "special_attack"]).toContain(selectRealtimeArenaCpuAction(input));
+});
+
+test("미선택 행동은 배틀·라운드·역할과 비밀 시드로 결정적으로 선택한다", () => {
+  const input = { seed: "fallback-seed", battleId: "rtb_test", round: 2, role: "host" };
+  expect(selectRealtimeArenaFallbackAction(input)).toBe(selectRealtimeArenaFallbackAction(input));
+  expect(["attack", "guard", "special_attack"]).toContain(selectRealtimeArenaFallbackAction(input));
 });

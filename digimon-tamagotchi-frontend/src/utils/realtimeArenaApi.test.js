@@ -17,7 +17,7 @@ describe("realtimeArenaApi", () => {
     expect(global.fetch).toHaveBeenCalledWith("/api/arena/realtime/battles", expect.objectContaining({
       method: "POST",
       cache: "no-store",
-      headers: expect.objectContaining({ Authorization: "Bearer token-1", "X-Arena-Client-Schema-Version": "1" }),
+      headers: expect.objectContaining({ Authorization: "Bearer token-1", "X-Arena-Client-Schema-Version": "2" }),
     }));
     expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ requestId: "request-1", slotId: "slot1", mode: "pvp" });
   });

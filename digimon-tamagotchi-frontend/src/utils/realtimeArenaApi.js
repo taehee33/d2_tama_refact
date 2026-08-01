@@ -1,4 +1,4 @@
-const CLIENT_SCHEMA_VERSION = 1;
+const CLIENT_SCHEMA_VERSION = 2;
 
 async function requestRealtimeArena(currentUser, url, body, method = "POST") {
   if (!currentUser?.getIdToken) throw new Error("실시간 배틀은 로그인이 필요합니다.");

@@ -28,6 +28,7 @@ async function createRealtimeCpuBattle({ uid, slotId, requestId, deps = {} }) {
   const db = deps.db || getArenaFirestore();
   const now = deps.now || new Date();
   const cpuSeed = deps.cpuSeed || crypto.randomBytes(32).toString("hex");
+  const battleSeed = deps.battleSeed || crypto.randomBytes(32).toString("hex");
   const canonicalSlotId = normalizeSlotId(slotId);
   const canonicalRequestId = normalizeRequestId(requestId);
   const battleId = createRealtimeBattleId({ hostUid: uid, requestId: canonicalRequestId });
@@ -79,6 +80,8 @@ async function createRealtimeCpuBattle({ uid, slotId, requestId, deps = {} }) {
       round: 1,
       maxRounds: rulesSnapshot.maxRounds,
       stateVersion: 1,
+      selectionOpensAt: nowTimestamp,
+      presentationEndsAt: null,
       deadlineAt: new Date(now.getTime() + rulesSnapshot.selectionWindowMs),
       currentHp: { host: host.public.maxHp, guest: cpu.maxHp },
       timeoutStreaks: { host: 0, guest: 0 },
@@ -97,6 +100,7 @@ async function createRealtimeCpuBattle({ uid, slotId, requestId, deps = {} }) {
       createRequestId: canonicalRequestId,
       createRequestHash: requestHash,
       cpuSeed,
+      battleSeed,
       participants: {
         host: {
           uid,

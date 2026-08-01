@@ -7,16 +7,16 @@ import RealtimeArenaResult from "./RealtimeArenaResult";
 
 test("행동 패널은 세 행동을 한국어로 표시하고 한 번 선택한다", () => {
   const onSubmit = jest.fn();
-  render(<RealtimeArenaActionPanel disabled={false} submitted={false} onSubmit={onSubmit} />);
-  expect(screen.getByRole("button", { name: "공격" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "방어" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "특수공격" }));
+  render(<RealtimeArenaActionPanel disabled={false} selectedAction={null} saving={false} onSubmit={onSubmit} />);
+  expect(screen.getByRole("button", { name: /^공격 선택$/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^방어 선택$/ })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^특수공격 선택$/ }));
   expect(onSubmit).toHaveBeenCalledWith("special_attack");
 });
-test("제출 뒤에는 상대 상태 없이 자신의 제출 완료만 표시한다", () => {
-  render(<RealtimeArenaActionPanel disabled={false} submitted onSubmit={() => {}} />);
-  expect(screen.getByText("행동 제출 완료")).toBeInTheDocument();
-  expect(screen.queryByText(/상대.*제출/)).not.toBeInTheDocument();
+test("마감 전에는 현재 선택을 강조하고 변경 가능함을 알린다", () => {
+  render(<RealtimeArenaActionPanel disabled={false} selectedAction="guard" saving={false} onSubmit={() => {}} />);
+  expect(screen.getByRole("button", { name: /방어/ })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText(/마감 전까지 변경할 수 있습니다/)).toBeInTheDocument();
 });
 
 test("결과는 친선전이며 랭크와 보상에 반영되지 않음을 알린다", () => {
@@ -97,12 +97,60 @@ test("CPU 전투 화면은 나와 CPU의 이름, 단계, 모습을 즉시 공개
       busy={false}
       onSubmit={jest.fn()}
       onForfeit={jest.fn()}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive={false}
+      selectionOpen
+      clockMs={Date.now()}
     />
   );
   expect(screen.getByText("나")).toBeInTheDocument();
   expect(screen.getByText("CPU")).toBeInTheDocument();
   expect(screen.getByRole("img", { name: "파피몬 모습" })).toHaveAttribute("src", "/images/2.png");
   expect(screen.getByText("성숙기")).toBeInTheDocument();
+});
+
+test("판정 연출은 양쪽 행동과 자동 선택, 방패, 실제 피해량을 공개한다", () => {
+  const presentationEndsAt = new Date(Date.now() + 300).toISOString();
+  const participant = (name, sprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite: sprite + 100 });
+  render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "pvp",
+        status: "selecting",
+        round: 2,
+        maxRounds: 7,
+        presentationEndsAt,
+        rulesSnapshot: { presentationWindowMs: 2200 },
+        currentHp: { host: 9, guest: 13 },
+        participants: { host: participant("아구몬", 1), guest: participant("파피몬", 2) },
+        resolvedRounds: [{
+          round: 1,
+          hostAction: "attack",
+          guestAction: "guard",
+          hostDamageTaken: 4,
+          guestDamageTaken: 0,
+          selectionSources: { host: "auto", guest: "manual" },
+        }],
+      }}
+      viewer={{ role: "host" }}
+      remainingMs={0}
+      busy={false}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive
+      selectionOpen={false}
+      clockMs={Date.now()}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+  expect(screen.getByText("나:").parentElement).toHaveTextContent("공격");
+  expect(screen.getByText("자동 선택")).toBeInTheDocument();
+  expect(screen.getByLabelText("방패 방어")).toBeInTheDocument();
+  expect(screen.getByLabelText("4 피해")).toHaveTextContent("-4");
 });
 
 test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {

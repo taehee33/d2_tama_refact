@@ -5,6 +5,7 @@ const { getArenaFirestore } = require("./arenaTransactions");
 const {
   resolveRealtimeArenaRound,
   selectRealtimeArenaCpuAction,
+  selectRealtimeArenaFallbackAction,
 } = require("../_generated/gameProjection.cjs");
 const {
   assertParticipant,
@@ -30,6 +31,10 @@ function isCpuBattle(battle) {
   return battle?.mode === "cpu";
 }
 
+function usesLatestSelection(battle) {
+  return battle?.rulesSnapshot?.selectionMode === "latest_until_deadline";
+}
+
 function withCpuSubmission({ battle, secret, roundSecret, now }) {
   if (!isCpuBattle(battle) || roundSecret.guestSubmission) return roundSecret;
   if (typeof secret.cpuSeed !== "string" || !secret.cpuSeed) {
@@ -48,9 +53,42 @@ function withCpuSubmission({ battle, secret, roundSecret, now }) {
   };
 }
 
+function withFallbackSubmissions({ battle, secret, roundSecret, now }) {
+  if (!usesLatestSelection(battle)) return roundSecret;
+  if (typeof secret.battleSeed !== "string" || !secret.battleSeed) {
+    throw new ArenaError("ARENA_REALTIME_INVARIANT_VIOLATION", "자동 선택 비밀 정보가 손상되었습니다.");
+  }
+  let next = roundSecret;
+  for (const role of ["host", "guest"]) {
+    const submissionKey = `${role}Submission`;
+    if (next[submissionKey] || (role === "guest" && isCpuBattle(battle))) continue;
+    next = {
+      ...next,
+      [submissionKey]: {
+        action: selectRealtimeArenaFallbackAction({
+          seed: secret.battleSeed,
+          battleId: battle.battleId,
+          round: battle.round,
+          role,
+        }),
+        source: "auto",
+        selectionRevision: 0,
+        submittedAt: new Date(now.getTime()),
+      },
+    };
+  }
+  return next;
+}
+
 function viewerFor(secret, role, round) {
   const roundSecret = secret.roundSecrets?.[String(round)];
-  return { role, hasSubmitted: Boolean(roundSecret?.[`${role}Submission`]) };
+  const submission = roundSecret?.[`${role}Submission`];
+  return {
+    role,
+    hasSubmitted: Boolean(submission),
+    selectedAction: submission?.source === "manual" || !submission?.source ? submission.action : null,
+    selectionRevision: Number(submission?.selectionRevision || 0),
+  };
 }
 
 function assertRulesInvariant(battle, secret) {
@@ -91,19 +129,29 @@ function resolveStoredRound({ battle, secret, resolutionType, now }) {
     guestDamageTaken: transition.guestDamageTaken,
     hostHpAfter: transition.currentHp.host,
     guestHpAfter: transition.currentHp.guest,
-    timeoutSides: transition.timeoutSides,
+    timeoutSides: usesLatestSelection(battle)
+      ? ["host", "guest"].filter((role) => roundSecret[`${role}Submission`]?.source === "auto")
+      : transition.timeoutSides,
+    selectionSources: {
+      host: roundSecret.hostSubmission?.source || (hostAction === "no_action" ? "auto" : "manual"),
+      guest: roundSecret.guestSubmission?.source || (guestAction === "no_action" ? "auto" : "manual"),
+    },
     resolutionType,
     resolvedAt: nowTimestamp,
     resultHash,
   };
   const finished = Boolean(transition.result);
   const nextRound = finished ? battle.round : battle.round + 1;
+  const presentationWindowMs = Number(battle.rulesSnapshot.presentationWindowMs || 0);
+  const presentationEndsAt = new Date(now.getTime() + presentationWindowMs);
   const nextBattle = {
     ...battle,
     status: finished ? "finished" : "selecting",
     round: nextRound,
     stateVersion: Number(battle.stateVersion) + 1,
-    deadlineAt: finished ? null : new Date(now.getTime() + Number(battle.rulesSnapshot.selectionWindowMs)),
+    selectionOpensAt: finished ? null : presentationEndsAt,
+    presentationEndsAt,
+    deadlineAt: finished ? null : new Date(presentationEndsAt.getTime() + Number(battle.rulesSnapshot.selectionWindowMs)),
     currentHp: transition.currentHp,
     timeoutStreaks: transition.timeoutStreaks,
     resolvedRounds: [...(battle.resolvedRounds || []), resolvedRound],
@@ -151,20 +199,15 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
 
     const deadlinePassed = toMillis(battle.deadlineAt) <= now.getTime();
     if (deadlinePassed) {
-      if (isCpuBattle(battle)) {
-        const key = String(battle.round);
-        const roundSecret = withCpuSubmission({
-          battle,
-          secret,
-          roundSecret: secret.roundSecrets?.[key] || emptyRoundSecret(),
-          now,
-        });
-        secret = {
-          ...secret,
-          roundSecrets: { ...(secret.roundSecrets || {}), [key]: roundSecret },
-        };
-      }
-      const timeoutResolution = resolveStoredRound({ battle, secret, resolutionType: "timeout", now });
+      const key = String(battle.round);
+      let roundSecret = secret.roundSecrets?.[key] || emptyRoundSecret();
+      roundSecret = withCpuSubmission({ battle, secret, roundSecret, now });
+      roundSecret = withFallbackSubmissions({ battle, secret, roundSecret, now });
+      secret = {
+        ...secret,
+        roundSecrets: { ...(secret.roundSecrets || {}), [key]: roundSecret },
+      };
+      const timeoutResolution = resolveStoredRound({ battle, secret, resolutionType: usesLatestSelection(battle) ? "deadline" : "timeout", now });
       battle = timeoutResolution.battle;
       secret = timeoutResolution.secret;
       transaction.set(publicRef, battle);
@@ -189,6 +232,9 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
       return { battle, secret, role, status: "resolved", resolvedRound: null, wrotePublic: true, wroteSecret: false };
     }
     if (command !== "submit-action") throw new ArenaError("ARENA_INVALID_REQUEST", "지원하지 않는 전투 명령입니다.");
+    if (battle.selectionOpensAt && toMillis(battle.selectionOpensAt) > now.getTime()) {
+      throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "라운드 판정 연출이 끝난 뒤 행동을 선택해 주세요.");
+    }
 
     const requestedRound = Number(input.round);
     if (!Number.isInteger(requestedRound) || requestedRound !== battle.round) {
@@ -200,27 +246,66 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
     assertExpectedState(battle, input);
     if (!["attack", "guard", "special_attack"].includes(input.action)) throw new ArenaError("ARENA_INVALID_REQUEST", "행동 값이 올바르지 않습니다.");
     const requestId = normalizeRequestId(input.requestId);
-    const requestHash = createRequestHash({ command, battleId, round: requestedRound, expectedStateVersion: Number(input.expectedStateVersion), action: input.action });
+    const latestSelection = usesLatestSelection(battle);
+    const selectionRevision = latestSelection ? Number(input.selectionRevision) : 1;
+    if (latestSelection && (!Number.isInteger(selectionRevision) || selectionRevision < 1)) {
+      throw new ArenaError("ARENA_INVALID_REQUEST", "selectionRevision 값이 올바르지 않습니다.");
+    }
+    const requestHash = createRequestHash({
+      command,
+      battleId,
+      round: requestedRound,
+      expectedStateVersion: Number(input.expectedStateVersion),
+      action: input.action,
+      ...(latestSelection ? { selectionRevision } : {}),
+    });
     const key = String(battle.round);
     const roundSecret = secret.roundSecrets?.[key] || emptyRoundSecret();
     const submissionKey = `${role}Submission`;
     const previous = roundSecret[submissionKey];
     if (previous) {
-      if (previous.action !== input.action || (previous.requestId === requestId && previous.requestHash !== requestHash)) {
-        throw new ArenaError("ARENA_REALTIME_ACTION_MISMATCH", "이미 제출한 라운드 행동은 변경할 수 없습니다.");
+      if (!latestSelection) {
+        if (previous.action !== input.action || (previous.requestId === requestId && previous.requestHash !== requestHash)) {
+          throw new ArenaError("ARENA_REALTIME_ACTION_MISMATCH", "이미 제출한 라운드 행동은 변경할 수 없습니다.");
+        }
+        return { battle, secret, role, status: "replayed", resolvedRound: null, wrotePublic: false, wroteSecret: false };
       }
-      return { battle, secret, role, status: "replayed", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+      const previousRevision = Number(previous.selectionRevision || 0);
+      if (selectionRevision < previousRevision) {
+        return { battle, secret, role, status: "stale", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+      }
+      if (selectionRevision === previousRevision) {
+        if (previous.requestHash !== requestHash || previous.action !== input.action) {
+          throw new ArenaError("ARENA_REALTIME_ACTION_MISMATCH", "같은 선택 revision을 다른 행동에 사용할 수 없습니다.");
+        }
+        return { battle, secret, role, status: "replayed", resolvedRound: null, wrotePublic: false, wroteSecret: false };
+      }
     }
     let nextRoundSecret = {
       ...roundSecret,
-      [submissionKey]: { action: input.action, requestId, requestHash, submittedAt: new Date(now.getTime()) },
+      [submissionKey]: {
+        action: input.action,
+        source: "manual",
+        selectionRevision,
+        requestId,
+        requestHash,
+        submittedAt: new Date(now.getTime()),
+      },
     };
-    nextRoundSecret = withCpuSubmission({ battle, secret, roundSecret: nextRoundSecret, now });
     secret = {
       ...secret,
       secretVersion: Number(secret.secretVersion) + 1,
       roundSecrets: { ...(secret.roundSecrets || {}), [key]: nextRoundSecret },
       updatedAt: new Date(now.getTime()),
+    };
+    if (latestSelection) {
+      transaction.set(secretRef, secret);
+      return { battle, secret, role, status: "accepted", resolvedRound: null, wrotePublic: false, wroteSecret: true };
+    }
+    nextRoundSecret = withCpuSubmission({ battle, secret, roundSecret: nextRoundSecret, now });
+    secret = {
+      ...secret,
+      roundSecrets: { ...(secret.roundSecrets || {}), [key]: nextRoundSecret },
     };
     const opponentKey = `${role === "host" ? "guest" : "host"}Submission`;
     if (!nextRoundSecret[opponentKey]) {

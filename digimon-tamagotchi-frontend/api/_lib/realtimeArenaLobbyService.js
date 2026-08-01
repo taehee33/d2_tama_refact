@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const { ArenaError } = require("./arenaErrors");
 const { getArenaFirestore } = require("./arenaTransactions");
 const { projectRealtimeArenaSlot } = require("./realtimeArenaSlotProjection");
@@ -40,6 +41,7 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
   const canonicalRequestId = normalizeRequestId(requestId);
   const battleId = createRealtimeBattleId({ hostUid: uid, requestId: canonicalRequestId });
   const requestHash = createRequestHash({ command: "create", slotId: canonicalSlotId });
+  const battleSeed = deps.battleSeed || crypto.randomBytes(32).toString("hex");
   return getRunner(db, deps)(async (transaction) => {
     const publicRef = db.doc(`realtimeArenaBattles/${battleId}`);
     const secretRef = db.doc(`realtimeArenaBattleSecrets/${battleId}`);
@@ -97,6 +99,7 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
       secretVersion: 1,
       createRequestId: canonicalRequestId,
       createRequestHash: requestHash,
+      battleSeed,
       participants: { host: { uid, slotId: canonicalSlotId, digimonInstanceId: null, combatRevision: null, powerBreakdown: null, capturedAt: null }, guest: null },
       rulesVersion: null,
       rulesSnapshotHash: null,
@@ -118,6 +121,7 @@ function assertWaiting(battle) {
 async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }) {
   const db = deps.db || getArenaFirestore();
   const now = deps.now || new Date();
+  const activationBattleSeed = deps.battleSeed || crypto.randomBytes(32).toString("hex");
   return getRunner(db, deps)(async (transaction) => {
     const publicRef = db.doc(`realtimeArenaBattles/${battleId}`);
     const secretRef = db.doc(`realtimeArenaBattleSecrets/${battleId}`);
@@ -212,6 +216,8 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
             participants: { host: host.public, guest: guest.public },
             round: 1,
             maxRounds: rulesSnapshot.maxRounds,
+            selectionOpensAt: nowTimestamp,
+            presentationEndsAt: null,
             deadlineAt: toTimestamp(new Date(now.getTime() + rulesSnapshot.selectionWindowMs)),
             currentHp: { host: host.public.maxHp, guest: guest.public.maxHp },
             timeoutStreaks: { host: 0, guest: 0 },
@@ -222,6 +228,7 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
             ...nextSecret,
             rulesVersion,
             rulesSnapshotHash,
+            battleSeed: nextSecret.battleSeed || activationBattleSeed,
             participants: {
               host: { ...hostPrivate, ...host.secret, capturedAt: nowTimestamp },
               guest: { ...guestPrivate, ...guest.secret, capturedAt: nowTimestamp },

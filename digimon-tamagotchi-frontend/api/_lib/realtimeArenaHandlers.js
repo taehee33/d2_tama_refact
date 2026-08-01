@@ -113,7 +113,7 @@ function createRealtimeBattleCommandHandler(deps = {}) {
         restore: ["command", "requestId"],
         "resolve-timeout": ["command", "requestId"],
         forfeit: ["command", "requestId"],
-        "submit-action": ["command", "requestId", "round", "expectedStateVersion", "action"],
+        "submit-action": ["command", "requestId", "round", "expectedStateVersion", "action", "selectionRevision"],
       };
       assertOnlyKeys(input, allowedKeysByCommand[command]);
       normalizeRequestId(input.requestId);

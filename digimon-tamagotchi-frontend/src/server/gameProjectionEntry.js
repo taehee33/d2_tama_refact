@@ -16,6 +16,7 @@ export { resolveRealtimeArenaRound } from "../logic/realtime-arena/resolveRound"
 export {
   createRealtimeArenaCpuCandidates,
   selectRealtimeArenaCpuAction,
+  selectRealtimeArenaFallbackAction,
   selectRealtimeArenaCpuOpponent,
 } from "../logic/realtime-arena/cpu";
 export {
