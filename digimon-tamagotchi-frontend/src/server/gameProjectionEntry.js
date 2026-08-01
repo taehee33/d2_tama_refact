@@ -14,6 +14,11 @@ export {
 } from "../logic/realtime-arena/rulesets";
 export { resolveRealtimeArenaRound } from "../logic/realtime-arena/resolveRound";
 export {
+  createRealtimeArenaCpuCandidates,
+  selectRealtimeArenaCpuAction,
+  selectRealtimeArenaCpuOpponent,
+} from "../logic/realtime-arena/cpu";
+export {
   findDigimonEntryAcrossVersions,
   getDigimonEntryByVersion,
   getStarterDigimonId,

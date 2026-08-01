@@ -2,7 +2,10 @@
 
 const { ArenaError } = require("./arenaErrors");
 const { getArenaFirestore } = require("./arenaTransactions");
-const { resolveRealtimeArenaRound } = require("../_generated/gameProjection.cjs");
+const {
+  resolveRealtimeArenaRound,
+  selectRealtimeArenaCpuAction,
+} = require("../_generated/gameProjection.cjs");
 const {
   assertParticipant,
   createRequestHash,
@@ -21,6 +24,28 @@ function getRunner(db, deps) {
 
 function emptyRoundSecret() {
   return { hostSubmission: null, guestSubmission: null, resolved: false, resolvedAt: null, resolutionType: null, resultHash: null };
+}
+
+function isCpuBattle(battle) {
+  return battle?.mode === "cpu";
+}
+
+function withCpuSubmission({ battle, secret, roundSecret, now }) {
+  if (!isCpuBattle(battle) || roundSecret.guestSubmission) return roundSecret;
+  if (typeof secret.cpuSeed !== "string" || !secret.cpuSeed) {
+    throw new ArenaError("ARENA_REALTIME_INVARIANT_VIOLATION", "CPU 배틀 비밀 정보가 손상되었습니다.");
+  }
+  const action = selectRealtimeArenaCpuAction({
+    seed: secret.cpuSeed,
+    battleId: battle.battleId,
+    round: battle.round,
+    currentHp: battle.currentHp,
+    participants: battle.participants,
+  });
+  return {
+    ...roundSecret,
+    guestSubmission: { action, source: "cpu", submittedAt: new Date(now.getTime()) },
+  };
 }
 
 function viewerFor(secret, role, round) {
@@ -126,6 +151,19 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
 
     const deadlinePassed = toMillis(battle.deadlineAt) <= now.getTime();
     if (deadlinePassed) {
+      if (isCpuBattle(battle)) {
+        const key = String(battle.round);
+        const roundSecret = withCpuSubmission({
+          battle,
+          secret,
+          roundSecret: secret.roundSecrets?.[key] || emptyRoundSecret(),
+          now,
+        });
+        secret = {
+          ...secret,
+          roundSecrets: { ...(secret.roundSecrets || {}), [key]: roundSecret },
+        };
+      }
       const timeoutResolution = resolveStoredRound({ battle, secret, resolutionType: "timeout", now });
       battle = timeoutResolution.battle;
       secret = timeoutResolution.secret;
@@ -173,10 +211,11 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
       }
       return { battle, secret, role, status: "replayed", resolvedRound: null, wrotePublic: false, wroteSecret: false };
     }
-    const nextRoundSecret = {
+    let nextRoundSecret = {
       ...roundSecret,
       [submissionKey]: { action: input.action, requestId, requestHash, submittedAt: new Date(now.getTime()) },
     };
+    nextRoundSecret = withCpuSubmission({ battle, secret, roundSecret: nextRoundSecret, now });
     secret = {
       ...secret,
       secretVersion: Number(secret.secretVersion) + 1,
@@ -188,7 +227,7 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
       transaction.set(secretRef, secret);
       return { battle, secret, role, status: "accepted", resolvedRound: null, wrotePublic: false, wroteSecret: true };
     }
-    const resolution = resolveStoredRound({ battle, secret, resolutionType: "both_submitted", now });
+    const resolution = resolveStoredRound({ battle, secret, resolutionType: isCpuBattle(battle) ? "cpu_submitted" : "both_submitted", now });
     transaction.set(publicRef, resolution.battle);
     transaction.set(secretRef, resolution.secret);
     return { battle: resolution.battle, secret: resolution.secret, role, status: "resolved", resolvedRound: resolution.resolvedRound, wrotePublic: true, wroteSecret: true };

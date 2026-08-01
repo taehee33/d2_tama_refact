@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import RealtimeArenaActionPanel from "./RealtimeArenaActionPanel";
 import RealtimeArenaLobby from "./RealtimeArenaLobby";
+import RealtimeArenaBattleBoard from "./RealtimeArenaBattleBoard";
 import RealtimeArenaResult from "./RealtimeArenaResult";
 
 test("행동 패널은 세 행동을 한국어로 표시하고 한 번 선택한다", () => {
@@ -72,4 +73,41 @@ test("방을 만든 사람에게 만료까지 남은 시간을 표시한다", ()
     />
   );
   expect(screen.getByText(/방 만료까지 10분 남았습니다/)).toBeInTheDocument();
+});
+
+test("CPU와 배틀은 연습전 확인 뒤에 시작한다", () => {
+  const onCreateCpu = jest.fn();
+  render(<RealtimeArenaLobby battle={null} viewer={null} busy={false} rooms={[]} onRefreshRooms={jest.fn()} onCreate={jest.fn()} onCreateCpu={onCreateCpu} onJoin={jest.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "CPU와 배틀" }));
+  expect(screen.getByText("VS CPU는 승패 기록과 보상에 반영되지 않는 연습전입니다. 시작할까요?")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "배틀 시작" }));
+  expect(onCreateCpu).toHaveBeenCalledTimes(1);
+});
+
+test("CPU 전투 화면은 나와 CPU의 이름, 단계, 모습을 즉시 공개한다", () => {
+  const participant = (name, stage, sprite) => ({ digimonName: name, stage, maxHp: 13, spriteBasePath: "/images", sprite });
+  render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "cpu", round: 1, maxRounds: 7, currentHp: { host: 13, guest: 13 }, resolvedRounds: [],
+        participants: { host: participant("아구몬", "성장기", 1), guest: participant("파피몬", "성숙기", 2) },
+      }}
+      viewer={{ role: "host", hasSubmitted: false }}
+      remainingMs={7000}
+      busy={false}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+  expect(screen.getByText("나")).toBeInTheDocument();
+  expect(screen.getByText("CPU")).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "파피몬 모습" })).toHaveAttribute("src", "/images/2.png");
+  expect(screen.getByText("성숙기")).toBeInTheDocument();
+});
+
+test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {
+  const { rerender } = render(<RealtimeArenaResult battle={{ mode: "cpu", result: { outcome: "host_win", reason: "ko" } }} onCloseSession={() => {}} />);
+  expect(screen.getByText("승리")).toBeInTheDocument();
+  rerender(<RealtimeArenaResult battle={{ mode: "cpu", result: { outcome: "guest_win", reason: "ko" } }} onCloseSession={() => {}} />);
+  expect(screen.getByText("패배")).toBeInTheDocument();
 });

@@ -4,6 +4,7 @@ const { verifyRequestUser } = require("./auth");
 const { ArenaError, toArenaErrorPayload } = require("./arenaErrors");
 const { allowMethods, parseJsonBody, sendJson } = require("./http");
 const { createRealtimeBattle, commandRealtimeLobby } = require("./realtimeArenaLobbyService");
+const { createRealtimeCpuBattle } = require("./realtimeArenaCpuService");
 const { listWaitingRealtimeBattles } = require("./realtimeArenaListingService");
 const { commandRealtimeRound, viewerFor } = require("./realtimeArenaRoundService");
 const {
@@ -76,9 +77,13 @@ function createRealtimeBattleCollectionHandler(deps = {}) {
       }
       assertServerMode(user.uid, "create");
       const input = await parseJsonBody(req);
-      assertOnlyKeys(input, ["requestId", "slotId"]);
+      assertOnlyKeys(input, ["requestId", "slotId", "mode"]);
       normalizeRequestId(input.requestId);
-      const result = await createRealtimeBattle({ uid: user.uid, slotId: input.slotId, requestId: input.requestId, deps });
+      const mode = input.mode === undefined ? "pvp" : input.mode;
+      if (!new Set(["pvp", "cpu"]).has(mode)) throw new ArenaError("ARENA_INVALID_REQUEST", "지원하지 않는 실시간 배틀 모드입니다.");
+      const result = mode === "cpu"
+        ? await (deps.createCpuBattle || createRealtimeCpuBattle)({ uid: user.uid, slotId: input.slotId, requestId: input.requestId, deps })
+        : await createRealtimeBattle({ uid: user.uid, slotId: input.slotId, requestId: input.requestId, deps });
       sendJson(res, result.replayed ? 200 : 201, buildResponse({ ...result, status: result.replayed ? "replayed" : "accepted" }));
     } catch (error) {
       sendSafeError(res, error, {});

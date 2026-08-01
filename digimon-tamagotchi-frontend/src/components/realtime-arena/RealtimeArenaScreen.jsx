@@ -18,7 +18,7 @@ export default function RealtimeArenaScreen({ currentSlotId, onClose }) {
         </header>
         {session.error && <p role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{session.error}</p>}
         {!currentUser ? <p>로그인 후 실시간 배틀을 이용할 수 있습니다.</p> : session.battle?.status === "waiting" ? (
-          <RealtimeArenaLobby battle={session.battle} viewer={session.viewer} busy={session.busy} rooms={session.rooms} roomsLoading={session.roomsLoading} roomsError={session.roomsError} onRefreshRooms={session.refreshRooms} onCreate={session.createBattle} onJoin={session.joinBattle} onReady={(ready) => session.runCommand("set-ready", { ready })} onLeave={() => session.runCommand("leave").then(session.closeSession)} onCancel={() => session.runCommand("cancel")} />
+          <RealtimeArenaLobby battle={session.battle} viewer={session.viewer} busy={session.busy} rooms={session.rooms} roomsLoading={session.roomsLoading} roomsError={session.roomsError} onRefreshRooms={session.refreshRooms} onCreate={session.createBattle} onCreateCpu={session.createCpuBattle} onJoin={session.joinBattle} onReady={(ready) => session.runCommand("set-ready", { ready })} onLeave={() => session.runCommand("leave").then(session.closeSession)} onCancel={() => session.runCommand("cancel")} />
         ) : session.battle?.status === "selecting" ? (
           <RealtimeArenaBattleBoard battle={session.battle} viewer={session.viewer} remainingMs={session.remainingMs} busy={session.busy} onSubmit={submit} onForfeit={() => session.runCommand("forfeit")} />
         ) : session.battle?.status === "finished" ? (
@@ -26,7 +26,7 @@ export default function RealtimeArenaScreen({ currentSlotId, onClose }) {
         ) : session.battle?.status === "cancelled" || session.battle?.status === "expired" ? (
           <div className="space-y-3 text-center"><p>{session.battle.status === "expired" ? "배틀 방이 만료되었습니다." : "배틀 방이 취소되었습니다."}</p><button type="button" onClick={session.closeSession} className="rounded bg-slate-700 px-4 py-2 text-white">로비로 돌아가기</button></div>
         ) : (
-          <RealtimeArenaLobby battle={null} viewer={session.viewer} busy={session.busy} rooms={session.rooms} roomsLoading={session.roomsLoading} roomsError={session.roomsError} onRefreshRooms={session.refreshRooms} onCreate={session.createBattle} onJoin={session.joinBattle} />
+          <RealtimeArenaLobby battle={null} viewer={session.viewer} busy={session.busy} rooms={session.rooms} roomsLoading={session.roomsLoading} roomsError={session.roomsError} onRefreshRooms={session.refreshRooms} onCreate={session.createBattle} onCreateCpu={session.createCpuBattle} onJoin={session.joinBattle} />
         )}
       </section>
     </div>

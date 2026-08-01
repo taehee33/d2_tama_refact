@@ -65,6 +65,7 @@ async function createRealtimeBattle({ uid, slotId, requestId, deps = {} }) {
     const publicData = {
       schemaVersion: REALTIME_ARENA_SCHEMA_VERSION,
       battleId,
+      mode: "pvp",
       status: "waiting",
       hostUid: uid,
       guestUid: null,

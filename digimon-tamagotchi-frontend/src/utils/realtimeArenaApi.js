@@ -28,8 +28,8 @@ export function listRealtimeArenaBattles(currentUser) {
   return requestRealtimeArena(currentUser, "/api/arena/realtime/battles", undefined, "GET");
 }
 
-export function createRealtimeArenaBattle(currentUser, { requestId, slotId }) {
-  return requestRealtimeArena(currentUser, "/api/arena/realtime/battles", { requestId, slotId });
+export function createRealtimeArenaBattle(currentUser, { requestId, slotId, mode = "pvp" }) {
+  return requestRealtimeArena(currentUser, "/api/arena/realtime/battles", { requestId, slotId, mode });
 }
 
 export function sendRealtimeArenaCommand(currentUser, battleId, body) {

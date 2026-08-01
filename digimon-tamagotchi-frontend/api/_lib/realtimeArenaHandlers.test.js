@@ -63,3 +63,29 @@ test("realtime collection GET은 인증된 사용자에게 정제된 대기방 �
   assert.deepEqual(response.body, { rooms });
   assert.equal(response.headers["Cache-Control"], "private, no-store");
 });
+
+test("realtime collection POST는 cpu 모드를 CPU 생성 서비스로 전달한다", async (t) => {
+  const previousMode = process.env.REALTIME_ARENA_MODE;
+  process.env.REALTIME_ARENA_MODE = "active";
+  t.after(() => { if (previousMode === undefined) delete process.env.REALTIME_ARENA_MODE; else process.env.REALTIME_ARENA_MODE = previousMode; });
+  let received = null;
+  const handler = createRealtimeBattleCollectionHandler({
+    verifyRequestUser: async () => ({ uid: "host" }),
+    createCpuBattle: async (input) => {
+      received = input;
+      return { battle: { battleId: `rtb_${"c".repeat(43)}`, mode: "cpu", status: "selecting" }, role: "host", replayed: false };
+    },
+  });
+  const response = createResponse();
+
+  await handler({
+    method: "POST",
+    headers: { "x-arena-client-schema-version": "1" },
+    body: { requestId: "create-cpu", slotId: "slot1", mode: "cpu" },
+  }, response);
+
+  assert.equal(response.statusCode, 201);
+  assert.equal(received.uid, "host");
+  assert.equal(received.slotId, "slot1");
+  assert.equal(response.body.battle.mode, "cpu");
+});

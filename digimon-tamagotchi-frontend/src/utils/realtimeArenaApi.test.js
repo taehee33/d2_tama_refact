@@ -19,6 +19,12 @@ describe("realtimeArenaApi", () => {
       cache: "no-store",
       headers: expect.objectContaining({ Authorization: "Bearer token-1", "X-Arena-Client-Schema-Version": "1" }),
     }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ requestId: "request-1", slotId: "slot1", mode: "pvp" });
+  });
+
+  test("CPU 생성 요청은 cpu 모드를 명시한다", async () => {
+    await createRealtimeArenaBattle(currentUser, { requestId: "request-cpu", slotId: "slot1", mode: "cpu" });
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ requestId: "request-cpu", slotId: "slot1", mode: "cpu" });
   });
 
   test("command URL은 battleId를 encode하고 민감 상태를 query에 넣지 않는다", async () => {

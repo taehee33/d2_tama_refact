@@ -22,6 +22,7 @@ test("실시간 아레나 Rules는 참가자 public get만 허용하고 list/wri
   t.after(() => testEnvironment.cleanup());
   await testEnvironment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), "realtimeArenaBattles/battle-a"), { hostUid: "host", guestUid: "guest", status: "waiting" });
+    await setDoc(doc(context.firestore(), "realtimeArenaBattles/battle-cpu"), { hostUid: "host", guestUid: null, mode: "cpu", status: "selecting" });
     await setDoc(doc(context.firestore(), "realtimeArenaBattleSecrets/battle-a"), { hostSubmission: { action: "attack" } });
   });
   const hostDb = testEnvironment.authenticatedContext("host").firestore();
@@ -30,6 +31,8 @@ test("실시간 아레나 Rules는 참가자 public get만 허용하고 list/wri
   const anonymousDb = testEnvironment.unauthenticatedContext().firestore();
   await assertSucceeds(getDoc(doc(hostDb, "realtimeArenaBattles/battle-a")));
   await assertSucceeds(getDoc(doc(guestDb, "realtimeArenaBattles/battle-a")));
+  await assertSucceeds(getDoc(doc(hostDb, "realtimeArenaBattles/battle-cpu")));
+  await assertFails(getDoc(doc(guestDb, "realtimeArenaBattles/battle-cpu")));
   await assertFails(getDoc(doc(strangerDb, "realtimeArenaBattles/battle-a")));
   await assertFails(getDoc(doc(anonymousDb, "realtimeArenaBattles/battle-a")));
   await assertFails(getDocs(collection(hostDb, "realtimeArenaBattles")));

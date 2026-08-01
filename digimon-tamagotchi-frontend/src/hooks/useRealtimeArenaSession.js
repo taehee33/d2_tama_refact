@@ -155,13 +155,16 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     };
   }, [restore]);
 
-  const createBattle = useCallback(async () => {
+  const createBattleForMode = useCallback(async (mode) => {
     setBusy(true);
     setError("");
-    try { return applyPayload(await createRealtimeArenaBattle(currentUser, { requestId: createRequestId(), slotId })); }
+    try { return applyPayload(await createRealtimeArenaBattle(currentUser, { requestId: createRequestId(), slotId, mode })); }
     catch (createError) { setError(createError.message); throw createError; }
     finally { setBusy(false); }
   }, [applyPayload, currentUser, slotId]);
+
+  const createBattle = useCallback(() => createBattleForMode("pvp"), [createBattleForMode]);
+  const createCpuBattle = useCallback(() => createBattleForMode("cpu"), [createBattleForMode]);
 
   const joinBattle = useCallback(async (targetBattleId) => {
     const normalizedBattleId = targetBattleId.trim();
@@ -179,5 +182,5 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     setError("");
   }, [setBattleId]);
 
-  return { battleId, battle, viewer, busy, error, remainingMs, rooms, roomsLoading, roomsError, refreshRooms, createBattle, joinBattle, runCommand, restore, closeSession };
+  return { battleId, battle, viewer, busy, error, remainingMs, rooms, roomsLoading, roomsError, refreshRooms, createBattle, createCpuBattle, joinBattle, runCommand, restore, closeSession };
 }

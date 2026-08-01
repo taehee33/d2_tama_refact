@@ -35,7 +35,7 @@ async function listWaitingRealtimeBattles({ uid, deps = {} }) {
   return snapshot.docs
     .filter((doc) => {
       const battle = doc.data() || {};
-      return !battle.guestUid && toMillis(battle.expiresAt) > now.getTime();
+      return battle.mode !== "cpu" && !battle.guestUid && toMillis(battle.expiresAt) > now.getTime();
     })
     .sort((left, right) => toMillis(right.data()?.createdAt) - toMillis(left.data()?.createdAt))
     .slice(0, WAITING_ROOM_LIMIT)

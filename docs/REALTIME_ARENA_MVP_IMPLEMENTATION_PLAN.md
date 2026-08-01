@@ -1420,3 +1420,15 @@ PR1
 그다음 공용 slot projection과 lobby transaction을 연결한다. 이 순서를 지키면 전투 숫자가 바뀌어도 API, Firestore 상태 머신, 복구 UI를 다시 만들 필요가 없다.
 
 > 최종 개발 원칙: **기반은 지금 구현하고, 밸런스는 immutable rulesVersion으로 교체한다. `mvp-0` 동안에는 친선 플레이만 제공하고 사용자 자산에 영향을 주는 경쟁 기능은 열지 않는다.**
+
+---
+
+## 23. VS CPU 연습전 확장
+
+- 배틀 생성 요청은 선택적 `mode: "pvp" | "cpu"`를 받으며, 생략된 기존 요청과 문서는 `pvp`로 해석한다.
+- CPU 배틀은 `waiting` 로비 없이 `selecting`으로 생성되고 `guestUid`는 `null`을 유지한다. 공개 `participants.guest`에는 자동 매칭된 정적 디지몬 snapshot만 저장한다.
+- Ver.1~5의 참가 가능 디지몬을 사용자 `sourcePower` 차이, 단계 차이, 버전·ID 순으로 정렬하고 상위 5개 중 서버 비밀 시드로 하나를 선택한다.
+- CPU 행동은 현재 플레이어 action을 입력받지 않는다. 일반 상태는 공격/방어/필살기 `40/30/30`, CPU HP 1/3 이하는 `30/50/20`, 사용자 HP 1/3 이하는 마무리 우선 `50/20/30`을 사용한다.
+- 사용자 제출 시 CPU action 생성과 round resolution을 같은 transaction에서 처리한다. 사용자 timeout은 host `no_action`과 정상 CPU action으로 판정한다.
+- CPU 시드와 미해결 action은 secret 문서에만 저장하고, 생성·라운드 재시도에는 저장된 동일 결과를 재생한다.
+- CPU 경기는 대기방 목록, 랭크, 보상, 슬롯 육성 전적에 포함하지 않는다. Firestore 경로와 Rules의 host participant read 계약은 변경하지 않는다.

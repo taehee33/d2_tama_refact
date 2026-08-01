@@ -14,6 +14,7 @@ test("대기방 목록은 만료·참가 완료 방과 UID를 제외하고 최�
     document("new", { hostUid: "viewer", guestUid: null, status: "waiting", createdAt: new Date("2026-07-30T00:05:00Z"), expiresAt: new Date("2026-07-30T00:20:00Z"), listing: { ownerDisplayName: "테이머 B", hostDigimonName: "레오몬", stage: "Adult" } }),
     document("full", { hostUid: "host-2", guestUid: "guest", status: "waiting", createdAt: new Date("2026-07-30T00:06:00Z"), expiresAt: new Date("2026-07-30T00:20:00Z") }),
     document("expired", { hostUid: "host-3", guestUid: null, status: "waiting", createdAt: new Date("2026-07-30T00:07:00Z"), expiresAt: new Date("2026-07-29T23:59:00Z") }),
+    document("cpu", { hostUid: "host-4", guestUid: null, mode: "cpu", status: "waiting", createdAt: new Date("2026-07-30T00:08:00Z"), expiresAt: new Date("2026-07-30T00:20:00Z") }),
   ];
   const query = { where: () => query, orderBy: () => query, limit: () => query, get: async () => ({ docs }) };
   const db = { collection: () => query };
