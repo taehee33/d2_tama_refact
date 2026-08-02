@@ -7915,6 +7915,7 @@ const MVP_1 = {
 const MVP_2 = {
   ...MVP_1,
   presentationWindowMs: 2200,
+  initialSelectionCountdownMs: 2000,
   selectionMode: "latest_until_deadline",
   timeout: {
     missingAction: "deterministic_random",
@@ -7947,6 +7948,10 @@ function assertRealtimeArenaRules(rules) {
   if (!Number.isFinite(guardRecovery) || guardRecovery < 0) throw new Error("방어 회복 규칙이 올바르지 않습니다.");
   if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
   if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
+  if (
+    rules.initialSelectionCountdownMs !== undefined &&
+    (!Number.isFinite(rules.initialSelectionCountdownMs) || rules.initialSelectionCountdownMs < 0)
+  ) throw new Error("첫 라운드 시작 대기 시간이 올바르지 않습니다.");
   if (rules.presentationWindowMs !== undefined && (!Number.isFinite(rules.presentationWindowMs) || rules.presentationWindowMs < 0)) {
     throw new Error("라운드 판정 연출 시간이 올바르지 않습니다.");
   }

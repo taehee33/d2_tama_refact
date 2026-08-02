@@ -78,6 +78,7 @@ export default function RealtimeArenaScreen({ currentSlotId, onClose }) {
               recovering={session.recovering}
               presentationActive={session.presentationActive}
               selectionOpen={session.selectionOpen}
+              selectionCountdownMs={session.selectionCountdownMs}
               clockMs={session.clockMs}
               onSubmit={handleAsync(session.selectAction)}
               onForfeit={handleAsync(() => session.runCommand("forfeit"))}

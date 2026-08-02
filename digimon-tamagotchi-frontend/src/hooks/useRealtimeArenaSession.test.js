@@ -92,6 +92,32 @@ test("복구 응답의 내 선택을 강조하고 다음 selectionRevision으로
   unmount();
 });
 
+test("첫 라운드 selectionOpensAt 전에는 시작 카운트다운을 계산하고 선택을 닫는다", async () => {
+  sessionStorage.setItem("realtime_arena_active_battle_id", "rtb_initial-countdown");
+  const now = Date.now();
+  const battle = {
+    battleId: "rtb_initial-countdown",
+    status: "selecting",
+    round: 1,
+    stateVersion: 1,
+    selectionOpensAt: new Date(now + 2000).toISOString(),
+    deadlineAt: new Date(now + 9000).toISOString(),
+    resolvedRounds: [],
+  };
+  sendRealtimeArenaCommand.mockResolvedValue({
+    battle,
+    viewer: { role: "host", hasSubmitted: false, selectedAction: null, selectionRevision: 0 },
+  });
+  const currentUser = { uid: "host", getIdToken: jest.fn() };
+
+  const { result, unmount } = renderHook(() => useRealtimeArenaSession({ currentUser, slotId: "slot1" }));
+
+  await waitFor(() => expect(result.current.selectionCountdownMs).toBeGreaterThan(0));
+  expect(result.current.selectionCountdownMs).toBeLessThanOrEqual(2000);
+  expect(result.current.selectionOpen).toBe(false);
+  unmount();
+});
+
 test("마감 판정 명령은 재시도 대상을 식별할 현재 라운드를 포함한다", async () => {
   sessionStorage.setItem("realtime_arena_active_battle_id", "rtb_timeout");
   const battle = {

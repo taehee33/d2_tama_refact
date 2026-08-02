@@ -97,6 +97,7 @@ function Projectile({ side, participant, action, phase }) {
       src={`${participant.spriteBasePath || "/images"}/${participant.attackSprite ?? participant.sprite ?? 0}.png`}
       alt=""
       aria-hidden="true"
+      style={side === "right" ? { transform: "scaleX(-1)" } : undefined}
     />
   );
 }
@@ -146,6 +147,7 @@ export default function RealtimeArenaBattleBoard({
   battle,
   viewer,
   remainingMs,
+  selectionCountdownMs,
   busy,
   selectedAction,
   selectionSaving,
@@ -234,6 +236,7 @@ export default function RealtimeArenaBattleBoard({
             selectedAction={selectedAction}
             saving={selectionSaving}
             remainingMs={remainingMs}
+            selectionCountdownMs={selectionCountdownMs}
             onSubmit={onSubmit}
           />
         )}

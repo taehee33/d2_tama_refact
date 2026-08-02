@@ -33,6 +33,7 @@ function createSession(overrides = {}) {
     recovering: false,
     presentationActive: false,
     selectionOpen: false,
+    selectionCountdownMs: 0,
     clockMs: Date.now(),
     closeSession: jest.fn(() => sessionStorage.removeItem(SESSION_KEY)),
     runCommand: jest.fn().mockResolvedValue(null),

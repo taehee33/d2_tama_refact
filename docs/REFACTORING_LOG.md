@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-08-02] 모바일 실시간 배틀 간격·첫 라운드 카운트다운 개선
+
+- **내용:** 모바일에서는 최근 라운드 위의 전투 규칙 안내문을 숨기고, 라운드 아래 복구 슬롯과 최근 라운드 위 판정 슬롯의 빈 높이를 제거했다. 배틀 보드 세로 간격은 4px로 줄여 전투 정보와 최근 결과가 붙어 보이도록 했다. 데스크톱 안내문과 자연스러운 간격·높이는 유지한다.
+- **발사체 방향:** 상대 우측 공격 발사체에 `scaleX(-1)`을 JSX 인라인 스타일과 애니메이션 keyframe 양쪽에 적용해 애니메이션 중에도 공격 방향이 유지되도록 했다. 본체 디지몬 스프라이트 방향은 변경하지 않는다.
+- **첫 라운드 시간:** `mvp-2`에 2,000ms 시작 카운트다운 규칙을 추가했다. CPU와 PvP 배틀 생성 시 `selectionOpensAt`은 시작 후 2초, `deadlineAt`은 시작 후 9초(2초 준비 + 7초 선택)로 기록한다. 이후 라운드는 기존 2.2초 판정 연출 뒤 7초 선택 흐름을 유지하며, 카운트다운 중 서버 행동 제출 검증은 계속 차단한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/rulesets.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaLobbyService.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaCpuService.js`, `digimon-tamagotchi-frontend/src/hooks/useRealtimeArenaSession.js`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaActionPanel.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaScreen.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, 관련 테스트.
+- **아키텍처 결정 근거:** 첫 라운드 시작 시각만 규칙 스냅샷을 통해 서버에서 계산하고 Firestore 문서·명령 계약은 변경하지 않았다. 클라이언트는 기존 `selectionOpensAt`과 `deadlineAt`을 사용해 시작 카운트다운을 표시하므로 새 필드가 없는 기존 진행 중 배틀은 즉시 선택 가능한 기존 흐름으로 안전하게 처리한다.
+
+---
+
 ## [2026-08-02] 모바일 실시간 배틀 행동 버튼 하단 고정
 
 - **내용:** 모바일 선택 단계에서 남은 시간과 공격·방어·필살기 버튼을 하단 dock로 분리해 화면에 항상 노출한다. 기존 `space-y-4` 간격을 모바일 8px 수준으로 줄이고, 연결 복구·판정·행동·최근 결과의 빈 슬롯에서 불필요한 14rem 높이를 제거했다. 규칙 설명은 본문 흐름에 유지하며, dock가 최근 결과와 포기 버튼을 가리지 않도록 선택 단계 본문에 safe-area를 포함한 하단 여백을 예약한다.

@@ -25,6 +25,42 @@ test("행동 패널은 타이머와 버튼만 하단 dock에 묶고 규칙 설�
   expect(dock).toContainElement(screen.getByLabelText("남은 선택 시간 7초"));
   expect(dock).toContainElement(screen.getByRole("group", { name: "배틀 행동 선택" }));
   expect(dock).not.toContainElement(screen.getByText(/속공은 필살기를 끊습니다/));
+  expect(screen.getByText(/속공은 필살기를 끊습니다/)).toHaveClass("realtime-arena-action-guide");
+});
+
+test("첫 라운드 시작 카운트다운은 버튼을 비활성화하고 7초 선택 시간으로 전환한다", () => {
+  const onSubmit = jest.fn();
+  const { rerender } = render(
+    <RealtimeArenaActionPanel
+      disabled
+      selectedAction={null}
+      saving={false}
+      remainingMs={7000}
+      selectionCountdownMs={2000}
+      onSubmit={onSubmit}
+    />
+  );
+
+  expect(screen.getByLabelText("라운드 시작까지 2초")).toHaveTextContent("2초");
+  expect(screen.getByRole("status", { name: "선택 안내" })).toHaveTextContent("라운드 시작 준비 중입니다.");
+  expect(screen.getByRole("status", { name: "선택 안내" })).toHaveClass("is-countdown");
+  expect(screen.getAllByRole("button")).toHaveLength(3);
+  expect(screen.getAllByRole("button").every((button) => button.disabled)).toBe(true);
+
+  rerender(
+    <RealtimeArenaActionPanel
+      disabled={false}
+      selectedAction={null}
+      saving={false}
+      remainingMs={7000}
+      selectionCountdownMs={0}
+      onSubmit={onSubmit}
+    />
+  );
+
+  expect(screen.getByLabelText("남은 선택 시간 7초")).toHaveTextContent("7초");
+  expect(screen.getAllByRole("button").every((button) => !button.disabled)).toBe(true);
+  expect(screen.getByRole("status", { name: "선택 안내" })).not.toHaveClass("is-countdown");
 });
 test("마감 전에는 현재 선택을 강조하고 변경 가능함을 알린다", () => {
   render(<RealtimeArenaActionPanel disabled={false} selectedAction="guard" saving={false} remainingMs={4000} onSubmit={() => {}} />);
@@ -276,6 +312,46 @@ test("판정 연출은 양쪽 행동과 자동 선택, 방패, 실제 피해량�
   expect(screen.getByLabelText("방패 방어")).toBeInTheDocument();
   expect(screen.getByLabelText("4 피해")).toHaveTextContent("-4");
   expect(screen.getByRole("status")).toHaveTextContent("속공이 방어에 막혔습니다. 피해를 주지 못했습니다.");
+});
+
+test("상대 공격 발사체는 우측 방향으로 좌우 반전한다", () => {
+  const participant = (name, sprite, attackSprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite });
+  const presentationEndsAt = new Date(Date.now() + 1800).toISOString();
+  const { container } = render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "pvp",
+        status: "selecting",
+        round: 2,
+        maxRounds: 7,
+        presentationEndsAt,
+        rulesSnapshot: { presentationWindowMs: 2200 },
+        currentHp: { host: 13, guest: 13 },
+        participants: { host: participant("아구몬", 1, 101), guest: participant("파피몬", 2, 102) },
+        resolvedRounds: [{
+          round: 1,
+          hostAction: "guard",
+          guestAction: "attack",
+          hostDamageTaken: 0,
+          guestDamageTaken: 1,
+          selectionSources: { host: "manual", guest: "manual" },
+        }],
+      }}
+      viewer={{ role: "host" }}
+      remainingMs={0}
+      busy={false}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive
+      selectionOpen={false}
+      clockMs={Date.now()}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+
+  expect(container.querySelector(".realtime-arena-projectile.is-right")).toHaveStyle({ transform: "scaleX(-1)" });
 });
 
 test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {

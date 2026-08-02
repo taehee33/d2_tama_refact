@@ -50,7 +50,7 @@
 }
 
 .realtime-arena-selection-status { grid-area: status; }
-.realtime-arena-action-panel > p { grid-area: guide; margin: 0; }
+.realtime-arena-action-guide { grid-area: guide; margin: 0; }
 .realtime-arena-action-panel__actions { grid-area: actions; }
 
 @media (min-width: 640px) {
@@ -441,9 +441,20 @@
   color: #dc2626;
 }
 
+.realtime-arena-selection-status.is-countdown {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.realtime-arena-selection-status.is-countdown .realtime-arena-selection-status__timer,
+.realtime-arena-selection-status.is-countdown p {
+  color: #1d4ed8;
+}
+
 @media (max-width: 639px) {
   .realtime-arena-board {
-    gap: 0.5rem;
+    gap: 0.25rem;
   }
 
   .realtime-arena-dialog__body.has-action-dock {
@@ -454,13 +465,13 @@
 
   .realtime-arena-board__recovery-slot {
     display: flex;
-    min-height: 1.5rem;
+    min-height: 0;
     align-items: center;
   }
 
   .realtime-arena-board__presentation-slot {
     display: flex;
-    min-height: 3rem;
+    min-height: 0;
     align-items: center;
   }
 
@@ -482,8 +493,8 @@
     gap: 0.5rem;
   }
 
-  .realtime-arena-action-panel > p {
-    order: 1;
+  .realtime-arena-action-guide {
+    display: none;
   }
 
   .realtime-arena-action-panel__dock {
@@ -560,9 +571,9 @@
 }
 
 @keyframes realtime-arena-projectile-right {
-  from { left: 70%; opacity: 0; }
-  15% { opacity: 1; }
-  to { left: 24%; opacity: 1; }
+  from { left: 70%; opacity: 0; transform: scaleX(-1); }
+  15% { opacity: 1; transform: scaleX(-1); }
+  to { left: 24%; opacity: 1; transform: scaleX(-1); }
 }
 
 @keyframes realtime-arena-hit {

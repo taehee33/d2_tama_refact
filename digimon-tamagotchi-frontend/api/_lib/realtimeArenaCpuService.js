@@ -64,6 +64,8 @@ async function createRealtimeCpuBattle({ uid, slotId, requestId, deps = {} }) {
     const host = buildParticipantSnapshot(projected, rulesSnapshot);
     const cpu = selectRealtimeArenaCpuOpponent({ host: host.public, rules: rulesSnapshot, seed: cpuSeed });
     const nowTimestamp = new Date(now.getTime());
+    const initialSelectionCountdownMs = Number(rulesSnapshot.initialSelectionCountdownMs || 0);
+    const selectionOpensAt = new Date(now.getTime() + initialSelectionCountdownMs);
     const publicData = {
       schemaVersion: REALTIME_ARENA_SCHEMA_VERSION,
       battleId,
@@ -80,9 +82,9 @@ async function createRealtimeCpuBattle({ uid, slotId, requestId, deps = {} }) {
       round: 1,
       maxRounds: rulesSnapshot.maxRounds,
       stateVersion: 1,
-      selectionOpensAt: nowTimestamp,
+      selectionOpensAt,
       presentationEndsAt: null,
-      deadlineAt: new Date(now.getTime() + rulesSnapshot.selectionWindowMs),
+      deadlineAt: new Date(selectionOpensAt.getTime() + rulesSnapshot.selectionWindowMs),
       currentHp: { host: host.public.maxHp, guest: cpu.maxHp },
       timeoutStreaks: { host: 0, guest: 0 },
       resolvedRounds: [],

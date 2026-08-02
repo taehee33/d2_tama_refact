@@ -73,7 +73,8 @@ test("양쪽 준비가 모이면 같은 transaction에서 mvp-2 snapshot과 1라
   assert.equal(started.battle.status, "selecting");
   assert.equal(started.battle.round, 1);
   assert.equal(started.battle.rulesVersion, "mvp-2");
-  assert.equal(started.battle.selectionOpensAt.toISOString(), "2026-07-30T00:00:03.000Z");
+  assert.equal(started.battle.selectionOpensAt.toISOString(), "2026-07-30T00:00:05.000Z");
+  assert.equal(started.battle.deadlineAt.toISOString(), "2026-07-30T00:00:12.000Z");
   assert.deepEqual(started.battle.currentHp, { host: 13, guest: 13 });
   assert.equal(started.battle.participants.host.stage, "Adult");
   assert.equal(started.battle.participants.guest.stage, "Adult");
@@ -97,6 +98,26 @@ test("방 생성 목록 정보에는 테이머명만 저장하고 디지몬 정�
   assert.deepEqual(created.battle.listing, { ownerDisplayName: "호스트 테이머" });
 });
 
+test("첫 라운드 시작 카운트다운 중 행동 제출을 거부한다", async () => {
+  const harness = createHarness();
+  const { battleId, started } = await startBattle(harness);
+  harness.writes.length = 0;
+
+  await assert.rejects(
+    commandRealtimeRound({
+      uid: "host", battleId, command: "submit-action",
+      input: { requestId: "host-early-action", round: 1, expectedStateVersion: started.battle.stateVersion, action: "attack", selectionRevision: 1 },
+      deps: { ...harness.deps, now: new Date("2026-07-30T00:00:04.000Z") },
+    }),
+    (error) => {
+      assert.equal(error.code, "ARENA_REALTIME_STATE_CONFLICT");
+      assert.match(error.message, /선택해 주세요/);
+      return true;
+    }
+  );
+  assert.deepEqual(harness.writes, []);
+});
+
 test("마감 전에는 마지막 선택만 secret에 저장하고 마감 시 public 라운드를 판정한다", async () => {
   const harness = createHarness();
   const { battleId, started } = await startBattle(harness);
@@ -104,7 +125,7 @@ test("마감 전에는 마지막 선택만 secret에 저장하고 마감 시 pub
   const first = await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
     input: { requestId: "host-action-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "attack", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:04.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:06.000Z") },
   });
   assert.equal(first.status, "accepted");
   assert.deepEqual(harness.writes.map((write) => write.path), [`realtimeArenaBattleSecrets/${battleId}`]);
@@ -112,7 +133,7 @@ test("마감 전에는 마지막 선택만 secret에 저장하고 마감 시 pub
   const second = await commandRealtimeRound({
     uid: "guest", battleId, command: "submit-action",
     input: { requestId: "guest-action-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "special_attack", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:05.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:07.000Z") },
   });
   assert.equal(second.status, "accepted");
   assert.deepEqual(harness.writes.map((write) => write.path), [`realtimeArenaBattleSecrets/${battleId}`]);
@@ -120,19 +141,19 @@ test("마감 전에는 마지막 선택만 secret에 저장하고 마감 시 pub
   await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
     input: { requestId: "host-action-2", round: 1, expectedStateVersion: started.battle.stateVersion, action: "guard", selectionRevision: 2 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:06.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:08.000Z") },
   });
   harness.writes.length = 0;
   const resolved = await commandRealtimeRound({
     uid: "host", battleId, command: "restore", input: { requestId: "restore-deadline" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:11.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:13.000Z") },
   });
   assert.equal(resolved.status, "resolved");
   assert.equal(resolved.battle.round, 2);
   assert.equal(resolved.battle.resolvedRounds[0].hostAction, "guard");
   assert.equal(resolved.battle.resolvedRounds[0].guestAction, "special_attack");
-  assert.equal(resolved.battle.presentationEndsAt.toISOString(), "2026-07-30T00:00:13.200Z");
-  assert.equal(resolved.battle.deadlineAt.toISOString(), "2026-07-30T00:00:20.200Z");
+  assert.equal(resolved.battle.presentationEndsAt.toISOString(), "2026-07-30T00:00:15.200Z");
+  assert.equal(resolved.battle.deadlineAt.toISOString(), "2026-07-30T00:00:22.200Z");
   assert.deepEqual(new Set(harness.writes.map((write) => write.path)), new Set([`realtimeArenaBattles/${battleId}`, `realtimeArenaBattleSecrets/${battleId}`]));
 });
 
@@ -145,17 +166,17 @@ test("서버 판정은 속공을 막은 방어자에게만 실제 회복량을 �
   await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
     input: { requestId: "host-guard-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "guard", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:04.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:06.000Z") },
   });
   await commandRealtimeRound({
     uid: "guest", battleId, command: "submit-action",
     input: { requestId: "guest-attack-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "attack", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:05.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:07.000Z") },
   });
 
   const resolved = await commandRealtimeRound({
     uid: "host", battleId, command: "restore", input: { requestId: "restore-guard-success" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:11.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:13.000Z") },
   });
   const round = resolved.battle.resolvedRounds[0];
   assert.deepEqual({ hostDamageTaken: round.hostDamageTaken, guestDamageTaken: round.guestDamageTaken }, { hostDamageTaken: 0, guestDamageTaken: 0 });
@@ -186,12 +207,12 @@ test("늦게 도착한 낮은 selectionRevision은 최신 선택을 덮어쓰지
   await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
     input: { requestId: "selection-new", round: 1, expectedStateVersion: started.battle.stateVersion, action: "guard", selectionRevision: 2 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:05.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:06.000Z") },
   });
   const stale = await commandRealtimeRound({
     uid: "host", battleId, command: "submit-action",
     input: { requestId: "selection-old", round: 1, expectedStateVersion: started.battle.stateVersion, action: "attack", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:06.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:07.000Z") },
   });
   const secret = harness.store.get(`realtimeArenaBattleSecrets/${battleId}`);
   assert.equal(stale.status, "stale");
@@ -261,7 +282,7 @@ test("게스트 영수증은 UID에 묶여 다른 사용자의 같은 requestId�
   assert.equal(joined.battle.guestUid, "intruder");
 });
 
-test("CPU 배틀은 대기 없이 상대를 공개하고 즉시 1라운드를 시작한다", async () => {
+test("CPU 배틀은 상대를 공개하고 첫 라운드 시작 카운트다운을 고정한다", async () => {
   const harness = createHarness();
   const created = await createRealtimeCpuBattle({
     uid: "host",
@@ -274,6 +295,8 @@ test("CPU 배틀은 대기 없이 상대를 공개하고 즉시 1라운드를 �
   assert.equal(created.battle.status, "selecting");
   assert.equal(created.battle.guestUid, null);
   assert.equal(created.battle.round, 1);
+  assert.equal(created.battle.selectionOpensAt.toISOString(), "2026-07-30T00:00:02.000Z");
+  assert.equal(created.battle.deadlineAt.toISOString(), "2026-07-30T00:00:09.000Z");
   assert.ok(created.battle.participants.guest.digimonName);
   assert.equal(created.role, "host");
 });
@@ -289,17 +312,17 @@ test("CPU 생성과 행동 제출 재시도는 같은 상대와 판정 결과를
   const input = { requestId: "cpu-action-1", round: 1, expectedStateVersion: 1, action: "attack", selectionRevision: 1 };
   const accepted = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "submit-action", input,
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") },
   });
   const replayed = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "submit-action", input,
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:02.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:04.000Z") },
   });
   assert.equal(accepted.status, "accepted");
   assert.equal(replayed.status, "replayed");
   const resolved = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "restore", input: { requestId: "cpu-resolve" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:08.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:10.000Z") },
   });
   assert.ok(["attack", "guard", "special_attack"].includes(resolved.resolvedRound.guestAction));
 });
@@ -312,7 +335,7 @@ test("CPU 배틀 시간 초과는 사용자 행동을 자동 선택하고 CPU �
   });
   const restored = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "restore", input: { requestId: "restore-cpu" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:08.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:10.000Z") },
   });
   assert.ok(["attack", "guard", "special_attack"].includes(restored.resolvedRound.hostAction));
   assert.ok(["attack", "guard", "special_attack"].includes(restored.resolvedRound.guestAction));
@@ -328,7 +351,7 @@ test("CPU 배틀 포기는 CPU 승리로 종료한다", async () => {
   });
   const forfeited = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "forfeit", input: { requestId: "forfeit-cpu" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") },
   });
   assert.deepEqual(forfeited.battle.result, { outcome: "guest_win", reason: "forfeit" });
 });
@@ -351,11 +374,11 @@ test("CPU 배틀은 7라운드 판정으로 정상 종료한다", async () => {
   await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "submit-action",
     input: { requestId: "cpu-max-round-action", round: 7, expectedStateVersion: 1, action: "guard", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") },
   });
   const resolved = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "restore", input: { requestId: "cpu-max-round-resolve" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:08.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:10.000Z") },
   });
 
   assert.equal(resolved.battle.status, "finished");
@@ -386,11 +409,11 @@ test("CPU와 양쪽 HP가 동시에 0이 되면 동시 KO 무승부로 종료한
   await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "submit-action",
     input: { requestId: "cpu-simultaneous-ko-action", round: 1, expectedStateVersion: 1, action: "special_attack", selectionRevision: 1 },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:01.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") },
   });
   const resolved = await commandRealtimeRound({
     uid: "host", battleId: created.battle.battleId, command: "restore", input: { requestId: "cpu-simultaneous-ko-resolve" },
-    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:08.000Z") },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:10.000Z") },
   });
 
   assert.deepEqual(resolved.battle.result, { outcome: "draw", reason: "simultaneous_ko" });

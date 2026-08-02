@@ -271,9 +271,13 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
   }, [applyPayload, battle, battleId, currentUser, viewer?.selectedAction]);
 
   const presentationEndsAtMs = battle?.presentationEndsAt ? new Date(battle.presentationEndsAt).getTime() : 0;
+  const selectionOpensAtMs = battle?.selectionOpensAt ? new Date(battle.selectionOpensAt).getTime() : 0;
   const presentationActive = Boolean(
     presentationEndsAtMs > clockMs && (battle?.resolvedRounds?.length || 0) > 0
   );
+  const selectionCountdownMs = battle?.status === "selecting" && selectionOpensAtMs > clockMs
+    ? selectionOpensAtMs - clockMs
+    : 0;
   const selectionOpen = Boolean(
     battle?.status === "selecting" &&
     (!battle.selectionOpensAt || new Date(battle.selectionOpensAt).getTime() <= clockMs)
@@ -302,6 +306,7 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     recovering,
     presentationActive,
     selectionOpen,
+    selectionCountdownMs,
     clockMs,
   };
 }

@@ -207,6 +207,8 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
           const guestProjected = projectRealtimeArenaSlot(guestSlot, now, rulesSnapshot, { projectionAsOf, requireCombatIdentity: false }, deps);
           const host = buildParticipantSnapshot(hostProjected, rulesSnapshot);
           const guest = buildParticipantSnapshot(guestProjected, rulesSnapshot);
+          const initialSelectionCountdownMs = Number(rulesSnapshot.initialSelectionCountdownMs || 0);
+          const selectionOpensAt = new Date(now.getTime() + initialSelectionCountdownMs);
           nextBattle = {
             ...nextBattle,
             status: "selecting",
@@ -216,9 +218,9 @@ async function commandRealtimeLobby({ uid, battleId, command, input, deps = {} }
             participants: { host: host.public, guest: guest.public },
             round: 1,
             maxRounds: rulesSnapshot.maxRounds,
-            selectionOpensAt: nowTimestamp,
+            selectionOpensAt: toTimestamp(selectionOpensAt),
             presentationEndsAt: null,
-            deadlineAt: toTimestamp(new Date(now.getTime() + rulesSnapshot.selectionWindowMs)),
+            deadlineAt: toTimestamp(new Date(selectionOpensAt.getTime() + rulesSnapshot.selectionWindowMs)),
             currentHp: { host: host.public.maxHp, guest: guest.public.maxHp },
             timeoutStreaks: { host: 0, guest: 0 },
             startedAt: nowTimestamp,
