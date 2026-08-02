@@ -7901,14 +7901,8 @@ const MVP_0 = {
     disadvantagePenalty: 0,
     freeIsNeutral: true,
   },
-  specialAttack: {
-    bonus: 1,
-    reducedVsAttackFormulaId: "ceil_ratio",
-    reducedVsAttackNumerator: 1,
-    reducedVsAttackDenominator: 4,
-    guardPenetrationFormulaId: "ceil_ratio",
-    guardPenetrationNumerator: 1,
-    guardPenetrationDenominator: 2,
+  recovery: {
+    guardVsAttack: 1,
   },
   timeout: { missingAction: "no_action", consecutiveLossCount: 2 },
 };
@@ -7949,9 +7943,8 @@ function assertRealtimeArenaRules(rules) {
   if (!rules || rules.schemaVersion !== 1) throw new Error("지원하지 않는 실시간 아레나 규칙입니다.");
   if (rules.powerGap?.formulaId !== "floor_sqrt_positive_gap_over_unit") throw new Error("지원하지 않는 power gap 공식입니다.");
   if (rules.attribute?.formulaId !== "one_way_cycle_bonus") throw new Error("지원하지 않는 속성 공식입니다.");
-  if (rules.specialAttack?.reducedVsAttackFormulaId !== "ceil_ratio" || rules.specialAttack?.guardPenetrationFormulaId !== "ceil_ratio") {
-    throw new Error("지원하지 않는 특수공격 공식입니다.");
-  }
+  const guardRecovery = Number(rules.recovery?.guardVsAttack ?? 1);
+  if (!Number.isFinite(guardRecovery) || guardRecovery < 0) throw new Error("방어 회복 규칙이 올바르지 않습니다.");
   if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
   if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
   if (rules.presentationWindowMs !== undefined && (!Number.isFinite(rules.presentationWindowMs) || rules.presentationWindowMs < 0)) {
@@ -7982,46 +7975,50 @@ function calculateRealtimeArenaDamage({ attacker, defender, rules }) {
   const positiveGap = Math.max(0, Number(attacker.sourcePower) - Number(defender.sourcePower));
   const powerGapAttack = Math.floor(Math.sqrt(positiveGap / Number(rules.powerGap.unit)));
   const attributeAttack = getRealtimeArenaAttributeBonus(attacker.attribute, defender.attribute, rules);
-  const normal = baseAttack + powerGapAttack + attributeAttack;
-  const special = normal + Number(rules.specialAttack.bonus);
-  const reducedVsAttack = Math.ceil(
-    special * Number(rules.specialAttack.reducedVsAttackNumerator) /
-      Number(rules.specialAttack.reducedVsAttackDenominator)
-  );
-  const guardPenetration = Math.ceil(
-    special * Number(rules.specialAttack.guardPenetrationNumerator) /
-      Number(rules.specialAttack.guardPenetrationDenominator)
-  );
-  return { normal, special, reducedVsAttack, guardPenetration, powerGapAttack, attributeAttack };
+  const attackPower = baseAttack + powerGapAttack + attributeAttack;
+  return { attackPower, powerGapAttack, attributeAttack };
 }
 
 ;// ./src/logic/realtime-arena/actionMatchup.js
 const REALTIME_ARENA_ACTIONS = Object.freeze(["attack", "guard", "special_attack"]);
 
+const ACTION_MATCHUP_RESULTS = Object.freeze({
+  attack: Object.freeze({ attack: "hit", guard: "blocked", special_attack: "hit" }),
+  guard: Object.freeze({ attack: "guard_success", guard: "none", special_attack: "breached" }),
+  special_attack: Object.freeze({ attack: "interrupted", guard: "hit", special_attack: "hit" }),
+});
+
 function isRealtimeArenaAction(value) {
   return REALTIME_ARENA_ACTIONS.includes(value);
 }
 
-function outgoingDamage(action, opponentAction, damage) {
-  if (action === "no_action" || opponentAction === "no_action") {
-    if (action === "attack") return damage.normal;
-    if (action === "special_attack") return damage.special;
-    return 0;
-  }
-  if (action === "attack") return opponentAction === "attack" || opponentAction === "special_attack" ? damage.normal : 0;
-  if (action === "guard") return 0;
-  if (action === "special_attack") {
-    if (opponentAction === "attack") return damage.reducedVsAttack;
-    if (opponentAction === "guard") return damage.guardPenetration;
-    return damage.special;
-  }
-  throw new Error("허용되지 않은 실시간 아레나 행동입니다.");
+function getMatchupResult(action, opponentAction) {
+  if (action === "no_action") return "none";
+  if (opponentAction === "no_action") return ["attack", "special_attack"].includes(action) ? "hit" : "none";
+  const result = ACTION_MATCHUP_RESULTS[action]?.[opponentAction];
+  if (!result) throw new Error("허용되지 않은 실시간 아레나 행동입니다.");
+  return result;
 }
 
-function resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage, guestDamage }) {
+function outgoingActionResult(action, opponentAction, attackPower, guardRecovery) {
+  const result = getMatchupResult(action, opponentAction);
   return {
-    hostDamageTaken: outgoingDamage(guestAction, hostAction, guestDamage),
-    guestDamageTaken: outgoingDamage(hostAction, guestAction, hostDamage),
+    result,
+    damage: result === "hit" ? attackPower : 0,
+    recovery: result === "guard_success" ? guardRecovery : 0,
+  };
+}
+
+function resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage, guestDamage, guardRecovery = 1 }) {
+  const hostActionResult = outgoingActionResult(hostAction, guestAction, hostDamage.attackPower, guardRecovery);
+  const guestActionResult = outgoingActionResult(guestAction, hostAction, guestDamage.attackPower, guardRecovery);
+  return {
+    hostDamageTaken: guestActionResult.damage,
+    guestDamageTaken: hostActionResult.damage,
+    hostHpRecovered: hostActionResult.recovery,
+    guestHpRecovered: guestActionResult.recovery,
+    hostActionResult: hostActionResult.result,
+    guestActionResult: guestActionResult.result,
   };
 }
 
@@ -8053,14 +8050,37 @@ function determineRealtimeArenaOutcome({ currentHp, participants, round, maxRoun
 
 function resolveRealtimeArenaRound({ battleState, hostAction, guestAction, rules }) {
   assertRealtimeArenaRules(rules);
-  const allowed = ["attack", "guard", "special_attack", "no_action"];
+  const allowed = [...REALTIME_ARENA_ACTIONS, "no_action"];
   if (!allowed.includes(hostAction) || !allowed.includes(guestAction)) throw new Error("허용되지 않은 행동입니다.");
   const hostDamage = calculateRealtimeArenaDamage({ attacker: battleState.participants.host, defender: battleState.participants.guest, rules });
   const guestDamage = calculateRealtimeArenaDamage({ attacker: battleState.participants.guest, defender: battleState.participants.host, rules });
-  const damage = resolveRealtimeArenaActionMatchup({ hostAction, guestAction, hostDamage, guestDamage });
+  const matchup = resolveRealtimeArenaActionMatchup({
+    hostAction,
+    guestAction,
+    hostDamage,
+    guestDamage,
+    guardRecovery: Number(rules.recovery?.guardVsAttack ?? 1),
+  });
+  const hostHpTransition = applyHpTransition({
+    currentHp: battleState.currentHp.host,
+    maxHp: battleState.participants.host.maxHp,
+    damageTaken: matchup.hostDamageTaken,
+    requestedRecovery: matchup.hostHpRecovered,
+  });
+  const guestHpTransition = applyHpTransition({
+    currentHp: battleState.currentHp.guest,
+    maxHp: battleState.participants.guest.maxHp,
+    damageTaken: matchup.guestDamageTaken,
+    requestedRecovery: matchup.guestHpRecovered,
+  });
+  const damage = {
+    ...matchup,
+    hostHpRecovered: hostHpTransition.recovered,
+    guestHpRecovered: guestHpTransition.recovered,
+  };
   const currentHp = {
-    host: Math.max(0, Number(battleState.currentHp.host) - damage.hostDamageTaken),
-    guest: Math.max(0, Number(battleState.currentHp.guest) - damage.guestDamageTaken),
+    host: hostHpTransition.hp,
+    guest: guestHpTransition.hp,
   };
   const timeoutSides = [];
   if (hostAction === "no_action") timeoutSides.push("host");
@@ -8078,6 +8098,13 @@ function resolveRealtimeArenaRound({ battleState, hostAction, guestAction, rules
     timeoutLossCount: rules.timeout.consecutiveLossCount,
   });
   return { ...damage, currentHp, timeoutSides, timeoutStreaks, result };
+}
+
+function applyHpTransition({ currentHp, maxHp, damageTaken, requestedRecovery }) {
+  const afterDamage = Math.max(0, Number(currentHp) - Number(damageTaken));
+  const recoveryLimit = Math.max(0, Number(maxHp) - afterDamage);
+  const recovered = Math.max(0, Math.min(recoveryLimit, Number(requestedRecovery)));
+  return { hp: afterDamage + recovered, recovered };
 }
 
 ;// ./src/logic/realtime-arena/cpu.js

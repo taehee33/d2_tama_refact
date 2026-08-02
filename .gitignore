@@ -31,3 +31,4 @@ firebase/service-account.json
 .vercel
 .gstack/
 supabase/.temp/
+.env*

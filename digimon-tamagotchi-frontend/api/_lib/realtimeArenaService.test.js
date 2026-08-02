@@ -136,6 +136,34 @@ test("마감 전에는 마지막 선택만 secret에 저장하고 마감 시 pub
   assert.deepEqual(new Set(harness.writes.map((write) => write.path)), new Set([`realtimeArenaBattles/${battleId}`, `realtimeArenaBattleSecrets/${battleId}`]));
 });
 
+test("서버 판정은 속공을 막은 방어자에게만 실제 회복량을 기록한다", async () => {
+  const harness = createHarness();
+  const { battleId, started } = await startBattle(harness);
+  const publicPath = `realtimeArenaBattles/${battleId}`;
+  harness.store.set(publicPath, { ...started.battle, currentHp: { host: 12, guest: 13 } });
+
+  await commandRealtimeRound({
+    uid: "host", battleId, command: "submit-action",
+    input: { requestId: "host-guard-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "guard", selectionRevision: 1 },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:04.000Z") },
+  });
+  await commandRealtimeRound({
+    uid: "guest", battleId, command: "submit-action",
+    input: { requestId: "guest-attack-1", round: 1, expectedStateVersion: started.battle.stateVersion, action: "attack", selectionRevision: 1 },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:05.000Z") },
+  });
+
+  const resolved = await commandRealtimeRound({
+    uid: "host", battleId, command: "restore", input: { requestId: "restore-guard-success" },
+    deps: { ...harness.deps, now: new Date("2026-07-30T00:00:11.000Z") },
+  });
+  const round = resolved.battle.resolvedRounds[0];
+  assert.deepEqual({ hostDamageTaken: round.hostDamageTaken, guestDamageTaken: round.guestDamageTaken }, { hostDamageTaken: 0, guestDamageTaken: 0 });
+  assert.deepEqual({ hostHpRecovered: round.hostHpRecovered, guestHpRecovered: round.guestHpRecovered }, { hostHpRecovered: 1, guestHpRecovered: 0 });
+  assert.deepEqual({ hostHpAfter: round.hostHpAfter, guestHpAfter: round.guestHpAfter }, { hostHpAfter: 13, guestHpAfter: 13 });
+  assert.deepEqual({ hostActionResult: round.hostActionResult, guestActionResult: round.guestActionResult }, { hostActionResult: "guard_success", guestActionResult: "blocked" });
+});
+
 test("기한이 지난 restore는 양쪽 행동을 자동 선택하고 연출 뒤 새 7초 deadline을 연다", async () => {
   const harness = createHarness();
   const { battleId } = await startBattle(harness);
@@ -345,7 +373,7 @@ test("CPU와 양쪽 HP가 동시에 0이 되면 동시 KO 무승부로 종료한
       round: 1,
       currentHp: { host: 1, guest: 1 },
       participants: { host: { maxHp: 13 }, guest: { maxHp: 13 } },
-    }) !== "guard"
+    }) === "special_attack"
   ));
   assert.ok(cpuSeed);
   const created = await createRealtimeCpuBattle({

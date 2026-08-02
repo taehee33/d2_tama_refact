@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-08-02] 실시간 아레나 `mvp-2` 행동 상성·방어 회복 확정
+
+- **내용:** 화면 행동명을 `공격·특수공격`에서 `속공·필살기`로 변경하고, `속공 > 필살기 > 방어 > 속공` 상성을 고정했다. 속공과 필살기는 같은 공격력 `A`를 사용하며, 상성에서 패배한 행동은 피해를 주지 않는다. 기존 필살기 추가 공격력과 1/4·1/2 피해 배율은 제거했다.
+- **방어 회복:** 방어가 속공을 막았을 때만 실제 HP를 1 회복하고 최대 HP를 넘지 않도록 서버 판정에서 제한한다. 방어 대 방어, 방어 대 필살기, 최대 HP 상태에서는 회복하지 않는다. 판정 public 결과에는 실제 `hostHpRecovered`·`guestHpRecovered`를 기록한다.
+- **결과·UI:** 속공이 필살기를 끊은 경우, 방어 성공 회복, 필살기의 방어 관통, 상성 패배 메시지와 세 행동의 보조 설명을 화면에 표시한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/realtime-arena/rulesets.js`, `damage.js`, `actionMatchup.js`, `resolveRound.js`, `api/_lib/realtimeArenaRoundService.js`, `api/_generated/gameProjection.cjs`, `src/components/realtime-arena/**`, `src/styles/RealtimeArenaBattle.css`, 관련 테스트와 `docs/REALTIME_ARENA_MVP_IMPLEMENTATION_PLAN.md`.
+- **아키텍처 결정 근거:** Firestore 정본·secret 행동 제출·서버 transaction·7초 선택과 2.2초 연출 계약은 유지하고, 순수 상성 계산과 HP 전이만 교체했다. 내부 action ID는 재시도·기존 요청 호환을 위해 유지하며, 피해와 회복의 최종 값은 서버 projection bundle과 프론트 순수 로직이 공유한다.
+
+---
+
 ## [2026-08-02] 실시간 아레나 미선택 viewer 응답 오류 수정
 
 - **내용:** 라운드 시작 직후 아직 수동 행동이 없는 참가자의 viewer 응답을 만들 때 `null` 선택 객체의 `action`을 읽어 500 오류가 발생하던 문제를 수정했다. 선택 객체의 존재를 먼저 확인하고, 수동 선택만 `selectedAction`으로 복구하며 자동 선택은 계속 비공개로 유지한다.

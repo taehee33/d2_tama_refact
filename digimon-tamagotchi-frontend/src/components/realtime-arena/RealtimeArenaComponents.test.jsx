@@ -8,9 +8,13 @@ import RealtimeArenaResult from "./RealtimeArenaResult";
 test("행동 패널은 세 행동을 한국어로 표시하고 한 번 선택한다", () => {
   const onSubmit = jest.fn();
   render(<RealtimeArenaActionPanel disabled={false} selectedAction={null} saving={false} remainingMs={7000} onSubmit={onSubmit} />);
-  expect(screen.getByRole("button", { name: /^공격 선택$/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^속공 선택$/ })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /^방어 선택$/ })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: /^특수공격 선택$/ }));
+  expect(screen.getByRole("button", { name: /^필살기 선택$/ })).toBeInTheDocument();
+  expect(screen.getByText("필살기를 끊음")).toBeInTheDocument();
+  expect(screen.getByText("속공 차단 · 성공 시 HP +1")).toBeInTheDocument();
+  expect(screen.getByText("방어 관통")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /^필살기 선택$/ }));
   expect(onSubmit).toHaveBeenCalledWith("special_attack");
 });
 test("마감 전에는 현재 선택을 강조하고 변경 가능함을 알린다", () => {
@@ -155,7 +159,7 @@ test("행동 현황은 고정하고 최근 라운드 결과는 행동 선택 버
   expect(actionStatus).toHaveTextContent("상대: 선택 대기");
   expect(screen.getAllByRole("region")).toEqual([actionStatus, actionSelection, recentResult]);
   expect(screen.getByLabelText("나 최근 결과")).toHaveClass("is-own");
-  expect(screen.getByLabelText("나 최근 결과")).toHaveTextContent("나공격받은 피해 0");
+  expect(screen.getByLabelText("나 최근 결과")).toHaveTextContent("나속공받은 피해 0");
   expect(screen.getByLabelText("상대 최근 결과")).toHaveClass("is-opponent");
   expect(screen.getByLabelText("상대 최근 결과")).toHaveTextContent("상대방어받은 피해 4");
 });
@@ -196,10 +200,11 @@ test("판정 연출은 양쪽 행동과 자동 선택, 방패, 실제 피해량�
       onForfeit={jest.fn()}
     />
   );
-  expect(screen.getByRole("group", { name: "나 행동" })).toHaveTextContent("나: 공격");
+  expect(screen.getByRole("group", { name: "나 행동" })).toHaveTextContent("나: 속공");
   expect(screen.getByText("자동 선택")).toBeInTheDocument();
   expect(screen.getByLabelText("방패 방어")).toBeInTheDocument();
   expect(screen.getByLabelText("4 피해")).toHaveTextContent("-4");
+  expect(screen.getByRole("status")).toHaveTextContent("속공이 방어에 막혔습니다. 피해를 주지 못했습니다.");
 });
 
 test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {

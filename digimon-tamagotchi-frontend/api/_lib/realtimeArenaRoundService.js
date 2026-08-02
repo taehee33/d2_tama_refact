@@ -127,6 +127,10 @@ function resolveStoredRound({ battle, secret, resolutionType, now }) {
     guestAction,
     hostDamageTaken: transition.hostDamageTaken,
     guestDamageTaken: transition.guestDamageTaken,
+    hostHpRecovered: transition.hostHpRecovered,
+    guestHpRecovered: transition.guestHpRecovered,
+    hostActionResult: transition.hostActionResult,
+    guestActionResult: transition.guestActionResult,
     hostHpAfter: transition.currentHp.host,
     guestHpAfter: transition.currentHp.guest,
     timeoutSides: usesLatestSelection(battle)
