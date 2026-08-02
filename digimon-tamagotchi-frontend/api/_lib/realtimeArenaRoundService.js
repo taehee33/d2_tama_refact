@@ -86,7 +86,7 @@ function viewerFor(secret, role, round) {
   return {
     role,
     hasSubmitted: Boolean(submission),
-    selectedAction: submission?.source === "manual" || !submission?.source ? submission.action : null,
+    selectedAction: submission && (submission.source === "manual" || !submission.source) ? submission.action : null,
     selectionRevision: Number(submission?.selectionRevision || 0),
   };
 }

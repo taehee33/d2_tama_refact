@@ -4,7 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createRealtimeBattle, commandRealtimeLobby } = require("./realtimeArenaLobbyService");
 const { createRealtimeCpuBattle } = require("./realtimeArenaCpuService");
-const { commandRealtimeRound } = require("./realtimeArenaRoundService");
+const { commandRealtimeRound, viewerFor } = require("./realtimeArenaRoundService");
 const { createRealtimeBattleId } = require("./realtimeArenaDomain");
 const { selectRealtimeArenaCpuAction } = require("../_generated/gameProjection.cjs");
 
@@ -52,6 +52,20 @@ async function startBattle(harness) {
   const started = await commandRealtimeLobby({ uid: "guest", battleId, command: "set-ready", input: { requestId: "ready-guest-1", ready: true }, deps: { ...harness.deps, now: new Date("2026-07-30T00:00:03.000Z") } });
   return { battleId, started };
 }
+
+test("행동을 아직 선택하지 않을 때 viewer를 안전히 복구한다", () => {
+  assert.deepEqual(
+    viewerFor({ roundSecrets: { "4": { hostSubmission: null } } }, "host", 4),
+    {
+      role: "host",
+      hasSubmitted: false,
+      selectedAction: null,
+      selectionRevision: 0,
+    }
+  );
+  assert.equal(viewerFor({ roundSecrets: { "4": { hostSubmission: { action: "guard", source: "manual", selectionRevision: 2 } } } }, "host", 4).selectedAction, "guard");
+  assert.equal(viewerFor({ roundSecrets: { "4": { hostSubmission: { action: "attack", source: "auto", selectionRevision: 0 } } } }, "host", 4).selectedAction, null);
+});
 
 test("양쪽 준비가 모이면 같은 transaction에서 mvp-2 snapshot과 1라운드를 고정한다", async () => {
   const harness = createHarness();
