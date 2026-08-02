@@ -195,7 +195,7 @@ export default function RealtimeArenaBattleBoard({
   const displayedOpponentSource = presentationActive ? opponentSource : null;
 
   return (
-    <div className="space-y-4 realtime-arena-board">
+    <div className="realtime-arena-board">
       <div className="flex items-center justify-between">
         <strong>라운드 {displayedRound} / {battle.maxRounds}</strong>
         {presentationActive && <span className="font-bold" aria-label="판정 진행 중">판정 중</span>}

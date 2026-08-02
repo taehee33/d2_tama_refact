@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-02] 모바일 실시간 배틀 행동 버튼 하단 고정
+
+- **내용:** 모바일 선택 단계에서 남은 시간과 공격·방어·필살기 버튼을 하단 dock로 분리해 화면에 항상 노출한다. 기존 `space-y-4` 간격을 모바일 8px 수준으로 줄이고, 연결 복구·판정·행동·최근 결과의 빈 슬롯에서 불필요한 14rem 높이를 제거했다. 규칙 설명은 본문 흐름에 유지하며, dock가 최근 결과와 포기 버튼을 가리지 않도록 선택 단계 본문에 safe-area를 포함한 하단 여백을 예약한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaActionPanel.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaScreen.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, 관련 컴포넌트 테스트.
+- **아키텍처 결정 근거:** 배틀 상태·저장·타이머·API 로직은 변경하지 않고, 선택 단계의 표현 계층과 모바일 스크롤 영역만 조정했다. dock는 모바일에서만 고정하고 데스크톱에서는 CSS grid로 기존 타이머·설명·버튼 순서를 유지한다.
+
+---
+
 ## [2026-08-02] 실시간 배틀 종료 시 이전 결과 재표시 방지
 
 - **내용:** 실시간 배틀 모달의 X·배경 클릭을 상태별 종료 흐름으로 통합했다. 진행 중 배틀은 앱 내 확인 후 `forfeit`, 대기방은 참가자 역할에 따라 `cancel` 또는 `leave`를 실행하고, 성공한 경우에만 로컬 세션과 모달을 정리한다. 이미 종료된 결과·취소·만료 상태는 서버 호출 없이 세션을 지워 다음 진입 시 이전 결과가 복구되지 않도록 했다.

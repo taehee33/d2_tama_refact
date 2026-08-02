@@ -94,6 +94,20 @@ test("배경 클릭도 종료된 배틀의 세션 정리 흐름을 사용한다"
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test("선택 단계에서만 모달 본문에 모바일 action dock 여백을 예약한다", () => {
+  const session = createSession({ battle: { status: "selecting" } });
+  renderScreen(session);
+
+  expect(document.querySelector(".realtime-arena-dialog__body")).toHaveClass("has-action-dock");
+});
+
+test("판정 연출 중에는 모바일 action dock 여백을 예약하지 않는다", () => {
+  const session = createSession({ battle: { status: "selecting" }, presentationActive: true });
+  renderScreen(session);
+
+  expect(document.querySelector(".realtime-arena-dialog__body")).not.toHaveClass("has-action-dock");
+});
+
 test("진행 중 배틀에서 종료 확인을 취소하면 포기하지 않는다", () => {
   const session = createSession({ battle: { status: "selecting" } });
   const onClose = renderScreen(session);

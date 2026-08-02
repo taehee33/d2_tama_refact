@@ -55,6 +55,7 @@ export default function RealtimeArenaScreen({ currentSlotId, onClose }) {
       setCloseError("");
     }
   };
+  const actionDockActive = session.battle?.status === "selecting" && !session.presentationActive;
   return (
     <div className="realtime-arena-overlay fixed inset-0 z-50 flex justify-center bg-black bg-opacity-60" onClick={handleCloseRequest}>
       <section className="realtime-arena-dialog w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="realtime-arena-title" onClick={(event) => event.stopPropagation()}>
@@ -62,7 +63,7 @@ export default function RealtimeArenaScreen({ currentSlotId, onClose }) {
           <h2 id="realtime-arena-title" className="text-xl font-black">실시간 배틀</h2>
           <button type="button" onClick={handleCloseRequest} aria-label="실시간 배틀 닫기" disabled={session.busy}>✕</button>
         </header>
-        <div className="realtime-arena-dialog__body">
+        <div className={`realtime-arena-dialog__body ${actionDockActive ? "has-action-dock" : ""}`}>
           {session.error && <p role="alert" className="mb-3 rounded bg-red-50 p-2 text-sm text-red-700">{session.error}</p>}
           {!currentUser ? <p>로그인 후 실시간 배틀을 이용할 수 있습니다.</p> : session.battle?.status === "waiting" ? (
             <RealtimeArenaLobby battle={session.battle} viewer={session.viewer} busy={session.busy} rooms={session.rooms} roomsLoading={session.roomsLoading} roomsError={session.roomsError} onRefreshRooms={handleAsync(session.refreshRooms)} onCreate={handleAsync(session.createBattle)} onCreateCpu={handleAsync(session.createCpuBattle)} onJoin={handleAsync(session.joinBattle)} onReady={handleAsync((ready) => session.runCommand("set-ready", { ready }))} onLeave={handleAsync(() => session.runCommand("leave").then(session.closeSession))} onCancel={handleAsync(() => session.runCommand("cancel"))} />

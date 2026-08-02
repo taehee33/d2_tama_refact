@@ -17,6 +17,15 @@ test("행동 패널은 세 행동을 한국어로 표시하고 한 번 선택한
   fireEvent.click(screen.getByRole("button", { name: /^필살기 선택$/ }));
   expect(onSubmit).toHaveBeenCalledWith("special_attack");
 });
+
+test("행동 패널은 타이머와 버튼만 하단 dock에 묶고 규칙 설명은 본문에 둔다", () => {
+  render(<RealtimeArenaActionPanel disabled={false} selectedAction={null} saving={false} remainingMs={7000} onSubmit={jest.fn()} />);
+  const dock = screen.getByTestId("realtime-arena-action-dock");
+
+  expect(dock).toContainElement(screen.getByLabelText("남은 선택 시간 7초"));
+  expect(dock).toContainElement(screen.getByRole("group", { name: "배틀 행동 선택" }));
+  expect(dock).not.toContainElement(screen.getByText(/속공은 필살기를 끊습니다/));
+});
 test("마감 전에는 현재 선택을 강조하고 변경 가능함을 알린다", () => {
   render(<RealtimeArenaActionPanel disabled={false} selectedAction="guard" saving={false} remainingMs={4000} onSubmit={() => {}} />);
   expect(screen.getByRole("button", { name: /방어/ })).toHaveAttribute("aria-pressed", "true");
