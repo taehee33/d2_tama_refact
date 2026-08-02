@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-02] 실시간 배틀 종료 시 이전 결과 재표시 방지
+
+- **내용:** 실시간 배틀 모달의 X·배경 클릭을 상태별 종료 흐름으로 통합했다. 진행 중 배틀은 앱 내 확인 후 `forfeit`, 대기방은 참가자 역할에 따라 `cancel` 또는 `leave`를 실행하고, 성공한 경우에만 로컬 세션과 모달을 정리한다. 이미 종료된 결과·취소·만료 상태는 서버 호출 없이 세션을 지워 다음 진입 시 이전 결과가 복구되지 않도록 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaScreen.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaCloseConfirm.jsx`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaScreen.test.jsx`.
+- **아키텍처 결정 근거:** 기존 서버 명령과 `sessionStorage` 기반 복구 계약은 유지하고, 모달을 닫기 전에 필요한 서버 명령을 완료하도록 화면 오케스트레이션만 보강했다. 종료 명령 실패 시 화면과 확인창을 유지해 배틀 상태와 로컬 세션이 서로 어긋나지 않게 한다.
+
+---
+
 ## [2026-08-02] 모바일 실시간 배틀 단계 레이아웃 고정
 
 - **내용:** 모바일 실시간 배틀 모달을 사용 가능한 뷰포트 높이로 고정하고 상단 여백을 줄였다. 연결 복구 안내, 판정 메시지, 행동 선택, 최근 라운드 결과에 고정 슬롯을 두어 단계가 바뀌어도 모달 내부 콘텐츠가 갑자기 재배치되지 않도록 했다.
