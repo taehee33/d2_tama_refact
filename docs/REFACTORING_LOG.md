@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-02] 실시간 아레나 미선택 viewer 응답 오류 수정
+
+- **내용:** 라운드 시작 직후 아직 수동 행동이 없는 참가자의 viewer 응답을 만들 때 `null` 선택 객체의 `action`을 읽어 500 오류가 발생하던 문제를 수정했다. 선택 객체의 존재를 먼저 확인하고, 수동 선택만 `selectedAction`으로 복구하며 자동 선택은 계속 비공개로 유지한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/api/_lib/realtimeArenaRoundService.js`, `digimon-tamagotchi-frontend/api/_lib/realtimeArenaService.test.js`.
+- **아키텍처 결정 근거:** Firestore 라운드 판정은 이미 완료된 뒤 응답 조립에서만 실패했으므로 저장·판정 계약은 변경하지 않고 참가자 전용 응답 projection의 null 경계만 보강한다.
+
+---
+
 ## [2026-08-02] 실시간 아레나 최근 라운드 결과 시각 구분
 
 - **내용:** 최근 라운드 결과를 `나`와 `CPU/상대` 두 영역으로 분리하고 파란색·보라색 배경과 글자색을 적용했다. 행동은 굵게, 받은 피해 숫자는 더 큰 고정폭 빨간 글씨로 표시한다.
