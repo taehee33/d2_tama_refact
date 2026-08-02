@@ -30,6 +30,13 @@ test("남은 선택 시간은 안내 영역에서 3초부터 빨간색으로 강
   expect(screen.getByRole("status", { name: "선택 안내" })).toHaveClass("is-urgent");
 });
 
+test("남은 선택 시간이 0초여도 긴급 안내 영역을 유지한다", () => {
+  render(<RealtimeArenaActionPanel disabled={false} selectedAction={null} saving={false} remainingMs={0} onSubmit={() => {}} />);
+  expect(screen.getByLabelText("남은 선택 시간 0초")).toHaveTextContent("0초");
+  expect(screen.getByRole("status", { name: "선택 안내" })).toHaveClass("is-urgent");
+  expect(screen.getByText("시간 안에 선택하지 않으면 행동이 자동으로 선택됩니다.")).toBeInTheDocument();
+});
+
 test("결과는 친선전이며 랭크와 보상에 반영되지 않음을 알린다", () => {
   render(<RealtimeArenaResult battle={{ result: { outcome: "host_win", reason: "ko" } }} onCloseSession={() => {}} />);
   expect(screen.getByText("호스트 승리")).toBeInTheDocument();
@@ -162,6 +169,61 @@ test("행동 현황은 고정하고 최근 라운드 결과는 행동 선택 버
   expect(screen.getByLabelText("나 최근 결과")).toHaveTextContent("나속공받은 피해 0");
   expect(screen.getByLabelText("상대 최근 결과")).toHaveClass("is-opponent");
   expect(screen.getByLabelText("상대 최근 결과")).toHaveTextContent("상대방어받은 피해 4");
+});
+
+test("배틀 단계별 슬롯은 콘텐츠가 바뀌어도 같은 영역을 유지한다", () => {
+  const participant = (name, sprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite });
+  const baseBattle = {
+    mode: "pvp",
+    status: "selecting",
+    round: 2,
+    maxRounds: 7,
+    currentHp: { host: 13, guest: 9 },
+    participants: { host: participant("아구몬", 1), guest: participant("파피몬", 2) },
+    resolvedRounds: [],
+  };
+  const baseProps = {
+    viewer: { role: "host" },
+    remainingMs: 5000,
+    busy: false,
+    selectedAction: null,
+    selectionSaving: false,
+    recovering: false,
+    selectionOpen: true,
+    clockMs: Date.now(),
+    onSubmit: jest.fn(),
+    onForfeit: jest.fn(),
+  };
+  const { rerender } = render(<RealtimeArenaBattleBoard battle={baseBattle} {...baseProps} presentationActive={false} />);
+  const presentationSlot = screen.getByTestId("realtime-arena-presentation-slot");
+  const actionSlot = screen.getByTestId("realtime-arena-action-slot");
+  const recentRoundSlot = screen.getByTestId("realtime-arena-recent-round-slot");
+
+  expect(presentationSlot).toBeEmptyDOMElement();
+  expect(actionSlot).toContainElement(screen.getByRole("region", { name: "행동 선택 영역" }));
+  expect(recentRoundSlot).toBeEmptyDOMElement();
+
+  const resolvedBattle = {
+    ...baseBattle,
+    resolvedRounds: [{
+      round: 1,
+      hostAction: "attack",
+      guestAction: "guard",
+      hostDamageTaken: 0,
+      guestDamageTaken: 4,
+      selectionSources: { host: "manual", guest: "manual" },
+    }],
+    presentationEndsAt: new Date(Date.now() + 1000).toISOString(),
+  };
+  rerender(<RealtimeArenaBattleBoard battle={resolvedBattle} {...baseProps} presentationActive />);
+  expect(presentationSlot).toHaveTextContent("속공이 방어에 막혔습니다");
+  expect(actionSlot).toBeEmptyDOMElement();
+  expect(recentRoundSlot).toBeEmptyDOMElement();
+
+  rerender(<RealtimeArenaBattleBoard battle={resolvedBattle} {...baseProps} presentationActive={false} />);
+  expect(presentationSlot).toBeEmptyDOMElement();
+  expect(actionSlot).toContainElement(screen.getByRole("region", { name: "행동 선택 영역" }));
+  expect(recentRoundSlot).toContainElement(screen.getByRole("region", { name: "최근 라운드 결과" }));
 });
 
 test("판정 연출은 양쪽 행동과 자동 선택, 방패, 실제 피해량을 공개한다", () => {

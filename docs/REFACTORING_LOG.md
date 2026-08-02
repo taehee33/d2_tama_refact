@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-02] 모바일 실시간 배틀 단계 레이아웃 고정
+
+- **내용:** 모바일 실시간 배틀 모달을 사용 가능한 뷰포트 높이로 고정하고 상단 여백을 줄였다. 연결 복구 안내, 판정 메시지, 행동 선택, 최근 라운드 결과에 고정 슬롯을 두어 단계가 바뀌어도 모달 내부 콘텐츠가 갑자기 재배치되지 않도록 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaComponents.test.jsx`.
+- **아키텍처 결정 근거:** 배틀 상태·저장·타이머·API 계약은 변경하지 않고 화면 레이아웃만 조정했다. 모바일은 고정 높이 모달과 내부 스크롤을 사용하며, 데스크톱은 기존 중앙 정렬과 자연 높이를 유지한다.
+
+---
+
 ## [2026-08-02] 모바일 실시간 배틀 모달 스크롤 개선
 
 - **내용:** 모바일에서 실시간 배틀 모달을 화면 상단부터 사용할 수 있도록 정렬하고, 화면 높이를 초과하는 배틀 본문은 모달 내부에서 세로 스크롤되도록 수정했다. 헤더와 닫기 버튼은 고정 영역으로 유지해 하단 내용을 확인한 뒤에도 모달을 닫을 수 있게 했다.

@@ -201,7 +201,9 @@ export default function RealtimeArenaBattleBoard({
         {presentationActive && <span className="font-bold" aria-label="판정 진행 중">판정 중</span>}
       </div>
 
-      {recovering && <p className="rounded bg-blue-50 p-2 text-center text-xs font-semibold text-blue-700">연결 복구 중...</p>}
+      <div className="realtime-arena-board__recovery-slot" data-testid="realtime-arena-recovery-slot">
+        {recovering && <p className="rounded bg-blue-50 p-2 text-center text-xs font-semibold text-blue-700">연결 복구 중...</p>}
+      </div>
 
       <div className={`realtime-arena-stage phase-${phase}`}>
         <Fighter label="나" data={own} opponent={opponent} rules={battle.rulesSnapshot} hp={ownHp} damage={ownDamage} recovery={ownRecovery} action={ownAction} opponentAction={opponentAction} phase={phase} side="left" />
@@ -221,48 +223,56 @@ export default function RealtimeArenaBattleBoard({
         <ActionChip label={opponentLabel} action={displayedOpponentAction} source={displayedOpponentSource} tone="opponent" />
       </div>
 
-      {presentationActive && latest && <p className="realtime-arena-round-message" role="status">{roundMessage}</p>}
+      <div className="realtime-arena-board__presentation-slot" data-testid="realtime-arena-presentation-slot">
+        {presentationActive && latest && <p className="realtime-arena-round-message" role="status">{roundMessage}</p>}
+      </div>
 
-      {battle.status === "selecting" && !presentationActive && (
-        <RealtimeArenaActionPanel
-          disabled={busy || !selectionOpen}
-          selectedAction={selectedAction}
-          saving={selectionSaving}
-          remainingMs={remainingMs}
-          onSubmit={onSubmit}
-        />
-      )}
+      <div className="realtime-arena-board__action-slot" data-testid="realtime-arena-action-slot">
+        {battle.status === "selecting" && !presentationActive && (
+          <RealtimeArenaActionPanel
+            disabled={busy || !selectionOpen}
+            selectedAction={selectedAction}
+            saving={selectionSaving}
+            remainingMs={remainingMs}
+            onSubmit={onSubmit}
+          />
+        )}
+      </div>
 
-      {!presentationActive && latest && (
-        <div className="realtime-arena-recent-round" role="region" aria-label="최근 라운드 결과">
-          <strong className="realtime-arena-recent-round__title">최근 라운드</strong>
-          <div className="realtime-arena-recent-round__players">
-            <div className="realtime-arena-recent-round__player is-own" aria-label="나 최근 결과">
-              <span className="realtime-arena-recent-round__label">나</span>
-              <span className="realtime-arena-recent-round__action">
-                {getRealtimeArenaActionLabel(ownAction)}
-                {ownSource === "auto" && <small>자동</small>}
-              </span>
-              <span className="realtime-arena-recent-round__damage">받은 피해 <strong>{ownDamage}</strong></span>
-              <span className="realtime-arena-recent-round__recovery">회복 <strong>{ownRecovery}</strong></span>
+      <div className="realtime-arena-board__recent-round-slot" data-testid="realtime-arena-recent-round-slot">
+        {!presentationActive && latest && (
+          <div className="realtime-arena-recent-round" role="region" aria-label="최근 라운드 결과">
+            <strong className="realtime-arena-recent-round__title">최근 라운드</strong>
+            <div className="realtime-arena-recent-round__players">
+              <div className="realtime-arena-recent-round__player is-own" aria-label="나 최근 결과">
+                <span className="realtime-arena-recent-round__label">나</span>
+                <span className="realtime-arena-recent-round__action">
+                  {getRealtimeArenaActionLabel(ownAction)}
+                  {ownSource === "auto" && <small>자동</small>}
+                </span>
+                <span className="realtime-arena-recent-round__damage">받은 피해 <strong>{ownDamage}</strong></span>
+                <span className="realtime-arena-recent-round__recovery">회복 <strong>{ownRecovery}</strong></span>
+              </div>
+              <div className="realtime-arena-recent-round__player is-opponent" aria-label={`${opponentLabel} 최근 결과`}>
+                <span className="realtime-arena-recent-round__label">{opponentLabel}</span>
+                <span className="realtime-arena-recent-round__action">
+                  {getRealtimeArenaActionLabel(opponentAction)}
+                  {opponentSource === "auto" && <small>자동</small>}
+                </span>
+                <span className="realtime-arena-recent-round__damage">받은 피해 <strong>{opponentDamage}</strong></span>
+                <span className="realtime-arena-recent-round__recovery">회복 <strong>{opponentRecovery}</strong></span>
+              </div>
             </div>
-            <div className="realtime-arena-recent-round__player is-opponent" aria-label={`${opponentLabel} 최근 결과`}>
-              <span className="realtime-arena-recent-round__label">{opponentLabel}</span>
-              <span className="realtime-arena-recent-round__action">
-                {getRealtimeArenaActionLabel(opponentAction)}
-                {opponentSource === "auto" && <small>자동</small>}
-              </span>
-              <span className="realtime-arena-recent-round__damage">받은 피해 <strong>{opponentDamage}</strong></span>
-              <span className="realtime-arena-recent-round__recovery">회복 <strong>{opponentRecovery}</strong></span>
-            </div>
+            <p className="realtime-arena-round-message">{roundMessage}</p>
           </div>
-          <p className="realtime-arena-round-message">{roundMessage}</p>
-        </div>
-      )}
+        )}
+      </div>
 
-      {battle.status === "selecting" && (
-        <button type="button" className="w-full rounded border border-red-500 px-3 py-2 text-red-600 disabled:opacity-50" onClick={onForfeit} disabled={busy || presentationActive}>포기</button>
-      )}
+      <div className="realtime-arena-board__forfeit-slot">
+        {battle.status === "selecting" && (
+          <button type="button" className="w-full rounded border border-red-500 px-3 py-2 text-red-600 disabled:opacity-50" onClick={onForfeit} disabled={busy || presentationActive}>포기</button>
+        )}
+      </div>
     </div>
   );
 }
