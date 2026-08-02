@@ -5,7 +5,7 @@
 - 대상: Firebase 로그인 사용자 간 1대1 동시 선택형 실시간 아레나
 - 기준 브랜치: `main`
 - 기준 HEAD: `6696552489f7b224f8bb587d8a213d346e3dc0d0`
-- 규칙 기준선: 임시 `mvp-0 = R2 + S1 + H2 + P25 + M1`
+- 규칙 기준선: 활성 `mvp-2` 최종 행동 상성 + H2 + P25 + M1
 - 구현 원칙: 서버·동시성·복구 기반을 먼저 만들고 전투 규칙은 버전으로 교체한다.
 
 관련 기준 문서:
@@ -21,15 +21,25 @@
 
 ## 0. 구현 후속 변경: `mvp-2` 선택·연출 계약 (2026-08-02)
 
-초기 `mvp-0/1` 계약과 진행 중 snapshot은 그대로 보존한다. 2026-08-02 이후 생성되는 새 배틀은 `mvp-2`를 사용하며 아래 항목이 이 문서의 기존 즉시 판정·`no_action` 설명보다 우선한다.
+초기 `mvp-0/1` 식별자와 서버 상태 계약은 유지한다. 2026-08-02 이후 생성되는 새 배틀은 `mvp-2`를 사용하며, 아래 항목이 이 문서의 기존 즉시 판정·`no_action` 설명보다 우선한다.
 
 - 라운드는 양쪽이 일찍 선택해도 7초 마감까지 열린다. 각 참가자는 행동을 변경할 수 있고 서버는 가장 높은 `selectionRevision`의 마지막 선택을 사용한다.
-- 미선택 참가자는 secret의 `battleSeed`와 `battleId + round + role`로 공격·방어·특수공격 중 하나를 균등하고 결정적으로 자동 선택한다. `mvp-2`에는 연속 timeout 패배가 없다.
+- 미선택 참가자는 secret의 `battleSeed`와 `battleId + round + role`로 속공·방어·필살기 중 하나를 균등하고 결정적으로 자동 선택한다. `mvp-2`에는 연속 timeout 패배가 없다.
 - 상대의 현재 선택은 secret에만 두며 마감 전 공개하지 않는다. 판정 public 기록에는 양쪽 행동, 피해량과 `manual/auto/cpu` 출처를 함께 저장한다.
 - 판정 뒤 `presentationEndsAt = 판정 시각 + 2.2초`, 다음 `deadlineAt = presentationEndsAt + 7초`로 설정한다. 클라이언트는 서버 시각을 기준으로 동시 행동 공개, 공격 스프라이트, 중앙 방패, 피해 숫자와 HP 변화를 재생한다.
 - `viewer`는 호출자 자신의 `selectedAction`과 `selectionRevision`만 반환한다. 새로고침 후 선택 강조는 복구하지만 상대 행동이나 secret 원문은 반환하지 않는다.
 - `selectionOpensAt`과 `presentationEndsAt` 표시는 로컬 타이머로 계산하며 Firestore에 초 단위 쓰기를 추가하지 않는다. 최종 KO·최대 라운드도 연출이 끝난 뒤 결과 화면으로 전환한다.
 - 실시간 아레나 client schema 최소 버전은 2다. 이전 클라이언트에는 새로고침 안내를 반환한다.
+
+### 0.1 `mvp-2` 최종 행동 판정 (2026-08-02)
+
+실시간 배틀의 화면 행동명은 `속공`, `방어`, `필살기`로 고정한다. 서버·Firestore 내부 식별자 `attack`, `guard`, `special_attack`는 기존 요청·재시도 호환을 위해 유지하고 표시 계층에서만 번역한다.
+
+- `A = 단계 기본 공격력 + 파워 우위 보너스 + 속성 유리 보너스`로 계산한다. 속공과 필살기는 모두 같은 `A`를 사용하며 필살기 추가 공격력은 없다.
+- 상성은 `속공 > 필살기`, `필살기 > 방어`, `방어 > 속공`이다. 상성에서 진 행동은 완전히 실패해 피해를 주지 않는다.
+- 속공 대 속공과 필살기 대 필살기는 서로 `A` 피해를 주고, 방어 대 방어는 피해와 회복이 없다.
+- 방어가 속공을 막은 경우에만 실제 HP 회복량을 `min(최대 HP, 현재 HP + 1)`로 계산한다. 방어 대 필살기는 회복하지 않는다.
+- 기존 필살기 추가 피해와 1/4·1/2 배율은 사용하지 않는다. 판정 결과에는 `hostHpRecovered`, `guestHpRecovered`를 저장해 최대 HP로 인해 실제 회복량이 0인 경우도 구분한다.
 
 ---
 
@@ -162,7 +172,7 @@
 - 같은 기준 시각의 서버 슬롯 projection
 - `mvp-0` 규칙 snapshot 고정
 - 최대 7라운드, 라운드당 7초
-- 공격·방어·특수공격 동시 선택
+- 속공·방어·필살기 동시 선택
 - 첫 제출 비공개
 - 두 번째 제출 즉시 판정
 - timeout `no_action`
@@ -236,14 +246,8 @@ const REALTIME_ARENA_RULESETS = {
       disadvantagePenalty: 0,
       freeIsNeutral: true,
     },
-    specialAttack: {
-      bonus: 1,
-      reducedVsAttackFormulaId: "ceil_ratio",
-      reducedVsAttackNumerator: 1,
-      reducedVsAttackDenominator: 4,
-      guardPenetrationFormulaId: "ceil_ratio",
-      guardPenetrationNumerator: 1,
-      guardPenetrationDenominator: 2,
+    recovery: {
+      guardVsAttack: 1,
     },
     timeout: {
       missingAction: "no_action",
@@ -394,10 +398,12 @@ realtimeArenaBattles/{battleId}
       round: 1,
       hostAction: "attack",
       guestAction: "special_attack",
-      hostDamageTaken: 1,
+      hostDamageTaken: 0,
       guestDamageTaken: 3,
-      hostHpAfter: 12,
+      hostHpAfter: 13,
       guestHpAfter: 10,
+      hostHpRecovered: 0,
+      guestHpRecovered: 0,
       timeoutSides: [],
       resolutionType: "both_submitted" | "timeout",
       resolvedAt: "Timestamp",

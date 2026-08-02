@@ -15,14 +15,8 @@ const MVP_0 = {
     disadvantagePenalty: 0,
     freeIsNeutral: true,
   },
-  specialAttack: {
-    bonus: 1,
-    reducedVsAttackFormulaId: "ceil_ratio",
-    reducedVsAttackNumerator: 1,
-    reducedVsAttackDenominator: 4,
-    guardPenetrationFormulaId: "ceil_ratio",
-    guardPenetrationNumerator: 1,
-    guardPenetrationDenominator: 2,
+  recovery: {
+    guardVsAttack: 1,
   },
   timeout: { missingAction: "no_action", consecutiveLossCount: 2 },
 };
@@ -63,9 +57,8 @@ export function assertRealtimeArenaRules(rules) {
   if (!rules || rules.schemaVersion !== 1) throw new Error("지원하지 않는 실시간 아레나 규칙입니다.");
   if (rules.powerGap?.formulaId !== "floor_sqrt_positive_gap_over_unit") throw new Error("지원하지 않는 power gap 공식입니다.");
   if (rules.attribute?.formulaId !== "one_way_cycle_bonus") throw new Error("지원하지 않는 속성 공식입니다.");
-  if (rules.specialAttack?.reducedVsAttackFormulaId !== "ceil_ratio" || rules.specialAttack?.guardPenetrationFormulaId !== "ceil_ratio") {
-    throw new Error("지원하지 않는 특수공격 공식입니다.");
-  }
+  const guardRecovery = Number(rules.recovery?.guardVsAttack ?? 1);
+  if (!Number.isFinite(guardRecovery) || guardRecovery < 0) throw new Error("방어 회복 규칙이 올바르지 않습니다.");
   if (!Number.isInteger(rules.maxRounds) || rules.maxRounds < 1 || rules.maxRounds > 7) throw new Error("라운드 제한이 올바르지 않습니다.");
   if (!Number.isFinite(rules.selectionWindowMs) || rules.selectionWindowMs < 1000) throw new Error("행동 선택 시간이 올바르지 않습니다.");
   if (rules.presentationWindowMs !== undefined && (!Number.isFinite(rules.presentationWindowMs) || rules.presentationWindowMs < 0)) {

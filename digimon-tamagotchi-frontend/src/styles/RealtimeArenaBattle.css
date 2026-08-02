@@ -122,6 +122,7 @@
 .realtime-arena-shield.is-right { left: 57%; }
 
 .realtime-arena-damage,
+.realtime-arena-recovery,
 .realtime-arena-blocked {
   position: absolute;
   left: 50%;
@@ -136,6 +137,13 @@
   color: #dc2626;
   font-size: 1.45rem;
   text-shadow: 0 2px 0 #fff;
+}
+
+.realtime-arena-recovery {
+  top: 1.05rem;
+  color: #059669;
+  font-size: 0.82rem;
+  text-shadow: 0 1px 0 #fff;
 }
 
 .realtime-arena-blocked {
@@ -267,6 +275,34 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 1rem;
   font-weight: 900;
+}
+
+.realtime-arena-recent-round__recovery {
+  grid-column: 1 / -1;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.realtime-arena-recent-round__recovery strong {
+  margin-left: 0.15rem;
+  color: #059669;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.realtime-arena-round-message {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #ddd6fe;
+  border-radius: 0.75rem;
+  background: #faf5ff;
+  color: #581c87;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .realtime-arena-action {

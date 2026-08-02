@@ -13,15 +13,6 @@ export function calculateRealtimeArenaDamage({ attacker, defender, rules }) {
   const positiveGap = Math.max(0, Number(attacker.sourcePower) - Number(defender.sourcePower));
   const powerGapAttack = Math.floor(Math.sqrt(positiveGap / Number(rules.powerGap.unit)));
   const attributeAttack = getRealtimeArenaAttributeBonus(attacker.attribute, defender.attribute, rules);
-  const normal = baseAttack + powerGapAttack + attributeAttack;
-  const special = normal + Number(rules.specialAttack.bonus);
-  const reducedVsAttack = Math.ceil(
-    special * Number(rules.specialAttack.reducedVsAttackNumerator) /
-      Number(rules.specialAttack.reducedVsAttackDenominator)
-  );
-  const guardPenetration = Math.ceil(
-    special * Number(rules.specialAttack.guardPenetrationNumerator) /
-      Number(rules.specialAttack.guardPenetrationDenominator)
-  );
-  return { normal, special, reducedVsAttack, guardPenetration, powerGapAttack, attributeAttack };
+  const attackPower = baseAttack + powerGapAttack + attributeAttack;
+  return { attackPower, powerGapAttack, attributeAttack };
 }
