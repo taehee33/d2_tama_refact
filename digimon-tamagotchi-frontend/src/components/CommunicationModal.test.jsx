@@ -35,4 +35,24 @@ describe("CommunicationModal", () => {
     expect(screen.queryByRole("button", { name: "뒤로" })).not.toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  test("활성화된 실시간 배틀 버튼으로 로비를 연다", () => {
+    const onClose = jest.fn();
+    const onRealtimeStart = jest.fn();
+
+    render(
+      <CommunicationModal
+        onClose={onClose}
+        onSparringStart={jest.fn()}
+        onArenaStart={jest.fn()}
+        onRealtimeStart={onRealtimeStart}
+        realtimeEnabled
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /실시간 배틀/ }));
+
+    expect(onRealtimeStart).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

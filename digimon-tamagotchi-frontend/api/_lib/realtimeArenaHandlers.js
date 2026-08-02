@@ -111,7 +111,7 @@ function createRealtimeBattleCommandHandler(deps = {}) {
         leave: ["command", "requestId"],
         cancel: ["command", "requestId"],
         restore: ["command", "requestId"],
-        "resolve-timeout": ["command", "requestId"],
+        "resolve-timeout": ["command", "requestId", "round"],
         forfeit: ["command", "requestId"],
         "submit-action": ["command", "requestId", "round", "expectedStateVersion", "action", "selectionRevision"],
       };

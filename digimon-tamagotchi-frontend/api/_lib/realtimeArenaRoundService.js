@@ -197,6 +197,20 @@ async function commandRealtimeRound({ uid, battleId, command, input = {}, deps =
     if (battle.status !== "selecting") throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "진행 중인 실시간 배틀에서만 사용할 수 있는 명령입니다.");
     assertRulesInvariant(battle, secret);
 
+    if (command === "resolve-timeout" && input.round !== undefined) {
+      const requestedRound = Number(input.round);
+      if (!Number.isInteger(requestedRound) || requestedRound < 1) {
+        throw new ArenaError("ARENA_INVALID_REQUEST", "round 값이 올바르지 않습니다.");
+      }
+      if (requestedRound < battle.round) {
+        const stored = (battle.resolvedRounds || []).find((item) => item.round === requestedRound);
+        if (stored) return { battle, secret, role, status: "replayed", resolvedRound: stored, wrotePublic: false, wroteSecret: false };
+      }
+      if (requestedRound !== battle.round) {
+        throw new ArenaError("ARENA_REALTIME_STATE_CONFLICT", "현재 라운드와 요청 라운드가 다릅니다.");
+      }
+    }
+
     const deadlinePassed = toMillis(battle.deadlineAt) <= now.getTime();
     if (deadlinePassed) {
       const key = String(battle.round);

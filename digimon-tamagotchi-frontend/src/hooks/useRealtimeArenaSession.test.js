@@ -91,3 +91,74 @@ test("복구 응답의 내 선택을 강조하고 다음 selectionRevision으로
   expect(result.current.selectedAction).toBe("attack");
   unmount();
 });
+
+test("마감 판정 명령은 재시도 대상을 식별할 현재 라운드를 포함한다", async () => {
+  sessionStorage.setItem("realtime_arena_active_battle_id", "rtb_timeout");
+  const battle = {
+    battleId: "rtb_timeout",
+    status: "selecting",
+    round: 3,
+    stateVersion: 8,
+    deadlineAt: new Date(Date.now() - 1000).toISOString(),
+    selectionOpensAt: new Date(Date.now() - 8000).toISOString(),
+    resolvedRounds: [],
+  };
+  sendRealtimeArenaCommand.mockResolvedValue({
+    battle,
+    viewer: { role: "host", hasSubmitted: false, selectedAction: null, selectionRevision: 0 },
+  });
+  const currentUser = { uid: "host", getIdToken: jest.fn() };
+
+  const { unmount } = renderHook(() => useRealtimeArenaSession({ currentUser, slotId: "slot1" }));
+
+  await waitFor(() => expect(sendRealtimeArenaCommand).toHaveBeenCalledWith(
+    currentUser,
+    "rtb_timeout",
+    expect.objectContaining({ command: "resolve-timeout", round: 3 })
+  ));
+  unmount();
+});
+
+test("구버전 운영 API가 round를 거부하면 기존 마감 요청으로 재시도한다", async () => {
+  sessionStorage.setItem("realtime_arena_active_battle_id", "rtb_legacy_timeout");
+  const expiredBattle = {
+    battleId: "rtb_legacy_timeout",
+    status: "selecting",
+    round: 2,
+    stateVersion: 5,
+    deadlineAt: new Date(Date.now() - 1000).toISOString(),
+    selectionOpensAt: new Date(Date.now() - 8000).toISOString(),
+    resolvedRounds: [],
+  };
+  const resolvedBattle = {
+    ...expiredBattle,
+    round: 3,
+    stateVersion: 6,
+    deadlineAt: new Date(Date.now() + 7000).toISOString(),
+  };
+  const legacyContractError = Object.assign(
+    new Error("허용되지 않은 요청 필드가 있습니다."),
+    { code: "ARENA_INVALID_REQUEST" }
+  );
+  sendRealtimeArenaCommand
+    .mockResolvedValueOnce({
+      battle: expiredBattle,
+      viewer: { role: "host", hasSubmitted: true, selectedAction: "guard", selectionRevision: 1 },
+    })
+    .mockRejectedValueOnce(legacyContractError)
+    .mockResolvedValueOnce({
+      battle: resolvedBattle,
+      viewer: { role: "host", hasSubmitted: false, selectedAction: null, selectionRevision: 0 },
+    });
+  const currentUser = { uid: "host", getIdToken: jest.fn() };
+
+  const { result, unmount } = renderHook(() => useRealtimeArenaSession({ currentUser, slotId: "slot1" }));
+
+  await waitFor(() => expect(sendRealtimeArenaCommand).toHaveBeenCalledTimes(3));
+  const modernRequest = sendRealtimeArenaCommand.mock.calls[1][2];
+  const legacyRequest = sendRealtimeArenaCommand.mock.calls[2][2];
+  expect(modernRequest).toEqual(expect.objectContaining({ command: "resolve-timeout", round: 2 }));
+  expect(legacyRequest).toEqual({ command: "resolve-timeout", requestId: modernRequest.requestId });
+  await waitFor(() => expect(result.current.error).toBe(""));
+  unmount();
+});

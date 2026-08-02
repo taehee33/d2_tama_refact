@@ -5,7 +5,13 @@ import React from "react";
 import "../styles/Battle.css";
 import { REALTIME_ARENA_MVP_ENABLED } from "../config/arenaFeatures";
 
-export default function CommunicationModal({ onClose, onSparringStart, onArenaStart, onRealtimeStart }) {
+export default function CommunicationModal({
+  onClose,
+  onSparringStart,
+  onArenaStart,
+  onRealtimeStart,
+  realtimeEnabled = REALTIME_ARENA_MVP_ENABLED,
+}) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-5"
@@ -53,7 +59,7 @@ export default function CommunicationModal({ onClose, onSparringStart, onArenaSt
             아레나 [PvP(Ghost)]
           </button>
           
-          {REALTIME_ARENA_MVP_ENABLED ? (
+          {realtimeEnabled ? (
             <button
               onClick={() => {
                 onRealtimeStart();
