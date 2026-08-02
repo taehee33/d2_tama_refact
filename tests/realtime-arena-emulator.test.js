@@ -68,11 +68,11 @@ test("실시간 아레나 mvp-2 transaction은 선택을 숨기고 deadline 판�
   assert.deepEqual(beforeDeadline.data(), before.data());
   const deadlineResults = await Promise.all([
     commandRealtimeRound({
-      uid: "host", battleId, command: "resolve-timeout", input: { requestId: "deadline-host" },
+      uid: "host", battleId, command: "resolve-timeout", input: { requestId: "deadline-host", round: 1 },
       deps: { db, now: new Date("2026-07-30T00:00:08.000Z") },
     }),
     commandRealtimeRound({
-      uid: "guest", battleId, command: "resolve-timeout", input: { requestId: "deadline-guest" },
+      uid: "guest", battleId, command: "resolve-timeout", input: { requestId: "deadline-guest", round: 1 },
       deps: { db, now: new Date("2026-07-30T00:00:08.000Z") },
     }),
   ]);

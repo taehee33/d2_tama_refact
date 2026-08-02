@@ -2,6 +2,7 @@
   "name": "digimon-tamagotchi-frontend",
   "version": "0.1.0",
   "private": true,
+  "proxy": "https://dthama.vercel.app",
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
     "@testing-library/dom": "^10.4.0",

@@ -37,6 +37,28 @@
   image-rendering: pixelated;
 }
 
+.realtime-arena-fighter__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem 0.35rem;
+  min-height: 1.25rem;
+  color: #64748b;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.realtime-arena-fighter__meta span + span::before {
+  margin-right: 0.35rem;
+  color: #cbd5e1;
+  content: "·";
+}
+
+.realtime-arena-fighter__meta .is-advantage { color: #047857; font-weight: 800; }
+.realtime-arena-fighter__meta .is-disadvantage { color: #dc2626; font-weight: 800; }
+.realtime-arena-fighter__meta .is-neutral { color: #475569; font-weight: 700; }
+
 .realtime-arena-fighter.is-left .realtime-arena-fighter__sprite.is-attacking {
   animation: realtime-arena-lunge-left 0.7s ease-in-out both;
 }
@@ -136,9 +158,26 @@
   min-width: 0;
   padding: 0.55rem;
   border-radius: 0.65rem;
+  text-align: center;
+}
+
+.realtime-arena-action-chip.is-own {
+  border: 1px solid #bfdbfe;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.realtime-arena-action-chip.is-opponent {
+  border: 1px solid #e9d5ff;
   background: #f3e8ff;
   color: #581c87;
-  text-align: center;
+}
+
+.realtime-arena-action-status {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  min-height: 3.25rem;
 }
 
 .realtime-arena-action-chip small {
@@ -147,6 +186,87 @@
   background: #fff;
   font-size: 0.65rem;
   font-weight: 800;
+}
+
+.realtime-arena-recent-round {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+}
+
+.realtime-arena-recent-round__title {
+  display: block;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+}
+
+.realtime-arena-recent-round__players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.realtime-arena-recent-round__player {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.5rem;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+}
+
+.realtime-arena-recent-round__player + .realtime-arena-recent-round__player {
+  border-left: 1px solid #e2e8f0;
+}
+
+.realtime-arena-recent-round__player.is-own {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.realtime-arena-recent-round__player.is-opponent {
+  background: #faf5ff;
+  color: #6b21a8;
+}
+
+.realtime-arena-recent-round__label {
+  align-self: center;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.realtime-arena-recent-round__action {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.realtime-arena-recent-round__action small {
+  padding: 0.05rem 0.25rem;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.58rem;
+}
+
+.realtime-arena-recent-round__damage {
+  grid-column: 1 / -1;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.realtime-arena-recent-round__damage strong {
+  margin-left: 0.15rem;
+  color: #dc2626;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 900;
 }
 
 .realtime-arena-action {
@@ -171,6 +291,50 @@
   background: #6d28d9;
   box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.28);
   transform: translateY(-2px);
+}
+
+.realtime-arena-selection-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3.25rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.realtime-arena-selection-status__timer {
+  min-width: 3.35rem;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.15rem;
+  text-align: center;
+}
+
+.realtime-arena-selection-status p {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.realtime-arena-selection-status p.is-saving { color: #d97706; }
+.realtime-arena-selection-status p.is-saved { color: #047857; }
+
+.realtime-arena-selection-status.is-urgent {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.realtime-arena-selection-status.is-urgent .realtime-arena-selection-status__timer,
+.realtime-arena-selection-status.is-urgent p,
+.realtime-arena-selection-status.is-urgent p.is-saving,
+.realtime-arena-selection-status.is-urgent p.is-saved {
+  color: #dc2626;
 }
 
 @keyframes realtime-arena-lunge-left {
@@ -212,6 +376,7 @@
   .realtime-arena-stage { gap: 2.75rem; min-height: 215px; padding: 0.5rem; }
   .realtime-arena-fighter { padding: 0.55rem 0.35rem; }
   .realtime-arena-fighter__sprite-wrap { width: 4rem; height: 4rem; }
+  .realtime-arena-fighter__meta { font-size: 0.62rem; }
   .realtime-arena-projectile { width: 2.75rem; height: 2.75rem; }
   .realtime-arena-shield { width: 3.5rem; height: 3.5rem; font-size: 2rem; }
 }

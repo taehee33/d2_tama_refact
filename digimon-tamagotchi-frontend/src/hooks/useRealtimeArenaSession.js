@@ -14,6 +14,11 @@ function loadBattleId() {
   try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch (error) { return ""; }
 }
 
+function isLegacyResolveTimeoutContractError(error) {
+  return error?.code === "ARENA_INVALID_REQUEST" &&
+    error?.message === "허용되지 않은 요청 필드가 있습니다.";
+}
+
 function normalizePublicBattle(data, battleId) {
   const toIso = (value) => typeof value?.toDate === "function" ? value.toDate().toISOString() : value || null;
   return {
@@ -146,7 +151,7 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
       },
       () => setError("실시간 배틀 상태를 불러오지 못했습니다.")
     );
-    void restore();
+    void restore().catch(() => {});
     return unsubscribe;
   }, [battleId, currentUser, restore]);
 
@@ -187,11 +192,21 @@ export default function useRealtimeArenaSession({ currentUser, slotId }) {
     const key = `${battle.battleId}:${battle.round}`;
     if (timeoutStartedRef.current === key) return;
     timeoutStartedRef.current = key;
-    void runCommand("resolve-timeout").catch(() => {});
+    const requestId = createRequestId();
+    const resolveTimeout = async () => {
+      try {
+        await runCommand("resolve-timeout", { round: battle.round }, requestId);
+      } catch (timeoutError) {
+        // 개발 프론트엔드가 구형 운영 API를 바라보는 동안만 구형식 요청으로 한 번 재시도한다.
+        if (!isLegacyResolveTimeoutContractError(timeoutError)) return;
+        await runCommand("resolve-timeout", {}, requestId);
+      }
+    };
+    void resolveTimeout().catch(() => {});
   }, [battle, remainingMs, runCommand]);
 
   useEffect(() => {
-    const recover = () => { if (!document.hidden) void restore(); };
+    const recover = () => { if (!document.hidden) void restore().catch(() => {}); };
     window.addEventListener("online", recover);
     document.addEventListener("visibilitychange", recover);
     return () => {
