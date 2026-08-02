@@ -314,7 +314,7 @@ test("판정 연출은 양쪽 행동과 자동 선택, 방패, 실제 피해량�
   expect(screen.getByRole("status")).toHaveTextContent("속공이 방어에 막혔습니다. 피해를 주지 못했습니다.");
 });
 
-test("상대 공격 발사체는 우측 방향으로 좌우 반전한다", () => {
+test("내 디지몬과 내 발사체는 반전하고 상대 발사체는 기존 방향을 유지한다", () => {
   const participant = (name, sprite, attackSprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite });
   const presentationEndsAt = new Date(Date.now() + 1800).toISOString();
   const { container } = render(
@@ -330,7 +330,7 @@ test("상대 공격 발사체는 우측 방향으로 좌우 반전한다", () =>
         participants: { host: participant("아구몬", 1, 101), guest: participant("파피몬", 2, 102) },
         resolvedRounds: [{
           round: 1,
-          hostAction: "guard",
+          hostAction: "attack",
           guestAction: "attack",
           hostDamageTaken: 0,
           guestDamageTaken: 1,
@@ -351,7 +351,9 @@ test("상대 공격 발사체는 우측 방향으로 좌우 반전한다", () =>
     />
   );
 
-  expect(container.querySelector(".realtime-arena-projectile.is-right")).toHaveStyle({ transform: "scaleX(-1)" });
+  expect(container.querySelector(".realtime-arena-fighter.is-left .realtime-arena-fighter__sprite")).toHaveStyle({ transform: "scaleX(-1)" });
+  expect(container.querySelector(".realtime-arena-projectile.is-left")).toHaveStyle({ transform: "scaleX(-1)" });
+  expect(container.querySelector(".realtime-arena-projectile.is-right")).not.toHaveAttribute("style");
 });
 
 test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {

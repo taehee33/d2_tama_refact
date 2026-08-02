@@ -105,6 +105,10 @@
   image-rendering: pixelated;
 }
 
+.realtime-arena-fighter.is-left .realtime-arena-fighter__sprite {
+  transform: scaleX(-1);
+}
+
 .realtime-arena-fighter__meta {
   display: flex;
   flex-wrap: wrap;
@@ -139,6 +143,10 @@
   animation: realtime-arena-hit 0.42s ease-out both;
 }
 
+.realtime-arena-fighter.is-left.is-hit .realtime-arena-fighter__sprite {
+  animation-name: realtime-arena-hit-left;
+}
+
 .realtime-arena-effects {
   position: absolute;
   inset: 0;
@@ -161,11 +169,11 @@
 }
 
 .realtime-arena-projectile.is-left {
+  transform: scaleX(-1);
   animation: realtime-arena-projectile-left 0.85s ease-in forwards;
 }
 
 .realtime-arena-projectile.is-right {
-  transform: scaleX(-1);
   animation: realtime-arena-projectile-right 0.85s ease-in forwards;
 }
 
@@ -557,7 +565,7 @@
 }
 
 @keyframes realtime-arena-lunge-left {
-  45% { transform: translateX(1.6rem) scale(1.08); }
+  45% { transform: translateX(1.6rem) scaleX(-1) scale(1.08); }
 }
 
 @keyframes realtime-arena-lunge-right {
@@ -565,20 +573,25 @@
 }
 
 @keyframes realtime-arena-projectile-left {
-  from { left: 24%; opacity: 0; }
-  15% { opacity: 1; }
-  to { left: 70%; opacity: 1; }
+  from { left: 24%; opacity: 0; transform: scaleX(-1); }
+  15% { opacity: 1; transform: scaleX(-1); }
+  to { left: 70%; opacity: 1; transform: scaleX(-1); }
 }
 
 @keyframes realtime-arena-projectile-right {
-  from { left: 70%; opacity: 0; transform: scaleX(-1); }
-  15% { opacity: 1; transform: scaleX(-1); }
-  to { left: 24%; opacity: 1; transform: scaleX(-1); }
+  from { left: 70%; opacity: 0; }
+  15% { opacity: 1; }
+  to { left: 24%; opacity: 1; }
 }
 
 @keyframes realtime-arena-hit {
   20%, 60% { transform: translateX(-0.35rem); filter: brightness(1.5) saturate(1.6); }
   40%, 80% { transform: translateX(0.35rem); }
+}
+
+@keyframes realtime-arena-hit-left {
+  20%, 60% { transform: translateX(-0.35rem) scaleX(-1); filter: brightness(1.5) saturate(1.6); }
+  40%, 80% { transform: translateX(0.35rem) scaleX(-1); }
 }
 
 @keyframes realtime-arena-shield-pop {

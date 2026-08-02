@@ -70,6 +70,7 @@ function Fighter({ label, data, opponent, rules, hp, damage, recovery, action, p
           className={`realtime-arena-fighter__sprite ${attacking ? "is-attacking" : ""}`}
           src={`${data.spriteBasePath || "/images"}/${data.sprite ?? 0}.png`}
           alt={`${data.digimonName} 모습`}
+          style={side === "left" ? { transform: "scaleX(-1)" } : undefined}
         />
         {hitVisible && damage > 0 && <strong className="realtime-arena-damage" aria-label={`${damage} 피해`}>-{damage}</strong>}
         {hitVisible && recovery > 0 && <strong className="realtime-arena-recovery" aria-label={`${recovery} 회복`}>+{recovery} 회복</strong>}
@@ -97,7 +98,7 @@ function Projectile({ side, participant, action, phase }) {
       src={`${participant.spriteBasePath || "/images"}/${participant.attackSprite ?? participant.sprite ?? 0}.png`}
       alt=""
       aria-hidden="true"
-      style={side === "right" ? { transform: "scaleX(-1)" } : undefined}
+      style={side === "left" ? { transform: "scaleX(-1)" } : undefined}
     />
   );
 }

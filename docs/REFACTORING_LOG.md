@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-03] 상대 발사체 기본 방향 유지
+
+- **내용:** 내 디지몬과 내 발사체의 좌우 반전은 유지하고, 상대 발사체에 적용했던 `scaleX(-1)` 인라인 스타일·CSS·keyframe을 제거했다. 상대 디지몬 본체도 기존 방향을 유지한다.
+- **아키텍처 결정 근거:** 사용자 캐릭터는 좌측 표시 계층에서만 반전하고, 상대 발사체는 이미지 자산의 기본 방향과 기존 이동 경로를 사용한다. 배틀 상태·판정·타이머·저장 로직은 변경하지 않는다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaComponents.test.jsx`.
+
+---
+
+## [2026-08-02] 실시간 배틀 내 디지몬·발사체 방향 통일
+
+- **내용:** 실시간 배틀의 내 디지몬과 내 공격 발사체를 좌우 반전해 화면 중앙을 향하도록 했다. 상대 디지몬과 상대 발사체의 기존 방향은 유지한다.
+- **애니메이션 처리:** 기본 스프라이트 스타일뿐 아니라 내 디지몬의 돌진·피격 keyframe, 내 발사체의 이동 keyframe에도 `scaleX(-1)`을 포함해 애니메이션 중 방향이 풀리지 않도록 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaComponents.test.jsx`.
+- **아키텍처 결정 근거:** 배틀 보드가 사용자 캐릭터를 항상 좌측 슬롯에 렌더링하므로 별도 상태·API 변경 없이 좌측 표시 계층에만 반전 스타일을 적용했다. 판정·타이머·저장 로직은 변경하지 않는다.
+
+---
+
 ## [2026-08-02] 모바일 실시간 배틀 간격·첫 라운드 카운트다운 개선
 
 - **내용:** 모바일에서는 최근 라운드 위의 전투 규칙 안내문을 숨기고, 라운드 아래 복구 슬롯과 최근 라운드 위 판정 슬롯의 빈 높이를 제거했다. 배틀 보드 세로 간격은 4px로 줄여 전투 정보와 최근 결과가 붙어 보이도록 했다. 데스크톱 안내문과 자연스러운 간격·높이는 유지한다.
