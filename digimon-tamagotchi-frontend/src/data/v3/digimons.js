@@ -108,7 +108,7 @@ function buildGiromonEvolution() {
   return [
     {
       targetId: "Giromon",
-      targetName: "기로몬",
+      targetName: "째리몬",
       conditions: {
         battles: { min: 15 },
         winRatio: { min: 80 },
@@ -160,7 +160,7 @@ export const digimonDataVer3 = {
 
   DigitamaV3: buildEntry({
     id: "DigitamaV3",
-    name: "디지타마 Ver.3",
+    name: "디지타마 [Ver.3]",
     stage: "Digitama",
     sprite: PROVISIONAL_V3_SPRITES.DigitamaV3,
     stats: buildStats({
@@ -230,12 +230,12 @@ export const digimonDataVer3 = {
     evolutions: [
       {
         targetId: "Patamon",
-        targetName: "파타몬",
+        targetName: "파닥몬",
         conditions: { careMistakes: { max: 3 } },
       },
       {
         targetId: "Kunemon",
-        targetName: "쿠네몬",
+        targetName: "꿈틀몬",
         conditions: { careMistakes: { min: 4 } },
       },
     ],
@@ -243,7 +243,7 @@ export const digimonDataVer3 = {
 
   Patamon: buildEntry({
     id: "Patamon",
-    name: "파타몬",
+    name: "파닥몬",
     stage: "Child",
     sprite: PROVISIONAL_V3_SPRITES.Patamon,
     stats: buildStats({
@@ -272,7 +272,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Centaurmon",
-        targetName: "켄타루몬",
+        targetName: "켄터스몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 5, max: 23 },
@@ -282,7 +282,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Ogremon",
-        targetName: "오거몬",
+        targetName: "우가몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { max: 31 },
@@ -290,7 +290,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Bakemon",
-        targetName: "바케몬",
+        targetName: "고스몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -326,7 +326,7 @@ export const digimonDataVer3 = {
 
   Kunemon: buildEntry({
     id: "Kunemon",
-    name: "쿠네몬",
+    name: "꿈틀몬",
     stage: "Child",
     sprite: PROVISIONAL_V3_SPRITES.Kunemon,
     stats: buildStats({
@@ -371,7 +371,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Drimogemon",
-        targetName: "드리모게몬",
+        targetName: "두리몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -381,7 +381,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Ogremon",
-        targetName: "오거몬",
+        targetName: "우가몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 32 },
@@ -389,7 +389,7 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Bakemon",
-        targetName: "바케몬",
+        targetName: "고스몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 8, max: 23 },
@@ -443,7 +443,7 @@ export const digimonDataVer3 = {
 
   Centaurmon: buildEntry({
     id: "Centaurmon",
-    name: "켄타루몬",
+    name: "켄터스몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Centaurmon,
     stats: buildStats({
@@ -466,7 +466,7 @@ export const digimonDataVer3 = {
 
   Ogremon: buildEntry({
     id: "Ogremon",
-    name: "오거몬",
+    name: "우가몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Ogremon,
     stats: buildStats({
@@ -489,7 +489,7 @@ export const digimonDataVer3 = {
 
   Bakemon: buildEntry({
     id: "Bakemon",
-    name: "바케몬",
+    name: "고스몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Bakemon,
     stats: buildStats({
@@ -535,7 +535,7 @@ export const digimonDataVer3 = {
 
   Drimogemon: buildEntry({
     id: "Drimogemon",
-    name: "드리모게몬",
+    name: "두리몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Drimogemon,
     stats: buildStats({
@@ -633,7 +633,7 @@ export const digimonDataVer3 = {
 
   Giromon: buildEntry({
     id: "Giromon",
-    name: "기로몬",
+    name: "째리몬",
     stage: "Perfect",
     sprite: PROVISIONAL_V3_SPRITES.Giromon,
     stats: buildStats({
@@ -729,10 +729,10 @@ export const digimonDataVer3 = {
       },
       {
         targetId: "Millenniumon",
-        targetName: "밀레니엄몬",
+        targetName: "밀레니엄몬 [Ver.3]",
         jogress: {
           partner: "Mugendramon",
-          partnerName: "무겐드라몬",
+          partnerName: "파워드라몬",
           partnerVersion: "Ver.5",
         },
       },
@@ -798,7 +798,7 @@ export const digimonDataVer3 = {
     evolutions: [
       {
         targetId: "Chaosmon",
-        targetName: "카오스몬",
+        targetName: "카오스몬 [Ver.3]",
         jogress: {
           partner: "Darkdramon",
           partnerName: "다크드라몬",
@@ -810,7 +810,7 @@ export const digimonDataVer3 = {
 
   Chaosmon: buildEntry({
     id: "Chaosmon",
-    name: "카오스몬",
+    name: "카오스몬 [Ver.3]",
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Chaosmon,
     stats: buildStats({
@@ -829,7 +829,7 @@ export const digimonDataVer3 = {
 
   Millenniumon: buildEntry({
     id: "Millenniumon",
-    name: "밀레니엄몬",
+    name: "밀레니엄몬 [Ver.3]",
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Millenniumon,
     stats: buildStats({

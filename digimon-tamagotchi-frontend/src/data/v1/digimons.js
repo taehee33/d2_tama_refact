@@ -72,7 +72,7 @@ export const digimonDataVer1 = {
   // Digitama (Digi-Egg)
   Digitama: {
     id: "Digitama",
-    name: "디지타마",
+    name: "디지타마 [Ver.1]",
     stage: "Digitama",
     sprite: 133,
     stats: {
@@ -626,7 +626,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "BlitzGreymon",
-        targetName: "블리츠그레이몬",
+        targetName: "블리츠그레이몬 [Ver.1]",
         conditions: {
           careMistakes: { max: 1 },  // 0-1 Care Mistakes
           battles: { min: 15 },       // 15+ Battles
@@ -721,7 +721,7 @@ export const digimonDataVer1 = {
   // Ultimate - Blitz Greymon
   BlitzGreymon: {
     id: "BlitzGreymonV1",
-    name: "블리츠그레이몬 Ver.1",
+    name: "블리츠그레이몬 [Ver.1]",
     stage: "Ultimate",
     sprite: 420, // TODO: Check actual sprite
     stats: {
@@ -744,7 +744,7 @@ export const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "OmegamonAlterSV1",
-        targetName: "오메가몬 Alter-S(Ver.1)",
+        targetName: "오메가몬 Alter-S [Ver.1]",
         // 조그레스는 특별한 케이스이므로 conditions 대신 jogress 플래그 사용
         jogress: {
           partner: "CresGarurumon", // Jogress with Cres Garurumon (V2는 baseJogressId로 매칭)
@@ -801,7 +801,7 @@ export const digimonDataVer1 = {
   // Super Ultimate - Omegamon Alter-S (Ver.1, 객체 키 = targetId)
   OmegamonAlterSV1: {
     id: "OmegamonAlterSV1",
-    name: "오메가몬 Alter-S Ver.1",
+    name: "오메가몬 Alter-S [Ver.1]",
     stage: "Super Ultimate",
     sprite: 465, // TODO: Check actual sprite
     stats: {

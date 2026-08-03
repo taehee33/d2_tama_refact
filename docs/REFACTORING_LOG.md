@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-08-03] Ver.1~Ver.5 디지몬 한글 이름 표기 보정
+
+- **내용:** Ver.1~Ver.4 디지타마의 버전 표기를 `디지타마 [Ver.x]`로 통일했다. Ver.4의 시드몬·실리컨몬(씨라몬)·모털몬·쿠가몬·꼬끼몬·모야몬·피콜몬·디지타몬·간쿠몬·카오스몬 [Ver.4]·카오스드라몬 [Ver.4], Ver.5의 즈루몬·퍼그몬·가지몬·데블드라몬·사이크로몬·태스크몬·데이터몬·파워드라몬·가이온몬을 적용했다.
+- **진화·조그레스 안내 정합성:** 변경 대상의 `evolutions[].targetName`과 Ver.3/4 조그레스 `partnerName`을 실제 엔트리 표시명과 맞췄다. 객체 키·ID·저장 데이터 식별자는 변경하지 않았다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/data/v1/digimons.js`, `digimon-tamagotchi-frontend/src/data/v2modkor/digimons.js`, `digimon-tamagotchi-frontend/src/data/v3/digimons.js`, `digimon-tamagotchi-frontend/src/data/v4/digimons.js`, `digimon-tamagotchi-frontend/src/data/v5/digimons.js`, `digimon-tamagotchi-frontend/src/data/digimonNameChanges.test.js`, 생성된 `api/_generated/gameProjection.cjs`.
+
+## [2026-08-03] 디지몬 버전별 한글 이름 표기 정리
+
+- **내용:** Ver.1의 블리츠그레이몬·오메가몬 Alter-S, Ver.2의 크레스가루루몬·오메가몬 Alter-S 버전 표기를 `[...]` 형식으로 통일했다. Ver.3의 파닥몬, 꿈틀몬, 켄터스몬, 우가몬, 고스몬, 두리몬, 째리몬 한글 이름과 카오스몬·밀레니엄몬의 `[Ver.3]` 표기를 적용했다.
+- **진화 안내 정합성:** 각 변경 대상의 `evolutions[].targetName`도 엔트리 `name`과 같은 표시명으로 갱신했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/data/v1/digimons.js`, `digimon-tamagotchi-frontend/src/data/v2modkor/digimons.js`, `digimon-tamagotchi-frontend/src/data/v3/digimons.js`, `digimon-tamagotchi-frontend/src/data/digimonNameChanges.test.js`, `digimon-tamagotchi-frontend/src/utils/jogressUtils.test.js`, 생성된 `api/_generated/gameProjection.cjs`.
+- **아키텍처 결정 근거:** 표시 문자열만 변경하고 객체 키·ID·조그레스 파트너 키·저장 계약은 유지해 기존 슬롯과 진화 판정의 식별자 호환성을 보존했다.
+
 ## [2026-08-03] 상대 발사체 기본 방향 유지
 
 - **내용:** 내 디지몬과 내 발사체의 좌우 반전은 유지하고, 상대 발사체에 적용했던 `scaleX(-1)` 인라인 스타일·CSS·keyframe을 제거했다. 상대 디지몬 본체도 기존 방향을 유지한다.

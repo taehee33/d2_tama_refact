@@ -11,7 +11,7 @@ describe("jogressUtils", () => {
         { partner: "CresGarurumonV2" },
         "Ver.1"
       )
-    ).toBe("크레스가루루몬 Ver.2");
+    ).toBe("크레스가루루몬 [Ver.2]");
   });
 
   test("명시된 외부 버전 파트너 이름은 버전 suffix와 함께 표시한다", () => {

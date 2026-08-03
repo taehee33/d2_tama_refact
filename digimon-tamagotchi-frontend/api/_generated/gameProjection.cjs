@@ -1048,7 +1048,7 @@ const digimonDataVer1 = {
   // Digitama (Digi-Egg)
   Digitama: {
     id: "Digitama",
-    name: "디지타마",
+    name: "디지타마 [Ver.1]",
     stage: "Digitama",
     sprite: 133,
     stats: {
@@ -1602,7 +1602,7 @@ const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "BlitzGreymon",
-        targetName: "블리츠그레이몬",
+        targetName: "블리츠그레이몬 [Ver.1]",
         conditions: {
           careMistakes: { max: 1 },  // 0-1 Care Mistakes
           battles: { min: 15 },       // 15+ Battles
@@ -1697,7 +1697,7 @@ const digimonDataVer1 = {
   // Ultimate - Blitz Greymon
   BlitzGreymon: {
     id: "BlitzGreymonV1",
-    name: "블리츠그레이몬 Ver.1",
+    name: "블리츠그레이몬 [Ver.1]",
     stage: "Ultimate",
     sprite: 420, // TODO: Check actual sprite
     stats: {
@@ -1720,7 +1720,7 @@ const digimonDataVer1 = {
     evolutions: [
       {
         targetId: "OmegamonAlterSV1",
-        targetName: "오메가몬 Alter-S(Ver.1)",
+        targetName: "오메가몬 Alter-S [Ver.1]",
         // 조그레스는 특별한 케이스이므로 conditions 대신 jogress 플래그 사용
         jogress: {
           partner: "CresGarurumon", // Jogress with Cres Garurumon (V2는 baseJogressId로 매칭)
@@ -1777,7 +1777,7 @@ const digimonDataVer1 = {
   // Super Ultimate - Omegamon Alter-S (Ver.1, 객체 키 = targetId)
   OmegamonAlterSV1: {
     id: "OmegamonAlterSV1",
-    name: "오메가몬 Alter-S Ver.1",
+    name: "오메가몬 Alter-S [Ver.1]",
     stage: "Super Ultimate",
     sprite: 465, // TODO: Check actual sprite
     stats: {
@@ -1903,7 +1903,7 @@ const digimonDataVer2 = {
   // Digitama (Ver.2 전용 ID — 이름은 직접 수정)
   DigitamaV2: {
     id: "DigitamaV2",
-    name: "디지타마 Ver.2",
+    name: "디지타마 [Ver.2]",
     stage: "Digitama",
     sprite: 133,
     spriteBasePath: V2_SPRITE_BASE,
@@ -2434,7 +2434,7 @@ const digimonDataVer2 = {
     evolutions: [
       {
         targetId: "CresGarurumonV2",
-        targetName: "크레스가루루몬",
+        targetName: "크레스가루루몬 [Ver.2]",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -2536,7 +2536,7 @@ const digimonDataVer2 = {
   // Ultimate — 크레스가루루몬 (CresGarurumon)
   CresGarurumonV2: {
     id: "CresGarurumonV2",
-    name: "크레스가루루몬 Ver.2",
+    name: "크레스가루루몬 [Ver.2]",
     stage: "Ultimate",
     sprite: 451,
     spriteBasePath: V2_SPRITE_BASE,
@@ -2556,7 +2556,7 @@ const digimonDataVer2 = {
     evolutions: [
       {
         targetId: "OmegamonAlterSV2",
-        targetName: "오메가몬 Alter-S",
+        targetName: "오메가몬 Alter-S [Ver.2]",
         jogress: { partner: "BlitzGreymonV1" },
       },
     ],
@@ -2565,7 +2565,7 @@ const digimonDataVer2 = {
   // Super Ultimate
   OmegamonAlterSV2: {
     id: "OmegamonAlterSV2",
-    name: "오메가몬 Alter-S(Ver.2)",
+    name: "오메가몬 Alter-S [Ver.2]",
     stage: "Super Ultimate",
     sprite: 211,
     spriteBasePath: V2_SPRITE_BASE,
@@ -2728,7 +2728,7 @@ function buildGiromonEvolution() {
   return [
     {
       targetId: "Giromon",
-      targetName: "기로몬",
+      targetName: "째리몬",
       conditions: {
         battles: { min: 15 },
         winRatio: { min: 80 },
@@ -2780,7 +2780,7 @@ const digimonDataVer3 = {
 
   DigitamaV3: buildEntry({
     id: "DigitamaV3",
-    name: "디지타마 Ver.3",
+    name: "디지타마 [Ver.3]",
     stage: "Digitama",
     sprite: PROVISIONAL_V3_SPRITES.DigitamaV3,
     stats: buildStats({
@@ -2850,12 +2850,12 @@ const digimonDataVer3 = {
     evolutions: [
       {
         targetId: "Patamon",
-        targetName: "파타몬",
+        targetName: "파닥몬",
         conditions: { careMistakes: { max: 3 } },
       },
       {
         targetId: "Kunemon",
-        targetName: "쿠네몬",
+        targetName: "꿈틀몬",
         conditions: { careMistakes: { min: 4 } },
       },
     ],
@@ -2863,7 +2863,7 @@ const digimonDataVer3 = {
 
   Patamon: buildEntry({
     id: "Patamon",
-    name: "파타몬",
+    name: "파닥몬",
     stage: "Child",
     sprite: PROVISIONAL_V3_SPRITES.Patamon,
     stats: buildStats({
@@ -2892,7 +2892,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Centaurmon",
-        targetName: "켄타루몬",
+        targetName: "켄터스몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 5, max: 23 },
@@ -2902,7 +2902,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Ogremon",
-        targetName: "오거몬",
+        targetName: "우가몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { max: 31 },
@@ -2910,7 +2910,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Bakemon",
-        targetName: "바케몬",
+        targetName: "고스몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -2946,7 +2946,7 @@ const digimonDataVer3 = {
 
   Kunemon: buildEntry({
     id: "Kunemon",
-    name: "쿠네몬",
+    name: "꿈틀몬",
     stage: "Child",
     sprite: PROVISIONAL_V3_SPRITES.Kunemon,
     stats: buildStats({
@@ -2991,7 +2991,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Drimogemon",
-        targetName: "드리모게몬",
+        targetName: "두리몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -3001,7 +3001,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Ogremon",
-        targetName: "오거몬",
+        targetName: "우가몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 32 },
@@ -3009,7 +3009,7 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Bakemon",
-        targetName: "바케몬",
+        targetName: "고스몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 8, max: 23 },
@@ -3063,7 +3063,7 @@ const digimonDataVer3 = {
 
   Centaurmon: buildEntry({
     id: "Centaurmon",
-    name: "켄타루몬",
+    name: "켄터스몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Centaurmon,
     stats: buildStats({
@@ -3086,7 +3086,7 @@ const digimonDataVer3 = {
 
   Ogremon: buildEntry({
     id: "Ogremon",
-    name: "오거몬",
+    name: "우가몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Ogremon,
     stats: buildStats({
@@ -3109,7 +3109,7 @@ const digimonDataVer3 = {
 
   Bakemon: buildEntry({
     id: "Bakemon",
-    name: "바케몬",
+    name: "고스몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Bakemon,
     stats: buildStats({
@@ -3155,7 +3155,7 @@ const digimonDataVer3 = {
 
   Drimogemon: buildEntry({
     id: "Drimogemon",
-    name: "드리모게몬",
+    name: "두리몬",
     stage: "Adult",
     sprite: PROVISIONAL_V3_SPRITES.Drimogemon,
     stats: buildStats({
@@ -3253,7 +3253,7 @@ const digimonDataVer3 = {
 
   Giromon: buildEntry({
     id: "Giromon",
-    name: "기로몬",
+    name: "째리몬",
     stage: "Perfect",
     sprite: PROVISIONAL_V3_SPRITES.Giromon,
     stats: buildStats({
@@ -3349,10 +3349,10 @@ const digimonDataVer3 = {
       },
       {
         targetId: "Millenniumon",
-        targetName: "밀레니엄몬",
+        targetName: "밀레니엄몬 [Ver.3]",
         jogress: {
           partner: "Mugendramon",
-          partnerName: "무겐드라몬",
+          partnerName: "파워드라몬",
           partnerVersion: "Ver.5",
         },
       },
@@ -3418,7 +3418,7 @@ const digimonDataVer3 = {
     evolutions: [
       {
         targetId: "Chaosmon",
-        targetName: "카오스몬",
+        targetName: "카오스몬 [Ver.3]",
         jogress: {
           partner: "Darkdramon",
           partnerName: "다크드라몬",
@@ -3430,7 +3430,7 @@ const digimonDataVer3 = {
 
   Chaosmon: buildEntry({
     id: "Chaosmon",
-    name: "카오스몬",
+    name: "카오스몬 [Ver.3]",
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Chaosmon,
     stats: buildStats({
@@ -3449,7 +3449,7 @@ const digimonDataVer3 = {
 
   Millenniumon: buildEntry({
     id: "Millenniumon",
-    name: "밀레니엄몬",
+    name: "밀레니엄몬 [Ver.3]",
     stage: "Super Ultimate",
     sprite: PROVISIONAL_V3_SPRITES.Millenniumon,
     stats: buildStats({
@@ -3591,7 +3591,7 @@ const digimonDataVer4 = {
 
   DigitamaV4: digimons_buildEntry({
     id: "DigitamaV4",
-    name: "디지타마 Ver.4",
+    name: "디지타마 [Ver.4]",
     stage: "Digitama",
     sprite: V4_SPRITES.DigitamaV4,
     stats: digimons_buildStats({
@@ -3634,12 +3634,12 @@ const digimonDataVer4 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 600,
     },
-    evolutions: [{ targetId: "Tanemon", targetName: "타네몬" }],
+    evolutions: [{ targetId: "Tanemon", targetName: "시드몬" }],
   }),
 
   Tanemon: digimons_buildEntry({
     id: "Tanemon",
-    name: "타네몬",
+    name: "시드몬",
     stage: "Baby II",
     sprite: V4_SPRITES.Tanemon,
     stats: digimons_buildStats({
@@ -3700,7 +3700,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Kokatorimon",
-        targetName: "코카트리몬",
+        targetName: "꼬끼몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 5, max: 23 },
@@ -3715,7 +3715,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Kuwagamon",
-        targetName: "쿠와가몬",
+        targetName: "쿠가몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -3725,7 +3725,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Nanimon",
-        targetName: "나니몬",
+        targetName: "모야몬",
         conditionGroups: [
           { careMistakes: { min: 4 }, trainings: { max: 4 } },
           { careMistakes: { min: 4 }, overfeeds: { max: 1 } },
@@ -3763,7 +3763,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Coelamon",
-        targetName: "코엘라몬",
+        targetName: "실리컨몬(씨라몬)",
         conditionGroups: [
           { careMistakes: { max: 3 }, trainings: { max: 7 } },
           { careMistakes: { max: 3 }, trainings: { min: 24, max: 31 } },
@@ -3773,7 +3773,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Mojyamon",
-        targetName: "모쟈몬",
+        targetName: "모털몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -3788,7 +3788,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Kuwagamon",
-        targetName: "쿠와가몬",
+        targetName: "쿠가몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 8, max: 23 },
@@ -3798,7 +3798,7 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Nanimon",
-        targetName: "나니몬",
+        targetName: "모야몬",
         conditionGroups: [
           { careMistakes: { min: 4 }, trainings: { max: 23 } },
           { careMistakes: { min: 4 }, overfeeds: { max: 3 } },
@@ -3842,7 +3842,7 @@ const digimonDataVer4 = {
 
   Kokatorimon: digimons_buildEntry({
     id: "Kokatorimon",
-    name: "코카트리몬",
+    name: "꼬끼몬",
     stage: "Adult",
     sprite: V4_SPRITES.Kokatorimon,
     stats: digimons_buildStats({
@@ -3863,7 +3863,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Piccolomon",
-        targetName: "피콜로몬",
+        targetName: "피콜몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -3906,7 +3906,7 @@ const digimonDataVer4 = {
 
   Kuwagamon: digimons_buildEntry({
     id: "Kuwagamon",
-    name: "쿠와가몬",
+    name: "쿠가몬",
     stage: "Adult",
     sprite: V4_SPRITES.Kuwagamon,
     stats: digimons_buildStats({
@@ -3927,7 +3927,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Piccolomon",
-        targetName: "피콜로몬",
+        targetName: "피콜몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -3938,7 +3938,7 @@ const digimonDataVer4 = {
 
   Coelamon: digimons_buildEntry({
     id: "Coelamon",
-    name: "코엘라몬",
+    name: "실리컨몬(씨라몬)",
     stage: "Adult",
     sprite: V4_SPRITES.Coelamon,
     stats: digimons_buildStats({
@@ -3970,7 +3970,7 @@ const digimonDataVer4 = {
 
   Mojyamon: digimons_buildEntry({
     id: "Mojyamon",
-    name: "모쟈몬",
+    name: "모털몬",
     stage: "Adult",
     sprite: V4_SPRITES.Mojyamon,
     stats: digimons_buildStats({
@@ -3991,7 +3991,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Piccolomon",
-        targetName: "피콜로몬",
+        targetName: "피콜몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -4002,7 +4002,7 @@ const digimonDataVer4 = {
 
   Nanimon: digimons_buildEntry({
     id: "Nanimon",
-    name: "나니몬",
+    name: "모야몬",
     stage: "Adult",
     sprite: V4_SPRITES.Nanimon,
     stats: digimons_buildStats({
@@ -4023,7 +4023,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Digitamamon",
-        targetName: "디지타마몬",
+        targetName: "디지타몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -4067,7 +4067,7 @@ const digimonDataVer4 = {
 
   Piccolomon: digimons_buildEntry({
     id: "Piccolomon",
-    name: "피콜로몬",
+    name: "피콜몬",
     stage: "Perfect",
     sprite: V4_SPRITES.Piccolomon,
     stats: digimons_buildStats({
@@ -4100,7 +4100,7 @@ const digimonDataVer4 = {
 
   Digitamamon: digimons_buildEntry({
     id: "Digitamamon",
-    name: "디지타마몬",
+    name: "디지타몬",
     stage: "Perfect",
     sprite: V4_SPRITES.Digitamamon,
     stats: digimons_buildStats({
@@ -4121,7 +4121,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Gankoomon",
-        targetName: "강쿠몬",
+        targetName: "간쿠몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -4151,7 +4151,7 @@ const digimonDataVer4 = {
     evolutions: [
       {
         targetId: "Chaosmon",
-        targetName: "카오스몬",
+        targetName: "카오스몬 [Ver.4]",
         jogress: {
           partner: "BanchoLeomon",
           partnerName: "반쵸레오몬",
@@ -4160,10 +4160,10 @@ const digimonDataVer4 = {
       },
       {
         targetId: "Chaosdramon",
-        targetName: "카오스드라몬",
+        targetName: "카오스드라몬 [Ver.4]",
         jogress: {
           partner: "Mugendramon",
-          partnerName: "무겐드라몬",
+          partnerName: "파워드라몬",
           partnerVersion: "Ver.5",
         },
       },
@@ -4191,7 +4191,7 @@ const digimonDataVer4 = {
 
   Gankoomon: digimons_buildEntry({
     id: "Gankoomon",
-    name: "강쿠몬",
+    name: "간쿠몬",
     stage: "Ultimate",
     sprite: V4_SPRITES.Gankoomon,
     stats: digimons_buildStats({
@@ -4210,7 +4210,7 @@ const digimonDataVer4 = {
 
   Chaosmon: digimons_buildEntry({
     id: "Chaosmon",
-    name: "카오스몬",
+    name: "카오스몬 [Ver.4]",
     stage: "Super Ultimate",
     sprite: V4_SPRITES.Chaosmon,
     stats: digimons_buildStats({
@@ -4229,7 +4229,7 @@ const digimonDataVer4 = {
 
   Chaosdramon: digimons_buildEntry({
     id: "Chaosdramon",
-    name: "카오스드라몬",
+    name: "카오스드라몬 [Ver.4]",
     stage: "Super Ultimate",
     sprite: V4_SPRITES.Chaosdramon,
     stats: digimons_buildStats({
@@ -4390,12 +4390,12 @@ const digimonDataVer5 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 8,
     },
-    evolutions: [{ targetId: "Zurumon", targetName: "주루몬" }],
+    evolutions: [{ targetId: "Zurumon", targetName: "즈루몬" }],
   }),
 
   Zurumon: v5_digimons_buildEntry({
     id: "Zurumon",
-    name: "주루몬",
+    name: "즈루몬",
     stage: "Baby I",
     sprite: V5_SPRITES.Zurumon,
     stats: v5_digimons_buildStats({
@@ -4414,12 +4414,12 @@ const digimonDataVer5 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 600,
     },
-    evolutions: [{ targetId: "Pagumon", targetName: "파구몬" }],
+    evolutions: [{ targetId: "Pagumon", targetName: "퍼그몬" }],
   }),
 
   Pagumon: v5_digimons_buildEntry({
     id: "Pagumon",
-    name: "파구몬",
+    name: "퍼그몬",
     stage: "Baby II",
     sprite: V5_SPRITES.Pagumon,
     stats: v5_digimons_buildStats({
@@ -4441,7 +4441,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Gazimon",
-        targetName: "가즈몬",
+        targetName: "가지몬",
         conditions: { careMistakes: { max: 3 } },
       },
       {
@@ -4454,7 +4454,7 @@ const digimonDataVer5 = {
 
   Gazimon: v5_digimons_buildEntry({
     id: "Gazimon",
-    name: "가즈몬",
+    name: "가지몬",
     stage: "Child",
     sprite: V5_SPRITES.Gazimon,
     stats: v5_digimons_buildStats({
@@ -4483,7 +4483,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Cyclomon",
-        targetName: "사이클론몬",
+        targetName: "사이크로몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 5, max: 23 },
@@ -4493,7 +4493,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Devidramon",
-        targetName: "데비드라몬",
+        targetName: "데블드라몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { max: 31 },
@@ -4501,7 +4501,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Tuskmon",
-        targetName: "터스크몬",
+        targetName: "태스크몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -4577,7 +4577,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Devidramon",
-        targetName: "데비드라몬",
+        targetName: "데블드라몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 32 },
@@ -4585,7 +4585,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Tuskmon",
-        targetName: "터스크몬",
+        targetName: "태스크몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 8, max: 23 },
@@ -4639,7 +4639,7 @@ const digimonDataVer5 = {
 
   Cyclomon: v5_digimons_buildEntry({
     id: "Cyclomon",
-    name: "사이클론몬",
+    name: "사이크로몬",
     stage: "Adult",
     sprite: V5_SPRITES.Cyclomon,
     stats: v5_digimons_buildStats({
@@ -4660,7 +4660,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -4671,7 +4671,7 @@ const digimonDataVer5 = {
 
   Devidramon: v5_digimons_buildEntry({
     id: "Devidramon",
-    name: "데비드라몬",
+    name: "데블드라몬",
     stage: "Adult",
     sprite: V5_SPRITES.Devidramon,
     stats: v5_digimons_buildStats({
@@ -4703,7 +4703,7 @@ const digimonDataVer5 = {
 
   Tuskmon: v5_digimons_buildEntry({
     id: "Tuskmon",
-    name: "터스크몬",
+    name: "태스크몬",
     stage: "Adult",
     sprite: V5_SPRITES.Tuskmon,
     stats: v5_digimons_buildStats({
@@ -4724,7 +4724,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -4788,7 +4788,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -4852,7 +4852,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Mugendramon",
-        targetName: "무겐드라몬",
+        targetName: "파워드라몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -4864,7 +4864,7 @@ const digimonDataVer5 = {
 
   Nanomon: v5_digimons_buildEntry({
     id: "Nanomon",
-    name: "나노몬",
+    name: "데이터몬",
     stage: "Perfect",
     sprite: V5_SPRITES.Nanomon,
     stats: v5_digimons_buildStats({
@@ -4918,7 +4918,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Gaioumon",
-        targetName: "가이오우몬",
+        targetName: "가이온몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -4930,7 +4930,7 @@ const digimonDataVer5 = {
 
   Mugendramon: v5_digimons_buildEntry({
     id: "Mugendramon",
-    name: "무겐드라몬",
+    name: "파워드라몬",
     stage: "Ultimate",
     sprite: V5_SPRITES.Mugendramon,
     stats: v5_digimons_buildStats({
@@ -4988,7 +4988,7 @@ const digimonDataVer5 = {
 
   Gaioumon: v5_digimons_buildEntry({
     id: "Gaioumon",
-    name: "가이오우몬",
+    name: "가이온몬",
     stage: "Ultimate",
     sprite: V5_SPRITES.Gaioumon,
     stats: v5_digimons_buildStats({

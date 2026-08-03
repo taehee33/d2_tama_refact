@@ -79,7 +79,7 @@ export const digimonDataVer2 = {
   // Digitama (Ver.2 전용 ID — 이름은 직접 수정)
   DigitamaV2: {
     id: "DigitamaV2",
-    name: "디지타마 Ver.2",
+    name: "디지타마 [Ver.2]",
     stage: "Digitama",
     sprite: 133,
     spriteBasePath: V2_SPRITE_BASE,
@@ -610,7 +610,7 @@ export const digimonDataVer2 = {
     evolutions: [
       {
         targetId: "CresGarurumonV2",
-        targetName: "크레스가루루몬",
+        targetName: "크레스가루루몬 [Ver.2]",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -712,7 +712,7 @@ export const digimonDataVer2 = {
   // Ultimate — 크레스가루루몬 (CresGarurumon)
   CresGarurumonV2: {
     id: "CresGarurumonV2",
-    name: "크레스가루루몬 Ver.2",
+    name: "크레스가루루몬 [Ver.2]",
     stage: "Ultimate",
     sprite: 451,
     spriteBasePath: V2_SPRITE_BASE,
@@ -732,7 +732,7 @@ export const digimonDataVer2 = {
     evolutions: [
       {
         targetId: "OmegamonAlterSV2",
-        targetName: "오메가몬 Alter-S",
+        targetName: "오메가몬 Alter-S [Ver.2]",
         jogress: { partner: "BlitzGreymonV1" },
       },
     ],
@@ -741,7 +741,7 @@ export const digimonDataVer2 = {
   // Super Ultimate
   OmegamonAlterSV2: {
     id: "OmegamonAlterSV2",
-    name: "오메가몬 Alter-S(Ver.2)",
+    name: "오메가몬 Alter-S [Ver.2]",
     stage: "Super Ultimate",
     sprite: 211,
     spriteBasePath: V2_SPRITE_BASE,

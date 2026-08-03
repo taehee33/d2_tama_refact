@@ -135,12 +135,12 @@ export const digimonDataVer5 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 8,
     },
-    evolutions: [{ targetId: "Zurumon", targetName: "주루몬" }],
+    evolutions: [{ targetId: "Zurumon", targetName: "즈루몬" }],
   }),
 
   Zurumon: buildEntry({
     id: "Zurumon",
-    name: "주루몬",
+    name: "즈루몬",
     stage: "Baby I",
     sprite: V5_SPRITES.Zurumon,
     stats: buildStats({
@@ -159,12 +159,12 @@ export const digimonDataVer5 = {
     evolutionCriteria: {
       timeToEvolveSeconds: 600,
     },
-    evolutions: [{ targetId: "Pagumon", targetName: "파구몬" }],
+    evolutions: [{ targetId: "Pagumon", targetName: "퍼그몬" }],
   }),
 
   Pagumon: buildEntry({
     id: "Pagumon",
-    name: "파구몬",
+    name: "퍼그몬",
     stage: "Baby II",
     sprite: V5_SPRITES.Pagumon,
     stats: buildStats({
@@ -186,7 +186,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Gazimon",
-        targetName: "가즈몬",
+        targetName: "가지몬",
         conditions: { careMistakes: { max: 3 } },
       },
       {
@@ -199,7 +199,7 @@ export const digimonDataVer5 = {
 
   Gazimon: buildEntry({
     id: "Gazimon",
-    name: "가즈몬",
+    name: "가지몬",
     stage: "Child",
     sprite: V5_SPRITES.Gazimon,
     stats: buildStats({
@@ -228,7 +228,7 @@ export const digimonDataVer5 = {
       },
       {
         targetId: "Cyclomon",
-        targetName: "사이클론몬",
+        targetName: "사이크로몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 5, max: 23 },
@@ -238,7 +238,7 @@ export const digimonDataVer5 = {
       },
       {
         targetId: "Devidramon",
-        targetName: "데비드라몬",
+        targetName: "데블드라몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { max: 31 },
@@ -246,7 +246,7 @@ export const digimonDataVer5 = {
       },
       {
         targetId: "Tuskmon",
-        targetName: "터스크몬",
+        targetName: "태스크몬",
         conditions: {
           careMistakes: { min: 4 },
           trainings: { min: 24 },
@@ -322,7 +322,7 @@ export const digimonDataVer5 = {
       },
       {
         targetId: "Devidramon",
-        targetName: "데비드라몬",
+        targetName: "데블드라몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 32 },
@@ -330,7 +330,7 @@ export const digimonDataVer5 = {
       },
       {
         targetId: "Tuskmon",
-        targetName: "터스크몬",
+        targetName: "태스크몬",
         conditions: {
           careMistakes: { max: 3 },
           trainings: { min: 8, max: 23 },
@@ -384,7 +384,7 @@ export const digimonDataVer5 = {
 
   Cyclomon: buildEntry({
     id: "Cyclomon",
-    name: "사이클론몬",
+    name: "사이크로몬",
     stage: "Adult",
     sprite: V5_SPRITES.Cyclomon,
     stats: buildStats({
@@ -405,7 +405,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -416,7 +416,7 @@ export const digimonDataVer5 = {
 
   Devidramon: buildEntry({
     id: "Devidramon",
-    name: "데비드라몬",
+    name: "데블드라몬",
     stage: "Adult",
     sprite: V5_SPRITES.Devidramon,
     stats: buildStats({
@@ -448,7 +448,7 @@ export const digimonDataVer5 = {
 
   Tuskmon: buildEntry({
     id: "Tuskmon",
-    name: "터스크몬",
+    name: "태스크몬",
     stage: "Adult",
     sprite: V5_SPRITES.Tuskmon,
     stats: buildStats({
@@ -469,7 +469,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -533,7 +533,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Nanomon",
-        targetName: "나노몬",
+        targetName: "데이터몬",
         conditions: {
           battles: { min: 15 },
           winRatio: { min: 80 },
@@ -597,7 +597,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Mugendramon",
-        targetName: "무겐드라몬",
+        targetName: "파워드라몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -609,7 +609,7 @@ export const digimonDataVer5 = {
 
   Nanomon: buildEntry({
     id: "Nanomon",
-    name: "나노몬",
+    name: "데이터몬",
     stage: "Perfect",
     sprite: V5_SPRITES.Nanomon,
     stats: buildStats({
@@ -663,7 +663,7 @@ export const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Gaioumon",
-        targetName: "가이오우몬",
+        targetName: "가이온몬",
         conditions: {
           careMistakes: { max: 1 },
           battles: { min: 15 },
@@ -675,7 +675,7 @@ export const digimonDataVer5 = {
 
   Mugendramon: buildEntry({
     id: "Mugendramon",
-    name: "무겐드라몬",
+    name: "파워드라몬",
     stage: "Ultimate",
     sprite: V5_SPRITES.Mugendramon,
     stats: buildStats({
@@ -733,7 +733,7 @@ export const digimonDataVer5 = {
 
   Gaioumon: buildEntry({
     id: "Gaioumon",
-    name: "가이오우몬",
+    name: "가이온몬",
     stage: "Ultimate",
     sprite: V5_SPRITES.Gaioumon,
     stats: buildStats({
