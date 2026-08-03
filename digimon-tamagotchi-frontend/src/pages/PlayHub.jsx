@@ -226,15 +226,6 @@ function PlayHub() {
             >
               새 디지몬 시작
             </button>
-            {hasSlots ? (
-              <button
-                type="button"
-                className="service-button service-button--ghost"
-                onClick={handleOpenOrderModal}
-              >
-                슬롯 순서 정리
-              </button>
-            ) : null}
           </div>
         </div>
 
@@ -326,31 +317,40 @@ function PlayHub() {
           <h2>슬롯 목록</h2>
         </div>
         {hasSlots ? (
-          <div className="service-view-toggle" aria-label="슬롯 목록 보기 방식">
+          <div className="service-section-header__actions">
             <button
               type="button"
-              className={`service-view-toggle__button ${
-                slotListViewMode === SLOT_LIST_VIEW_MODES.detail
-                  ? "service-view-toggle__button--active"
-                  : ""
-              }`}
-              aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.detail}
-              onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.detail)}
+              className="service-button service-button--ghost"
+              onClick={handleOpenOrderModal}
             >
-              자세히
+              슬롯 순서 변경
             </button>
-            <button
-              type="button"
-              className={`service-view-toggle__button ${
-                slotListViewMode === SLOT_LIST_VIEW_MODES.compact
-                  ? "service-view-toggle__button--active"
-                  : ""
-              }`}
-              aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.compact}
-              onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.compact)}
-            >
-              간략히
-            </button>
+            <div className="service-view-toggle" aria-label="슬롯 목록 보기 방식">
+              <button
+                type="button"
+                className={`service-view-toggle__button ${
+                  slotListViewMode === SLOT_LIST_VIEW_MODES.detail
+                    ? "service-view-toggle__button--active"
+                    : ""
+                }`}
+                aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.detail}
+                onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.detail)}
+              >
+                자세히
+              </button>
+              <button
+                type="button"
+                className={`service-view-toggle__button ${
+                  slotListViewMode === SLOT_LIST_VIEW_MODES.compact
+                    ? "service-view-toggle__button--active"
+                    : ""
+                }`}
+                aria-pressed={slotListViewMode === SLOT_LIST_VIEW_MODES.compact}
+                onClick={() => handleSlotListViewModeChange(SLOT_LIST_VIEW_MODES.compact)}
+              >
+                간략히
+              </button>
+            </div>
           </div>
         ) : null}
       </div>

@@ -6698,6 +6698,14 @@ code {
   gap: 1rem;
 }
 
+.service-section-header__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
 .service-view-toggle {
   display: inline-flex;
   align-items: center;

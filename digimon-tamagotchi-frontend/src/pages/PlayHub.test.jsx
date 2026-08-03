@@ -256,6 +256,40 @@ describe("PlayHub", () => {
     expect(window.localStorage.getItem("digimon_slot_list_view_mode")).toBe("compact");
   });
 
+  test("슬롯 순서 변경 버튼은 보기 방식 전환 왼쪽에 표시한다", () => {
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: null,
+    });
+
+    const { container } = render(<PlayHub />);
+    const actions = container.querySelector(".service-section-header__actions");
+
+    expect(actions).toBeInTheDocument();
+    expect([...actions.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "슬롯 순서 변경",
+      "자세히",
+      "간략히",
+    ]);
+    expect(screen.queryByRole("button", { name: "슬롯 순서 정리" })).not.toBeInTheDocument();
+  });
+
   test("저장된 슬롯 목록 보기 방식을 새 렌더에서도 유지한다", () => {
     window.localStorage.setItem("digimon_slot_list_view_mode", "compact");
     mockUseUserSlots.mockReturnValue({
