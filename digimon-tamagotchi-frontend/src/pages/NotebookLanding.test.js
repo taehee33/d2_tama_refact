@@ -115,6 +115,10 @@ describe("NotebookLanding", () => {
 
     expect(screen.getByText("아구몬")).toBeInTheDocument();
     expect(screen.getByText("한솔::SLOT-7")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "HANSOL_NOTEBOOK" })).toHaveAttribute(
+      "href",
+      "/home"
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "이어가기 (START)" }));
 

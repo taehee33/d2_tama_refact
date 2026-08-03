@@ -86,7 +86,7 @@ describe("LandingShell", () => {
     mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
     rerender(<LandingShell tamerName="아구몬" />);
 
-    expect(screen.getByRole("link", { name: /디지몬 키우기/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /디지몬 키우기/i })).toHaveAttribute("href", "/home");
     expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
     expect(
       screen.getByRole("button", { name: "아구몬 계정 메뉴" })
@@ -110,7 +110,7 @@ describe("LandingShell", () => {
 
     expect(screen.getByRole("link", { name: "랜딩 모바일 홈" })).toHaveAttribute(
       "href",
-      "/"
+      "/home"
     );
   });
 

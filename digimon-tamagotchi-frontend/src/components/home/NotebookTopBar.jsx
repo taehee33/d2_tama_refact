@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 import notebookFileIslandVariant from "../../data/homeLandingVariants";
 import {
   communityBoards,
@@ -9,9 +10,11 @@ import {
 import {
   getNotebookHeaderNavItems,
   HEADER_APP_ICON_SRC,
+  HOME_ROUTE,
 } from "../../data/headerNavigation";
 
 function NotebookTopBar() {
+  const { currentUser } = useAuth();
   const location = useLocation();
   const [now, setNow] = useState(() => new Date());
   const [isCommunityMenuOpen, setIsCommunityMenuOpen] = useState(false);
@@ -164,7 +167,7 @@ function NotebookTopBar() {
         </nav>
 
         <div className="notebook-topbar__statusline">
-          <Link className="notebook-topbar__return" to="/">
+        <Link className="notebook-topbar__return" to={currentUser ? HOME_ROUTE : "/"}>
             HOME:// RETURN
           </Link>
 

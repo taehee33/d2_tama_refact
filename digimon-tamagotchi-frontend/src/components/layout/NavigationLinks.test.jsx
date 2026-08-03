@@ -90,12 +90,12 @@ describe("홈과 노트북 전역 이동 링크", () => {
     );
   });
 
-  test("로그인 상태에서는 홈 링크가 기존 홈을 가리키고 소개 링크와 테이머 메뉴가 보인다", () => {
+  test("로그인 상태에서는 홈 링크가 명시적 홈 경로를 가리키고 소개 링크와 테이머 메뉴가 보인다", () => {
     mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
 
     render(<TopNavigation tamerName="코로몬" />);
 
-    expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/home");
     expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
     expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
   });
@@ -138,6 +138,18 @@ describe("홈과 노트북 전역 이동 링크", () => {
     expect(container.querySelector(".notebook-topbar__brand-icon-image")).toHaveAttribute(
       "src",
       "/logo192_agumon.png"
+    );
+  });
+
+  test("로그인 상태의 노트북 홈 복귀 링크는 명시적 홈 경로를 사용한다", () => {
+    mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
+    mockLocation.pathname = "/notebook";
+
+    render(<TopNavigation />);
+
+    expect(screen.getByRole("link", { name: "HOME:// RETURN" })).toHaveAttribute(
+      "href",
+      "/home"
     );
   });
 
@@ -268,6 +280,7 @@ describe("홈과 노트북 전역 이동 링크", () => {
 
     render(<MobileTabBar />);
 
+    expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/home");
     expect(screen.getByRole("button", { name: "더보기" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "테이머(설정)" })).not.toBeInTheDocument();
 

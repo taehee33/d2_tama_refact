@@ -5,6 +5,7 @@ import useOperatorStatus from "../../hooks/useOperatorStatus";
 import {
   getMobileBottomTabItems,
   getMobileServiceOverflowItems,
+  HOME_ROUTE,
 } from "../../data/headerNavigation";
 import {
   communityBoards,
@@ -22,7 +23,7 @@ function MobileTabBar() {
   const communityTriggerRef = useRef(null);
   const moreMenuRef = useRef(null);
   const moreTriggerRef = useRef(null);
-  const homePath = currentUser ? "/" : "/landing";
+  const homePath = currentUser ? HOME_ROUTE : "/landing";
   const activeCommunityBoardId = resolveCommunityBoardId(location.search);
   const isCommunityRoute = location.pathname === "/community";
   const iconByKey = {

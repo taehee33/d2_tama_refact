@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { HOME_ROUTE } from "../../data/headerNavigation";
 import { landingCtaContent } from "../../data/landingContent";
 import { SectionEyebrow } from "./ui/SectionEyebrow";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
@@ -10,7 +11,7 @@ export function CTA({ isLoggedIn }) {
     ? { to: "/play", label: "플레이 허브 열기" }
     : { to: "/auth", label: "로그인하고 시작하기" };
   const secondaryAction = isLoggedIn
-    ? { to: "/", label: "내 홈으로 돌아가기" }
+    ? { to: HOME_ROUTE, label: "내 홈으로 돌아가기" }
     : { to: "/guide", label: "가이드 먼저 보기" };
   const auxiliaryLinks = landingCtaContent.publicLinks.slice(0, 2);
 

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import DesktopIcon from "../components/home/DesktopIcon";
 import MemoryNotesPanel from "../components/home/MemoryNotesPanel";
 import { useAuth } from "../contexts/AuthContext";
+import { HOME_ROUTE } from "../data/headerNavigation";
 import notebookFileIslandVariant from "../data/homeLandingVariants";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
@@ -270,7 +271,10 @@ function NotebookLanding() {
           START
         </button>
 
-        <Link className="notebook-taskbar__label notebook-taskbar__label--link" to="/">
+        <Link
+          className="notebook-taskbar__label notebook-taskbar__label--link"
+          to={currentUser ? HOME_ROUTE : "/"}
+        >
           HANSOL_NOTEBOOK
         </Link>
         <div className="notebook-taskbar__status">BATTERY: 88%</div>

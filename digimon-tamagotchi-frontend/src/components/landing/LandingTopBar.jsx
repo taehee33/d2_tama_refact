@@ -3,6 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 import {
   getPrimaryHeaderNavItems,
   HEADER_APP_ICON_SRC,
+  HOME_ROUTE,
 } from "../../data/headerNavigation";
 import { useHeaderAccountMenu } from "../../hooks/useHeaderAccountMenu";
 
@@ -18,14 +19,18 @@ export function LandingTopBar({ tamerName = "" }) {
     handleSettingsClick,
     handleLogoutClick,
   } = useHeaderAccountMenu({ tamerName });
-  const navItems = getPrimaryHeaderNavItems({ includeTamer: Boolean(currentUser) });
-  const mobileHomePath = currentUser ? "/" : "/auth";
+  const homePath = currentUser ? HOME_ROUTE : "/landing";
+  const navItems = getPrimaryHeaderNavItems({
+    includeTamer: Boolean(currentUser),
+    homePath,
+  });
+  const mobileHomePath = currentUser ? HOME_ROUTE : "/auth";
 
   return (
     <header className="landing-topbar">
       <div className="landing-topbar__inner">
         <div className="landing-topbar__surface">
-          <Link className="landing-topbar__brand" to={currentUser ? "/" : "/landing"}>
+          <Link className="landing-topbar__brand" to={homePath}>
             <span className="landing-topbar__brand-mark" aria-hidden="true">
               <img
                 className="landing-topbar__brand-mark-image"

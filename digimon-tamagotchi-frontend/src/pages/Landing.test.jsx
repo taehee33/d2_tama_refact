@@ -104,7 +104,7 @@ describe("Landing 둘러보기 진입점", () => {
     );
     expect(screen.getByRole("link", { name: "내 홈으로 돌아가기" })).toHaveAttribute(
       "href",
-      "/"
+      "/home"
     );
   });
 

@@ -1,4 +1,5 @@
 export const HEADER_APP_ICON_SRC = "/logo192_agumon.png";
+export const HOME_ROUTE = "/home";
 
 const HOME_NAV_ITEM = { key: "home", to: "/", label: "홈", end: true };
 const PLAY_NAV_ITEM = { key: "play", to: "/play", label: "플레이" };
@@ -27,9 +28,10 @@ function cloneNavItems(items) {
 export function getPrimaryHeaderNavItems({
   includeTamer = false,
   includeOperatorDirectory = false,
+  homePath = "/",
 } = {}) {
   return cloneNavItems([
-    HOME_NAV_ITEM,
+    { ...HOME_NAV_ITEM, to: homePath },
     PLAY_NAV_ITEM,
     GUIDE_NAV_ITEM,
     COMMUNITY_NAV_ITEM,
@@ -67,9 +69,9 @@ export function getMobileServiceOverflowItems({ includeOperatorDirectory = false
   ]);
 }
 
-export function getMobileLandingOverflowItems({ includeTamer = false } = {}) {
+export function getMobileLandingOverflowItems({ includeTamer = false, homePath = "/" } = {}) {
   return cloneNavItems([
-    HOME_NAV_ITEM,
+    { ...HOME_NAV_ITEM, to: homePath },
     PLAY_NAV_ITEM,
     GUIDE_NAV_ITEM,
     COMMUNITY_NAV_ITEM,

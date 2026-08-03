@@ -125,6 +125,7 @@ function AppContent() {
               <Route path="/support" element={<Support />} />
 
               <Route element={<RequireAuth />}>
+                <Route path="/home" element={<Home />} />
                 <Route path="/play" element={<PlayHub />} />
                 <Route path="/me" element={<Me />} />
                 <Route path="/me/collection" element={<Collection />} />
