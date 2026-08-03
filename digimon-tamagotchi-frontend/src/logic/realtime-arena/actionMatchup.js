@@ -18,8 +18,16 @@ function getMatchupResult(action, opponentAction) {
   return result;
 }
 
+/**
+ * 공개 라운드 결과가 없는 오래된 배틀 문서에서도 화면 판정을 재생한다.
+ * 서버 판정과 같은 표를 사용하므로 표현 계층이 별도 상성을 만들지 않는다.
+ */
+export function getRealtimeArenaActionMatchupResult(action, opponentAction) {
+  return getMatchupResult(action || "no_action", opponentAction || "no_action");
+}
+
 function outgoingActionResult(action, opponentAction, attackPower, guardRecovery) {
-  const result = getMatchupResult(action, opponentAction);
+  const result = getRealtimeArenaActionMatchupResult(action, opponentAction);
   return {
     result,
     damage: result === "hit" ? attackPower : 0,

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import RealtimeArenaActionPanel from "./RealtimeArenaActionPanel";
 import { translateStage } from "../../utils/stageTranslator";
 import { getRealtimeArenaAttributeBonus } from "../../logic/realtime-arena/damage";
+import { getRealtimeArenaActionMatchupResult } from "../../logic/realtime-arena/actionMatchup";
 import "../../styles/RealtimeArenaBattle.css";
 
 const ACTION_LABELS = {
@@ -54,11 +55,11 @@ function getAttributeRelation(attribute, opponentAttribute, rules) {
   return "neutral";
 }
 
-function Fighter({ label, data, opponent, rules, hp, damage, recovery, action, phase, side, opponentAction }) {
+function Fighter({ label, data, opponent, rules, hp, damage, recovery, action, actionResult, phase, side }) {
   const ratio = Math.max(0, Math.min(100, (hp / data.maxHp) * 100));
   const hitVisible = phase === "impact" || phase === "settle";
   const attacking = phase === "action" && (action === "attack" || action === "special_attack");
-  const defended = hitVisible && action === "guard" && damage === 0 && ["attack", "special_attack"].includes(opponentAction);
+  const defended = hitVisible && actionResult === "guard_success";
   const relation = getAttributeRelation(data.attribute, opponent.attribute, rules);
   const relationLabel = relation === "advantage" ? "유리" : relation === "disadvantage" ? "불리" : "중립";
   const attributeLabel = ATTRIBUTE_LABELS[data.attribute] || data.attribute || "프리";
@@ -90,22 +91,31 @@ function Fighter({ label, data, opponent, rules, hp, damage, recovery, action, p
   );
 }
 
-function Projectile({ side, participant, action, phase }) {
+function Projectile({ side, participant, action, actionResult, phase }) {
   if (phase !== "action" || !["attack", "special_attack"].includes(action)) return null;
+  const isSpecial = action === "special_attack";
+  const isBlocked = actionResult === "blocked";
+  const isInterrupted = actionResult === "interrupted";
   return (
-    <img
-      className={`realtime-arena-projectile is-${side} ${action === "special_attack" ? "is-special" : ""}`}
-      src={`${participant.spriteBasePath || "/images"}/${participant.attackSprite ?? participant.sprite ?? 0}.png`}
-      alt=""
+    <span
+      className={`realtime-arena-projectile is-${side} ${isSpecial ? "is-special" : ""} ${isBlocked ? "is-blocked" : ""} ${isInterrupted ? "is-interrupted" : ""}`}
       aria-hidden="true"
       style={side === "left" ? { transform: "scaleX(-1)" } : undefined}
-    />
+    >
+      {isSpecial && <span className="realtime-arena-projectile__aura" aria-hidden="true" />}
+      <img
+        className="realtime-arena-projectile__image"
+        src={`${participant.spriteBasePath || "/images"}/${participant.attackSprite ?? participant.sprite ?? 0}.png`}
+        alt=""
+        aria-hidden="true"
+      />
+    </span>
   );
 }
 
-function Shield({ side, action, phase }) {
+function Shield({ side, action, actionResult, phase }) {
   if (action !== "guard" || !["action", "impact", "settle"].includes(phase)) return null;
-  return <span className={`realtime-arena-shield is-${side}`} aria-label="방패 방어">🛡️</span>;
+  return <span className={`realtime-arena-shield is-${side} ${actionResult === "breached" ? "is-breaking" : ""}`} aria-label="방패 방어">🛡️</span>;
 }
 
 function ActionChip({ label, action, source, tone }) {
@@ -169,6 +179,10 @@ export default function RealtimeArenaBattleBoard({
   const opponent = battle.participants[opponentRole];
   const ownAction = latest?.[`${ownRole}Action`];
   const opponentAction = latest?.[`${opponentRole}Action`];
+  const ownActionResult = latest?.[`${ownRole}ActionResult`]
+    || getRealtimeArenaActionMatchupResult(ownAction, opponentAction);
+  const opponentActionResult = latest?.[`${opponentRole}ActionResult`]
+    || getRealtimeArenaActionMatchupResult(opponentAction, ownAction);
   const ownDamage = Number(latest?.[`${ownRole}DamageTaken`] || 0);
   const opponentDamage = Number(latest?.[`${opponentRole}DamageTaken`] || 0);
   const ownRecovery = Number(latest?.[`${ownRole}HpRecovered`] || 0);
@@ -209,14 +223,14 @@ export default function RealtimeArenaBattleBoard({
       </div>
 
       <div className={`realtime-arena-stage phase-${phase}`}>
-        <Fighter label="나" data={own} opponent={opponent} rules={battle.rulesSnapshot} hp={ownHp} damage={ownDamage} recovery={ownRecovery} action={ownAction} opponentAction={opponentAction} phase={phase} side="left" />
+        <Fighter label="나" data={own} opponent={opponent} rules={battle.rulesSnapshot} hp={ownHp} damage={ownDamage} recovery={ownRecovery} action={ownAction} actionResult={ownActionResult} phase={phase} side="left" />
         <div className="realtime-arena-effects" aria-hidden="true">
-          <Projectile side="left" participant={own} action={ownAction} phase={phase} />
-          <Projectile side="right" participant={opponent} action={opponentAction} phase={phase} />
+          <Projectile side="left" participant={own} action={ownAction} actionResult={ownActionResult} phase={phase} />
+          <Projectile side="right" participant={opponent} action={opponentAction} actionResult={opponentActionResult} phase={phase} />
         </div>
-        <Shield side="left" action={ownAction} phase={phase} />
-        <Shield side="right" action={opponentAction} phase={phase} />
-        <Fighter label={opponentLabel} data={opponent} opponent={own} rules={battle.rulesSnapshot} hp={opponentHp} damage={opponentDamage} recovery={opponentRecovery} action={opponentAction} opponentAction={ownAction} phase={phase} side="right" />
+        <Shield side="left" action={ownAction} actionResult={ownActionResult} phase={phase} />
+        <Shield side="right" action={opponentAction} actionResult={opponentActionResult} phase={phase} />
+        <Fighter label={opponentLabel} data={opponent} opponent={own} rules={battle.rulesSnapshot} hp={opponentHp} damage={opponentDamage} recovery={opponentRecovery} action={opponentAction} actionResult={opponentActionResult} phase={phase} side="right" />
       </div>
 
       <p className="sr-only" aria-live="assertive">{resultAnnouncement}</p>

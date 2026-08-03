@@ -356,6 +356,100 @@ test("내 디지몬과 내 발사체는 반전하고 상대 발사체는 기존 
   expect(container.querySelector(".realtime-arena-projectile.is-right")).not.toHaveAttribute("style");
 });
 
+test("속공이 방어를 만나면 내 발사체만 blocked 상태가 되고 방패는 유지한다", () => {
+  const participant = (name, sprite, attackSprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite });
+  render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "pvp", status: "selecting", round: 2, maxRounds: 7,
+        presentationEndsAt: new Date(Date.now() + 1800).toISOString(),
+        rulesSnapshot: { presentationWindowMs: 2200 },
+        currentHp: { host: 13, guest: 13 },
+        participants: { host: participant("아구몬", 1, 101), guest: participant("파피몬", 2, 102) },
+        resolvedRounds: [{ round: 1, hostAction: "attack", guestAction: "guard", hostDamageTaken: 0, guestDamageTaken: 0 }],
+      }}
+      viewer={{ role: "host" }}
+      remainingMs={0}
+      busy={false}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive
+      selectionOpen={false}
+      clockMs={Date.now()}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+
+  expect(screen.getByLabelText("방패 방어")).toBeInTheDocument();
+  expect(document.querySelector(".realtime-arena-projectile.is-left")).toHaveClass("is-blocked");
+  expect(document.querySelector(".realtime-arena-shield.is-right")).not.toHaveClass("is-breaking");
+});
+
+test("속공이 필살기를 만나면 상대 필살기만 interrupted 상태가 된다", () => {
+  const participant = (name, sprite, attackSprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite });
+  render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "pvp", status: "selecting", round: 2, maxRounds: 7,
+        presentationEndsAt: new Date(Date.now() + 1800).toISOString(),
+        rulesSnapshot: { presentationWindowMs: 2200 },
+        currentHp: { host: 13, guest: 13 },
+        participants: { host: participant("아구몬", 1, 101), guest: participant("파피몬", 2, 102) },
+        resolvedRounds: [{ round: 1, hostAction: "attack", guestAction: "special_attack", hostDamageTaken: 0, guestDamageTaken: 4 }],
+      }}
+      viewer={{ role: "host" }}
+      remainingMs={0}
+      busy={false}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive
+      selectionOpen={false}
+      clockMs={Date.now()}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+
+  expect(document.querySelector(".realtime-arena-projectile.is-right")).toHaveClass("is-special", "is-interrupted");
+  expect(document.querySelector(".realtime-arena-projectile.is-left")).not.toHaveClass("is-interrupted");
+  expect(document.querySelector(".realtime-arena-projectile.is-right .realtime-arena-projectile__aura")).toBeInTheDocument();
+});
+
+test("필살기가 방어를 만나면 방패가 breaking 상태가 되고 필살기는 계속 진행한다", () => {
+  const participant = (name, sprite, attackSprite) => ({ digimonName: name, stage: "Adult", maxHp: 13, spriteBasePath: "/images", sprite, attackSprite });
+  render(
+    <RealtimeArenaBattleBoard
+      battle={{
+        mode: "pvp", status: "selecting", round: 2, maxRounds: 7,
+        presentationEndsAt: new Date(Date.now() + 1800).toISOString(),
+        rulesSnapshot: { presentationWindowMs: 2200 },
+        currentHp: { host: 13, guest: 13 },
+        participants: { host: participant("아구몬", 1, 101), guest: participant("파피몬", 2, 102) },
+        resolvedRounds: [{ round: 1, hostAction: "special_attack", guestAction: "guard", hostDamageTaken: 0, guestDamageTaken: 4 }],
+      }}
+      viewer={{ role: "host" }}
+      remainingMs={0}
+      busy={false}
+      selectedAction={null}
+      selectionSaving={false}
+      recovering={false}
+      presentationActive
+      selectionOpen={false}
+      clockMs={Date.now()}
+      onSubmit={jest.fn()}
+      onForfeit={jest.fn()}
+    />
+  );
+
+  expect(document.querySelector(".realtime-arena-projectile.is-left")).toHaveClass("is-special");
+  expect(document.querySelector(".realtime-arena-projectile.is-left .realtime-arena-projectile__aura")).toBeInTheDocument();
+  expect(document.querySelector(".realtime-arena-projectile.is-left")).not.toHaveClass("is-blocked", "is-interrupted");
+  expect(document.querySelector(".realtime-arena-shield.is-right")).toHaveClass("is-breaking");
+});
+
 test("CPU 결과는 사용자 관점의 승리와 패배로 표시한다", () => {
   const { rerender } = render(<RealtimeArenaResult battle={{ mode: "cpu", result: { outcome: "host_win", reason: "ko" } }} onCloseSession={() => {}} />);
   expect(screen.getByText("승리")).toBeInTheDocument();

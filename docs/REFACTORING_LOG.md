@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-08-03] 실시간 배틀 충돌 연출 동기화
+
+- **내용:** 서버가 확정한 행동 상성 결과를 기존 순수 상성 함수로 재사용해 판정 연출을 분기했다. 속공이 방어에 막히면 발사체가 방패에서 사라지고, 속공이 필살기를 끊으면 상대 필살기만 중앙에서 중단되며, 필살기가 방어를 관통하면 방패가 금이감·파편·fade 효과로 사라진다. 방패는 좌측 45%, 우측 55%에 배치했다.
+- **필살기 구분:** 기존 발사체 자산을 유지하면서 크기·보라/금색 다중 glow·aura·pulse trail을 표현 계층에 추가했다. 내 발사체의 좌우 반전과 상대 발사체의 기본 방향은 유지한다.
+- **텍스트 가독성:** 피해 숫자와 `방어 성공` 문구의 글자 크기와 굵기를 키우고 모바일 전용 크기를 적용했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/realtime-arena/RealtimeArenaBattleBoard.jsx`, `digimon-tamagotchi-frontend/src/styles/RealtimeArenaBattle.css`, `digimon-tamagotchi-frontend/src/logic/realtime-arena/actionMatchup.js`, 관련 테스트.
+- **아키텍처 결정 근거:** 배틀 상태·피해 계산·타이머·Firestore 문서·API 계약은 변경하지 않고, 저장된 `hostActionResult`/`guestActionResult` 또는 구형 문서의 행동 조합을 화면 클래스와 CSS 애니메이션으로만 변환한다. 따라서 서버 판정과 시각 연출의 상성을 같은 표에서 유지한다.
+
+---
+
 ## [2026-08-03] Ver.5 디지몬 버전 표기 추가 보정
 
 - **내용:** Ver.5의 디지타마를 `디지타마 [Ver.5]`로 통일하고, 밀레니엄몬과 카오스드라몬을 각각 `밀레니엄몬 [Ver.5]`, `카오스드라몬 [Ver.5]`로 표시했다.

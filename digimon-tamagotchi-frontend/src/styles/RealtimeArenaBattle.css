@@ -155,17 +155,59 @@
 }
 
 .realtime-arena-projectile {
+  --realtime-arena-projectile-size: 3.5rem;
   position: absolute;
   top: 42%;
-  width: 3.5rem;
-  height: 3.5rem;
+  display: block;
+  width: var(--realtime-arena-projectile-size);
+  height: var(--realtime-arena-projectile-size);
+  overflow: visible;
+}
+
+.realtime-arena-projectile__image {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   image-rendering: pixelated;
   filter: drop-shadow(0 4px 7px rgba(15, 23, 42, 0.35));
 }
 
 .realtime-arena-projectile.is-special {
-  filter: drop-shadow(0 0 10px #a855f7) saturate(1.35);
+  --realtime-arena-projectile-size: 4.1rem;
+  filter: drop-shadow(0 4px 7px rgba(15, 23, 42, 0.35)) drop-shadow(0 0 5px #a855f7) drop-shadow(0 0 13px #facc15);
+}
+
+.realtime-arena-projectile.is-special .realtime-arena-projectile__image {
+  filter: saturate(1.55);
+}
+
+.realtime-arena-projectile__aura {
+  position: absolute;
+  z-index: 1;
+  inset: -24%;
+  border: 2px solid rgba(250, 204, 21, 0.72);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.46) 0 28%, rgba(168, 85, 247, 0.18) 48%, transparent 72%);
+  box-shadow: 0 0 0.55rem rgba(168, 85, 247, 0.85), 0 0 1.1rem rgba(250, 204, 21, 0.66);
+  animation: realtime-arena-special-aura 0.72s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.realtime-arena-projectile__aura::after {
+  position: absolute;
+  top: 30%;
+  left: -105%;
+  width: 170%;
+  height: 40%;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.42), rgba(168, 85, 247, 0.8), transparent);
+  content: "";
+  filter: blur(0.25rem);
+  opacity: 0.8;
+  transform: rotate(-8deg);
+  animation: realtime-arena-special-trail 0.58s ease-in-out infinite;
 }
 
 .realtime-arena-projectile.is-left {
@@ -175,6 +217,26 @@
 
 .realtime-arena-projectile.is-right {
   animation: realtime-arena-projectile-right 0.85s ease-in forwards;
+}
+
+.realtime-arena-projectile.is-left.is-blocked {
+  animation-name: realtime-arena-projectile-blocked-left;
+  animation-duration: 0.58s;
+}
+
+.realtime-arena-projectile.is-right.is-blocked {
+  animation-name: realtime-arena-projectile-blocked-right;
+  animation-duration: 0.58s;
+}
+
+.realtime-arena-projectile.is-left.is-interrupted {
+  animation-name: realtime-arena-projectile-interrupted-left;
+  animation-duration: 0.48s;
+}
+
+.realtime-arena-projectile.is-right.is-interrupted {
+  animation-name: realtime-arena-projectile-interrupted-right;
+  animation-duration: 0.48s;
 }
 
 .realtime-arena-shield {
@@ -194,8 +256,39 @@
   animation: realtime-arena-shield-pop 0.35s ease-out both;
 }
 
-.realtime-arena-shield.is-left { left: 43%; }
-.realtime-arena-shield.is-right { left: 57%; }
+.realtime-arena-shield.is-left { left: 45%; }
+.realtime-arena-shield.is-right { left: 55%; }
+
+.realtime-arena-shield.is-breaking {
+  animation: realtime-arena-shield-break 0.62s ease-out both;
+}
+
+.realtime-arena-shield.is-breaking::before,
+.realtime-arena-shield.is-breaking::after {
+  position: absolute;
+  z-index: 2;
+  width: 0.62rem;
+  height: 1.2rem;
+  border: 1px solid rgba(30, 64, 175, 0.5);
+  background: linear-gradient(135deg, #bfdbfe 0 42%, #2563eb 43% 60%, #eff6ff 61%);
+  content: "";
+  filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.18));
+  opacity: 0;
+}
+
+.realtime-arena-shield.is-breaking::before {
+  top: 18%;
+  left: 22%;
+  clip-path: polygon(50% 0, 100% 22%, 70% 100%, 0 64%);
+  animation: realtime-arena-shield-shard-left 0.62s ease-out both;
+}
+
+.realtime-arena-shield.is-breaking::after {
+  right: 17%;
+  bottom: 16%;
+  clip-path: polygon(0 18%, 68% 0, 100% 70%, 30% 100%);
+  animation: realtime-arena-shield-shard-right 0.62s ease-out both;
+}
 
 .realtime-arena-damage,
 .realtime-arena-recovery,
@@ -206,12 +299,14 @@
   white-space: nowrap;
   transform: translateX(-50%);
   animation: realtime-arena-damage-rise 0.65s ease-out both;
+  font-weight: 900;
+  line-height: 1.1;
 }
 
 .realtime-arena-damage {
   top: -0.7rem;
   color: #dc2626;
-  font-size: 1.45rem;
+  font-size: 1.7rem;
   text-shadow: 0 2px 0 #fff;
 }
 
@@ -225,7 +320,7 @@
 .realtime-arena-blocked {
   top: -0.45rem;
   color: #2563eb;
-  font-size: 0.8rem;
+  font-size: 1.05rem;
   text-shadow: 0 1px 0 #fff;
 }
 
@@ -584,6 +679,34 @@
   to { left: 24%; opacity: 1; }
 }
 
+@keyframes realtime-arena-projectile-blocked-left {
+  from { left: 24%; opacity: 0; transform: scaleX(-1); }
+  15% { opacity: 1; transform: scaleX(-1); }
+  70% { left: calc(55% - var(--realtime-arena-projectile-size) / 2); opacity: 1; transform: scaleX(-1); }
+  to { left: calc(55% - var(--realtime-arena-projectile-size) / 2); opacity: 0; transform: scaleX(-1) scale(0.76); }
+}
+
+@keyframes realtime-arena-projectile-blocked-right {
+  from { left: 70%; opacity: 0; }
+  15% { opacity: 1; }
+  70% { left: calc(45% - var(--realtime-arena-projectile-size) / 2); opacity: 1; }
+  to { left: calc(45% - var(--realtime-arena-projectile-size) / 2); opacity: 0; transform: scale(0.76); }
+}
+
+@keyframes realtime-arena-projectile-interrupted-left {
+  from { left: 24%; opacity: 0; transform: scaleX(-1); }
+  15% { opacity: 1; transform: scaleX(-1); }
+  72% { left: calc(50% - var(--realtime-arena-projectile-size) / 2); opacity: 1; transform: scaleX(-1); }
+  to { left: calc(50% - var(--realtime-arena-projectile-size) / 2); opacity: 0; transform: scaleX(-1) scale(0.72); }
+}
+
+@keyframes realtime-arena-projectile-interrupted-right {
+  from { left: 70%; opacity: 0; }
+  15% { opacity: 1; }
+  72% { left: calc(50% - var(--realtime-arena-projectile-size) / 2); opacity: 1; }
+  to { left: calc(50% - var(--realtime-arena-projectile-size) / 2); opacity: 0; transform: scale(0.72); }
+}
+
 @keyframes realtime-arena-hit {
   20%, 60% { transform: translateX(-0.35rem); filter: brightness(1.5) saturate(1.6); }
   40%, 80% { transform: translateX(0.35rem); }
@@ -599,6 +722,35 @@
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
+@keyframes realtime-arena-shield-break {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+  24% { opacity: 1; transform: translate(-50%, -50%) scale(1.08) rotate(-8deg); }
+  46% { opacity: 0.82; transform: translate(-50%, -50%) scale(0.96) rotate(8deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.42) rotate(24deg); }
+}
+
+@keyframes realtime-arena-shield-shard-left {
+  0%, 30% { opacity: 0; transform: translate(0, 0) rotate(0) scale(0.5); }
+  45% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-1.2rem, -1.5rem) rotate(-38deg) scale(0.85); }
+}
+
+@keyframes realtime-arena-shield-shard-right {
+  0%, 30% { opacity: 0; transform: translate(0, 0) rotate(0) scale(0.5); }
+  45% { opacity: 1; }
+  100% { opacity: 0; transform: translate(1.3rem, 1.2rem) rotate(48deg) scale(0.8); }
+}
+
+@keyframes realtime-arena-special-aura {
+  0%, 100% { opacity: 0.65; transform: scale(0.88); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes realtime-arena-special-trail {
+  0%, 100% { opacity: 0.35; transform: translateX(-0.25rem) rotate(-8deg) scaleX(0.82); }
+  50% { opacity: 0.9; transform: translateX(0.18rem) rotate(-8deg) scaleX(1); }
+}
+
 @keyframes realtime-arena-damage-rise {
   from { opacity: 0; transform: translate(-50%, 0.6rem) scale(0.7); }
   to { opacity: 1; transform: translate(-50%, -0.4rem) scale(1); }
@@ -609,8 +761,11 @@
   .realtime-arena-fighter { padding: 0.55rem 0.35rem; }
   .realtime-arena-fighter__sprite-wrap { width: 4rem; height: 4rem; }
   .realtime-arena-fighter__meta { font-size: 0.62rem; }
-  .realtime-arena-projectile { width: 2.75rem; height: 2.75rem; }
+  .realtime-arena-projectile { --realtime-arena-projectile-size: 2.75rem; }
+  .realtime-arena-projectile.is-special { --realtime-arena-projectile-size: 3.25rem; }
   .realtime-arena-shield { width: 3.5rem; height: 3.5rem; font-size: 2rem; }
+  .realtime-arena-damage { font-size: 1.5rem; }
+  .realtime-arena-blocked { font-size: 0.95rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
