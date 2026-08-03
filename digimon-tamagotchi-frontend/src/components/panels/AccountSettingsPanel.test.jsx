@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AccountSettingsPanel from "./AccountSettingsPanel";
 
 const mockSetTheme = jest.fn();
+const mockSetDefaultScreen = jest.fn();
 const mockUseAuth = jest.fn();
 const mockCheckNicknameAvailability = jest.fn();
 const mockGetTamerName = jest.fn();
@@ -22,6 +23,10 @@ jest.mock("../../contexts/AuthContext", () => ({
 }));
 
 jest.mock("../../contexts/ThemeContext", () => ({
+  DEFAULT_SCREEN_OPTIONS: [
+    { id: "home", label: "홈" },
+    { id: "play", label: "플레이" },
+  ],
   SITE_THEME_OPTIONS: [
     { id: "default", label: "기본" },
     { id: "notebook", label: "한솔이의 노트북" },
@@ -30,6 +35,9 @@ jest.mock("../../contexts/ThemeContext", () => ({
     themeId: "default",
     setTheme: mockSetTheme,
     isThemeLoading: false,
+    defaultScreen: "home",
+    setDefaultScreen: mockSetDefaultScreen,
+    isDefaultScreenLoading: false,
   }),
 }));
 
@@ -111,6 +119,7 @@ describe("AccountSettingsPanel", () => {
   beforeEach(() => {
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockSetTheme.mockReset();
+    mockSetDefaultScreen.mockReset();
     mockUseAuth.mockReturnValue({
       currentUser: { uid: "tester", displayName: "한솔" },
     });
@@ -188,6 +197,31 @@ describe("AccountSettingsPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "한솔이의 노트북" }));
 
     await waitFor(() => expect(mockSetTheme).toHaveBeenCalledWith("notebook"));
+  });
+
+  test("기본 화면은 화면 테마 위에 표시되고 플레이 선택을 즉시 저장한다", async () => {
+    renderPanel();
+
+    await waitFor(() => expect(screen.getByText("화면 테마")).toBeInTheDocument());
+
+    const defaultScreenHeading = screen.getByText("기본 화면");
+    const themeHeading = screen.getByText("화면 테마");
+    expect(
+      defaultScreenHeading.compareDocumentPosition(themeHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "홈" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByRole("button", { name: "플레이" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "플레이" }));
+
+    await waitFor(() => expect(mockSetDefaultScreen).toHaveBeenCalledWith("play"));
   });
 
   test("설정 패널에 홈화면에 추가 섹션을 설치 anchor와 함께 렌더링한다", async () => {

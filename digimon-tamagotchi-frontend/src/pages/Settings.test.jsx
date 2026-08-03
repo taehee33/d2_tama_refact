@@ -71,7 +71,7 @@ describe("Settings", () => {
 
     expect(
       screen.getByText(
-        "테이머명, 화면 테마, 홈화면에 추가, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다."
+        "테이머명, 기본 화면, 화면 테마, 홈화면에 추가, Discord 알림, 로그아웃을 한 화면에서 관리할 수 있습니다."
       )
     ).toBeInTheDocument();
   });

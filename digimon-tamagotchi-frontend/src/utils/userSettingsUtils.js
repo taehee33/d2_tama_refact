@@ -1,5 +1,5 @@
 // src/utils/userSettingsUtils.js
-// 사용자별 설정 (Discord 웹훅, 알림 수신 여부, 사이트 테마) - Firestore users/{uid}/settings/main 저장
+// 사용자별 설정 (Discord 웹훅, 알림 수신 여부, 사이트 테마, 기본 화면) - Firestore users/{uid}/settings/main 저장
 
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
@@ -7,6 +7,9 @@ import { db } from "../firebase";
 /** Discord 웹훅 URL 허용 도메인 (discord.com, discordapp.com) */
 const DISCORD_WEBHOOK_PREFIXES = ["https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/"];
 const SITE_THEMES = new Set(["default", "notebook"]);
+export const DEFAULT_SCREEN_HOME = "home";
+export const DEFAULT_SCREEN_PLAY = "play";
+const DEFAULT_SCREENS = new Set([DEFAULT_SCREEN_HOME, DEFAULT_SCREEN_PLAY]);
 const USER_SETTINGS_DOC_ID = "main";
 export const DEFAULT_NOTIFICATION_CHANNELS = {
   inApp: true,
@@ -28,6 +31,7 @@ function getDefaultUserSettings() {
     isNotificationEnabled: false,
     notificationChannels: { ...DEFAULT_NOTIFICATION_CHANNELS },
     siteTheme: null,
+    defaultScreen: DEFAULT_SCREEN_HOME,
   };
 }
 
@@ -49,6 +53,7 @@ function mapSettings(data) {
     isNotificationEnabled: data?.isNotificationEnabled === true,
     notificationChannels: normalizeNotificationChannels(data?.notificationChannels),
     siteTheme: normalizeSiteTheme(data?.siteTheme),
+    defaultScreen: normalizeDefaultScreen(data?.defaultScreen) || DEFAULT_SCREEN_HOME,
   };
 }
 
@@ -79,9 +84,23 @@ export function normalizeSiteTheme(themeId) {
 }
 
 /**
- * 사용자 설정 가져오기 (Discord 웹훅 URL, 알림 수신 여부, 사이트 테마)
+ * 기본 화면 값을 정규화
+ * @param {string|null|undefined} screenId - 정규화할 기본 화면 ID
+ * @returns {"home"|"play"|null}
+ */
+export function normalizeDefaultScreen(screenId) {
+  if (typeof screenId !== "string") {
+    return null;
+  }
+
+  const trimmed = screenId.trim();
+  return DEFAULT_SCREENS.has(trimmed) ? trimmed : null;
+}
+
+/**
+ * 사용자 설정 가져오기 (Discord 웹훅 URL, 알림 수신 여부, 사이트 테마, 기본 화면)
  * @param {string} uid - 사용자 ID
- * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean, notificationChannels: Object, siteTheme: "default"|"notebook"|null }>}
+ * @returns {Promise<{ discordWebhookUrl: string|null, isNotificationEnabled: boolean, notificationChannels: Object, siteTheme: "default"|"notebook"|null, defaultScreen: "home"|"play" }>}
  */
 export async function getUserSettings(uid) {
   if (!uid) {
@@ -107,16 +126,20 @@ export async function getUserSettings(uid) {
 }
 
 /**
- * Discord 웹훅 URL·알림 수신 여부·채널별 알림·사이트 테마 저장
+ * Discord 웹훅 URL·알림 수신 여부·채널별 알림·사이트 테마·기본 화면 저장
  * @param {string} uid - 사용자 ID
  * @param {Object} options
  * @param {string|null} [options.discordWebhookUrl] - Discord 웹훅 URL (빈 문자열이면 null로 저장)
  * @param {boolean} [options.isNotificationEnabled] - 알림 수신 여부
  * @param {{inApp?: boolean, discord?: boolean, webPush?: boolean}} [options.notificationChannels] - 채널별 사용 여부
  * @param {"default"|"notebook"} [options.siteTheme] - 사이트 테마
+ * @param {"home"|"play"} [options.defaultScreen] - 로그인 후 기본 화면
  * @returns {Promise<void>}
  */
-export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationEnabled, notificationChannels, siteTheme }) {
+export async function saveUserSettings(
+  uid,
+  { discordWebhookUrl, isNotificationEnabled, notificationChannels, siteTheme, defaultScreen }
+) {
   if (!uid) throw new Error("사용자 ID가 필요합니다.");
   const settingsRef = getUserSettingsRef(uid);
   const updates = { updatedAt: new Date() };
@@ -139,6 +162,13 @@ export async function saveUserSettings(uid, { discordWebhookUrl, isNotificationE
       throw new Error("사이트 테마는 기본 또는 한솔이의 노트북만 선택할 수 있습니다.");
     }
     updates.siteTheme = normalizedTheme;
+  }
+  if (defaultScreen !== undefined) {
+    const normalizedDefaultScreen = normalizeDefaultScreen(defaultScreen);
+    if (!normalizedDefaultScreen) {
+      throw new Error("기본 화면은 홈 또는 플레이만 선택할 수 있습니다.");
+    }
+    updates.defaultScreen = normalizedDefaultScreen;
   }
   await setDoc(settingsRef, updates, { merge: true });
 }

@@ -9,6 +9,15 @@ const mockAuthState = {
   logout: jest.fn(),
   isFirebaseAvailable: true,
 };
+const mockThemeState = {
+  themeId: "default",
+  resolvedTheme: "default",
+  isThemeLoading: false,
+  setTheme: jest.fn(),
+  defaultScreen: "home",
+  isDefaultScreenLoading: false,
+  setDefaultScreen: jest.fn(),
+};
 
 jest.mock("react-router-dom", () => ({
   __esModule: true,
@@ -60,13 +69,9 @@ jest.mock("./contexts/AuthContext", () => ({
 }));
 
 jest.mock("./contexts/ThemeContext", () => ({
+  DEFAULT_SCREEN_PLAY: "play",
   ThemeProvider: ({ children }) => <div>{children}</div>,
-  useTheme: () => ({
-    themeId: "default",
-    resolvedTheme: "default",
-    isThemeLoading: false,
-    setTheme: jest.fn(),
-  }),
+  useTheme: () => mockThemeState,
 }));
 
 jest.mock("./contexts/AblyContext", () => ({
@@ -135,6 +140,8 @@ beforeEach(() => {
   mockAuthState.currentUser = null;
   mockAuthState.loading = false;
   mockAuthState.isFirebaseAvailable = true;
+  mockThemeState.defaultScreen = "home";
+  mockThemeState.isDefaultScreenLoading = false;
 });
 
 test("앱 라우트 셸이 깨지지 않고 렌더링된다", () => {
@@ -167,6 +174,25 @@ test("로그인 사용자가 루트 엔트리에 들어오면 홈을 본다", ()
   render(<RootEntry />);
 
   expect(screen.getByText("홈 화면")).toBeInTheDocument();
+});
+
+test("기본 화면을 플레이로 설정한 로그인 사용자는 플레이 허브로 이동한다", () => {
+  mockAuthState.currentUser = { uid: "tester" };
+  mockThemeState.defaultScreen = "play";
+
+  render(<RootEntry />);
+
+  expect(screen.getByText("redirect:/play")).toBeInTheDocument();
+});
+
+test("기본 화면 설정을 불러오는 동안 루트 화면을 표시하지 않는다", () => {
+  mockAuthState.currentUser = { uid: "tester" };
+  mockThemeState.isDefaultScreenLoading = true;
+
+  render(<RootEntry />);
+
+  expect(screen.getByRole("status")).toHaveTextContent("기본 화면 설정을 불러오는 중...");
+  expect(screen.queryByText("홈 화면")).not.toBeInTheDocument();
 });
 
 test("로그인 사용자가 랜딩 경로에 직접 들어와도 랜딩을 볼 수 있다", () => {

@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-04] 계정 기본 화면 설정 및 초기 진입 라우팅
+
+- **내용:** 계정 설정의 `화면 테마` 위에 `기본 화면` 선택을 추가하고 `홈`·`플레이` 중 하나를 저장할 수 있도록 했다. 기본값은 `홈`이다.
+- **초기 진입:** 로그인 후 별도 목적 경로가 없거나 루트(`/`)에 진입하면 저장된 기본 화면으로 이동한다. 설정을 불러오는 동안에는 홈 화면이 먼저 표시되지 않으며, 설정이 없거나 잘못되면 홈으로 fallback한다.
+- **저장 계약:** `users/{uid}/settings/main`에 `defaultScreen`을 추가했다. 기존 문서와 저장 경로는 유지하고 별도 마이그레이션은 수행하지 않는다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/utils/userSettingsUtils.js`, `digimon-tamagotchi-frontend/src/contexts/ThemeContext.jsx`, `digimon-tamagotchi-frontend/src/components/panels/AccountSettingsPanel.jsx`, `digimon-tamagotchi-frontend/src/App.jsx`, `digimon-tamagotchi-frontend/src/pages/Login.jsx` 및 관련 테스트.
+- **아키텍처 결정 근거:** 기존 사용자 설정 문서와 `ThemeContext`의 단일 로드 흐름을 재사용해 계정 설정 UI와 루트 라우팅이 같은 전역 값을 사용하도록 했다. 보호된 경로의 로그인 복귀 주소는 기본 화면보다 우선해 기존 진입 계약을 보존한다.
+
 ## [2026-08-03] 플레이 허브 슬롯 순서 변경 버튼 위치 조정
 
 - **내용:** 플레이 허브의 `슬롯 순서 정리` 버튼을 슬롯 목록 헤더로 이동해 `자세히`·`간략히` 보기 전환 왼쪽에 배치하고, 문구를 `슬롯 순서 변경`으로 변경했다.

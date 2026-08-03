@@ -28,15 +28,28 @@ jest.mock("../utils/userSettingsUtils", () => {
 });
 
 function ThemeProbe() {
-  const { themeId, resolvedTheme, isThemeLoading, setTheme } = useTheme();
+  const {
+    themeId,
+    resolvedTheme,
+    isThemeLoading,
+    setTheme,
+    defaultScreen,
+    isDefaultScreenLoading,
+    setDefaultScreen,
+  } = useTheme();
 
   return (
     <div>
       <div data-testid="theme-id">{themeId}</div>
       <div data-testid="resolved-theme">{resolvedTheme}</div>
       <div data-testid="theme-loading">{String(isThemeLoading)}</div>
+      <div data-testid="default-screen">{defaultScreen}</div>
+      <div data-testid="default-screen-loading">{String(isDefaultScreenLoading)}</div>
       <button type="button" onClick={() => setTheme("notebook")}>
         한솔이의 노트북 저장
+      </button>
+      <button type="button" onClick={() => setDefaultScreen("play")}>
+        플레이 기본 화면 저장
       </button>
     </div>
   );
@@ -68,6 +81,8 @@ describe("ThemeContext", () => {
 
     expect(screen.getByTestId("theme-id")).toHaveTextContent("default");
     expect(screen.getByTestId("resolved-theme")).toHaveTextContent("default");
+    expect(screen.getByTestId("default-screen")).toHaveTextContent("home");
+    expect(screen.getByTestId("default-screen-loading")).toHaveTextContent("false");
   });
 
   test("비로그인이고 localStorage 값이 있으면 해당 테마를 사용한다", async () => {
@@ -91,6 +106,7 @@ describe("ThemeContext", () => {
       discordWebhookUrl: null,
       isNotificationEnabled: false,
       siteTheme: "default",
+      defaultScreen: "play",
     });
 
     render(
@@ -100,7 +116,7 @@ describe("ThemeContext", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByTestId("theme-id")).toHaveTextContent("default")
+      expect(screen.getByTestId("default-screen")).toHaveTextContent("play")
     );
   });
 
@@ -111,6 +127,7 @@ describe("ThemeContext", () => {
       discordWebhookUrl: null,
       isNotificationEnabled: false,
       siteTheme: null,
+      defaultScreen: "invalid",
     });
 
     render(
@@ -122,6 +139,7 @@ describe("ThemeContext", () => {
     await waitFor(() =>
       expect(screen.getByTestId("theme-id")).toHaveTextContent("notebook")
     );
+    expect(screen.getByTestId("default-screen")).toHaveTextContent("home");
   });
 
   test("비로그인 상태에서 테마를 바꾸면 localStorage에 저장한다", async () => {
@@ -156,6 +174,28 @@ describe("ThemeContext", () => {
     await waitFor(() =>
       expect(mockSaveUserSettings).toHaveBeenCalledWith("tester", {
         siteTheme: "notebook",
+      })
+    );
+  });
+
+  test("로그인 상태에서 기본 화면을 바꾸면 사용자 설정에 저장한다", async () => {
+    mockAuthState.currentUser = { uid: "tester" };
+
+    render(
+      <ThemeProvider>
+        <ThemeProbe />
+      </ThemeProvider>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("default-screen-loading")).toHaveTextContent("false")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "플레이 기본 화면 저장" }));
+
+    await waitFor(() =>
+      expect(mockSaveUserSettings).toHaveBeenCalledWith("tester", {
+        defaultScreen: "play",
       })
     );
   });

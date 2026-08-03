@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { SITE_THEME_OPTIONS, useTheme } from "../../contexts/ThemeContext";
+import { DEFAULT_SCREEN_OPTIONS, SITE_THEME_OPTIONS, useTheme } from "../../contexts/ThemeContext";
 import { emitTamerProfileRefresh } from "../../hooks/useTamerProfile";
 import {
   checkNicknameAvailability,
@@ -226,7 +226,14 @@ function AccountSettingsPanel({
   focusSection = null,
 }) {
   const { currentUser } = useAuth();
-  const { themeId, setTheme, isThemeLoading } = useTheme();
+  const {
+    themeId,
+    setTheme,
+    isThemeLoading,
+    defaultScreen,
+    setDefaultScreen,
+    isDefaultScreenLoading,
+  } = useTheme();
   const installPrompt = usePwaInstallPrompt();
   const [loading, setLoading] = useState(true);
   const [tamerName, setTamerName] = useState(parentTamerName || "");
@@ -248,6 +255,8 @@ function AccountSettingsPanel({
   const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [isUpdatingWebPush, setIsUpdatingWebPush] = useState(false);
   const [webPushMessage, setWebPushMessage] = useState("");
+  const [defaultScreenSaving, setDefaultScreenSaving] = useState(false);
+  const [defaultScreenMessage, setDefaultScreenMessage] = useState("");
   const [themeSaving, setThemeSaving] = useState(false);
   const [themeMessage, setThemeMessage] = useState("");
 
@@ -584,6 +593,24 @@ function AccountSettingsPanel({
     }
   };
 
+  const handleDefaultScreenChange = async (nextDefaultScreen) => {
+    if (nextDefaultScreen === defaultScreen) {
+      return;
+    }
+
+    setDefaultScreenSaving(true);
+    setDefaultScreenMessage("");
+
+    try {
+      await setDefaultScreen(nextDefaultScreen);
+      setDefaultScreenMessage("기본 화면이 저장되었습니다.");
+    } catch (error) {
+      setDefaultScreenMessage(error.message || "기본 화면 저장 중 오류가 발생했습니다.");
+    } finally {
+      setDefaultScreenSaving(false);
+    }
+  };
+
   const normalizedInputValue = normalizeNicknameInput(tamerNameInput);
   const normalizedCurrentTamerName = normalizeNicknameInput(tamerName);
   const isSameAsCurrentTamerName =
@@ -699,6 +726,41 @@ function AccountSettingsPanel({
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="service-inline-panel">
+        <div className="service-field">
+          <span>기본 화면</span>
+          <p className="service-muted">
+            로그인하거나 루트 화면에 들어왔을 때 처음 열 화면을 선택합니다.
+          </p>
+        </div>
+
+        <div className="service-theme-switcher service-theme-switcher--wide" role="group" aria-label="기본 화면 선택">
+          <span className="service-theme-switcher__label">선택</span>
+          {DEFAULT_SCREEN_OPTIONS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`service-theme-switcher__option${
+                defaultScreen === option.id ? " service-theme-switcher__option--active" : ""
+              }`}
+              onClick={() => handleDefaultScreenChange(option.id)}
+              disabled={defaultScreenSaving || isDefaultScreenLoading}
+              aria-pressed={defaultScreen === option.id}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {defaultScreenMessage ? (
+          <p className={getMessageClassName(defaultScreenMessage)}>{defaultScreenMessage}</p>
+        ) : (
+          <p className="service-muted">
+            선택 즉시 저장되고 다음 로그인 또는 기본 진입부터 적용됩니다.
+          </p>
+        )}
       </div>
 
       <div className="service-inline-panel">

@@ -13,7 +13,7 @@ import ReactGA from "react-ga4";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AblyContextProvider } from "./contexts/AblyContext";
 import { MasterDataProvider, useMasterData } from "./contexts/MasterDataContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { DEFAULT_SCREEN_PLAY, ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { NotificationCenterProvider } from "./contexts/NotificationCenterContext";
 import { ChannelProvider } from "ably/react";
 import PlayChatDrawer from "./components/chat/PlayChatDrawer";
@@ -156,9 +156,24 @@ function AppContent() {
 
 export function RootEntry() {
   const { currentUser } = useAuth();
+  const { defaultScreen, isDefaultScreenLoading } = useTheme();
 
   if (!currentUser) {
     return <Navigate to="/landing" replace />;
+  }
+
+  if (isDefaultScreenLoading) {
+    return (
+      <div className="service-page">
+        <div className="service-alert" role="status">
+          기본 화면 설정을 불러오는 중...
+        </div>
+      </div>
+    );
+  }
+
+  if (defaultScreen === DEFAULT_SCREEN_PLAY) {
+    return <Navigate to="/play" replace />;
   }
 
   return <Home />;

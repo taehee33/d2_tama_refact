@@ -13,9 +13,9 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState(null); // 'google', 'anonymous'
   const [error, setError] = useState(null);
-  const redirectTo = location.state?.from?.pathname || "/play";
+  const redirectTo = location.state?.from?.pathname || "/";
 
-  // 이미 로그인되어 있으면 플레이 허브로 이동
+  // 이미 로그인되어 있으면 기본 진입 경로로 이동
   useEffect(() => {
     if (currentUser) {
       navigate(redirectTo, { replace: true });
@@ -57,7 +57,7 @@ function Login() {
     const displayName = user.displayName || (isAnonymous ? `게스트_${user.uid.slice(0, 6)}` : null);
     await initializeTamerName(user.uid, displayName);
 
-    // 로그인 성공 후 플레이 허브로 리디렉션
+    // 로그인 성공 후 기본 진입 경로로 리디렉션
     navigate(redirectTo, { replace: true });
   };
 
@@ -132,7 +132,7 @@ function Login() {
         ) : (
           <>
             <p className="mt-3 mb-6 text-center text-sm text-slate-600">
-              로그인 후에는 기본적으로 플레이 허브로 이동합니다.
+              로그인 후에는 계정 설정의 기본 화면으로 이동합니다.
             </p>
 
             {error && (

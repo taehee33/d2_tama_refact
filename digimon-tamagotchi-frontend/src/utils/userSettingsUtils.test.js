@@ -15,8 +15,11 @@ jest.mock("../firebase", () => ({
 }));
 
 const {
+  DEFAULT_SCREEN_HOME,
+  DEFAULT_SCREEN_PLAY,
   DEFAULT_NOTIFICATION_CHANNELS,
   getUserSettings,
+  normalizeDefaultScreen,
   saveUserSettings,
 } = require("./userSettingsUtils");
 
@@ -40,6 +43,7 @@ describe("userSettingsUtils", () => {
         discordWebhookUrl: "https://discord.com/api/webhooks/new",
         isNotificationEnabled: true,
         siteTheme: "notebook",
+        defaultScreen: "play",
       })
     );
 
@@ -52,6 +56,7 @@ describe("userSettingsUtils", () => {
       isNotificationEnabled: true,
       notificationChannels: DEFAULT_NOTIFICATION_CHANNELS,
       siteTheme: "notebook",
+      defaultScreen: DEFAULT_SCREEN_PLAY,
     });
   });
 
@@ -76,7 +81,15 @@ describe("userSettingsUtils", () => {
       isNotificationEnabled: true,
       notificationChannels: DEFAULT_NOTIFICATION_CHANNELS,
       siteTheme: "default",
+      defaultScreen: DEFAULT_SCREEN_HOME,
     });
+  });
+
+  test("기본 화면은 홈·플레이만 허용하고 그 외 값은 무효 처리한다", () => {
+    expect(normalizeDefaultScreen("home")).toBe(DEFAULT_SCREEN_HOME);
+    expect(normalizeDefaultScreen(" play ")).toBe(DEFAULT_SCREEN_PLAY);
+    expect(normalizeDefaultScreen("notebook")).toBeNull();
+    expect(normalizeDefaultScreen(undefined)).toBeNull();
   });
 
   test("설정 저장은 users/{uid}/settings/main에 merge 저장한다", async () => {
@@ -89,6 +102,7 @@ describe("userSettingsUtils", () => {
         webPush: true,
       },
       siteTheme: "notebook",
+      defaultScreen: "play",
     });
 
     expect(mockSetDoc).toHaveBeenCalledTimes(1);
@@ -103,9 +117,18 @@ describe("userSettingsUtils", () => {
           webPush: true,
         },
         siteTheme: "notebook",
+        defaultScreen: "play",
         updatedAt: expect.any(Date),
       })
     );
     expect(mockSetDoc.mock.calls[0][2]).toEqual({ merge: true });
+  });
+
+  test("허용되지 않은 기본 화면은 저장하지 않는다", async () => {
+    await expect(
+      saveUserSettings("tester", { defaultScreen: "notebook" })
+    ).rejects.toThrow("기본 화면은 홈 또는 플레이만 선택할 수 있습니다.");
+
+    expect(mockSetDoc).not.toHaveBeenCalled();
   });
 });

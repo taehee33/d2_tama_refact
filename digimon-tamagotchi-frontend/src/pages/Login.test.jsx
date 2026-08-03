@@ -59,7 +59,7 @@ describe("Login", () => {
     expect(screen.getByRole("button", { name: "Google로 로그인" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /게스트로 시작/ })).toBeInTheDocument();
     expect(
-      screen.getByText("로그인 후에는 기본적으로 플레이 허브로 이동합니다.")
+      screen.getByText("로그인 후에는 계정 설정의 기본 화면으로 이동합니다.")
     ).toBeInTheDocument();
 
     expect(screen.queryByText("디지몬 서비스 셸에 로그인")).not.toBeInTheDocument();
@@ -78,13 +78,13 @@ describe("Login", () => {
     ).toBeInTheDocument();
   });
 
-  test("로그인된 사용자는 기본적으로 플레이 허브로 이동한다", async () => {
+  test("로그인된 사용자는 기본 진입 경로로 이동한다", async () => {
     mockAuthState.currentUser = { uid: "tester" };
 
     render(<Login />);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/play", { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith("/", { replace: true });
     });
   });
 
