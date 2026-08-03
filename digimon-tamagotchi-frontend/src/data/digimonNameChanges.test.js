@@ -129,6 +129,7 @@ describe("디지몬 버전별 한글 이름", () => {
 
   test("Ver.5 디지몬 이름과 진화 대상 이름을 함께 변경한다", () => {
     const expectedNames = {
+      DigitamaV5: "디지타마 [Ver.5]",
       Zurumon: "즈루몬",
       Pagumon: "퍼그몬",
       Gazimon: "가지몬",
@@ -138,6 +139,8 @@ describe("디지몬 버전별 한글 이름", () => {
       Nanomon: "데이터몬",
       Mugendramon: "파워드라몬",
       Gaioumon: "가이온몬",
+      Millenniumon: "밀레니엄몬 [Ver.5]",
+      Chaosdramon: "카오스드라몬 [Ver.5]",
     };
 
     Object.entries(expectedNames).forEach(([id, name]) => {
@@ -158,6 +161,8 @@ describe("디지몬 버전별 한글 이름", () => {
       ["Deltamon", "Nanomon", "데이터몬"],
       ["MetalTyranomon", "Mugendramon", "파워드라몬"],
       ["ExTyranomon", "Gaioumon", "가이온몬"],
+      ["Mugendramon", "Millenniumon", "밀레니엄몬 [Ver.5]"],
+      ["Mugendramon", "Chaosdramon", "카오스드라몬 [Ver.5]"],
     ];
 
     expectedTargetNames.forEach(([sourceId, targetId, name]) => {

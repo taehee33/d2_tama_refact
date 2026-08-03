@@ -4,6 +4,12 @@
 
 ---
 
+## [2026-08-03] Ver.5 디지몬 버전 표기 추가 보정
+
+- **내용:** Ver.5의 디지타마를 `디지타마 [Ver.5]`로 통일하고, 밀레니엄몬과 카오스드라몬을 각각 `밀레니엄몬 [Ver.5]`, `카오스드라몬 [Ver.5]`로 표시했다.
+- **진화 안내 정합성:** Ver.5 무겐드라몬 진화 경로의 `targetName`도 실제 Ver.5 엔트리 표시명과 일치시켰다. 객체 키·ID·저장 데이터 식별자는 유지했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/data/v5/digimons.js`, `digimon-tamagotchi-frontend/src/data/digimonNameChanges.test.js`, 생성된 `api/_generated/gameProjection.cjs`.
+
 ## [2026-08-03] Ver.1~Ver.5 디지몬 한글 이름 표기 보정
 
 - **내용:** Ver.1~Ver.4 디지타마의 버전 표기를 `디지타마 [Ver.x]`로 통일했다. Ver.4의 시드몬·실리컨몬(씨라몬)·모털몬·쿠가몬·꼬끼몬·모야몬·피콜몬·디지타몬·간쿠몬·카오스몬 [Ver.4]·카오스드라몬 [Ver.4], Ver.5의 즈루몬·퍼그몬·가지몬·데블드라몬·사이크로몬·태스크몬·데이터몬·파워드라몬·가이온몬을 적용했다.

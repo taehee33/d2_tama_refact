@@ -4371,7 +4371,7 @@ const digimonDataVer5 = {
 
   DigitamaV5: v5_digimons_buildEntry({
     id: "DigitamaV5",
-    name: "디지타마 Ver.5",
+    name: "디지타마 [Ver.5]",
     stage: "Digitama",
     sprite: V5_SPRITES.DigitamaV5,
     stats: v5_digimons_buildStats({
@@ -4948,7 +4948,7 @@ const digimonDataVer5 = {
     evolutions: [
       {
         targetId: "Millenniumon",
-        targetName: "밀레니엄몬",
+        targetName: "밀레니엄몬 [Ver.5]",
         jogress: {
           partner: "Chimairamon",
           partnerName: "키메라몬",
@@ -4957,7 +4957,7 @@ const digimonDataVer5 = {
       },
       {
         targetId: "Chaosdramon",
-        targetName: "카오스드라몬",
+        targetName: "카오스드라몬 [Ver.5]",
         jogress: {
           partner: "Darkdramon",
           partnerName: "다크드라몬",
@@ -5007,7 +5007,7 @@ const digimonDataVer5 = {
 
   Millenniumon: v5_digimons_buildEntry({
     id: "Millenniumon",
-    name: "밀레니엄몬",
+    name: "밀레니엄몬 [Ver.5]",
     stage: "Super Ultimate",
     sprite: V5_SPRITES.Millenniumon,
     stats: v5_digimons_buildStats({
@@ -5026,7 +5026,7 @@ const digimonDataVer5 = {
 
   Chaosdramon: v5_digimons_buildEntry({
     id: "Chaosdramon",
-    name: "카오스드라몬",
+    name: "카오스드라몬 [Ver.5]",
     stage: "Super Ultimate",
     sprite: V5_SPRITES.Chaosdramon,
     stats: v5_digimons_buildStats({
