@@ -76,8 +76,6 @@ export function buildGamePageViewModel({
   );
   const currentDigimonDataForEvo =
     resolveDigimonDataFromMap(evolutionDataForSlot, selectedDigimon)?.data;
-  const supportsOnlineJogress =
-    slotVersion === "Ver.1" || slotVersion === "Ver.2";
   const canJogressEvolve = Boolean(
     currentDigimonDataForEvo?.evolutions?.some(
       (e) => e.jogress && isJogressPartnerSupportedInApp(e.jogress)
@@ -153,8 +151,6 @@ export function buildGamePageViewModel({
         ? "(조그레스 진화 가능)"
         : slotJogressStatus?.isWaiting
           ? "(대기중)"
-          : canJogressEvolve && !supportsOnlineJogress
-            ? "(로컬 전용)"
           : hasUnavailableJogress
             ? "(가이드 확인)"
             : "(-)",

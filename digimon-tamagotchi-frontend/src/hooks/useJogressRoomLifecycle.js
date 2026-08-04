@@ -14,12 +14,13 @@ import { db } from "../firebase";
 import {
   getDigimonDataMapByVersion,
   normalizeDigimonVersionLabel,
+  SUPPORTED_DIGIMON_VERSIONS,
 } from "../utils/digimonVersionUtils";
 import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 export function isOnlineJogressSupported(versionLabel = "Ver.1") {
   const normalizedVersion = normalizeDigimonVersionLabel(versionLabel);
-  return normalizedVersion === "Ver.1" || normalizedVersion === "Ver.2";
+  return SUPPORTED_DIGIMON_VERSIONS.includes(normalizedVersion);
 }
 
 function hasJogressEvolution(dataMap, digimonId) {
@@ -40,13 +41,6 @@ export function useJogressRoomLifecycle({
   async function createJogressRoom() {
     if (!currentUser?.uid || !slotId || !db) {
       alert("조그레스에는 로그인이 필요합니다.");
-      return null;
-    }
-
-    if (!isOnlineJogressSupported(version)) {
-      alert(
-        "Ver.3~Ver.5 온라인 조그레스는 아직 준비 중입니다. 로컬 조그레스를 이용해 주세요."
-      );
       return null;
     }
 
@@ -96,13 +90,6 @@ export function useJogressRoomLifecycle({
 
     const digimonId = slot.selectedDigimon;
     const slotVersion = slot.version || "Ver.1";
-
-    if (!isOnlineJogressSupported(slotVersion)) {
-      alert(
-        "Ver.3~Ver.5 온라인 조그레스는 아직 준비 중입니다. 로컬 조그레스를 이용해 주세요."
-      );
-      return null;
-    }
 
     const dataMap = getDigimonDataMapByVersion(slotVersion);
     if (!hasJogressEvolution(dataMap, digimonId)) {

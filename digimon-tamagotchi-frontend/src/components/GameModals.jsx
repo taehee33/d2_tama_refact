@@ -49,7 +49,11 @@ import {
   isIgnoringAllEvolutionConditions,
 } from "../logic/evolution/developerOptions";
 import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
-import { getStarterDigimonId } from "../utils/digimonVersionUtils";
+import {
+  getStarterDigimonId,
+  normalizeDigimonVersionLabel,
+  SUPPORTED_DIGIMON_VERSIONS,
+} from "../utils/digimonVersionUtils";
 import { ARENA_GHOST_V2_ENABLED } from "../config/arenaFeatures";
 import RealtimeArenaScreen from "./realtime-arena/RealtimeArenaScreen";
 
@@ -247,8 +251,9 @@ export default function GameModals({
     ignoreEvolutionTime
   );
   const starterDigimonId = getStarterDigimonId(slotVersion || "Ver.1");
-  const supportsOnlineJogress =
-    (slotVersion || "Ver.1") === "Ver.1" || (slotVersion || "Ver.1") === "Ver.2";
+  const supportsOnlineJogress = SUPPORTED_DIGIMON_VERSIONS.includes(
+    normalizeDigimonVersionLabel(slotVersion || "Ver.1")
+  );
   const slotEvolutionDataMap = newDigimonDataVer1 || {};
   const slotRuntimeDataMap = digimonDataVer1 || {};
 
@@ -961,11 +966,7 @@ export default function GameModals({
         <JogressModeSelectModal
           onClose={() => toggleModal('jogressModeSelect', false)}
           supportsOnline={supportsOnlineJogress}
-          onlineNotice={
-            supportsOnlineJogress
-              ? ""
-              : "Ver.3~Ver.5 온라인 조그레스는 후속 지원 예정입니다. 현재는 로컬 조그레스만 사용할 수 있습니다."
-          }
+          onlineNotice="온라인 조그레스는 양쪽 디지몬이 모두 진화합니다."
           onSelectLocal={() => {
             toggleModal('jogressModeSelect', false);
             toggleModal('jogressPartnerSlot', true);

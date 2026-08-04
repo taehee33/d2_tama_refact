@@ -27,7 +27,7 @@ describe("jogressUtils", () => {
     ).toBe("다크드라몬 Ver.4");
   });
 
-  test("현재 앱에 포함된 Ver.5 파트너는 로컬 조그레스로 지원한다", () => {
+  test("현재 앱에 포함된 Ver.5 파트너는 로컬과 온라인 조그레스로 지원한다", () => {
     const jogress = {
       partner: "Mugendramon",
       partnerName: "무겐드라몬",
@@ -35,6 +35,6 @@ describe("jogressUtils", () => {
     };
 
     expect(isJogressPartnerSupportedInApp(jogress)).toBe(true);
-    expect(getJogressSupportMessage(jogress)).toContain("로컬 조그레스");
+    expect(getJogressSupportMessage(jogress)).toContain("로컬 또는 온라인 조그레스");
   });
 });

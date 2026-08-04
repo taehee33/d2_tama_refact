@@ -5,7 +5,7 @@ import React, { useState, useEffect } from "react";
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateStage } from "../utils/stageTranslator";
-import { getJogressResult } from "../logic/evolution/jogress";
+import { resolveOnlineJogressPair } from "../logic/evolution/jogress";
 import {
   getDigimonDataMapByVersion,
   getSpriteBasePathByVersion,
@@ -162,7 +162,6 @@ export default function JogressRoomListModal({
   }, [currentUser?.uid, myRooms.length, selectedRoomId]);
 
   const myWaitingRooms = myRooms.filter((r) => r.status === "waiting");
-  const hostMap = getDigimonDataMapByVersion(selectedRoom?.hostSlotVersion);
   const getHostDigimonName = (room) => {
     const map = getDigimonDataMapByVersion(room.hostSlotVersion);
     const baseName = map?.[room.hostDigimonId]?.name || room.hostDigimonId;
@@ -198,7 +197,12 @@ export default function JogressRoomListModal({
   };
   const isJogressPossible = (slot) => {
     if (!selectedRoom?.hostDigimonId || !slot?.selectedDigimon) return false;
-    return getJogressResult(selectedRoom.hostDigimonId, slot.selectedDigimon, hostMap).success;
+    return resolveOnlineJogressPair({
+      hostVersion: selectedRoom.hostSlotVersion,
+      hostDigimonId: selectedRoom.hostDigimonId,
+      guestVersion: slot.version,
+      guestDigimonId: slot.selectedDigimon,
+    }).success;
   };
 
   /** 해당 슬롯 디지몬이 조그레스 진화 가능 여부 (등록 가능/불가 구분용) */
@@ -402,7 +406,7 @@ export default function JogressRoomListModal({
             {/* 대기 중인 방 */}
             <div className="flex-shrink-0 p-3 bg-gray-800/60 rounded-lg border border-gray-600">
               <h3 className="text-lg font-bold text-gray-300 mb-2 pixel-art-text">대기 중인 방</h3>
-              <p className="text-gray-400 text-xs mb-2">참가할 방을 선택하세요. (선택한 슬롯의 디지몬은 데이터가 되어 사라집니다)</p>
+              <p className="text-gray-400 text-xs mb-2">참가할 방을 선택하세요. 온라인 조그레스는 양쪽 디지몬이 모두 진화합니다.</p>
               {loading && <p className="text-gray-400 py-2">방 목록 불러오는 중...</p>}
               {error && <p className="text-red-400 py-2 text-sm">{error}</p>}
               {!loading && !error && rooms.length === 0 && (

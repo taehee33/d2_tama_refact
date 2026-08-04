@@ -133,7 +133,7 @@ describe("buildGamePageViewModel", () => {
     });
   });
 
-  test("Ver.3 이후 크로스 버전 파트너가 추가되면 로컬 전용 조그레스 버튼을 연다", () => {
+  test("Ver.3 이후 크로스 버전 파트너가 추가되면 온라인 가능한 조그레스 버튼을 연다", () => {
     const viewModel = buildGamePageViewModel({
       selectedDigimon: "BanchoLeomon",
       digimonNickname: "",
@@ -194,7 +194,7 @@ describe("buildGamePageViewModel", () => {
       canJogressEvolve: true,
       hasNormalEvolution: false,
       showEvolutionButton: true,
-      jogressLabel: "(로컬 전용)",
+      jogressLabel: "(-)",
     });
   });
 });

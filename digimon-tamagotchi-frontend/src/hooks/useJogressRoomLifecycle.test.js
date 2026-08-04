@@ -1,5 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
-import { useJogressRoomLifecycle } from "./useJogressRoomLifecycle";
+import {
+  isOnlineJogressSupported,
+  useJogressRoomLifecycle,
+} from "./useJogressRoomLifecycle";
 
 const mockAddDoc = jest.fn();
 const mockCollection = jest.fn();
@@ -81,6 +84,13 @@ describe("useJogressRoomLifecycle", () => {
     };
   }
 
+  test.each(["Ver.1", "Ver.2", "Ver.3", "Ver.4", "Ver.5"])(
+    "%s 온라인 조그레스를 지원한다",
+    (version) => {
+      expect(isOnlineJogressSupported(version)).toBe(true);
+    }
+  );
+
   test("createJogressRoom은 room 문서와 host slot waiting 상태를 함께 저장한다", async () => {
     mockAddDoc.mockResolvedValue({ id: "room-1" });
 
@@ -113,6 +123,39 @@ describe("useJogressRoomLifecycle", () => {
         jogressStatus: { isWaiting: true, roomId: "room-1" },
         updatedAt: "SERVER_TS",
       }
+    );
+  });
+
+  test("createJogressRoom은 Ver.3 슬롯도 온라인 방으로 저장한다", async () => {
+    mockAddDoc.mockResolvedValue({ id: "room-v3" });
+    const { result } = renderHook(() =>
+      useJogressRoomLifecycle(
+        createParams({
+          version: "Ver.3",
+          selectedDigimon: "BanchoLeomon",
+          slotEvolutionDataMap: {
+            BanchoLeomon: {
+              evolutions: [{
+                targetId: "Chaosmon",
+                jogress: { partner: "Darkdramon", partnerVersion: "Ver.4" },
+              }],
+            },
+          },
+        })
+      )
+    );
+
+    await act(async () => {
+      await result.current.createJogressRoom();
+    });
+
+    expect(mockAddDoc).toHaveBeenCalledWith(
+      "jogress_rooms",
+      expect.objectContaining({
+        hostDigimonId: "BanchoLeomon",
+        hostSlotVersion: "Ver.3",
+        status: "waiting",
+      })
     );
   });
 

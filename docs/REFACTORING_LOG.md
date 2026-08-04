@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-08-04] Ver.3~Ver.5 온라인 조그레스 지원 및 생존 계약 정리
+
+- **내용:** 온라인 조그레스의 버전 제한을 Ver.1~Ver.5 공통 지원으로 확장했다. 호스트·게스트의 버전별 데이터 맵, `partnerVersion`, 양방향 진화 정의와 결과 엔트리를 한 번에 검증하는 순수 resolver를 추가했다.
+- **저장 계약:** 기존 `waiting → paired → completed` 2단계를 유지한다. 게스트는 참가 시, 호스트는 확인 시 각자 자기 버전의 결과 디지몬으로 진화하고 둘 다 생존한다. 로컬 조그레스는 기존처럼 현재 슬롯만 진화하고 파트너 슬롯 문서를 삭제하지 않은 채 `JOGRESS_PARTNER` 사망 상태로 보존한다.
+- **UI·문서:** Ver.3~Ver.5 온라인 비활성화와 로컬 전용 안내를 제거하고, 온라인은 양쪽 진화·로컬은 파트너 사망 상태라는 실제 동작을 모달과 설계 문서에 반영했다.
+- **테스트:** Ver.3↔5, Ver.3↔4, Ver.4↔5 양방향 resolver와 세 온라인 저장 흐름, Ver.1↔2 접미사 호환, 로컬 파트너 사망 계약을 고정했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/logic/evolution/jogress.js`, `digimon-tamagotchi-frontend/src/hooks/useEvolution.js`, 조그레스 모달·가이드·수명주기 코드와 관련 테스트, `digimon-tamagotchi-frontend/docs/JOGRESS_ONLINE_DESIGN.md`.
+- **아키텍처 결정 근거:** Firestore 경로와 room/slot 스키마를 바꾸지 않고 버전별 판정과 표시·로그·도감 계산만 순수 resolver 경계로 일반화해 기존 저장 복구 및 실시간 구독 계약을 보존했다.
+
 ## [2026-08-04] 홈 로고의 기본 진입 경로 복귀
 
 - **내용:** 로그인 사용자가 상단 홈 로고를 누르면 명시적 홈(`/home`)이 아니라 루트(`/`)로 이동하도록 수정했다. 루트가 계정의 `defaultScreen` 설정을 다시 적용한다.

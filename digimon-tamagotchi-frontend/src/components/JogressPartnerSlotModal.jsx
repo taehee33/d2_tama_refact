@@ -127,7 +127,7 @@ export default function JogressPartnerSlotModal({
                       onClick={() => {
                         if (!possible) return;
                         const confirmed = window.confirm(
-                          "정말 조그레스 진화를 하시겠습니까?\n\n진화할 경우 파트너 디지몬은 데이터가 되어 사라집니다."
+                          "정말 조그레스 진화를 하시겠습니까?\n\n진화할 경우 파트너 슬롯은 조그레스 파트너 사망 상태가 됩니다."
                         );
                         if (!confirmed) return;
                         onSelectPartner?.(slot);

@@ -139,7 +139,7 @@ Ably 없이 **Firestore만** 사용하는 경우:
    - 성공 시:
      - 방 상태를 `paired` 등으로 변경
      - **A의 슬롯** 문서에 `jogressStatus.canEvolve = true` (및 partner 정보) 업데이트
-     - **B**는 즉시 자신의 슬롯을 조그레스 결과로 진화 + 스탯 보정 (그리고 B 슬롯은 “사망” 또는 알로 초기화 정책 적용)
+     - **B**는 즉시 자신의 슬롯을 해당 버전의 조그레스 결과로 진화 + 스탯 보정하며 생존
 
 3. **A 쪽 진화**  
    - A는 게임 화면에서 해당 슬롯을 보고 있을 때, `onSnapshot(users/A/slots/slotX)` 로 `jogressStatus.canEvolve === true` 감지  

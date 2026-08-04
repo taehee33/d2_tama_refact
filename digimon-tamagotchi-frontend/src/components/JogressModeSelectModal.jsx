@@ -40,7 +40,7 @@ export default function JogressModeSelectModal({
         <p className="text-gray-300 text-sm mb-4">
           합체할 방식을 선택하세요.
         </p>
-        {!supportsOnline && onlineNotice && (
+        {onlineNotice && (
           <div className="mb-4 rounded border border-slate-600 bg-slate-900/70 px-3 py-2 text-xs text-slate-300">
             {onlineNotice}
           </div>

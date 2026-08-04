@@ -143,12 +143,7 @@ export function getJogressSupportMessage(jogressOrPartner, extraMaps = []) {
   const meta = normalizeJogressMeta(jogressOrPartner);
 
   if (isJogressPartnerSupportedInApp(meta, extraMaps)) {
-    const normalizedPartnerVersion = meta.partnerVersion || "";
-    if (normalizedPartnerVersion === "Ver.1" || normalizedPartnerVersion === "Ver.2") {
-      return "현재 앱에서 조그레스 진화로 진행할 수 있습니다.";
-    }
-
-    return "현재 앱에서 로컬 조그레스로 진행할 수 있습니다. 온라인 조그레스는 Ver.1/Ver.2만 지원합니다.";
+    return "현재 앱에서 로컬 또는 온라인 조그레스 진화로 진행할 수 있습니다.";
   }
 
   if (meta.partnerVersion) {

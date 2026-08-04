@@ -22,8 +22,8 @@
 | 원칙 | 적용 |
 |------|------|
 | **단일 소스 오브 트루스** | 조그레스 “가능 여부”는 `getJogressResult` 한 곳에서만 판단. 로컬/온라인 공통. |
-| **비대칭 처리 명확화** | 게스트(B): 즉시 진화 + 슬롯 사망. 호스트(A): `canEvolve` 플래그로 “진화 가능” 상태만 저장, 유저가 버튼 눌렀을 때 진화. |
-| **원자성** | 게스트 진화·사망은 한 번의 writeBatch. 호스트 쪽 플래그/방 상태는 트랜잭션 또는 일관된 순서로 업데이트. |
+| **2단계 처리 명확화** | 게스트(B): 참가 시 즉시 진화하고 생존. 호스트(A): `canEvolve` 플래그를 받은 뒤 유저가 버튼을 눌렀을 때 진화하고 생존. |
+| **원자성** | 게스트 진화와 room의 `paired` 전이는 한 번의 writeBatch로 처리한다. 호스트 완료는 이후 별도 단계로 저장한다. |
 | **Firestore만 사용** | Ably 없이, `onSnapshot`으로 “진화 가능” 감지. 기존 아키텍처와 동일. |
 | **보안** | 호스트는 자기 방만 생성/취소. 게스트는 “방 문서 + 자기 슬롯”만 수정. Firestore Rules로 본인 문서만 쓰기 허용. |
 | **UX 일관성** | “방 목록 → 방 선택 → (내 슬롯 선택) → 참가” = 아레나 “챌린저 목록 → 상대 선택 → 배틀”과 동일한 2단계 선택 플로우. |
@@ -41,14 +41,14 @@
 | `hostUid` | string | 방 만든 유저 UID |
 | `hostSlotId` | number | 호스트의 슬롯 ID |
 | `hostDigimonId` | string | 호스트 슬롯의 디지몬 ID (예: BlitzGreymon, CresGarurumonV2) |
-| `hostSlotVersion` | string | "Ver.1" \| "Ver.2" (조그레스 결과·검증에 사용) |
+| `hostSlotVersion` | string | "Ver.1" ~ "Ver.5" (조그레스 결과·검증에 사용) |
 | `hostTamerName` | string | 표시용 테이머명 |
 | `createdAt` | Timestamp | 방 생성 시각 (목록 정렬·만료 판단용) |
 | `status` | string | `waiting` \| `paired` \| `completed` \| `cancelled` |
 | `guestUid` | string? | 참가한 유저 UID (paired 이후) |
 | `guestSlotId` | number? | 게스트 슬롯 ID |
 | `guestDigimonId` | string? | 게스트 디지몬 ID |
-| `guestSlotVersion` | string? | "Ver.1" \| "Ver.2" |
+| `guestSlotVersion` | string? | "Ver.1" ~ "Ver.5" |
 | `targetId` | string? | 조그레스 결과 디지몬 ID (paired 시 한 번만 설정, 호스트·게스트 모두 동일) |
 | `completedAt` | Timestamp? | 호스트가 진화 완료한 시각 (completed 시) |
 
@@ -81,18 +81,18 @@
 | `hostTamerName` | string? | 호스트 테이머 표시명 |
 | `hostSlotId` | number | 호스트 슬롯 ID |
 | `hostDigimonName` | string | 호스트 디지몬 한글명 |
-| `hostSlotVersion` | string | "Ver.1" \| "Ver.2" |
-| `guestUid` | string | 사망/합체되는 쪽(게스트) 유저 UID (로컬이면 hostUid와 동일) |
+| `hostSlotVersion` | string | "Ver.1" ~ "Ver.5" |
+| `guestUid` | string | 온라인에서는 함께 진화하는 게스트 UID (로컬이면 hostUid와 동일) |
 | `guestTamerName` | string? | 게스트 테이머 표시명 |
 | `guestSlotId` | number | 게스트 슬롯 ID |
 | `guestDigimonName` | string | 게스트 디지몬 한글명 |
-| `guestSlotVersion` | string | "Ver.1" \| "Ver.2" |
+| `guestSlotVersion` | string | "Ver.1" ~ "Ver.5" |
 | `targetId` | string | 결과 디지몬 ID |
 | `targetName` | string | 결과 디지몬 한글명 |
 | `isOnline` | boolean | true = 온라인 조그레스, false = 로컬 |
 | `createdAt` | Timestamp | 성공 시각 |
 
-- **진화 완료 모달**: 조그레스 성공 시 “파트너 디지몬은 데이터가 되어 사라졌습니다.” 아래에 **요약 한 줄** 표시 (예: `블리츠그레이몬(슬롯1) + 크레스가루루몬(슬롯2) → 오메가몬 Alter-S`). 상태 `evolutionCompleteJogressSummary`로 전달.
+- **진화 완료 모달**: 온라인 조그레스는 양쪽 디지몬이 각 슬롯 버전의 결과로 진화했음을 표시한다. 요약은 `evolutionCompleteJogressSummary`로 전달한다.
 
 ---
 
@@ -115,8 +115,7 @@
 3. 목록 표시: 호스트 테이머명, 디지몬명(한글), 슬롯 버전 등. **아레나 챌린저 목록과 같은 카드/리스트 UI**.
 4. B가 “이 방에 참가” 클릭 → “참가할 내 슬롯 선택” 모달 (자기 slots 중 사망 제외, 조그레스 가능한 슬롯만 강조 권장).
 5. 슬롯 선택 후:
-   - `getJogressResult(방의 hostDigimonId, B가 선택한 슬롯의 selectedDigimon, **호스트 버전 기준 맵**)` 호출.  
-     (또는 Ver.1↔Ver.2 크로스이므로 **현재 구현처럼 baseJogressId로 매칭**하면 됨.)
+   - `resolveOnlineJogressPair`로 호스트·게스트 버전, 디지몬 ID, `partnerVersion`, 양쪽 결과 엔트리를 함께 검증한다.
    - 실패 시: “조합할 수 없는 파트너입니다.” 토스트/알림.
    - 성공 시: `targetId` 확정.
 
@@ -124,10 +123,10 @@
 
 1. **트랜잭션 또는 순서 보장**으로:
    - `jogress_rooms` 문서: `status = 'paired'`, `guestUid`, `guestSlotId`, `guestDigimonId`, `guestSlotVersion`, `targetId` 설정.
-   - **게스트(B) 슬롯**: 조그레스 결과로 진화 + 스탯 초기화, **사망 처리** (로컬과 동일한 writeBatch 패턴).  
+   - **게스트(B) 슬롯**: 게스트 버전의 조그레스 결과로 진화 + 스탯 초기화. 사망 처리하지 않는다.
      + activityLog: "조그레스 진화(온라인): [결과 디지몬명]!"
    - **호스트(A) 슬롯** 문서: `jogressStatus: { canEvolve: true, roomId, targetId, partnerUserId: B.uid, ... }` 업데이트.
-2. B 쪽 UI: “조그레스 완료! 파트너 디지몬은 데이터가 되어 사라졌습니다.” (로컬과 동일한 성공 메시지).
+2. B 쪽 UI: 자신의 디지몬이 결과 디지몬으로 진화했음을 안내한다.
 3. B는 해당 슬롯이 진화된 상태로 게임 화면 갱신.
 
 ### 4.4 호스트: “진화 가능” 감지 및 진화 실행
@@ -141,7 +140,7 @@
      - applyLazyUpdate → 진화 후 스탯 초기화 (로컬 evolve와 동일 로직).
      - 슬롯 문서: `selectedDigimon = targetId`, `digimonStats` 갱신, **`jogressStatus` 제거 또는 초기화**.
      - `jogress_rooms` 문서: `status = 'completed'`, `completedAt = now`.
-   - 성공 메시지: “디지몬 진화~~!” + “파트너 디지몬은 데이터가 되어 사라졌습니다.” (기존 플래그 `evolutionCompleteIsJogress` 재사용).
+   - 성공 메시지: 호스트와 게스트가 모두 각 버전의 결과 디지몬으로 진화했음을 안내한다.
 
 ### 4.5 취소 / 만료
 
@@ -173,7 +172,7 @@
 
 2. **로직**
    - `proceedJogressOnlineAsGuest(roomId, mySlot)`  
-     → getJogressResult 검증 → 방 문서 업데이트 + 게스트 슬롯 진화·사망 writeBatch + 호스트 슬롯 jogressStatus.canEvolve 업데이트.
+     → `resolveOnlineJogressPair` 검증 → 방 문서 업데이트 + 게스트 슬롯 진화 writeBatch + 호스트 슬롯 `jogressStatus.canEvolve` 업데이트.
    - `proceedJogressOnlineAsHost(slotId)`  
      → 현재 슬롯의 jogressStatus.targetId로 진화 처리, jogressStatus 초기화, 방 status=completed.
 
