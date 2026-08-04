@@ -96,7 +96,7 @@ function TopNavigation({ tamerName = "" }) {
   return (
     <header className="service-topnav">
       <div className="service-topnav__inner">
-        <Link className="service-brand" to={homePath}>
+        <Link className="service-brand" to="/">
           <span className="service-brand__mark" aria-hidden="true">
             <img
               className="service-brand__mark-image"

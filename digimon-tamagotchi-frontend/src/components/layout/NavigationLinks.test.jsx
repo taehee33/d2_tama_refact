@@ -64,13 +64,14 @@ describe("홈과 노트북 전역 이동 링크", () => {
     mockLocation.search = "";
   });
 
-  test("탑네비에 노트북 링크가 보인다", () => {
+  test("탑네비에 노트북 링크와 기본 진입 로고가 보인다", () => {
     const { container } = render(<TopNavigation />);
 
     expect(screen.getByRole("link", { name: "노트북" })).toHaveAttribute(
       "href",
       "/notebook"
     );
+    expect(container.querySelector(".service-brand")).toHaveAttribute("href", "/");
     expect(container.querySelector(".service-brand__mark-image")).toHaveAttribute(
       "src",
       "/logo192_agumon.png"
@@ -93,9 +94,10 @@ describe("홈과 노트북 전역 이동 링크", () => {
   test("로그인 상태에서는 홈 링크가 명시적 홈 경로를 가리키고 소개 링크와 테이머 메뉴가 보인다", () => {
     mockAuthState.currentUser = { uid: "tester", displayName: "코로몬" };
 
-    render(<TopNavigation tamerName="코로몬" />);
+    const { container } = render(<TopNavigation tamerName="코로몬" />);
 
     expect(screen.getByRole("link", { name: "홈" })).toHaveAttribute("href", "/home");
+    expect(container.querySelector(".service-brand")).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "소개" })).toHaveAttribute("href", "/landing");
     expect(screen.getByRole("link", { name: "테이머(설정)" })).toHaveAttribute("href", "/me");
   });
