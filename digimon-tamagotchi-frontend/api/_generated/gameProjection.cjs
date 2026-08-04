@@ -41,6 +41,7 @@ __webpack_require__.r(__webpack_exports__);
 __webpack_require__.d(__webpack_exports__, {
   ARENA_BATTLE_RULES_VERSION: () => (/* reexport */ ARENA_BATTLE_RULES_VERSION),
   DEFAULT_REALTIME_ARENA_RULES_VERSION: () => (/* reexport */ DEFAULT_REALTIME_ARENA_RULES_VERSION),
+  adaptDataMapToOldFormat: () => (/* reexport */ adaptDataMapToOldFormat),
   applyLazyUpdate: () => (/* reexport */ applyLazyUpdate),
   assertRealtimeArenaRules: () => (/* reexport */ assertRealtimeArenaRules),
   calculateArenaBattle: () => (/* reexport */ calculateArenaBattle),
@@ -51,11 +52,14 @@ __webpack_require__.d(__webpack_exports__, {
   createSeededRandom: () => (/* reexport */ createSeededRandom),
   findDigimonEntryAcrossVersions: () => (/* reexport */ findDigimonEntryAcrossVersions),
   formatKstTime: () => (/* reexport */ formatKstTime),
+  getDigimonDataMapByVersion: () => (/* reexport */ getDigimonDataMapByVersion),
   getDigimonEntryByVersion: () => (/* reexport */ getDigimonEntryByVersion),
   getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
-  isStarterDigimonId: () => (/* reexport */ digimonVersionUtils_isStarterDigimonId),
+  initializeStats: () => (/* reexport */ initializeStats),
+  isStarterDigimonId: () => (/* reexport */ isStarterDigimonId),
   normalizeDigimonVersionLabel: () => (/* reexport */ normalizeDigimonVersionLabel),
   projectState: () => (/* reexport */ projectState),
+  resolveOnlineJogressPair: () => (/* reexport */ resolveOnlineJogressPair),
   resolveRealtimeArenaRound: () => (/* reexport */ resolveRealtimeArenaRound),
   selectRealtimeArenaCpuAction: () => (/* reexport */ selectRealtimeArenaCpuAction),
   selectRealtimeArenaCpuOpponent: () => (/* reexport */ selectRealtimeArenaCpuOpponent),
@@ -64,7 +68,7 @@ __webpack_require__.d(__webpack_exports__, {
 
 ;// ./src/data/defaultStatsFile.js
 // src/data/defaultStatsFile.js
-const defaultStatsFile_defaultStats = {
+const defaultStats = {
     sprite: 133,
     evolutionStage: "Digitama",
     age: 0,
@@ -5138,13 +5142,13 @@ function digimonVersionUtils_getStarterDigimonId(version = "Ver.1") {
   return getDigimonVersionConfig(version).starterId;
 }
 
-function digimonVersionUtils_getStarterDigimonIdFromDataMap(dataMap = {}) {
+function getStarterDigimonIdFromDataMap(dataMap = {}) {
   return (
     STARTER_DIGIMON_IDS.find((starterId) => dataMap?.[starterId]) || "Digitama"
   );
 }
 
-function digimonVersionUtils_isStarterDigimonId(digimonId) {
+function isStarterDigimonId(digimonId) {
   return STARTER_DIGIMON_IDS.includes(digimonId);
 }
 
@@ -7593,6 +7597,335 @@ function applyLazyUpdate(
   });
 }
 
+;// ./src/data/v1/adapter.js
+// src/data/v1/adapter.js
+// 새 데이터 구조를 옛날 구조로 변환하는 호환성 어댑터
+
+function normalizeTimeString(value, fallback = null) {
+  const trimmed = String(value || "").trim();
+
+  if (!trimmed) {
+    return fallback;
+  }
+
+  const match = trimmed.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) {
+    return fallback;
+  }
+
+  const rawHour = Number.parseInt(match[1], 10);
+  const rawMinute = Number.parseInt(match[2], 10);
+  if (rawHour === 24 && rawMinute === 0) {
+    return "24:00";
+  }
+
+  const hour = Math.max(0, Math.min(23, rawHour));
+  const minute = Math.max(0, Math.min(59, rawMinute));
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function createSleepScheduleFromTimes(sleepTime, wakeTime) {
+  const normalizedSleepTime = normalizeTimeString(sleepTime);
+  const normalizedWakeTime = normalizeTimeString(wakeTime, "08:00");
+
+  if (!normalizedSleepTime || !normalizedWakeTime) {
+    return null;
+  }
+
+  const [rawStart, startMinute] = normalizedSleepTime.split(":").map(Number);
+  const [rawEnd, endMinute] = normalizedWakeTime.split(":").map(Number);
+  const start = rawStart === 24 ? 0 : rawStart;
+  const end = rawEnd === 24 ? 0 : rawEnd;
+
+  return {
+    start,
+    end,
+    startMinute,
+    endMinute,
+    startTime: normalizedSleepTime,
+    endTime: normalizedWakeTime,
+  };
+}
+
+/**
+ * 새 데이터 구조를 옛날 구조로 변환
+ * 옛날 코드와의 호환성을 위해 필드명을 매핑합니다.
+ *
+ * @param {Object} newData - 새 데이터 구조 (digimons.js)
+ * @returns {Object} 옛날 데이터 구조
+ */
+function adaptNewDataToOldFormat(newData) {
+  if (!newData) return null;
+
+  const sleepTime = normalizeTimeString(newData.stats?.sleepTime);
+  const wakeTime = normalizeTimeString(newData.stats?.wakeTime, "08:00");
+  const sleepSchedule = createSleepScheduleFromTimes(sleepTime, wakeTime);
+
+  const adapted = {
+    sprite: newData.sprite || 0,
+    evolutionStage: newData.stage || "Digitama",
+    stage: newData.stage || "Digitama",
+    timeToEvolveSeconds: newData.evolutionCriteria?.timeToEvolveSeconds || 0,
+    hungerTimer: newData.stats?.hungerCycle || 0,
+    strengthTimer: newData.stats?.strengthCycle || 0,
+    poopTimer: newData.stats?.poopCycle || 0,
+    maxOverfeed: newData.stats?.maxOverfeed || 0,
+    minWeight: newData.stats?.minWeight || 0,
+    maxStamina: newData.stats?.maxEnergy || 0,
+    maxEnergy: newData.stats?.maxEnergy || 0,
+    attackSprite: newData.stats?.attackSprite ?? newData.sprite ?? 0,
+    altAttackSprite: newData.stats?.altAttackSprite ?? 65535,
+    basePower: newData.stats?.basePower || 0,
+    type: newData.stats?.type || null,
+    sleepTime,
+    wakeTime,
+    sleepSchedule,
+    // v2용: 스프라이트 이미지 기준 경로 (있으면 UI에서 사용)
+    spriteBasePath: newData.spriteBasePath || null,
+    stats: {
+      sleepSchedule,
+      maxEnergy: newData.stats?.maxEnergy ?? 0,
+      attackSprite: newData.stats?.attackSprite ?? newData.sprite ?? 0,
+      altAttackSprite: newData.stats?.altAttackSprite ?? 65535,
+    },
+  };
+
+  if (false) {}
+
+  return adapted;
+}
+
+/**
+ * 새 데이터 맵 전체를 옛날 형식으로 변환
+ *
+ * @param {Object} newDataMap - 새 데이터 맵
+ * @returns {Object} 옛날 형식의 데이터 맵
+ */
+function adaptDataMapToOldFormat(newDataMap) {
+  if (!newDataMap || typeof newDataMap !== "object") {
+    console.error(
+      "[Adapter] adaptDataMapToOldFormat: newDataMap이 유효하지 않습니다.",
+      newDataMap
+    );
+    return {};
+  }
+
+  const adaptedMap = {};
+
+  for (const [key, value] of Object.entries(newDataMap)) {
+    adaptedMap[key] = adaptNewDataToOldFormat(value);
+  }
+
+  if (false) {}
+
+  return adaptedMap;
+}
+
+;// ./src/logic/evolution/jogress.js
+// src/logic/evolution/jogress.js
+// 조그레스 진화 결과 판정 (순수 함수)
+
+
+
+/**
+ * Ver.1 / Ver.2 동일 캐릭터 매칭용: ID에서 V1·V2 접미사 제거해 베이스 ID로 통일
+ * (v1 슬롯은 "BlitzGreymon", v2 데이터는 partner "BlitzGreymonV1" 등 혼용되므로 둘 다 정규화)
+ * @param {string} id - 디지몬 ID (예: CresGarurumonV2, BlitzGreymonV1, BlitzGreymon)
+ * @returns {string} 베이스 ID (예: CresGarurumon, BlitzGreymon)
+ */
+function baseJogressId(id) {
+  if (typeof id !== "string") return "";
+  return id.replace(/V2$/i, "").replace(/V1$/i, "");
+}
+
+function resolveDigimonKey(dataMap, digimonId) {
+  if (!dataMap || !digimonId) return null;
+  if (dataMap[digimonId]) return digimonId;
+
+  const normalizedId = String(digimonId).toLowerCase();
+  const exactIdEntry = Object.entries(dataMap).find(([key, entry]) =>
+    key.toLowerCase() === normalizedId ||
+    String(entry?.id || "").toLowerCase() === normalizedId
+  );
+  if (exactIdEntry) return exactIdEntry[0];
+
+  const baseId = baseJogressId(digimonId);
+  const legacyEntry = Object.entries(dataMap).find(([key, entry]) =>
+    baseJogressId(key) === baseId || baseJogressId(entry?.id) === baseId
+  );
+  return legacyEntry?.[0] || null;
+}
+
+function isLegacyJogressVersion(version) {
+  return version === "Ver.1" || version === "Ver.2";
+}
+
+function isPartnerVersionCompatible(partnerVersion, expectedVersion, sourceVersion) {
+  if (partnerVersion) {
+    return normalizeDigimonVersionLabel(partnerVersion) === expectedVersion;
+  }
+
+  return isLegacyJogressVersion(sourceVersion) && isLegacyJogressVersion(expectedVersion);
+}
+
+function findJogressEvolution({
+  sourceEntry,
+  sourceVersion,
+  partnerVersion,
+  partnerDigimonId,
+}) {
+  const partnerBaseId = baseJogressId(partnerDigimonId);
+  return (sourceEntry?.evolutions || []).find((evolution) => {
+    if (!evolution?.jogress) return false;
+    const configuredPartnerId = evolution.jogress.partner;
+    const matchesPartner =
+      configuredPartnerId === partnerDigimonId ||
+      baseJogressId(configuredPartnerId) === partnerBaseId;
+    return matchesPartner && isPartnerVersionCompatible(
+      evolution.jogress.partnerVersion,
+      partnerVersion,
+      sourceVersion
+    );
+  });
+}
+
+/**
+ * 온라인 조그레스 양쪽 참가자의 버전별 결과를 계산한다.
+ * @param {Object} pair
+ * @param {string} pair.hostVersion
+ * @param {string} pair.hostDigimonId
+ * @param {string} pair.guestVersion
+ * @param {string} pair.guestDigimonId
+ * @param {Object} [options]
+ * @param {Function} [options.getDataMapByVersion]
+ * @returns {Object}
+ */
+function resolveOnlineJogressPair(
+  pair,
+  options = {}
+) {
+  const {
+    hostVersion,
+    hostDigimonId,
+    guestVersion,
+    guestDigimonId,
+  } = pair || {};
+  const { getDataMapByVersion = getDigimonDataMapByVersion } = options;
+  if (!hostDigimonId || !guestDigimonId) {
+    return { success: false, reason: "조그레스 참가자 정보가 올바르지 않습니다." };
+  }
+
+  const normalizedHostVersion = normalizeDigimonVersionLabel(hostVersion);
+  const normalizedGuestVersion = normalizeDigimonVersionLabel(guestVersion);
+  if (
+    !SUPPORTED_DIGIMON_VERSIONS.includes(hostVersion) ||
+    !SUPPORTED_DIGIMON_VERSIONS.includes(guestVersion)
+  ) {
+    return { success: false, reason: "지원하지 않는 디지몬 버전입니다." };
+  }
+
+  const hostMap = getDataMapByVersion(normalizedHostVersion);
+  const guestMap = getDataMapByVersion(normalizedGuestVersion);
+  const hostSourceId = resolveDigimonKey(hostMap, hostDigimonId);
+  const guestSourceId = resolveDigimonKey(guestMap, guestDigimonId);
+  const hostEntry = hostSourceId ? hostMap?.[hostSourceId] : null;
+  const guestEntry = guestSourceId ? guestMap?.[guestSourceId] : null;
+  if (!hostEntry || !guestEntry) {
+    return { success: false, reason: "조그레스 참가 디지몬 데이터를 찾을 수 없습니다." };
+  }
+
+  const hostEvolution = findJogressEvolution({
+    sourceEntry: hostEntry,
+    sourceVersion: normalizedHostVersion,
+    partnerVersion: normalizedGuestVersion,
+    partnerDigimonId: guestSourceId,
+  });
+  const guestEvolution = findJogressEvolution({
+    sourceEntry: guestEntry,
+    sourceVersion: normalizedGuestVersion,
+    partnerVersion: normalizedHostVersion,
+    partnerDigimonId: hostSourceId,
+  });
+  if (!hostEvolution || !guestEvolution) {
+    return { success: false, reason: "조그레스할 수 있는 버전 또는 디지몬 조합이 아닙니다." };
+  }
+
+  const hostTargetId = resolveDigimonKey(
+    hostMap,
+    hostEvolution.targetId || hostEvolution.targetName
+  );
+  const guestTargetId = resolveDigimonKey(
+    guestMap,
+    guestEvolution.targetId || guestEvolution.targetName
+  );
+  if (!hostTargetId || !guestTargetId) {
+    return { success: false, reason: "조그레스 결과 디지몬 데이터를 찾을 수 없습니다." };
+  }
+  if (baseJogressId(hostTargetId) !== baseJogressId(guestTargetId)) {
+    return { success: false, reason: "양쪽 버전의 조그레스 결과가 일치하지 않습니다." };
+  }
+
+  return {
+    success: true,
+    hostVersion: normalizedHostVersion,
+    guestVersion: normalizedGuestVersion,
+    hostMap,
+    guestMap,
+    hostSourceId,
+    guestSourceId,
+    hostTargetId,
+    guestTargetId,
+    hostEntry,
+    guestEntry,
+    hostTargetEntry: hostMap[hostTargetId],
+    guestTargetEntry: guestMap[guestTargetId],
+  };
+}
+
+/**
+ * 두 디지몬이 조그레스 가능한지 확인하고, **현재 슬롯** 기준 결과 디지몬 ID를 반환한다.
+ * Ver.1 블리츠그레이몬 + Ver.2 크레스가루루몬처럼 버전이 달라도, 파트너 이름이 같으면 조그레스 가능.
+ *
+ * @param {string} currentDigimonId - 현재 슬롯 디지몬 ID (진화하는 쪽)
+ * @param {string} partnerDigimonId - 파트너 슬롯 디지몬 ID (사망 처리되는 쪽)
+ * @param {Object} currentSlotDataMap - 현재 슬롯 버전의 디지몬 데이터 맵 (evolutions·jogress 포함)
+ * @returns {{ success: boolean, targetId?: string, reason?: string }}
+ */
+function getJogressResult(currentDigimonId, partnerDigimonId, currentSlotDataMap = {}) {
+  if (!currentDigimonId || !partnerDigimonId || !currentSlotDataMap || typeof currentSlotDataMap !== "object") {
+    return { success: false, reason: "잘못된 입력입니다." };
+  }
+
+  // 호스트 ID가 BlitzGreymonV1 등이어도 v1 맵 키는 BlitzGreymon일 수 있으므로 베이스 ID로 폴백
+  let dataA = currentSlotDataMap[currentDigimonId];
+  if (!dataA) {
+    const baseId = baseJogressId(currentDigimonId);
+    dataA = currentSlotDataMap[baseId] || currentSlotDataMap[baseId + "V1"] || currentSlotDataMap[baseId + "V2"];
+  }
+  if (!dataA) {
+    return { success: false, reason: "조그레스할 수 있는 조합이 아닙니다." };
+  }
+
+  const partnerBase = baseJogressId(partnerDigimonId);
+
+  // 현재 슬롯 디지몬의 진화 옵션 중, 파트너가 일치하는 조그레스가 있는지 (정확 일치 또는 V2 제거 후 일치)
+  const evolutionsA = dataA.evolutions || [];
+  for (const evo of evolutionsA) {
+    if (!evo.jogress) continue;
+    const p = evo.jogress.partner;
+    const match = p === partnerDigimonId || baseJogressId(p) === partnerBase;
+    if (match) {
+      const targetId = evo.targetId || evo.targetName;
+      if (targetId) {
+        return { success: true, targetId };
+      }
+    }
+  }
+
+  return { success: false, reason: "조그레스할 수 있는 조합이 아닙니다." };
+}
+
 ;// ./src/logic/battle/hitrate.js
 // src/logic/battle/hitrate.js
 // Digital Monster Color 매뉴얼 기반 배틀 히트레이트 계산 로직
@@ -8202,6 +8535,8 @@ function selectRealtimeArenaFallbackAction({ seed, battleId, round, role }) {
 }
 
 ;// ./src/server/gameProjectionEntry.js
+
+
 
 
 

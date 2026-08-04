@@ -1,4 +1,6 @@
-export { applyLazyUpdate, projectState } from "../data/stats";
+export { applyLazyUpdate, initializeStats, projectState } from "../data/stats";
+export { adaptDataMapToOldFormat } from "../data/v1/adapter";
+export { resolveOnlineJogressPair } from "../logic/evolution/jogress";
 export {
   ARENA_BATTLE_RULES_VERSION,
   calculateArenaBattle,
@@ -21,6 +23,7 @@ export {
 } from "../logic/realtime-arena/cpu";
 export {
   findDigimonEntryAcrossVersions,
+  getDigimonDataMapByVersion,
   getDigimonEntryByVersion,
   getStarterDigimonId,
   isStarterDigimonId,

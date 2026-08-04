@@ -1,266 +1,95 @@
 import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "../firebase";
+  cancelJogressRoomApi,
+  createJogressRoomApi,
+  JogressApiError,
+} from "../utils/jogressApi";
 import {
-  getDigimonDataMapByVersion,
   normalizeDigimonVersionLabel,
   SUPPORTED_DIGIMON_VERSIONS,
 } from "../utils/digimonVersionUtils";
-import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 
 export function isOnlineJogressSupported(versionLabel = "Ver.1") {
-  const normalizedVersion = normalizeDigimonVersionLabel(versionLabel);
-  return SUPPORTED_DIGIMON_VERSIONS.includes(normalizedVersion);
+  return SUPPORTED_DIGIMON_VERSIONS.includes(normalizeDigimonVersionLabel(versionLabel));
 }
 
 function hasJogressEvolution(dataMap, digimonId) {
-  const evolutions = dataMap?.[digimonId]?.evolutions || [];
-  return evolutions.some((evolution) => evolution.jogress);
+  return (dataMap?.[digimonId]?.evolutions || []).some((evolution) => evolution.jogress);
+}
+
+function showApiError(prefix, error) {
+  console.error(prefix, error);
+  alert(error instanceof JogressApiError ? error.message : "조그레스 요청 중 오류가 발생했습니다.");
 }
 
 export function useJogressRoomLifecycle({
   currentUser,
   slotId,
   selectedDigimon,
-  version = "Ver.1",
-  tamerName,
-  digimonNickname,
   slotEvolutionDataMap,
-  resolveGuestDigimonName,
+  flushOutbox,
+  refreshGameRevision,
 }) {
+  async function currentExpectedRevision() {
+    await flushOutbox?.();
+    const refreshed = await refreshGameRevision?.();
+    const revision = Number(refreshed?.revision ?? refreshed);
+    return Number.isInteger(revision) ? revision : null;
+  }
+
   async function createJogressRoom() {
-    if (!currentUser?.uid || !slotId || !db) {
+    if (!currentUser?.uid || slotId == null) {
       alert("조그레스에는 로그인이 필요합니다.");
       return null;
     }
-
     if (!hasJogressEvolution(slotEvolutionDataMap, selectedDigimon)) {
       alert("현재 디지몬은 조그레스 진화가 불가능합니다.");
       return null;
     }
-
     try {
-      const hostTamerName = resolveTamerNamePriority({
-        tamerName,
-        currentUser,
-        fallback: null,
-      });
-      const roomsRef = collection(db, "jogress_rooms");
-      const docRef = await addDoc(roomsRef, {
-        hostUid: currentUser.uid,
-        hostSlotId: slotId,
-        hostDigimonId: selectedDigimon,
-        hostSlotVersion: version || "Ver.1",
-        hostTamerName,
-        hostDigimonNickname:
-          digimonNickname && digimonNickname.trim()
-            ? digimonNickname.trim()
-            : null,
-        status: "waiting",
-        createdAt: serverTimestamp(),
-      });
-      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-      await updateDoc(slotRef, {
-        jogressStatus: { isWaiting: true, roomId: docRef.id },
-        updatedAt: serverTimestamp(),
-      });
-      return { roomId: docRef.id };
-    } catch (err) {
-      console.error("[createJogressRoom] 오류:", err);
-      alert("방 생성 중 오류가 발생했습니다.");
+      const expectedRevision = await currentExpectedRevision();
+      if (!Number.isInteger(expectedRevision)) throw new JogressApiError("현재 슬롯 동기화가 끝난 뒤 다시 시도해 주세요.");
+      const result = await createJogressRoomApi(currentUser, { slotId, expectedRevision });
+      return { roomId: result?.room?.id || null, room: result?.room, alreadyRegistered: result?.alreadyRegistered === true };
+    } catch (error) {
+      showApiError("[createJogressRoom]", error);
       return null;
     }
   }
 
   async function createJogressRoomForSlot(slot) {
-    if (!currentUser?.uid || !db || !slot?.id) {
+    if (!currentUser?.uid || slot?.id == null) {
       alert("조그레스에는 로그인이 필요합니다.");
       return null;
     }
-
-    const digimonId = slot.selectedDigimon;
-    const slotVersion = slot.version || "Ver.1";
-
-    const dataMap = getDigimonDataMapByVersion(slotVersion);
-    if (!hasJogressEvolution(dataMap, digimonId)) {
-      alert("선택한 디지몬은 조그레스 진화가 불가능합니다.");
-      return null;
-    }
-
     try {
-      const hostTamerName = resolveTamerNamePriority({
-        tamerName,
-        currentUser,
-        fallback: null,
-      });
-      const roomsRef = collection(db, "jogress_rooms");
-      const docRef = await addDoc(roomsRef, {
-        hostUid: currentUser.uid,
-        hostSlotId: slot.id,
-        hostDigimonId: digimonId,
-        hostSlotVersion: slotVersion,
-        hostTamerName,
-        hostDigimonNickname:
-          slot.digimonNickname && slot.digimonNickname.trim()
-            ? slot.digimonNickname.trim()
-            : null,
-        status: "waiting",
-        createdAt: serverTimestamp(),
-      });
-      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`);
-      await updateDoc(slotRef, {
-        jogressStatus: { isWaiting: true, roomId: docRef.id },
-        updatedAt: serverTimestamp(),
-      });
-      return { roomId: docRef.id };
-    } catch (err) {
-      console.error("[createJogressRoomForSlot] 오류:", err);
-      alert("방 생성 중 오류가 발생했습니다.");
+      if (String(slot.id) === String(slotId)) await flushOutbox?.();
+      const expectedRevision = Number(slot.revision);
+      if (!Number.isInteger(expectedRevision)) throw new JogressApiError("선택한 슬롯의 최신 상태를 다시 불러와 주세요.");
+      const result = await createJogressRoomApi(currentUser, { slotId: slot.id, expectedRevision });
+      return { roomId: result?.room?.id || null, room: result?.room, alreadyRegistered: result?.alreadyRegistered === true };
+    } catch (error) {
+      showApiError("[createJogressRoomForSlot]", error);
       return null;
     }
   }
 
   async function cancelJogressRoom(roomId) {
-    if (!currentUser?.uid || !roomId || !db) {
-      return;
-    }
-
+    if (!currentUser?.uid || !roomId) return null;
     try {
-      const roomRef = doc(db, "jogress_rooms", roomId);
-      const roomSnap = await getDoc(roomRef);
-      const data = roomSnap.exists() ? roomSnap.data() : {};
-
-      if (data.hostUid !== currentUser.uid || data.status !== "waiting") {
-        alert("취소할 수 있는 방이 없습니다.");
-        return;
-      }
-
-      const hostSlotId = data.hostSlotId;
-      await updateDoc(roomRef, {
-        status: "cancelled",
-        updatedAt: serverTimestamp(),
-      });
-
-      if (hostSlotId != null) {
-        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${hostSlotId}`);
-        await updateDoc(slotRef, {
-          jogressStatus: {},
-          updatedAt: serverTimestamp(),
-        });
-      }
-    } catch (err) {
-      console.error("[cancelJogressRoom] 오류:", err);
-      alert("방 취소 중 오류가 발생했습니다.");
+      return await cancelJogressRoomApi(currentUser, roomId);
+    } catch (error) {
+      showApiError("[cancelJogressRoom]", error);
+      return null;
     }
   }
 
-  async function cancelOwnedWaitingJogressRoomsForSlot(hostSlotId) {
-    if (!currentUser?.uid || hostSlotId == null || !db) {
-      return 0;
-    }
-
-    try {
-      const myRoomsRef = collection(db, "jogress_rooms");
-      let myRoomsDocs = [];
-
-      try {
-        const roomsQuery = query(
-          myRoomsRef,
-          where("hostUid", "==", currentUser.uid),
-          where("status", "==", "waiting")
-        );
-        const snap = await getDocs(roomsQuery);
-        myRoomsDocs = snap.docs;
-      } catch (idxErr) {
-        const fallbackQuery = query(
-          myRoomsRef,
-          where("status", "==", "waiting"),
-          limit(50)
-        );
-        const all = await getDocs(fallbackQuery);
-        myRoomsDocs = all.docs.filter((roomDoc) => roomDoc.data().hostUid === currentUser.uid);
-      }
-
-      const hostSlotIdNum =
-        typeof hostSlotId === "number" ? hostSlotId : parseInt(hostSlotId, 10);
-      let cancelledCount = 0;
-
-      for (const roomDoc of myRoomsDocs) {
-        const roomData = roomDoc.data();
-        const matchesSlot =
-          roomData.hostSlotId === hostSlotId ||
-          (!Number.isNaN(hostSlotIdNum) && roomData.hostSlotId === hostSlotIdNum);
-
-        if (!matchesSlot) {
-          continue;
-        }
-
-        await cancelJogressRoom(roomDoc.id);
-        cancelledCount += 1;
-      }
-
-      return cancelledCount;
-    } catch (err) {
-      console.warn(
-        "[cancelOwnedWaitingJogressRoomsForSlot] 내 등록 방 취소 시 오류(무시):",
-        err
-      );
-      return 0;
-    }
+  async function cancelOwnedWaitingJogressRoomsForSlot() {
+    // 형태가 바뀌어도 등록 당시 방은 1회용 Ghost로 유지한다.
+    return 0;
   }
 
-  async function applyHostJogressStatusFromRoom(roomData, roomId) {
-    if (
-      !isOnlineJogressSupported(roomData?.hostSlotVersion) ||
-      !isOnlineJogressSupported(roomData?.guestSlotVersion)
-    ) {
-      return;
-    }
-
-    if (
-      !currentUser?.uid ||
-      roomData?.hostUid !== currentUser.uid ||
-      roomData?.status !== "paired" ||
-      !db
-    ) {
-      return;
-    }
-
-    const hostSlotId = roomData.hostSlotId;
-    if (hostSlotId == null) {
-      return;
-    }
-
-    const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${hostSlotId}`);
-    const guestDigimonName = resolveGuestDigimonName?.({
-      versionLabel: roomData.guestSlotVersion,
-      digimonId: roomData.guestDigimonId,
-    });
-
-    await updateDoc(slotRef, {
-      jogressStatus: {
-        canEvolve: true,
-        roomId,
-        targetId: roomData.targetId,
-        partnerUserId: roomData.guestUid || null,
-        partnerSlotId: roomData.guestSlotId ?? null,
-        guestTamerName: roomData.guestTamerName || null,
-        guestDigimonId: roomData.guestDigimonId || null,
-        guestDigimonName:
-          guestDigimonName || roomData.guestDigimonId || null,
-      },
-      updatedAt: serverTimestamp(),
-    });
+  async function applyHostJogressStatusFromRoom() {
+    // paired 전이와 host jogressStatus 저장은 join 서버 transaction에서 함께 처리한다.
   }
 
   return {

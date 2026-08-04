@@ -1,6 +1,14 @@
 {
   "indexes": [
     {
+      "collectionGroup": "jogress_rooms",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "arena_battle_logs",
       "queryScope": "COLLECTION",
       "fields": [

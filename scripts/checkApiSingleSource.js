@@ -14,6 +14,7 @@ const MAX_VERCEL_FUNCTIONS = 12;
 
 const EXPECTED_DEPLOYED_ENTRYPOINTS = Object.freeze([
   "arena-v2.js",
+  "jogress.js",
   "arena/admin/archives/[archiveId].js",
   "arena/admin/config.js",
   "community/[boardId]/comments/[commentId].js",

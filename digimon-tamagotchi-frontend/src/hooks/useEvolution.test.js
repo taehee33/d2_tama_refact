@@ -23,6 +23,8 @@ const mockArchiveJogressLog = jest.fn();
 const mockCreateLogArchiveId = jest.fn();
 const mockBatchUpdate = jest.fn();
 const mockBatchCommit = jest.fn();
+const mockJoinJogressRoomApi = jest.fn();
+const mockCompleteJogressRoomApi = jest.fn();
 
 jest.mock("firebase/firestore", () => ({
   addDoc: (...args) => mockAddDoc(...args),
@@ -60,6 +62,12 @@ jest.mock("./useEncyclopedia", () => ({
 jest.mock("../utils/logArchiveApi", () => ({
   archiveJogressLog: (...args) => mockArchiveJogressLog(...args),
   createLogArchiveId: (...args) => mockCreateLogArchiveId(...args),
+}));
+
+jest.mock("../utils/jogressApi", () => ({
+  JogressApiError: class JogressApiError extends Error {},
+  joinJogressRoomApi: (...args) => mockJoinJogressRoomApi(...args),
+  completeJogressRoomApi: (...args) => mockCompleteJogressRoomApi(...args),
 }));
 
 describe("persistJogressLogWithArchive", () => {
@@ -513,436 +521,39 @@ describe("useEvolution jogress flows", () => {
     );
   });
 
-  test("proceedJogressOnlineAsGuest는 room을 paired로 바꾸고 guest slot을 진화 결과로 저장한다", async () => {
-    const params = createParams({ slotId: "99" });
+  test("온라인 참가와 완료는 서버 API outcome으로 현재 슬롯을 재동기화한다", async () => {
+    const params = createParams({
+      currentUser: { uid: "user-1" },
+      slotId: 2,
+      refreshGameRevision: jest.fn().mockResolvedValue(4),
+      flushOutbox: jest.fn().mockResolvedValue(true),
+    });
+    const guestOutcome = { selectedDigimon: "Omegamon", resultName: "오메가몬", digimonStats: { isDead: false } };
+    mockJoinJogressRoomApi.mockResolvedValue({ room: { id: "room-api", status: "paired" }, slotOutcome: guestOutcome });
+    mockCompleteJogressRoomApi.mockResolvedValue({ room: { id: "room-api", status: "completed" }, slotOutcome: guestOutcome });
     const { result } = renderHook(() => useEvolution(params));
 
     await act(async () => {
       await result.current.proceedJogressOnlineAsGuest(
-        {
-          id: "room-1",
-          hostSlotVersion: "Ver.1",
-          hostDigimonId: "Agumon",
-        },
-        {
-          id: 2,
-          selectedDigimon: "Betamon",
-          digimonStats: createStats(),
-          digimonNickname: "베타",
-          version: "Ver.1",
-        }
+        { id: "room-api" },
+        { id: 2, revision: 4, selectedDigimon: "Betamon", digimonStats: {}, version: "Ver.1" }
       );
     });
-
-    expect(mockBatchUpdate).toHaveBeenNthCalledWith(
-      1,
-      "jogress_rooms/room-1",
-      expect.objectContaining({
-        status: "paired",
-        guestUid: "user-1",
-        guestSlotId: 2,
-        guestDigimonId: "Betamon",
-        guestSlotVersion: "Ver.1",
-        targetId: "Omegamon",
-        updatedAt: "SERVER_TS",
-      })
-    );
-    expect(mockBatchUpdate).toHaveBeenNthCalledWith(
-      2,
-      "users/user-1/slots/slot2",
-      expect.objectContaining({
-        selectedDigimon: "Omegamon",
-        digimonStats: {
-          persistedDigimon: "Omegamon",
-          persistedLogs: 2,
-        },
-        lastSavedAt: 1700000000000,
-        lastSavedAtServer: "SERVER_TS",
-        updatedAt: "SERVER_TS",
-        revision: "REVISION_INCREMENT",
-      })
-    );
-    expect(params.refreshGameRevision).not.toHaveBeenCalled();
-    expect(params.setDigimonStatsAndSave).not.toHaveBeenCalled();
-    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
-    expect(alertSpy).toHaveBeenCalledWith(
-      "조그레스 진화 완료! 오메가몬(으)로 진화했습니다."
-    );
-  });
-
-  test("proceedJogressOnlineAsGuest는 현재 슬롯이면 로컬 저장을 맞추고 내 waiting room을 정리한다", async () => {
-    const params = createParams({ slotId: "2" });
-
-    mockGetDocs.mockResolvedValue({
-      docs: [
-        { id: "room-wait", data: () => ({ hostUid: "user-1", hostSlotId: 2 }) },
-        { id: "room-other", data: () => ({ hostUid: "user-1", hostSlotId: 3 }) },
-      ],
+    expect(mockJoinJogressRoomApi).toHaveBeenCalledWith(params.currentUser, {
+      roomId: "room-api",
+      guestSlotId: 2,
+      expectedRevision: 4,
     });
-    mockGetDoc.mockImplementation((ref) => {
-      if (ref === "jogress_rooms/room-wait") {
-        return Promise.resolve({
-          exists: () => true,
-          data: () => ({
-            hostUid: "user-1",
-            status: "waiting",
-            hostSlotId: 2,
-          }),
-        });
-      }
-
-      return Promise.resolve({
-        exists: () => false,
-        data: () => ({}),
-      });
-    });
-
-    const { result } = renderHook(() => useEvolution(params));
+    expect(params.setSelectedDigimon).toHaveBeenCalledWith("Omegamon");
+    expect(params.setDigimonStats).toHaveBeenCalledWith({ isDead: false });
 
     await act(async () => {
-      await result.current.proceedJogressOnlineAsGuest(
-        {
-          id: "room-2",
-          hostSlotVersion: "Ver.1",
-          hostDigimonId: "Agumon",
-        },
-        {
-          id: 2,
-          selectedDigimon: "Betamon",
-          digimonStats: createStats(),
-          version: "Ver.1",
-        }
-      );
+      await result.current.proceedJogressOnlineAsHostForRoom({ id: "room-api", hostSlotId: 2, hostRevision: 4 });
     });
-
-    expect(params.setDigimonStatsAndSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectedDigimon: "Omegamon",
-      }),
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "EVOLUTION",
-        }),
-      ])
-    );
-    expect(params.refreshGameRevision).toHaveBeenCalledWith(
-      expect.objectContaining({ selectedDigimon: "Omegamon" })
-    );
-    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Omegamon");
-    expect(mockUpdateDoc).toHaveBeenCalledWith("jogress_rooms/room-wait", {
-      status: "cancelled",
-      updatedAt: "SERVER_TS",
-    });
-    expect(mockUpdateDoc).toHaveBeenCalledWith("users/user-1/slots/slot2", {
-      jogressStatus: {},
-      updatedAt: "SERVER_TS",
+    expect(mockCompleteJogressRoomApi).toHaveBeenCalledWith(params.currentUser, {
+      roomId: "room-api",
+      expectedRevision: 4,
     });
   });
 
-  test("proceedJogressOnlineAsHostForRoom는 completed 전이와 현재 슬롯 동기화를 함께 처리한다", async () => {
-    const params = createParams({ slotId: "7" });
-
-    mockGetDoc.mockImplementation((ref) => {
-      if (ref === "users/user-1/slots/slot7") {
-        return Promise.resolve({
-          exists: () => true,
-          data: () => ({
-            selectedDigimon: "Agumon",
-            digimonStats: createStats(),
-          }),
-        });
-      }
-
-      return Promise.resolve({
-        exists: () => false,
-        data: () => ({}),
-      });
-    });
-
-    const { result } = renderHook(() => useEvolution(params));
-
-    await act(async () => {
-      await result.current.proceedJogressOnlineAsHostForRoom({
-        id: "room-3",
-        status: "paired",
-        hostSlotId: 7,
-        hostSlotVersion: "Ver.1",
-        hostDigimonId: "Agumon",
-        guestUid: "user-2",
-        guestTamerName: "게스트",
-        guestSlotId: 3,
-        guestSlotVersion: "Ver.1",
-        guestDigimonId: "Betamon",
-        targetId: "Omegamon",
-      });
-    });
-
-    expect(mockUpdateDoc).toHaveBeenNthCalledWith(
-      1,
-      "users/user-1/slots/slot7",
-      expect.objectContaining({
-        selectedDigimon: "Omegamon",
-        digimonStats: {
-          persistedDigimon: "Omegamon",
-          persistedLogs: 2,
-        },
-        jogressStatus: {},
-        lastSavedAt: 1700000000000,
-        lastSavedAtServer: "SERVER_TS",
-        updatedAt: "SERVER_TS",
-        revision: "REVISION_INCREMENT",
-      })
-    );
-    expect(params.refreshGameRevision).toHaveBeenCalledWith(
-      expect.objectContaining({ selectedDigimon: "Omegamon" })
-    );
-    expect(mockUpdateDoc).toHaveBeenNthCalledWith(2, "jogress_rooms/room-3", {
-      status: "completed",
-      completedAt: "SERVER_TS",
-      updatedAt: "SERVER_TS",
-    });
-    expect(params.appendLogToSubcollection).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "EVOLUTION",
-      })
-    );
-    expect(params.setDigimonStatsAndSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        selectedDigimon: "Omegamon",
-      }),
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "EVOLUTION",
-        }),
-      ])
-    );
-    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Omegamon");
-    expect(mockArchiveJogressLog).toHaveBeenCalledWith(
-      params.currentUser,
-      expect.objectContaining({
-        id: "archive-1",
-        targetId: "Omegamon",
-        payload: {
-          mode: "online-room",
-          resultName: "오메가몬",
-          roomId: "room-3",
-        },
-      })
-    );
-    expect(params.setEvolutionCompleteIsJogress).toHaveBeenCalledWith(true);
-    expect(params.setEvolvedDigimonName).toHaveBeenCalledWith("오메가몬");
-    expect(params.setEvolutionStage).toHaveBeenCalledWith("complete");
-    expect(params.toggleModal).toHaveBeenCalledWith("jogressRoomList", false);
-    expect(alertSpy).toHaveBeenCalledWith(
-      "조그레스 진화 완료! 오메가몬(으)로 진화했습니다."
-    );
-  });
-
-  test.each([
-    ["Ver.3", "Chimairamon", "Ver.5", "Mugendramon", "Millenniumon"],
-    ["Ver.3", "BanchoLeomon", "Ver.4", "Darkdramon", "Chaosmon"],
-    ["Ver.4", "Darkdramon", "Ver.5", "Mugendramon", "Chaosdramon"],
-  ])(
-    "%s↔%s 온라인 흐름은 게스트 참가 후 호스트 완료까지 양쪽 슬롯을 진화·생존시킨다",
-    async (hostVersion, hostDigimonId, guestVersion, guestDigimonId, targetId) => {
-      const hostMap = getDigimonDataMapByVersion(hostVersion);
-      const guestMap = getDigimonDataMapByVersion(guestVersion);
-      const hostAdaptedMap = adaptDataMapToOldFormat(hostMap);
-      const guestAdaptedMap = adaptDataMapToOldFormat(guestMap);
-      const { resolveOnlineJogressPair } = jest.requireActual(
-        "../logic/evolution/jogress"
-      );
-      const firestoreState = new Map([
-        [
-          "jogress_rooms/cross-room",
-          {
-            status: "waiting",
-            hostUid: "host-user",
-            hostSlotId: 1,
-            hostSlotVersion: hostVersion,
-            hostDigimonId,
-          },
-        ],
-        [
-          "users/guest-user/slots/slot2",
-          {
-            selectedDigimon: guestDigimonId,
-            digimonStats: createStats(),
-            version: guestVersion,
-          },
-        ],
-        [
-          "users/host-user/slots/slot1",
-          {
-            selectedDigimon: hostDigimonId,
-            digimonStats: createStats(),
-            version: hostVersion,
-          },
-        ],
-      ]);
-      const applyFirestoreUpdate = (ref, update) => {
-        firestoreState.set(ref, {
-          ...(firestoreState.get(ref) || {}),
-          ...update,
-        });
-      };
-      mockResolveOnlineJogressPair.mockImplementation(resolveOnlineJogressPair);
-      mockSanitizeDigimonStatsForSlotDocument.mockImplementation((stats) => stats);
-      mockBatchUpdate.mockImplementation(applyFirestoreUpdate);
-      mockUpdateDoc.mockImplementation(async (ref, update) => {
-        applyFirestoreUpdate(ref, update);
-      });
-      mockGetDoc.mockImplementation(async (ref) => ({
-        exists: () => firestoreState.has(ref),
-        data: () => firestoreState.get(ref) || {},
-      }));
-
-      const guestParams = createParams({
-        currentUser: { uid: "guest-user", displayName: "게스트" },
-        slotId: "2",
-        selectedDigimon: guestDigimonId,
-        version: guestVersion,
-        digimonDataVer1: guestMap,
-        newDigimonDataVer1: guestMap,
-        adaptedDataMapsByVersion: {
-          [hostVersion]: hostAdaptedMap,
-          [guestVersion]: guestAdaptedMap,
-        },
-      });
-      const { result: guestResult } = renderHook(() => useEvolution(guestParams));
-      await act(async () => {
-        await guestResult.current.proceedJogressOnlineAsGuest(
-          {
-            id: "cross-room",
-            ...firestoreState.get("jogress_rooms/cross-room"),
-          },
-          {
-            id: 2,
-            selectedDigimon: guestDigimonId,
-            digimonStats: createStats(),
-            version: guestVersion,
-          }
-        );
-      });
-
-      expect(mockBatchUpdate).toHaveBeenCalledWith(
-        "jogress_rooms/cross-room",
-        expect.objectContaining({
-          status: "paired",
-          guestSlotVersion: guestVersion,
-          targetId,
-        })
-      );
-      expect(mockBatchUpdate).toHaveBeenCalledWith(
-        "users/guest-user/slots/slot2",
-        expect.objectContaining({
-          selectedDigimon: targetId,
-          combatRevision: "REVISION_INCREMENT",
-        })
-      );
-      expect(firestoreState.get("jogress_rooms/cross-room")).toEqual(
-        expect.objectContaining({
-          status: "paired",
-          guestSlotVersion: guestVersion,
-          targetId,
-        })
-      );
-      expect(firestoreState.get("users/guest-user/slots/slot2")).toEqual(
-        expect.objectContaining({ selectedDigimon: targetId })
-      );
-      expect(
-        firestoreState.get("users/guest-user/slots/slot2").digimonStats.isDead
-      ).not.toBe(true);
-      expect(firestoreState.get("users/host-user/slots/slot1")).toEqual(
-        expect.objectContaining({ selectedDigimon: hostDigimonId })
-      );
-
-      const hostParams = createParams({
-        currentUser: { uid: "host-user", displayName: "호스트" },
-        slotId: "1",
-        selectedDigimon: hostDigimonId,
-        version: hostVersion,
-        digimonDataVer1: hostMap,
-        newDigimonDataVer1: hostMap,
-        adaptedDataMapsByVersion: {
-          [hostVersion]: hostAdaptedMap,
-          [guestVersion]: guestAdaptedMap,
-        },
-      });
-      const { result: hostResult } = renderHook(() => useEvolution(hostParams));
-      await act(async () => {
-        await hostResult.current.proceedJogressOnlineAsHostForRoom({
-          id: "cross-room",
-          ...firestoreState.get("jogress_rooms/cross-room"),
-        });
-      });
-
-      expect(mockUpdateDoc).toHaveBeenCalledWith(
-        "users/host-user/slots/slot1",
-        expect.objectContaining({
-          selectedDigimon: targetId,
-          jogressStatus: {},
-          combatRevision: "REVISION_INCREMENT",
-        })
-      );
-      expect(mockUpdateDoc).toHaveBeenCalledWith("jogress_rooms/cross-room", {
-        status: "completed",
-        completedAt: "SERVER_TS",
-        updatedAt: "SERVER_TS",
-      });
-      expect(firestoreState.get("jogress_rooms/cross-room")).toEqual(
-        expect.objectContaining({ status: "completed" })
-      );
-      expect(firestoreState.get("users/host-user/slots/slot1")).toEqual(
-        expect.objectContaining({ selectedDigimon: targetId })
-      );
-      expect(
-        firestoreState.get("users/host-user/slots/slot1").digimonStats.isDead
-      ).not.toBe(true);
-      expect(
-        firestoreState.get("users/guest-user/slots/slot2").digimonStats.isDead
-      ).not.toBe(true);
-      const transitionInputs = mockSanitizeDigimonStatsForSlotDocument.mock.calls
-        .map(([stats]) => stats)
-        .filter((stats) => stats?.selectedDigimon === targetId);
-      expect(transitionInputs).toHaveLength(2);
-      expect(transitionInputs.every((stats) => stats.isDead !== true)).toBe(true);
-      expect(transitionInputs).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            hungerTimer: guestAdaptedMap[targetId].hungerTimer,
-            strengthTimer: guestAdaptedMap[targetId].strengthTimer,
-            poopTimer: guestAdaptedMap[targetId].poopTimer,
-            basePower: guestAdaptedMap[targetId].basePower,
-            maxEnergy: guestAdaptedMap[targetId].maxEnergy,
-            attackSprite: guestAdaptedMap[targetId].attackSprite,
-            spriteBasePath: guestAdaptedMap[targetId].spriteBasePath,
-          }),
-          expect.objectContaining({
-            hungerTimer: hostAdaptedMap[targetId].hungerTimer,
-            strengthTimer: hostAdaptedMap[targetId].strengthTimer,
-            poopTimer: hostAdaptedMap[targetId].poopTimer,
-            basePower: hostAdaptedMap[targetId].basePower,
-            maxEnergy: hostAdaptedMap[targetId].maxEnergy,
-            attackSprite: hostAdaptedMap[targetId].attackSprite,
-            spriteBasePath: hostAdaptedMap[targetId].spriteBasePath,
-          }),
-        ])
-      );
-      expect(mockUpdateEncyclopedia).toHaveBeenCalledWith(
-        guestDigimonId,
-        expect.any(Object),
-        "evolution",
-        expect.objectContaining({ uid: "guest-user" }),
-        guestVersion
-      );
-      expect(mockUpdateEncyclopedia).toHaveBeenCalledWith(
-        hostDigimonId,
-        expect.any(Object),
-        "evolution",
-        expect.objectContaining({ uid: "host-user" }),
-        hostVersion
-      );
-    }
-  );
 });

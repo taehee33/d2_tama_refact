@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-08-04] 온라인 조그레스 1회용 Ghost·서버 transaction 전환
+
+- **내용:** 등록 당시 디지몬을 불변 `hostSnapshot`으로 보존한다. Identity가 같으면 양쪽이 진화하는 live 방, 진화·사망·환생·슬롯 삭제로 달라지면 참가자만 진화하는 1회용 Ghost 방이 된다. 같은 슬롯의 새 형태는 기존 Ghost를 유지한 채 별도 등록할 수 있다.
+- **저장 계약:** live `join`은 게스트 진화와 `paired`, `complete`는 호스트 진화와 `completed`를 transaction으로 저장한다. Ghost `join`은 게스트만 진화시키고 즉시 `completed/ghost`로 소비하며 현재 호스트 슬롯은 수정하지 않는다. live 참가 뒤 호스트가 바뀌면 `ghostFallback`으로 완료한다.
+- **운영 마이그레이션:** Identity 없는 waiting은 `legacyGhost`, 유효한 expired는 waiting Ghost, paired는 `completed/ghostFallback`으로 전환한다. 사용자별 활성 방은 기존 waiting 우선·최신순 최대 3개를 유지한다. dry-run/apply/room별 rollback과 원본 payload 백업을 제공한다.
+- **영향 파일:** `api/jogress.js`, `api/_lib/jogress*.js`, 서버 projection, `src/utils/jogressApi.js`, 조그레스 lifecycle/evolution/UI/subscription, `scripts/migrateJogressRoomsToGhostV3.js`, `firestore.rules`, `firestore.indexes.json`, API·Emulator·migration 테스트, `docs/ONLINE_JOGRESS_SERVER_CONTRACT.md`.
+- **아키텍처 결정 근거:** 옛 방을 현재 슬롯에 억지로 재연결하면 다른 생명·형태를 잘못 진화시킨다. 등록 snapshot을 플레이 가능한 1회용 계약으로 독립시키고 현재 Identity 일치 여부는 표시·진화 모드에만 사용해 과거 육성 기록과 현재 슬롯을 동시에 보존한다.
+
 ## [2026-08-04] Ver.3~Ver.5 온라인 조그레스 지원 및 생존 계약 정리
 
 - **내용:** 온라인 조그레스의 버전 제한을 Ver.1~Ver.5 공통 지원으로 확장했다. 호스트·게스트의 버전별 데이터 맵, `partnerVersion`, 양방향 진화 정의와 결과 엔트리를 한 번에 검증하는 순수 resolver를 추가했다.

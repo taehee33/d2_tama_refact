@@ -117,11 +117,21 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
-    // 임시 호환성 허용 구간
-    // 이 컬렉션들은 현재 앱이 사용 중이지만 보안 정책이 완전히 확정되지 않았습니다.
-    // 이번 라운드에서는 기능 회귀를 막기 위해 "인증 사용자 허용" 수준만 유지합니다.
+    // 조그레스 정본과 보조 인덱스는 인증된 서버 API만 쓸 수 있다.
     match /jogress_rooms/{roomId} {
-      allow read, write: if isSignedIn();
+      allow read, write: if false;
+    }
+
+    match /jogress_room_owners/{ownerUid} {
+      allow read, write: if false;
+    }
+
+    match /jogress_room_registrations/{registrationKey} {
+      allow read, write: if false;
+    }
+
+    match /jogress_room_v3_migration_backups/{roomId} {
+      allow read, write: if false;
     }
 
     match /jogress_logs/{logId} {

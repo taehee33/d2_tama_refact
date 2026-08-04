@@ -14,6 +14,7 @@ const DEPLOYED_API_ROOT = path.join(
 
 const DEPLOYED_ENTRYPOINTS = Object.freeze([
   "arena-v2.js",
+  "jogress.js",
   "arena/admin/archives/[archiveId].js",
   "arena/admin/config.js",
   "community/[boardId]/comments/[commentId].js",
@@ -108,7 +109,7 @@ function requireWithStub(targetPath, dependencyPath, stubExports) {
   }
 }
 
-test("배포 API 진입점은 현재 11개 계약과 일치하고 Hobby 상한 12개를 넘지 않는다", () => {
+test("배포 API 진입점은 현재 12개 계약과 일치하고 Hobby 상한 12개를 넘지 않는다", () => {
   const actualEntrypoints = listDeployedEntrypoints();
 
   assert.deepEqual(actualEntrypoints, [...DEPLOYED_ENTRYPOINTS].sort());

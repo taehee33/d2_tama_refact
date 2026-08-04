@@ -2,7 +2,7 @@
 // 온라인 조그레스: 내 조그레스 등록(상단) + 대기 중인 방 목록(하단), 아레나 UI 스타일
 
 import React, { useState, useEffect } from "react";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { translateStage } from "../utils/stageTranslator";
 import { resolveOnlineJogressPair } from "../logic/evolution/jogress";
@@ -10,6 +10,7 @@ import {
   getDigimonDataMapByVersion,
   getSpriteBasePathByVersion,
 } from "../utils/digimonVersionUtils";
+import { fetchJogressRooms } from "../utils/jogressApi";
 
 /**
  * 방 목록 모달 (온라인 조그레스)
@@ -59,41 +60,13 @@ export default function JogressRoomListModal({
       try {
         setLoading(true);
         setError(null);
-        const roomsRef = collection(db, "jogress_rooms");
-        let allWaiting = [];
-        let myPaired = [];
-        try {
-          const qWaiting = query(
-            roomsRef,
-            where("status", "==", "waiting"),
-            orderBy("createdAt", "desc"),
-            limit(30)
-          );
-          const snapshot = await getDocs(qWaiting);
-          allWaiting = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        } catch (idxErr) {
-          console.warn("[JogressRoomList] 인덱스 오류, 전체 조회 후 필터:", idxErr);
-          const all = await getDocs(roomsRef);
-          allWaiting = all.docs
-            .filter((d) => d.data().status === "waiting")
-            .slice(0, 30)
-            .map((d) => ({ id: d.id, ...d.data() }));
-        }
-        try {
-          const all = await getDocs(roomsRef);
-          myPaired = all.docs
-            .filter((d) => {
-              const data = d.data();
-              return data.hostUid === currentUser.uid && data.status === "paired";
-            })
-            .map((d) => ({ id: d.id, ...d.data() }));
-        } catch (e) {
-          console.warn("[JogressRoomList] 내 paired 방 조회 오류:", e);
-        }
+        const [mine, waiting] = await Promise.all([
+          fetchJogressRooms(currentUser, "mine"),
+          fetchJogressRooms(currentUser, "waiting"),
+        ]);
         if (!cancelled) {
-          const mineWaiting = allWaiting.filter((r) => r.hostUid === currentUser.uid);
-          setMyRooms([...mineWaiting, ...myPaired]);
-          setRooms(allWaiting.filter((r) => r.hostUid !== currentUser.uid));
+          setMyRooms(Array.isArray(mine?.rooms) ? mine.rooms : []);
+          setRooms(Array.isArray(waiting?.rooms) ? waiting.rooms : []);
         }
       } catch (err) {
         if (!cancelled) setError(err.message || "방 목록을 불러오지 못했습니다.");
@@ -103,7 +76,7 @@ export default function JogressRoomListModal({
     };
     load();
     return () => { cancelled = true; };
-  }, [currentUser?.uid, refreshTrigger]);
+  }, [currentUser, refreshTrigger]);
 
   useEffect(() => {
     if (!selectedRoomId || !db || !currentUser?.uid) {
@@ -161,16 +134,17 @@ export default function JogressRoomListModal({
     return () => { cancelled = true; };
   }, [currentUser?.uid, myRooms.length, selectedRoomId]);
 
-  const myWaitingRooms = myRooms.filter((r) => r.status === "waiting");
   const getHostDigimonName = (room) => {
+    const snapshot = room.hostSnapshot || {};
     const map = getDigimonDataMapByVersion(room.hostSlotVersion);
-    const baseName = map?.[room.hostDigimonId]?.name || room.hostDigimonId;
-    const nickname = room.hostDigimonNickname && room.hostDigimonNickname.trim();
+    const baseName = snapshot.name || map?.[room.hostDigimonId]?.name || room.hostDigimonId;
+    const nickname = String(snapshot.nickname || room.hostDigimonNickname || "").trim();
     return nickname ? `${nickname}(${baseName})` : baseName;
   };
   const getHostDigimonData = (room) => {
+    const snapshot = room.hostSnapshot || {};
     const map = getDigimonDataMapByVersion(room.hostSlotVersion);
-    return map?.[room.hostDigimonId] || {};
+    return { ...(map?.[room.hostDigimonId] || {}), ...snapshot };
   };
   const getSpritePath = (room) => {
     const data = getHostDigimonData(room);
@@ -213,8 +187,14 @@ export default function JogressRoomListModal({
     return evolutions.some((e) => e.jogress);
   };
 
-  /** 슬롯이 이미 조그레스 대기 방에 등록됐는지 (waiting만) */
-  const isSlotAlreadyRegistered = (slotId) => myWaitingRooms.some((r) => r.hostSlotId === slotId);
+  /** 같은 슬롯이 아니라 동일 digimonInstanceId + combatRevision 형태만 중복이다. */
+  const isSlotAlreadyRegistered = (slot) => myRooms.some((room) => (
+    String(room.hostSlotId) === String(slot.id) &&
+    room.linkStatus === "live"
+  ));
+  const hasPreviousFormGhost = (slot) => myRooms.some((room) => (
+    room.linkStatus === "ghost" && String(room.hostSlotId) === String(slot.id)
+  ));
 
   return (
     <div
@@ -245,7 +225,7 @@ export default function JogressRoomListModal({
             {/* 내 조그레스 등록 (아레나 스타일: 카드 + 추가 등록 박스) */}
             <div className="flex-shrink-0 p-4 bg-blue-900/40 rounded-lg border-2 border-blue-400/50">
               <h3 className="text-xl font-bold text-blue-300 mb-3 pixel-art-text">
-                내 조그레스 등록 ({myWaitingRooms.length}/{MAX_MY_ROOMS})
+                내 조그레스 등록 ({myRooms.length}/{MAX_MY_ROOMS})
               </h3>
               <div className="flex flex-wrap gap-4 items-stretch" style={{ gap: "12px" }}>
                 {myRooms.map((room) => (
@@ -276,6 +256,11 @@ export default function JogressRoomListModal({
                       {room.hostTamerName || "테이머"} — {getHostDigimonName(room)}
                     </p>
                     <p className="text-xs text-center text-amber-300">(슬롯{room.hostSlotId})</p>
+                    <p className={`mt-1 text-xs text-center font-bold ${room.linkStatus === "ghost" ? "text-purple-300" : "text-blue-300"}`}>
+                      {room.linkStatus === "ghost"
+                        ? "등록 형태 Ghost · 참가자만 진화 · 1회용"
+                        : "현재 형태 · 양쪽 진화"}
+                    </p>
                     {room.status === "paired" ? (
                       <>
                         <div className="mt-2 text-center">
@@ -284,7 +269,7 @@ export default function JogressRoomListModal({
                         <p className="text-xs text-center text-amber-200 mt-1 break-words leading-tight font-bold bg-amber-900/40 py-1.5 px-2 rounded border border-amber-500/50" title={getGuestDisplayLabel(room)}>
                           with {getGuestDisplayLabel(room)}
                         </p>
-                        {onHostEvolveFromRoom && (
+                        {room.linkStatus === "live" && onHostEvolveFromRoom && (
                           <button
                             type="button"
                             onClick={async () => {
@@ -311,7 +296,7 @@ export default function JogressRoomListModal({
                     )}
                   </div>
                 ))}
-                {!showSlotPickerForAdd && myWaitingRooms.length < MAX_MY_ROOMS && (onCreateRoomForSlot || onCreateRoom) && (
+                {!showSlotPickerForAdd && myRooms.length < MAX_MY_ROOMS && (onCreateRoomForSlot || onCreateRoom) && (
                   <button
                     type="button"
                     onClick={() => setShowSlotPickerForAdd(true)}
@@ -343,19 +328,20 @@ export default function JogressRoomListModal({
                         const spritePath =
                           digimonData.spriteBasePath || getSpriteBasePathByVersion(slot.version);
                         const sprite = digimonData.sprite ?? 0;
-                        const alreadyRegistered = isSlotAlreadyRegistered(slot.id);
+                        const alreadyRegistered = isSlotAlreadyRegistered(slot);
+                        const previousFormGhost = hasPreviousFormGhost(slot);
                         const canRegister = canRegisterJogress(slot);
                         const clickable = !alreadyRegistered && canRegister && onCreateRoomForSlot;
                         let statusLabel = "";
                         let statusClass = "";
                         if (alreadyRegistered) {
-                          statusLabel = "이미 등록됨";
+                          statusLabel = "현재 형태 등록됨";
                           statusClass = "bg-gray-600 text-gray-300";
                         } else if (!canRegister) {
                           statusLabel = "조그레스 불가";
                           statusClass = "bg-red-900/80 text-red-200";
                         } else {
-                          statusLabel = "등록 가능";
+                          statusLabel = previousFormGhost ? "옛 형태 Ghost 유지 · 등록 가능" : "등록 가능";
                           statusClass = "bg-green-600/90 text-white";
                         }
                         return (
@@ -406,7 +392,7 @@ export default function JogressRoomListModal({
             {/* 대기 중인 방 */}
             <div className="flex-shrink-0 p-3 bg-gray-800/60 rounded-lg border border-gray-600">
               <h3 className="text-lg font-bold text-gray-300 mb-2 pixel-art-text">대기 중인 방</h3>
-              <p className="text-gray-400 text-xs mb-2">참가할 방을 선택하세요. 온라인 조그레스는 양쪽 디지몬이 모두 진화합니다.</p>
+              <p className="text-gray-400 text-xs mb-2">현재 형태 방은 양쪽이 진화하고, Ghost 방은 참가자만 진화합니다.</p>
               {loading && <p className="text-gray-400 py-2">방 목록 불러오는 중...</p>}
               {error && <p className="text-red-400 py-2 text-sm">{error}</p>}
               {!loading && !error && rooms.length === 0 && (
@@ -436,6 +422,9 @@ export default function JogressRoomListModal({
                       <p className="text-xs text-amber-200 truncate">{getHostDigimonName(room)}</p>
                       <p className="text-xs text-gray-500">(슬롯{room.hostSlotId})</p>
                       <p className="text-xs text-gray-400 mt-1">세대: {translateStage(getHostDigimonData(room).stage)}</p>
+                      <p className={`text-xs mt-1 font-bold ${room.linkStatus === "ghost" ? "text-purple-300" : "text-blue-300"}`}>
+                        {room.linkStatus === "ghost" ? "Ghost · 참가자만 진화" : "현재 형태 · 양쪽 진화"}
+                      </p>
                       <div className="mt-2 text-center">
                         <span className="text-xs text-green-400 font-bold">참가</span>
                       </div>
@@ -448,7 +437,7 @@ export default function JogressRoomListModal({
         ) : (
           <>
             <p className="text-gray-300 text-sm mb-3 flex-shrink-0">
-              {selectedRoom.hostTamerName || "테이머"}님의 {getHostDigimonName(selectedRoom)}와(과) 조그레스 진화합니다. (현재 슬롯만 선택가능)
+              {selectedRoom.hostTamerName || "테이머"}님의 {getHostDigimonName(selectedRoom)}와(과) 조그레스 진화합니다. {selectedRoom.linkStatus === "ghost" ? "Ghost이므로 참가자만 진화합니다." : "양쪽 모두 진화합니다."} (현재 슬롯만 선택가능)
             </p>
             <div className="overflow-y-auto flex-1 min-h-0">
               {loadingSlots && <p className="text-gray-400 py-4">슬롯 목록 불러오는 중...</p>}
@@ -471,7 +460,9 @@ export default function JogressRoomListModal({
                         onClick={() => {
                           if (!canSelect) return;
                           const confirmed = window.confirm(
-                            "정말 조그레스 진화를 하시겠습니까?\n\n온라인으로 조그레스 진화 할 때에는 두 디지몬 모두 사라지지 않습니다."
+                            selectedRoom.linkStatus === "ghost"
+                              ? "이 Ghost는 1회용이며 참가자의 디지몬만 진화합니다.\n현재 호스트 슬롯은 변경되지 않습니다.\n\n정말 참가하시겠습니까?"
+                              : "정말 조그레스 진화를 하시겠습니까?\n\n온라인 조그레스에서는 양쪽 디지몬이 모두 진화하고 생존합니다."
                           );
                           if (!confirmed) return;
                           onSelectRoomAndSlot?.(selectedRoom, slot);

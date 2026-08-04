@@ -20,11 +20,7 @@ export function resolveNextSlotJogressStatus(prevStatus, slotData = {}) {
 export function useJogressSubscriptions({
   currentUserUid,
   slotId,
-  myJogressRoomId,
-  setMyJogressRoomId,
-  slotJogressStatus,
   setSlotJogressStatus,
-  applyHostJogressStatusFromRoom,
 }) {
   useEffect(() => {
     if (!db || !currentUserUid || slotId == null) {
@@ -66,76 +62,4 @@ export function useJogressSubscriptions({
     return () => unsubscribe();
   }, [currentUserUid, setSlotJogressStatus, slotId]);
 
-  useEffect(() => {
-    if (!db || !currentUserUid || !myJogressRoomId || !applyHostJogressStatusFromRoom) {
-      return;
-    }
-
-    const roomRef = doc(db, "jogress_rooms", myJogressRoomId);
-    const unsubscribe = onSnapshot(
-      roomRef,
-      (snapshot) => {
-        const roomData = snapshot.data() || {};
-
-        if (roomData.status === "paired") {
-          applyHostJogressStatusFromRoom(roomData, myJogressRoomId);
-          setMyJogressRoomId(null);
-          return;
-        }
-
-        if (roomData.status === "cancelled" || roomData.status === "completed") {
-          setMyJogressRoomId(null);
-        }
-      },
-      (error) => {
-        console.warn("[Game] jogress room 구독 오류:", error);
-        setMyJogressRoomId(null);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [
-    applyHostJogressStatusFromRoom,
-    currentUserUid,
-    myJogressRoomId,
-    setMyJogressRoomId,
-  ]);
-
-  useEffect(() => {
-    if (!db || !currentUserUid || !slotId || !applyHostJogressStatusFromRoom) {
-      return;
-    }
-
-    const roomIdToSubscribe =
-      slotJogressStatus?.roomId && !slotJogressStatus?.canEvolve
-        ? slotJogressStatus.roomId
-        : null;
-
-    if (!roomIdToSubscribe) {
-      return;
-    }
-
-    const roomRef = doc(db, "jogress_rooms", roomIdToSubscribe);
-    const unsubscribe = onSnapshot(
-      roomRef,
-      (snapshot) => {
-        const roomData = snapshot.data() || {};
-
-        if (roomData.status === "paired" && roomData.hostUid === currentUserUid) {
-          applyHostJogressStatusFromRoom(roomData, roomIdToSubscribe);
-        }
-      },
-      (error) => {
-        console.warn("[Game] slot jogress room 구독 오류:", error);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [
-    applyHostJogressStatusFromRoom,
-    currentUserUid,
-    slotId,
-    slotJogressStatus?.canEvolve,
-    slotJogressStatus?.roomId,
-  ]);
 }

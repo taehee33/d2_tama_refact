@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  collection,
   doc,
-  getDocs,
-  query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
@@ -171,30 +167,9 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
     [currentUser, isFirebaseAvailable, loadSlots]
   );
 
-  const syncJogressRoomNickname = useCallback(
-    async (slotId, digimonNickname) => {
-      if (!db || !currentUser) {
-        return;
-      }
-
-      const roomsRef = collection(db, "jogress_rooms");
-      const roomQuery = query(
-        roomsRef,
-        where("hostUid", "==", currentUser.uid),
-        where("hostSlotId", "==", slotId)
-      );
-      const snapshot = await getDocs(roomQuery);
-      await Promise.all(
-        snapshot.docs.map((room) =>
-          updateDoc(doc(db, "jogress_rooms", room.id), {
-            hostDigimonNickname: digimonNickname,
-            updatedAt: serverTimestamp(),
-          })
-        )
-      );
-    },
-    [currentUser]
-  );
+  const syncJogressRoomNickname = useCallback(async () => {
+    // 방 표시명은 서버 목록 API가 현재 슬롯 정본에서 투영한다.
+  }, []);
 
   const saveNickname = useCallback(
     async (slotId, nextNickname) => {

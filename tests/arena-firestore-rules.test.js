@@ -101,4 +101,12 @@ test("Arena combat identity bridge Rules가 형태·생명 전환 불변식을 �
       ownerUid: "alice",
     })
   );
+  for (const target of [
+    "jogress_rooms/room-a",
+    "jogress_room_owners/alice",
+    "jogress_room_registrations/registration-a",
+    "jogress_room_v3_migration_backups/room-a",
+  ]) {
+    await assertFails(setDoc(doc(aliceDb, target), { ownerUid: "alice" }));
+  }
 });
