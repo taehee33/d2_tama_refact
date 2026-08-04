@@ -749,31 +749,53 @@ describe("useEvolution jogress flows", () => {
       const guestMap = getDigimonDataMapByVersion(guestVersion);
       const hostAdaptedMap = adaptDataMapToOldFormat(hostMap);
       const guestAdaptedMap = adaptDataMapToOldFormat(guestMap);
-      mockResolveOnlineJogressPair.mockReturnValue({
-        success: true,
-        hostVersion,
-        guestVersion,
-        hostMap,
-        guestMap,
-        hostSourceId: hostDigimonId,
-        guestSourceId: guestDigimonId,
-        hostTargetId: targetId,
-        guestTargetId: targetId,
-        hostTargetEntry: hostMap[targetId],
-        guestTargetEntry: guestMap[targetId],
+      const { resolveOnlineJogressPair } = jest.requireActual(
+        "../logic/evolution/jogress"
+      );
+      const firestoreState = new Map([
+        [
+          "jogress_rooms/cross-room",
+          {
+            status: "waiting",
+            hostUid: "host-user",
+            hostSlotId: 1,
+            hostSlotVersion: hostVersion,
+            hostDigimonId,
+          },
+        ],
+        [
+          "users/guest-user/slots/slot2",
+          {
+            selectedDigimon: guestDigimonId,
+            digimonStats: createStats(),
+            version: guestVersion,
+          },
+        ],
+        [
+          "users/host-user/slots/slot1",
+          {
+            selectedDigimon: hostDigimonId,
+            digimonStats: createStats(),
+            version: hostVersion,
+          },
+        ],
+      ]);
+      const applyFirestoreUpdate = (ref, update) => {
+        firestoreState.set(ref, {
+          ...(firestoreState.get(ref) || {}),
+          ...update,
+        });
+      };
+      mockResolveOnlineJogressPair.mockImplementation(resolveOnlineJogressPair);
+      mockSanitizeDigimonStatsForSlotDocument.mockImplementation((stats) => stats);
+      mockBatchUpdate.mockImplementation(applyFirestoreUpdate);
+      mockUpdateDoc.mockImplementation(async (ref, update) => {
+        applyFirestoreUpdate(ref, update);
       });
-      mockGetDoc.mockImplementation((ref) => {
-        if (ref === "users/host-user/slots/slot1") {
-          return Promise.resolve({
-            exists: () => true,
-            data: () => ({
-              selectedDigimon: hostDigimonId,
-              digimonStats: createStats(),
-            }),
-          });
-        }
-        return Promise.resolve({ exists: () => false, data: () => ({}) });
-      });
+      mockGetDoc.mockImplementation(async (ref) => ({
+        exists: () => firestoreState.has(ref),
+        data: () => firestoreState.get(ref) || {},
+      }));
 
       const guestParams = createParams({
         currentUser: { uid: "guest-user", displayName: "게스트" },
@@ -792,8 +814,7 @@ describe("useEvolution jogress flows", () => {
         await guestResult.current.proceedJogressOnlineAsGuest(
           {
             id: "cross-room",
-            hostSlotVersion: hostVersion,
-            hostDigimonId,
+            ...firestoreState.get("jogress_rooms/cross-room"),
           },
           {
             id: 2,
@@ -819,6 +840,22 @@ describe("useEvolution jogress flows", () => {
           combatRevision: "REVISION_INCREMENT",
         })
       );
+      expect(firestoreState.get("jogress_rooms/cross-room")).toEqual(
+        expect.objectContaining({
+          status: "paired",
+          guestSlotVersion: guestVersion,
+          targetId,
+        })
+      );
+      expect(firestoreState.get("users/guest-user/slots/slot2")).toEqual(
+        expect.objectContaining({ selectedDigimon: targetId })
+      );
+      expect(
+        firestoreState.get("users/guest-user/slots/slot2").digimonStats.isDead
+      ).not.toBe(true);
+      expect(firestoreState.get("users/host-user/slots/slot1")).toEqual(
+        expect.objectContaining({ selectedDigimon: hostDigimonId })
+      );
 
       const hostParams = createParams({
         currentUser: { uid: "host-user", displayName: "호스트" },
@@ -836,16 +873,7 @@ describe("useEvolution jogress flows", () => {
       await act(async () => {
         await hostResult.current.proceedJogressOnlineAsHostForRoom({
           id: "cross-room",
-          status: "paired",
-          hostUid: "host-user",
-          hostSlotId: 1,
-          hostSlotVersion: hostVersion,
-          hostDigimonId,
-          guestUid: "guest-user",
-          guestSlotId: 2,
-          guestSlotVersion: guestVersion,
-          guestDigimonId,
-          targetId,
+          ...firestoreState.get("jogress_rooms/cross-room"),
         });
       });
 
@@ -862,6 +890,18 @@ describe("useEvolution jogress flows", () => {
         completedAt: "SERVER_TS",
         updatedAt: "SERVER_TS",
       });
+      expect(firestoreState.get("jogress_rooms/cross-room")).toEqual(
+        expect.objectContaining({ status: "completed" })
+      );
+      expect(firestoreState.get("users/host-user/slots/slot1")).toEqual(
+        expect.objectContaining({ selectedDigimon: targetId })
+      );
+      expect(
+        firestoreState.get("users/host-user/slots/slot1").digimonStats.isDead
+      ).not.toBe(true);
+      expect(
+        firestoreState.get("users/guest-user/slots/slot2").digimonStats.isDead
+      ).not.toBe(true);
       const transitionInputs = mockSanitizeDigimonStatsForSlotDocument.mock.calls
         .map(([stats]) => stats)
         .filter((stats) => stats?.selectedDigimon === targetId);
