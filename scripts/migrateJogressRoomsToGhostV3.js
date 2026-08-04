@@ -158,6 +158,7 @@ function planCurrentIndexes(rooms) {
   return rooms.map(({ id, data }) => {
     const room = data || {};
     const active = room.status === "waiting" || room.status === "paired";
+    const category = active ? "waiting" : (room.status === "completed" ? "completed" : "excluded");
     const registrationKey = room.registrationKey || (room.hostSourceIdentityId
       ? createJogressRegistrationKey({ ownerUid: room.hostUid, sourceIdentityId: room.hostSourceIdentityId })
       : createLegacyGhostRegistrationKey(id));
@@ -165,6 +166,7 @@ function planCurrentIndexes(rooms) {
       id,
       ownerUid: room.hostUid || null,
       active,
+      category,
       original: room,
       patch: {
         registrationKey,
@@ -273,7 +275,7 @@ async function runMigration(options, dependencies = {}) {
     const rooms = snapshot.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} }));
     const plans = planCurrentIndexes(rooms);
     await rebuildOwnerIndexes(db, plans, now);
-    const restoredPlans = planMigration(rooms, now).filter((plan) => options.roomIds.includes(plan.id));
+    const restoredPlans = plans.filter((plan) => options.roomIds.includes(plan.id));
     return buildReport(restoredPlans, options, source, now);
   }
   const snapshot = await db.collection("jogress_rooms").get();

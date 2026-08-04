@@ -57,7 +57,7 @@ test("legacy waiting·expired·paired를 Ghost v3로 옮기고 활성 방 3개 �
     confirmProjectId: "d2tamarefact",
   }, { db, now: new Date("2026-08-04T05:00:00.000Z") });
   assert.equal((await db.doc("jogress_rooms/rollback-expired").get()).data().status, "waiting");
-  await runMigration({
+  const rollbackReport = await runMigration({
     ...options,
     rollback: true,
     roomIds: ["rollback-expired"],
@@ -71,4 +71,7 @@ test("legacy waiting·expired·paired를 Ghost v3로 옮기고 활성 방 3개 �
   assert.equal(restoredExpired.status, "expired");
   assert.equal(ownerAfterRollback.activeRoomIds.includes("rollback-expired"), false);
   assert.equal(staleRegistration.empty, true);
+  assert.equal(rollbackReport.totals.active, 0);
+  assert.equal(rollbackReport.totals.excluded, 1);
+  assert.equal(rollbackReport.totals.restored, 0);
 });
