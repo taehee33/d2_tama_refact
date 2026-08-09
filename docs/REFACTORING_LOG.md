@@ -20,6 +20,7 @@
 - **Rules 최종 차단:** 포괄 `game_settings/{docId}`와 모든 하위 경로의 클라이언트 쓰기를 차단했다. 익명·일반·운영자 클라이언트는 모두 거부되며 Admin SDK/server transaction만 Rules와 독립적으로 쓸 수 있다.
 - **배포·smoke:** 서버 API와 프런트 전환을 순차 선배포한 뒤 Rules를 `d2tamarefact` Production에 배포했다. 미인증 API `401`, 익명 API `403`, 익명 직접 `game_settings`/snapshot create `permission-denied`를 확인했고 임시 계정을 즉시 삭제했다. 실제 운영자 계정에서 `깜몬 [SMOKE]` 저장·새로고침 반영·snapshot 복원·`깜몬` 원상복구까지 확인했다.
 - **검증:** `npm run check`(프런트 195 suites/1,264 tests, 서버 255 tests), `npm run test:firestore-emulator` 2개, `npm run test:arena-emulator` 상위 15개·하위 행렬 포함 23개가 통과했다.
+- **CI 완료:** PR #43과 main CI run `31294195035`에서 `check`와 `firestore-emulator`가 성공했다. main branch protection은 `strict: true`를 유지하며 두 status context를 모두 필수 검사로 지정한다.
 - **영향 파일:** `firestore.rules`, `.github/workflows/ci.yml`, `package.json`, `digimon-tamagotchi-frontend/api/operator/status.js`, `digimon-tamagotchi-frontend/api/_lib/masterData*.js`, `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.jsx`, `digimon-tamagotchi-frontend/src/utils/operatorApi.js`, API·프런트·Rules·Emulator 테스트, `docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md`.
 - **아키텍처 결정 근거:** UI 운영자 표시는 보안 경계가 아니다. 전역 mutation을 서버 transaction으로 모으고 Rules는 운영자 클라이언트까지 전부 거부해 권한·검증·동시성·감사 이력을 하나의 권위 있는 경계에서 확정했다.
 

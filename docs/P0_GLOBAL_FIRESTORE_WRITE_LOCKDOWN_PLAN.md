@@ -1,7 +1,7 @@
 # P0-A 전역 Firestore 쓰기 차단 실행 계획
 
 작성일: 2026-08-09
-상태: P0-A0~A4 구현·배포·Production 운영자 UI smoke 완료, main CI 필수 검사 등록 대기
+상태: P0-A0~A4 구현·배포·Production 운영자 UI smoke·main CI 필수 검사 등록 완료
 우선순위: P0
 범위: `jogress_logs`, legacy `arena_entries`, `game_settings/digimon_master_data`와 `snapshots`
 
@@ -219,7 +219,7 @@ npm run test:arena-emulator
 - Production 임시 익명 계정의 두 컬렉션 create 요청이 모두 `403`으로 거부됐으며 계정은 검증 직후 삭제했다.
 - 과거 문서와 로그인 사용자 읽기 권한은 변경하지 않았다.
 
-main 브랜치 필수 검사는 현재 `check`만 지정돼 있다. 새 workflow가 기본 브랜치에서 한 번 성공한 뒤 `firestore-emulator` status context를 필수 검사로 추가한다.
+main 병합 후 CI run `31294195035`에서 `firestore-emulator`와 `check`가 모두 성공했다. branch protection의 strict 설정과 기존 `check`를 보존하면서 `firestore-emulator` status context를 필수 검사로 추가했다.
 
 ### P0-A2. 마스터 데이터 서버 경계 추가
 
