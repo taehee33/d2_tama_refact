@@ -91,6 +91,25 @@ describe("getSlotStatusChips", () => {
     });
   });
 
+  test("냉장 보관 상태는 다른 슬롯 상태보다 먼저 표시한다", () => {
+    expect(
+      getSlotStatusChips({
+        selectedDigimon: "Punimon",
+        version: "Ver.2",
+        digimonStats: {
+          isFrozen: true,
+          isInjured: true,
+          poopCount: 8,
+          timeToEvolveSeconds: -1,
+        },
+      })
+    ).toEqual([
+      { id: "frozen", label: "냉장고 보관 중 🧊", tone: "cool" },
+      { id: "injury", label: "치료 필요: 부상 🏥", tone: "danger" },
+      { id: "poop-danger-max", label: "똥 8개 위험 💩", tone: "danger" },
+    ]);
+  });
+
   test("여러 상태가 있으면 게임 화면 우선순위대로 최대 3개만 반환한다", () => {
     expect(
       getSlotStatusChips({

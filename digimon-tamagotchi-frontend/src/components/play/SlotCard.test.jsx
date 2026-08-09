@@ -159,6 +159,38 @@ describe("SlotCard", () => {
     expect(screen.getByText("힘 낮음 💪")).toBeInTheDocument();
   });
 
+  test("냉장 보관 상태를 자세히·간략히 보기의 첫 번째 칩으로 표시한다", () => {
+    const cardProps = {
+      slot: {
+        ...slot,
+        selectedDigimon: "Punimon",
+        digimonStats: {
+          isFrozen: true,
+          isInjured: true,
+          poopCount: 8,
+        },
+      },
+      onToggleNickname: () => {},
+      onNicknameChange: () => {},
+      onNicknameSave: () => {},
+      onNicknameReset: () => {},
+      onContinue: () => {},
+      onDelete: () => {},
+    };
+
+    const { rerender } = render(<SlotCard {...cardProps} />);
+    let statusChips = screen.getByLabelText("슬롯 상태");
+
+    expect(statusChips.children[0]).toHaveTextContent("냉장고 보관 중 🧊");
+    expect(statusChips).toHaveTextContent("치료 필요: 부상 🏥");
+
+    rerender(<SlotCard {...cardProps} variant="compact" />);
+    statusChips = screen.getByLabelText("슬롯 상태");
+
+    expect(statusChips.children).toHaveLength(1);
+    expect(statusChips).toHaveTextContent("냉장고 보관 중 🧊");
+  });
+
   test("간략히 모드에서는 생성일을 숨기고 상태 칩을 하나만 표시한다", () => {
     render(
       <SlotCard

@@ -71,6 +71,20 @@ function resolveSlotSleepStatus(slot, stats, nowMs) {
   return "AWAKE";
 }
 
+function prioritizeFrozenSlotStatus(messages, summaryMessages, limit) {
+  const frozenMessage = messages.find((message) => message.id === "frozen");
+  const hasDeathMessage = messages.some((message) => message.id === "death");
+
+  if (!frozenMessage || hasDeathMessage) {
+    return summaryMessages;
+  }
+
+  return [
+    frozenMessage,
+    ...summaryMessages.filter((message) => message.id !== "frozen"),
+  ].slice(0, limit);
+}
+
 export function getSlotStatusMessages(slot, { currentTime = Date.now(), limit = MAX_VISIBLE_STATUS_CHIPS } = {}) {
   if (!slot) return [];
   const stats = getProjectedSlotStats(slot);
@@ -91,7 +105,8 @@ export function getSlotStatusMessages(slot, { currentTime = Date.now(), limit = 
     currentTime: nowMs,
   });
 
-  return getSummaryDigimonStatusMessages(messages, limit);
+  const summaryMessages = getSummaryDigimonStatusMessages(messages, limit);
+  return prioritizeFrozenSlotStatus(messages, summaryMessages, limit);
 }
 
 export function getSlotStatusChips(slot) {
