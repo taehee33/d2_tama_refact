@@ -2,18 +2,15 @@ import digimonAnimations from "../../data/digimonAnimations";
 import { resolveIdleMotionTimeline } from "../../data/idleMotionTimeline";
 import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
 import {
+  getDeathFormIds,
   isDeathFormDigimonId,
   isStarterDigimonId,
+  SUPPORTED_DIGIMON_VERSIONS,
 } from "../../utils/digimonVersionUtils";
 
-export const DEATH_FORM_IDS = [
-  "Ohakadamon1",
-  "Ohakadamon2",
-  "Ohakadamon1V2",
-  "Ohakadamon2V2",
-  "Ohakadamon1V3",
-  "Ohakadamon2V3",
-];
+export const DEATH_FORM_IDS = Object.freeze(
+  SUPPORTED_DIGIMON_VERSIONS.flatMap((version) => getDeathFormIds(version))
+);
 
 export function buildGameAnimationViewModel({
   selectedDigimon,

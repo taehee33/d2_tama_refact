@@ -1,5 +1,12 @@
-import { buildGameAnimationViewModel } from "./gameAnimationViewModel";
+import {
+  buildGameAnimationViewModel,
+  DEATH_FORM_IDS,
+} from "./gameAnimationViewModel";
 import { digimonDataVer5, V5_SPRITE_BASE } from "../../data/v5";
+import {
+  getDeathFormIds,
+  SUPPORTED_DIGIMON_VERSIONS,
+} from "../../utils/digimonVersionUtils";
 
 function createParams(overrides = {}) {
   return {
@@ -23,6 +30,16 @@ function createParams(overrides = {}) {
 }
 
 describe("buildGameAnimationViewModel", () => {
+  test("지원하는 모든 버전의 사망 폼을 후속 액션 대상으로 인식한다", () => {
+    const supportedDeathFormIds = SUPPORTED_DIGIMON_VERSIONS.flatMap((version) =>
+      getDeathFormIds(version)
+    );
+
+    expect(DEATH_FORM_IDS).toEqual(
+      expect.arrayContaining(supportedDeathFormIds)
+    );
+  });
+
   test("디지타마 기본 상태에서는 기존 알 idle 프레임을 유지한다", () => {
     const result = buildGameAnimationViewModel(
       createParams({
