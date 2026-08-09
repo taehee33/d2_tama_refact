@@ -10,12 +10,13 @@ import {
   limit,
   orderBy,
   query,
-  serverTimestamp,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "./AuthContext";
-import { getTamerName, resolveTamerNamePriority } from "../utils/tamerNameUtils";
+import {
+  restoreOperatorMasterData,
+  saveOperatorMasterData,
+} from "../utils/operatorApi";
 import {
   MASTER_DATA_DOC_PATH,
   applyMasterDataOverrides,
@@ -41,28 +42,16 @@ export function canLoadRemoteMasterData(database, currentUser) {
   return Boolean(database && currentUser);
 }
 
-export async function resolveMasterDataActor(currentUser) {
-  if (!currentUser) {
-    return null;
+export function createMasterDataRequestId() {
+  if (typeof window !== "undefined" && typeof window.crypto?.randomUUID === "function") {
+    return window.crypto.randomUUID();
   }
+  return `master-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
-  const fallbackName = resolveTamerNamePriority({ currentUser });
-  let tamerName = fallbackName || null;
-
-  if (currentUser.uid) {
-    try {
-      tamerName = (await getTamerName(currentUser.uid, fallbackName)) || fallbackName || null;
-    } catch (error) {
-      console.warn("마스터 데이터 저장자 이름 로드 오류:", error);
-    }
-  }
-
-  return {
-    uid: currentUser.uid,
-    tamerName,
-    displayName: currentUser.displayName || null,
-    email: currentUser.email || null,
-  };
+export function normalizeMasterDataRevision(value) {
+  const revision = Number(value);
+  return Number.isInteger(revision) && revision >= 0 ? revision : 0;
 }
 
 function buildEmptyMeta() {
@@ -75,6 +64,7 @@ function buildEmptyMeta() {
   );
 
   return {
+    revision: 0,
     activeSnapshotId: null,
     updatedAt: null,
     updatedBy: null,
@@ -150,6 +140,7 @@ export function MasterDataProvider({ children }) {
 
       const activeData = activeSnapshot.exists() ? activeSnapshot.data() : {};
       const meta = {
+        revision: normalizeMasterDataRevision(activeData.revision),
         activeSnapshotId: activeData.activeSnapshotId || null,
         updatedAt: activeData.updatedAt || null,
         updatedBy: activeData.updatedBy || null,
@@ -197,7 +188,6 @@ export function MasterDataProvider({ children }) {
     note = "",
     versionLabel = null,
     targetDigimonId = null,
-    restoredFromSnapshotId = null,
   }) => {
     if (!db) {
       throw new Error("Firebase가 연결되지 않아 전역 저장을 사용할 수 없습니다.");
@@ -218,54 +208,32 @@ export function MasterDataProvider({ children }) {
       return normalizedAfter;
     }
 
-    const actor = await resolveMasterDataActor(currentUser);
-    const activeRef = doc(
-      db,
-      MASTER_DATA_DOC_PATH.collection,
-      MASTER_DATA_DOC_PATH.documentId
-    );
-    const snapshotRef = doc(buildSnapshotCollectionRef());
-    const batch = writeBatch(db);
-
-    batch.set(
-      activeRef,
-      {
-        ...SUPPORTED_MASTER_DATA_VERSION_KEYS.reduce((acc, versionKey) => {
-          acc[`${versionKey}Overrides`] = normalizedAfter[versionKey] || {};
-          return acc;
-        }, {}),
-        activeSnapshotId: snapshotRef.id,
-        updatedAt: serverTimestamp(),
-        updatedBy: actor,
-        latestActionType: actionType,
-        latestNote: note || null,
-        changeSummary,
-      },
-      { merge: true }
-    );
-
-    batch.set(snapshotRef, {
+    const result = await saveOperatorMasterData(currentUser, {
+      requestId: createMasterDataRequestId(),
+      expectedRevision: normalizeMasterDataRevision(masterDataMeta.revision),
       actionType,
-      note: note || null,
+      note,
       versionLabel,
       targetDigimonId,
-      restoredFromSnapshotId,
-      createdAt: serverTimestamp(),
-      createdAtClient: new Date().toISOString(),
-      createdBy: actor,
-      changeSummary,
-      beforeOverrides,
-      afterOverrides: normalizedAfter,
+      overrides: normalizedAfter,
+    }).catch(async (error) => {
+      if (error?.code === "MASTER_DATA_REVISION_CONFLICT") {
+        await loadMasterData().catch(() => {});
+      }
+      throw error;
     });
-
-    await batch.commit();
 
     try {
       return await loadMasterData();
     } catch (reloadError) {
+      const actor = {
+        uid: currentUser.uid,
+        displayName: currentUser.displayName || null,
+      };
       const optimisticMeta = {
-        activeSnapshotId: snapshotRef.id,
-        updatedAt: new Date(),
+        revision: normalizeMasterDataRevision(result?.revisionAfter),
+        activeSnapshotId: result?.snapshotId || null,
+        updatedAt: result?.updatedAt || new Date().toISOString(),
         updatedBy: actor,
         latestActionType: actionType,
         latestActionLabel: formatSnapshotAction(actionType),
@@ -273,13 +241,13 @@ export function MasterDataProvider({ children }) {
         changeSummary,
       };
       const optimisticSnapshot = {
-        id: snapshotRef.id,
+        id: result?.snapshotId,
         actionType,
         note: note || null,
         versionLabel,
         targetDigimonId,
-        restoredFromSnapshotId,
-        createdAt: new Date(),
+        restoredFromSnapshotId: null,
+        createdAt: result?.updatedAt || new Date().toISOString(),
         createdBy: actor,
         changeSummary,
         beforeOverrides,
@@ -288,7 +256,7 @@ export function MasterDataProvider({ children }) {
 
       applyLoadedState(normalizedAfter, optimisticMeta, [
         optimisticSnapshot,
-        ...masterDataSnapshots.filter((snapshot) => snapshot.id !== snapshotRef.id),
+        ...masterDataSnapshots.filter((snapshot) => snapshot.id !== result?.snapshotId),
       ].slice(0, SNAPSHOT_LIMIT));
       setMasterDataError(reloadError);
       return normalizedAfter;
@@ -378,30 +346,69 @@ export function MasterDataProvider({ children }) {
     if (!db) {
       throw new Error("Firebase가 연결되지 않아 스냅샷 복원을 사용할 수 없습니다.");
     }
-
-    const snapshotRef = doc(
-      db,
-      MASTER_DATA_DOC_PATH.collection,
-      MASTER_DATA_DOC_PATH.documentId,
-      MASTER_DATA_DOC_PATH.snapshotSubcollection,
-      snapshotId
-    );
-    const snapshot = await getDoc(snapshotRef);
-
-    if (!snapshot.exists()) {
-      throw new Error("선택한 스냅샷을 찾을 수 없습니다.");
+    if (!currentUser) {
+      throw new Error("로그인한 관리자만 마스터 데이터를 복원할 수 있습니다.");
     }
 
-    const snapshotData = snapshot.data();
-
-    return persistOverrides({
-      nextOverrides: normalizeMasterDataOverrides(snapshotData.afterOverrides || EMPTY_OVERRIDES),
-      actionType: "restore_snapshot",
-      note: note || `스냅샷 복원: ${snapshotId}`,
-      versionLabel: snapshotData.versionLabel || null,
-      targetDigimonId: snapshotData.targetDigimonId || null,
-      restoredFromSnapshotId: snapshotId,
+    const sourceSnapshot = masterDataSnapshots.find((entry) => entry.id === snapshotId);
+    const result = await restoreOperatorMasterData(currentUser, {
+      requestId: createMasterDataRequestId(),
+      expectedRevision: normalizeMasterDataRevision(masterDataMeta.revision),
+      snapshotId,
+      note,
+    }).catch(async (error) => {
+      if (error?.code === "MASTER_DATA_REVISION_CONFLICT") {
+        await loadMasterData().catch(() => {});
+      }
+      throw error;
     });
+
+    try {
+      return await loadMasterData();
+    } catch (reloadError) {
+      if (sourceSnapshot?.afterOverrides) {
+        const restoredOverrides = normalizeMasterDataOverrides(
+          sourceSnapshot.afterOverrides
+        );
+        const actor = {
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || null,
+        };
+        const restoredSnapshot = {
+          id: result?.snapshotId,
+          actionType: "restore_snapshot",
+          note: note || `스냅샷 복원: ${snapshotId}`,
+          versionLabel: sourceSnapshot.versionLabel || null,
+          targetDigimonId: sourceSnapshot.targetDigimonId || null,
+          restoredFromSnapshotId: snapshotId,
+          createdAt: result?.updatedAt || new Date().toISOString(),
+          createdBy: actor,
+          changeSummary: result?.changeSummary || buildEmptyMeta().changeSummary,
+          afterOverrides: restoredOverrides,
+        };
+        applyLoadedState(
+          restoredOverrides,
+          {
+            revision: normalizeMasterDataRevision(result?.revisionAfter),
+            activeSnapshotId: result?.snapshotId || null,
+            updatedAt: result?.updatedAt || new Date().toISOString(),
+            updatedBy: actor,
+            latestActionType: "restore_snapshot",
+            latestActionLabel: formatSnapshotAction("restore_snapshot"),
+            latestNote: note || `스냅샷 복원: ${snapshotId}`,
+            changeSummary: result?.changeSummary || buildEmptyMeta().changeSummary,
+          },
+          [
+            restoredSnapshot,
+            ...masterDataSnapshots.filter(
+              (snapshot) => snapshot.id !== result?.snapshotId
+            ),
+          ].slice(0, SNAPSHOT_LIMIT)
+        );
+      }
+      setMasterDataError(reloadError);
+      return sourceSnapshot?.afterOverrides || null;
+    }
   };
 
   const value = {

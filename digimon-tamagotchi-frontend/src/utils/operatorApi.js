@@ -22,18 +22,47 @@ function extractOperatorErrorMessage(response, payload, rawText) {
   return `운영자 상태를 확인하지 못했습니다. (HTTP ${response.status})`;
 }
 
-async function requestOperatorApi(currentUser, path) {
+function createOperatorApiError(response, payload, rawText) {
+  const error = new Error(extractOperatorErrorMessage(response, payload, rawText));
+  error.name = "OperatorApiError";
+  error.status = response.status;
+  error.code =
+    typeof payload?.error === "object" && typeof payload.error.code === "string"
+      ? payload.error.code
+      : null;
+  error.details =
+    typeof payload?.error === "object" && payload.error.details
+      ? payload.error.details
+      : null;
+  return error;
+}
+
+async function fetchWithSingleNetworkRetry(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch {
+    return fetch(url, options);
+  }
+}
+
+async function requestOperatorApi(currentUser, path, { method = "GET", body } = {}) {
   if (!currentUser) {
     throw new Error("로그인이 필요합니다.");
   }
 
   const token = await currentUser.getIdToken();
-  const response = await fetch(buildOperatorUrl(path), {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  const headers = {
+    Authorization: `Bearer ${token}`,
+  };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+  const options = {
+    method,
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  };
+  const response = await fetchWithSingleNetworkRetry(buildOperatorUrl(path), options);
 
   let payload = null;
   let rawText = "";
@@ -53,7 +82,7 @@ async function requestOperatorApi(currentUser, path) {
   }
 
   if (!response.ok) {
-    throw new Error(extractOperatorErrorMessage(response, payload, rawText));
+    throw createOperatorApiError(response, payload, rawText);
   }
 
   return payload;
@@ -66,4 +95,22 @@ export async function fetchOperatorStatus(currentUser) {
     isOperator: false,
     canAccessUserDirectory: false,
   };
+}
+
+export async function saveOperatorMasterData(currentUser, input) {
+  const payload = await requestOperatorApi(
+    currentUser,
+    "/api/operator/status?action=master-data-save",
+    { method: "POST", body: input }
+  );
+  return payload?.result || null;
+}
+
+export async function restoreOperatorMasterData(currentUser, input) {
+  const payload = await requestOperatorApi(
+    currentUser,
+    "/api/operator/status?action=master-data-restore",
+    { method: "POST", body: input }
+  );
+  return payload?.result || null;
 }

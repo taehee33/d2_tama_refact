@@ -4,6 +4,45 @@
 
 ---
 
+## [2026-08-09] 슬롯 카드의 냉장 보관 상태 우선 표시
+
+- **내용:** 냉장 보관 중인 슬롯은 공통 상태 칩 요약에서 `냉장고 보관 중 🧊` 상태를 첫 번째로 표시하도록 정리했다. 기존 칩 크기·색상·문구와 슬롯 목록 순서는 유지한다.
+- **적용 범위:** 플레이 허브, 최근 이어하기, 홈에서 공통 슬롯 상태 칩을 사용하는 웹 카드에 적용했다. 사망 상태와 게임 내부 상태 메시지 우선순위, Discord 일일 보고서 순서는 변경하지 않았다.
+- **검증:** 냉장 상태가 부상·배변·진화 가능 상태와 함께 있을 때 우선 표시되고, 간략히 보기에서 냉장 상태만 남는 회귀 테스트를 추가했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/utils/slotStatusChips.js`, 관련 상태 칩·슬롯 카드 테스트.
+- **아키텍처 결정 근거:** 게임 화면의 전역 상태 메시지 정렬을 바꾸지 않고 슬롯 카드 표시용 요약 경계에서만 냉장 상태를 앞세워, 게임 로직과 알림 계약에 영향을 주지 않도록 했다.
+
+## [2026-08-09] P0-A2~A4 마스터 데이터 서버 저장 전환과 전역 Rules 잠금
+
+- **서버 경계:** 기존 `/api/operator/status` Function에 마스터 저장·복원 action을 추가했다. `operator_roles` 권한, payload allowlist, stable canonical fingerprint, deterministic snapshot receipt, `expectedRevision`, transaction 원자 저장을 서버가 확정한다. 신규 Vercel Function은 없다.
+- **입력 엄격성:** `expectedRevision`과 저장된 revision은 0 이상의 정수 number만 허용한다. 누락된 기존 revision만 0으로 bootstrap하며, 잘못된 JSON은 내부 오류로 숨기지 않고 `400 MASTER_DATA_INVALID_REQUEST`로 반환한다.
+- **프런트 전환:** `MasterDataContext`의 Firestore `writeBatch` 저장·복원을 제거하고 operator API로 전환했다. 읽기는 기존 Firestore 경계를 유지하고, 동일 requestId/body 네트워크 재시도와 revision 충돌 후 재로드를 추가했다.
+- **Rules 최종 차단:** 포괄 `game_settings/{docId}`와 모든 하위 경로의 클라이언트 쓰기를 차단했다. 익명·일반·운영자 클라이언트는 모두 거부되며 Admin SDK/server transaction만 Rules와 독립적으로 쓸 수 있다.
+- **배포·smoke:** 서버 API와 프런트 전환을 순차 선배포한 뒤 Rules를 `d2tamarefact` Production에 배포했다. 미인증 API `401`, 익명 API `403`, 익명 직접 `game_settings`/snapshot create `permission-denied`를 확인했고 임시 계정을 즉시 삭제했다. 실제 운영자 계정에서 `깜몬 [SMOKE]` 저장·새로고침 반영·snapshot 복원·`깜몬` 원상복구까지 확인했다.
+- **검증:** `npm run check`(프런트 195 suites/1,264 tests, 서버 255 tests), `npm run test:firestore-emulator` 2개, `npm run test:arena-emulator` 상위 15개·하위 행렬 포함 23개가 통과했다.
+- **영향 파일:** `firestore.rules`, `.github/workflows/ci.yml`, `package.json`, `digimon-tamagotchi-frontend/api/operator/status.js`, `digimon-tamagotchi-frontend/api/_lib/masterData*.js`, `digimon-tamagotchi-frontend/src/contexts/MasterDataContext.jsx`, `digimon-tamagotchi-frontend/src/utils/operatorApi.js`, API·프런트·Rules·Emulator 테스트, `docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md`.
+- **아키텍처 결정 근거:** UI 운영자 표시는 보안 경계가 아니다. 전역 mutation을 서버 transaction으로 모으고 Rules는 운영자 클라이언트까지 전부 거부해 권한·검증·동시성·감사 이력을 하나의 권위 있는 경계에서 확정했다.
+
+## [2026-08-09] P0-A0 운영 검증 및 P0-A1 legacy 전역 쓰기 차단
+
+- **운영 검증:** Production Arena 번들의 Ghost V2 상수가 `true`이고 `arena_config`가 `active/schema 2`임을 확인했다. V2 Ghost API는 인증 전 `401`, legacy complete는 `426`을 반환한다. `jogress_logs`는 2026-02-26, `arena_entries`는 V2 cutover 전인 2026-07-19 이후 갱신되지 않았다.
+- **Rules 변경:** `jogress_logs`와 legacy `arena_entries`의 로그인 사용자 쓰기 예외와 사용 종료 helper를 제거하고 모든 클라이언트 create/update/delete를 차단했다. 과거 문서와 로그인 사용자 읽기는 유지한다.
+- **권한 회귀:** 비인증·익명·일반·운영자 클라이언트의 두 경로 create/update/delete 거부와 로그인 읽기 유지를 Emulator에 고정했다.
+- **배포·smoke:** Rules를 `d2tamarefact` Production에 배포했다. 임시 익명 계정의 두 create 요청이 모두 `403`으로 거부됐고 검증 계정은 즉시 삭제했다.
+- **검증:** `npm run check`, `npm run test:firestore-emulator`, `npm run test:arena-emulator`가 통과했다. Arena·Jogress Emulator 묶음은 상위 14개, 하위 인증 행렬을 포함해 총 18개 test가 통과했다.
+- **영향 파일:** `firestore.rules`, `tests/arena-firestore-rules.test.js`, `docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md`, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** 운영 V2의 서버 정본과 legacy 클라이언트 경로가 분리됐음을 운영 데이터·번들·API 응답으로 교차 확인한 뒤 사용 종료 쓰기만 닫아 정본 분기 가능성을 제거했다.
+
+## [2026-08-09] P0-A 전역 Firestore 쓰기 차단 계획 승인
+
+- **내용:** 아직 클라이언트 쓰기가 열린 `jogress_logs`, legacy `arena_entries`, `game_settings/digimon_master_data`와 snapshot을 대상으로 단계별 차단 계획을 작성했다. 과거 데이터와 읽기 정책은 유지하고 변조 경로부터 닫는다.
+- **운영자 저장 경계:** 마스터 데이터 저장·복원은 신규 Vercel Function을 만들지 않고 기존 통합 operator API의 POST action으로 이동한다. 서버가 `operator_roles/{uid}`를 확인하고 payload allowlist, revision, 작성자, 서버 시각, before/after snapshot을 transaction으로 확정한다.
+- **동시성·멱등성 계약:** 저장과 복원 모두 `expectedRevision`을 사용한다. `operatorUid + action + requestId` 기반 결정적 snapshot ID와 request fingerprint로 재시도를 식별하고, 같은 키에 다른 payload가 오면 `409 IDEMPOTENCY_KEY_REUSED`로 거부한다. Admin SDK는 Rules 허용 주체가 아니므로 Rules Emulator와 서버 transaction 테스트를 분리한다.
+- **배포 안전성:** 독립 `firestore-emulator` CI job을 추가해 기본 Rules와 Arena·Jogress Emulator 묶음을 일반 CI에서 실행한다. 이후 레거시 경로 잠금, 서버 API 선배포, 프런트엔드 전환, production smoke test, 마스터 데이터 Rules 최종 잠금 순으로 진행한다. 장애 시 로그인 사용자 전역 쓰기를 다시 열지 않고 읽기 전용 또는 roll-forward로 복구한다.
+- **검증:** `npm run test:firestore-emulator` 1개, `npm run test:arena-emulator` 13개가 모두 통과했다. main 브랜치는 현재 `check`만 필수이므로 새 job이 기본 브랜치에서 한 번 성공한 뒤 `firestore-emulator` context를 필수 검사에 추가해야 한다.
+- **영향 파일:** `.github/workflows/ci.yml`, `docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md`, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** UI 운영자 확인만으로는 직접 Firebase SDK 호출을 막을 수 없다. 전역 데이터 mutation을 기존 서버 인증 경계로 모아 권한·검증·감사 이력을 권위 있게 확정하고, Rules는 모든 클라이언트 쓰기를 거부해야 한다.
+
 ## [2026-08-04] 온라인 조그레스 1회용 Ghost·서버 transaction 전환
 
 - **내용:** 등록 당시 디지몬을 불변 `hostSnapshot`으로 보존한다. Identity가 같으면 양쪽이 진화하는 live 방, 진화·사망·환생·슬롯 삭제로 달라지면 참가자만 진화하는 1회용 Ghost 방이 된다. 같은 슬롯의 새 형태는 기존 Ghost를 유지한 채 별도 등록할 수 있다.
