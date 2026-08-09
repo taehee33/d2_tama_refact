@@ -37,7 +37,7 @@
     "check:api-single-source": "node scripts/checkApiSingleSource.js",
     "build:server-projection": "node scripts/buildServerGameProjection.js",
     "check:server-projection": "node scripts/checkServerGameProjection.js",
-    "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test tests/firestore-emulator.test.js\"",
+    "test:firestore-emulator": "firebase emulators:exec --only firestore \"node --test --test-concurrency=1 tests/firestore-emulator.test.js tests/master-data-emulator.test.js\"",
     "test:arena-emulator": "firebase emulators:exec --only firestore \"node --test --test-concurrency=1 tests/arena-firestore-rules.test.js tests/realtime-arena-firestore-rules.test.js tests/realtime-arena-emulator.test.js tests/arena-transaction-emulator.test.js tests/arena-ghost-emulator.test.js tests/arena-battle-emulator.test.js tests/arena-ghost-migration-emulator.test.js tests/jogress-emulator.test.js tests/jogress-ghost-migration-emulator.test.js\""
   },
   "dependencies": {
