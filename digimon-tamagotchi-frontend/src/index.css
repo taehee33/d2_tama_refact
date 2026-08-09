@@ -8414,6 +8414,58 @@ code {
   }
 }
 
+/* 태블릿: 상단 내비게이션은 도구 중심으로 줄이고 서비스 이동은 하단 탭으로 제공 */
+@media (min-width: 769px) and (max-width: 1199px) {
+  .service-shell {
+    padding-bottom: calc(var(--mobile-tabbar-height) + var(--safe-bottom) + 1rem);
+  }
+
+  .service-topnav__inner {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .service-nav {
+    display: none;
+  }
+
+  .service-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.7rem;
+  }
+
+  .service-brand__copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .service-brand__eyebrow,
+  .service-brand__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .service-topnav__actions {
+    gap: 0.45rem;
+  }
+
+  .service-topnav__cta {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .service-topnav__account-name {
+    max-width: 8rem;
+  }
+
+  .service-tabbar {
+    display: grid;
+  }
+}
+
 @media (max-width: 768px) {
   .service-modal-backdrop {
     padding: calc(env(safe-area-inset-top, 0px) + 1rem) 1rem
