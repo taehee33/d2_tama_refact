@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { createOperatorStatusHandler } = require("../../digimon-tamagotchi-frontend/api/_lib/operatorHandlers");
+const operatorStatusEntrypoint = require("../../digimon-tamagotchi-frontend/api/operator/status");
 
 function createMockRes() {
   return {
@@ -47,4 +48,23 @@ test("operator status handler returns operator flags for firestore operator", as
     isOperator: true,
     canAccessUserDirectory: true,
   });
+});
+
+test("operator status 진입점은 master data action을 인증 handler로 라우팅한다", async () => {
+  for (const action of ["master-data-save", "master-data-restore"]) {
+    const res = createMockRes();
+    await operatorStatusEntrypoint(
+      {
+        method: "POST",
+        query: { action },
+        headers: {},
+        body: {},
+      },
+      res
+    );
+
+    assert.equal(res.statusCode, 401);
+    assert.equal(res.body.error.code, "MASTER_DATA_AUTH_REQUIRED");
+    assert.equal(res.headers["Cache-Control"], "private, no-store");
+  }
 });

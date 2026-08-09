@@ -13,8 +13,11 @@ jest.mock("firebase/firestore", () => ({
   limit: jest.fn(),
   orderBy: jest.fn(),
   query: jest.fn(),
-  serverTimestamp: jest.fn(),
-  writeBatch: jest.fn(),
+}));
+
+jest.mock("../utils/operatorApi", () => ({
+  restoreOperatorMasterData: jest.fn(),
+  saveOperatorMasterData: jest.fn(),
 }));
 
 jest.mock("./AuthContext", () => ({
