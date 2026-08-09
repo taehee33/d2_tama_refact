@@ -26,8 +26,14 @@ npm --prefix digimon-tamagotchi-frontend ci --no-audit --no-fund
 npm run check
 ```
 
-서버 테스트는 자격증명이 제거된 환경에서 실행되며, Firestore Emulator 전용 테스트는
-현재 필수 검사에서 제외합니다. `npm run check`에는 운영 ESLint와 제한적 JSDoc 타입 검사가 포함됩니다.
+서버 테스트는 자격증명이 제거된 환경에서 실행됩니다. Firestore Rules·transaction 검사는
+`npm run check`와 분리된 필수 `firestore-emulator` CI job에서 두 Emulator 명령을 순차 실행합니다.
+`npm run check`에는 운영 ESLint와 제한적 JSDoc 타입 검사가 포함됩니다.
+
+```bash
+npm run test:firestore-emulator
+npm run test:arena-emulator
+```
 
 - `npm run lint`: 필수 검사. 운영 JS/JSX 313개, 0 errors / 0 warnings.
 - `npm run typecheck`: 필수 검사. root 25개, 정적 import 포함 실제 source 36개, 0 errors.

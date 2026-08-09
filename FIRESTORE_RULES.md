@@ -20,8 +20,12 @@ npm run firestore:deploy
 - `users/{userId}/slots/{slotId}/logs/{logId}`
 - `users/{userId}/slots/{slotId}/battleLogs/{logId}`
 - `nickname_index/{normalizedKey}`
+- 조그레스·아레나·실시간 아레나 서버 정본
+- `jogress_logs`, legacy `arena_entries`, `arena_battle_logs`, `season_archives`
+- `game_settings/{docId}`와 모든 하위 경로
 
-즉, 슬롯 문서뿐 아니라 삭제/로드 때 실제로 접근하는 `logs`, `battleLogs` 서브컬렉션까지 같은 소유자 규칙으로 묶습니다.
+사용자 문서와 슬롯 하위 경로는 소유자 규칙으로 묶습니다. 전역 정본과 설정은
+클라이언트 쓰기를 허용하지 않고 인증된 서버 API·Admin SDK에서만 변경합니다.
 
 ## 현재 rules 파일 요약
 
@@ -72,13 +76,13 @@ service cloud.firestore {
 
 ## 공유 컬렉션에 대한 현재 처리
 
-`jogress_rooms`, `jogress_logs`, `arena_entries`, `arena_battle_logs`, `game_settings`, `season_archives`는 아직 최종 보안 정책을 확정하지 않았습니다.
+- `jogress_rooms`와 보조 인덱스, Ghost V2·아레나 정본, 실시간 아레나 public·secret 문서는 서버만 읽고 쓸 수 있습니다. 실시간 public 문서는 두 참가자의 단건 조회만 예외입니다.
+- `jogress_logs`, legacy `arena_entries`, `arena_battle_logs`, `arena_season_records`, `season_archives`는 로그인 사용자의 과거 데이터 읽기를 유지하고 클라이언트 쓰기는 차단합니다.
+- `game_settings/{docId}`와 모든 하위 경로는 로그인 사용자가 읽을 수 있지만 클라이언트 쓰기는 운영자에게도 허용하지 않습니다.
+- 마스터 데이터 저장·snapshot 복원은 `/api/operator/status?action=master-data-save|master-data-restore`가 `operator_roles/{uid}`를 확인한 뒤 Admin transaction으로 실행합니다.
 
-그래서 이번 rules 파일에서는 이 경계를 완전히 잠그지 않고, **기능 회귀를 막기 위한 임시 호환성 허용**을 함께 둡니다.
-
-- 현재 정책: 인증 사용자면 접근 가능
-- 목적: 조그레스, 아레나, 관리자 기능이 갑자기 막히지 않도록 유지
-- 주의: 이 구간은 다음 라운드에서 컬렉션별 owner/host/admin 정책으로 다시 세분화해야 함
+Admin SDK는 Security Rules의 허용 주체가 아니라 Rules를 우회하는 서버 권한입니다. 따라서 Rules Emulator의
+클라이언트 거부 행렬과 서버 transaction 성공 테스트를 분리해 검증합니다.
 
 ## 왜 이 변경이 필요한가
 
@@ -89,11 +93,15 @@ service cloud.firestore {
 
 기존 문서 예시처럼 `users/{uid}/slots/{slotId}`까지만 열어두면, 삭제 시 `Missing or insufficient permissions`가 발생할 수 있습니다.
 
+반대로 전역 정본을 `isSignedIn()`만으로 쓰게 하면 익명 계정도 공유 데이터와 감사 이력을 변조할 수 있습니다.
+따라서 사용자 소유 데이터는 Rules로 소유자를 검증하고, 전역 데이터는 서버 API에서 권한·입력·동시성·이력을 함께 확정합니다.
+
 ## 적용 순서
 
 1. 루트의 [firestore.rules](./firestore.rules) 내용을 확인합니다.
-2. Firebase Console 또는 루트 npm script로 규칙을 배포합니다.
-3. 로그인 후 `/play`에서 슬롯 생성/삭제를 다시 확인합니다.
+2. 배포 전 `npm run test:firestore-emulator`과 `npm run test:arena-emulator`를 순서대로 실행합니다.
+3. Firebase Console 또는 루트 npm script로 규칙을 배포합니다.
+4. 로그인 후 `/play`에서 슬롯 생성/삭제와 운영자 패널의 마스터 저장·새로고침·snapshot 복원을 확인합니다.
 
 ## 빠른 점검 항목
 
@@ -101,6 +109,8 @@ service cloud.firestore {
 - 디지몬 삭제 시 권한 오류가 사라졌는가
 - 슬롯 재생성 후 예전 로그가 다시 섞이지 않는가
 - 게스트 로그인과 Google 로그인 모두 슬롯 접근이 되는가
+- 익명·일반·운영자 클라이언트의 전역 정본·`game_settings` 쓰기가 거부되는가
+- 운영자 서버 API의 저장·복원이 active 문서와 snapshot을 원자적으로 변경하는가
 
 ## 여전히 권한 오류가 나는 경우
 
@@ -108,6 +118,4 @@ service cloud.firestore {
 2. 로그인 상태인지 확인
 3. 브라우저 하드 리프레시 후 재시도
 4. 앱 레벨 fallback 덕분에 슬롯 삭제는 계속될 수 있으므로, 콘솔 경고와 실제 UI 결과를 함께 확인
-
-
 

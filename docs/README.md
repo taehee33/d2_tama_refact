@@ -10,6 +10,7 @@
 - `README.md`
 - `docs/CURRENT_AUTH_STORAGE_CONTRACT.md`
 - `docs/CURRENT_PROJECT_STRUCTURE_ANALYSIS.md`
+- `docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md`
 - `digimon-tamagotchi-frontend/src/repositories/README.md`
 - `docs/REFACTORING_LOG.md`
 

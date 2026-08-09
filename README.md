@@ -118,7 +118,9 @@ npm run check
 
 `npm run check`는 운영 코드 ESLint, 제한적 JSDoc 타입 검사, 프론트엔드 테스트,
 자격증명 없이 실행되는 서버 테스트, API 단일 원본 계약 검사, 프론트엔드 프로덕션 빌드,
-서버 projection 일치 검사를 순서대로 실행합니다. Firestore Emulator 전용 테스트는 현재 필수 CI 기준에서 제외합니다.
+서버 projection 일치 검사를 순서대로 실행합니다. Firestore Rules·transaction 검사는
+`npm run check`와 분리된 `firestore-emulator` CI job에서 `npm run test:firestore-emulator`과
+`npm run test:arena-emulator`를 순서대로 실행합니다.
 
 독립 품질 명령과 2026-07-25 Node 24 기준선은 다음과 같습니다.
 
@@ -136,7 +138,7 @@ dead-code 후보 전체 목록과 분류는 [dead-code 기준선](./docs/quality
 
 Vercel 프로젝트의 Root Directory는 `digimon-tamagotchi-frontend`입니다. 따라서 실제 서버리스 API 구현과 진입점은 모두 `digimon-tamagotchi-frontend/api`만 사용합니다. 저장소 루트에는 별도 `api/` 구현을 두지 않으며, 서버 테스트도 `tests/api`에서 실제 배포 구현을 직접 불러옵니다.
 
-현재 배포 진입점은 11개이고 Vercel Hobby 함수 상한 12개를 넘지 않습니다. 외부 `/api/*` 주소의 통합 라우팅은 `digimon-tamagotchi-frontend/vercel.json`의 rewrite와 `arena-v2.js`, `notifications/[operation].js`가 담당합니다. `npm run check:api-single-source`는 진입점 누락·추가, 루트 중복 구현, 깨진 호환 shim을 검사합니다. 자세한 구조는 [API 배포 구조](./docs/API_DEPLOYMENT_STRUCTURE.md)를 참고하세요.
+현재 배포 진입점은 12개로 Vercel Hobby 함수 상한을 모두 사용합니다. 외부 `/api/*` 주소의 통합 라우팅은 `digimon-tamagotchi-frontend/vercel.json`의 rewrite와 `arena-v2.js`, `jogress.js`, `notifications/[operation].js`가 담당합니다. `npm run check:api-single-source`는 진입점 누락·추가, 루트 중복 구현, 깨진 호환 shim을 검사합니다. 자세한 구조는 [API 배포 구조](./docs/API_DEPLOYMENT_STRUCTURE.md)를 참고하세요.
 
 커뮤니티 API(`/api/community/...`)까지 함께 확인하려면 `npm start` 단독 실행만으로는 부족할 수 있습니다.
 로컬에서 커뮤니티 글 작성/댓글까지 테스트할 때는 `vercel dev`를 사용하거나,
@@ -152,8 +154,11 @@ npm run firebase:login
 npm run firestore:deploy
 ```
 
-이번 라운드 기준으로 공식 관리 경계는 `users/{uid}` 계열과 `nickname_index/{normalizedKey}`이며,
-공유 컬렉션(`jogress`, `arena`, `game_settings`)은 기능 호환을 위한 임시 auth 허용으로 남아 있습니다.
+공유 정본은 컬렉션별 서버 권한 경계를 사용합니다. `jogress_rooms`, Ghost V2·아레나 정본,
+실시간 아레나 문서, `jogress_logs`, legacy `arena_entries`, `arena_battle_logs`, `season_archives`,
+`game_settings` 문서와 하위 경로의 클라이언트 쓰기는 차단됩니다. 운영자 마스터 데이터 저장·복원은
+`/api/operator/status` 서버 API가 권한, revision, 멱등성, snapshot을 transaction으로 확정합니다.
+상세 계약과 배포 검증은 [P0 전역 Firestore 쓰기 차단 계획](./docs/P0_GLOBAL_FIRESTORE_WRITE_LOCKDOWN_PLAN.md)을 참고하세요.
 
 ## 닉네임 인덱스 감사 / 백필
 
