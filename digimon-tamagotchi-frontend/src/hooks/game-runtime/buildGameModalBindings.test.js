@@ -5,6 +5,7 @@ describe("buildGameModalBindings", () => {
     const handlersInput = {
       handleFeed: jest.fn(),
       handleToggleLights: jest.fn(),
+      openLegacyStats: jest.fn(),
     };
     const dataInput = {
       quests: ["q1"],
@@ -34,6 +35,7 @@ describe("buildGameModalBindings", () => {
     });
 
     expect(result.handlers).toMatchObject(handlersInput);
+    expect(result.handlers.openLegacyStats).toBe(handlersInput.openLegacyStats);
     expect(result.data).toMatchObject(dataInput);
     expect(result.ui).toMatchObject({
       width: 320,

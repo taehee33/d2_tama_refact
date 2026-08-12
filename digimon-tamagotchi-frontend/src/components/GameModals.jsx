@@ -3,6 +3,7 @@
 
 import React from "react";
 import StatsPopup from "./StatsPopup";
+import StatsCenterPopup from "./StatsCenterPopup";
 import FeedPopup from "./FeedPopup";
 import SettingsModal from "./SettingsModal";
 import TrainPopup from "./TrainPopup";
@@ -184,6 +185,7 @@ export default function GameModals({
     resetDigimon,
     setDigimonStatsAndSave,
     saveStatsCommand,
+    saveOperatorStatsPatch,
     setSelectedDigimonAndSave,
     setCurrentQuestArea,
     setCurrentQuestRound,
@@ -194,6 +196,7 @@ export default function GameModals({
     setMyArenaEntryId,
     handleToggleLights,
     appendLogToSubcollection,
+    openLegacyStats,
   } = handlers || {};
 
   const {
@@ -239,6 +242,8 @@ export default function GameModals({
   const {
     developerMode,
     canUseDeveloperMode = false,
+    canViewDiagnostics = false,
+    isOperatorStatusLoading = false,
     setDeveloperMode,
     encyclopediaShowQuestionMark,
     setEncyclopediaShowQuestionMark,
@@ -299,7 +304,21 @@ export default function GameModals({
         />
       )}
 
-      {/* Stats Popup - 이력: activityLogs(틱 즉시 반영) 우선, 없으면 digimonStats.activityLogs (새로고침 없이 부상/케어미스 이력 표시) */}
+      {/* 신규 사용자용 스탯 센터 */}
+      {modals?.statsCenter && (
+        <StatsCenterPopup
+          stats={digimonStats}
+          digimonData={currentDigimonData}
+          sleepStatus={ui?.sleepStatus || "AWAKE"}
+          canViewDiagnostics={canViewDiagnostics}
+          isOperatorStatusLoading={isOperatorStatusLoading}
+          onClose={() => toggleModal('statsCenter', false)}
+          onOpenLegacy={openLegacyStats || (() => {})}
+          onSaveOperatorStats={saveOperatorStatsPatch}
+        />
+      )}
+
+      {/* 기존 Old/New StatsPopup - 편집·저장 계약을 그대로 유지한 legacy surface */}
       {modals?.stats && (
         <StatsPopup
           stats={digimonStats}

@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-08-12] 운영자 1차 스탯 수정 범위 추가
+
+- **내용:** 서버에서 확인된 운영자의 `[ 고급·진단 ]` 탭에 별도 `스탯 수정` 폼을 추가했다. 편집 항목은 배고픔 0~5, 힘 0~5, 에너지 0~종 최대치, 체중, 배변 0~8, 케어 미스, 훈련, 과식, 프로틴 과다 0~7, 부상 횟수 0~15, 현재 형태 승리·패배 횟수, 부상 상태로 한정했다.
+- **제외 계약:** 승률과 현재 형태 배틀 수는 승·패 횟수에서 자동 재계산한다. 수면 상태는 저장 스탯이 아니라 일정과 현재 시각으로 계산되는 런타임 값이므로 임의 편집에서 제외했다. 수명·진화 타이머·종 고정값·냉장·사망·호출·메타데이터도 수정할 수 없다.
+- **권한·저장 경계:** 편집 폼 노출은 기존 운영자 조회 결과를 사용하고, 실제 저장 시점에 operator API로 권한을 다시 확인한다. 값은 allowlist·정수·상한/하한을 순수 helper에서 정규화한 뒤 기존 StatsPopup 단일 필드 command 저장 큐로 전달해 Firestore 정본·IndexedDB outbox·lazy update 계약을 유지한다.
+- **영향 파일:** `src/components/StatsCenterPopup.jsx`, `src/components/stats-center/DiagnosticsTab.jsx`, `src/components/stats-center/OperatorStatsEditor.jsx`, `src/logic/stats/operatorStatsEdit.js`, `src/logic/stats/statsPopupCommands.js`, `src/components/GameModals.jsx`, `src/pages/Game.jsx`, 관련 테스트.
+- **검증:** 운영자 편집·권한·승률 재계산·편집 중 외부 갱신 보호 대상 4 suite·38 test와 `npm run check`를 통과했다. 전체 check는 프런트 201 suite·1,308 test, 서버 238 pass·17 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다.
+
+## [2026-08-11] 스탯 센터 진단 용어와 시간 단위 명확화
+
+- **내용:** 운영자용 고급·진단 화면의 `현재 종` 전적을 `현재 형태`로, `이번 생애 배틀`을 `이번 생애 누적 배틀`로 바꿔 초기화 범위를 명확히 했다. 내부 용어인 `케어 미스 원장 항목`은 `케어 미스 상세 기록`으로 변경했다.
+- **표시 개선:** 주기와 남은 타이머를 `분·초` 형식으로 통일하고, `배변 수 N개`는 게임 상한을 함께 보여주는 `배변 횟수 N/8`로 변경했다. 누적 수명은 장시간 경과를 빠르게 읽을 수 있도록 `N일 N시간 N분 N초`로 표시한다.
+- **아키텍처 결정 근거:** 변경은 `statsCenterViewModel`의 표시 전용 정규화에만 한정했다. 원본 스탯, 배틀 초기화 규칙, 배변 상한 로직, 저장 payload, Firestore·IndexedDB·lazy update는 변경하지 않았다.
+- **영향 파일:** `src/components/stats-center/statsCenterViewModel.js`, 관련 view model·팝업 테스트.
+- **검증:** 스탯 센터 관련 2 suite·19 test와 `npm run check`를 통과했다. 전체 check는 프런트 200 suite·1,298 test, 서버 238 pass·17 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다. 420×676 인앱 브라우저에서 카운터·타이머 스크롤과 줄바꿈을 확인했고 console error/warning은 0건, `design-qa.md` 최종 결과는 `passed`다.
+
+## [2026-08-10] 기존 Old/New를 보존한 신규 스탯 센터 추가
+
+- **내용:** 기존 상태 아이콘이 신규 `statsCenter` 모달을 열도록 연결했다. 일반 사용자는 `[상태]`, 서버에서 확인된 운영자는 `[상태] [고급·진단]`을 본다. 상태 탭은 나이·몸무게·배고픔·힘·에너지·승률·노력치·케어 미스·수면·부상 10개만 표시하며, 내부 카운터·타이머·플래그·메타데이터는 운영자용 읽기 전용 진단으로 분리했다.
+- **모달 계약:** `openStatsCenter()`와 `openLegacyStats()`가 각각 `stats`/`statsCenter`를 하나의 React 상태 갱신으로 전환해 동시 open을 막는다. `StatsPopup.jsx`, `[Old] [New]`, 스탯 편집 command, Firestore 슬롯 저장, IndexedDB outbox, lazy update는 변경하지 않았다.
+- **권한 계약:** 기존 `useOperatorStatus()`를 `Game` 상위에서 한 번 사용하고 팝업에는 `loading/denied/allowed` 표시 상태만 내린다. 팝업 재개방은 운영자 API를 재호출하지 않고, 진단 열람 중 권한이 사라지면 즉시 `[상태]`로 복귀한다.
+- **표시 경계:** `statsCenterViewModel` 은 `winRate/winRatio`, `hunger/fullness` 같은 표시용 fallback과 한글 포맷만 담당한다. 원본을 변경하거나 저장 payload를 만들지 않고, lazy update나 게임 규칙을 재계산하지 않는다.
+- **인게임 패널:** `StatsPanel`의 숫자 나열, 4개 아코디언, localStorage 펼침 키는 유지하면서 헤더·스탯·수면·내부 카운터·시간 문구를 한글화했다. 아코디언에 `aria-expanded`/`aria-controls`를 추가했다.
+- **검증:** 작업 전 `BASE_SHA` `9edfc627a814ef8999703fb2334d06213a1327ea`의 관련 5 suite·48 test가 통과했다. 구현 후 직접 회귀 11 suite·77 test와 `npm run check`를 통과했다. 전체 check는 프런트 200 suite·1,296 test, 서버 238 pass·17 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다. Codex 인앱 브라우저에서 일반·운영자·legacy 전환·패널 펼침을 확인했고 console error/warning은 0건이다. `design-qa.md`의 최종 결과는 `passed`이다.
+- **영향 파일:** `src/components/StatsCenterPopup.jsx`, `src/components/stats-center/*`, `src/components/GameModals.jsx`, `src/components/StatsPanel.jsx`, `src/hooks/useGameState.js`, `src/hooks/useGameHandlers.js`, `src/pages/Game.jsx`, 관련 테스트, `docs/STATS_CENTER_IMPLEMENTATION_PLAN.md`, `design-qa.md`.
+- **아키텍처 결정 근거:** 사용자용 상태 표면과 기존 편집·저장 표면을 서로 다른 모달로 두면 정보 구조를 개선하면서도 검증된 StatsPopup 저장 신뢰성 계약을 건드리지 않는다. 운영자 권한은 노출 결정에만 쓰고 신규 화면에 mutation을 추가하지 않아 보안·저장 범위를 확장하지 않는다.
+
 ## [2026-08-09] 아이패드 태블릿 헤더 메뉴 겹침 수정
 
 - **내용:** CSS viewport `769~1199px` 구간에서 데스크톱 상단 메뉴를 숨기고, 브랜드·채팅·알림·계정 도구만 유연한 한 줄 헤더로 표시하도록 조정했다. 기존 모바일 하단 탭바를 태블릿에서도 활성화해 홈·플레이·커뮤니티·더보기 이동을 제공한다.

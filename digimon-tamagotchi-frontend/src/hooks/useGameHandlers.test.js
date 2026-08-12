@@ -38,6 +38,7 @@ function createDefaultParams(overrides = {}) {
     setActivityLogs: jest.fn(),
     appendLogToSubcollection: jest.fn().mockResolvedValue(undefined),
     toggleModal: jest.fn(),
+    openStatsCenter: jest.fn(),
     setDigimonStatsAndSave: jest.fn().mockResolvedValue(undefined),
     applyLazyUpdateBeforeAction: jest.fn(),
     handleCleanPoopFromHook: jest.fn(),
@@ -228,9 +229,10 @@ describe("useGameHandlers handleMenuClick", () => {
     });
 
     expect(params.setActiveMenu).toHaveBeenNthCalledWith(1, "status");
-    expect(params.toggleModal).toHaveBeenNthCalledWith(1, "stats", true);
+    expect(params.openStatsCenter).toHaveBeenCalledTimes(1);
     expect(params.setActiveMenu).toHaveBeenNthCalledWith(2, "electric");
-    expect(params.toggleModal).toHaveBeenNthCalledWith(2, "lights", true);
+    expect(params.toggleModal).toHaveBeenCalledTimes(1);
+    expect(params.toggleModal).toHaveBeenCalledWith("lights", true);
   });
 
   test("하단 호출 버튼은 호출 모달을 연다", () => {

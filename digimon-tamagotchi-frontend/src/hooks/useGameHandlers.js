@@ -188,7 +188,7 @@ export function resolvePrimaryMenuAction({
   const actionKeyMap = {
     electric: "openLightsModal",
     eat: "openFeedModal",
-    status: "openStatsModal",
+    status: "openStatsCenterModal",
     bathroom: "cleanPoop",
     train: "openTrainModal",
     battle: "openBattleSelectionModal",
@@ -284,6 +284,7 @@ export function useGameHandlers({
   setActivityLogs,
   appendLogToSubcollection,
   toggleModal,
+  openStatsCenter,
   setDigimonStatsAndSave,
   applyLazyUpdateBeforeAction,
   handleCleanPoopFromHook,
@@ -326,7 +327,7 @@ export function useGameHandlers({
     const menuActionMap = {
       openLightsModal: () => toggleModal("lights", true),
       openFeedModal: () => toggleModal("feed", true),
-      openStatsModal: () => toggleModal("stats", true),
+      openStatsCenterModal: () => openStatsCenter(),
       cleanPoop: () => handleCleanPoopFromHook(),
       openTrainModal: () => toggleModal("train", true),
       openBattleSelectionModal: () => toggleModal("battleSelection", true),

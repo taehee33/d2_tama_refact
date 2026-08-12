@@ -58,6 +58,28 @@ describe("StatsPopup intent command", () => {
     )).toMatchObject({ isInjured: false, injuredAt: null, healedDosesCurrent: 0 });
   });
 
+  test("운영자가 승패를 수정하면 현재 형태 배틀 수와 승률을 다시 계산한다", () => {
+    const command = buildStatsPopupCommandIntent({
+      field: "battlesWon",
+      value: 3,
+      occurredAt: 5_000,
+    });
+    const before = { battles: 2, battlesWon: 1, battlesLost: 1, winRate: 50 };
+    const after = applyStatsPopupCommand(before, command);
+
+    expect(after).toMatchObject({
+      battles: 4,
+      battlesWon: 3,
+      battlesLost: 1,
+      winRate: 75,
+    });
+    expect(buildStatsPopupCommandPatch(before, after, command)).toEqual({
+      battlesWon: 3,
+      battles: 4,
+      winRate: 75,
+    });
+  });
+
   test("command patch는 관련 보조 필드만 포함한다", () => {
     const command = buildStatsPopupCommandIntent({ field: "poopCount", value: 8, occurredAt: 2_000 });
     const before = { poopCount: 7, strength: 4 };

@@ -69,6 +69,8 @@ import {
 } from "../utils/digimonVersionUtils";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { mergeAcknowledgedRecentCallIds } from "../utils/callStatusUtils";
+import { fetchOperatorStatus } from "../utils/operatorApi";
+import { persistOperatorStatsPatch } from "../logic/stats/operatorStatsEdit";
 
 const DEFAULT_SEASON_ID = 1;
 const MEAT_SPRITES = ["/images/526.png", "/images/527.png", "/images/528.png", "/images/529.png"];
@@ -126,6 +128,8 @@ function Game({ immersive = false }){
     modals,
     
     toggleModal,
+    openStatsCenter,
+    openLegacyStats,
     
     flags,
     ui,
@@ -142,7 +146,8 @@ function Game({ immersive = false }){
   const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   const { tamerName, setTamerName, hasVer1Master, hasVer2Master, refreshProfile } = useTamerProfile();
   const { operatorStatus, isLoading: isOperatorStatusLoading } = useOperatorStatus();
-  const canUseDeveloperMode = Boolean(operatorStatus?.isOperator);
+  const canViewDiagnostics = Boolean(operatorStatus?.isOperator);
+  const canUseDeveloperMode = canViewDiagnostics;
   
   // localStorage 모드 제거: Firebase 로그인 필수
   useEffect(() => {
@@ -381,6 +386,31 @@ function Game({ immersive = false }){
     isLoadingSlot,
     evolutionDataForSlot,
   });
+
+  const saveOperatorStatsPatch = useCallback(async (requestedPatch = {}) => {
+    if (!currentUser) {
+      throw new Error("로그인이 필요합니다.");
+    }
+
+    return persistOperatorStatsPatch({
+      requestedPatch,
+      stats: digimonStats,
+      digimonData:
+        evolutionDataForSlot?.[selectedDigimon || digimonStats?.selectedDigimon] ||
+        digimonDataForSlot?.[selectedDigimon || digimonStats?.selectedDigimon] ||
+        null,
+      verifyOperator: () => fetchOperatorStatus(currentUser),
+      saveCommand: saveStatsCommand,
+    });
+  }, [
+    currentUser,
+    digimonDataForSlot,
+    digimonStats,
+    evolutionDataForSlot,
+    saveStatsCommand,
+    selectedDigimon,
+  ]);
+
   const isGameplayReady = persistencePhase === "ready" && syncConflict == null;
   const shouldBlockGameRuntime = !isGameplayReady;
 
@@ -680,6 +710,7 @@ function Game({ immersive = false }){
     setActivityLogs,
     appendLogToSubcollection,
     toggleModal,
+    openStatsCenter,
     setDigimonStatsAndSave,
     applyLazyUpdateBeforeAction,
     onSleepDisturbance: () => {
@@ -947,7 +978,7 @@ function Game({ immersive = false }){
       return;
     }
 
-    ["stats", "train", "interaction", "extra"].forEach((modalName) => {
+    ["stats", "statsCenter", "train", "interaction", "extra"].forEach((modalName) => {
       if (modals?.[modalName]) {
         toggleModal(modalName, false);
       }
@@ -996,6 +1027,7 @@ function Game({ immersive = false }){
           setDigimonStats,
           setDigimonStatsAndSave,
           saveStatsCommand,
+          saveOperatorStatsPatch,
           setSelectedDigimonAndSave,
           setCurrentQuestArea,
           setCurrentQuestRound,
@@ -1008,6 +1040,7 @@ function Game({ immersive = false }){
           onOverfeedConfirm: handleOverfeedConfirm,
           onOverfeedCancel: handleOverfeedCancel,
           handleToggleLights: handleToggleLightsFromHook,
+          openLegacyStats,
           putInFridge,
           takeOutFromFridge,
           proceedEvolution: handleProceedEvolution,
@@ -1067,6 +1100,7 @@ function Game({ immersive = false }){
       setDigimonStats,
       setDigimonStatsAndSave,
       saveStatsCommand,
+      saveOperatorStatsPatch,
       setSelectedDigimonAndSave,
       setCurrentQuestArea,
       setCurrentQuestRound,
@@ -1079,6 +1113,7 @@ function Game({ immersive = false }){
       handleOverfeedConfirm,
       handleOverfeedCancel,
       handleToggleLightsFromHook,
+      openLegacyStats,
       putInFridge,
       takeOutFromFridge,
       handleProceedEvolution,
@@ -1570,6 +1605,8 @@ function Game({ immersive = false }){
         flags={{
           developerMode: effectiveDeveloperMode,
           canUseDeveloperMode,
+          canViewDiagnostics,
+          isOperatorStatusLoading,
           setDeveloperMode,
           encyclopediaShowQuestionMark,
           setEncyclopediaShowQuestionMark,

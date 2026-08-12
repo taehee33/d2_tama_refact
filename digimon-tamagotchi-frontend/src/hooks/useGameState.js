@@ -162,6 +162,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const [modals, setModals] = useState({
     // 기본 모달
     stats: false,
+    statsCenter: false,
     feed: false,
     settings: false,
     admin: false,
@@ -371,6 +372,29 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
       [name]: isOpen,
     }));
   };
+
+  /**
+   * 기존 Old/New 화면을 닫고 신규 스탯 센터를 연다.
+   */
+  const openStatsCenter = () => {
+    setModals((prevModals) => ({
+      ...prevModals,
+      stats: false,
+      statsCenter: true,
+    }));
+  };
+
+  /**
+   * 신규 스탯 센터에서 기존 Old/New 화면으로 전환한다.
+   * 두 모달이 동시에 열리지 않도록 하나의 상태 갱신으로 처리한다.
+   */
+  const openLegacyStats = () => {
+    setModals((prevModals) => ({
+      ...prevModals,
+      statsCenter: false,
+      stats: true,
+    }));
+  };
   
   /**
    * 모든 모달 닫기
@@ -378,6 +402,7 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   const closeAllModals = () => {
     setModals({
       stats: false,
+      statsCenter: false,
       feed: false,
       settings: false,
       admin: false,
@@ -490,6 +515,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     modals,
     setModals,
     toggleModal,
+    openStatsCenter,
+    openLegacyStats,
     closeAllModals,
     
     // Flags
@@ -572,6 +599,8 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
     // Actions (편의 함수들)
     actions: {
       toggleModal,
+      openStatsCenter,
+      openLegacyStats,
       closeAllModals,
     },
   };

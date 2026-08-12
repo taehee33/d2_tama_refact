@@ -9,6 +9,7 @@ export const STATS_POPUP_COMMAND_TYPE = {
 
 const POOP_FIELDS = ["poopCount", "poopReachedMaxAt", "lastPoopPenaltyAt"];
 const INJURY_FIELDS = ["isInjured", "injuredAt", "healedDosesCurrent"];
+const BATTLE_RECORD_FIELDS = ["battlesWon", "battlesLost", "battles", "winRate"];
 
 export function buildStatsPopupCommandIntent({ field, value, occurredAt = Date.now() }) {
   let type = STATS_POPUP_COMMAND_TYPE.SET_STAT;
@@ -53,6 +54,7 @@ export function getStatsPopupCommandAffectedFields(command = {}) {
   if (command.type === STATS_POPUP_COMMAND_TYPE.SET_INJURY_STATE) return INJURY_FIELDS;
   if (command.type === STATS_POPUP_COMMAND_TYPE.SET_NOCTURNAL) return ["isNocturnal"];
   const field = getStatsPopupCommandPrimaryField(command);
+  if (field === "battlesWon" || field === "battlesLost") return BATTLE_RECORD_FIELDS;
   return field ? [field] : [];
 }
 
@@ -63,6 +65,15 @@ export function applyStatsPopupCommand(stats = {}, command = {}) {
   if (!field) return { ...stats };
 
   const nextStats = { ...stats, [field]: command.value };
+  if (field === "battlesWon" || field === "battlesLost") {
+    const battlesWon = Math.max(0, Math.trunc(Number(nextStats.battlesWon) || 0));
+    const battlesLost = Math.max(0, Math.trunc(Number(nextStats.battlesLost) || 0));
+    const battles = battlesWon + battlesLost;
+    nextStats.battlesWon = battlesWon;
+    nextStats.battlesLost = battlesLost;
+    nextStats.battles = battles;
+    nextStats.winRate = battles > 0 ? Math.round((battlesWon / battles) * 100) : 0;
+  }
   if (command.type === STATS_POPUP_COMMAND_TYPE.SET_POOP_COUNT) {
     const previousPoopCount = Number(stats.poopCount) || 0;
     const nextPoopCount = Number(command.value) || 0;
