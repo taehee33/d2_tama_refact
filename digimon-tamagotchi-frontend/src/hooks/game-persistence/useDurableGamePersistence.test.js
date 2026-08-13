@@ -9,6 +9,14 @@ import {
 } from "./useDurableGamePersistence";
 
 const mockRunTransaction = jest.fn();
+const TEST_SLOT_INSTANCE_ID = "slot-instance-1";
+const TEST_DIGIMON_INSTANCE_ID = "digimon-instance-1";
+const TEST_PERSISTENCE_IDENTITY = Object.freeze({
+  uid: "user-1",
+  slotId: 1,
+  slotInstanceId: TEST_SLOT_INSTANCE_ID,
+  digimonInstanceId: TEST_DIGIMON_INSTANCE_ID,
+});
 
 jest.mock("firebase/firestore", () => ({
   collection: (...args) => args.join("/"),
@@ -23,18 +31,24 @@ jest.mock("../../firebase", () => ({ db: "DB" }));
 function createMemoryOutbox(order) {
   let stateRecord = null;
   let feedEvents = [];
+  let recordSequence = 0;
   return {
     async getStateMutation() { return stateRecord; },
     async putStateMutation(input) {
       order.push("outbox:put");
       stateRecord = {
+        ...TEST_PERSISTENCE_IDENTITY,
         ...input,
+        recordVersion: `state-record-${recordSequence += 1}`,
         state: JSON.parse(JSON.stringify(input.state)),
       };
       return stateRecord;
     },
-    async deleteStateMutation({ mutationId }) {
-      if (stateRecord?.mutationId !== mutationId) return false;
+    async deleteStateMutation({ mutationId, recordVersion }) {
+      if (
+        stateRecord?.mutationId !== mutationId ||
+        (recordVersion && stateRecord?.recordVersion !== recordVersion)
+      ) return false;
       order.push("outbox:delete");
       stateRecord = null;
       return true;
@@ -42,12 +56,16 @@ function createMemoryOutbox(order) {
     async listActivityEvents() { return []; },
     async listBattleEvents() { return []; },
     async listFeedEvents() { return feedEvents; },
-    async putActivityEvent() {},
-    async deleteActivityEvent() {},
-    async putBattleEvent() {},
-    async deleteBattleEvent() {},
+    async putActivityEvent(input) {
+      return { ...input, recordVersion: `activity-record-${recordSequence += 1}` };
+    },
+    async deleteActivityEvent() { return true; },
+    async putBattleEvent(input) {
+      return { ...input, recordVersion: `battle-record-${recordSequence += 1}` };
+    },
+    async deleteBattleEvent() { return true; },
     async putFeedEvent(input) {
-      const next = { ...input };
+      const next = { ...input, recordVersion: `feed-record-${recordSequence += 1}` };
       feedEvents = [...feedEvents.filter((event) => event.eventId !== input.eventId), next];
       return next;
     },
@@ -63,7 +81,7 @@ function createHookParams(outboxOverride) {
     current: {
       phase: GAME_PERSISTENCE_PHASE.READY,
       generation: 1,
-      loadedIdentity: { uid: "user-1", slotId: 1 },
+      loadedIdentity: { ...TEST_PERSISTENCE_IDENTITY },
       loadedRevision: 0,
     },
   };
@@ -98,7 +116,7 @@ describe("canUseGameplayPersistence", () => {
   const readyAccess = {
     phase: GAME_PERSISTENCE_PHASE.READY,
     generation: 3,
-    loadedIdentity: { uid: "user-1", slotId: 1 },
+    loadedIdentity: { ...TEST_PERSISTENCE_IDENTITY },
   };
 
   test("ready·identity·generation·revision이 모두 일치할 때만 저장을 허용한다", () => {
@@ -107,7 +125,11 @@ describe("canUseGameplayPersistence", () => {
       currentUid: "user-1",
       currentSlotId: 1,
       loadedRevision: 4,
-      saveContext: { uid: "user-1", slotId: 1, generation: 3, requestedAtRevision: 4 },
+      saveContext: {
+        ...TEST_PERSISTENCE_IDENTITY,
+        generation: 3,
+        requestedAtRevision: 4,
+      },
     })).toBe(true);
   });
 
@@ -123,7 +145,7 @@ describe("canUseGameplayPersistence", () => {
       currentUid: "user-1",
       currentSlotId: 1,
       loadedRevision: 4,
-      saveContext: { uid: "user-1", slotId: 1, generation: 3 },
+      saveContext: { ...TEST_PERSISTENCE_IDENTITY, generation: 3 },
       ...override,
     })).toBe(false);
   });
@@ -133,9 +155,11 @@ describe("isCurrentConflictIdentity", () => {
   test("uid·slotId·generation이 모두 같은 충돌만 현재 슬롯 복구에 사용한다", () => {
     const access = {
       generation: 4,
-      loadedIdentity: { uid: "user-1", slotId: 1 },
+      loadedIdentity: { ...TEST_PERSISTENCE_IDENTITY },
     };
-    const conflict = { identity: { uid: "user-1", slotId: 1, generation: 4 } };
+    const conflict = {
+      identity: { ...TEST_PERSISTENCE_IDENTITY, generation: 4 },
+    };
 
     expect(isCurrentConflictIdentity({
       conflict,
@@ -167,7 +191,9 @@ describe("useDurableGamePersistence", () => {
 
   test("활동 로그 receipt는 고정 eventId로 원격 저장 결과를 반환한다", async () => {
     const outbox = createMemoryOutbox([]);
-    outbox.putActivityEvent = jest.fn().mockResolvedValue(undefined);
+    outbox.putActivityEvent = jest.fn().mockResolvedValue({
+      recordVersion: "activity-record-1",
+    });
     outbox.deleteActivityEvent = jest.fn().mockResolvedValue(undefined);
     setDoc.mockResolvedValue(undefined);
     const { result } = renderHook(() =>
@@ -687,6 +713,87 @@ describe("useDurableGamePersistence", () => {
     expect(result.current.stateSyncStatus).toBe("local");
     expect(result.current.nextStateSyncAt).toBeNull();
     expect(result.current.stateSyncError).toBe("offline");
+  });
+
+  test("진화 transaction 실패는 전이 envelope를 outbox에 보존하고 flush에서 원자적으로 재시도한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    mockRunTransaction.mockRejectedValueOnce(new Error("offline"));
+    const update = jest.fn();
+    const set = jest.fn();
+    const params = createHookParams(outbox);
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+    const transition = {
+      transitionId: "evolution-transition-1",
+      sourceDigimon: "Agumon",
+      targetDigimon: "Greymon",
+      createdAt: 400,
+      logEntry: {
+        type: "EVOLUTION",
+        text: "Agumon evolved into Greymon",
+        timestamp: 400,
+        eventId: "activity:evolution:evolution-transition-1",
+      },
+    };
+
+    let queuedReceipt;
+    await act(async () => {
+      queuedReceipt = await result.current.persistEvolutionTransitionReceipt({
+        statsSnapshot: { fullness: 5, selectedDigimon: "Greymon", activityLogs: [] },
+        updatedLogs: [transition.logEntry],
+        transition,
+        nowMs: 400,
+      });
+    });
+
+    const pending = await outbox.getStateMutation();
+    expect(queuedReceipt).toMatchObject({
+      status: "queued",
+      errorCode: "UNKNOWN",
+    });
+    expect(pending.state.transition).toMatchObject({
+      transitionId: "evolution-transition-1",
+      sourceDigimon: "Agumon",
+      targetDigimon: "Greymon",
+      slotInstanceId: TEST_SLOT_INSTANCE_ID,
+      digimonInstanceId: TEST_DIGIMON_INSTANCE_ID,
+    });
+    expect(pending.state.transition.requestFingerprint).toEqual(expect.any(String));
+
+    mockRunTransaction.mockImplementationOnce(async (_db, callback) => callback({
+      get: async (ref) => String(ref).includes("/logs/")
+        ? { exists: () => false, data: () => ({}) }
+        : {
+            exists: () => true,
+            data: () => ({
+              revision: 0,
+              selectedDigimon: "Agumon",
+              slotInstanceId: TEST_SLOT_INSTANCE_ID,
+              digimonInstanceId: TEST_DIGIMON_INSTANCE_ID,
+              arenaIdentitySchemaVersion: 1,
+              combatRevision: 3,
+            }),
+          },
+      update,
+      set,
+    }));
+
+    await act(async () => {
+      await result.current.flushOutbox();
+    });
+
+    expect(update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      selectedDigimon: "Greymon",
+      revision: 1,
+      combatRevision: 4,
+      digimonStats: expect.objectContaining({ fullness: 5 }),
+    }));
+    expect(set).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      eventId: "activity:evolution:evolution-transition-1",
+      revisionBefore: 0,
+      revisionAfter: 1,
+      requestFingerprint: pending.state.transition.requestFingerprint,
+    }));
+    expect(await outbox.getStateMutation()).toBeNull();
   });
 
   test("사망 같은 위험 전이의 revision 충돌은 자동 덮어쓰지 않고 보류한다", async () => {

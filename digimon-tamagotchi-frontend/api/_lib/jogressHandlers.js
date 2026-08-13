@@ -5,6 +5,7 @@ const { JogressError } = require("./jogressDomain");
 const {
   cancelJogressRoom,
   completeJogressRoom,
+  completeLocalJogress,
   createJogressRoom,
   joinJogressRoom,
   listJogressRooms,
@@ -78,6 +79,19 @@ function createJogressHandler(deps = {}) {
           uid: user.uid,
           roomId: requireString(input.roomId, "완료할 방 ID가 필요합니다."),
           expectedRevision: input.expectedRevision,
+          deps,
+        });
+        sendJson(res, 200, result);
+        return;
+      }
+      if (input.action === "complete-local") {
+        result = await (deps.completeLocalJogress || completeLocalJogress)({
+          uid: user.uid,
+          requestId: requireString(input.requestId, "로컬 조그레스 requestId가 필요합니다."),
+          currentSlotId: input.currentSlotId,
+          partnerSlotId: input.partnerSlotId,
+          expectedCurrentRevision: input.expectedCurrentRevision,
+          expectedPartnerRevision: input.expectedPartnerRevision,
           deps,
         });
         sendJson(res, 200, result);

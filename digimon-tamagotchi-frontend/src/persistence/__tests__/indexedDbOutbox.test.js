@@ -10,6 +10,13 @@ function createMemoryStorage() {
   const stores = {
     state_mutations: new Map(),
     events: new Map(),
+    legacy_quarantine: new Map(),
+  };
+
+  const keyFields = {
+    state_mutations: 'scopeKey',
+    events: 'eventKey',
+    legacy_quarantine: 'quarantineKey',
   };
 
   return {
@@ -18,7 +25,7 @@ function createMemoryStorage() {
       return record == null ? null : clone(record);
     },
     async put(storeName, value) {
-      const keyField = storeName === 'state_mutations' ? 'scopeKey' : 'eventKey';
+      const keyField = keyFields[storeName];
       stores[storeName].set(value[keyField], clone(value));
       return value[keyField];
     },
@@ -28,7 +35,85 @@ function createMemoryStorage() {
     async getAll(storeName) {
       return Array.from(stores[storeName].values()).map(clone);
     },
+    async atomicUpdate(storeName, key, updater) {
+      const existing = clone(stores[storeName].get(key) ?? null);
+      const action = updater(existing);
+      if (action.action === 'put') {
+        const value = clone(action.value);
+        stores[storeName].set(value[keyFields[storeName]], value);
+      } else if (action.action === 'delete') {
+        stores[storeName].delete(key);
+      }
+      return clone(action.result);
+    },
+    async deleteWhere(storeNames, predicate) {
+      let deletedCount = 0;
+      for (const storeName of storeNames) {
+        for (const [key, record] of stores[storeName]) {
+          if (!predicate(storeName, clone(record))) continue;
+          stores[storeName].delete(key);
+          deletedCount += 1;
+        }
+      }
+      return deletedCount;
+    },
+    async migrateLegacyRecords(nowTimestamp) {
+      let quarantinedCount = 0;
+      for (const storeName of ['state_mutations', 'events']) {
+        for (const [key, record] of stores[storeName]) {
+          if (typeof record.slotInstanceId === 'string' && record.slotInstanceId.trim()) {
+            continue;
+          }
+          stores.legacy_quarantine.set(`${storeName}:${key}`, {
+            quarantineKey: `${storeName}:${key}`,
+            originalStore: storeName,
+            originalKey: String(key),
+            reason: 'missing-slot-instance-id',
+            quarantinedAt: nowTimestamp,
+            record: clone(record),
+          });
+          stores[storeName].delete(key);
+          quarantinedCount += 1;
+        }
+      }
+      return { quarantinedCount };
+    },
   };
+}
+
+const DEFAULT_IDENTITY = Object.freeze({
+  slotInstanceId: 'slot-instance-a',
+  digimonInstanceId: 'digimon-life-a',
+});
+
+const IDENTITY_METHODS = new Set([
+  'putStateMutation',
+  'getStateMutation',
+  'deleteStateMutation',
+  'putActivityEvent',
+  'listActivityEvents',
+  'deleteActivityEvent',
+  'putBattleEvent',
+  'listBattleEvents',
+  'deleteBattleEvent',
+  'putFeedEvent',
+  'listFeedEvents',
+  'deleteFeedEvent',
+  'summarizeFeedBuckets',
+  'pruneSyncedFeedEvents',
+  'clearSlotInstanceScope',
+  'clearDigimonLifeRecords',
+]);
+
+function createTestOutbox(options) {
+  const outbox = createIndexedDbOutbox(options);
+  return new Proxy(outbox, {
+    get(target, property) {
+      const value = target[property];
+      if (typeof value !== 'function' || !IDENTITY_METHODS.has(property)) return value;
+      return (input = {}) => value({ ...DEFAULT_IDENTITY, ...input });
+    },
+  });
 }
 
 function createFakeIndexedDbFactory() {
@@ -84,7 +169,7 @@ function createFakeDatabase(name, version) {
         records: new Map(),
       });
     },
-    transaction(storeName) {
+    transaction() {
       const transaction = {
         error: null,
         oncomplete: null,
@@ -97,6 +182,7 @@ function createFakeDatabase(name, version) {
           }
 
           return {
+            keyPath: store.keyPath,
             get(key) {
               const request = createRequest();
               queueMicrotask(() => {
@@ -182,7 +268,7 @@ function clone(value) {
 
 describe('indexedDbOutbox', () => {
   it('uid+slot 범위별로 최신 state mutation만 보관하고 structured clone을 유지한다', async () => {
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
     });
 
@@ -222,25 +308,28 @@ describe('indexedDbOutbox', () => {
       slotId: 'slot-2',
     });
 
-    expect(slotOneMutation).toEqual({
+    expect(slotOneMutation).toEqual(expect.objectContaining({
       kind: 'state',
       uid: 'user-a',
       slotId: 'slot-1',
-      scopeKey: 'user-a::slot-1',
+      slotInstanceId: DEFAULT_IDENTITY.slotInstanceId,
+      digimonInstanceId: DEFAULT_IDENTITY.digimonInstanceId,
+      scopeKey: 'user-a::slot-1::slot-instance-a',
       mutationId: 'm-1',
       updatedAt: 100,
       queuedAt: 100,
       state: { hunger: 3, nested: { stage: '성장기' } },
-    });
+    }));
+    expect(slotOneMutation.recordVersion).toEqual(expect.any(String));
     expect(slotTwoMutation?.mutationId).toBe('m-2');
   });
 
   it('state mutation 삭제는 mutationId가 현재 값과 일치할 때만 수행한다', async () => {
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
     });
 
-    await outbox.putStateMutation({
+    const storedRecord = await outbox.putStateMutation({
       uid: 'user-a',
       slotId: 'slot-1',
       mutationId: 'm-latest',
@@ -253,6 +342,7 @@ describe('indexedDbOutbox', () => {
         uid: 'user-a',
         slotId: 'slot-1',
         mutationId: 'm-stale',
+        recordVersion: storedRecord.recordVersion,
       })
     ).resolves.toBe(false);
 
@@ -268,6 +358,7 @@ describe('indexedDbOutbox', () => {
         uid: 'user-a',
         slotId: 'slot-1',
         mutationId: 'm-latest',
+        recordVersion: storedRecord.recordVersion,
       })
     ).resolves.toBe(true);
 
@@ -280,7 +371,7 @@ describe('indexedDbOutbox', () => {
   });
 
   it('activity와 battle event는 슬롯별로 put/list/delete가 독립 동작한다', async () => {
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
     });
 
@@ -320,11 +411,13 @@ describe('indexedDbOutbox', () => {
     expect(slotOneBattles).toHaveLength(1);
     expect(slotOneBattles[0].payload).toEqual({ enemy: '아구몬' });
 
+    const activityRecord = slotOneActivities[0];
     await expect(
       outbox.deleteActivityEvent({
         uid: 'user-a',
         slotId: 'slot-1',
         eventId: 'activity-1',
+        recordVersion: activityRecord.recordVersion,
       })
     ).resolves.toBe(true);
 
@@ -344,7 +437,7 @@ describe('indexedDbOutbox', () => {
   });
 
   it('콜론이 포함된 EVOLUTION eventId도 같은 activity eventKey로 재사용한다', async () => {
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
     });
     const eventId =
@@ -383,12 +476,14 @@ describe('indexedDbOutbox', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0].eventId).toBe(eventId);
-    expect(events[0].eventKey).toBe(`user-a::slot-1::activity::${eventId}`);
+    expect(events[0].eventKey).toBe(
+      `user-a::slot-1::slot-instance-a::activity::${eventId}`
+    );
     expect(events[0].payload.retried).toBe(true);
   });
 
   it('FEED event는 개별 보존되며 15분 bucket summary를 계산한다', async () => {
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
     });
 
@@ -430,6 +525,8 @@ describe('indexedDbOutbox', () => {
       {
         uid: 'user-a',
         slotId: 'slot-1',
+        slotInstanceId: DEFAULT_IDENTITY.slotInstanceId,
+        digimonInstanceId: DEFAULT_IDENTITY.digimonInstanceId,
         bucketStartAt: 0,
         bucketEndAt: 15 * 60 * 1000,
         eventCount: 2,
@@ -442,6 +539,8 @@ describe('indexedDbOutbox', () => {
       {
         uid: 'user-a',
         slotId: 'slot-1',
+        slotInstanceId: DEFAULT_IDENTITY.slotInstanceId,
+        digimonInstanceId: DEFAULT_IDENTITY.digimonInstanceId,
         bucketStartAt: 15 * 60 * 1000,
         bucketEndAt: 30 * 60 * 1000,
         eventCount: 1,
@@ -456,7 +555,7 @@ describe('indexedDbOutbox', () => {
 
   it('FEED 정리는 synced 항목만 최근 30일 또는 최신 5000건 기준으로 삭제하고 pending은 유지한다', async () => {
     const nowTimestamp = 60 * 24 * 60 * 60 * 1000;
-    const outbox = createIndexedDbOutbox({
+    const outbox = createTestOutbox({
       storage: createMemoryStorage(),
       now: () => nowTimestamp,
     });
@@ -519,7 +618,7 @@ describe('indexedDbOutbox', () => {
       indexedDB: createFakeIndexedDbFactory(),
       dbName: 'test-outbox',
     });
-    const outbox = createIndexedDbOutbox({ storage });
+    const outbox = createTestOutbox({ storage });
 
     await outbox.putBattleEvent({
       uid: 'user-b',
@@ -535,20 +634,174 @@ describe('indexedDbOutbox', () => {
         slotId: 'slot-9',
       })
     ).resolves.toEqual([
-      {
+      expect.objectContaining({
         category: 'battle',
         uid: 'user-b',
         slotId: 'slot-9',
-        scopeKey: 'user-b::slot-9',
+        slotInstanceId: DEFAULT_IDENTITY.slotInstanceId,
+        digimonInstanceId: DEFAULT_IDENTITY.digimonInstanceId,
+        scopeKey: 'user-b::slot-9::slot-instance-a',
         eventId: 'battle-1',
-        eventKey: 'user-b::slot-9::battle::battle-1',
+        eventKey: 'user-b::slot-9::slot-instance-a::battle::battle-1',
         eventType: 'BATTLE',
         occurredAt: 12,
         payload: { enemy: '파피몬' },
         syncStatus: 'pending',
         syncedAt: null,
-      },
+      }),
     ]);
+  });
+
+  it('같은 slotId를 재사용해도 slotInstanceId가 다른 이전 슬롯 기록과 격리한다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage() });
+
+    await outbox.putStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      slotInstanceId: 'slot-life-old',
+      digimonInstanceId: 'digimon-old',
+      mutationId: 'old-state',
+      updatedAt: 100,
+      state: { hunger: 1 },
+    });
+    await outbox.putStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      slotInstanceId: 'slot-life-new',
+      digimonInstanceId: 'digimon-new',
+      mutationId: 'new-state',
+      updatedAt: 200,
+      state: { hunger: 5 },
+    });
+
+    await expect(outbox.getStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      slotInstanceId: 'slot-life-old',
+      digimonInstanceId: 'digimon-old',
+    })).resolves.toEqual(expect.objectContaining({ mutationId: 'old-state' }));
+    await expect(outbox.getStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      slotInstanceId: 'slot-life-new',
+      digimonInstanceId: 'digimon-new',
+    })).resolves.toEqual(expect.objectContaining({ mutationId: 'new-state' }));
+  });
+
+  it('저장 성공 직후 같은 mutationId로 새 값이 생기면 오래된 cleanup이 새 값을 지우지 않는다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage() });
+    const first = await outbox.putStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      mutationId: 'coalesced-mutation',
+      updatedAt: 100,
+      state: { hunger: 2 },
+    });
+    const second = await outbox.putStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      mutationId: 'coalesced-mutation',
+      updatedAt: 101,
+      state: { hunger: 3 },
+    });
+
+    await expect(outbox.deleteStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      mutationId: first.mutationId,
+      recordVersion: first.recordVersion,
+    })).resolves.toBe(false);
+    await expect(outbox.getStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+    })).resolves.toEqual(expect.objectContaining({
+      recordVersion: second.recordVersion,
+      state: { hunger: 3 },
+    }));
+  });
+
+  it('같은 eventId를 다시 쓴 뒤 오래된 cleanup이 최신 event를 지우지 않는다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage() });
+    const first = await outbox.putActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId: 'activity-1',
+      occurredAt: 100,
+      payload: { text: '첫 값' },
+    });
+    const second = await outbox.putActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId: 'activity-1',
+      occurredAt: 101,
+      payload: { text: '최신 값' },
+    });
+
+    await expect(outbox.deleteActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId: 'activity-1',
+      recordVersion: first.recordVersion,
+    })).resolves.toBe(false);
+    await expect(outbox.listActivityEvents({
+      uid: 'user-a',
+      slotId: 'slot-1',
+    })).resolves.toEqual([
+      expect.objectContaining({
+        recordVersion: second.recordVersion,
+        payload: { text: '최신 값' },
+      }),
+    ]);
+  });
+
+  it('slotInstanceId가 없는 v1 레코드는 현재 scope로 추측하지 않고 격리한다', async () => {
+    const storage = createMemoryStorage();
+    await storage.put('state_mutations', {
+      scopeKey: 'user-a::slot-1',
+      uid: 'user-a',
+      slotId: 'slot-1',
+      mutationId: 'legacy-state',
+      updatedAt: 10,
+      state: { hunger: 1 },
+    });
+    const outbox = createTestOutbox({ storage, now: () => 999 });
+
+    await expect(outbox.getStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+    })).resolves.toBeNull();
+    await expect(outbox.listLegacyQuarantine()).resolves.toEqual([
+      expect.objectContaining({
+        quarantineKey: 'state_mutations:user-a::slot-1',
+        reason: 'missing-slot-instance-id',
+        quarantinedAt: 999,
+      }),
+    ]);
+  });
+
+  it('이전 디지몬 생애 정리는 같은 슬롯 인스턴스의 해당 생애 기록만 삭제한다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage() });
+    for (const digimonInstanceId of ['digimon-old', 'digimon-new']) {
+      await outbox.putActivityEvent({
+        uid: 'user-a',
+        slotId: 'slot-1',
+        digimonInstanceId,
+        eventId: `activity-${digimonInstanceId}`,
+        occurredAt: 100,
+        payload: { digimonInstanceId },
+      });
+    }
+
+    await expect(outbox.clearDigimonLifeRecords({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      digimonInstanceId: 'digimon-old',
+    })).resolves.toBe(1);
+    await expect(outbox.listActivityEvents({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      digimonInstanceId: 'digimon-new',
+    })).resolves.toHaveLength(1);
   });
 
   it('IndexedDB unavailable 오류를 별도로 구분한다', () => {

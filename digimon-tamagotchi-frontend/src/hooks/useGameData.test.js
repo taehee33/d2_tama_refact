@@ -555,6 +555,64 @@ describe("loadSlotCollectionsState", () => {
       { mode: "legacy", text: "old", timestamp: 4000 },
     ]);
   });
+
+  test("identity schema 적용 후에는 현재 디지몬 생애 로그만 최대 50건 로드한다", async () => {
+    const currentEntries = Array.from({ length: 55 }, (_, index) => ({
+      id: `current-${index}`,
+      type: "CARE",
+      timestamp: 1000 - index,
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-current",
+    }));
+    const result = await loadSlotCollectionsState({
+      slotCreatedAt: 1,
+      currentLifeStartedAt: 100,
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-current",
+      logIdentitySchemaVersion: 1,
+      legacyActivityLogs: [{ type: "OLD_ROOT", timestamp: 900 }],
+      loadActivityEntries: async () => [
+        ...currentEntries,
+        {
+          id: "previous-life",
+          type: "CARE",
+          timestamp: 999,
+          slotInstanceId: "slot-life-1",
+          digimonInstanceId: "digimon-life-old",
+        },
+      ],
+      loadBattleEntries: async () => [],
+    });
+
+    expect(result.loadedActivityLogs).toHaveLength(50);
+    expect(result.loadedActivityLogs[0].id).toBe("current-0");
+    expect(result.loadedActivityLogs.some((entry) => entry.id === "previous-life"))
+      .toBe(false);
+    expect(result.loadedActivityLogs.some((entry) => entry.type === "OLD_ROOT"))
+      .toBe(false);
+  });
+
+  test("legacy schema에서는 현재 birthTime 이후의 무식별 로그만 backfill 대상으로 반환한다", async () => {
+    const result = await loadSlotCollectionsState({
+      slotCreatedAt: 100,
+      currentLifeStartedAt: 1000,
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-current",
+      logIdentitySchemaVersion: null,
+      loadActivityEntries: async () => [
+        { id: "legacy-current", type: "CARE", timestamp: 1100 },
+        { id: "legacy-old", type: "CARE", timestamp: 900 },
+      ],
+      loadBattleEntries: async () => [],
+    });
+
+    expect(result.loadedActivityLogs.map((entry) => entry.id)).toEqual([
+      "legacy-current",
+    ]);
+    expect(result.legacyActivityEntriesToBackfill.map((entry) => entry.id)).toEqual([
+      "legacy-current",
+    ]);
+  });
 });
 
 describe("buildLoadedSlotCollectionsState", () => {

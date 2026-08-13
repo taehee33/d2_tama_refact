@@ -14,6 +14,9 @@ import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 import { buildPlayHubProjectedSlot } from "../utils/playHubSlotProjection";
 import { toEpochMs } from "../utils/time";
 import { createNewLifeCombatIdentity } from "../logic/arena/combatIdentity";
+import { createSlotInstanceIdentity } from "../persistence/slotInstanceIdentity";
+import { createIndexedDbOutbox } from "../persistence/indexedDbOutbox";
+import { clearDeletedSlotOutbox } from "../persistence/slotOutboxLifecycle";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
@@ -43,6 +46,13 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const outbox = useMemo(() => {
+    try {
+      return createIndexedDbOutbox();
+    } catch (_error) {
+      return null;
+    }
+  }, []);
 
   const loadSlots = useCallback(async () => {
     if (!isFirebaseAvailable || !currentUser) {
@@ -133,7 +143,10 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
       const createdAt = Date.now();
 
       await setDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
+        ...createSlotInstanceIdentity(),
         ...createNewLifeCombatIdentity(),
+        logIdentitySchemaVersion: 1,
+        revision: 0,
         selectedDigimon: startingDigimon,
         digimonStats: {},
         slotName: `슬롯${slotId}`,
@@ -161,10 +174,21 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         throw new Error("로그인이 필요합니다.");
       }
 
+      const deletedSlot = slots.find((slot) => String(slot.id) === String(slotId)) || null;
       await userSlotRepository.deleteUserSlot(currentUser.uid, slotId);
+      try {
+        await clearDeletedSlotOutbox({
+          outbox,
+          uid: currentUser.uid,
+          slotId,
+          slotData: deletedSlot,
+        });
+      } catch (cleanupError) {
+        console.warn("삭제된 슬롯의 로컬 outbox 정리에 실패했습니다.", cleanupError);
+      }
       await loadSlots();
     },
-    [currentUser, isFirebaseAvailable, loadSlots]
+    [currentUser, isFirebaseAvailable, loadSlots, outbox, slots]
   );
 
   const syncJogressRoomNickname = useCallback(async () => {

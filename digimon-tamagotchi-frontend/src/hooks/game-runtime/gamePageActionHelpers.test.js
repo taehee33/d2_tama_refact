@@ -58,6 +58,14 @@ describe("gamePageActionHelpers", () => {
         totalBattlesWon: 8,
         totalBattlesLost: 4,
         totalWinRate: 67,
+        weight: 81,
+        lifespanSeconds: 999,
+        careMistakes: 7,
+        careMistakeLedger: [{ id: "old-care" }],
+        trainings: 12,
+        sleepDisturbances: 4,
+        activityLogs: [{ type: "FEED", timestamp: nowMs - 1000 }],
+        battleLogs: [{ mode: "quest", timestamp: nowMs - 1000 }],
         isDead: true,
         age: 99,
         poopCount: 5,
@@ -87,6 +95,17 @@ describe("gamePageActionHelpers", () => {
     expect(nextStats.totalBattlesWon).toBe(0);
     expect(nextStats.totalBattlesLost).toBe(0);
     expect(nextStats.totalWinRate).toBe(0);
+    expect(nextStats.weight).toBe(0);
+    expect(nextStats.lifespanSeconds).toBe(0);
+    expect(nextStats.careMistakes).toBe(0);
+    expect(nextStats.careMistakeLedger).toEqual([]);
+    expect(nextStats.trainings).toBe(0);
+    expect(nextStats.sleepDisturbances).toBe(0);
+    expect(nextStats.activityLogs).toEqual([]);
+    expect(nextStats.battleLogs).toEqual([]);
+    expect(nextStats.fastSleepStart).toBeNull();
+    expect(nextStats.napUntil).toBeNull();
+    expect(nextStats.wakeUntil).toBeNull();
     expect(nextStats.lastSavedAt).toBeInstanceOf(Date);
   });
 

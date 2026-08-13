@@ -1,6 +1,9 @@
 export { applyLazyUpdate, initializeStats, projectState } from "../data/stats";
 export { adaptDataMapToOldFormat } from "../data/v1/adapter";
-export { resolveOnlineJogressPair } from "../logic/evolution/jogress";
+export {
+  getJogressResult,
+  resolveOnlineJogressPair,
+} from "../logic/evolution/jogress";
 export {
   ARENA_BATTLE_RULES_VERSION,
   calculateArenaBattle,

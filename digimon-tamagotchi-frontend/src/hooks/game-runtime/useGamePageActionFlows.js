@@ -3,6 +3,7 @@ import { addActivityLog } from "../useGameLogic";
 import { DEATH_FORM_IDS } from "./gameAnimationViewModel";
 import { buildResetDigimonState } from "./gamePageActionHelpers";
 import { buildDigimonLogSnapshot } from "../../utils/digimonLogSnapshot";
+import { createNewLifeTransitionId } from "../../persistence/newLifeTransition";
 
 function getConfirmDialog(confirmFn) {
   if (typeof confirmFn === "function") {
@@ -39,6 +40,7 @@ export function useGamePageActionFlows({
   eatCycleFromHook,
   setCurrentAnimation,
   setDigimonStats,
+  setActivityLogs,
   setFeedStep,
   setFeedType,
   toggleModal,
@@ -46,10 +48,8 @@ export function useGamePageActionFlows({
   normalizedSlotVersion,
   digimonDataForSlot,
   evolutionDataForSlot,
-  appendLogToSubcollection,
   setSelectedDigimon,
-  setDigimonStatsAndSave,
-  setSelectedDigimonAndSave,
+  saveNewLifeTransition,
   setHasSeenDeathPopup,
   requestAnimationFrameFn,
   confirmFn,
@@ -110,16 +110,23 @@ export function useGamePageActionFlows({
         digimonDataForSlot,
       });
 
-      const currentLogs = nextStats.activityLogs || currentStats.activityLogs || [];
+      const transitionCreatedAt = Date.now();
+      const transitionId = createNewLifeTransitionId(transitionCreatedAt);
+      const currentLogs = [];
       const newStartLogs = addActivityLog(
         currentLogs,
         "NEW_START",
         `New start: Reborn as ${initialDigimonId}`,
-        buildDigimonLogSnapshot(
-          initialDigimonId,
-          digimonDataForSlot,
-          evolutionDataForSlot
-        )
+        {
+          ...buildDigimonLogSnapshot(
+            initialDigimonId,
+            digimonDataForSlot,
+            evolutionDataForSlot
+          ),
+          timestamp: transitionCreatedAt,
+          transitionId,
+          eventId: `activity:new-life:${transitionId}`,
+        }
       );
 
       const nextActivityLogs = Array.isArray(newStartLogs)
@@ -128,40 +135,47 @@ export function useGamePageActionFlows({
       const latestNewStartLog =
         nextActivityLogs[nextActivityLogs.length - 1];
 
-      if (appendLogToSubcollection && latestNewStartLog) {
-        Promise.resolve(
-          appendLogToSubcollection(latestNewStartLog)
-        ).catch(() => {});
-      }
-
       const nextStatsWithLogs = {
         ...nextStats,
         activityLogs: nextActivityLogs,
+        battleLogs: [],
         selectedDigimon: initialDigimonId,
       };
 
+      if (typeof saveNewLifeTransition !== "function" || !latestNewStartLog) {
+        throw new Error("새 생애 원자 저장 경계를 사용할 수 없습니다.");
+      }
+      await saveNewLifeTransition({
+        statsSnapshot: nextStatsWithLogs,
+        transition: {
+          transitionId,
+          sourceDigimon: selectedDigimon,
+          targetDigimon: initialDigimonId,
+          logEntry: latestNewStartLog,
+          createdAt: transitionCreatedAt,
+        },
+        nowMs: transitionCreatedAt,
+      });
       setSelectedDigimon(initialDigimonId);
       setDigimonStats(nextStatsWithLogs);
-      await setDigimonStatsAndSave(nextStatsWithLogs, nextActivityLogs);
-      await setSelectedDigimonAndSave(initialDigimonId, { newLife: true });
+      if (typeof setActivityLogs === "function") setActivityLogs(nextActivityLogs);
       toggleModal("deathModal", false);
       setHasSeenDeathPopup(false);
     } catch (error) {
       console.error("[resetDigimon] 오류 발생:", error);
     }
   }, [
-    appendLogToSubcollection,
     applyLazyUpdateBeforeAction,
     confirmDialog,
     digimonDataForSlot,
     evolutionDataForSlot,
     normalizedSlotVersion,
     selectedDigimon,
+    saveNewLifeTransition,
+    setActivityLogs,
     setDigimonStats,
-    setDigimonStatsAndSave,
     setHasSeenDeathPopup,
     setSelectedDigimon,
-    setSelectedDigimonAndSave,
     toggleModal,
   ]);
 

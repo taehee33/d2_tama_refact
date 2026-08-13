@@ -13,10 +13,16 @@ const {
   buildEvolutionLog,
   buildHostSnapshot,
   buildJogressEvolutionOutcome,
+  buildLocalJogressEvolutionLog,
+  buildLocalJogressPartnerDeathLog,
+  buildLocalJogressPartnerOutcome,
   classifyRoomLink,
   createJogressRegistrationKey,
+  createLocalJogressReceiptId,
+  createLocalJogressRequestFingerprint,
   getRoomHostSnapshot,
   normalizeSlotId,
+  resolveLocalJogressPair,
   resolveOnlineJogressPair,
 } = require("./jogressDomain");
 
@@ -38,6 +44,10 @@ function slotRef(db, uid, slotId) {
 
 function encyclopediaRef(db, uid, version) {
   return db.doc(`users/${uid}/encyclopedia/${version}`);
+}
+
+function jogressLogRef(db, logId) {
+  return db.doc(`jogress_logs/${logId}`);
 }
 
 function normalizeRoomIds(owner = {}) {
@@ -301,6 +311,194 @@ async function listJogressRooms({ uid, scope, deps = {} }) {
   };
 }
 
+function buildLocalJogressDisplayName(slot, resultName) {
+  const nickname = typeof slot?.digimonNickname === "string"
+    ? slot.digimonNickname.trim()
+    : "";
+  return nickname ? `${nickname}(${resultName})` : resultName;
+}
+
+async function completeLocalJogress({
+  uid,
+  requestId,
+  currentSlotId,
+  partnerSlotId,
+  expectedCurrentRevision,
+  expectedPartnerRevision,
+  deps = {},
+}) {
+  const db = deps.db || getArenaFirestore();
+  const transact = deps.runTransaction || runArenaTransaction;
+  const now = deps.now || new Date();
+  const nowMs = now.getTime();
+  const canonicalCurrentSlotId = normalizeSlotId(currentSlotId);
+  const canonicalPartnerSlotId = normalizeSlotId(partnerSlotId);
+  if (canonicalCurrentSlotId === canonicalPartnerSlotId) {
+    throw new JogressError(
+      "JOGRESS_PAIR_INVALID",
+      "현재 슬롯과 파트너 슬롯은 달라야 합니다.",
+      null,
+      400
+    );
+  }
+
+  const receiptId = createLocalJogressReceiptId({ uid, requestId });
+  const requestFingerprint = createLocalJogressRequestFingerprint({
+    uid,
+    requestId,
+    currentSlotId: canonicalCurrentSlotId,
+    partnerSlotId: canonicalPartnerSlotId,
+    expectedCurrentRevision,
+    expectedPartnerRevision,
+  });
+
+  return transact(async (transaction) => {
+    const receiptRef = jogressLogRef(db, receiptId);
+    const receiptSnapshot = await transaction.get(receiptRef);
+    if (receiptSnapshot.exists) {
+      const receipt = receiptSnapshot.data() || {};
+      if (receipt.requestFingerprint !== requestFingerprint) {
+        throw new JogressError(
+          "IDEMPOTENCY_KEY_REUSED",
+          "같은 requestId가 다른 로컬 조그레스 요청에 사용되었습니다.",
+          null,
+          409
+        );
+      }
+      if (!receipt.result) {
+        throw new JogressError(
+          "JOGRESS_STATE_CONFLICT",
+          "기존 로컬 조그레스 결과를 복원할 수 없습니다.",
+          null,
+          409
+        );
+      }
+      return { ...receipt.result, idempotent: true };
+    }
+
+    const currentRef = slotRef(db, uid, canonicalCurrentSlotId);
+    const partnerRef = slotRef(db, uid, canonicalPartnerSlotId);
+    const [currentSnapshot, partnerSnapshot] = await transaction.getAll(
+      currentRef,
+      partnerRef
+    );
+    const current = assertUsableJogressSlot(uid, currentSnapshot);
+    const partner = assertUsableJogressSlot(uid, partnerSnapshot);
+    assertExpectedRevision(current.slot, expectedCurrentRevision);
+    assertExpectedRevision(partner.slot, expectedPartnerRevision);
+    if (current.identity.sourceIdentityId === partner.identity.sourceIdentityId) {
+      throw new JogressError(
+        "JOGRESS_STATE_CONFLICT",
+        "두 슬롯의 디지몬 Identity가 중복되어 조그레스할 수 없습니다.",
+        null,
+        409
+      );
+    }
+
+    const pair = resolveLocalJogressPair({ current, partner });
+    const currentOutcome = buildJogressEvolutionOutcome({
+      slot: current.slot,
+      version: current.version,
+      targetId: pair.targetId,
+      rawMap: current.dataMap,
+      nowMs,
+    });
+    const partnerOutcome = buildLocalJogressPartnerOutcome({
+      slot: partner.slot,
+      version: partner.version,
+      rawMap: partner.dataMap,
+      nowMs,
+    });
+    const encyclopediaDocumentRef = encyclopediaRef(db, uid, current.version);
+    const encyclopediaSnapshot = await transaction.get(encyclopediaDocumentRef);
+    const encyclopedia = encyclopediaSnapshot.exists
+      ? encyclopediaSnapshot.data() || {}
+      : {};
+    const resultName = pair.targetEntry?.name || pair.targetId;
+    const currentEventId = `jogress:${receiptId}:current`;
+    const partnerEventId = `jogress:${receiptId}:partner`;
+    const activityLog = buildLocalJogressEvolutionLog({
+      eventId: currentEventId,
+      requestId,
+      sourceId: current.slot.selectedDigimon,
+      targetId: pair.targetId,
+      resultName,
+      nowMs,
+      slot: current.slot,
+    });
+    const partnerActivityLog = buildLocalJogressPartnerDeathLog({
+      eventId: partnerEventId,
+      requestId,
+      partnerId: partner.slot.selectedDigimon,
+      nowMs,
+      slot: partner.slot,
+    });
+    const result = {
+      requestId,
+      slotOutcome: {
+        ...currentOutcome,
+        resultName,
+      },
+      partnerOutcome,
+      activityLog,
+      partnerActivityLog,
+    };
+
+    transaction.update(currentRef, {
+      selectedDigimon: currentOutcome.selectedDigimon,
+      digimonDisplayName: buildLocalJogressDisplayName(current.slot, resultName),
+      digimonStats: currentOutcome.digimonStats,
+      revision: currentOutcome.revision,
+      combatRevision: currentOutcome.combatRevision,
+      lastSavedAt: nowMs,
+      lastSavedAtServer: now,
+      updatedAt: now,
+    });
+    transaction.update(partnerRef, {
+      digimonStats: partnerOutcome.digimonStats,
+      revision: partnerOutcome.revision,
+      combatRevision: partnerOutcome.combatRevision,
+      lastSavedAt: nowMs,
+      lastSavedAtServer: now,
+      updatedAt: now,
+    });
+    transaction.create(db.doc(`${currentRef.path}/logs/${currentEventId}`), activityLog);
+    transaction.create(db.doc(`${partnerRef.path}/logs/${partnerEventId}`), partnerActivityLog);
+    transaction.set(encyclopediaDocumentRef, {
+      ...encyclopedia,
+      [current.slot.selectedDigimon]: buildEncyclopediaEntry(
+        encyclopedia[current.slot.selectedDigimon],
+        current.slot.digimonStats,
+        "evolution",
+        nowMs
+      ),
+      [pair.targetId]: buildEncyclopediaEntry(
+        encyclopedia[pair.targetId],
+        currentOutcome.digimonStats,
+        "discovery",
+        nowMs
+      ),
+    });
+    transaction.create(receiptRef, {
+      schemaVersion: 1,
+      action: "complete-local",
+      requestId,
+      requestFingerprint,
+      createdByUid: uid,
+      currentSlotId: slotNumber(canonicalCurrentSlotId),
+      partnerSlotId: slotNumber(canonicalPartnerSlotId),
+      revisionBefore: Number(current.slot.revision || 0),
+      revisionAfter: currentOutcome.revision,
+      partnerRevisionBefore: Number(partner.slot.revision || 0),
+      partnerRevisionAfter: partnerOutcome.revision,
+      resultId: pair.targetId,
+      result,
+      createdAt: now,
+    });
+    return { ...result, idempotent: false };
+  });
+}
+
 async function joinJogressRoom({ uid, displayName, roomId, guestSlotId, expectedRevision, deps = {} }) {
   const db = deps.db || getArenaFirestore();
   const transact = deps.runTransaction || runArenaTransaction;
@@ -550,6 +748,7 @@ async function cancelJogressRoom({ uid, roomId, deps = {} }) {
 
 module.exports = {
   cancelJogressRoom,
+  completeLocalJogress,
   completeJogressRoom,
   createJogressRoom,
   joinJogressRoom,

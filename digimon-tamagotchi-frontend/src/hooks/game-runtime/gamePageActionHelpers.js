@@ -93,31 +93,73 @@ export function buildResetDigimonState({
   }
 
   const initialDigimonId = getStarterDigimonId(normalizedSlotVersion);
+  const inheritedLineageStats = {
+    birthTime: nowMs,
+    totalReincarnations: updatedStats.totalReincarnations,
+    normalReincarnations: updatedStats.normalReincarnations,
+    perfectReincarnations: updatedStats.perfectReincarnations,
+    isNocturnal: Boolean(currentStats.isNocturnal),
+  };
   const nextStats = initializeStats(
     initialDigimonId,
-    updatedStats,
+    inheritedLineageStats,
     digimonDataForSlot
   );
 
-  nextStats.isDead = false;
-  nextStats.diedAt = null;
-  nextStats.age = 0;
-  nextStats.birthTime = nowMs;
-  nextStats.lastSavedAt = new Date(nowMs);
-  nextStats.fullness = 0;
-  nextStats.strength = 0;
-  nextStats.lastHungerZeroAt = null;
-  nextStats.hungerZeroFrozenDurationMs = 0;
-  nextStats.lastStrengthZeroAt = null;
-  nextStats.strengthZeroFrozenDurationMs = 0;
-  nextStats.injuredAt = null;
-  nextStats.injuryFrozenDurationMs = 0;
-  nextStats.isInjured = false;
-  nextStats.injuries = 0;
-  nextStats.poopCount = 0;
-  nextStats.poopReachedMaxAt = null;
-  nextStats.lastPoopPenaltyAt = null;
-  nextStats.poopPenaltyFrozenDurationMs = 0;
+  Object.assign(nextStats, {
+    isDead: false,
+    deathReason: null,
+    diedAt: null,
+    age: 0,
+    birthTime: nowMs,
+    evolutionStageStartedAt: nowMs,
+    lastSavedAt: new Date(nowMs),
+    lifespanSeconds: 0,
+    fullness: 0,
+    strength: 0,
+    effort: 0,
+    careMistakes: 0,
+    careMistakeLedger: [],
+    trainings: 0,
+    overfeeds: 0,
+    consecutiveMeatFed: 0,
+    proteinOverdose: 0,
+    sleepDisturbances: 0,
+    battlesForEvolution: 0,
+    battles: 0,
+    battlesWon: 0,
+    battlesLost: 0,
+    winRate: 0,
+    totalBattles: 0,
+    totalBattlesWon: 0,
+    totalBattlesLost: 0,
+    totalWinRate: 0,
+    activityLogs: [],
+    battleLogs: [],
+    lastHungerZeroAt: null,
+    hungerZeroFrozenDurationMs: 0,
+    hungerMistakeDeadline: null,
+    lastStrengthZeroAt: null,
+    strengthZeroFrozenDurationMs: 0,
+    strengthMistakeDeadline: null,
+    injuredAt: null,
+    injuryFrozenDurationMs: 0,
+    isInjured: false,
+    injuries: 0,
+    healedDosesCurrent: 0,
+    injuryReason: null,
+    poopCount: 0,
+    poopReachedMaxAt: null,
+    lastPoopPenaltyAt: null,
+    poopPenaltyFrozenDurationMs: 0,
+    fastSleepStart: null,
+    napUntil: null,
+    wakeUntil: null,
+    sleepLightOnStart: null,
+    isFrozen: false,
+    frozenAt: null,
+    takeOutAt: null,
+  });
 
   return {
     initialDigimonId,

@@ -1,7 +1,7 @@
 // src/hooks/useGameActions.js
 // Game.jsx의 비즈니스 로직을 분리한 Custom Hook
 
-import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
+import { MAX_ACTIVITY_LOGS, MAX_BATTLE_LOGS } from "../constants/activityLogs";
 import {
   resetCallStatus,
   hasDuplicateSleepDisturbanceLog,
@@ -41,13 +41,12 @@ function getSleepSchedule(digimonData, name, digimonStats = null) {
 }
 
 /** 배틀 로그 최대 보관 개수 */
-const MAX_BATTLE_LOGS = 100;
 
 /**
  * 배틀 로그 한 건 추가 (배틀 기록 전용 배열에만 저장, activityLogs에는 넣지 않음)
  * @param {Array} prevBattleLogs - 기존 battleLogs
  * @param {Object} entry - { timestamp, mode: 'sparring'|'arena'|'quest'|'skip', text, win?, enemyName?, injury?, digimonId?, digimonName? }
- * @returns {Array} 최대 100개 유지
+ * @returns {Array} 최대 50개 유지
  */
 function appendBattleLog(prevBattleLogs, entry) {
   const list = Array.isArray(prevBattleLogs) ? prevBattleLogs : [];
