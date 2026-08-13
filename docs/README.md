@@ -14,6 +14,8 @@
 - `digimon-tamagotchi-frontend/src/repositories/README.md`
 - `docs/REFACTORING_LOG.md`
 
+현재 저장 계약은 `slotInstanceId`로 슬롯 번호 재사용을, `digimonInstanceId`로 디지몬 생애를 격리합니다. 새 생애·일반 진화는 Firestore transaction으로, 로컬 조그레스는 `/api/jogress` `complete-local` 서버 transaction으로 확정하며, 활동 로그는 현재 생애 최대 50개만 조회합니다.
+
 ## 2. 참고 / 분석 문서
 
 아래 문서들은 특정 시점의 분석, 설계 메모, 문제 추적 기록입니다.

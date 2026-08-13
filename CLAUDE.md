@@ -70,6 +70,10 @@ npm test
 ### 공식 저장 계약
 
 - Firestore의 `users/{uid}/slots/{slotId}` 문서가 슬롯 데이터의 공식 정본입니다.
+- `slotInstanceId`는 슬롯 번호 재사용을, `digimonInstanceId`는 디지몬 생애를 구분하며 outbox·로그는 이 identity로 격리합니다.
+- 새 생애와 일반 진화는 revision·identity를 확인하는 Firestore transaction으로 상태·로그를 함께 확정합니다.
+- 로컬 조그레스는 `/api/jogress` `complete-local` 서버 transaction이 두 슬롯·로그·도감·receipt를 함께 확정하며, 한쪽이라도 충돌하면 모두 변경하지 않습니다.
+- 현재 생애의 활동 로그만 조회하며 최대 50개를 유지합니다.
 - 플레이와 공식 슬롯 저장에는 Google 또는 익명 Firebase Auth 로그인이 필요합니다.
 - IndexedDB state/activity outbox는 Firestore에 아직 전달되지 않은 변경을 기기 안에 내구성 있게 임시 보관하는 전송 대기함입니다.
 - outbox를 먼저 기록하는 실행 순서는 Firestore의 정본 지위를 바꾸지 않습니다.
