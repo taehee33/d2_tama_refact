@@ -9,6 +9,7 @@ import {
   deleteField,
   collection,
   query,
+  where,
   orderBy,
   limit,
   getDocs,
@@ -18,7 +19,7 @@ import {
 import { db } from "../firebase";
 import { applyLazyUpdate } from "../data/stats";
 import { initializeStats } from "../data/stats";
-import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
+import { MAX_ACTIVITY_LOGS, MAX_BATTLE_LOGS } from "../constants/activityLogs";
 import { initializeActivityLogs } from "../hooks/useGameLogic";
 import { getSleepSchedule } from "../hooks/useGameHandlers";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
@@ -63,6 +64,16 @@ import {
   hasValidCombatIdentity,
   preserveOrCreateCombatIdentity,
 } from "../logic/arena/combatIdentity";
+import { hasValidSlotInstanceIdentity } from "../persistence/slotInstanceIdentity";
+import { ensureSlotPersistenceIdentity } from "../persistence/slotPersistenceIdentity";
+import {
+  LOG_IDENTITY_SCHEMA_VERSION,
+  selectCurrentLifeLogs,
+} from "../persistence/lifeLogIdentity";
+import {
+  buildNewLifeTransitionEnvelope,
+  commitNewLifeTransition,
+} from "../persistence/newLifeTransition";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -411,24 +422,51 @@ export function buildFallbackSlotHydrationResult({
  * @param {Object} params
  * @param {Object|null} [params.slotRef]
  * @param {number|string|null} [params.slotCreatedAt]
+ * @param {number|string|null} [params.currentLifeStartedAt]
+ * @param {string|null} [params.slotInstanceId]
+ * @param {string|null} [params.digimonInstanceId]
+ * @param {number|null} [params.logIdentitySchemaVersion]
  * @param {Array} [params.legacyActivityLogs]
  * @param {Array} [params.legacyBattleLogs]
  * @param {Function} [params.loadActivityEntries]
  * @param {Function} [params.loadBattleEntries]
- * @returns {Promise<{ loadedActivityLogs: Array, loadedBattleLogs: Array }>}
+ * @returns {Promise<{
+ *   loadedActivityLogs: Array,
+ *   loadedBattleLogs: Array,
+ *   legacyActivityEntriesToBackfill: Array,
+ *   legacyBattleEntriesToBackfill: Array,
+ * }>}
  */
 export async function loadSlotCollectionsState({
   slotRef = null,
   slotCreatedAt = null,
+  currentLifeStartedAt = null,
+  slotInstanceId = null,
+  digimonInstanceId = null,
+  logIdentitySchemaVersion = null,
   legacyActivityLogs = [],
   legacyBattleLogs = [],
   loadActivityEntries,
   loadBattleEntries,
 } = {}) {
-  const fallbackActivityLogs = initializeActivityLogs(
-    (legacyActivityLogs || []).map(normalizeLogTimestamp)
+  const allowLegacy = logIdentitySchemaVersion !== LOG_IDENTITY_SCHEMA_VERSION;
+  const lifeOptions = {
+    slotInstanceId,
+    digimonInstanceId,
+    currentLifeStartedAt,
+    slotCreatedAt,
+    allowLegacy,
+  };
+  const fallbackActivitySelection = selectCurrentLifeLogs(
+    [...initializeActivityLogs(
+      (legacyActivityLogs || []).map(normalizeLogTimestamp)
+    )].sort((left, right) =>
+      (toEpochMs(right?.timestamp) || 0) - (toEpochMs(left?.timestamp) || 0)
+    ),
+    { ...lifeOptions, maxCount: MAX_ACTIVITY_LOGS }
   );
-  let loadedActivityLogs = fallbackActivityLogs;
+  let loadedActivityLogs = fallbackActivitySelection.currentEntries;
+  let legacyActivityEntriesToBackfill = fallbackActivitySelection.legacyEntries;
 
   try {
     const activityEntries = loadActivityEntries
@@ -436,7 +474,14 @@ export async function loadSlotCollectionsState({
       : await (async () => {
           if (!slotRef) return [];
           const logsRef = collection(slotRef, "logs");
-          const logsQuery = query(logsRef, orderBy("timestamp", "desc"), limit(MAX_ACTIVITY_LOGS));
+          const logsQuery = allowLegacy
+            ? query(logsRef, orderBy("timestamp", "desc"), limit(200))
+            : query(
+                logsRef,
+                where("digimonInstanceId", "==", digimonInstanceId),
+                orderBy("timestamp", "desc"),
+                limit(MAX_ACTIVITY_LOGS)
+              );
           const logsSnap = await getDocs(logsQuery);
           if (logsSnap.empty) {
             return [];
@@ -445,17 +490,29 @@ export async function loadSlotCollectionsState({
         })();
 
     if (Array.isArray(activityEntries) && activityEntries.length > 0) {
-      loadedActivityLogs = filterEntriesForSlotCreation(
-        activityEntries.map(normalizeLogTimestamp),
-        slotCreatedAt
+      const selection = selectCurrentLifeLogs(
+        filterEntriesForSlotCreation(
+          activityEntries.map(normalizeLogTimestamp),
+          slotCreatedAt
+        ),
+        { ...lifeOptions, maxCount: MAX_ACTIVITY_LOGS }
       );
+      loadedActivityLogs = selection.currentEntries;
+      legacyActivityEntriesToBackfill = selection.legacyEntries;
     }
   } catch (_e) {
-    loadedActivityLogs = fallbackActivityLogs;
+    loadedActivityLogs = fallbackActivitySelection.currentEntries;
+    legacyActivityEntriesToBackfill = fallbackActivitySelection.legacyEntries;
   }
 
-  const fallbackBattleLogs = (legacyBattleLogs || []).map(normalizeLogTimestamp);
-  let loadedBattleLogs = fallbackBattleLogs;
+  const fallbackBattleSelection = selectCurrentLifeLogs(
+    [...(legacyBattleLogs || []).map(normalizeLogTimestamp)].sort((left, right) =>
+      (toEpochMs(right?.timestamp) || 0) - (toEpochMs(left?.timestamp) || 0)
+    ),
+    { ...lifeOptions, maxCount: MAX_BATTLE_LOGS }
+  );
+  let loadedBattleLogs = fallbackBattleSelection.currentEntries;
+  let legacyBattleEntriesToBackfill = fallbackBattleSelection.legacyEntries;
 
   try {
     const battleEntries = loadBattleEntries
@@ -463,11 +520,14 @@ export async function loadSlotCollectionsState({
       : await (async () => {
           if (!slotRef) return [];
           const battleLogsRef = collection(slotRef, "battleLogs");
-          const battleLogsQuery = query(
-            battleLogsRef,
-            orderBy("timestamp", "desc"),
-            limit(100)
-          );
+          const battleLogsQuery = allowLegacy
+            ? query(battleLogsRef, orderBy("timestamp", "desc"), limit(200))
+            : query(
+                battleLogsRef,
+                where("digimonInstanceId", "==", digimonInstanceId),
+                orderBy("timestamp", "desc"),
+                limit(MAX_BATTLE_LOGS)
+              );
           const battleLogsSnap = await getDocs(battleLogsQuery);
           if (battleLogsSnap.empty) {
             return [];
@@ -478,18 +538,26 @@ export async function loadSlotCollectionsState({
         })();
 
     if (Array.isArray(battleEntries) && battleEntries.length > 0) {
-      loadedBattleLogs = filterEntriesForSlotCreation(
-        battleEntries.map(normalizeLogTimestamp),
-        slotCreatedAt
+      const selection = selectCurrentLifeLogs(
+        filterEntriesForSlotCreation(
+          battleEntries.map(normalizeLogTimestamp),
+          slotCreatedAt
+        ),
+        { ...lifeOptions, maxCount: MAX_BATTLE_LOGS }
       );
+      loadedBattleLogs = selection.currentEntries;
+      legacyBattleEntriesToBackfill = selection.legacyEntries;
     }
   } catch (_e) {
-    loadedBattleLogs = fallbackBattleLogs;
+    loadedBattleLogs = fallbackBattleSelection.currentEntries;
+    legacyBattleEntriesToBackfill = fallbackBattleSelection.legacyEntries;
   }
 
   return {
     loadedActivityLogs,
     loadedBattleLogs,
+    legacyActivityEntriesToBackfill,
+    legacyBattleEntriesToBackfill,
   };
 }
 
@@ -953,10 +1021,15 @@ export function useGameData({
     [runtimeAdaptedDataMaps, slotRuntimeDataMap]
   );
 
-  const buildUpdateDataForSnapshot = useCallback((statsSnapshot, nowMs = Date.now()) => {
+  const buildUpdateDataForSnapshot = useCallback((
+    statsSnapshot,
+    nowMs = Date.now(),
+    transition = null
+  ) => {
     // stats snapshot 안의 selectedDigimon은 다음 형태를 미리 담을 수 있다.
     // top-level 형태 변경은 saveSelectedDigimon transaction에서 combatRevision과 함께만 쓴다.
-    const effectiveSelectedDigimon = selectedDigimon || null;
+    const effectiveSelectedDigimon =
+      transition?.targetDigimon || selectedDigimon || null;
     const rootSlotFields = resolveRootSlotFields(statsSnapshot, {
       isLightsOn,
       wakeUntil,
@@ -985,12 +1058,14 @@ export function useGameData({
     appendLog: appendLogToSubcollection,
     canStartGameplayWrite,
     captureSaveContext,
+    clearDigimonLifeOutbox,
     clearPendingStateAfterHydration,
     flushOutbox,
     getLatestStateSnapshot,
     getPendingState,
     persistStateSnapshot,
     persistStateSnapshotReceipt,
+    persistEvolutionTransitionReceipt,
     persistActivityLogReceipt,
     quarantinePendingState,
     refreshGameRevision,
@@ -1248,6 +1323,108 @@ export function useGameData({
     );
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
+
+  /**
+   * 진화 상태와 슬롯 루트 형태를 단일 outbox/transaction으로 저장합니다.
+   */
+  function saveEvolutionTransition({
+    statsSnapshot,
+    updatedLogs,
+    transition,
+    nowMs = Date.now(),
+  } = {}) {
+    const saveContext = captureSaveContext();
+    return saveQueueRef.current.enqueue(async () => {
+      const receipt = await persistEvolutionTransitionReceipt({
+        statsSnapshot,
+        updatedLogs,
+        transition,
+        nowMs,
+        commandId: transition?.transitionId || null,
+        saveContext,
+      });
+      if (receipt.status === "synced" || receipt.status === "queued") {
+        return receipt;
+      }
+      const error = new Error(
+        receipt.status === "conflict"
+          ? "슬롯이 다른 기기에서 변경되었습니다. 최신 상태를 확인해 주세요."
+          : "진화 상태를 저장하지 못했습니다."
+      );
+      error.code = receipt.errorCode || `game/evolution-${receipt.status}`;
+      error.receipt = receipt;
+      throw error;
+    });
+  }
+
+  /**
+   * 새 stats·형태·combat identity·NEW_START 로그를 한 Firestore transaction으로 저장합니다.
+   */
+  function saveNewLifeTransition({
+    statsSnapshot,
+    transition,
+    nowMs = Date.now(),
+  } = {}) {
+    const saveContext = captureSaveContext();
+    const nextCombatIdentity = createNewLifeCombatIdentity();
+    return saveQueueRef.current.enqueue(async () => {
+      if (
+        !slotId ||
+        !currentUser?.uid ||
+        !isFirebaseAvailable ||
+        !statsSnapshot ||
+        !transition ||
+        !canStartGameplayWrite(saveContext)
+      ) {
+        const blockedError = new Error("현재 슬롯에서는 새 생애를 저장할 수 없습니다.");
+        blockedError.code = "game/new-life-blocked";
+        throw blockedError;
+      }
+
+      const envelope = buildNewLifeTransitionEnvelope({
+        ...transition,
+        previousIdentity: {
+          slotInstanceId: saveContext.slotInstanceId,
+          digimonInstanceId: saveContext.digimonInstanceId,
+        },
+        nextCombatIdentity,
+        createdAt: transition.createdAt ?? nowMs,
+      });
+      const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+      const result = await commitNewLifeTransition({
+        db,
+        slotRef,
+        logRef: doc(collection(slotRef, "logs"), envelope.eventId),
+        baseRevision: saveContext.requestedAtRevision,
+        updateData: buildUpdateDataForSnapshot(statsSnapshot, nowMs, {
+          targetDigimon: envelope.targetDigimon,
+        }),
+        transition: envelope,
+        runTransaction,
+      });
+
+      updatePersistenceAccess({
+        loadedIdentity: {
+          uid: currentUser.uid,
+          slotId,
+          slotInstanceId: saveContext.slotInstanceId,
+          digimonInstanceId: result.nextDigimonInstanceId,
+        },
+      });
+      setLoadedRevision(result.revision, statsSnapshot);
+      Promise.resolve(clearDigimonLifeOutbox({
+        slotInstanceId: saveContext.slotInstanceId,
+        digimonInstanceId: saveContext.digimonInstanceId,
+      })).catch((cleanupError) => {
+        console.warn("이전 생애 IndexedDB outbox 정리에 실패했습니다.", cleanupError);
+      });
+      return {
+        ...result,
+        transitionId: envelope.transitionId,
+        previousDigimonInstanceId: saveContext.digimonInstanceId,
+      };
+    });
+  }
 
   function saveStatsCommand(intent, retryReceipt = null) {
     const retryData = retryReceipt?._retry || null;
@@ -1511,7 +1688,27 @@ export function useGameData({
         if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
         
         if (slotSnap.exists()) {
-          const slotData = slotSnap.data();
+          let slotData = slotSnap.data();
+          if (
+            !hasValidSlotInstanceIdentity(slotData) ||
+            !hasValidCombatIdentity(slotData)
+          ) {
+            const identityResult = await ensureSlotPersistenceIdentity({
+              db,
+              slotRef,
+              runTransaction,
+            });
+            if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
+            slotData = identityResult.slotData;
+          }
+
+          const loadedPersistenceIdentity = {
+            uid: currentUser.uid,
+            slotId,
+            slotInstanceId: slotData.slotInstanceId,
+            digimonInstanceId: slotData.digimonInstanceId,
+          };
+          updatePersistenceAccess({ loadedIdentity: loadedPersistenceIdentity });
           const rootSlotFields = resolveRootSlotFields(slotData, {
             isLightsOn: true,
             wakeUntil: null,
@@ -1530,6 +1727,10 @@ export function useGameData({
             await loadSlotCollectionsState({
               slotRef: slotRefForLogs,
               slotCreatedAt: slotData.createdAt,
+              currentLifeStartedAt: savedStats.birthTime,
+              slotInstanceId: slotData.slotInstanceId,
+              digimonInstanceId: slotData.digimonInstanceId,
+              logIdentitySchemaVersion: slotData.logIdentitySchemaVersion,
               legacyActivityLogs: savedStats.activityLogs || slotData.activityLogs || [],
               legacyBattleLogs: savedStats.battleLogs || [],
             });
@@ -1672,7 +1873,7 @@ export function useGameData({
 
             updatePersistenceAccess({
               phase: GAME_PERSISTENCE_PHASE.READY,
-              loadedIdentity: { uid: currentUser.uid, slotId },
+              loadedIdentity: loadedPersistenceIdentity,
             });
             reconstructedLogsToPersist.forEach((log) => {
               if (log?.type) appendLogToSubcollection(log).catch(() => {});
@@ -1853,6 +2054,8 @@ export function useGameData({
   return {
     saveStats,
     saveStatsCommand,
+    saveEvolutionTransition,
+    saveNewLifeTransition,
     applyLazyUpdate: applyLazyUpdateForAction,
     saveBackgroundSettings,
     saveImmersiveSettings,

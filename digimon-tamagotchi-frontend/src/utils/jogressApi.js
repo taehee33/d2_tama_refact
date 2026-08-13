@@ -60,6 +60,26 @@ export function completeJogressRoomApi(currentUser, { roomId, expectedRevision }
   });
 }
 
+export function completeLocalJogressApi(currentUser, {
+  requestId,
+  currentSlotId,
+  partnerSlotId,
+  expectedCurrentRevision,
+  expectedPartnerRevision,
+}) {
+  return requestJogressApi(currentUser, "/api/jogress", {
+    method: "POST",
+    body: {
+      action: "complete-local",
+      requestId,
+      currentSlotId,
+      partnerSlotId,
+      expectedCurrentRevision,
+      expectedPartnerRevision,
+    },
+  });
+}
+
 export function cancelJogressRoomApi(currentUser, roomId) {
   return requestJogressApi(currentUser, `/api/jogress?roomId=${encodeURIComponent(roomId)}`, { method: "DELETE" });
 }

@@ -2,8 +2,6 @@
 // Game.jsx의 진화(Evolution) 로직을 분리한 Custom Hook
 
 import { useRef } from "react";
-import { writeBatch, doc, increment, serverTimestamp } from "firebase/firestore";
-import { db } from "../firebase";
 import { checkEvolution } from "../logic/evolution/checker";
 import {
   buildEvolutionStatsForCheck,
@@ -11,11 +9,11 @@ import {
   isIgnoringAllEvolutionConditions,
 } from "../logic/evolution/developerOptions";
 import { getJogressResult } from "../logic/evolution/jogress";
-import { sanitizeDigimonStatsForSlotDocument } from "./useGameData";
 import { buildEvolutionTransitionState } from "./evolutionStateHelpers";
 import { syncEvolutionEncyclopediaEntries } from "./evolutionEncyclopediaHelpers";
 import {
   finalizeOnlineJogressCompletionState,
+  mergeJogressActivityLog,
 } from "./jogressCompletionHelpers";
 import {
   buildJogressArchivePayload,
@@ -36,6 +34,7 @@ import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 import { resolveDigimonDataFromMap } from "./game-runtime/gamePageActionHelpers";
 import {
   completeJogressRoomApi,
+  completeLocalJogressApi,
   joinJogressRoomApi,
   JogressApiError,
 } from "../utils/jogressApi";
@@ -103,8 +102,7 @@ function createEvolutionTransitionId({ fromDigimon, targetDigimon, nowMs = Date.
  * @param {Object} params.digimonStats - 현재 디지몬 스탯
  * @param {Function} params.setDigimonStats - 스탯 업데이트 함수
  * @param {Function} params.setSelectedDigimon - 선택된 디지몬 설정 함수
- * @param {Function} params.setSelectedDigimonAndSave - 선택된 디지몬 저장 함수
- * @param {Function} params.setDigimonStatsAndSave - 스탯 저장 함수
+ * @param {Function} params.saveEvolutionTransition - 진화 원자 저장 함수
  * @param {Function} params.applyLazyUpdateBeforeAction - Lazy Update 적용 함수
  * @param {Function} params.setActivityLogs - Activity Logs 설정 함수
  * @param {Array} params.activityLogs - 현재 Activity Logs
@@ -124,8 +122,7 @@ export function useEvolution({
   digimonStats,
   setDigimonStats,
   setSelectedDigimon,
-  setSelectedDigimonAndSave,
-  setDigimonStatsAndSave,
+  saveEvolutionTransition,
   applyLazyUpdateBeforeAction,
   setActivityLogs,
   activityLogs,
@@ -401,14 +398,28 @@ export function useEvolution({
           sprite: newDigimonData.sprite,
         });
       }
-      if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
       try {
-        await setDigimonStatsAndSave(nxWithLogs, updatedLogs);
+        if (typeof saveEvolutionTransition !== "function") {
+          throw new Error("진화 저장 경계를 사용할 수 없습니다.");
+        }
+        await saveEvolutionTransition({
+          statsSnapshot: nxWithLogs,
+          updatedLogs,
+          transition: {
+            transitionId,
+            sourceDigimon: selectedDigimon || old.selectedDigimon,
+            targetDigimon: newName,
+            logEntry: updatedLogs[updatedLogs.length - 1],
+            createdAt: Date.now(),
+          },
+        });
       } catch (saveError) {
         console.error("진화 상태 저장 오류:", saveError);
-        return;
+        throw saveError;
       }
-      await setSelectedDigimonAndSave(newName);
+      setDigimonStats(nxWithLogs);
+      setSelectedDigimon(newName);
+      if (Array.isArray(updatedLogs)) setActivityLogs?.(updatedLogs);
 
       await syncEvolutionEncyclopediaEntries({
         previousDigimonId: selectedDigimon,
@@ -426,12 +437,12 @@ export function useEvolution({
   }
 
   /**
-   * 로컬 조그레스 실행: 현재 슬롯 진화 + 파트너 슬롯 사망 처리 (Firestore writeBatch)
+   * 로컬 조그레스 실행: 서버 transaction으로 현재 슬롯 진화 + 파트너 슬롯 사망 처리
    * @param {Object} partnerSlot - 파트너 슬롯 객체 { id, selectedDigimon, digimonStats, version, ... }
    */
   async function proceedJogressLocal(partnerSlot) {
     if (!partnerSlot || partnerSlot.id == null) return;
-    if (!currentUser?.uid || !slotId || !db) {
+    if (!currentUser?.uid || !slotId) {
       alert("조그레스에는 로그인이 필요합니다.");
       return;
     }
@@ -456,79 +467,45 @@ export function useEvolution({
     if (typeof setIsEvolving === "function") setIsEvolving(true);
 
     try {
-      const currentStats = await applyLazyUpdateBeforeAction();
-      const old = { ...currentStats };
-      const existingLogs = currentStats.activityLogs || activityLogs || [];
-      const localJogressName = digimonDataVer1[targetId]?.name || targetId;
-      const {
-        resultName: newDigimonName,
-        updatedLogs,
-        nextStatsWithLogs: nxWithLogs,
-      } = buildEvolutionTransitionState({
-        currentStats: old,
-        existingLogs,
-        targetId,
-        targetMap: digimonDataVer1,
-        logText: `조그레스 진화(로컬): ${localJogressName}!`,
-        snapshotArgs: [
-          digimonDataVer1,
-          newDigimonDataVer1,
-          evolutionDataVer1,
-          digimonDataVer2,
-        ],
-      });
-
-      const nowMs = Date.now();
-      const slotARef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-      const slotBRef = doc(db, "users", currentUser.uid, "slots", `slot${partnerSlot.id}`);
-      const statsAForDb = sanitizeDigimonStatsForSlotDocument(nxWithLogs);
-      const partnerStats = partnerSlot.digimonStats || {};
-      const { activityLogs: _dropP1, battleLogs: _dropP2, ...partnerRest } = partnerStats;
-      const partnerStatsForDb = sanitizeDigimonStatsForSlotDocument({
-        ...partnerRest,
-        isDead: true,
-        deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
-        lastSavedAt: nowMs,
-      });
-
-      const batch = writeBatch(db);
-      batch.update(slotARef, {
-        selectedDigimon: targetId,
-        digimonStats: statsAForDb,
-        lastSavedAt: nowMs,
-        lastSavedAtServer: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        revision: increment(1),
-        combatRevision: increment(1),
-      });
-      batch.update(slotBRef, {
-        digimonStats: partnerStatsForDb,
-        lastSavedAt: nowMs,
-        lastSavedAtServer: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        revision: increment(1),
-      });
-      await batch.commit();
-
-      if (refreshGameRevision) {
-        await refreshGameRevision(nxWithLogs);
+      const flushed = await flushOutbox?.();
+      if (flushed === false) {
+        throw new JogressApiError("현재 슬롯의 동기화를 먼저 완료해 주세요.");
       }
-
+      const expectedCurrentRevision = await refreshGameRevision?.();
+      const expectedPartnerRevision = Number(partnerSlot.revision);
+      if (
+        !Number.isInteger(Number(expectedCurrentRevision)) ||
+        !Number.isInteger(expectedPartnerRevision)
+      ) {
+        throw new JogressApiError("두 슬롯의 최신 상태를 다시 불러와 주세요.");
+      }
+      const requestId = createEvolutionTransitionId({
+        fromDigimon: selectedDigimon,
+        targetDigimon: targetId,
+      });
+      const resultPayload = await completeLocalJogressApi(currentUser, {
+        requestId,
+        currentSlotId: slotId,
+        partnerSlotId: partnerSlot.id,
+        expectedCurrentRevision: Number(expectedCurrentRevision),
+        expectedPartnerRevision,
+      });
+      const outcome = resultPayload?.slotOutcome;
+      if (!outcome) throw new JogressApiError("조그레스 결과를 받지 못했습니다.");
+      const nextActivityLogs = mergeJogressActivityLog(
+        activityLogs,
+        resultPayload?.activityLog
+      );
+      const nxWithLogs = {
+        ...(outcome.digimonStats || {}),
+        activityLogs: nextActivityLogs,
+      };
+      const newDigimonName = outcome.resultName || outcome.selectedDigimon;
+      const targetOutcomeId = outcome.selectedDigimon || targetId;
       setDigimonStats(nxWithLogs);
-      setSelectedDigimon(targetId);
-      const newLogEntry = updatedLogs[updatedLogs.length - 1];
-      if (appendLogToSubcollection && newLogEntry) {
-        await appendLogToSubcollection(newLogEntry).catch(() => {});
-      }
-
-      await syncEvolutionEncyclopediaEntries({
-        previousDigimonId: selectedDigimon,
-        previousStats: old,
-        targetId,
-        nextStats: nxWithLogs,
-        currentUser,
-        version,
-      });
+      setSelectedDigimon(targetOutcomeId);
+      setActivityLogs?.(nextActivityLogs);
+      await refreshGameRevision?.(nxWithLogs);
 
       // 조그레스 성공 요약: 현재 디지몬 / 파트너(조그레스 파트너 사망) 구분 표시용
       const currentDisplayName = getDigimonDisplayName(
@@ -540,7 +517,7 @@ export function useEvolution({
         partnerSlot.selectedDigimon
       );
       const resultDisplayName =
-        getDigimonDisplayName(getPreferredMaps(version, [slotEvolutionDataMap]), targetId) ||
+        getDigimonDisplayName(getPreferredMaps(version, [slotEvolutionDataMap]), targetOutcomeId) ||
         newDigimonName;
       const hostSlotLabel = slotName || `슬롯${slotId}`;
       const guestSlotLabel = partnerSlot.slotName || `슬롯${partnerSlot.id}`;
@@ -574,7 +551,7 @@ export function useEvolution({
           guestSlotId: partnerSlot.id,
           guestDigimonName: partnerDisplayName,
           guestSlotVersion: partnerSlot.version || "Ver.1",
-          targetId,
+          targetId: targetOutcomeId,
           targetName: newDigimonName,
           isOnline: false,
           resultName: resultDisplayName,
@@ -587,7 +564,7 @@ export function useEvolution({
       if (setEvolutionStage) setEvolutionStage("complete");
     } catch (err) {
       console.error("[proceedJogressLocal] 오류:", err);
-      alert("조그레스 처리 중 오류가 발생했습니다.");
+      alert(err instanceof JogressApiError ? err.message : "조그레스 처리 중 오류가 발생했습니다.");
     } finally {
       if (typeof setIsEvolving === "function") setIsEvolving(false);
     }

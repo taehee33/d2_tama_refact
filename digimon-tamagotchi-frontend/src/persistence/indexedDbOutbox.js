@@ -1,11 +1,12 @@
 const DEFAULT_DB_NAME = 'd2-tama-outbox';
-const DEFAULT_DB_VERSION = 1;
+const DEFAULT_DB_VERSION = 2;
 const FEED_RETENTION_DAYS = 30;
 const FEED_RETENTION_MAX_COUNT = 5000;
 const FEED_BUCKET_MINUTES = 15;
 
 const STATE_STORE = 'state_mutations';
 const EVENT_STORE = 'events';
+const QUARANTINE_STORE = 'legacy_quarantine';
 
 const EVENT_CATEGORY = {
   ACTIVITY: 'activity',
@@ -89,6 +90,18 @@ export function createIndexedDbStorage(options = {}) {
         requestToPromise(store.getAll())
       );
     },
+    async atomicUpdate(storeName, key, updater) {
+      const database = await getDatabase();
+      return runAtomicStoreUpdate(database, storeName, key, updater);
+    },
+    async deleteWhere(storeNames, predicate) {
+      const database = await getDatabase();
+      return runAtomicDeleteWhere(database, storeNames, predicate);
+    },
+    async migrateLegacyRecords(nowTimestamp = Date.now()) {
+      const database = await getDatabase();
+      return migrateLegacyOutboxRecords(database, nowTimestamp);
+    },
   };
 }
 
@@ -120,35 +133,60 @@ export function createIndexedDbOutbox(options = {}) {
 
   assertStorage(storage);
 
-  let generatedEventSequence = 0;
+  let generatedRecordSequence = 0;
+  let migrationPromise = null;
+  const ensureMigration = () => {
+    if (!migrationPromise) {
+      migrationPromise = Promise.resolve(storage.migrateLegacyRecords(now())).catch((error) => {
+        migrationPromise = null;
+        throw error;
+      });
+    }
+    return migrationPromise;
+  };
 
-  const getScopedEvents = async (category, uid, slotId) => {
-    const scopeKey = buildScopeKey(uid, slotId);
+  const getScopedEvents = async (category, input) => {
+    await ensureMigration();
+    const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+    const scopeKey = buildScopeKey(
+      identity.uid,
+      identity.slotId,
+      identity.slotInstanceId
+    );
     const records = await storage.getAll(EVENT_STORE);
 
     return sortByOccurredAtAsc(
       records.filter(
-        (record) => record.scopeKey === scopeKey && record.category === category
+        (record) =>
+          record.scopeKey === scopeKey &&
+          record.category === category &&
+          record.digimonInstanceId === identity.digimonInstanceId
       )
     ).map(clonePlainData);
   };
 
   const putEvent = async (category, input) => {
-    const scopeKey = buildScopeKey(input.uid, input.slotId);
+    await ensureMigration();
+    const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+    const scopeKey = buildScopeKey(
+      identity.uid,
+      identity.slotId,
+      identity.slotInstanceId
+    );
     const occurredAt = normalizeTimestamp(input.occurredAt, now());
-    const eventId =
-      input.eventId ??
-      `${category}-${occurredAt}-${generatedEventSequence++}`;
-
+    const updatedAt = normalizeTimestamp(input.updatedAt, now());
+    const eventId = input.eventId ?? `${category}-${occurredAt}-${generatedRecordSequence++}`;
+    const eventKey = buildEventKey(scopeKey, category, eventId);
     const nextRecord = {
       category,
-      uid: String(input.uid),
-      slotId: String(input.slotId),
+      ...identity,
       scopeKey,
       eventId: String(eventId),
-      eventKey: buildEventKey(scopeKey, category, eventId),
+      eventKey,
+      recordVersion: createRecordVersion(updatedAt, generatedRecordSequence++),
       eventType: input.eventType ?? defaultEventTypeForCategory(category),
       occurredAt,
+      updatedAt,
       payload: clonePlainData(input.payload),
       syncStatus: input.syncStatus === 'synced' ? 'synced' : 'pending',
       syncedAt:
@@ -161,65 +199,118 @@ export function createIndexedDbOutbox(options = {}) {
       nextRecord.feedQuantity = normalizeFeedQuantity(input.feedQuantity, nextRecord.payload);
     }
 
-    await storage.put(EVENT_STORE, nextRecord);
-    return clonePlainData(nextRecord);
+    return storage.atomicUpdate(EVENT_STORE, eventKey, () => ({
+      action: 'put',
+      value: nextRecord,
+      result: clonePlainData(nextRecord),
+    }));
   };
 
   const deleteEvent = async (category, input) => {
-    const scopeKey = buildScopeKey(input.uid, input.slotId);
+    await ensureMigration();
+    const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+    const scopeKey = buildScopeKey(
+      identity.uid,
+      identity.slotId,
+      identity.slotInstanceId
+    );
     const eventKey = buildEventKey(scopeKey, category, input.eventId);
-    const existing = await storage.get(EVENT_STORE, eventKey);
+    const expectedRecordVersion = normalizeRequiredString(
+      input.recordVersion,
+      'recordVersion'
+    );
 
-    if (!existing) {
-      return false;
-    }
-
-    await storage.delete(EVENT_STORE, eventKey);
-    return true;
+    return storage.atomicUpdate(EVENT_STORE, eventKey, (existing) => {
+      const matches = Boolean(
+        existing &&
+          existing.recordVersion === expectedRecordVersion &&
+          existing.digimonInstanceId === identity.digimonInstanceId
+      );
+      return matches
+        ? { action: 'delete', result: true }
+        : { action: 'keep', result: false };
+    });
   };
 
   return {
     async putStateMutation(input) {
-      const scopeKey = buildScopeKey(input.uid, input.slotId);
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+      const scopeKey = buildScopeKey(
+        identity.uid,
+        identity.slotId,
+        identity.slotInstanceId
+      );
       const updatedAt = normalizeTimestamp(input.updatedAt, now());
       const queuedAt = normalizeTimestamp(input.queuedAt, updatedAt);
-
-      const existing = await storage.get(STATE_STORE, scopeKey);
-      if (existing && normalizeTimestamp(existing.updatedAt, 0) > updatedAt) {
-        return clonePlainData(existing);
-      }
-
       const nextRecord = {
         kind: 'state',
-        uid: String(input.uid),
-        slotId: String(input.slotId),
+        ...identity,
         scopeKey,
-        mutationId: String(input.mutationId),
+        mutationId: normalizeRequiredString(input.mutationId, 'mutationId'),
+        recordVersion: createRecordVersion(updatedAt, generatedRecordSequence++),
         updatedAt,
         queuedAt,
         state: clonePlainData(input.state),
       };
 
-      await storage.put(STATE_STORE, nextRecord);
-      return clonePlainData(nextRecord);
+      return storage.atomicUpdate(STATE_STORE, scopeKey, (existing) => {
+        const sameLife = existing?.digimonInstanceId === identity.digimonInstanceId;
+        if (
+          existing &&
+          sameLife &&
+          normalizeTimestamp(existing.updatedAt, 0) > updatedAt
+        ) {
+          return { action: 'keep', result: clonePlainData(existing) };
+        }
+
+        return {
+          action: 'put',
+          value: nextRecord,
+          result: clonePlainData(nextRecord),
+        };
+      });
     },
 
     async getStateMutation(input) {
-      const scopeKey = buildScopeKey(input.uid, input.slotId);
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+      const scopeKey = buildScopeKey(
+        identity.uid,
+        identity.slotId,
+        identity.slotInstanceId
+      );
       const record = await storage.get(STATE_STORE, scopeKey);
-      return record ? clonePlainData(record) : null;
+      return record?.digimonInstanceId === identity.digimonInstanceId
+        ? clonePlainData(record)
+        : null;
     },
 
     async deleteStateMutation(input) {
-      const scopeKey = buildScopeKey(input.uid, input.slotId);
-      const record = await storage.get(STATE_STORE, scopeKey);
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+      const scopeKey = buildScopeKey(
+        identity.uid,
+        identity.slotId,
+        identity.slotInstanceId
+      );
+      const expectedMutationId = normalizeRequiredString(input.mutationId, 'mutationId');
+      const expectedRecordVersion = normalizeRequiredString(
+        input.recordVersion,
+        'recordVersion'
+      );
 
-      if (!record || record.mutationId !== String(input.mutationId)) {
-        return false;
-      }
-
-      await storage.delete(STATE_STORE, scopeKey);
-      return true;
+      return storage.atomicUpdate(STATE_STORE, scopeKey, (existing) => {
+        const matches = Boolean(
+          existing &&
+          existing.mutationId === expectedMutationId &&
+          existing.recordVersion === expectedRecordVersion &&
+          existing.digimonInstanceId === identity.digimonInstanceId
+        );
+        return matches
+          ? { action: 'delete', result: true }
+          : { action: 'keep', result: false };
+      });
     },
 
     putActivityEvent(input) {
@@ -227,7 +318,7 @@ export function createIndexedDbOutbox(options = {}) {
     },
 
     listActivityEvents(input) {
-      return getScopedEvents(EVENT_CATEGORY.ACTIVITY, input.uid, input.slotId);
+      return getScopedEvents(EVENT_CATEGORY.ACTIVITY, input);
     },
 
     deleteActivityEvent(input) {
@@ -239,7 +330,7 @@ export function createIndexedDbOutbox(options = {}) {
     },
 
     listBattleEvents(input) {
-      return getScopedEvents(EVENT_CATEGORY.BATTLE, input.uid, input.slotId);
+      return getScopedEvents(EVENT_CATEGORY.BATTLE, input);
     },
 
     deleteBattleEvent(input) {
@@ -251,31 +342,62 @@ export function createIndexedDbOutbox(options = {}) {
     },
 
     listFeedEvents(input) {
-      return getScopedEvents(EVENT_CATEGORY.FEED, input.uid, input.slotId);
+      return getScopedEvents(EVENT_CATEGORY.FEED, input);
     },
 
     deleteFeedEvent(input) {
       return deleteEvent(EVENT_CATEGORY.FEED, input);
     },
 
+    async clearSlotInstanceScope(input) {
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: false });
+      const scopeKey = buildScopeKey(
+        identity.uid,
+        identity.slotId,
+        identity.slotInstanceId
+      );
+      return storage.deleteWhere(
+        [STATE_STORE, EVENT_STORE],
+        (_storeName, record) => record?.scopeKey === scopeKey
+      );
+    },
+
+    async clearDigimonLifeRecords(input) {
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+      const scopeKey = buildScopeKey(
+        identity.uid,
+        identity.slotId,
+        identity.slotInstanceId
+      );
+      return storage.deleteWhere(
+        [STATE_STORE, EVENT_STORE],
+        (_storeName, record) =>
+          record?.scopeKey === scopeKey &&
+          record?.digimonInstanceId === identity.digimonInstanceId
+      );
+    },
+
+    async listLegacyQuarantine() {
+      await ensureMigration();
+      return (await storage.getAll(QUARANTINE_STORE)).map(clonePlainData);
+    },
+
     async summarizeFeedBuckets(input) {
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
       const bucketMinutes = input.bucketMinutes ?? FEED_BUCKET_MINUTES;
       const bucketSizeMs = bucketMinutes * 60 * 1000;
       const fromOccurredAt =
         input.fromOccurredAt == null ? Number.NEGATIVE_INFINITY : input.fromOccurredAt;
       const toOccurredAt =
         input.toOccurredAt == null ? Number.POSITIVE_INFINITY : input.toOccurredAt;
-      const feedEvents = await getScopedEvents(EVENT_CATEGORY.FEED, input.uid, input.slotId);
-
+      const feedEvents = await getScopedEvents(EVENT_CATEGORY.FEED, input);
       const bucketMap = new Map();
 
       feedEvents.forEach((record) => {
-        if (record.occurredAt < fromOccurredAt || record.occurredAt > toOccurredAt) {
-          return;
-        }
-
-        const bucketStartAt =
-          Math.floor(record.occurredAt / bucketSizeMs) * bucketSizeMs;
+        if (record.occurredAt < fromOccurredAt || record.occurredAt > toOccurredAt) return;
+        const bucketStartAt = Math.floor(record.occurredAt / bucketSizeMs) * bucketSizeMs;
         const existingBucket = bucketMap.get(bucketStartAt);
 
         if (existingBucket) {
@@ -283,16 +405,12 @@ export function createIndexedDbOutbox(options = {}) {
           existingBucket.totalFeedQuantity += record.feedQuantity ?? 1;
           existingBucket.syncedCount += isSyncedRecord(record) ? 1 : 0;
           existingBucket.pendingCount += isSyncedRecord(record) ? 0 : 1;
-          existingBucket.lastOccurredAt = Math.max(
-            existingBucket.lastOccurredAt,
-            record.occurredAt
-          );
+          existingBucket.lastOccurredAt = Math.max(existingBucket.lastOccurredAt, record.occurredAt);
           return;
         }
 
         bucketMap.set(bucketStartAt, {
-          uid: String(input.uid),
-          slotId: String(input.slotId),
+          ...identity,
           bucketStartAt,
           bucketEndAt: bucketStartAt + bucketSizeMs,
           eventCount: 1,
@@ -314,33 +432,30 @@ export function createIndexedDbOutbox(options = {}) {
       const maxCount = input.maxCount ?? FEED_RETENTION_MAX_COUNT;
       const nowTimestamp = normalizeTimestamp(input.nowTimestamp, now());
       const cutoff = nowTimestamp - retentionDays * 24 * 60 * 60 * 1000;
-      const feedEvents = await getScopedEvents(EVENT_CATEGORY.FEED, input.uid, input.slotId);
-      const syncedEvents = feedEvents
-        .filter(isSyncedRecord)
-        .sort(sortByOccurredAtDesc);
-
+      const feedEvents = await getScopedEvents(EVENT_CATEGORY.FEED, input);
+      const syncedEvents = feedEvents.filter(isSyncedRecord).sort(sortByOccurredAtDesc);
       const retainKeys = new Set();
 
       syncedEvents.forEach((record, index) => {
-        const withinRecentWindow = record.occurredAt >= cutoff;
-        const withinCountWindow = index < maxCount;
-
-        if (withinRecentWindow && withinCountWindow) {
+        if (record.occurredAt >= cutoff && index < maxCount) {
           retainKeys.add(record.eventKey);
         }
       });
 
-      const deletableEvents = syncedEvents.filter(
-        (record) => !retainKeys.has(record.eventKey)
+      const deletableVersions = new Map(
+        syncedEvents
+          .filter((record) => !retainKeys.has(record.eventKey))
+          .map((record) => [record.eventKey, record.recordVersion])
+      );
+      const deletedCount = await storage.deleteWhere(
+        [EVENT_STORE],
+        (_storeName, record) =>
+          deletableVersions.get(record?.eventKey) === record?.recordVersion
       );
 
-      for (const record of deletableEvents) {
-        await storage.delete(EVENT_STORE, record.eventKey);
-      }
-
       return {
-        deletedCount: deletableEvents.length,
-        keptCount: syncedEvents.length - deletableEvents.length,
+        deletedCount,
+        keptCount: syncedEvents.length - deletedCount,
         pendingCount: feedEvents.length - syncedEvents.length,
       };
     },
@@ -348,7 +463,15 @@ export function createIndexedDbOutbox(options = {}) {
 }
 
 function assertStorage(storage) {
-  const requiredMethods = ['get', 'put', 'delete', 'getAll'];
+  const requiredMethods = [
+    'get',
+    'put',
+    'delete',
+    'getAll',
+    'atomicUpdate',
+    'deleteWhere',
+    'migrateLegacyRecords',
+  ];
 
   requiredMethods.forEach((methodName) => {
     if (typeof storage?.[methodName] !== 'function') {
@@ -357,7 +480,7 @@ function assertStorage(storage) {
   });
 }
 
-function buildScopeKey(uid, slotId) {
+function buildScopeKey(uid, slotId, slotInstanceId) {
   if (uid == null || uid === '') {
     throw new TypeError('uid가 필요합니다.');
   }
@@ -366,7 +489,11 @@ function buildScopeKey(uid, slotId) {
     throw new TypeError('slotId가 필요합니다.');
   }
 
-  return `${String(uid)}::${String(slotId)}`;
+  if (slotInstanceId == null || slotInstanceId === '') {
+    throw new TypeError('slotInstanceId가 필요합니다.');
+  }
+
+  return `${String(uid)}::${String(slotId)}::${String(slotInstanceId)}`;
 }
 
 function buildEventKey(scopeKey, category, eventId) {
@@ -387,6 +514,39 @@ function defaultEventTypeForCategory(category) {
 
 function normalizeTimestamp(value, fallback) {
   return Number.isFinite(value) ? Number(value) : Number(fallback);
+}
+
+function normalizeRequiredString(value, fieldName) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new TypeError(`${fieldName}가 필요합니다.`);
+  }
+  return value.trim();
+}
+
+function normalizeOutboxIdentity(input = {}, { requireDigimonInstanceId = true } = {}) {
+  const identity = {
+    uid: normalizeRequiredString(String(input.uid ?? ''), 'uid'),
+    slotId: normalizeRequiredString(String(input.slotId ?? ''), 'slotId'),
+    slotInstanceId: normalizeRequiredString(input.slotInstanceId, 'slotInstanceId'),
+  };
+
+  if (requireDigimonInstanceId) {
+    identity.digimonInstanceId = normalizeRequiredString(
+      input.digimonInstanceId,
+      'digimonInstanceId'
+    );
+  }
+
+  return identity;
+}
+
+function createRecordVersion(timestamp, sequence) {
+  const browserCrypto = typeof window !== 'undefined' ? window.crypto : null;
+  const randomUuid =
+    typeof browserCrypto?.randomUUID === 'function'
+      ? browserCrypto.randomUUID()
+      : null;
+  return randomUuid || `record:${timestamp}:${sequence}:${Math.random().toString(36).slice(2)}`;
 }
 
 function normalizeFeedQuantity(feedQuantity, payload) {
@@ -460,6 +620,10 @@ function openDatabase(indexedDBApi, dbName, dbVersion) {
       if (!database.objectStoreNames.contains(EVENT_STORE)) {
         database.createObjectStore(EVENT_STORE, { keyPath: 'eventKey' });
       }
+
+      if (!database.objectStoreNames.contains(QUARANTINE_STORE)) {
+        database.createObjectStore(QUARANTINE_STORE, { keyPath: 'quarantineKey' });
+      }
     };
 
     request.onsuccess = () => {
@@ -516,6 +680,186 @@ function requestToPromise(request) {
     };
     request.onerror = () => {
       reject(request.error ?? new Error('IndexedDB request가 실패했습니다.'));
+    };
+  });
+}
+
+function normalizeAtomicAction(action) {
+  if (!action || !['keep', 'put', 'delete'].includes(action.action)) {
+    throw new TypeError('atomic updater는 keep/put/delete action을 반환해야 합니다.');
+  }
+  return action;
+}
+
+function runAtomicStoreUpdate(database, storeName, key, updater) {
+  return new Promise((resolve, reject) => {
+    let transaction;
+    let operationResult;
+    let settled = false;
+
+    try {
+      transaction = database.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const getRequest = store.get(key);
+      getRequest.onsuccess = () => {
+        try {
+          const action = normalizeAtomicAction(
+            updater(clonePlainData(getRequest.result ?? null))
+          );
+          operationResult = clonePlainData(action.result);
+          if (action.action === 'put') {
+            store.put(clonePlainData(action.value));
+          } else if (action.action === 'delete') {
+            store.delete(key);
+          }
+        } catch (error) {
+          settled = true;
+          try {
+            transaction.abort();
+          } catch (_abortError) {
+            // noop
+          }
+          reject(error);
+        }
+      };
+      getRequest.onerror = () => {
+        settled = true;
+        reject(getRequest.error ?? new Error('IndexedDB compare 조회가 실패했습니다.'));
+      };
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    transaction.oncomplete = () => {
+      if (!settled) resolve(operationResult);
+    };
+    transaction.onerror = () => {
+      if (!settled) reject(transaction.error ?? new Error('IndexedDB compare transaction이 실패했습니다.'));
+    };
+    transaction.onabort = () => {
+      if (!settled) reject(transaction.error ?? new Error('IndexedDB compare transaction이 중단되었습니다.'));
+    };
+  });
+}
+
+function normalizeStoreNames(storeNames) {
+  return Array.isArray(storeNames) ? storeNames : [storeNames];
+}
+
+function runAtomicDeleteWhere(database, storeNames, predicate) {
+  const names = normalizeStoreNames(storeNames);
+  return new Promise((resolve, reject) => {
+    let transaction;
+    let deletedCount = 0;
+    let settled = false;
+
+    try {
+      transaction = database.transaction(names, 'readwrite');
+      names.forEach((storeName) => {
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          try {
+            (request.result || []).forEach((record) => {
+              if (predicate(storeName, clonePlainData(record))) {
+                const keyPath = store.keyPath;
+                store.delete(record[keyPath]);
+                deletedCount += 1;
+              }
+            });
+          } catch (error) {
+            settled = true;
+            try {
+              transaction.abort();
+            } catch (_abortError) {
+              // noop
+            }
+            reject(error);
+          }
+        };
+        request.onerror = () => {
+          settled = true;
+          reject(request.error ?? new Error('IndexedDB 범위 정리 조회가 실패했습니다.'));
+        };
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    transaction.oncomplete = () => {
+      if (!settled) resolve(deletedCount);
+    };
+    transaction.onerror = () => {
+      if (!settled) reject(transaction.error ?? new Error('IndexedDB 범위 정리가 실패했습니다.'));
+    };
+    transaction.onabort = () => {
+      if (!settled) reject(transaction.error ?? new Error('IndexedDB 범위 정리가 중단되었습니다.'));
+    };
+  });
+}
+
+function migrateLegacyOutboxRecords(database, nowTimestamp) {
+  return new Promise((resolve, reject) => {
+    const storeNames = [STATE_STORE, EVENT_STORE, QUARANTINE_STORE];
+    let transaction;
+    let quarantinedCount = 0;
+    let settled = false;
+
+    try {
+      transaction = database.transaction(storeNames, 'readwrite');
+      const quarantineStore = transaction.objectStore(QUARANTINE_STORE);
+      [STATE_STORE, EVENT_STORE].forEach((storeName) => {
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          try {
+            (request.result || []).forEach((record) => {
+              if (typeof record?.slotInstanceId === 'string' && record.slotInstanceId.trim()) {
+                return;
+              }
+              const originalKey = record?.[store.keyPath];
+              const quarantineKey = `${storeName}:${String(originalKey)}`;
+              quarantineStore.put({
+                quarantineKey,
+                originalStore: storeName,
+                originalKey: String(originalKey),
+                reason: 'missing-slot-instance-id',
+                quarantinedAt: nowTimestamp,
+                record: clonePlainData(record),
+              });
+              store.delete(originalKey);
+              quarantinedCount += 1;
+            });
+          } catch (error) {
+            settled = true;
+            try {
+              transaction.abort();
+            } catch (_abortError) {
+              // noop
+            }
+            reject(error);
+          }
+        };
+        request.onerror = () => {
+          settled = true;
+          reject(request.error ?? new Error('legacy outbox 조회가 실패했습니다.'));
+        };
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+
+    transaction.oncomplete = () => {
+      if (!settled) resolve({ quarantinedCount });
+    };
+    transaction.onerror = () => {
+      if (!settled) reject(transaction.error ?? new Error('legacy outbox 격리가 실패했습니다.'));
+    };
+    transaction.onabort = () => {
+      if (!settled) reject(transaction.error ?? new Error('legacy outbox 격리가 중단되었습니다.'));
     };
   });
 }

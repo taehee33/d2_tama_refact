@@ -5,11 +5,15 @@ const assert = require("node:assert/strict");
 const { initializeApp, deleteApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const {
+  completeLocalJogress,
   completeJogressRoom,
   createJogressRoom,
   joinJogressRoom,
   listJogressRooms,
 } = require("../digimon-tamagotchi-frontend/api/_lib/jogressService");
+const {
+  createLocalJogressReceiptId,
+} = require("../digimon-tamagotchi-frontend/api/_lib/jogressDomain");
 
 function stats() {
   return {
@@ -82,6 +86,182 @@ test("live 조그레스는 양쪽을 2단계로 진화시키고 새 형태를 �
   await db.doc("users/host/slots/slot1").update({ selectedDigimon: "Chimairamon", combatRevision: 6, revision: 3 });
   const replacement = await createJogressRoom({ uid: "host", slotId: 1, expectedRevision: 3, deps });
   assert.notEqual(replacement.room.id, roomId);
+});
+
+test("로컬 조그레스는 두 슬롯·로그·도감·receipt를 원자적으로 저장하고 재시도한다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
+  const app = initializeApp(
+    { projectId: process.env.FIREBASE_PROJECT_ID || "d2tamarefact" },
+    `jogress-local-${Date.now()}`
+  );
+  const db = getFirestore(app);
+  const deps = {
+    db,
+    runTransaction: (callback) => db.runTransaction(callback),
+    now: new Date("2026-08-13T00:00:00.000Z"),
+  };
+  t.after(async () => {
+    for (const name of ["jogress_logs", "users"]) {
+      await db.recursiveDelete(db.collection(name));
+    }
+    await deleteApp(app);
+  });
+
+  await db.doc("users/local-user/slots/slot1").set({
+    selectedDigimon: "BanchoLeomon",
+    version: "Ver.3",
+    revision: 4,
+    slotInstanceId: "slot-life-1",
+    digimonInstanceId: "current-life",
+    combatRevision: 5,
+    lastSavedAt: deps.now.getTime(),
+    digimonStats: stats(),
+  });
+  await db.doc("users/local-user/slots/slot2").set({
+    selectedDigimon: "Darkdramon",
+    version: "Ver.4",
+    revision: 7,
+    slotInstanceId: "slot-life-2",
+    digimonInstanceId: "partner-life",
+    combatRevision: 9,
+    lastSavedAt: deps.now.getTime(),
+    digimonStats: stats(),
+  });
+
+  const input = {
+    uid: "local-user",
+    requestId: "local-request-1",
+    currentSlotId: 1,
+    partnerSlotId: 2,
+    expectedCurrentRevision: 4,
+    expectedPartnerRevision: 7,
+    deps,
+  };
+  const completed = await completeLocalJogress(input);
+  assert.equal(completed.idempotent, false);
+  assert.equal(completed.slotOutcome.selectedDigimon, "Chaosmon");
+  assert.equal(completed.partnerOutcome.selectedDigimon, "Darkdramon");
+
+  const current = (await db.doc("users/local-user/slots/slot1").get()).data();
+  const partner = (await db.doc("users/local-user/slots/slot2").get()).data();
+  assert.equal(current.selectedDigimon, "Chaosmon");
+  assert.equal(current.revision, 5);
+  assert.equal(current.combatRevision, 6);
+  assert.equal(partner.selectedDigimon, "Darkdramon");
+  assert.equal(partner.revision, 8);
+  assert.equal(partner.combatRevision, 10);
+  assert.equal(partner.digimonStats.isDead, true);
+  assert.equal(
+    partner.digimonStats.deathReason,
+    "JOGRESS_PARTNER (조그레스 파트너)"
+  );
+  assert.equal(
+    (await db.collection("users/local-user/slots/slot1/logs").get()).size,
+    1
+  );
+  assert.equal(
+    (await db.collection("users/local-user/slots/slot2/logs").get()).size,
+    1
+  );
+  const encyclopedia = (
+    await db.doc("users/local-user/encyclopedia/Ver.3").get()
+  ).data();
+  assert.equal(encyclopedia.BanchoLeomon.isDiscovered, true);
+  assert.equal(encyclopedia.Chaosmon.isDiscovered, true);
+
+  const receiptId = createLocalJogressReceiptId(input);
+  const receipt = (await db.doc(`jogress_logs/${receiptId}`).get()).data();
+  assert.equal(receipt.requestId, "local-request-1");
+  assert.equal(receipt.revisionBefore, 4);
+  assert.equal(receipt.revisionAfter, 5);
+  assert.equal(receipt.partnerRevisionBefore, 7);
+  assert.equal(receipt.partnerRevisionAfter, 8);
+
+  const retried = await completeLocalJogress(input);
+  assert.equal(retried.idempotent, true);
+  assert.equal(
+    (await db.doc("users/local-user/slots/slot1").get()).data().revision,
+    5
+  );
+  assert.equal(
+    (await db.collection("users/local-user/slots/slot1/logs").get()).size,
+    1
+  );
+  await assert.rejects(
+    completeLocalJogress({ ...input, expectedPartnerRevision: 8 }),
+    (error) => error.code === "IDEMPOTENCY_KEY_REUSED"
+  );
+});
+
+test("로컬 조그레스의 revision 충돌과 transaction 실패는 두 슬롯을 모두 보존한다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
+  const app = initializeApp(
+    { projectId: process.env.FIREBASE_PROJECT_ID || "d2tamarefact" },
+    `jogress-local-conflict-${Date.now()}`
+  );
+  const db = getFirestore(app);
+  const now = new Date("2026-08-13T00:30:00.000Z");
+  t.after(async () => {
+    for (const name of ["jogress_logs", "users"]) {
+      await db.recursiveDelete(db.collection(name));
+    }
+    await deleteApp(app);
+  });
+  const currentRef = db.doc("users/local-conflict/slots/slot1");
+  const partnerRef = db.doc("users/local-conflict/slots/slot2");
+  await currentRef.set({
+    selectedDigimon: "BanchoLeomon", version: "Ver.3", revision: 2,
+    slotInstanceId: "slot-a", digimonInstanceId: "life-a", combatRevision: 3,
+    lastSavedAt: now.getTime(), digimonStats: stats(),
+  });
+  await partnerRef.set({
+    selectedDigimon: "Darkdramon", version: "Ver.4", revision: 5,
+    slotInstanceId: "slot-b", digimonInstanceId: "life-b", combatRevision: 6,
+    lastSavedAt: now.getTime(), digimonStats: stats(),
+  });
+  const beforeCurrent = (await currentRef.get()).data();
+  const beforePartner = (await partnerRef.get()).data();
+
+  await assert.rejects(
+    completeLocalJogress({
+      uid: "local-conflict",
+      requestId: "conflict-request",
+      currentSlotId: 1,
+      partnerSlotId: 2,
+      expectedCurrentRevision: 2,
+      expectedPartnerRevision: 4,
+      deps: { db, runTransaction: (callback) => db.runTransaction(callback), now },
+    }),
+    (error) => error.code === "JOGRESS_STATE_CONFLICT"
+  );
+  assert.deepEqual((await currentRef.get()).data(), beforeCurrent);
+  assert.deepEqual((await partnerRef.get()).data(), beforePartner);
+
+  const forcedFailure = new Error("forced transaction failure");
+  await assert.rejects(
+    completeLocalJogress({
+      uid: "local-conflict",
+      requestId: "forced-failure-request",
+      currentSlotId: 1,
+      partnerSlotId: 2,
+      expectedCurrentRevision: 2,
+      expectedPartnerRevision: 5,
+      deps: {
+        db,
+        now,
+        runTransaction: (callback) => db.runTransaction(async (transaction) => {
+          await callback(transaction);
+          throw forcedFailure;
+        }),
+      },
+    }),
+    forcedFailure
+  );
+  assert.deepEqual((await currentRef.get()).data(), beforeCurrent);
+  assert.deepEqual((await partnerRef.get()).data(), beforePartner);
+  assert.equal((await db.collection("jogress_logs").get()).empty, true);
 });
 
 test("서로 다른 네 형태의 동시 생성은 사용자당 활성 방을 최대 3개로 제한한다", {

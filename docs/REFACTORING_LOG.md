@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-08-13] 생애·진화·로컬 조그레스 원자 저장 경계 도입
+
+- **슬롯·생애 identity:** 슬롯 번호 재사용을 구분하는 `slotInstanceId`와 디지몬 생애를 구분하는 `digimonInstanceId`를 슬롯·IndexedDB outbox·신규 로그에 일관되게 적용했다. 슬롯 삭제나 환생 후에 이전 생애의 pending 저장·활동 로그·배틀 로그가 새 생애에 섞이지 않는다.
+- **새 생애:** 환생 시 초기 형태·스탯·새 `digimonInstanceId`·`combatRevision`·`NEW_START` 로그를 하나의 transaction으로 저장한다. 성공 후에만 화면 identity를 교체하고 이전 생애 outbox를 정리한다.
+- **일반 진화:** `stats`와 `selectedDigimon`을 나눠 저장하던 경로를 제거했다. 클라이언트 transaction이 슬롯 형태·스탯·`revision`·`combatRevision`·결정적 활동 로그 receipt를 함께 저장하고, 저장이 실패하면 동일 transition envelope를 IndexedDB state outbox에 보존해 재연결 시 같은 명령으로 재시도한다.
+- **동시성·멱등성:** 진화는 `baseRevision`, 출발 형태, `slotInstanceId`, `digimonInstanceId`를 비교한 뒤만 commit한다. `transitionId`에서 파생한 고정 `eventId`와 canonical fingerprint를 receipt로 사용해 동일 요청은 기존 결과를 반환하고, 같은 ID의 다른 payload는 충돌으로 거부한다.
+- **로컬 조그레스:** 클라이언트 `writeBatch` 수정을 제거하고 기존 `/api/jogress` Function의 `complete-local` action으로 이동했다. 서버가 두 슬롯 정본·조합·결과를 다시 계산하고, 현재 슬롯 진화·파트너 사망·양쪽 로그·도감·요청 receipt를 하나의 Admin SDK transaction으로 저장한다. 양쪽 `expectedRevision`이 다르거나 transaction이 실패하면 두 슬롯 모두 변경하지 않는다.
+- **로그 범위:** 현재 생애의 활동·배틀 로그는 각각 최대 50개로 제한하고, identity 기반 조회와 슬롯 생성 시각 fallback으로 이전 생애 서브컬렉션 흔적을 걸러낸다.
+- **오프라인 계약:** 일반 진화는 기존 state outbox로 내구성 있게 대기할 수 있다. 두 슬롯을 함께 확정해야 하는 로컬 조그레스는 온라인에서만 수행하며, 현재 슬롯 outbox flush와 서버 CAS가 성공한 뒤에만 UI 상태를 반영한다.
+- **영향 파일:** `src/persistence/evolutionTransition.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `src/hooks/useGameData.js`, `src/hooks/useEvolution.js`, `src/pages/Game.jsx`, `src/utils/jogressApi.js`, `api/_lib/jogressDomain.js`, `api/_lib/jogressService.js`, `api/_lib/jogressHandlers.js`, server projection, 관련 단위·Emulator 테스트.
+- **검증:** 프런트 207 suite·1,339 test, 서버 241 pass·19 Emulator-only skip, `npm run lint`, `npm run typecheck`, API 단일 원본, production build가 통과했다. 진화·outbox·UI·API 집중 회귀는 4 suite·51 test, 서버 조그레스는 7 test를 통과했고, `npm run test:firestore-emulator` 2 test와 `npm run test:arena-emulator` 25 test도 모두 통과했다. server projection은 재생성 전후 SHA-256가 일치했다.
+- **아키텍처 결정 근거:** 형태·생명 전이는 부분 성공을 복구하기 어려운 위험 mutation이다. 일반 진화는 소유자 Rules가 허용하는 단일 슬롯 transaction과 내구성 outbox를 사용하고, 두 슬롯에 걸친 로컬 조그레스는 권위 있는 서버 transaction으로 모아 정본이 중간 상태에 멈추는 경로를 제거했다.
+
 ## [2026-08-12] 운영자 1차 스탯 수정 범위 추가
 
 - **내용:** 서버에서 확인된 운영자의 `[ 고급·진단 ]` 탭에 별도 `스탯 수정` 폼을 추가했다. 편집 항목은 배고픔 0~5, 힘 0~5, 에너지 0~종 최대치, 체중, 배변 0~8, 케어 미스, 훈련, 과식, 프로틴 과다 0~7, 부상 횟수 0~15, 현재 형태 승리·패배 횟수, 부상 상태로 한정했다.

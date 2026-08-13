@@ -99,6 +99,8 @@ users/abc123/slots/slot2
 
 - `selectedDigimon`
 - `digimonStats`
+- `slotInstanceId`: 슬롯 번호가 삭제 후 재사용된 경우를 구분하는 identity
+- `digimonInstanceId`: 사망·환생 전후의 디지몬 생애를 구분하는 identity
 - `slotName`
 - `createdAt`
 - `device`
@@ -129,6 +131,10 @@ users/abc123/slots/slot2
 - Firestore가 공식 정본이라는 계약은 유지됩니다.
 - outbox는 localStorage 슬롯 모드가 아닙니다.
 - outbox 기록이 먼저 성공해도 해당 변경은 원격 전송 대기 상태입니다.
+- outbox는 `uid + slotId + slotInstanceId`로 슬롯 재사용을 격리하고, 생애 민감 기록은 `digimonInstanceId`도 확인합니다.
+- 새 생애와 일반 진화는 revision·identity 사전조건과 멱등 receipt를 사용하는 Firestore transaction으로 확정됩니다.
+- 로컬 조그레스는 클라이언트 일괄 쓰기가 아니라 `/api/jogress` `complete-local` 서버 transaction으로 두 슬롯을 함께 확정합니다.
+- 활동 로그는 현재 `slotInstanceId + digimonInstanceId`와 일치하는 생애만 조회하며 최대 50개를 유지합니다.
 
 ### localStorage
 

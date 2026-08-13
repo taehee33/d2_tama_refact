@@ -113,7 +113,7 @@ export default function ActivityLogModal({
             ✕
           </button>
         </div>
-        <p className="text-gray-400 text-sm mb-4">최대 100개까지 저장됩니다.</p>
+        <p className="text-gray-400 text-sm mb-4">현재 생애 기록을 최대 50개까지 저장합니다.</p>
 
         {/* 종류별 탭 */}
         <div className="flex flex-wrap gap-1 mb-4 border-b border-gray-600 pb-2">

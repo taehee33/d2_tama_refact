@@ -108,11 +108,10 @@ describe("useGamePageActionFlows", () => {
     });
     const setSelectedDigimon = jest.fn();
     const setDigimonStats = jest.fn();
-    const setDigimonStatsAndSave = jest.fn().mockResolvedValue(undefined);
-    const setSelectedDigimonAndSave = jest.fn().mockResolvedValue(undefined);
+    const setActivityLogs = jest.fn();
+    const saveNewLifeTransition = jest.fn().mockResolvedValue(undefined);
     const toggleModal = jest.fn();
     const setHasSeenDeathPopup = jest.fn();
-    const appendLogToSubcollection = jest.fn().mockResolvedValue(undefined);
 
     const { result } = renderHook(() =>
       useGamePageActionFlows({
@@ -131,10 +130,9 @@ describe("useGamePageActionFlows", () => {
         evolutionDataForSlot: {
           Digitama: { stage: "Egg" },
         },
-        appendLogToSubcollection,
         setSelectedDigimon,
-        setDigimonStatsAndSave,
-        setSelectedDigimonAndSave,
+        setActivityLogs,
+        saveNewLifeTransition,
         setHasSeenDeathPopup,
         confirmFn: () => true,
       })
@@ -146,12 +144,19 @@ describe("useGamePageActionFlows", () => {
 
     expect(setSelectedDigimon).toHaveBeenCalledWith("Digitama");
     expect(setDigimonStats).toHaveBeenCalled();
-    expect(setDigimonStatsAndSave).toHaveBeenCalled();
-    expect(setSelectedDigimonAndSave).toHaveBeenCalledWith("Digitama", {
-      newLife: true,
-    });
+    expect(setActivityLogs).toHaveBeenCalled();
+    expect(saveNewLifeTransition).toHaveBeenCalledWith(expect.objectContaining({
+      statsSnapshot: expect.objectContaining({
+        selectedDigimon: "Digitama",
+        battleLogs: [],
+      }),
+      transition: expect.objectContaining({
+        sourceDigimon: "Agumon",
+        targetDigimon: "Digitama",
+        logEntry: expect.objectContaining({ type: "NEW_START" }),
+      }),
+    }));
     expect(toggleModal).toHaveBeenCalledWith("deathModal", false);
     expect(setHasSeenDeathPopup).toHaveBeenCalledWith(false);
-    expect(appendLogToSubcollection).toHaveBeenCalled();
   });
 });

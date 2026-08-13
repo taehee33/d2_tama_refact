@@ -44,6 +44,8 @@ test("Arena combat identity bridge Rules가 형태·생명 전환 불변식을 �
   );
   await assertSucceeds(
     setDoc(strictRef, {
+      slotInstanceIdSchemaVersion: 1,
+      slotInstanceId: "slot-life-a",
       arenaIdentitySchemaVersion: 1,
       digimonInstanceId: "life-a",
       combatRevision: 1,
@@ -52,6 +54,7 @@ test("Arena combat identity bridge Rules가 형태·생명 전환 불변식을 �
     })
   );
   await assertSucceeds(updateDoc(strictRef, { digimonStats: { strength: 2 } }));
+  await assertFails(updateDoc(strictRef, { slotInstanceId: "slot-life-b" }));
   await assertFails(
     updateDoc(strictRef, {
       selectedDigimon: "Koromon",

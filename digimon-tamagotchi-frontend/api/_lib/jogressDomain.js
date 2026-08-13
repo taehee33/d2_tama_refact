@@ -6,6 +6,7 @@ const {
   adaptDataMapToOldFormat,
   applyLazyUpdate,
   getDigimonDataMapByVersion,
+  getJogressResult,
   initializeStats,
   normalizeDigimonVersionLabel,
   resolveOnlineJogressPair,
@@ -15,6 +16,7 @@ const { createCombatIdentityId, normalizeSlotId } = require("./arenaDomain");
 const JOGRESS_ROOM_SCHEMA_VERSION = 3;
 const JOGRESS_ROOM_LIMIT = 3;
 const ACTIVE_JOGRESS_STATUSES = new Set(["waiting", "paired"]);
+const LOCAL_JOGRESS_RECEIPT_SCHEMA_VERSION = 1;
 
 class JogressError extends ArenaError {
   constructor(code, message, details = null, status = 400, options = {}) {
@@ -40,6 +42,54 @@ function createLegacyGhostRegistrationKey(roomId) {
 function normalizeRevision(value) {
   const revision = Number(value ?? 0);
   return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+}
+
+function normalizeRequestId(value) {
+  const requestId = typeof value === "string" ? value.trim() : "";
+  if (!requestId || requestId.length > 160) {
+    throw new JogressError(
+      "JOGRESS_PAIR_INVALID",
+      "로컬 조그레스 requestId가 올바르지 않습니다.",
+      null,
+      400
+    );
+  }
+  return requestId;
+}
+
+function sha256Base64Url(value) {
+  return crypto.createHash("sha256").update(value, "utf8").digest("base64url");
+}
+
+function createLocalJogressReceiptId({ uid, requestId }) {
+  const normalizedUid = typeof uid === "string" ? uid.trim() : "";
+  if (!normalizedUid) {
+    throw new JogressError("JOGRESS_FORBIDDEN", "로그인이 필요합니다.", null, 401);
+  }
+  const normalizedRequestId = normalizeRequestId(requestId);
+  return `local_${sha256Base64Url(
+    `jogress-local-v${LOCAL_JOGRESS_RECEIPT_SCHEMA_VERSION}\0${normalizedUid}\0${normalizedRequestId}`
+  )}`;
+}
+
+function createLocalJogressRequestFingerprint({
+  uid,
+  requestId,
+  currentSlotId,
+  partnerSlotId,
+  expectedCurrentRevision,
+  expectedPartnerRevision,
+}) {
+  const canonical = [
+    `jogress-local-v${LOCAL_JOGRESS_RECEIPT_SCHEMA_VERSION}`,
+    String(uid || "").trim(),
+    normalizeRequestId(requestId),
+    normalizeSlotId(currentSlotId),
+    normalizeSlotId(partnerSlotId),
+    Number(expectedCurrentRevision),
+    Number(expectedPartnerRevision),
+  ];
+  return sha256Base64Url(JSON.stringify(canonical));
 }
 
 function assertExpectedRevision(slot, expectedRevision) {
@@ -233,6 +283,49 @@ function buildJogressEvolutionOutcome({ slot, version, targetId, rawMap, nowMs }
   };
 }
 
+function buildLocalJogressPartnerOutcome({ slot, version, rawMap, nowMs }) {
+  const sourceAdapted = adaptDataMapToOldFormat(rawMap)?.[slot.selectedDigimon] || {};
+  const projectedStats = applyLazyUpdate(
+    slot.digimonStats || {},
+    slot.lastSavedAt,
+    sourceAdapted.stats?.sleepSchedule || null,
+    sourceAdapted.maxEnergy ?? null,
+    { nowMs }
+  );
+  return {
+    selectedDigimon: slot.selectedDigimon,
+    version,
+    digimonStats: sanitizeStats({
+      ...projectedStats,
+      isDead: true,
+      diedAt: nowMs,
+      deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
+    }),
+    revision: normalizeRevision(slot.revision) + 1,
+    combatRevision: slot.combatRevision + 1,
+  };
+}
+
+function resolveLocalJogressPair({ current, partner }) {
+  const result = getJogressResult(
+    current?.slot?.selectedDigimon,
+    partner?.slot?.selectedDigimon,
+    current?.dataMap || {}
+  );
+  if (!result?.success || !result.targetId || !current?.dataMap?.[result.targetId]) {
+    throw new JogressError(
+      "JOGRESS_PAIR_INVALID",
+      result?.reason || "조그레스할 수 있는 디지몬 조합이 아닙니다.",
+      null,
+      422
+    );
+  }
+  return {
+    targetId: result.targetId,
+    targetEntry: current.dataMap[result.targetId],
+  };
+}
+
 function buildEvolutionLog({ eventId, sourceId, targetId, resultName, nowMs }) {
   return {
     eventId,
@@ -240,6 +333,50 @@ function buildEvolutionLog({ eventId, sourceId, targetId, resultName, nowMs }) {
     text: `조그레스 진화(온라인): ${resultName}!`,
     timestamp: nowMs,
     snapshot: { sourceDigimonId: sourceId, selectedDigimon: targetId },
+  };
+}
+
+function buildLocalJogressEvolutionLog({
+  eventId,
+  requestId,
+  sourceId,
+  targetId,
+  resultName,
+  nowMs,
+  slot,
+}) {
+  return {
+    eventId,
+    requestId,
+    type: "EVOLUTION",
+    text: `조그레스 진화(로컬): ${resultName}!`,
+    timestamp: nowMs,
+    transitionId: requestId,
+    logIdentitySchemaVersion: Number(slot?.logIdentitySchemaVersion || 1),
+    slotInstanceId: slot?.slotInstanceId || null,
+    digimonInstanceId: slot?.digimonInstanceId || null,
+    snapshot: { sourceDigimonId: sourceId, selectedDigimon: targetId },
+  };
+}
+
+function buildLocalJogressPartnerDeathLog({
+  eventId,
+  requestId,
+  partnerId,
+  nowMs,
+  slot,
+}) {
+  return {
+    eventId,
+    requestId,
+    type: "DEATH",
+    text: "조그레스 파트너로 사용되어 사망했습니다.",
+    timestamp: nowMs,
+    deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
+    logIdentitySchemaVersion: Number(slot?.logIdentitySchemaVersion || 1),
+    slotInstanceId: slot?.slotInstanceId || null,
+    digimonInstanceId: slot?.digimonInstanceId || null,
+    snapshot: { selectedDigimon: partnerId },
   };
 }
 
@@ -280,6 +417,7 @@ module.exports = {
   ACTIVE_JOGRESS_STATUSES,
   JOGRESS_ROOM_LIMIT,
   JOGRESS_ROOM_SCHEMA_VERSION,
+  LOCAL_JOGRESS_RECEIPT_SCHEMA_VERSION,
   JogressError,
   assertExpectedRevision,
   assertUsableJogressSlot,
@@ -287,13 +425,19 @@ module.exports = {
   buildEvolutionLog,
   buildHostSnapshot,
   buildJogressEvolutionOutcome,
+  buildLocalJogressEvolutionLog,
+  buildLocalJogressPartnerDeathLog,
+  buildLocalJogressPartnerOutcome,
   classifyRoomLink,
   createLegacyGhostRegistrationKey,
   createJogressRegistrationKey,
+  createLocalJogressReceiptId,
+  createLocalJogressRequestFingerprint,
   getRoomHostSnapshot,
   getSlotSourceIdentity,
   isRoomSourceCurrent,
   normalizeRevision,
   normalizeSlotId,
+  resolveLocalJogressPair,
   resolveOnlineJogressPair,
 };

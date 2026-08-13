@@ -338,6 +338,8 @@ function Game({ immersive = false }){
   const {
     saveStats: setDigimonStatsAndSave,
     saveStatsCommand,
+    saveEvolutionTransition,
+    saveNewLifeTransition,
     applyLazyUpdate: applyLazyUpdateBeforeAction,
     saveBackgroundSettings,
     saveImmersiveSettings,
@@ -545,8 +547,7 @@ function Game({ immersive = false }){
     digimonStats,
     setDigimonStats,
     setSelectedDigimon,
-    setSelectedDigimonAndSave,
-    setDigimonStatsAndSave,
+    saveEvolutionTransition,
     applyLazyUpdateBeforeAction,
     setActivityLogs,
     activityLogs,
@@ -991,6 +992,7 @@ function Game({ immersive = false }){
       eatCycleFromHook,
       setCurrentAnimation,
       setDigimonStats,
+      setActivityLogs,
       setFeedStep,
       setFeedType,
       toggleModal,
@@ -1002,6 +1004,7 @@ function Game({ immersive = false }){
       setSelectedDigimon,
       setDigimonStatsAndSave,
       setSelectedDigimonAndSave,
+      saveNewLifeTransition,
       setHasSeenDeathPopup,
     });
 

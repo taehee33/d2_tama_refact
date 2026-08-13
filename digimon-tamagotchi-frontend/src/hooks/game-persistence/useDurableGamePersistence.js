@@ -16,6 +16,10 @@ import {
   normalizeGameRevision,
   replaySafeActions,
 } from "../../persistence/gameRevision";
+import {
+  buildEvolutionTransitionEnvelope,
+  commitEvolutionTransition,
+} from "../../persistence/evolutionTransition";
 import { buildActivityLogEventId } from "../../utils/activityLogEventId";
 import {
   buildPersistentActivityLogPayload,
@@ -77,13 +81,36 @@ export function canUseGameplayPersistence({
 } = {}) {
   if (access?.phase !== GAME_PERSISTENCE_PHASE.READY || hasConflict) return false;
   if (loadedRevision == null) return false;
-  if (!access?.loadedIdentity?.uid || access.loadedIdentity.slotId == null) return false;
-  if (access.loadedIdentity.uid !== currentUid) return false;
-  if (String(access.loadedIdentity.slotId) !== String(currentSlotId)) return false;
+  const loadedIdentity = resolveLoadedPersistenceIdentity({
+    access,
+    currentUid,
+    currentSlotId,
+  });
+  if (!loadedIdentity) return false;
   if (!saveContext) return true;
   return saveContext.uid === currentUid &&
     String(saveContext.slotId) === String(currentSlotId) &&
-    saveContext.generation === access.generation;
+    saveContext.generation === access.generation &&
+    saveContext.slotInstanceId === loadedIdentity.slotInstanceId &&
+    saveContext.digimonInstanceId === loadedIdentity.digimonInstanceId;
+}
+
+export function resolveLoadedPersistenceIdentity({
+  access,
+  currentUid,
+  currentSlotId,
+} = {}) {
+  const identity = access?.loadedIdentity;
+  if (!identity?.uid || identity.slotId == null) return null;
+  if (!identity.slotInstanceId || !identity.digimonInstanceId) return null;
+  if (identity.uid !== currentUid) return null;
+  if (String(identity.slotId) !== String(currentSlotId)) return null;
+  return {
+    uid: identity.uid,
+    slotId: identity.slotId,
+    slotInstanceId: identity.slotInstanceId,
+    digimonInstanceId: identity.digimonInstanceId,
+  };
 }
 
 export function isCurrentConflictIdentity({
@@ -100,6 +127,8 @@ export function isCurrentConflictIdentity({
     identity.uid === access.loadedIdentity.uid &&
     String(identity.slotId) === String(currentSlotId) &&
     String(identity.slotId) === String(access.loadedIdentity.slotId) &&
+    identity.slotInstanceId === access.loadedIdentity.slotInstanceId &&
+    identity.digimonInstanceId === access.loadedIdentity.digimonInstanceId &&
     identity.generation === access.generation
   );
 }
@@ -252,12 +281,24 @@ export function useDurableGamePersistence({
   const conflictRef = useRef(null);
   const cleanupFailedMutationIdsRef = useRef(new Set());
 
-  const captureSaveContext = useCallback(() => ({
-    uid: currentUser?.uid ?? null,
-    slotId,
-    generation: activeAccessRef.current?.generation,
-    requestedAtRevision: revisionRef.current,
-  }), [activeAccessRef, currentUser?.uid, slotId]);
+  const getOutboxIdentity = useCallback(() =>
+    resolveLoadedPersistenceIdentity({
+      access: activeAccessRef.current,
+      currentUid: currentUser?.uid,
+      currentSlotId: slotId,
+    }), [activeAccessRef, currentUser?.uid, slotId]);
+
+  const captureSaveContext = useCallback(() => {
+    const identity = getOutboxIdentity();
+    return {
+      uid: currentUser?.uid ?? null,
+      slotId,
+      slotInstanceId: identity?.slotInstanceId ?? null,
+      digimonInstanceId: identity?.digimonInstanceId ?? null,
+      generation: activeAccessRef.current?.generation,
+      requestedAtRevision: revisionRef.current,
+    };
+  }, [activeAccessRef, currentUser?.uid, getOutboxIdentity, slotId]);
 
   const canStartGameplayWrite = useCallback((saveContext = null) =>
     canUseGameplayPersistence({
@@ -306,7 +347,8 @@ export function useDurableGamePersistence({
   }, [currentUser?.uid, outbox, slotId]);
 
   const refreshOutboxStatus = useCallback(async () => {
-    if (!outbox || !currentUser?.uid || !slotId) {
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity) {
       setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return GAME_SYNC_STATUS.UNAVAILABLE;
@@ -317,10 +359,10 @@ export function useDurableGamePersistence({
     }
 
     const [stateRecord, activityEvents, battleEvents, feedEvents] = await Promise.all([
-      outbox.getStateMutation({ uid: currentUser.uid, slotId }),
-      outbox.listActivityEvents({ uid: currentUser.uid, slotId }),
-      outbox.listBattleEvents({ uid: currentUser.uid, slotId }),
-      outbox.listFeedEvents({ uid: currentUser.uid, slotId }),
+      outbox.getStateMutation(identity),
+      outbox.listActivityEvents(identity),
+      outbox.listBattleEvents(identity),
+      outbox.listFeedEvents(identity),
     ]);
     const pendingFeedEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
     const recordCount = activityEvents.length + battleEvents.length + pendingFeedEvents.length;
@@ -351,7 +393,7 @@ export function useDurableGamePersistence({
       : null;
     setNextRecordSyncAt(nextFeedAt);
     return stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED;
-  }, [currentUser?.uid, outbox, slotId]);
+  }, [getOutboxIdentity, outbox]);
 
   const holdRevisionConflict = useCallback((record, conflictError) => {
     const conflict = {
@@ -373,6 +415,8 @@ export function useDurableGamePersistence({
       identity: {
         uid: currentUser?.uid ?? null,
         slotId,
+        slotInstanceId: record?.slotInstanceId ?? null,
+        digimonInstanceId: record?.digimonInstanceId ?? null,
         generation: activeAccessRef.current?.generation,
       },
     };
@@ -400,7 +444,15 @@ export function useDurableGamePersistence({
   }), [holdRevisionConflict]);
 
   const cleanupCommittedStateRecord = useCallback(async (record, { localWriteFailed = false } = {}) => {
-    if (!outbox || !record?.mutationId || !currentUser?.uid || !slotId) {
+    const identity = record?.slotInstanceId && record?.digimonInstanceId
+      ? {
+          uid: record.uid,
+          slotId: record.slotId,
+          slotInstanceId: record.slotInstanceId,
+          digimonInstanceId: record.digimonInstanceId,
+        }
+      : getOutboxIdentity();
+    if (!outbox || !record?.mutationId || !record?.recordVersion || !identity) {
       return localWriteFailed
         ? GAME_SAVE_LOCAL_CLEANUP.FAILED
         : GAME_SAVE_LOCAL_CLEANUP.NOT_NEEDED;
@@ -411,15 +463,12 @@ export function useDurableGamePersistence({
       : GAME_SAVE_LOCAL_CLEANUP.COMPLETE;
     try {
       const didDelete = await outbox.deleteStateMutation({
-        uid: currentUser.uid,
-        slotId,
+        ...identity,
         mutationId: record.mutationId,
+        recordVersion: record.recordVersion,
       });
-      const remainingState = await outbox.getStateMutation({
-        uid: currentUser.uid,
-        slotId,
-      });
-      if (!didDelete || remainingState?.mutationId === record.mutationId) {
+      const remainingState = await outbox.getStateMutation(identity);
+      if (!didDelete || remainingState?.recordVersion === record.recordVersion) {
         cleanupFailedMutationIdsRef.current.add(record.mutationId);
         cleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
       } else {
@@ -432,7 +481,7 @@ export function useDurableGamePersistence({
       cleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
     }
     return cleanup;
-  }, [currentUser?.uid, outbox, slotId]);
+  }, [getOutboxIdentity, outbox]);
 
   const commitStateRecordWithReceipt = useCallback(async (record, {
     commandId = null,
@@ -482,13 +531,30 @@ export function useDurableGamePersistence({
     const localSnapshot = stateEnvelope.stateSnapshot || {};
 
     try {
-      const result = await commitRevisionedSlot({
-        db,
-        slotRef,
-        baseRevision: stateEnvelope.baseRevision,
-        updateData: buildUpdateDataForSnapshot(localSnapshot, record.updatedAt),
-        runTransaction,
-      });
+      const result = stateEnvelope.transition
+        ? await commitEvolutionTransition({
+            db,
+            slotRef,
+            logRef: doc(
+              collection(slotRef, "logs"),
+              stateEnvelope.transition.eventId
+            ),
+            baseRevision: stateEnvelope.baseRevision,
+            updateData: buildUpdateDataForSnapshot(
+              localSnapshot,
+              record.updatedAt,
+              stateEnvelope.transition
+            ),
+            transition: stateEnvelope.transition,
+            runTransaction,
+          })
+        : await commitRevisionedSlot({
+            db,
+            slotRef,
+            baseRevision: stateEnvelope.baseRevision,
+            updateData: buildUpdateDataForSnapshot(localSnapshot, record.updatedAt),
+            runTransaction,
+          });
       revisionRef.current = result.revision;
       lastSyncedStatsRef.current = localSnapshot;
       setLastStateSyncedAt(Date.now());
@@ -506,12 +572,21 @@ export function useDurableGamePersistence({
         localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
       }
       return {
-        receipt: createGameSaveReceipt({
-          status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
-          commandId: resolvedCommandId,
-          mutationId,
-          localCleanup,
-        }),
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.SYNCED,
+            commandId: resolvedCommandId,
+            mutationId,
+            localCleanup,
+          }),
+          ...(stateEnvelope.transition
+            ? {
+                transitionId: stateEnvelope.transition.transitionId,
+                idempotent: result.idempotent === true,
+                revision: result.revision,
+              }
+            : {}),
+        },
         error: null,
       };
     } catch (commitError) {
@@ -657,9 +732,16 @@ export function useDurableGamePersistence({
     throw outcome.error || new Error("게임 상태 저장에 실패했습니다.");
   }, [commitStateRecordWithReceipt]);
 
-  const queueStateSnapshot = useCallback(async ({ statsSnapshot, updatedLogs, nowMs, saveContext }) => {
-    if (!outbox || !currentUser?.uid || !slotId || !canStartGameplayWrite(saveContext)) return null;
-    const existing = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+  const queueStateSnapshot = useCallback(async ({
+    statsSnapshot,
+    updatedLogs,
+    nowMs,
+    saveContext,
+    transition = null,
+  }) => {
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity || !canStartGameplayWrite(saveContext)) return null;
+    const existing = await outbox.getStateMutation(identity);
     const beforeStats = existing?.state?.stateSnapshot || lastSyncedStatsRef.current || digimonStats || {};
     const nextActions = updatedLogs
       ? resolveNewReplayActions({
@@ -675,12 +757,32 @@ export function useDurableGamePersistence({
       ...existingActions,
       ...nextActions.filter((action) => !existingActionIds.has(action.eventId)),
     ];
+    const requestedTransition = transition
+      ? buildEvolutionTransitionEnvelope({
+          ...transition,
+          nowMs: transition.createdAt ?? nowMs,
+          identity,
+        })
+      : null;
+    const existingTransition = existing?.state?.transition || null;
+    if (
+      existingTransition &&
+      requestedTransition &&
+      existingTransition.requestFingerprint !== requestedTransition.requestFingerprint
+    ) {
+      const transitionError = new Error(
+        "동기화 대기 중인 다른 진화가 있어 새 진화를 저장할 수 없습니다."
+      );
+      transitionError.code = "game/evolution-pending-conflict";
+      throw transitionError;
+    }
+    const resolvedTransition = requestedTransition || existingTransition || null;
 
     if (!canStartGameplayWrite(saveContext)) return null;
     const candidateRecord = {
-      uid: currentUser.uid,
-      slotId,
+      ...identity,
       mutationId: existing?.mutationId || createMutationId(nowMs),
+      recordVersion: existing?.recordVersion,
       updatedAt: nowMs,
       queuedAt: existing?.queuedAt ?? nowMs,
       state: {
@@ -688,6 +790,7 @@ export function useDurableGamePersistence({
         baseRevision: existing?.state?.baseRevision ?? revisionRef.current,
         stateSnapshot: statsSnapshot,
         actions,
+        ...(resolvedTransition ? { transition: resolvedTransition } : {}),
         hasUnreplayableChanges: Boolean(
           existing?.state?.hasUnreplayableChanges ||
           (updatedLogs ? nextActions.length === 0 || nextActions.some((action) => !action.safe) : true)
@@ -701,7 +804,7 @@ export function useDurableGamePersistence({
       error.gameSaveFallbackRecord = candidateRecord;
       throw error;
     }
-  }, [activityLogs, canStartGameplayWrite, currentUser, digimonStats, outbox, slotId]);
+  }, [activityLogs, canStartGameplayWrite, digimonStats, getOutboxIdentity, outbox]);
 
   const persistStateSnapshotOperation = useCallback(async ({
     statsSnapshot,
@@ -709,6 +812,7 @@ export function useDurableGamePersistence({
     nowMs,
     saveContext,
     commandId = null,
+    transition = null,
   }) => {
     if (!canStartGameplayWrite(saveContext)) {
       return commitStateRecordWithReceipt(null, { commandId, saveContext });
@@ -718,9 +822,27 @@ export function useDurableGamePersistence({
     let localWriteFailed = false;
     if (outbox && currentUser?.uid && slotId) {
       try {
-        record = await queueStateSnapshot({ statsSnapshot, updatedLogs, nowMs, saveContext });
+        record = await queueStateSnapshot({
+          statsSnapshot,
+          updatedLogs,
+          nowMs,
+          saveContext,
+          transition,
+        });
         setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } catch (error) {
+        if (error?.code === "game/evolution-pending-conflict") {
+          setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
+          setStateSyncError(formatSyncError(error));
+          return {
+            receipt: createGameSaveReceipt({
+              status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+              commandId,
+              errorCode: error.code,
+            }),
+            error,
+          };
+        }
         localWriteFailed = true;
         record = error.gameSaveFallbackRecord || null;
         console.error("로컬 outbox 저장 오류:", error);
@@ -730,7 +852,16 @@ export function useDurableGamePersistence({
       }
     }
 
+    const identity = getOutboxIdentity();
+    const fallbackTransition = transition && identity
+      ? buildEvolutionTransitionEnvelope({
+          ...transition,
+          nowMs: transition.createdAt ?? nowMs,
+          identity,
+        })
+      : null;
     const recordToCommit = record || {
+      ...(identity || {}),
       mutationId: createMutationId(nowMs),
       updatedAt: nowMs,
       state: {
@@ -738,6 +869,7 @@ export function useDurableGamePersistence({
         baseRevision: revisionRef.current,
         stateSnapshot: statsSnapshot,
         actions: [],
+        ...(fallbackTransition ? { transition: fallbackTransition } : {}),
         hasUnreplayableChanges: true,
       },
     };
@@ -747,9 +879,22 @@ export function useDurableGamePersistence({
       localRecordIsDurable: Boolean(record?.localRecordIsDurable),
       localWriteFailed,
     });
-  }, [canStartGameplayWrite, commitStateRecordWithReceipt, currentUser?.uid, outbox, queueStateSnapshot, slotId]);
+  }, [
+    canStartGameplayWrite,
+    commitStateRecordWithReceipt,
+    currentUser?.uid,
+    getOutboxIdentity,
+    outbox,
+    queueStateSnapshot,
+    slotId,
+  ]);
 
   const persistStateSnapshotReceipt = useCallback(async (input) => {
+    const outcome = await persistStateSnapshotOperation(input);
+    return outcome.receipt;
+  }, [persistStateSnapshotOperation]);
+
+  const persistEvolutionTransitionReceipt = useCallback(async (input) => {
     const outcome = await persistStateSnapshotOperation(input);
     return outcome.receipt;
   }, [persistStateSnapshotOperation]);
@@ -794,12 +939,31 @@ export function useDurableGamePersistence({
         remoteSucceeded: false,
       };
     }
-    const payload = buildPersistentActivityLogPayload({
+    const identity = getOutboxIdentity();
+    if (!identity) {
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+            commandId,
+            blockedReason: GAME_SAVE_BLOCKED_REASON.SLOT_CHANGED,
+          }),
+          eventId: logEntry?.eventId || null,
+        },
+        remoteSucceeded: false,
+      };
+    }
+    const payload = {
+      ...buildPersistentActivityLogPayload({
       ...logEntry,
       timestamp: toEpochMs(logEntry?.timestamp) ?? Date.now(),
-    });
+      }),
+      slotInstanceId: identity.slotInstanceId,
+      digimonInstanceId: identity.digimonInstanceId,
+    };
     const eventId = getPersistentActivityLogDocId(payload);
     let localRecordIsDurable = false;
+    let activityOutboxRecord = null;
 
     if (outbox && eventId) {
       try {
@@ -824,8 +988,7 @@ export function useDurableGamePersistence({
         }
         if (isFeedActivityLog(payload)) {
           await outbox.putFeedEvent({
-            uid: currentUser.uid,
-            slotId,
+            ...identity,
             eventId,
             occurredAt: payload.timestamp,
             eventType: "FEED",
@@ -833,9 +996,8 @@ export function useDurableGamePersistence({
           });
         }
         if (shouldPersistActivityLog(payload)) {
-          await outbox.putActivityEvent({
-            uid: currentUser.uid,
-            slotId,
+          activityOutboxRecord = await outbox.putActivityEvent({
+            ...identity,
             eventId,
             occurredAt: payload.timestamp,
             eventType: payload.type,
@@ -887,10 +1049,16 @@ export function useDurableGamePersistence({
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       await setDoc(doc(collection(slotRef, "logs"), eventId), payload, { merge: true });
       let localCleanup = GAME_SAVE_LOCAL_CLEANUP.NOT_NEEDED;
-      if (outbox) {
+      if (outbox && activityOutboxRecord) {
         try {
-          await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId });
-          localCleanup = GAME_SAVE_LOCAL_CLEANUP.COMPLETE;
+          const didDelete = await outbox.deleteActivityEvent({
+            ...identity,
+            eventId,
+            recordVersion: activityOutboxRecord.recordVersion,
+          });
+          localCleanup = didDelete
+            ? GAME_SAVE_LOCAL_CLEANUP.COMPLETE
+            : GAME_SAVE_LOCAL_CLEANUP.FAILED;
         } catch (cleanupError) {
           localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
           setRecordSyncError(formatSyncError(
@@ -931,7 +1099,7 @@ export function useDurableGamePersistence({
         remoteSucceeded: false,
       };
     }
-  }, [activeAccessRef, canStartGameplayWrite, currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+  }, [activeAccessRef, canStartGameplayWrite, currentUser, getOutboxIdentity, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
 
   const persistActivityLogReceipt = useCallback(async (input) => {
     const outcome = await persistActivityLogOperation(input);
@@ -956,14 +1124,20 @@ export function useDurableGamePersistence({
       !entry?.mode ||
       !canStartGameplayWrite(saveContext)
     ) return false;
-    const payload = buildPersistentBattleLogPayload(entry);
+    const identity = getOutboxIdentity();
+    if (!identity) return false;
+    const payload = {
+      ...buildPersistentBattleLogPayload(entry),
+      slotInstanceId: identity.slotInstanceId,
+      digimonInstanceId: identity.digimonInstanceId,
+    };
     const eventId = payload.eventId;
+    let battleOutboxRecord = null;
     if (outbox && eventId) {
       try {
         if (!canStartGameplayWrite(saveContext)) return false;
-        await outbox.putBattleEvent({
-          uid: currentUser.uid,
-          slotId,
+        battleOutboxRecord = await outbox.putBattleEvent({
+          ...identity,
           eventId,
           occurredAt: payload.timestamp,
           eventType: "BATTLE",
@@ -981,8 +1155,12 @@ export function useDurableGamePersistence({
     try {
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       await setDoc(doc(collection(slotRef, "battleLogs"), eventId), payload, { merge: true });
-      if (outbox) {
-        await outbox.deleteBattleEvent({ uid: currentUser.uid, slotId, eventId });
+      if (outbox && battleOutboxRecord) {
+        await outbox.deleteBattleEvent({
+          ...identity,
+          eventId,
+          recordVersion: battleOutboxRecord.recordVersion,
+        });
       }
       setLastRecordSyncedAt(Date.now());
       setRecordSyncError("");
@@ -994,11 +1172,12 @@ export function useDurableGamePersistence({
       setRecordSyncStatus(outbox ? GAME_RECORD_SYNC_STATUS.LOCAL : GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
       return false;
     }
-  }, [canStartGameplayWrite, captureSaveContext, currentUser, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+  }, [canStartGameplayWrite, captureSaveContext, currentUser, getOutboxIdentity, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
 
   const flushFeed = useCallback(async (slotRef) => {
-    if (!outbox || !currentUser?.uid || !slotId || !canStartGameplayWrite()) return;
-    const feedEvents = await outbox.listFeedEvents({ uid: currentUser.uid, slotId });
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity || !canStartGameplayWrite()) return;
+    const feedEvents = await outbox.listFeedEvents(identity);
     const now = Date.now();
     const pendingEvents = feedEvents.filter(
       (event) =>
@@ -1025,14 +1204,19 @@ export function useDurableGamePersistence({
           bucketStartAt,
           bucketSizeMs,
         });
-        if (update) transaction.set(summaryRef, update.payload, { merge: true });
+        if (update) {
+          transaction.set(summaryRef, {
+            ...update.payload,
+            slotInstanceId: identity.slotInstanceId,
+            digimonInstanceId: identity.digimonInstanceId,
+          }, { merge: true });
+        }
       });
 
       for (const event of events) {
         if (!canStartGameplayWrite()) return syncedCount;
         await outbox.putFeedEvent({
-          uid: currentUser.uid,
-          slotId,
+          ...identity,
           eventId: event.eventId,
           occurredAt: event.occurredAt,
           eventType: event.eventType,
@@ -1044,13 +1228,14 @@ export function useDurableGamePersistence({
         syncedCount += 1;
       }
     }
-    await outbox.pruneSyncedFeedEvents({ uid: currentUser.uid, slotId });
+    await outbox.pruneSyncedFeedEvents(identity);
     return syncedCount;
-  }, [canStartGameplayWrite, currentUser, outbox, slotId]);
+  }, [canStartGameplayWrite, getOutboxIdentity, outbox]);
 
   const flushOutboxInternal = useCallback(async () => {
+    const identity = getOutboxIdentity();
     if (!canStartGameplayWrite()) return false;
-    if (!outbox || !currentUser?.uid || !slotId || !isFirebaseAvailable) {
+    if (!outbox || !identity || !isFirebaseAvailable) {
       if (!outbox) {
         setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
         setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.UNAVAILABLE);
@@ -1062,7 +1247,7 @@ export function useDurableGamePersistence({
     let stateRecord = null;
     let syncedRecordCount = 0;
     try {
-      stateRecord = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+      stateRecord = await outbox.getStateMutation(identity);
       if (stateRecord && conflictRef.current) {
         hasConflict = true;
       } else if (
@@ -1074,19 +1259,28 @@ export function useDurableGamePersistence({
       } else if (stateRecord) {
         hasConflict = !(await commitStateRecord(stateRecord));
       }
+      if (hasConflict || conflictRef.current) return false;
 
-      const activityEvents = await outbox.listActivityEvents({ uid: currentUser.uid, slotId });
+      const activityEvents = await outbox.listActivityEvents(identity);
       for (const event of activityEvents) {
         if (!canStartGameplayWrite()) return false;
         await setDoc(doc(collection(slotRef, "logs"), event.eventId), event.payload, { merge: true });
-        await outbox.deleteActivityEvent({ uid: currentUser.uid, slotId, eventId: event.eventId });
+        await outbox.deleteActivityEvent({
+          ...identity,
+          eventId: event.eventId,
+          recordVersion: event.recordVersion,
+        });
         syncedRecordCount += 1;
       }
-      const battleEvents = await outbox.listBattleEvents({ uid: currentUser.uid, slotId });
+      const battleEvents = await outbox.listBattleEvents(identity);
       for (const event of battleEvents) {
         if (!canStartGameplayWrite()) return false;
         await setDoc(doc(collection(slotRef, "battleLogs"), event.eventId), event.payload, { merge: true });
-        await outbox.deleteBattleEvent({ uid: currentUser.uid, slotId, eventId: event.eventId });
+        await outbox.deleteBattleEvent({
+          ...identity,
+          eventId: event.eventId,
+          recordVersion: event.recordVersion,
+        });
         syncedRecordCount += 1;
       }
       syncedRecordCount += await flushFeed(slotRef) || 0;
@@ -1109,7 +1303,7 @@ export function useDurableGamePersistence({
       }
       return false;
     }
-  }, [canStartGameplayWrite, commitStateRecord, currentUser, flushFeed, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+  }, [canStartGameplayWrite, commitStateRecord, currentUser, flushFeed, getOutboxIdentity, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
 
   const flushOutbox = useCallback(
     () => saveQueue.enqueue(flushOutboxInternal),
@@ -1165,6 +1359,12 @@ export function useDurableGamePersistence({
 
       try {
         const activeConflict = conflictRef.current;
+        const recoveryIdentity = getOutboxIdentity();
+        if (!recoveryIdentity) {
+          const identityError = new Error("현재 슬롯의 저장 identity를 확인할 수 없습니다.");
+          identityError.code = "game/stale-conflict";
+          throw identityError;
+        }
         assertRecoveryCurrent();
 
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
@@ -1179,10 +1379,7 @@ export function useDurableGamePersistence({
         revisionRef.current = normalizeGameRevision(latestServerData.revision);
 
         if (outbox) {
-          const pendingState = await outbox.getStateMutation({
-            uid: currentUser.uid,
-            slotId,
-          });
+          const pendingState = await outbox.getStateMutation(recoveryIdentity);
           assertRecoveryCurrent();
           if (pendingState) {
             if (
@@ -1194,14 +1391,11 @@ export function useDurableGamePersistence({
               throw mismatchError;
             }
             const didDelete = await outbox.deleteStateMutation({
-              uid: currentUser.uid,
-              slotId,
+              ...recoveryIdentity,
               mutationId: pendingState.mutationId,
+              recordVersion: pendingState.recordVersion,
             });
-            const remainingState = await outbox.getStateMutation({
-              uid: currentUser.uid,
-              slotId,
-            });
+            const remainingState = await outbox.getStateMutation(recoveryIdentity);
             assertRecoveryCurrent();
             if (!didDelete || remainingState) {
               const deleteError = new Error("이 기기의 미전송 게임 상태를 정리하지 못했습니다.");
@@ -1235,6 +1429,7 @@ export function useDurableGamePersistence({
     activeAccessRef,
     changePersistenceAccess,
     currentUser,
+    getOutboxIdentity,
     outbox,
     reloadPage,
     saveQueue,
@@ -1266,9 +1461,10 @@ export function useDurableGamePersistence({
   }, [activeAccessRef]);
 
   const getPendingState = useCallback(async () => {
-    if (!outbox || !currentUser?.uid || !slotId) return null;
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity) return null;
     try {
-      const pendingState = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+      const pendingState = await outbox.getStateMutation(identity);
       setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.AVAILABLE);
       if (pendingState) setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       return pendingState;
@@ -1276,13 +1472,35 @@ export function useDurableGamePersistence({
       setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
       throw error;
     }
+  }, [getOutboxIdentity, outbox]);
+
+  const clearDigimonLifeOutbox = useCallback(async ({
+    slotInstanceId,
+    digimonInstanceId,
+  } = {}) => {
+    if (
+      !outbox ||
+      !currentUser?.uid ||
+      slotId == null ||
+      !slotInstanceId ||
+      !digimonInstanceId
+    ) {
+      return 0;
+    }
+    return outbox.clearDigimonLifeRecords({
+      uid: currentUser.uid,
+      slotId,
+      slotInstanceId,
+      digimonInstanceId,
+    });
   }, [currentUser?.uid, outbox, slotId]);
 
   const getLatestStateSnapshot = useCallback(async (saveContext = null) => {
     if (!canStartGameplayWrite(saveContext)) return null;
     let pendingState = null;
-    if (outbox && currentUser?.uid && slotId) {
-      pendingState = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
+    const identity = getOutboxIdentity();
+    if (outbox && identity) {
+      pendingState = await outbox.getStateMutation(identity);
     }
     if (!canStartGameplayWrite(saveContext)) return null;
     return {
@@ -1293,26 +1511,29 @@ export function useDurableGamePersistence({
         {},
       pendingState,
     };
-  }, [canStartGameplayWrite, currentUser?.uid, digimonStats, outbox, slotId]);
+  }, [canStartGameplayWrite, digimonStats, getOutboxIdentity, outbox]);
 
   const clearPendingStateAfterHydration = useCallback(async (record, { generation } = {}) => {
-    if (!record || !outbox || !currentUser?.uid || !slotId) return false;
+    const identity = getOutboxIdentity();
+    if (!record || !record.recordVersion || !outbox || !identity) return false;
     const access = activeAccessRef.current;
     const isCurrentLoad =
       access?.phase === GAME_PERSISTENCE_PHASE.LOADING &&
       access.generation === generation &&
       (!record.uid || record.uid === currentUser.uid) &&
-      (record.slotId == null || String(record.slotId) === String(slotId));
+      (record.slotId == null || String(record.slotId) === String(slotId)) &&
+      record.slotInstanceId === identity.slotInstanceId &&
+      record.digimonInstanceId === identity.digimonInstanceId;
     if (!isCurrentLoad) return false;
 
     try {
       const didDelete = await outbox.deleteStateMutation({
-        uid: currentUser.uid,
-        slotId,
+        ...identity,
         mutationId: record.mutationId,
+        recordVersion: record.recordVersion,
       });
-      const remainingState = await outbox.getStateMutation({ uid: currentUser.uid, slotId });
-      if (!didDelete || remainingState?.mutationId === record.mutationId) {
+      const remainingState = await outbox.getStateMutation(identity);
+      if (!didDelete || remainingState?.recordVersion === record.recordVersion) {
         const deleteError = new Error("동일한 로컬 pending 상태를 정리하지 못했습니다.");
         deleteError.code = "game/pending-cleanup-failed";
         throw deleteError;
@@ -1323,19 +1544,21 @@ export function useDurableGamePersistence({
       setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
       throw error;
     }
-  }, [activeAccessRef, currentUser?.uid, outbox, slotId]);
+  }, [activeAccessRef, currentUser?.uid, getOutboxIdentity, outbox, slotId]);
 
   return {
     appendBattleLog,
     appendLog,
     canStartGameplayWrite,
     captureSaveContext,
+    clearDigimonLifeOutbox,
     clearPendingStateAfterHydration,
     flushOutbox,
     getLatestStateSnapshot,
     getPendingState,
     persistStateSnapshot,
     persistStateSnapshotReceipt,
+    persistEvolutionTransitionReceipt,
     persistActivityLogReceipt,
     quarantinePendingState,
     refreshGameRevision,

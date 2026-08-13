@@ -25,6 +25,7 @@ const mockBatchUpdate = jest.fn();
 const mockBatchCommit = jest.fn();
 const mockJoinJogressRoomApi = jest.fn();
 const mockCompleteJogressRoomApi = jest.fn();
+const mockCompleteLocalJogressApi = jest.fn();
 
 jest.mock("firebase/firestore", () => ({
   addDoc: (...args) => mockAddDoc(...args),
@@ -68,6 +69,7 @@ jest.mock("../utils/jogressApi", () => ({
   JogressApiError: class JogressApiError extends Error {},
   joinJogressRoomApi: (...args) => mockJoinJogressRoomApi(...args),
   completeJogressRoomApi: (...args) => mockCompleteJogressRoomApi(...args),
+  completeLocalJogressApi: (...args) => mockCompleteLocalJogressApi(...args),
 }));
 
 describe("persistJogressLogWithArchive", () => {
@@ -194,6 +196,7 @@ describe("useEvolution jogress flows", () => {
       setSelectedDigimon: jest.fn(),
       setSelectedDigimonAndSave: jest.fn().mockResolvedValue(undefined),
       setDigimonStatsAndSave: jest.fn().mockResolvedValue(undefined),
+      saveEvolutionTransition: jest.fn().mockResolvedValue({ status: "synced" }),
       applyLazyUpdateBeforeAction: jest.fn().mockResolvedValue(createStats()),
       setActivityLogs: jest.fn(),
       activityLogs: [{ type: "START", text: "start", timestamp: 1 }],
@@ -217,6 +220,7 @@ describe("useEvolution jogress flows", () => {
       digimonNickname: "아구",
       currentUser: { uid: "user-1", displayName: "유저원" },
       refreshGameRevision: jest.fn().mockResolvedValue(1),
+      flushOutbox: jest.fn().mockResolvedValue(true),
       toggleModal: jest.fn(),
       version: "Ver.1",
       ...overrides,
@@ -300,28 +304,29 @@ describe("useEvolution jogress flows", () => {
     expect(params.setEvolvedDigimonName).toHaveBeenCalledWith("베타몬");
     expect(params.setIsEvolving).toHaveBeenCalledWith(true);
     expect(params.setEvolutionStage).toHaveBeenCalledWith("shaking");
-    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+    expect(params.saveEvolutionTransition).not.toHaveBeenCalled();
 
     await act(async () => {
       jest.advanceTimersByTime(2000);
     });
 
     expect(params.setEvolutionStage).toHaveBeenCalledWith("flashing");
-    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+    expect(params.saveEvolutionTransition).not.toHaveBeenCalled();
 
     await act(async () => {
       jest.advanceTimersByTime(2000);
     });
 
     expect(params.setEvolutionStage).toHaveBeenCalledWith("revealing");
-    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+    expect(params.saveEvolutionTransition).not.toHaveBeenCalled();
 
     await act(async () => {
       jest.advanceTimersByTime(500);
       await Promise.resolve();
     });
 
-    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledWith("Betamon");
+    expect(params.saveEvolutionTransition).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimon).toHaveBeenCalledWith("Betamon");
     expect(params.setEvolutionStage).toHaveBeenCalledWith("revealed");
     expect(params.setIsEvolving).not.toHaveBeenLastCalledWith(false);
 
@@ -330,17 +335,18 @@ describe("useEvolution jogress flows", () => {
     });
 
     expect(params.setEvolutionStage).toHaveBeenLastCalledWith("complete");
-    const appendedEvolutionLog = params.appendLogToSubcollection.mock.calls[0][0];
-    const savedEvolutionLog = params.setDigimonStatsAndSave.mock.calls[0][1].slice(-1)[0];
-    expect(appendedEvolutionLog.type).toBe("EVOLUTION");
-    expect(appendedEvolutionLog.transitionId).toMatch(
+    const savedTransition = params.saveEvolutionTransition.mock.calls[0][0];
+    const savedEvolutionLog = savedTransition.transition.logEntry;
+    expect(params.appendLogToSubcollection).not.toHaveBeenCalled();
+    expect(savedEvolutionLog.type).toBe("EVOLUTION");
+    expect(savedEvolutionLog.transitionId).toMatch(
       /^evolution:\d+:Agumon:Betamon:/
     );
-    expect(appendedEvolutionLog.eventId).toBe(
-      `activity:evolution:${appendedEvolutionLog.transitionId}`
+    expect(savedEvolutionLog.eventId).toBe(
+      `activity:evolution:${savedEvolutionLog.transitionId}`
     );
-    expect(savedEvolutionLog.transitionId).toBe(appendedEvolutionLog.transitionId);
-    expect(savedEvolutionLog.eventId).toBe(appendedEvolutionLog.eventId);
+    expect(savedTransition.transition.sourceDigimon).toBe("Agumon");
+    expect(savedTransition.transition.targetDigimon).toBe("Betamon");
     expect(params.setIsEvolving).toHaveBeenLastCalledWith(false);
   });
 
@@ -426,8 +432,8 @@ describe("useEvolution jogress flows", () => {
       await Promise.resolve();
     });
 
-    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(1);
-    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledTimes(1);
+    expect(params.saveEvolutionTransition).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimon).toHaveBeenCalledTimes(1);
     expect(params.setIsEvolving).not.toHaveBeenLastCalledWith(false);
 
     await act(async () => {
@@ -441,14 +447,14 @@ describe("useEvolution jogress flows", () => {
     let resolveSave;
     let saveCallCount = 0;
     const params = createParams({
-      setDigimonStatsAndSave: jest.fn(() => {
+      saveEvolutionTransition: jest.fn(() => {
         saveCallCount += 1;
         if (saveCallCount === 1) {
           return new Promise((resolve) => {
-            resolveSave = resolve;
+            resolveSave = () => resolve({ status: "synced" });
           });
         }
-        return Promise.resolve();
+        return Promise.resolve({ status: "synced" });
       }),
     });
     const { result } = renderHook(() => useEvolution(params));
@@ -461,25 +467,45 @@ describe("useEvolution jogress flows", () => {
       await result.current.evolve("Betamon");
     });
 
-    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(1);
-    expect(params.setSelectedDigimonAndSave).not.toHaveBeenCalled();
+    expect(params.saveEvolutionTransition).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimon).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveSave();
       await first;
     });
 
-    expect(params.setSelectedDigimonAndSave).toHaveBeenCalledTimes(1);
+    expect(params.setSelectedDigimon).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       await result.current.evolve("Betamon");
     });
 
-    expect(params.setDigimonStatsAndSave).toHaveBeenCalledTimes(2);
+    expect(params.saveEvolutionTransition).toHaveBeenCalledTimes(2);
   });
 
   test("proceedJogressLocal은 현재 슬롯만 진화시키고 파트너 슬롯은 사망 상태로 보존한다", async () => {
     const params = createParams({ slotId: "1" });
+    mockCompleteLocalJogressApi.mockResolvedValue({
+      slotOutcome: {
+        selectedDigimon: "Omegamon",
+        resultName: "오메가몬",
+        digimonStats: { isDead: false, strength: 0 },
+      },
+      partnerOutcome: {
+        selectedDigimon: "Betamon",
+        digimonStats: {
+          isDead: true,
+          deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
+        },
+      },
+      activityLog: {
+        eventId: "jogress:local:current",
+        type: "EVOLUTION",
+        text: "조그레스 진화(로컬): 오메가몬!",
+        timestamp: 100,
+      },
+    });
     const { result } = renderHook(() => useEvolution(params));
 
     await act(async () => {
@@ -489,36 +515,30 @@ describe("useEvolution jogress flows", () => {
         selectedDigimon: "Betamon",
         digimonStats: createStats(),
         version: "Ver.2",
+        revision: 2,
       });
     });
 
-    expect(mockBatchUpdate).toHaveBeenNthCalledWith(
-      1,
-      "users/user-1/slots/slot1",
-      expect.objectContaining({
-        selectedDigimon: "Omegamon",
-        revision: "REVISION_INCREMENT",
-        combatRevision: "REVISION_INCREMENT",
-      })
-    );
-    expect(mockBatchUpdate).toHaveBeenNthCalledWith(
-      2,
-      "users/user-1/slots/slot2",
-      expect.objectContaining({
-        digimonStats: expect.objectContaining({
-          persistedDigimon: undefined,
-        }),
-        revision: "REVISION_INCREMENT",
-      })
-    );
-    const partnerUpdate = mockBatchUpdate.mock.calls[1][1];
-    expect(partnerUpdate).not.toHaveProperty("selectedDigimon");
-    expect(mockSanitizeDigimonStatsForSlotDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        isDead: true,
-        deathReason: "JOGRESS_PARTNER (조그레스 파트너)",
-      })
-    );
+    expect(params.flushOutbox).toHaveBeenCalled();
+    expect(mockCompleteLocalJogressApi).toHaveBeenCalledWith(params.currentUser, {
+      requestId: expect.stringMatching(/^evolution:\d+:Agumon:Omegamon:/),
+      currentSlotId: "1",
+      partnerSlotId: 2,
+      expectedCurrentRevision: 1,
+      expectedPartnerRevision: 2,
+    });
+    expect(mockBatchUpdate).not.toHaveBeenCalled();
+    expect(params.setSelectedDigimon).toHaveBeenCalledWith("Omegamon");
+    expect(params.setDigimonStats).toHaveBeenCalledWith({
+      isDead: false,
+      strength: 0,
+      activityLogs: expect.arrayContaining([
+        expect.objectContaining({ eventId: "jogress:local:current" }),
+      ]),
+    });
+    expect(params.setActivityLogs).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ eventId: "jogress:local:current" }),
+    ]));
   });
 
   test("온라인 참가와 완료는 서버 API outcome으로 현재 슬롯을 재동기화한다", async () => {

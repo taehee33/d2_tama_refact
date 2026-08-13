@@ -17,6 +17,20 @@ service cloud.firestore {
         ]);
     }
 
+    function hasSlotInstanceIdentityFields(data) {
+      return data.keys().hasAll([
+          "slotInstanceIdSchemaVersion",
+          "slotInstanceId"
+        ]);
+    }
+
+    function hasValidSlotInstanceIdentity(data) {
+      return hasSlotInstanceIdentityFields(data) &&
+        data.slotInstanceIdSchemaVersion == 1 &&
+        data.slotInstanceId is string &&
+        data.slotInstanceId.size() > 0;
+    }
+
     function hasValidArenaCombatIdentity(data) {
       return hasArenaCombatIdentityFields(data) &&
         data.arenaIdentitySchemaVersion == 1 &&
@@ -48,14 +62,26 @@ service cloud.firestore {
     }
 
     function isArenaSlotCreateValid() {
-      return hasValidArenaCombatIdentity(request.resource.data) &&
+      return hasValidSlotInstanceIdentity(request.resource.data) &&
+        hasValidArenaCombatIdentity(request.resource.data) &&
         request.resource.data.selectedDigimon is string &&
         request.resource.data.selectedDigimon.size() > 0;
     }
 
+    function isSlotInstanceUpdateValid() {
+      // bridge 기간의 legacy slot은 identity를 아직 쓰지 않는 update도 임시 허용한다.
+      return !hasSlotInstanceIdentityFields(resource.data)
+        ? (!hasSlotInstanceIdentityFields(request.resource.data) ||
+            hasValidSlotInstanceIdentity(request.resource.data))
+        : hasValidSlotInstanceIdentity(request.resource.data) &&
+            request.resource.data.slotInstanceIdSchemaVersion == resource.data.slotInstanceIdSchemaVersion &&
+            request.resource.data.slotInstanceId == resource.data.slotInstanceId;
+    }
+
     function isArenaSlotUpdateValid() {
       // bridge 기간에는 아직 backfill되지 않은 legacy slot만 기존 update를 허용한다.
-      return !hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid();
+      return isSlotInstanceUpdateValid() &&
+        (!hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid());
     }
 
     // 공식 관리 경계: 사용자 문서와 슬롯/로그
