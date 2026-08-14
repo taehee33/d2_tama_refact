@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-08-15] 사망 이후 위험·수명·상태 표시 정합성 보정
+
+- **사망 시각 고정:** 사망한 개체의 위험 카운터는 현재 시각이 아니라 저장된 `diedAt`을 공통 정지 기준으로 사용한다. 직접 사망 원인은 `사망 원인 · 카운터 정지`, 사망 당시 함께 활성화된 조건은 `사망 · 카운터 정지`, 미충족 조건은 `사망 시점 조건 미충족`으로 구분했다. 사망 시각이 없는 레거시 데이터는 현재 시각으로 추정하지 않고 `기록 없음`으로 표시한다.
+- **수명 표기:** 누적 수명 값은 저장된 `lifespanSeconds`를 그대로 `N일 N시간 N분 N초`로 표시하고, 생존 중 `상한 없이 누적 중`, 냉장고 보관 중 `수명 증가 일시정지`, 사망 후 `사망(굶주림)` 같은 원인 문구와 사망 시각을 표시한다. 사망 후 현재 시각이 변해도 수명 표시는 증가하지 않는다.
+- **데드라인 보정:** 시간 임계값을 이미 지난 활성 위험의 데드라인이 매초 현재 시각으로 움직이던 표시 오류를 수정했다. 임계값 도달 시각을 발생 시각과 냉장고 제외 시간으로 역산해 고정하고, 사망 후에는 데드라인 대신 `정지 시각`을 표시한다.
+- **과거 상태 표현:** 사망 후 메인 상태 칩은 사망 원인만 위험 상태로 유지하고, 배고픔 0·힘 0·부상·배변·프로틴 과다 같은 저장 상태는 `사망 당시 · ...` 중립 정보로 표시한다. 수면·조명·호출·먹이·진화처럼 현재 진행형인 경고와 게임 화면 수면 배지는 숨긴다. 장면의 배변 개수와 저장 스탯은 변경하지 않는다.
+- **공통 문구:** 사망 원인 코드를 한국어로 변환하는 표시 helper를 추가해 위험 탭과 상태 메시지가 같은 원인 라벨을 사용하도록 했다.
+- **영향 파일:** `src/components/stats-center/healthRiskViewModel.js`, `src/components/stats-center/HealthRiskTab.jsx`, `src/components/digimonStatusMessages.js`, `src/components/GameScreen.jsx`, `src/utils/deathReasonDisplay.js`, 상태 칩·팝업·화면 관련 테스트, `design-qa.md`.
+- **검증:** 집중 회귀 5 suite·79 test와 `npm run check`를 통과했다. 전체 check는 프런트 208 suite·1,368 test, 서버 241 pass·19 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다. 420×800 인앱 브라우저에서 사망 원인·동시 활성 조건·배변·부상·누적 부상 카드와 내부 스크롤을 확인했고 console error/warning은 0건이다.
+- **아키텍처 결정 근거:** 변경은 저장된 사망 snapshot을 읽는 표시 계층에만 한정했다. 사망 판정, `updateLifespan`, lazy update, Firestore 정본, IndexedDB outbox, 기존 `Old/New` 저장 계약은 변경하지 않았다.
+
+## [2026-08-13] 스탯 센터 사망·질병 `[위험]` 탭 추가
+
+- **공개 범위:** 일반 사용자는 `[상태] [위험]`, 서버에서 확인된 운영자는 `[상태] [위험] [고급·진단]`을 본다. 운영자 권한이 회수될 때 고급·진단 화면만 `[상태]`로 복귀하며, 모든 사용자에게 공개된 위험 화면은 그대로 유지한다.
+- **위험 정보:** 배고픔 0 지속 12시간, 힘 0 지속 12시간, 배변 8개 도달 즉시 부상과 이후 8시간 추가 부상, 부상 방치 6시간, 누적 부상 15회 등 기존 사망·질병 규칙 5개를 읽기 전용 카드로 재구성했다. 각 카드에 조건 상태, 발생 시각, 남은 시간, 데드라인, 시간·횟수 게이지를 표시하고 비활성·진행·일시정지·위험·사망 상태를 구분한다.
+- **수명 표기:** 누적 수명은 위험 카운터와 분리한 참고 카드에서 `N일 N시간 N분 N초`만 표시한다. 수명에는 상한이 없으므로 진행률·최대치·20일 게이지·만료 암시를 제거했고, 냉장고 보관 중에는 `수명 증가 일시정지`를 표시한다.
+- **계산 경계:** 표시 전용 `healthRiskViewModel`이 기존 `DEATH_THRESHOLDS`, 사망 원인, 냉장고 제외 시간 유틸을 재사용한다. 기존 게임 시계 `customTime`을 `StatsCenterPopup`에 전달해 화면 카운트다운만 다시 계산하며 신규 interval, Firestore 쓰기, lazy update, 사망 판정 실행은 추가하지 않았다. 원본 stats와 저장 payload도 변경하지 않는다.
+- **호환성:** 레거시 `lastMaxPoopTime`을 배변 한도 도달·페널티 시각 fallback으로 읽되 저장하거나 마이그레이션하지 않는다. 부상 이력과 레거시 진단 불일치는 기존 `Old/New` 화면에 유지하며 `StatsPopup.jsx`와 기존 편집·저장 계약은 변경하지 않았다.
+- **접근성·반응형:** 탭은 일반 사용자 2개, 운영자 3개의 실제 노출 순서대로 좌우 방향키와 Home·End 이동을 지원한다. 420×800 인앱 브라우저에서 탭, 위험 카드, 내부 스크롤, 고정 legacy 전환 버튼을 확인했고 console error/warning은 0건, `design-qa.md` 결과는 `passed`다.
+- **영향 파일:** `src/components/StatsCenterPopup.jsx`, `src/components/GameModals.jsx`, `src/components/stats-center/HealthRiskTab.jsx`, `src/components/stats-center/healthRiskViewModel.js`, `src/components/stats-center/statsCenterViewModel.js`, 관련 테스트, `design-qa.md`.
+- **검증:** 위험 계산·팝업·모달 연결 관련 4 suite·45 test와 `npm run check`를 통과했다. 전체 check는 프런트 208 suite·1,358 test, 서버 241 pass·19 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다.
+- **아키텍처 결정 근거:** 신규 탭은 기존 사망 로직의 값을 복제하거나 게임 상태를 평가하지 않고 같은 상수와 시간 유틸을 사용하는 표시 계층으로 한정했다. 따라서 위험 가시성을 높이면서 Firestore 정본·IndexedDB outbox·lazy update·legacy StatsPopup 저장 계약을 그대로 보존한다.
+
 ## [2026-08-13] 생애·진화·로컬 조그레스 원자 저장 경계 도입
 
 - **슬롯·생애 identity:** 슬롯 번호 재사용을 구분하는 `slotInstanceId`와 디지몬 생애를 구분하는 `digimonInstanceId`를 슬롯·IndexedDB outbox·신규 로그에 일관되게 적용했다. 슬롯 삭제나 환생 후에 이전 생애의 pending 저장·활동 로그·배틀 로그가 새 생애에 섞이지 않는다.

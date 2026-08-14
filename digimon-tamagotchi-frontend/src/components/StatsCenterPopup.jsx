@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import DiagnosticsTab from "./stats-center/DiagnosticsTab";
+import HealthRiskTab from "./stats-center/HealthRiskTab";
 import StatusTab from "./stats-center/StatusTab";
 import {
   buildStatsCenterViewModel,
@@ -7,12 +8,20 @@ import {
 } from "./stats-center/statsCenterViewModel";
 
 const STATUS_TAB = "STATUS";
+const RISK_TAB = "RISK";
 const DIAGNOSTICS_TAB = "DIAGNOSTICS";
+
+const TAB_CONFIG = Object.freeze({
+  [STATUS_TAB]: { id: "stats-center-status-tab", label: "[ 상태 ]" },
+  [RISK_TAB]: { id: "stats-center-risk-tab", label: "[ 위험 ]" },
+  [DIAGNOSTICS_TAB]: { id: "stats-center-diagnostics-tab", label: "[ 고급·진단 ]" },
+});
 
 export default function StatsCenterPopup({
   stats = {},
   digimonData = null,
   sleepStatus = "AWAKE",
+  currentTime = null,
   canViewDiagnostics = false,
   isOperatorStatusLoading = false,
   onClose,
@@ -21,15 +30,24 @@ export default function StatsCenterPopup({
 }) {
   const [activeTab, setActiveTab] = useState(STATUS_TAB);
   const statusTabRef = useRef(null);
+  const riskTabRef = useRef(null);
   const diagnosticsTabRef = useRef(null);
   const diagnosticsAccessState = getDiagnosticsAccessState({
     canViewDiagnostics,
     isOperatorStatusLoading,
   });
   const canShowDiagnostics = diagnosticsAccessState === "allowed";
+  const visibleTabs = canShowDiagnostics
+    ? [STATUS_TAB, RISK_TAB, DIAGNOSTICS_TAB]
+    : [STATUS_TAB, RISK_TAB];
+  const tabRefs = {
+    [STATUS_TAB]: statusTabRef,
+    [RISK_TAB]: riskTabRef,
+    [DIAGNOSTICS_TAB]: diagnosticsTabRef,
+  };
   const viewModel = useMemo(
-    () => buildStatsCenterViewModel({ stats, digimonData, sleepStatus }),
-    [digimonData, sleepStatus, stats]
+    () => buildStatsCenterViewModel({ stats, digimonData, sleepStatus, currentTime }),
+    [currentTime, digimonData, sleepStatus, stats]
   );
 
   useEffect(() => {
@@ -55,29 +73,32 @@ export default function StatsCenterPopup({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  // 권한이 회수된 렌더에서는 effect를 기다리지 않고 즉시 상태 탭만 노출한다.
-  const isStatusTab = activeTab === STATUS_TAB || !canShowDiagnostics;
+  // 권한이 회수된 렌더에서는 effect를 기다리지 않고 즉시 상태 탭을 노출한다.
+  const visibleActiveTab = activeTab === DIAGNOSTICS_TAB && !canShowDiagnostics
+    ? STATUS_TAB
+    : activeTab;
 
   const handleTabKeyDown = (event) => {
-    if (!canShowDiagnostics) {
-      return;
-    }
-
     const supportedKeys = ["ArrowLeft", "ArrowRight", "Home", "End"];
     if (!supportedKeys.includes(event.key)) {
       return;
     }
 
     event.preventDefault();
-    const nextTab = event.key === "Home"
-      ? STATUS_TAB
+    const currentTab = visibleTabs.find(
+      (tab) => TAB_CONFIG[tab].id === event.currentTarget.id
+    );
+    const currentIndex = Math.max(0, visibleTabs.indexOf(currentTab));
+    const nextIndex = event.key === "Home"
+      ? 0
       : event.key === "End"
-        ? DIAGNOSTICS_TAB
-        : event.currentTarget.id === "stats-center-status-tab"
-          ? DIAGNOSTICS_TAB
-          : STATUS_TAB;
+        ? visibleTabs.length - 1
+        : event.key === "ArrowRight"
+          ? (currentIndex + 1) % visibleTabs.length
+          : (currentIndex - 1 + visibleTabs.length) % visibleTabs.length;
+    const nextTab = visibleTabs[nextIndex];
     setActiveTab(nextTab);
-    (nextTab === STATUS_TAB ? statusTabRef : diagnosticsTabRef).current?.focus();
+    tabRefs[nextTab].current?.focus();
   };
 
   return (
@@ -110,56 +131,45 @@ export default function StatsCenterPopup({
           aria-label="스탯 센터 탭"
           aria-busy={diagnosticsAccessState === "loading"}
         >
-          <button
-            ref={statusTabRef}
-            id="stats-center-status-tab"
-            type="button"
-            role="tab"
-            aria-selected={isStatusTab}
-            aria-controls="stats-center-tabpanel"
-            tabIndex={isStatusTab ? 0 : -1}
-            onClick={() => setActiveTab(STATUS_TAB)}
-            onKeyDown={handleTabKeyDown}
-            className={`px-4 py-2 font-bold ${
-              isStatusTab
-                ? "border-b-2 border-blue-500 text-blue-500"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            [ 상태 ]
-          </button>
-          {canShowDiagnostics && (
-            <button
-              ref={diagnosticsTabRef}
-              id="stats-center-diagnostics-tab"
-              type="button"
-              role="tab"
-              aria-selected={!isStatusTab}
-              aria-controls="stats-center-tabpanel"
-              tabIndex={isStatusTab ? -1 : 0}
-              onClick={() => setActiveTab(DIAGNOSTICS_TAB)}
-              onKeyDown={handleTabKeyDown}
-              className={`px-4 py-2 font-bold ${
-                !isStatusTab
-                  ? "border-b-2 border-blue-500 text-blue-500"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              [ 고급·진단 ]
-            </button>
-          )}
+          {visibleTabs.map((tab) => {
+            const isSelected = visibleActiveTab === tab;
+            return (
+              <button
+                key={tab}
+                ref={tabRefs[tab]}
+                id={TAB_CONFIG[tab].id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                aria-controls="stats-center-tabpanel"
+                tabIndex={isSelected ? 0 : -1}
+                onClick={() => setActiveTab(tab)}
+                onKeyDown={handleTabKeyDown}
+                className={`px-4 py-2 font-bold ${
+                  isSelected
+                    ? "border-b-2 border-blue-500 text-blue-500"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {TAB_CONFIG[tab].label}
+              </button>
+            );
+          })}
         </div>
 
         <div
           id="stats-center-tabpanel"
           className="stats-center-popup__content min-h-0 flex-1 overflow-y-auto"
           role="tabpanel"
-          aria-labelledby={
-            isStatusTab ? "stats-center-status-tab" : "stats-center-diagnostics-tab"
-          }
+          aria-labelledby={TAB_CONFIG[visibleActiveTab].id}
         >
-          {isStatusTab ? (
+          {visibleActiveTab === STATUS_TAB ? (
             <StatusTab items={viewModel.statusItems} />
+          ) : visibleActiveTab === RISK_TAB ? (
+            <HealthRiskTab
+              items={viewModel.healthRiskItems}
+              lifespanInfo={viewModel.lifespanInfo}
+            />
           ) : (
             <DiagnosticsTab
               sections={viewModel.diagnosticSections}

@@ -51,6 +51,20 @@ function renderGameScreen(props = {}) {
 }
 
 describe("GameScreen 호출 UI", () => {
+  test("사망 후에는 수면·조명 상태를 현재 경고 배지로 표시하지 않는다", () => {
+    renderGameScreen({
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      digimonStats: {
+        isDead: true,
+        callStatus: createCallStatus({
+          sleep: { isActive: true, startedAt: Date.now() - 1000 },
+        }),
+      },
+    });
+
+    expect(screen.queryByText("💡 불 켜짐 경고!")).not.toBeInTheDocument();
+  });
+
   test("배고픔 호출 모달에서 한국어 안내와 먹이 액션 버튼을 보여준다", () => {
     const onResolveCallAction = jest.fn();
 

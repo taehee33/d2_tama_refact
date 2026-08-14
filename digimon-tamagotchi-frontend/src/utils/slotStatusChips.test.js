@@ -50,7 +50,7 @@ describe("getSlotStatusChips", () => {
       })
     ).toEqual([
       { id: "death", label: "사망 💀", tone: "danger" },
-      { id: "poop-danger-max", label: "똥 8개 위험 💩", tone: "danger" },
+      { id: "death-history-poop", label: "사망 당시 · 배변 8/8", tone: "cool" },
     ]);
   });
 
@@ -125,8 +125,8 @@ describe("getSlotStatusChips", () => {
       })
     ).toEqual([
       { id: "death", label: "사망 💀", tone: "danger" },
-      { id: "injury", label: "치료 필요: 부상 🏥", tone: "danger" },
-      { id: "poop-danger-max", label: "똥 8개 위험 💩", tone: "danger" },
+      { id: "death-history-injury", label: "사망 당시 · 부상 상태", tone: "cool" },
+      { id: "death-history-poop", label: "사망 당시 · 배변 8/8", tone: "cool" },
     ]);
   });
 

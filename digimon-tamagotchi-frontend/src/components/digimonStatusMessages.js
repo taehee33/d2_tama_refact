@@ -7,6 +7,7 @@ import {
   getTimeUntilSleep,
 } from "../utils/sleepUtils";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
+import { getDeathReasonLabel } from "../utils/deathReasonDisplay";
 import { toEpochMs } from "../utils/time";
 
 export const DIGIMON_STATUS_CATEGORY_ORDER = [
@@ -53,14 +54,6 @@ export const DIGIMON_STATUS_CATEGORY_META = {
 const SUMMARY_BLOCKING_CATEGORIES = new Set(["critical", "warning"]);
 const SLEEP_SUMMARY_WINDOW_MS = 2 * 60 * 60 * 1000;
 
-const DEATH_REASON_LABELS = {
-  "STARVATION (굶주림)": "굶주림",
-  "EXHAUSTION (힘 소진)": "힘 소진",
-  "INJURY OVERLOAD (부상 과다: 15회)": "부상 과다",
-  "INJURY NEGLECT (부상 방치: 6시간)": "부상 방치",
-  "OLD AGE (수명 다함)": "수명 종료",
-};
-
 function toTimestamp(value) {
   return toEpochMs(value);
 }
@@ -96,6 +89,58 @@ function getProteinOverdoseTone(proteinOverdose) {
     color: "text-yellow-600",
     bgColor: "bg-yellow-100",
   };
+}
+
+function createDeathHistoryMessage(id, text, priority) {
+  return createStatusMessage({
+    id,
+    text: `사망 당시 · ${text}`,
+    color: "text-slate-700",
+    bgColor: "bg-slate-100",
+    category: "info",
+    priority,
+    detailHint: "사망 시점에 저장된 상태이며 현재 진행 중인 경고가 아닙니다.",
+  });
+}
+
+function buildDeathHistoryMessages({
+  fullness,
+  strength,
+  poopCount,
+  injuries,
+  proteinOverdose,
+  isInjured,
+}) {
+  const messages = [];
+
+  if (fullness === 0) {
+    messages.push(createDeathHistoryMessage("death-history-hunger", "배고픔 0/5", 20));
+  }
+  if (strength === 0) {
+    messages.push(createDeathHistoryMessage("death-history-strength", "힘 0/5", 21));
+  }
+  if (isInjured) {
+    messages.push(createDeathHistoryMessage("death-history-injury", "부상 상태", 22));
+  }
+  if (poopCount >= 6) {
+    messages.push(createDeathHistoryMessage("death-history-poop", `배변 ${poopCount}/8`, 23));
+  }
+  if (proteinOverdose > 0) {
+    messages.push(createDeathHistoryMessage(
+      "death-history-protein",
+      `프로틴 과다 ${proteinOverdose}회`,
+      24
+    ));
+  }
+  if (!isInjured && injuries > 0) {
+    messages.push(createDeathHistoryMessage(
+      "death-history-injuries",
+      `누적 부상 ${injuries}회`,
+      25
+    ));
+  }
+
+  return messages;
 }
 
 export function buildDigimonStatusMessages({
@@ -140,11 +185,13 @@ export function buildDigimonStatusMessages({
   const hasSleepCall = Boolean(callStatus.sleep?.isActive);
 
   if (isDead) {
-    const deathLabel = DEATH_REASON_LABELS[deathReason] || deathReason;
+    const deathText = deathReason
+      ? `사망: ${getDeathReasonLabel(deathReason)} 💀`
+      : "사망 💀";
     messages.push(
       createStatusMessage({
         id: "death",
-        text: deathLabel ? `사망: ${deathLabel} 💀` : "사망 💀",
+        text: deathText,
         color: "text-red-700",
         bgColor: "bg-red-200",
         category: "critical",
@@ -152,6 +199,17 @@ export function buildDigimonStatusMessages({
         detailHint: "사망 원인을 확인한 뒤 새 디지타마로 다시 시작할 수 있어요.",
       })
     );
+
+    messages.push(...buildDeathHistoryMessages({
+      fullness,
+      strength,
+      poopCount,
+      injuries,
+      proteinOverdose,
+      isInjured,
+    }));
+
+    return messages.sort((a, b) => a.priority - b.priority);
   }
 
   if (isInjured) {

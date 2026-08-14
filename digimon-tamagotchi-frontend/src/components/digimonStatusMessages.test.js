@@ -227,4 +227,52 @@ describe("digimonStatusMessages", () => {
     expect(nappingMessage.text).toBe("낮잠 1분 5초 남음 😴");
     expect(nappingMessage.detailHint).toBe("1분 5초 뒤에 다시 깨어나요.");
   });
+
+  test("사망 후에는 현재 경고 대신 사망 원인과 당시 저장 상태만 중립적으로 표시한다", () => {
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats({
+        fullness: 0,
+        strength: 0,
+        poopCount: 8,
+        injuries: 3,
+        proteinOverdose: 2,
+        isInjured: true,
+        callStatus: {
+          hunger: { isActive: true },
+          strength: { isActive: true },
+          sleep: { isActive: true },
+        },
+      }),
+      isDead: true,
+      deathReason: "STARVATION (굶주림)",
+      sleepStatus: "SLEEPING_LIGHT_ON",
+      currentAnimation: "eat",
+      canEvolve: true,
+    });
+
+    expect(messages.map((message) => message.text)).toEqual([
+      "사망: 굶주림 💀",
+      "사망 당시 · 배고픔 0/5",
+      "사망 당시 · 힘 0/5",
+      "사망 당시 · 부상 상태",
+      "사망 당시 · 배변 8/8",
+      "사망 당시 · 프로틴 과다 2회",
+    ]);
+    expect(messages.slice(1).every((message) => message.category === "info")).toBe(true);
+    expect(messages.map((message) => message.id)).not.toEqual(expect.arrayContaining([
+      "call-hunger",
+      "sleep-light-on",
+      "action-eat",
+      "can-evolve",
+    ]));
+  });
+
+  test("사망 원인이 누락된 레거시 상태는 기존의 짧은 사망 문구를 유지한다", () => {
+    const messages = buildDigimonStatusMessages({
+      digimonStats: createBaseStats(),
+      isDead: true,
+    });
+
+    expect(messages[0].text).toBe("사망 💀");
+  });
 });

@@ -272,7 +272,7 @@ const GameScreen = ({
       )}
       
       {/* 수면 상태 아이콘 (냉장고 상태에서는 표시하지 않음) */}
-      {!isFrozen && visibleSleepStatus !== "AWAKE" && (
+      {!digimonStats.isDead && !isFrozen && visibleSleepStatus !== "AWAKE" && (
         <div
           style={{
             position: "absolute",
