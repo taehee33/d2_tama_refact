@@ -9,6 +9,7 @@ jest.mock("./StatsPopup", () => function MockStatsPopup() {
 jest.mock("./StatsCenterPopup", () => function MockStatsCenterPopup({
   canViewDiagnostics,
   isOperatorStatusLoading,
+  currentTime,
   onClose,
   onOpenLegacy,
   onSaveOperatorStats,
@@ -16,6 +17,7 @@ jest.mock("./StatsCenterPopup", () => function MockStatsCenterPopup({
   return (
     <div data-testid="stats-center-popup">
       <span>{`${canViewDiagnostics}:${isOperatorStatusLoading}`}</span>
+      <span>{currentTime instanceof Date ? currentTime.toISOString() : "시계 없음"}</span>
       <button type="button" onClick={onClose}>닫기</button>
       <button type="button" onClick={onOpenLegacy}>기존 화면</button>
       <span>{typeof onSaveOperatorStats === "function" ? "운영자 저장 연결" : "운영자 저장 없음"}</span>
@@ -44,7 +46,10 @@ function renderGameModals({
         newDigimonDataVer1: { Koromon: {} },
         digimonDataVer1: { Koromon: {} },
       }}
-      ui={{ sleepStatus: "AWAKE" }}
+      ui={{
+        sleepStatus: "AWAKE",
+        customTime: new Date("2026-08-13T12:00:00.000Z"),
+      }}
       flags={flags}
     />
   );
@@ -100,7 +105,7 @@ describe("GameModals 스탯 화면 경계", () => {
     expect(screen.queryByTestId("stats-center-popup")).not.toBeInTheDocument();
   });
 
-  test("신규 스탯 센터에 운영자 권한 상태와 로딩 상태를 전달한다", () => {
+  test("신규 스탯 센터에 운영자 권한 상태와 기존 게임 시계를 전달한다", () => {
     const saveOperatorStatsPatch = jest.fn();
     renderGameModals({
       modals: { stats: false, statsCenter: true },
@@ -112,6 +117,9 @@ describe("GameModals 스탯 화면 경계", () => {
     });
 
     expect(screen.getByTestId("stats-center-popup")).toHaveTextContent("true:false");
+    expect(screen.getByTestId("stats-center-popup")).toHaveTextContent(
+      "2026-08-13T12:00:00.000Z"
+    );
     expect(screen.getByTestId("stats-center-popup")).toHaveTextContent("운영자 저장 연결");
     expect(screen.queryByTestId("legacy-stats-popup")).not.toBeInTheDocument();
   });

@@ -21,12 +21,14 @@ const BASE_STATS = {
   careMistakeLedger: [{ id: "care-1" }],
   revision: 7,
 };
+const CURRENT_TIME = new Date("2026-08-13T12:00:00.000Z");
 
 function createProps(overrides = {}) {
   return {
     stats: BASE_STATS,
     digimonData: { stats: { energy: 20 } },
     sleepStatus: "AWAKE",
+    currentTime: CURRENT_TIME,
     canViewDiagnostics: false,
     isOperatorStatusLoading: false,
     onClose: jest.fn(),
@@ -37,7 +39,7 @@ function createProps(overrides = {}) {
 }
 
 describe("StatsCenterPopup 공개 상태", () => {
-  test("일반 사용자에게 상태 탭과 고정된 10개 핵심 필드만 표시한다", () => {
+  test("일반 사용자에게 상태·위험 탭과 고정된 10개 핵심 필드를 표시한다", () => {
     render(<StatsCenterPopup {...createProps()} />);
 
     expect(screen.getByRole("dialog", { name: "디지몬 상태" })).toHaveAttribute(
@@ -48,6 +50,7 @@ describe("StatsCenterPopup 공개 상태", () => {
       "aria-selected",
       "true"
     );
+    expect(screen.getByRole("tab", { name: "[ 위험 ]" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "[ 고급·진단 ]" })).not.toBeInTheDocument();
 
     const panel = screen.getByRole("tabpanel");
@@ -67,6 +70,83 @@ describe("StatsCenterPopup 공개 상태", () => {
     });
     expect(within(panel).queryByText("리비전")).not.toBeInTheDocument();
     expect(within(panel).queryByText("케어 미스 상세 기록")).not.toBeInTheDocument();
+  });
+
+  test("위험 탭에 5개 위험 카드와 상한 없는 누적 수명을 읽기 전용으로 표시한다", () => {
+    const props = createProps({
+      stats: {
+        ...BASE_STATS,
+        lifespanSeconds: 127024,
+        fullness: 0,
+        lastHungerZeroAt: CURRENT_TIME.getTime() - 60 * 60 * 1000,
+      },
+    });
+    render(<StatsCenterPopup {...props} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "[ 위험 ]" }));
+
+    [
+      "배고픔 0 지속",
+      "힘 0 지속",
+      "배변 8개",
+      "부상 방치",
+      "누적 부상",
+    ].forEach((title) => {
+      expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+    });
+    const lifespan = screen.getByLabelText("누적 수명 참고 정보");
+    expect(within(lifespan).getByText("1일 11시간 17분 4초")).toBeInTheDocument();
+    expect(within(lifespan).getByText("상한 없이 누적 중")).toBeInTheDocument();
+    expect(within(lifespan).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("progressbar")).toHaveLength(5);
+    expect(props.onSaveOperatorStats).not.toHaveBeenCalled();
+  });
+
+  test("기존 게임 시계가 바뀌면 저장 없이 위험 남은 시간만 갱신한다", () => {
+    const startAt = CURRENT_TIME.getTime() - 60 * 60 * 1000;
+    const props = createProps({
+      stats: { ...BASE_STATS, fullness: 0, lastHungerZeroAt: startAt },
+    });
+    const { rerender } = render(<StatsCenterPopup {...props} />);
+    fireEvent.click(screen.getByRole("tab", { name: "[ 위험 ]" }));
+
+    expect(screen.getByText("11시간 0분 0초")).toBeInTheDocument();
+
+    rerender(
+      <StatsCenterPopup
+        {...props}
+        currentTime={new Date(CURRENT_TIME.getTime() + 60 * 60 * 1000)}
+      />
+    );
+
+    expect(screen.getByText("10시간 0분 0초")).toBeInTheDocument();
+    expect(props.onSaveOperatorStats).not.toHaveBeenCalled();
+  });
+
+  test("사망 후 위험 탭은 사망 원인과 정지된 누적 수명을 표시한다", () => {
+    const diedAt = CURRENT_TIME.getTime() - 60 * 60 * 1000;
+    render(<StatsCenterPopup {...createProps({
+      stats: {
+        ...BASE_STATS,
+        isDead: true,
+        diedAt,
+        deathReason: "STARVATION (굶주림)",
+        lifespanSeconds: 127024,
+        fullness: 0,
+        strength: 0,
+        lastHungerZeroAt: diedAt - 12 * 60 * 60 * 1000,
+        lastStrengthZeroAt: diedAt - 12 * 60 * 60 * 1000,
+      },
+    })} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "[ 위험 ]" }));
+
+    expect(screen.getByText("사망 원인 · 카운터 정지")).toBeInTheDocument();
+    expect(screen.getByText("사망 · 카운터 정지")).toBeInTheDocument();
+    const lifespan = screen.getByLabelText("누적 수명 참고 정보");
+    expect(within(lifespan).getByText("사망(굶주림)")).toBeInTheDocument();
+    expect(within(lifespan).getByText("사망 시각")).toBeInTheDocument();
+    expect(within(lifespan).queryByText("상한 없이 누적 중")).not.toBeInTheDocument();
   });
 
   test.each([
@@ -198,6 +278,26 @@ describe("StatsCenterPopup 운영자 진단", () => {
     expect(screen.getByText("현재 상태")).toBeInTheDocument();
   });
 
+  test("위험 탭은 운영자 권한이 사라져도 그대로 유지한다", () => {
+    const initialProps = createProps({ canViewDiagnostics: true });
+    const { rerender } = render(<StatsCenterPopup {...initialProps} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "[ 위험 ]" }));
+    rerender(
+      <StatsCenterPopup
+        {...initialProps}
+        canViewDiagnostics={false}
+        isOperatorStatusLoading={false}
+      />
+    );
+
+    expect(screen.getByRole("tab", { name: "[ 위험 ]" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByText("사망·질병 위험")).toBeInTheDocument();
+  });
+
   test("팝업을 unmount한 뒤 다시 열면 상태 탭으로 초기화된다", () => {
     const props = createProps({ canViewDiagnostics: true });
     const firstView = render(<StatsCenterPopup {...props} />);
@@ -217,12 +317,19 @@ describe("StatsCenterPopup 운영자 진단", () => {
     expect(screen.getByText("현재 상태")).toBeInTheDocument();
   });
 
-  test("방향키로 운영자 탭을 이동하고 선택한다", () => {
+  test("방향키와 Home·End로 운영자 3개 탭을 이동하고 선택한다", () => {
     render(<StatsCenterPopup {...createProps({ canViewDiagnostics: true })} />);
     const statusTab = screen.getByRole("tab", { name: "[ 상태 ]" });
+    const riskTab = screen.getByRole("tab", { name: "[ 위험 ]" });
     const diagnosticsTab = screen.getByRole("tab", { name: "[ 고급·진단 ]" });
 
     fireEvent.keyDown(statusTab, { key: "ArrowRight" });
+
+    expect(riskTab).toHaveFocus();
+    expect(riskTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("사망·질병 위험")).toBeInTheDocument();
+
+    fireEvent.keyDown(riskTab, { key: "ArrowRight" });
 
     expect(diagnosticsTab).toHaveFocus();
     expect(diagnosticsTab).toHaveAttribute("aria-selected", "true");
@@ -230,8 +337,18 @@ describe("StatsCenterPopup 운영자 진단", () => {
 
     fireEvent.keyDown(diagnosticsTab, { key: "ArrowLeft" });
 
+    expect(riskTab).toHaveFocus();
+    expect(riskTab).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(riskTab, { key: "Home" });
+
     expect(statusTab).toHaveFocus();
     expect(statusTab).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(statusTab, { key: "End" });
+
+    expect(diagnosticsTab).toHaveFocus();
+    expect(diagnosticsTab).toHaveAttribute("aria-selected", "true");
   });
 });
 

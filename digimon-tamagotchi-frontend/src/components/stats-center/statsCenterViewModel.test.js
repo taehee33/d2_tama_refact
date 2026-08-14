@@ -48,6 +48,11 @@ describe("buildStatsCenterViewModel", () => {
     );
 
     expect(result.statusItems).toHaveLength(10);
+    expect(result.healthRiskItems).toHaveLength(5);
+    expect(result.lifespanInfo).toMatchObject({
+      label: "누적 수명",
+      state: "active",
+    });
     expect(statusByKey).toMatchObject({
       age: "4일",
       weight: "101g",

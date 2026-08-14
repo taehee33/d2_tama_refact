@@ -1,3 +1,5 @@
+import { buildHealthRiskViewModel } from "./healthRiskViewModel";
+
 const DEFAULT_HEART_MAX = 5;
 const MAX_POOP_COUNT = 8;
 
@@ -228,15 +230,17 @@ function buildDiagnosticSections(stats) {
  * 신규 스탯 센터의 표시용 값만 정규화합니다.
  * 원본 변경, 저장 payload 생성, lazy update, 게임 규칙 재계산은 하지 않습니다.
  *
- * @param {{stats?: Object, digimonData?: Object|null, sleepStatus?: string}} input
- * @returns {{statusItems: Array<{key: string, label: string, value: string}>, diagnosticSections: Array<Object>}}
+ * @param {{stats?: Object, digimonData?: Object|null, sleepStatus?: string, currentTime?: Date|number|string}} input
+ * @returns {{statusItems: Array<{key: string, label: string, value: string}>, healthRiskItems: Array<Object>, lifespanInfo: Object, diagnosticSections: Array<Object>}}
  */
 export function buildStatsCenterViewModel({
   stats = {},
   digimonData = null,
   sleepStatus = "AWAKE",
+  currentTime = Date.now(),
 } = {}) {
   const safeStats = stats || {};
+  const healthRiskViewModel = buildHealthRiskViewModel(safeStats, currentTime);
 
   return {
     statusItems: buildStatusItems({
@@ -244,6 +248,7 @@ export function buildStatsCenterViewModel({
       digimonData,
       sleepStatus,
     }),
+    ...healthRiskViewModel,
     diagnosticSections: buildDiagnosticSections(safeStats),
   };
 }

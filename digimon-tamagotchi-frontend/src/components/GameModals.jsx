@@ -310,6 +310,7 @@ export default function GameModals({
           stats={digimonStats}
           digimonData={currentDigimonData}
           sleepStatus={ui?.sleepStatus || "AWAKE"}
+          currentTime={customTime}
           canViewDiagnostics={canViewDiagnostics}
           isOperatorStatusLoading={isOperatorStatusLoading}
           onClose={() => toggleModal('statsCenter', false)}
