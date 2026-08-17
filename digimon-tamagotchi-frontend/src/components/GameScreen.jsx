@@ -490,19 +490,12 @@ const GameScreen = ({
       {/* 호출 상세 정보 팝업 (callSign 버튼 클릭 시) */}
       {showCallModal && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          className="call-status-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           onClick={onCallModalClose}
-          style={{ padding: '20px' }}
         >
           <div
-            className="bg-white rounded-lg shadow-xl max-h-[80vh] overflow-y-auto"
+            className="call-status-modal__surface bg-white rounded-lg shadow-xl max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              border: "3px solid #000",
-              width: '90%',
-              maxWidth: '400px',
-              margin: 'auto'
-            }}
           >
             <div className="sticky top-0 z-20 bg-white px-6 pt-6 pb-4 border-b border-gray-200 shadow-sm">
               <div className="flex justify-between items-start gap-3">

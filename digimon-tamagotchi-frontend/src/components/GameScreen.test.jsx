@@ -176,7 +176,7 @@ describe("GameScreen 호출 UI", () => {
   test("호출 모달 하단 닫기 버튼으로 팝업을 닫을 수 있다", () => {
     const onCallModalClose = jest.fn();
 
-    renderGameScreen({
+    const { container } = renderGameScreen({
       showCallModal: true,
       onCallModalClose,
       digimonStats: {
@@ -185,6 +185,9 @@ describe("GameScreen 호출 UI", () => {
         ],
       },
     });
+
+    expect(container.querySelector(".call-status-modal")).toBeInTheDocument();
+    expect(container.querySelector(".call-status-modal__surface")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "호출 상태 닫기 하단" }));
 

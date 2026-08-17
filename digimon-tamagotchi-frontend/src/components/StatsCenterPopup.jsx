@@ -104,8 +104,7 @@ export default function StatsCenterPopup({
   return (
     <div className="stats-center-popup fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div
-        className="stats-center-popup__surface modal-mobile stats-popup-mobile relative flex w-96 max-w-[calc(100vw-2rem)] flex-col rounded bg-white p-4 shadow-xl"
-        style={{ maxHeight: "80vh" }}
+        className="stats-center-popup__surface relative flex w-96 max-w-[calc(100vw-2rem)] flex-col rounded bg-white p-4 shadow-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="stats-center-title"

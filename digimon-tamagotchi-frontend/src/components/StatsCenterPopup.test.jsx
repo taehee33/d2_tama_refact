@@ -355,8 +355,9 @@ describe("StatsCenterPopup 운영자 진단", () => {
 describe("StatsCenterPopup 대화상자 동작", () => {
   test("첫 탭에 포커스하고 Escape로 닫는다", () => {
     const props = createProps();
-    render(<StatsCenterPopup {...props} />);
+    const { container } = render(<StatsCenterPopup {...props} />);
 
+    expect(container.querySelector(".stats-center-popup__surface")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "[ 상태 ]" })).toHaveFocus();
     fireEvent.keyDown(document, { key: "Escape" });
 

@@ -3255,6 +3255,7 @@ code {
   display: flex;
   flex-direction: column;
   width: min(42rem, calc(100vw - 2rem));
+  max-height: 80vh;
 }
 
 .digimon-status-detail-modal__content {
@@ -3274,6 +3275,21 @@ code {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-right: 0.15rem;
+}
+
+.stats-center-popup__surface {
+  max-height: 80vh;
+}
+
+.call-status-modal {
+  padding: 20px;
+}
+
+.call-status-modal__surface {
+  width: 90%;
+  max-width: 400px;
+  margin: auto;
+  border: 3px solid #000;
 }
 
 .immersive-chat-backdrop {
@@ -9329,6 +9345,67 @@ code {
 }
 
 @media (max-width: 640px) and (orientation: portrait) {
+  .stats-center-popup.fixed.inset-0.bg-black,
+  .digimon-status-detail-modal.fixed.inset-0.bg-black {
+    right: auto;
+    left: calc((100% - 100vw) / 2);
+    width: 100vw;
+    align-items: flex-start;
+    padding: calc(env(safe-area-inset-top, 0px) + 0.5rem) 0.5rem
+      calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
+  }
+
+  .stats-center-popup__surface,
+  .digimon-status-detail-modal__surface {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    height: calc(
+      100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem
+    );
+    max-height: calc(
+      100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem
+    );
+    height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem
+    );
+    max-height: calc(
+      100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 1rem
+    );
+    margin: 0;
+  }
+
+  .stats-center-popup__surface {
+    overflow: hidden;
+  }
+
+  .digimon-status-detail-modal__content {
+    padding: 1rem;
+  }
+
+  .digimon-status-detail-modal__header {
+    margin-bottom: 0.9rem;
+  }
+
+  .digimon-status-detail-modal__footer {
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .call-status-modal.fixed.inset-0.bg-black {
+    right: auto;
+    left: calc((100% - 100vw) / 2);
+    width: 100vw;
+    padding-right: 0.5rem;
+    padding-left: 0.5rem;
+  }
+
+  .call-status-modal__surface {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
+    margin: auto;
+  }
+
   .stats-popup-modal {
     align-items: flex-start;
     justify-content: center;

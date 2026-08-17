@@ -4,6 +4,12 @@
 
 ---
 
+## [2026-08-17] 모바일 상태·호출 팝업 표시 영역 개선
+
+- **내용:** 모바일 세로 화면의 `디지몬 상태`와 `디지몬 상태 상세` 팝업을 화면 상단에 배치하고, 동적 뷰포트와 safe-area를 제외한 높이를 거의 전부 사용하도록 조정했다. 제목과 하단 액션은 고정된 채 본문만 스크롤되며, `호출 상태` 팝업은 좌우 여백을 약 8px로 줄여 긴 호출·케어미스 기록이 더 넓게 보이도록 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/StatsCenterPopup.jsx`, `digimon-tamagotchi-frontend/src/components/DigimonStatusDetailModal.jsx`, `digimon-tamagotchi-frontend/src/components/GameScreen.jsx`, `digimon-tamagotchi-frontend/src/index.css`, 관련 컴포넌트 테스트.
+- **아키텍처 결정 근거:** 공통 모바일 모달 규칙을 바꾸지 않고 세 팝업의 전용 선택자와 표시 구조만 조정해 다른 팝업과 데스크톱·가로 화면 동작을 보존한다. React props, 게임 상태, lazy update, Firestore 정본과 IndexedDB outbox 저장 계약은 변경하지 않는다.
+
 ## [2026-08-15] 사망 이후 위험·수명·상태 표시 정합성 보정
 
 - **사망 시각 고정:** 사망한 개체의 위험 카운터는 현재 시각이 아니라 저장된 `diedAt`을 공통 정지 기준으로 사용한다. 직접 사망 원인은 `사망 원인 · 카운터 정지`, 사망 당시 함께 활성화된 조건은 `사망 · 카운터 정지`, 미충족 조건은 `사망 시점 조건 미충족`으로 구분했다. 사망 시각이 없는 레거시 데이터는 현재 시각으로 추정하지 않고 `기록 없음`으로 표시한다.

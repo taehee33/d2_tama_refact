@@ -25,7 +25,7 @@ const DigimonStatusDetailModal = ({
       onClick={onClose}
     >
       <div
-        className="digimon-status-detail-modal__surface bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden pixel-art-modal"
+        className="digimon-status-detail-modal__surface bg-white rounded-2xl shadow-xl max-w-2xl w-full mx-4 overflow-hidden pixel-art-modal"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="digimon-status-detail-modal__content p-6">
@@ -81,14 +81,15 @@ const DigimonStatusDetailModal = ({
               </div>
             )}
 
-            <div className="digimon-status-detail-modal__footer mt-6 text-center">
-              <button
-                onClick={onClose}
-                className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"
-              >
-                닫기
-              </button>
-            </div>
+          </div>
+
+          <div className="digimon-status-detail-modal__footer mt-6 flex-shrink-0 text-center">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-slate-700 text-white rounded-full font-semibold hover:bg-slate-800 transition-colors"
+            >
+              닫기
+            </button>
           </div>
         </div>
       </div>

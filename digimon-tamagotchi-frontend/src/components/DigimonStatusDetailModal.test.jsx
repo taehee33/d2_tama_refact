@@ -54,11 +54,15 @@ describe("DigimonStatusDetailModal", () => {
 
     const body = document.querySelector(".digimon-status-detail-modal__body");
     const header = document.querySelector(".digimon-status-detail-modal__header");
+    const footer = document.querySelector(".digimon-status-detail-modal__footer");
 
     expect(body).toBeInTheDocument();
     expect(header).toBeInTheDocument();
+    expect(footer).toBeInTheDocument();
     expect(body).toContainElement(screen.getByText("곧 대응 필요"));
     expect(body).not.toContainElement(screen.getByText("디지몬 상태 상세"));
+    expect(body).not.toContainElement(screen.getByRole("button", { name: "닫기" }));
     expect(header).toContainElement(screen.getByText("디지몬 상태 상세"));
+    expect(footer).toContainElement(screen.getByRole("button", { name: "닫기" }));
   });
 });
