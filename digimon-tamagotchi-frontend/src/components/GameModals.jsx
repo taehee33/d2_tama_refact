@@ -6,6 +6,7 @@ import StatsPopup from "./StatsPopup";
 import StatsCenterPopup from "./StatsCenterPopup";
 import FeedPopup from "./FeedPopup";
 import SettingsModal from "./SettingsModal";
+import AppearanceSettingsModal from "./AppearanceSettingsModal";
 import TrainPopup from "./TrainPopup";
 import BattleSelectionModal from "./BattleSelectionModal";
 import BattleScreen from "./BattleScreen";
@@ -57,6 +58,10 @@ import {
 } from "../utils/digimonVersionUtils";
 import { ARENA_GHOST_V2_ENABLED } from "../config/arenaFeatures";
 import RealtimeArenaScreen from "./realtime-arena/RealtimeArenaScreen";
+import {
+  normalizeImmersiveSettings,
+  updateImmersiveAppearance,
+} from "../utils/immersiveSettings";
 
 export function applyStatsPopupChange(nextStats, setDigimonStats, setDigimonStatsAndSave) {
   if (!nextStats) return;
@@ -235,6 +240,8 @@ export default function GameModals({
     setTimeSpeed,
     setCustomTime,
     setFoodSizeScale,
+    immersiveSettings,
+    setImmersiveSettings,
     wakeUntil,
     setWakeUntil,
   } = ui || {};
@@ -386,8 +393,35 @@ export default function GameModals({
             selectedDigimon={selectedDigimon}
             digimonStats={digimonStats}
             slotVersion={slotVersion}
+            immersiveSettings={immersiveSettings}
+            onSelectImmersiveSkin={(skinId) => {
+              setImmersiveSettings?.((previous) =>
+                normalizeImmersiveSettings({
+                  ...normalizeImmersiveSettings(previous),
+                  skinId,
+                })
+              );
+            }}
+            onOpenAppearanceSettings={() => {
+              toggleModal('settings', false);
+              toggleModal('appearanceSettings', true);
+            }}
           />
         </div>
+      )}
+
+      {modals.appearanceSettings && (
+        <AppearanceSettingsModal
+          immersiveSettings={immersiveSettings}
+          initialSkinId={immersiveSettings?.skinId}
+          onClose={() => toggleModal('appearanceSettings', false)}
+          onSave={(appearanceBySkin) => {
+            setImmersiveSettings?.((previous) =>
+              updateImmersiveAppearance(previous, appearanceBySkin)
+            );
+            toggleModal('appearanceSettings', false);
+          }}
+        />
       )}
 
       {/* Train Modal */}

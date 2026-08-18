@@ -1,0 +1,16 @@
+.appearance-preview { position: relative; width: 116px; aspect-ratio: 853 / 1844; overflow: hidden; border: 2px solid #475569; background: #090b10; isolation: isolate; }
+.appearance-preview img, .appearance-preview span { position: absolute; inset: 0; width: 100%; height: 100%; }
+.appearance-preview img { object-fit: cover; image-rendering: pixelated; }
+.appearance-preview span { z-index: 1; opacity: .55; mix-blend-mode: color; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.appearance-preview__left { background: var(--pixel-background-left); }
+.appearance-preview__right { background: var(--pixel-background-right); }
+.appearance-preview__device { background: var(--pixel-device); }
+.appearance-preview[data-skin-id="pixel-split-brick"] .appearance-preview__left { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-left.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-left.png"); }
+.appearance-preview[data-skin-id="pixel-split-brick"] .appearance-preview__right { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-right.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-right.png"); }
+.appearance-preview[data-skin-id="pixel-split-brick"] .appearance-preview__device { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-device.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/split-brick-device.png"); }
+.appearance-preview[data-skin-id="pixel-red-device"] .appearance-preview__left { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-left.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-left.png"); }
+.appearance-preview[data-skin-id="pixel-red-device"] .appearance-preview__right { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-right.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-right.png"); }
+.appearance-preview[data-skin-id="pixel-red-device"] .appearance-preview__device { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-device.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/red-device-device.png"); }
+.appearance-preview[data-skin-id="pixel-dark-battle"] .appearance-preview__left { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-left.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-left.png"); }
+.appearance-preview[data-skin-id="pixel-dark-battle"] .appearance-preview__right { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-right.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-right.png"); }
+.appearance-preview[data-skin-id="pixel-dark-battle"] .appearance-preview__device { -webkit-mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-device.png"); mask-image: url("../assets/immersive/portrait-pixel/masks/dark-battle-device.png"); }

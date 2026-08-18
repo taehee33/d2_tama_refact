@@ -3,6 +3,8 @@ import {
   IMMERSIVE_LANDSCAPE_SIDES,
   IMMERSIVE_LAYOUT_MODES,
   IMMERSIVE_SKINS,
+  PIXEL_PORTRAIT_SKIN_IDS,
+  PIXEL_SKIN_DEFAULT_APPEARANCE,
 } from "../data/immersiveSettings";
 
 const IMMERSIVE_SKIN_IDS = IMMERSIVE_SKINS.map((skin) => skin.id);
@@ -17,6 +19,34 @@ export function isValidImmersiveSkinId(skinId) {
 
 export function isValidImmersiveLandscapeSide(landscapeSide) {
   return Object.values(IMMERSIVE_LANDSCAPE_SIDES).includes(landscapeSide);
+}
+
+export function isValidAppearanceColor(color) {
+  return typeof color === "string" && /^#[0-9A-Fa-f]{6}$/.test(color);
+}
+
+export function normalizePixelSkinAppearance(skinId, appearance) {
+  const fallback = PIXEL_SKIN_DEFAULT_APPEARANCE[skinId];
+
+  if (!fallback) return null;
+
+  return Object.fromEntries(
+    Object.entries(fallback).map(([key, fallbackColor]) => [
+      key,
+      isValidAppearanceColor(appearance?.[key])
+        ? appearance[key].toUpperCase()
+        : fallbackColor,
+    ])
+  );
+}
+
+export function normalizeAppearanceBySkin(appearanceBySkin) {
+  return Object.fromEntries(
+    PIXEL_PORTRAIT_SKIN_IDS.map((skinId) => [
+      skinId,
+      normalizePixelSkinAppearance(skinId, appearanceBySkin?.[skinId]),
+    ])
+  );
 }
 
 export function normalizeImmersiveSettings(settings) {
@@ -34,7 +64,15 @@ export function normalizeImmersiveSettings(settings) {
     landscapeSide: isValidImmersiveLandscapeSide(settings.landscapeSide)
       ? settings.landscapeSide
       : DEFAULT_IMMERSIVE_SETTINGS.landscapeSide,
+    appearanceBySkin: normalizeAppearanceBySkin(settings.appearanceBySkin),
   };
+}
+
+export function updateImmersiveAppearance(settings, appearanceBySkin) {
+  return normalizeImmersiveSettings({
+    ...normalizeImmersiveSettings(settings),
+    appearanceBySkin,
+  });
 }
 
 export function getImmersiveSkinById(skinId) {
