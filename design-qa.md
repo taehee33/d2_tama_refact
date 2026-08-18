@@ -1,62 +1,68 @@
-# 스탯 센터 사망 이후 `[위험]` 탭 디자인 QA
+# 10버튼 원작풍 세로 스킨 디자인 QA
 
 ## 비교 대상
 
-- 소스 시각 정본: `/var/folders/c3/yvqftb655357f3vlx335f7lm0000gn/T/codex-clipboard-fa99a43d-ab98-4765-b36b-eb158e117983.png` (758×1298px)
-- 구현 상단 캡처: `/private/tmp/stats-center-death-risk-2026-08-15.png` (420×800px)
-- 구현 중단 캡처: `/private/tmp/stats-center-death-risk-bottom-2026-08-15.png` (420×800px)
-- 구현 하단 캡처: `/private/tmp/stats-center-death-risk-end-2026-08-15.png` (420×800px)
-- 렌더링: Codex 인앱 브라우저, `http://localhost:3001`, CSS viewport 420×800, 캡처 결과 420×800px
-- 상태: 운영자 `[상태] [위험] [고급·진단]`, 굶주림 사망과 동시에 힘 0·배변 8개·부상 상태가 저장된 샘플
+- source visual truth:
+  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/split-brick-10.png`
+  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/red-device-10.png`
+  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/dark-battle-10.png`
+- browser-rendered implementation:
+  - `docs/design-qa/pixel-split-mobile.png`
+  - `docs/design-qa/pixel-red-mobile.png`
+  - `docs/design-qa/pixel-dark-mobile.png`
+  - `docs/design-qa/pixel-split-wide-full.png`
+  - `docs/design-qa/pixel-red-wide-full.png`
+  - `docs/design-qa/pixel-dark-wide-full.png`
+- combined comparison evidence: `docs/design-qa/pixel-skins-comparison.png`
 
-## 밀도·상태 정규화
+## 정규화와 상태
 
-- 소스는 수정 전 고밀도 모바일 캡처이고 구현은 420 CSS px 모바일 viewport다. 두 이미지는 같은 운영자 위험 탭, 같은 카드 순서와 동일한 사망 상태를 기준으로 함께 비교했다.
-- 이번 작업의 의도적 차이는 `상한 없이 누적 중 → 사망(굶주림)`, `사망 위험 → 사망 · 카운터 정지`, `데드라인 → 정지 시각`이다.
-- 소스의 카드 구조·색상·정보 계층은 유지하고, 사망 이후 의미가 틀린 현재형 문구만 과거 snapshot 문구로 교체했다.
+- 모바일 viewport: `390×844` CSS px, device scale factor 1 기준. 세 구현 캡처는 모두 `390×844` PNG다.
+- 넓은 화면 viewport: `1024×900` CSS px. 프레임은 구현의 `max-width: 500px` 규칙에 따라 중앙 정렬했으며 전체 페이지 캡처로 세로 잘림을 배제했다.
+- source raster: 각 `853×1844` PNG를 같은 `390×844` 비율로 축소해 비교했다.
+- state: 현재 시각 `16:09`, 디지몬 라벨 `코로몬`, 상태 메뉴 활성, 조명 켜짐, 냉장고 해제. LCD에는 실제 게임 배경 자산을 넣어 빈 마젠타 영역 대체와 프레임 크롭을 확인했다.
+- 운영 Firestore에 QA 슬롯을 새로 만들지 않기 위해, 브라우저 비교는 실제 컴포넌트와 동일한 DOM 클래스·CSS·래스터·메뉴 아이콘으로 구성한 로컬 전용 비교 하네스에서 캡처했다. 실제 콜백·잠금·저장 계약은 Jest 컴포넌트 테스트로 별도 검증했다.
 
-## 전체 화면 및 핵심 부분 비교
+## 전체 화면 비교
 
-- 상단 비교에서 수명 값·사망 원인·사망 시각이 한 카드 안에서 충돌 없이 보이며 별도 진행률이나 상한은 없다.
-- 굶주림 카드는 직접 원인으로 진한 사망 상태, 힘·배변·부상 방치는 사망 당시 정지 상태로 동일한 카드 구조를 유지한다.
-- 하단 비교에서 누적 부상 3/15는 회색 `사망 시점 조건 미충족`으로 표시되어 현재 위험처럼 오인되지 않는다.
-- 5개 카드의 내부 스크롤이 작동하고 헤더·탭·기존 Old/New 전환 버튼은 고정되어 있다.
+- 세 스킨 모두 중앙 LCD, 게임기 프레임, 10개 원형 버튼의 `5×2` 리듬이 시안과 일치한다.
+- 블루·화이트 스킨의 소형 게임기, 좌우 분할 배경, 상단 엠블럼을 유지했다.
+- 레드 디바이스와 다크 배틀은 각각 청록 그리드/붉은 벽돌, 검정 그리드/붉은 균열의 원작풍 질감과 프레임 비율을 유지했다.
+- 구현에서는 마젠타 LCD를 게임 화면으로, 마젠타 버튼 중심을 실제 픽셀 아이콘과 한국어 라벨로 교체했다. 이는 계획된 기능적 차이다.
+- 넓은 화면에서는 셸을 500px로 제한하고 중앙 정렬해 늘어짐과 픽셀 텍스처 흐림을 막았다.
 
-## 필수 충실도 표면
+## 필수 fidelity surface
 
-- **글꼴·타이포그래피:** 기존 system sans, 굵은 제목·상태 배지, tabular 숫자 우측 정렬을 유지했다. 긴 정지 문구도 모바일에서 겹치지 않는다.
-- **간격·레이아웃 리듬:** 참고 카드와 위험 카드의 간격, 좌측 상태선, 상세 2열 정렬, 게이지 폭이 기존 스탯 센터 패턴과 일치한다.
-- **색상·토큰:** 직접 원인과 사망 당시 활성 조건은 기존 red 계열, 미충족 조건은 gray 계열을 사용해 의미 강도를 구분한다.
-- **이미지·자산:** 신규 이미지 자산이 없는 정보 화면이며 기존 UI 자산을 변경하지 않았다.
-- **문구·콘텐츠:** `사망(굶주림)`, `사망 원인 · 카운터 정지`, `사망 · 카운터 정지`, `사망 시점 조건 미충족`, `정지 시각`이 승인된 동작과 일치한다.
-- **접근성:** dialog/tab/tabpanel/progressbar 이름과 값을 DOM snapshot에서 확인했다. 사망 후에도 탭과 고정 legacy 전환 버튼이 유지된다.
+- typography: 짧은 한국어 라벨은 monospace 굵은 글꼴과 어두운 픽셀 그림자를 사용한다. 390px에서 줄바꿈·잘림이 없고 현재 시각/디지몬 이름의 위계가 과하지 않다.
+- spacing/layout rhythm: 10개 버튼이 정확히 두 행, 각 다섯 칸으로 정렬된다. 버튼 터치 영역은 최소 44px이며 LCD·버튼·배경 사이 충돌이 없다.
+- colors/tokens: 스킨 기본 팔레트가 시안에서 추출한 색을 사용하고, 좌/우 배경과 게임기 틴트를 스킨별 실제 PNG 알파 마스크에 독립 토큰으로 적용한다. 활성 메뉴의 노란 링과 비활성 opacity가 배경과 구분된다.
+- image quality: 세 셸과 모든 메뉴 아이콘은 실제 PNG 래스터다. 390px와 500px 모두 `image-rendering: pixelated`로 픽셀 경계가 유지되며 늘림·잘못된 크롭·투명도 가장자리 문제가 없다.
+- copy/content: 버튼 라벨은 `상태, 먹이, 훈련, 배틀, 교감 / 화장실, 조명, 치료, 호출, 더보기` 순서로 기존 게임 정의와 일치한다.
+
+## 상호작용과 접근성
+
+- 10개 버튼의 순서, 한국어 접근성 이름, 메뉴 ID 콜백, 활성 `aria-pressed`를 테스트했다.
+- 조명 꺼짐과 냉장고 상태의 비활성/이유 문구는 기존 `getMenuDisabledState` 정책을 그대로 사용한다.
+- 첫 스킨의 왼쪽 위 소형 게임기만 `외형 꾸미기 열기` 버튼으로 동작한다.
+- 외형 모달의 프리셋, 자유 색상, 스킨별 draft 독립성, 초기화, 취소, 저장 1회 전달을 테스트했다.
+- 브라우저 캡처 중 콘솔 error는 0건이었다.
 
 ## Findings
 
-- P0/P1/P2 시각 불일치나 기능 차단 없음.
-- console error/warning 0건.
+- P0/P1/P2 없음.
+- P3: 현재 라벨은 원작 기기 밀도를 우선해 작게 보인다. 390px에서 판독 가능하고 44px 터치 영역을 확보해 차단 이슈로 분류하지 않았다.
 
-## Open Questions
+## 비교 이력
 
-- 없음. 실제 컴포넌트 캡처에 사용한 임시 QA 경로는 제거했고 `App.jsx`에는 변경이 남지 않았다.
+- 1차 비교: 세 모바일 시안과 구현을 동일한 `390×844` 상태로 결합해 확인했다. 액션 가능한 P0/P1/P2 차이가 없어 수정 반복은 필요하지 않았다.
+- 넓은 화면 확인: 세 스킨 모두 500px 최대 폭과 중앙 정렬이 유지되고 전체 페이지 캡처에서 영구 컨트롤 잘림이 없음을 확인했다.
 
 ## Implementation Checklist
 
-- [x] 사망 원인과 다른 동시 활성 조건 구분
-- [x] 모든 시간 카운터를 `diedAt`에 고정
-- [x] 누적 수명에 사망 원인·사망 시각 표시
-- [x] 사망 후 현재형 수면·조명·호출 경고 제거
-- [x] 배변 8개 snapshot과 다음 부상 잔여 시간 보존
-- [x] 420×800 내부 스크롤과 고정 푸터 확인
-- [x] console error/warning 0건
-
-## Comparison History
-
-- 1차 비교에서 수정 전 화면의 `상한 없이 누적 중`, 힘 카드의 `사망 위험`, 이동하는 데드라인을 의미 오류로 확인했다.
-- 표시 모델을 사망 시각 기준으로 보정한 뒤 상단·중단·하단을 다시 캡처했다. 원인·정지·미충족 상태가 카드별로 분리되고 레이아웃 회귀가 없음을 확인했다.
-
-## Follow-up Polish
-
-- 없음.
+- [x] 3개 래스터 셸과 10버튼 `5×2` 배치
+- [x] 실제 `GameScreen`과 기존 메뉴 정의 연결
+- [x] 독립 외형 색상과 스킨별 저장 복구
+- [x] 모바일/넓은 화면 캡처
+- [x] 콜백·잠금·저장 회귀 테스트
 
 final result: passed

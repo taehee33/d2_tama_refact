@@ -8174,3 +8174,22 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `docs/P3_LONG_TERM_REFACTORING_PLAN.md`
   - `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 구현 세부사항과 운영 대응을 한 문서에 모으면 Firestore 정본과 로컬 outbox의 역할, 부분 성공의 의미, 비용 불변식을 다음 변경에서도 같은 기준으로 검증할 수 있다. 문서 PR을 런타임 PR 뒤에 분리해 최종 증거만 기록하며 코드·저장 계약·의존성은 변경하지 않는다.
+
+## [2026-08-17] 10버튼 원작풍 세로 스킨과 슬롯별 외형 꾸미기
+
+- **내용:** 기존 `/play/:slotId` 기본 UI와 가로 몰입형 UI를 유지하면서, 선택한 경우에만 `/play/:slotId/full` 세로 화면에 적용되는 3개 픽셀 래스터 스킨을 추가했다. 각 스킨은 기존 메뉴 정의 순서의 10개 액션을 `5×2`로 표시하고 실제 `GameScreen`, 픽셀 아이콘, 활성 상태, 조명·냉장고 잠금 정책을 그대로 재사용한다. 블루·화이트 스킨의 왼쪽 위 소형 게임기는 외형 꾸미기 단축 버튼으로 동작한다.
+- **외형 저장:** 기존 `immersiveSettings`에 `appearanceBySkin`을 추가해 배경 왼쪽·오른쪽·중앙 게임기 색을 스킨별로 보존한다. 각 영역은 스킨별 PNG 알파 마스크로 분리해 서로의 착색을 침범하지 않으며, 잘못된 색상과 구 슬롯은 스킨 기본 팔레트로 정규화한다. 모달 편집은 로컬 draft만 바꾸며 저장 시 `setImmersiveSettings`를 한 번 호출해 기존 슬롯별 Firestore 저장 효과를 재사용한다. 새 경로·실시간 쓰기·라우트는 추가하지 않았다.
+- **검증:** 10개 메뉴 순서/콜백/활성/잠금, 첫 스킨 단축 버튼, 외형 프리셋·자유 색상·초기화·취소·저장 1회, 구 설정 복구와 스킨별 독립 저장을 테스트했다. `390×844` 및 넓은 화면 브라우저 캡처를 시안과 결합 비교했고 `design-qa.md`를 `passed`로 기록했다. 루트 `npm run check`는 프런트 211 suite·1,380 test, 서버 241 pass·19 emulator-only skip, production build와 server projection까지 통과했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/*`
+  - `digimon-tamagotchi-frontend/src/components/layout/ImmersivePortraitSection.jsx`
+  - `digimon-tamagotchi-frontend/src/components/layout/ImmersivePortraitPixelSection.jsx`
+  - `digimon-tamagotchi-frontend/src/components/AppearanceSettingsModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`
+  - `digimon-tamagotchi-frontend/src/components/GameModals.jsx`
+  - `digimon-tamagotchi-frontend/src/data/immersiveSettings.js`
+  - `digimon-tamagotchi-frontend/src/utils/immersiveSettings.js`
+  - `digimon-tamagotchi-frontend/src/hooks/useGameState.js`
+  - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
+  - 관련 CSS·테스트·QA 캡처와 `design-qa.md`
+- **아키텍처 결정 근거:** `Game.jsx`에는 세로 프레젠터 연결만 두고 스킨 화면 조립과 색상 draft를 하위 컴포넌트로 분리했다. 픽셀 스킨이 아닌 경우 프레젠터가 기존 `GameDefaultSection` 노드를 그대로 반환하므로 기본 화면 회귀 위험을 제한한다. 외형 값은 이미 슬롯 문서에 저장되는 `immersiveSettings` 계약을 확장해 Firestore 정본·기존 저장 타이밍·lazy update 규칙을 바꾸지 않는다.

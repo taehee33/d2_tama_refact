@@ -47,6 +47,7 @@ import GameSlotLoadState, {
 import ImmersiveGameView from "../components/layout/ImmersiveGameView";
 import ImmersiveLandscapeSection from "../components/layout/ImmersiveLandscapeSection";
 import ImmersiveLandscapeStatusPanel from "../components/layout/ImmersiveLandscapeStatusPanel";
+import ImmersivePortraitSection from "../components/layout/ImmersivePortraitSection";
 import { useTamerProfile } from "../hooks/useTamerProfile";
 import { useImmersiveGameLayout } from "../hooks/game-runtime/useImmersiveGameLayout";
 import useOperatorStatus from "../hooks/useOperatorStatus";
@@ -291,6 +292,7 @@ function Game({ immersive = false }){
     layoutMode: immersiveLayoutMode,
     skinId: immersiveSkinId,
     skin: immersiveSkin,
+    normalizedImmersiveSettings,
     isImmersiveFullscreen,
     landscapeSidePreference,
     effectiveLandscapeSide,
@@ -1377,7 +1379,29 @@ function Game({ immersive = false }){
   );
   const shouldUseLandscapeInfoOverlay = isLandscapeImmersive;
 
-  const portraitImmersiveSection = defaultGameSection;
+  const portraitImmersiveSection = (
+    <ImmersivePortraitSection
+      skin={immersiveSkin}
+      legacyContent={defaultGameSection}
+      pixelSectionProps={{
+        skinId: immersiveSkinId,
+        appearance:
+          normalizedImmersiveSettings.appearanceBySkin[immersiveSkinId],
+        gameScreenProps: sharedGameScreenProps,
+        activeMenu,
+        onMenuClick: handleMenuClickFromHook,
+        isFrozen: digimonStats.isFrozen || false,
+        isLightsOn,
+        supportActionsNode: renderSupportActionButtons(
+          "immersive-portrait-pixel-support",
+          { compact: true }
+        ),
+        onOpenAppearance: () => toggleModal("appearanceSettings", true),
+        currentTimeText,
+        digimonLabel: headerDigimonLabel,
+      }}
+    />
+  );
 
   const landscapeImmersiveSection = (
     <ImmersiveLandscapeSection

@@ -6,6 +6,9 @@ import {
 } from "../utils/digimonVersionUtils";
 import HomeScreenInstallSection from "./HomeScreenInstallSection";
 import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
+import { IMMERSIVE_SKINS } from "../data/immersiveSettings";
+
+const PIXEL_SKINS = IMMERSIVE_SKINS.filter((skin) => skin.portraitPixel);
 
 const SettingsModal = ({
   onClose,
@@ -33,6 +36,9 @@ const SettingsModal = ({
   selectedDigimon,
   digimonStats,
   slotVersion,
+  immersiveSettings,
+  onSelectImmersiveSkin,
+  onOpenAppearanceSettings,
   }) => {
   const slotEvolutionDataMap = newDigimonDataVer1;
   const slotRuntimeDataMap = digimonDataVer1;
@@ -189,6 +195,18 @@ const SettingsModal = ({
 
         {/* 스크롤 가능한 컨텐츠 영역 */}
         <div className="flex-1 overflow-y-auto p-6 pt-4">
+          <section className="mb-4 rounded-lg border-2 border-slate-300 bg-slate-50 p-4" aria-label="몰입형 세로 화면 설정">
+            <h3 className="font-bold text-slate-900">몰입형 세로 화면</h3>
+            <p className="mt-1 text-xs text-slate-600">기본 게임 화면은 그대로 두고 선택한 픽셀 스킨만 적용합니다.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => onSelectImmersiveSkin?.("tama-default-none")} aria-pressed={immersiveSettings?.skinId === "tama-default-none"} className={`min-h-11 rounded border-2 px-2 text-sm font-bold ${immersiveSettings?.skinId === "tama-default-none" ? "border-blue-600 bg-blue-100" : "border-slate-300 bg-white"}`}>기본 UI</button>
+              {PIXEL_SKINS.map((skin) => (
+                <button key={skin.id} type="button" onClick={() => onSelectImmersiveSkin?.(skin.id)} aria-pressed={immersiveSettings?.skinId === skin.id} className={`min-h-11 rounded border-2 px-2 text-xs font-bold ${immersiveSettings?.skinId === skin.id ? "border-blue-600 bg-blue-100" : "border-slate-300 bg-white"}`}>{skin.name}</button>
+              ))}
+            </div>
+            <button type="button" onClick={onOpenAppearanceSettings} className="mt-3 min-h-11 w-full rounded bg-slate-900 px-4 font-bold text-white">외형 꾸미기</button>
+          </section>
+
           {/* Dev Mode */}
           {canUseDeveloperMode && (
             <div className="mb-4">
