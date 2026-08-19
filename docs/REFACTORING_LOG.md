@@ -8193,3 +8193,10 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
   - `digimon-tamagotchi-frontend/src/pages/Game.jsx`
   - 관련 CSS·테스트·QA 캡처와 `design-qa.md`
 - **아키텍처 결정 근거:** `Game.jsx`에는 세로 프레젠터 연결만 두고 스킨 화면 조립과 색상 draft를 하위 컴포넌트로 분리했다. 픽셀 스킨이 아닌 경우 프레젠터가 기존 `GameDefaultSection` 노드를 그대로 반환하므로 기본 화면 회귀 위험을 제한한다. 외형 값은 이미 슬롯 문서에 저장되는 `immersiveSettings` 계약을 확장해 Firestore 정본·기존 저장 타이밍·lazy update 규칙을 바꾸지 않는다.
+
+## [2026-08-19] 자랑게시판 대표 장면 비율 통일
+
+- **내용:** 자랑게시판의 카드·상세·작성 미리보기를 일반 게임 화면과 같은 3:2 좌표계로 통일했다. 배경의 `cover` 크롭과 디지몬 최대 너비 제한을 제거하고, 저장된 대표 스프라이트를 장면 너비·높이의 40% 크기로 중앙에 배치해 장면 크기와 기기 폭이 달라져도 같은 상대 비율을 유지한다. 대표 장면에서는 똥 스프라이트와 `똥 위험` 문구를 표시하지 않되 `poopCount` 스냅샷 값과 일반 게임 화면 표시는 유지한다.
+- **검증:** 공용 좌표와 카드·상세·작성 변형, Ver.1·Ver.2 스프라이트 경로, 조명 표시와 똥 비노출을 회귀 테스트로 고정했다. 로컬 브라우저의 1280px 데스크톱과 375px 모바일에서 카드·상세 장면이 3:2, 디지몬 영역이 약 40%×40%로 유지되고 콘솔 오류가 없음을 확인했다. 루트 `npm run check`에서 프런트 212 suite·1,387 test, 서버 241 pass·19 emulator-only skip, production build와 server projection 검사를 통과했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/utils/gameSceneGeometry.js`, `digimon-tamagotchi-frontend/src/components/Canvas.jsx`, `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.jsx`, 관련 CSS·테스트와 `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 게임 Canvas의 기존 배치 계산을 공용 순수 헬퍼로 옮겨 게시판이 동일한 기하 계약을 재사용하도록 했다. 스냅샷 저장 필드나 API·Firestore 계약을 확장하지 않아 기존 게시물에도 렌더링 수정이 즉시 적용되며, 애니메이션 프레임과 위치는 종전처럼 저장하지 않는다.

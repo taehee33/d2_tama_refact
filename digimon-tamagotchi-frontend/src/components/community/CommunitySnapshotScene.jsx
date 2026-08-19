@@ -1,15 +1,12 @@
 import React from "react";
 import { buildCommunitySnapshotVisual } from "../../utils/communitySnapshotUtils";
 import { normalizeSleepStatusForDisplay } from "../../utils/callStatusUtils";
+import {
+  GAME_SCENE_ASPECT_RATIO,
+  getDefaultDigimonSceneStyle,
+} from "../../utils/gameSceneGeometry";
 
-const POOP_POSITIONS = [
-  { top: "62%", left: "12%" },
-  { top: "26%", left: "20%" },
-  { top: "66%", left: "42%" },
-  { top: "26%", left: "56%" },
-  { top: "62%", left: "72%" },
-  { top: "36%", left: "80%" },
-];
+const DEFAULT_DIGIMON_SCENE_STYLE = getDefaultDigimonSceneStyle();
 
 function CommunitySnapshotScene({ snapshot, variant = "card" }) {
   const visual = buildCommunitySnapshotVisual(snapshot);
@@ -19,7 +16,6 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
     return null;
   }
 
-  const poopCount = Math.min(Math.max(visual.poopCount || 0, 0), 8);
   const showOverlay = variant === "composer";
   const sceneBadges = [];
 
@@ -43,39 +39,29 @@ function CommunitySnapshotScene({ snapshot, variant = "card" }) {
     sceneBadges.push({ key: "injured", label: "치료 필요", tone: "danger" });
   }
 
-  if (poopCount >= 6) {
-    sceneBadges.push({ key: "poop", label: "똥 위험", tone: "warn" });
-  }
-
   return (
-    <div className={`community-scene community-scene--${variant}`}>
+    <div
+      className={`community-scene community-scene--${variant}`}
+      style={{ "--community-scene-aspect-ratio": GAME_SCENE_ASPECT_RATIO }}
+    >
       <img
         src={`/images/${visual.backgroundNumber}.png`}
         alt="커뮤니티 배경"
         className="community-scene__background"
+        style={{ objectFit: "fill" }}
       />
 
       {!visual.isLightsOn ? <div className="community-scene__lights-off" /> : null}
 
-      {Array.from({ length: Math.min(poopCount, POOP_POSITIONS.length) }).map((_, index) => {
-        const position = POOP_POSITIONS[index];
-        return (
-          <img
-            key={`poop-${index}`}
-            src="/images/533.png"
-            alt=""
-            aria-hidden="true"
-            className="community-scene__poop"
-            style={position}
-          />
-        );
-      })}
-
-      <div className="community-scene__sprite-shell">
+      <div
+        className="community-scene__sprite-shell"
+        style={DEFAULT_DIGIMON_SCENE_STYLE}
+      >
         <img
           src={visual.spriteSrc}
           alt={snapshot?.digimonDisplayName || "디지몬 스냅샷"}
           className="community-scene__sprite"
+          style={{ width: "100%", height: "100%" }}
         />
       </div>
 

@@ -3,6 +3,10 @@ import { getFridgeRenderPolicy } from "./fridgeRenderPolicy";
 import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 import { isStarterDigimonId } from "../utils/digimonVersionUtils";
+import {
+  GAME_SCENE_GEOMETRY,
+  getDefaultDigimonDrawState,
+} from "../utils/gameSceneGeometry";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
 const cleanSprite= "/images/534.png"; // 청소(빗자루 등) 스프라이트
@@ -10,8 +14,6 @@ const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/im
 const injurySprites= ["/images/541.png", "/images/542.png"]; // 부상 스프라이트
 const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
 const fridgeSprites= ["/images/552.png", "/images/553.png", "/images/554.png", "/images/555.png"]; // 냉장고 스프라이트 (냉장고, 냉장고 안, 덮개1, 덮개2)
-const DIGIMON_WIDTH_RATIO = 0.4;
-const DIGIMON_HEIGHT_RATIO = 0.4;
 const IDLE_MOTION_COORDINATE_GRID = 80;
 const IDLE_MOTION_STEP_MS = 700;
 const EVOLUTION_SHAKE_STEP_MS = 120;
@@ -57,27 +59,9 @@ function getIdleMotionTimelineKey(idleMotionTimeline) {
     .join("|");
 }
 
-function getDefaultDigimonDrawState(width, height, currentAnimation) {
-  const digiW = width * DIGIMON_WIDTH_RATIO;
-  const digiH = height * DIGIMON_HEIGHT_RATIO;
-  let digiX = (width - digiW) / 2;
-
-  if (currentAnimation === "eat") {
-    digiX = width * 0.6 - digiW / 2;
-  }
-
-  return {
-    digiW,
-    digiH,
-    digiX,
-    digiY: (height - digiH) / 2,
-    flip: false,
-  };
-}
-
 function getIdleMotionDrawState(width, height, step) {
-  const digiW = width * DIGIMON_WIDTH_RATIO;
-  const digiH = height * DIGIMON_HEIGHT_RATIO;
+  const digiW = width * GAME_SCENE_GEOMETRY.digimonWidthRatio;
+  const digiH = height * GAME_SCENE_GEOMETRY.digimonHeightRatio;
   const maxX = width - digiW;
   const maxY = height - digiH;
 

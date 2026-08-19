@@ -840,11 +840,6 @@
   gap: 0.55rem;
 }
 
-.community-post-card__thumbnail .community-scene--card {
-  max-height: none;
-  min-height: clamp(14rem, 22vw, 18rem);
-}
-
 .community-post-card__thumbnail-label {
   display: inline-flex;
   align-items: center;
@@ -1500,20 +1495,7 @@
   border-radius: 1.3rem;
   border: 1px solid rgba(27, 44, 50, 0.12);
   background: linear-gradient(180deg, rgba(207, 234, 226, 0.82), rgba(231, 244, 239, 0.64));
-  aspect-ratio: 16 / 10;
-}
-
-.community-scene--card {
-  aspect-ratio: 3 / 2;
-  max-height: 21rem;
-}
-
-.community-scene--composer {
-  min-height: 18rem;
-}
-
-.community-scene--detail {
-  min-height: 21rem;
+  aspect-ratio: var(--community-scene-aspect-ratio, 3 / 2);
 }
 
 .community-scene__background,
@@ -1525,7 +1507,7 @@
 }
 
 .community-scene__background {
-  object-fit: cover;
+  object-fit: fill;
 }
 
 .community-scene__lights-off {
@@ -1534,27 +1516,17 @@
 
 .community-scene__sprite-shell {
   position: absolute;
-  left: 50%;
-  bottom: 17%;
-  width: min(10.5rem, 34%);
-  transform: translateX(-50%);
 }
 
-.community-scene__sprite,
-.community-scene__poop {
+.community-scene__sprite {
   image-rendering: pixelated;
 }
 
 .community-scene__sprite {
   width: 100%;
+  height: 100%;
   display: block;
   filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.22));
-}
-
-.community-scene__poop {
-  position: absolute;
-  width: clamp(1.5rem, 4vw, 2.2rem);
-  transform: translate(-50%, -50%);
 }
 
 .community-scene__badge-row {
@@ -1627,11 +1599,6 @@
 .community-scene--card .community-scene__badge {
   padding: 0.28rem 0.64rem;
   font-size: 0.74rem;
-}
-
-.community-scene--card .community-scene__sprite-shell {
-  bottom: 14%;
-  width: min(8rem, 20%);
 }
 
 .community-scene--card .community-scene__caption {
@@ -2001,20 +1968,6 @@
     padding: 0.95rem 1rem 1rem;
   }
 
-  .community-scene--composer,
-  .community-scene--detail {
-    min-height: 15.5rem;
-  }
-
-  .community-scene--card {
-    aspect-ratio: 3 / 2;
-    max-height: 14rem;
-  }
-
-  .community-scene--card .community-scene__sprite-shell {
-    width: min(6.8rem, 22%);
-  }
-
   .community-post-card__meta,
   .community-post-card__header,
   .community-preview__header,
@@ -2038,10 +1991,6 @@
   .community-post-card__meta-block {
     justify-content: flex-start;
     width: 100%;
-  }
-
-  .community-post-card__thumbnail .community-scene--card {
-    min-height: 12.5rem;
   }
 
   .community-post-card__thumbnail {
