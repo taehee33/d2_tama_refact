@@ -18,6 +18,10 @@ const {
   normalizeSlotId,
 } = require("./arenaDomain");
 const { ArenaError } = require("./arenaErrors");
+const {
+  classifyGhostSourceLink,
+  toGhostLinkStatus,
+} = require("./arenaGhostLink");
 const { getArenaFirestore, runArenaTransaction } = require("./arenaTransactions");
 const { allowMethods, handleApiError, parseJsonBody, sendJson } = require("./http");
 const { projectArenaSlot } = require("./arenaSlotProjection");
@@ -98,15 +102,8 @@ function normalizeCombatRecord(data = {}) {
 }
 
 function classifyGhostLinkStatus(ghost, sourceSlotSnapshot) {
-  if (!ghost?.sourceDigimonInstanceId || !ghost?.sourceCombatRevision) return "legacy";
-  if (!sourceSlotSnapshot) return "unknown";
-  if (!sourceSlotSnapshot.exists) return "source_missing";
-  const source = sourceSlotSnapshot.data() || {};
-  if (source.digimonStats?.isDead === true || source.isDead === true) return "dead";
-  if (source.digimonInstanceId !== ghost.sourceDigimonInstanceId) return "dead";
-  if (source.combatRevision !== ghost.sourceCombatRevision) return "evolved";
-  if (source.selectedDigimon !== ghost.snapshot?.digimonId) return "unknown";
-  return "linked";
+  if (!sourceSlotSnapshot && ghost?.sourceCombatIdentityId) return "unknown";
+  return toGhostLinkStatus(classifyGhostSourceLink(ghost, sourceSlotSnapshot));
 }
 
 function buildOwnerGhostDto(ghost, sourceSlotSnapshot) {

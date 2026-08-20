@@ -73,6 +73,7 @@ test("Ghost API 인증 오류는 ArenaError 계약으로 정규화한다", async
 
 test("Ghost link status는 exact identity일 때만 linked다", () => {
   const ghost = {
+    sourceCombatIdentityId: "identity-a",
     sourceDigimonInstanceId: "life-a",
     sourceCombatRevision: 2,
     snapshot: { digimonId: "Greymon" },
@@ -100,6 +101,18 @@ test("Ghost link status는 exact identity일 때만 linked다", () => {
       }),
     }),
     "evolved"
+  );
+  assert.equal(
+    classifyGhostLinkStatus(ghost, {
+      exists: true,
+      data: () => ({
+        digimonInstanceId: "life-b",
+        combatRevision: 1,
+        selectedDigimon: "Poyomon",
+        digimonStats: { isDead: false },
+      }),
+    }),
+    "dead"
   );
 });
 

@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-08-20] Arena Ghost 원본 연결 판정 순서와 오류 관측성 개선
+
+- **내용:** Ghost 배틀이 원본 슬롯을 시간 투영하기 전에 `digimonInstanceId`, `combatRevision`, 등록 형태를 먼저 비교하도록 공통 연결 판정 helper를 추가했다. 원본 슬롯이 새 생애면 `dead`, 같은 생애의 이전 형태면 `evolved`로 연결을 종료하고 등록 당시 불변 Ghost snapshot으로 배틀을 계속한다. exact identity에서 형태만 다른 손상 상태는 기존처럼 fail-closed 처리한다.
+- **오류 계약:** exact identity의 원본 projection 실패는 재시도 가능한 `ARENA_SOURCE_READ_UNAVAILABLE` 503으로 구분한다. 구조화 경고에는 battle·Ghost 식별자, 판정 단계, 내부 오류 코드와 schema/projection version만 남기며 UID와 슬롯 payload는 기록하지 않는다. 디지타마 판정도 runtime projection보다 먼저 수행한다.
+- **회귀 범위:** Bakemon Ghost의 원본 슬롯이 수면 스케줄 없는 새 Poyomon 생애로 바뀐 운영 사례를 Emulator로 재현한다. 배틀·Ghost 방어 전적·시즌 전적은 확정하되 종료된 원본 combat record/form mirror는 변경하지 않고 mirror outbox도 만들지 않는지 검증한다.
+- **검증:** 집중 단위 테스트 14개, `npm run check`(프런트 212 suite·1,391 test, 서버 247 pass·20 Emulator-only skip, lint·typecheck·production build·API 단일 원본·server projection), `npm run test:arena-emulator` 26개를 모두 통과했다.
+- **영향 파일:** `api/_lib/arenaGhostLink.js`, `api/_lib/arenaBattleService.js`, `api/_lib/arenaGhostHandlers.js`, `api/_lib/arenaSlotProjection.js`, 관련 단위·Emulator 테스트.
+- **아키텍처 결정 근거:** Ghost snapshot은 등록 당시 모습으로 계속 방어하는 불변 자료이고, 원본 슬롯은 현재 형태 전적 mirror 연결 여부만 결정한다. 따라서 이미 종료된 identity에는 현재 슬롯의 lazy runtime 필드를 요구하지 않고, exact identity만 projection해 Firestore 정본·전적 원자성·lazy update 계약을 유지한다.
+
 ## [2026-08-17] 모바일 상태·호출 팝업 표시 영역 개선
 
 - **내용:** 모바일 세로 화면의 `디지몬 상태`와 `디지몬 상태 상세` 팝업을 화면 상단에 배치하고, 동적 뷰포트와 safe-area를 제외한 높이를 거의 전부 사용하도록 조정했다. 제목과 하단 액션은 고정된 채 본문만 스크롤되며, `호출 상태` 팝업은 좌우 여백을 약 8px로 줄여 긴 호출·케어미스 기록이 더 넓게 보이도록 했다.

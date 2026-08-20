@@ -25,12 +25,15 @@ function projectArenaSlot(slotSnapshot, requestReceivedAt, options = {}) {
   if (!slotSnapshot?.exists) throw new ArenaError("ARENA_SLOT_NOT_FOUND", "아레나에 사용할 슬롯을 찾을 수 없습니다.");
   const slot = slotSnapshot.data() || {};
   const projectionAsOf = options.projectionAsOf || resolveProjectionTime(requestReceivedAt, slotSnapshot);
+  if (slot.digimonStats?.isDead === true || slot.isDead === true) {
+    throw new ArenaError("ARENA_SLOT_DEAD", "사망한 디지몬은 아레나에 참가할 수 없습니다.");
+  }
+  if (isStarterDigimonId(slot.selectedDigimon)) throw new ArenaError("ARENA_SLOT_STARTER", "디지타마는 아레나에 참가할 수 없습니다.");
   const projection = projectSlotForUrgentCare(slot, projectionAsOf.getTime());
   if (projection.status !== "projected" || !projection.stats) {
     throw new ArenaError("ARENA_SLOT_PROJECTION_UNAVAILABLE", "현재 디지몬 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.", null, null, { retryable: true });
   }
   if (projection.stats.isDead === true) throw new ArenaError("ARENA_SLOT_DEAD", "사망한 디지몬은 아레나에 참가할 수 없습니다.");
-  if (isStarterDigimonId(slot.selectedDigimon)) throw new ArenaError("ARENA_SLOT_STARTER", "디지타마는 아레나에 참가할 수 없습니다.");
   if (options.requireCombatIdentity !== false && (
     slot.arenaIdentitySchemaVersion !== 1 ||
     typeof slot.digimonInstanceId !== "string" || !slot.digimonInstanceId.trim() ||
