@@ -188,3 +188,25 @@ test("exact identity projection 불가는 retryable 503과 구조화 로그를 �
   });
   assert.equal(JSON.stringify(warnings).includes("로그에 포함되면 안 됨"), false);
 });
+
+test("일반 identity 손상은 422와 구조화 로그를 남긴다", () => {
+  const warnings = [];
+  assert.throws(
+    () => raiseDefenderProjectionFailure({
+      projection: {
+        status: "terminal_error",
+        code: "ARENA_COMBAT_IDENTITY_STALE",
+        phase: "identity",
+      },
+      logger: { warn: (...args) => warnings.push(args) },
+      battleId: "battle-stale",
+      ghost: { ghostId: "ghost-stale", schemaVersion: 2, snapshotVersion: 2 },
+    }),
+    (error) =>
+      error.code === "ARENA_COMBAT_IDENTITY_STALE" &&
+      error.status === 422 &&
+      error.retryable === false
+  );
+  assert.equal(warnings[0][1].phase, "identity");
+  assert.equal(warnings[0][1].errorCode, "ARENA_COMBAT_IDENTITY_STALE");
+});

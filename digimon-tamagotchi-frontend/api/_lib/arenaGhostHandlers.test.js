@@ -116,6 +116,28 @@ test("Ghost link status는 exact identity일 때만 linked다", () => {
   );
 });
 
+test("Ghost link status는 legacy와 원본 누락을 구분한다", () => {
+  assert.equal(classifyGhostLinkStatus({}, null), "legacy");
+  assert.equal(
+    classifyGhostLinkStatus({
+      sourceCombatIdentityId: "identity-a",
+      sourceDigimonInstanceId: "life-a",
+      sourceCombatRevision: 2,
+      snapshot: { digimonId: "Greymon" },
+    }, null),
+    "unknown"
+  );
+  assert.equal(
+    classifyGhostLinkStatus({
+      sourceCombatIdentityId: "identity-a",
+      sourceDigimonInstanceId: "life-a",
+      sourceCombatRevision: 2,
+      snapshot: { digimonId: "Greymon" },
+    }, { exists: false }),
+    "source_missing"
+  );
+});
+
 test("상대 DTO는 source identity와 내부 pending 정보를 노출하지 않는다", () => {
   const dto = buildOpponentGhostDto(
     {
