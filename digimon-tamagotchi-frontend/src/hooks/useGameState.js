@@ -1,11 +1,15 @@
 // src/hooks/useGameState.js
 // Game.jsx의 모든 State 관리를 통합한 Custom Hook
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { initializeStats } from "../data/stats";
 import { DEFAULT_BACKGROUND_SETTINGS } from "../data/backgroundData";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
 import { getBackgroundSprite } from "../utils/backgroundUtils";
+import {
+  GAME_SCENE_SIZE,
+  normalizeGameSceneSize,
+} from "../utils/gameSceneGeometry";
 
 /**
  * Sprite 설정을 localStorage에서 로드
@@ -14,16 +18,12 @@ const loadSpriteSettings = () => {
   try {
     const saved = localStorage.getItem('digimon_view_settings');
     if (saved) {
-      const settings = JSON.parse(saved);
-      return {
-        width: settings.width || 300,
-        height: settings.height || 200,
-      };
+      return normalizeGameSceneSize(JSON.parse(saved));
     }
   } catch (error) {
     console.error('Sprite settings 로드 오류:', error);
   }
-  return { width: 300, height: 200 };
+  return { ...GAME_SCENE_SIZE };
 };
 
 /**
@@ -31,10 +31,7 @@ const loadSpriteSettings = () => {
  */
 const saveSpriteSettings = (newWidth, newHeight) => {
   try {
-    const settings = {
-      width: newWidth,
-      height: newHeight,
-    };
+    const settings = normalizeGameSceneSize({ width: newWidth, height: newHeight });
     localStorage.setItem('digimon_view_settings', JSON.stringify(settings));
   } catch (error) {
     console.error('Sprite settings 저장 오류:', error);
@@ -270,8 +267,18 @@ export function useGameState({ slotId, digimonDataVer1, defaultSeasonId = 1 }) {
   // useGameState에서는 상태만 관리하고, 저장은 Game.jsx에서 통일 관리
   
   // Canvas 크기
-  const [width, setWidth] = useState(() => loadSpriteSettings().width);
-  const [height, setHeight] = useState(() => loadSpriteSettings().height);
+  const [sceneSize, setSceneSize] = useState(loadSpriteSettings);
+  const { width, height } = sceneSize;
+  const setSquareSceneSize = useCallback((nextValue) => {
+    setSceneSize((currentSize) => {
+      const resolvedValue = typeof nextValue === "function"
+        ? nextValue(currentSize.width)
+        : nextValue;
+      return normalizeGameSceneSize({ width: resolvedValue });
+    });
+  }, []);
+  const setWidth = setSquareSceneSize;
+  const setHeight = setSquareSceneSize;
   
   // width/height 변경 시 localStorage에 저장
   useEffect(() => {

@@ -61,6 +61,15 @@ function renderSettingsModalWithParentState({ canUseDeveloperMode = true } = {})
 }
 
 describe("SettingsModal developer options", () => {
+  test("기존 300×200 화면 설정을 단일 300px 크기 입력으로 정규화한다", () => {
+    renderSettingsModalWithParentState();
+
+    expect(screen.getByRole("slider", { name: /화면 한 변/ })).toHaveValue("300");
+    expect(screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" })).toHaveValue(300);
+    expect(screen.queryByText(/Uniform Scale/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Height:/)).not.toBeInTheDocument();
+  });
+
   test("운영자에게 Developer Mode 운영자 권한 라벨과 토글을 표시한다", () => {
     renderSettingsModalWithParentState({ canUseDeveloperMode: true });
 

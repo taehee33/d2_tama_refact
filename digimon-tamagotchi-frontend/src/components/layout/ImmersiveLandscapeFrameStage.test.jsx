@@ -25,9 +25,9 @@ describe("ImmersiveLandscapeFrameStage", () => {
       "brick-ver1"
     );
     expect(screen.getByTestId("immersive-landscape-frame-viewport")).toBeInTheDocument();
-    expect(screen.getByTestId("brick-frame-screen")).toHaveTextContent("300x200");
+    expect(screen.getByTestId("brick-frame-screen")).toHaveTextContent("300x300");
     expect(renderScreen).toHaveBeenCalledWith(
-      expect.objectContaining({ width: 300, height: 200 })
+      expect.objectContaining({ width: 300, height: 300 })
     );
   });
 });

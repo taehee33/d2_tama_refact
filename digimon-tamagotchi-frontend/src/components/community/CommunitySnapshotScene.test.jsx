@@ -30,7 +30,7 @@ describe("CommunitySnapshotScene", () => {
     const background = screen.getByAltText("커뮤니티 배경");
     const sprite = screen.getByAltText("가브몬");
 
-    expect(scene).toHaveStyle({ "--community-scene-aspect-ratio": "3 / 2" });
+    expect(scene).toHaveStyle({ "--community-scene-aspect-ratio": "1 / 1" });
     expect(background).toHaveStyle({ objectFit: "fill" });
     expect(sprite.parentElement).toHaveStyle({
       left: "30%",
@@ -70,7 +70,7 @@ describe("CommunitySnapshotScene", () => {
       const scene = container.querySelector(`.community-scene--${variant}`);
       const spriteShell = container.querySelector(".community-scene__sprite-shell");
 
-      expect(scene).toHaveStyle({ "--community-scene-aspect-ratio": "3 / 2" });
+      expect(scene).toHaveStyle({ "--community-scene-aspect-ratio": "1 / 1" });
       expect(spriteShell).toHaveStyle({
         left: "30%",
         top: "30%",

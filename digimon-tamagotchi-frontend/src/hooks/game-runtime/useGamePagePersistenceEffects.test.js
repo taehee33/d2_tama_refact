@@ -323,7 +323,7 @@ describe("useGamePagePersistenceEffects", () => {
     expect(setClearedQuestIndex).toHaveBeenCalledWith(7);
     expect(JSON.parse(localStorage.getItem("digimon_view_settings"))).toEqual({
       width: 480,
-      height: 320,
+      height: 480,
     });
     expect(localStorage.getItem("slot3_clearedQuestIndex")).toBe("7");
   });

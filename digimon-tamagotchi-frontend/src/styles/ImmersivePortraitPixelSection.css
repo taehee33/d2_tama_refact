@@ -107,35 +107,38 @@
 .portrait-pixel-shell__screen {
   position: absolute;
   z-index: 3;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background: #10141b;
 }
 
 [data-skin-id="pixel-split-brick"] .portrait-pixel-shell__screen {
-  top: 15.4%;
-  left: 13%;
+  top: 20.7%;
+  left: 13.7%;
   width: 74.5%;
-  height: 39.9%;
 }
 
 [data-skin-id="pixel-red-device"] .portrait-pixel-shell__screen {
-  top: 25.6%;
-  left: 13.5%;
+  top: 27.2%;
+  left: 15.1%;
   width: 42.2%;
-  height: 17.3%;
 }
 
 [data-skin-id="pixel-dark-battle"] .portrait-pixel-shell__screen {
-  top: 18.2%;
-  left: 15.2%;
+  top: 20.45%;
+  left: 18.4%;
   width: 44.6%;
-  height: 19.5%;
 }
 
 .portrait-pixel-shell__screen > div {
   width: 100% !important;
   height: 100% !important;
   border: 0 !important;
+}
+
+.portrait-pixel-shell__screen > div > canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .portrait-pixel-shell__controls {

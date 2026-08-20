@@ -9,6 +9,7 @@ import {
   formatSleepCountdown,
   getFallingAsleepRemainingSeconds,
 } from "../utils/sleepUtils";
+import { GAME_SCENE_SIZE } from "../utils/gameSceneGeometry";
 
 const SICK_EMOJI_POOL = [
   "😷",
@@ -56,8 +57,8 @@ const CALL_CARD_STYLES = {
  */
 const GameScreen = ({
   // 스타일 및 크기
-  width = 300,
-  height = 200,
+  width = GAME_SCENE_SIZE.width,
+  height = GAME_SCENE_SIZE.height,
   backgroundNumber = 162,
   
   // 디지몬 애니메이션

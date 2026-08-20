@@ -5,6 +5,7 @@ import {
   getMenuDisabledState,
   MENU_SURFACES,
 } from "../../constants/gameMenus";
+import { GAME_SCENE_SIZE } from "../../utils/gameSceneGeometry";
 import "../../styles/ImmersivePortraitPixelSection.css";
 
 const PRIMARY_MENUS = getGameMenusBySurface(MENU_SURFACES.PRIMARY);
@@ -63,7 +64,11 @@ const ImmersivePortraitPixelSection = ({
         </div>
 
         <div className="portrait-pixel-shell__screen" data-testid="portrait-pixel-game-screen">
-          <GameScreen {...gameScreenProps} />
+          <GameScreen
+            {...gameScreenProps}
+            width={GAME_SCENE_SIZE.width}
+            height={GAME_SCENE_SIZE.height}
+          />
         </div>
 
         <div className="portrait-pixel-shell__controls" role="group" aria-label="빠른 조작">

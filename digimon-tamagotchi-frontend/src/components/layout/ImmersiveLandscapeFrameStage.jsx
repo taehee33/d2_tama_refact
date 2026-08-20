@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  GAME_SCENE_ASPECT_RATIO_VALUE,
+  GAME_SCENE_SIZE,
+} from "../../utils/gameSceneGeometry";
 
-const GAME_SCREEN_ASPECT_RATIO = 3 / 2;
-const FALLBACK_SCREEN_SIZE = Object.freeze({
-  width: 300,
-  height: 200,
-});
+const FALLBACK_SCREEN_SIZE = GAME_SCENE_SIZE;
 
 function getContainedGameScreenSize(boundsWidth, boundsHeight) {
   if (!(boundsWidth > 0) || !(boundsHeight > 0)) {
@@ -12,13 +12,13 @@ function getContainedGameScreenSize(boundsWidth, boundsHeight) {
   }
 
   let width = Math.floor(
-    Math.min(boundsWidth, boundsHeight * GAME_SCREEN_ASPECT_RATIO)
+    Math.min(boundsWidth, boundsHeight * GAME_SCENE_ASPECT_RATIO_VALUE)
   );
-  let height = Math.floor(width / GAME_SCREEN_ASPECT_RATIO);
+  let height = Math.floor(width / GAME_SCENE_ASPECT_RATIO_VALUE);
 
   if (height > boundsHeight) {
     height = Math.floor(boundsHeight);
-    width = Math.floor(height * GAME_SCREEN_ASPECT_RATIO);
+    width = Math.floor(height * GAME_SCENE_ASPECT_RATIO_VALUE);
   }
 
   return {

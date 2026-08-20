@@ -7,6 +7,12 @@ import {
 import HomeScreenInstallSection from "./HomeScreenInstallSection";
 import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
 import { IMMERSIVE_SKINS } from "../data/immersiveSettings";
+import {
+  GAME_SCENE_SIZE,
+  GAME_SCENE_SIZE_MAX,
+  GAME_SCENE_SIZE_MIN,
+  normalizeGameSceneSize,
+} from "../utils/gameSceneGeometry";
 
 const PIXEL_SKINS = IMMERSIVE_SKINS.filter((skin) => skin.portraitPixel);
 
@@ -45,20 +51,15 @@ const SettingsModal = ({
   const installPrompt = usePwaInstallPrompt();
   
   // 로컬 상태
-  const [localWidth, setLocalWidth] = useState(width);
-  const [localHeight, setLocalHeight] = useState(height);
+  const [localSceneSize, setLocalSceneSize] = useState(width);
   const [localDevMode, setLocalDevMode] = useState(developerMode);
   const [localEncyclopediaQuestionMark, setLocalEncyclopediaQuestionMark] = useState(encyclopediaShowQuestionMark);
   const [localIgnoreEvolutionTime, setLocalIgnoreEvolutionTime] = useState(ignoreEvolutionTime);
-  const [uniformScale, setUniformScale] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState(height / width); // 초기 비율 저장
 
   // 부모 상태가 개별로 바뀔 때 해당 draft만 갱신한다.
   // 여러 설정을 한 effect에서 동기화하면 개발자 옵션 체크 시 Dev Mode draft가 되돌아간다.
   useEffect(() => {
-    setLocalWidth(width);
-    setLocalHeight(height);
-    setAspectRatio(height / width); // 비율 업데이트
+    setLocalSceneSize(normalizeGameSceneSize({ width, height }).width);
   }, [width, height]);
 
   useEffect(() => {
@@ -73,50 +74,19 @@ const SettingsModal = ({
     setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
   }, [ignoreEvolutionTime]);
 
-  // Width/Height 변경
-  const handleLocalWidthChange = (e) => {
-    const val = parseInt(e.target.value) || 100;
-    setLocalWidth(val);
-    
-    // Uniform Scale이 켜져 있으면 비율에 맞춰 height 자동 조정
-    if (uniformScale) {
-      const newHeight = Math.round(val * aspectRatio);
-      setLocalHeight(newHeight);
-    }
-  };
-  
-  const handleLocalHeightChange = (e) => {
-    const val = parseInt(e.target.value) || 100;
-    setLocalHeight(val);
-    
-    // Uniform Scale이 켜져 있으면 비율에 맞춰 width 자동 조정
-    if (uniformScale) {
-      const newWidth = Math.round(val / aspectRatio);
-      setLocalWidth(newWidth);
-    }
-  };
-
-  // Uniform Scale 체크박스 토글
-  const handleUniformScaleToggle = (e) => {
-    const isChecked = e.target.checked;
-    setUniformScale(isChecked);
-    
-    // 체크박스를 켤 때 현재 비율을 기준점으로 설정
-    if (isChecked) {
-      setAspectRatio(localHeight / localWidth);
-    }
+  // 정사각형 화면 한 변 변경
+  const handleLocalSceneSizeChange = (e) => {
+    const nextSize = normalizeGameSceneSize({ width: e.target.value }).width;
+    setLocalSceneSize(nextSize);
   };
 
   // Reset Size 버튼
   const handleResetSize = () => {
-    const defaultWidth = 300;
-    const defaultHeight = 200;
-    setLocalWidth(defaultWidth);
-    setLocalHeight(defaultHeight);
-    setAspectRatio(defaultHeight / defaultWidth);
+    const defaultSize = GAME_SCENE_SIZE.width;
+    setLocalSceneSize(defaultSize);
     // 즉시 적용
-    setWidth(defaultWidth);
-    setHeight(defaultHeight);
+    setWidth(defaultSize);
+    setHeight(defaultSize);
   };
 
   // Dev Mode toggle
@@ -174,8 +144,8 @@ const SettingsModal = ({
 
   // Save
   const handleSave = () => {
-    setWidth(localWidth);
-    setHeight(localHeight);
+    setWidth(localSceneSize);
+    setHeight(localSceneSize);
     setDeveloperMode(canUseDeveloperMode ? localDevMode : false);
     if (!localDevMode || !canUseDeveloperMode) {
       setLocalIgnoreEvolutionTime(false);
@@ -313,61 +283,30 @@ const SettingsModal = ({
             </div>
           )}
 
-          {/* Size Settings */}
+          {/* 정사각형 화면 크기 설정 */}
           <div className="mb-4">
-            <h3 className="font-semibold mb-2">Size Settings</h3>
-            
-            {/* Uniform Scale 체크박스 */}
-            <div className="mb-3">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={uniformScale}
-                  onChange={handleUniformScaleToggle}
-                  className="mr-2"
-                />
-                <span>Uniform Scale (비율 고정)</span>
+            <h3 className="font-semibold mb-2">화면 크기</h3>
+
+            <div className="mb-2">
+              <label htmlFor="game-scene-size-range">
+                화면 한 변: {localSceneSize}px
               </label>
-            </div>
-            
-            {/* Width */}
-            <div className="mb-2">
-              <label>Width: {localWidth}px</label>
               <input
+                id="game-scene-size-range"
                 type="range"
-                min="100"
-                max="600"
-                value={localWidth}
-                onChange={handleLocalWidthChange}
+                min={GAME_SCENE_SIZE_MIN}
+                max={GAME_SCENE_SIZE_MAX}
+                value={localSceneSize}
+                onChange={handleLocalSceneSizeChange}
                 className="w-full"
               />
               <input
+                aria-label="화면 한 변 직접 입력"
                 type="number"
-                min="100"
-                max="600"
-                value={localWidth}
-                onChange={handleLocalWidthChange}
-                className="w-full p-1 border rounded mt-1"
-              />
-            </div>
-            
-            {/* Height */}
-            <div className="mb-2">
-              <label>Height: {localHeight}px</label>
-              <input
-                type="range"
-                min="100"
-                max="600"
-                value={localHeight}
-                onChange={handleLocalHeightChange}
-                className="w-full"
-              />
-              <input
-                type="number"
-                min="100"
-                max="600"
-                value={localHeight}
-                onChange={handleLocalHeightChange}
+                min={GAME_SCENE_SIZE_MIN}
+                max={GAME_SCENE_SIZE_MAX}
+                value={localSceneSize}
+                onChange={handleLocalSceneSizeChange}
                 className="w-full p-1 border rounded mt-1"
               />
             </div>
@@ -378,7 +317,7 @@ const SettingsModal = ({
                 onClick={handleResetSize}
                 className="w-full px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded"
               >
-                Reset Size
+                기본 크기로 초기화
               </button>
             </div>
           </div>

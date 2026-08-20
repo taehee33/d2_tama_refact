@@ -5,7 +5,14 @@ import { getImmersiveSkinById } from "../../utils/immersiveSettings";
 import { PIXEL_SKIN_DEFAULT_APPEARANCE } from "../../data/immersiveSettings";
 
 jest.mock("../GameScreen", () => function MockGameScreen(props) {
-  return <div data-testid="game-screen" data-background={props.backgroundNumber} />;
+  return (
+    <div
+      data-testid="game-screen"
+      data-background={props.backgroundNumber}
+      data-width={props.width}
+      data-height={props.height}
+    />
+  );
 });
 
 const MENU_LABELS = ["상태", "먹이", "훈련", "배틀", "교감", "화장실", "조명", "치료", "호출", "더보기"];
@@ -31,9 +38,14 @@ function renderSection(overrides = {}) {
 
 describe("ImmersivePortraitPixelSection", () => {
   test.each(["pixel-split-brick", "pixel-red-device", "pixel-dark-battle"])("%s 스킨에 현재 게임 화면을 렌더링한다", (skinId) => {
-    renderSection({ skinId });
+    renderSection({
+      skinId,
+      gameScreenProps: { backgroundNumber: 162, width: 640, height: 480 },
+    });
     expect(screen.getByRole("region", { name: /세로 디바이스/ })).toHaveAttribute("data-skin-id", skinId);
     expect(screen.getByTestId("game-screen")).toHaveAttribute("data-background", "162");
+    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-width", "300");
+    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-height", "300");
     expect(screen.getByText("16:09")).toBeInTheDocument();
     expect(screen.getByText("코로몬")).toBeInTheDocument();
   });

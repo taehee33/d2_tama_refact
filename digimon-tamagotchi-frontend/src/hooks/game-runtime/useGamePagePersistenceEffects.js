@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { getMasterDataSnapshotForSync } from "../../utils/masterDataUtils";
 import { normalizeDigimonVersionLabel } from "../../utils/digimonVersionUtils";
+import { normalizeGameSceneSize } from "../../utils/gameSceneGeometry";
 
 function syncRemainingByElapsed(previousTotal, nextTotal, currentRemaining) {
   const safeNextTotal = Math.max(0, Number(nextTotal) || 0);
@@ -296,10 +297,7 @@ export function useGamePagePersistenceEffects({
 
   useEffect(() => {
     try {
-      const settings = {
-        width,
-        height,
-      };
+      const settings = normalizeGameSceneSize({ width, height });
       localStorage.setItem("digimon_view_settings", JSON.stringify(settings));
     } catch (error) {
       console.error("Sprite settings 저장 오류:", error);

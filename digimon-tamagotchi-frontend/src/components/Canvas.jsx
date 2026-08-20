@@ -4,8 +4,9 @@ import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { normalizeSleepStatusForDisplay } from "../utils/callStatusUtils";
 import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 import {
-  GAME_SCENE_GEOMETRY,
+  GAME_SCENE_SIZE,
   getDefaultDigimonDrawState,
+  getGridDigimonDrawState,
 } from "../utils/gameSceneGeometry";
 
 const poopSprite= "/images/533.png";  // 똥 스프라이트
@@ -14,7 +15,6 @@ const zzzSprites= ["/images/535.png", "/images/536.png", "/images/537.png", "/im
 const injurySprites= ["/images/541.png", "/images/542.png"]; // 부상 스프라이트
 const skullSprites= ["/images/543.png", "/images/544.png"]; // 해골 스프라이트 (죽음 상태)
 const fridgeSprites= ["/images/552.png", "/images/553.png", "/images/554.png", "/images/555.png"]; // 냉장고 스프라이트 (냉장고, 냉장고 안, 덮개1, 덮개2)
-const IDLE_MOTION_COORDINATE_GRID = 80;
 const IDLE_MOTION_STEP_MS = 700;
 const EVOLUTION_SHAKE_STEP_MS = 120;
 const SLEEPING_LIKE_VISUAL_STATUSES = new Set([
@@ -59,25 +59,6 @@ function getIdleMotionTimelineKey(idleMotionTimeline) {
     .join("|");
 }
 
-function getIdleMotionDrawState(width, height, step) {
-  const digiW = width * GAME_SCENE_GEOMETRY.digimonWidthRatio;
-  const digiH = height * GAME_SCENE_GEOMETRY.digimonHeightRatio;
-  const maxX = width - digiW;
-  const maxY = height - digiH;
-
-  // 외부 편집기 좌표계(0~80)를 현재 Canvas 크기로 변환
-  const digiX = Math.max(0, Math.min(maxX, (width * step.x) / IDLE_MOTION_COORDINATE_GRID));
-  const digiY = Math.max(0, Math.min(maxY, (height * step.y) / IDLE_MOTION_COORDINATE_GRID));
-
-  return {
-    digiW,
-    digiH,
-    digiX,
-    digiY,
-    flip: Boolean(step.flip),
-  };
-}
-
 export function getEvolutionShakeOffset(width, elapsedMs, evolutionStage) {
   if (evolutionStage !== "shaking") return 0;
   const amplitude = Math.max(2, Math.min(6, Math.round(width * 0.018)));
@@ -115,8 +96,8 @@ function drawDigimonImage(ctx, image, drawState) {
 const Canvas = ({
   style={},
   className="",
-  width=300,
-  height=200,
+  width=GAME_SCENE_SIZE.width,
+  height=GAME_SCENE_SIZE.height,
   // frames
   idleFrames=[],
   idleMotionTimeline=[],
@@ -374,7 +355,7 @@ const Canvas = ({
             ? "idle"
             : currentAnimation;
           const drawState = motionStep
-            ? getIdleMotionDrawState(width, height, motionStep)
+            ? getGridDigimonDrawState(width, height, motionStep)
             : {
                 ...getDefaultDigimonDrawState(width, height, baseAnimationForDraw),
                 flip:

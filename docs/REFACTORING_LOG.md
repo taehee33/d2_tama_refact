@@ -8200,3 +8200,17 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:** 공용 좌표와 카드·상세·작성 변형, Ver.1·Ver.2 스프라이트 경로, 조명 표시와 똥 비노출을 회귀 테스트로 고정했다. 로컬 브라우저의 1280px 데스크톱과 375px 모바일에서 카드·상세 장면이 3:2, 디지몬 영역이 약 40%×40%로 유지되고 콘솔 오류가 없음을 확인했다. 루트 `npm run check`에서 프런트 212 suite·1,387 test, 서버 241 pass·19 emulator-only skip, production build와 server projection 검사를 통과했다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/utils/gameSceneGeometry.js`, `digimon-tamagotchi-frontend/src/components/Canvas.jsx`, `digimon-tamagotchi-frontend/src/components/community/CommunitySnapshotScene.jsx`, 관련 CSS·테스트와 `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 게임 Canvas의 기존 배치 계산을 공용 순수 헬퍼로 옮겨 게시판이 동일한 기하 계약을 재사용하도록 했다. 스냅샷 저장 필드나 API·Firestore 계약을 확장하지 않아 기존 게시물에도 렌더링 수정이 즉시 적용되며, 애니메이션 프레임과 위치는 종전처럼 저장하지 않는다.
+
+## [2026-08-19] 세로 픽셀 스킨 버튼 배경 정리
+
+- **내용:** 세로 픽셀 스킨 배경 3종의 하단에 그려져 있던 10개 장식 버튼을 제거하고, 각 스킨의 벽돌·그리드 배경 무늬로 자연스럽게 복원했다. 실제 조작용 React 버튼 10개는 그대로 유지해 배경 버튼과 실제 버튼의 이중 테두리·위치 어긋남을 없앴다.
+- **영향 파일:** `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/split-brick-10.png`, `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/red-device-10.png`, `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/dark-battle-10.png`, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 버튼 동작·메뉴 계약·DOM·CSS 위치는 변경하지 않고 장식 배경 자산만 정리했다. 실제 버튼을 단일 표시 계층으로 유지하므로 입력 영역과 접근성 동작에는 영향이 없다.
+
+## [2026-08-19] 게임 LCD 1:1 통일과 디지몬 중앙 표시 보정
+
+- **내용:** 96×96 배경과 48×48 스프라이트의 원본 비율에 맞춰 공통 게임 장면을 300×300(1:1)으로 변경했다. 기본 화면, 세로 픽셀 스킨 3종, 가로 벽돌 프레임과 자랑게시판 장면이 같은 정사각형 좌표를 사용하며, 디지몬은 기본 120×120 크기로 (90, 90)에 배치된다. 세로 배경 PNG의 LCD와 인접 베젤을 정사각형으로 다시 구성하되 이미지 캔버스 853×1844와 하단 실제 버튼 10개 영역은 유지했다.
+- **설정 호환:** 개발자 화면 크기는 한 변만 조절하도록 정리하고 `{width, height}` 저장 형식은 유지했다. 기존 300×200 등 직사각형 로컬 설정은 width를 기준으로 정사각형으로 정규화하며 100–600 범위를 적용한다.
+- **검증:** 공통 좌표의 중앙·좌우 끝 경계, 세로·가로 스킨의 300×300 계약, 자랑게시판 1:1 장면, 구 로컬 설정 복구와 단일 크기 입력을 회귀 테스트로 고정했다. 최종 품질 검사는 관련 테스트, `npm run check`, `git diff --check`로 수행한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/*`, `digimon-tamagotchi-frontend/src/utils/gameSceneGeometry.js`, 화면·설정·몰입형 레이아웃 관련 컴포넌트와 CSS·테스트
+- **아키텍처 결정 근거:** 장면 비율과 좌표 변환을 공용 순수 헬퍼에 유지하고 표시 계층과 로컬 UI 설정만 정리했다. React 외부 props, 게임 상태, Firestore·IndexedDB 계약과 슬롯 저장 스키마는 변경하지 않았으며, 이미지 편집도 LCD·인접 베젤에 한정해 제거된 배경 버튼 외곽을 다시 추가하지 않았다.
