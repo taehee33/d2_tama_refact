@@ -11,7 +11,7 @@ import {
 describe("gameSceneGeometry", () => {
   test("일반 게임 화면의 1:1 비율과 40% 스프라이트 계약을 제공한다", () => {
     expect(GAME_SCENE_ASPECT_RATIO).toBe("1 / 1");
-    expect(GAME_SCENE_SIZE).toEqual({ width: 300, height: 300 });
+    expect(GAME_SCENE_SIZE).toEqual({ width: 250, height: 250 });
     expect(GAME_SCENE_GEOMETRY).toEqual({
       digimonWidthRatio: 0.4,
       digimonHeightRatio: 0.4,

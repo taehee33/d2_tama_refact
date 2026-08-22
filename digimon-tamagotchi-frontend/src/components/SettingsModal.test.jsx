@@ -10,7 +10,14 @@ jest.mock("../hooks/usePwaInstallPrompt", () => () => ({
   promptInstall: jest.fn(),
 }));
 
-function renderSettingsModalWithParentState({ canUseDeveloperMode = true } = {}) {
+function renderSettingsModalWithParentState({
+  canUseDeveloperMode = true,
+  width = 300,
+  height = 200,
+  setWidth = jest.fn(),
+  setHeight = jest.fn(),
+  onClose = jest.fn(),
+} = {}) {
   function Wrapper() {
     const [developerMode, setDeveloperMode] = React.useState(false);
     const [encyclopediaShowQuestionMark, setEncyclopediaShowQuestionMark] =
@@ -20,7 +27,7 @@ function renderSettingsModalWithParentState({ canUseDeveloperMode = true } = {})
 
     return (
       <SettingsModal
-        onClose={jest.fn()}
+        onClose={onClose}
         foodSizeScale={0.31}
         setFoodSizeScale={jest.fn()}
         developerMode={developerMode}
@@ -30,10 +37,10 @@ function renderSettingsModalWithParentState({ canUseDeveloperMode = true } = {})
         setEncyclopediaShowQuestionMark={setEncyclopediaShowQuestionMark}
         ignoreEvolutionTime={ignoreEvolutionTime}
         setIgnoreEvolutionTime={setIgnoreEvolutionTime}
-        width={300}
-        height={200}
-        setWidth={jest.fn()}
-        setHeight={jest.fn()}
+        width={width}
+        height={height}
+        setWidth={setWidth}
+        setHeight={setHeight}
         backgroundNumber={1}
         setBackgroundNumber={jest.fn()}
         digimonSizeScale={1}
@@ -68,6 +75,66 @@ describe("SettingsModal developer options", () => {
     expect(screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" })).toHaveValue(300);
     expect(screen.queryByText(/Uniform Scale/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Height:/)).not.toBeInTheDocument();
+  });
+
+  test("직접 입력 중에는 빈 값과 중간 숫자를 100으로 강제하지 않는다", () => {
+    renderSettingsModalWithParentState();
+
+    const input = screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" });
+    const slider = screen.getByRole("slider", { name: /화면 한 변/ });
+
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(input).toHaveValue(3);
+    fireEvent.change(input, { target: { value: "30" } });
+    expect(input).toHaveValue(30);
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input.value).toBe("");
+    expect(slider).toHaveValue("300");
+  });
+
+  test("blur와 Enter에서만 직접 입력값을 100~600 범위로 보정한다", () => {
+    renderSettingsModalWithParentState();
+
+    const input = screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" });
+    const slider = screen.getByRole("slider", { name: /화면 한 변/ });
+
+    fireEvent.change(input, { target: { value: "50" } });
+    expect(input).toHaveValue(50);
+    fireEvent.blur(input);
+    expect(input).toHaveValue(100);
+    expect(slider).toHaveValue("100");
+
+    fireEvent.change(input, { target: { value: "700" } });
+    expect(input).toHaveValue(700);
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    expect(input).toHaveValue(600);
+    expect(slider).toHaveValue("600");
+  });
+
+  test("저장 시에도 입력 중인 범위 밖 값을 보정해 부모 상태에 적용한다", () => {
+    const setWidth = jest.fn();
+    const setHeight = jest.fn();
+    renderSettingsModalWithParentState({ setWidth, setHeight });
+
+    const input = screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" });
+    fireEvent.change(input, { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(setWidth).toHaveBeenCalledWith(100);
+    expect(setHeight).toHaveBeenCalledWith(100);
+  });
+
+  test("기본 크기로 초기화하면 250×250을 즉시 적용한다", () => {
+    const setWidth = jest.fn();
+    const setHeight = jest.fn();
+    renderSettingsModalWithParentState({ setWidth, setHeight });
+
+    fireEvent.click(screen.getByRole("button", { name: "기본 크기로 초기화" }));
+
+    expect(screen.getByRole("slider", { name: /화면 한 변/ })).toHaveValue("250");
+    expect(screen.getByRole("spinbutton", { name: "화면 한 변 직접 입력" })).toHaveValue(250);
+    expect(setWidth).toHaveBeenCalledWith(250);
+    expect(setHeight).toHaveBeenCalledWith(250);
   });
 
   test("운영자에게 Developer Mode 운영자 권한 라벨과 토글을 표시한다", () => {

@@ -16,6 +16,21 @@ import {
 
 const PIXEL_SKINS = IMMERSIVE_SKINS.filter((skin) => skin.portraitPixel);
 
+function resolveSceneSizeDraft(value, fallbackSize) {
+  const rawValue = typeof value === "string" ? value.trim() : value;
+
+  if (rawValue === "" || rawValue === null || rawValue === undefined) {
+    return fallbackSize;
+  }
+
+  const numericValue = Number(rawValue);
+  if (!Number.isFinite(numericValue)) {
+    return fallbackSize;
+  }
+
+  return normalizeGameSceneSize({ width: numericValue }).width;
+}
+
 const SettingsModal = ({
   onClose,
   // 기본 상태들
@@ -51,7 +66,12 @@ const SettingsModal = ({
   const installPrompt = usePwaInstallPrompt();
   
   // 로컬 상태
-  const [localSceneSize, setLocalSceneSize] = useState(width);
+  const [localSceneSize, setLocalSceneSize] = useState(() =>
+    normalizeGameSceneSize({ width, height }).width
+  );
+  const [localSceneSizeInput, setLocalSceneSizeInput] = useState(() =>
+    String(normalizeGameSceneSize({ width, height }).width)
+  );
   const [localDevMode, setLocalDevMode] = useState(developerMode);
   const [localEncyclopediaQuestionMark, setLocalEncyclopediaQuestionMark] = useState(encyclopediaShowQuestionMark);
   const [localIgnoreEvolutionTime, setLocalIgnoreEvolutionTime] = useState(ignoreEvolutionTime);
@@ -59,7 +79,9 @@ const SettingsModal = ({
   // 부모 상태가 개별로 바뀔 때 해당 draft만 갱신한다.
   // 여러 설정을 한 effect에서 동기화하면 개발자 옵션 체크 시 Dev Mode draft가 되돌아간다.
   useEffect(() => {
-    setLocalSceneSize(normalizeGameSceneSize({ width, height }).width);
+    const nextSize = normalizeGameSceneSize({ width, height }).width;
+    setLocalSceneSize(nextSize);
+    setLocalSceneSizeInput(String(nextSize));
   }, [width, height]);
 
   useEffect(() => {
@@ -74,16 +96,37 @@ const SettingsModal = ({
     setLocalIgnoreEvolutionTime(ignoreEvolutionTime);
   }, [ignoreEvolutionTime]);
 
-  // 정사각형 화면 한 변 변경
-  const handleLocalSceneSizeChange = (e) => {
+  // 숫자 입력은 편집 중간값을 유지하고, 입력 완료 시에만 범위를 보정한다.
+  const commitLocalSceneSizeInput = () => {
+    const nextSize = resolveSceneSizeDraft(localSceneSizeInput, localSceneSize);
+    setLocalSceneSize(nextSize);
+    setLocalSceneSizeInput(String(nextSize));
+    return nextSize;
+  };
+
+  // 슬라이더는 브라우저가 제공하는 숫자를 즉시 반영한다.
+  const handleLocalSceneSizeRangeChange = (e) => {
     const nextSize = normalizeGameSceneSize({ width: e.target.value }).width;
     setLocalSceneSize(nextSize);
+    setLocalSceneSizeInput(String(nextSize));
+  };
+
+  // 직접 입력은 빈 값·중간 숫자·범위 밖 숫자를 편집 중 그대로 보여준다.
+  const handleLocalSceneSizeInputChange = (e) => {
+    setLocalSceneSizeInput(e.target.value);
+  };
+
+  const handleLocalSceneSizeInputKeyDown = (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    commitLocalSceneSizeInput();
   };
 
   // Reset Size 버튼
   const handleResetSize = () => {
     const defaultSize = GAME_SCENE_SIZE.width;
     setLocalSceneSize(defaultSize);
+    setLocalSceneSizeInput(String(defaultSize));
     // 즉시 적용
     setWidth(defaultSize);
     setHeight(defaultSize);
@@ -144,8 +187,9 @@ const SettingsModal = ({
 
   // Save
   const handleSave = () => {
-    setWidth(localSceneSize);
-    setHeight(localSceneSize);
+    const committedSize = commitLocalSceneSizeInput();
+    setWidth(committedSize);
+    setHeight(committedSize);
     setDeveloperMode(canUseDeveloperMode ? localDevMode : false);
     if (!localDevMode || !canUseDeveloperMode) {
       setLocalIgnoreEvolutionTime(false);
@@ -297,7 +341,7 @@ const SettingsModal = ({
                 min={GAME_SCENE_SIZE_MIN}
                 max={GAME_SCENE_SIZE_MAX}
                 value={localSceneSize}
-                onChange={handleLocalSceneSizeChange}
+                onChange={handleLocalSceneSizeRangeChange}
                 className="w-full"
               />
               <input
@@ -305,8 +349,10 @@ const SettingsModal = ({
                 type="number"
                 min={GAME_SCENE_SIZE_MIN}
                 max={GAME_SCENE_SIZE_MAX}
-                value={localSceneSize}
-                onChange={handleLocalSceneSizeChange}
+                value={localSceneSizeInput}
+                onChange={handleLocalSceneSizeInputChange}
+                onBlur={commitLocalSceneSizeInput}
+                onKeyDown={handleLocalSceneSizeInputKeyDown}
                 className="w-full p-1 border rounded mt-1"
               />
             </div>
