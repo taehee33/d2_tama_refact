@@ -1,12 +1,13 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useArenaGhosts } from "../hooks/useArenaGhosts";
 import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 import { translateStage } from "../utils/stageTranslator";
 import ArenaGhostHistory from "./ArenaGhostHistory";
-import ArenaBattleGuide from "./arena/ArenaBattleGuide";
-import ArenaGhostPowerBreakdown from "./arena/ArenaGhostPowerBreakdown";
-import ArenaPowerBreakdown from "./arena/ArenaPowerBreakdown";
+import { ArenaBattleGuideContent } from "./arena/ArenaBattleGuide";
+import ArenaDetailPanel from "./arena/ArenaDetailPanel";
+import ArenaGhostPowerBreakdown, { ArenaGhostPowerBreakdownDetails } from "./arena/ArenaGhostPowerBreakdown";
+import ArenaPowerBreakdown, { ArenaPowerBreakdownDetails } from "./arena/ArenaPowerBreakdown";
 
 function RecordValues({ wins = 0, losses = 0 }) {
   return (
@@ -77,6 +78,9 @@ export default function ArenaGhostScreen({
   currentDigimonData,
 }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
+  const [activeTab, setActiveTab] = useState("battle");
+  const [historyVisited, setHistoryVisited] = useState(false);
+  const [detailPanel, setDetailPanel] = useState(null);
   const [startingGhostId, setStartingGhostId] = useState(null);
   const [battleNotice, setBattleNotice] = useState("");
   const arena = useArenaGhosts({
@@ -95,6 +99,20 @@ export default function ArenaGhostScreen({
   const currentSpriteBasePath = currentDigimonData?.spriteBasePath || "/images";
   const myGhostsLoading = arena.myGhostsLoading ?? arena.loading;
   const opponentsLoading = arena.opponentsLoading ?? arena.loading;
+  const closeDetailPanel = useCallback(() => setDetailPanel(null), []);
+
+  const selectTab = (tab) => {
+    setActiveTab(tab);
+    if (tab === "history") setHistoryVisited(true);
+  };
+
+  const handleTabKeyDown = (event) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const nextTab = activeTab === "battle" ? "history" : "battle";
+    selectTab(nextTab);
+    document.getElementById(`arena-${nextTab}-tab`)?.focus();
+  };
 
   const handleDelete = async (ghost) => {
     const name = ghost?.snapshot?.digimonName || "이 Ghost";
@@ -129,171 +147,284 @@ export default function ArenaGhostScreen({
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/75 p-3 sm:p-6">
-      <main className="mx-auto max-w-4xl rounded-xl bg-white p-4 shadow-2xl sm:p-6">
-        <header className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold">Ghost 아레나 V2</h2>
-            <p className="text-sm text-gray-600">등록 당시 모습은 그대로 보존되며 배틀 결과는 서버에서 확정됩니다.</p>
+    <div className="fixed inset-0 z-50 bg-black/75 p-3 sm:p-6">
+      <main
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="arena-title"
+        className="relative mx-auto flex h-[calc(100dvh-1.5rem)] max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl sm:h-[calc(100dvh-3rem)] sm:max-h-[840px]"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 id="arena-title" className="text-xl font-bold sm:text-2xl">Ghost 아레나 V2</h2>
+            <p className="truncate text-xs text-gray-600 sm:text-sm">등록 당시 모습은 보존되며 배틀 결과는 서버에서 확정됩니다.</p>
           </div>
-          <button onClick={onClose} aria-label="아레나 닫기" className="rounded px-3 py-2 text-xl">✕</button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDetailPanel({ type: "guide", title: "배틀 공식 및 규칙" })}
+              aria-haspopup="dialog"
+              className="min-h-11 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
+            >
+              규칙
+            </button>
+            <button onClick={onClose} aria-label="아레나 닫기" className="min-h-11 rounded-lg border px-3 text-sm hover:bg-gray-100">닫기</button>
+          </div>
         </header>
 
         {(arena.notice || battleNotice) && (
-          <div role="status" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div role="status" className="mx-4 mt-3 shrink-0 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900 sm:mx-5">
             {battleNotice || arena.notice}
           </div>
         )}
 
-        <section className="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="flex shrink-0 justify-center rounded-lg border border-blue-200 bg-white p-3 sm:w-36">
-              <img
-                src={`${currentSpriteBasePath}/${currentDigimonData?.sprite ?? 0}.png`}
-                alt={`현재 디지몬 ${selectedDigimon || "없음"}`}
-                className="h-24 w-24 object-contain pixelated"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-bold">현재 디지몬</h3>
-              <p className="text-lg">{digimonNickname ? `${digimonNickname}(${selectedDigimon})` : selectedDigimon || "없음"}</p>
-              <p className="text-sm text-gray-600">
-                슬롯 {currentSlotId}
-                {currentDigimonData?.stage ? ` · ${translateStage(currentDigimonData.stage)}` : ""}
-                {currentDigimonData?.stats?.type ? ` · ${currentDigimonData.stats.type}` : ""}
-                {` · ${isDead ? "사망 상태" : isStarter ? "등록 불가 단계" : "공격 및 등록 가능"}`}
-              </p>
-              <p
-                aria-label={`현재 형태 전적: 공격 ${currentRecord.attackWins || 0}승 ${currentRecord.attackLosses || 0}패 · 방어 ${currentRecord.defenseWins || 0}승 ${currentRecord.defenseLosses || 0}패`}
-                className="mt-2 text-sm"
-              >
-                현재 형태 전적: 공격 <RecordValues wins={currentRecord.attackWins} losses={currentRecord.attackLosses} />
-                {" · "}
-                방어 <RecordValues wins={currentRecord.defenseWins} losses={currentRecord.defenseLosses} />
-              </p>
-              <ArenaPowerBreakdown
-                digimonStats={digimonStats}
-                currentDigimonData={currentDigimonData}
-                activeGhostCount={activeGhostCount}
-              />
-              {arena.capacity.used >= arena.capacity.limit && (
-                <p className="mt-2 text-sm text-amber-800">새 Ghost를 등록하려면 기존 Ghost를 직접 삭제해 주세요.</p>
-              )}
-              <button
-                onClick={arena.registerCurrentGhost}
-                disabled={registrationBlocked || Boolean(arena.mutationKey)}
-                className="mt-3 rounded bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {arena.mutationKey === "register" ? "등록 중..." : "현재 디지몬 Ghost 등록"}
-              </button>
-            </div>
-          </div>
-        </section>
+        <div role="tablist" aria-label="Ghost 아레나 메뉴" className="flex shrink-0 border-b px-4 pt-2 sm:px-5">
+          {[{ id: "battle", label: "대전" }, { id: "history", label: "기록" }].map((tab) => (
+            <button
+              key={tab.id}
+              id={`arena-${tab.id}-tab`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`arena-${tab.id}-panel`}
+              tabIndex={activeTab === tab.id ? 0 : -1}
+              onClick={() => selectTab(tab.id)}
+              onKeyDown={handleTabKeyDown}
+              className={`min-h-11 min-w-24 border-b-2 px-5 text-sm font-bold transition-colors ${activeTab === tab.id ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <ArenaBattleGuide />
-
-        <section className="mb-7">
-          <h3 className="mb-3 text-xl font-bold">내 Ghost ({arena.capacity.used}/{arena.capacity.limit})</h3>
-          {myGhostsLoading ? <p>Ghost 정보를 불러오는 중...</p> : (
-            <>
-              {arena.myGhosts.length === 0 && (
-                <p className="mb-3 text-sm text-gray-600">등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.</p>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {arena.myGhosts.map((ghost) => (
-                <article
-                  key={ghost.ghostId}
-                  className={`rounded-xl border p-3 ${arena.highlightedGhostId === ghost.ghostId ? "border-yellow-500 bg-yellow-50 ring-2 ring-yellow-300" : "border-gray-200"}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <GhostSprite snapshot={ghost.snapshot} />
-                    <div>
-                      <h4 className="font-bold">{ghost.snapshot?.digimonName || ghost.snapshot?.digimonId}</h4>
-                      <p className="text-xs">{translateStage(ghost.snapshot?.stage)}</p>
-                      <p className="text-xs font-semibold text-blue-700">{getGhostLinkLabel(ghost.linkStatus)}</p>
-                      <GhostRegisteredAt value={ghost.registeredAt} />
-                    </div>
+        <section
+          id="arena-battle-panel"
+          role="tabpanel"
+          aria-labelledby="arena-battle-tab"
+          hidden={activeTab !== "battle"}
+          className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:overflow-hidden"
+        >
+          <div className="flex h-full min-h-0 flex-col gap-3">
+            <section aria-labelledby="arena-power-title" className="grid shrink-0 gap-3 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.6fr)]">
+              <article className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-white p-1">
+                    <img
+                      src={`${currentSpriteBasePath}/${currentDigimonData?.sprite ?? 0}.png`}
+                      alt={`현재 디지몬 ${selectedDigimon || "없음"}`}
+                      className="h-14 w-14 object-contain pixelated"
+                    />
                   </div>
-                  <RecordLine label="등록 형태 전적" record={ghost.formRecordMirror} />
-                  <p
-                    aria-label={`Ghost 방어 전적: ${ghost.ownDefenseRecord?.wins || 0}승 ${ghost.ownDefenseRecord?.losses || 0}패`}
-                    className="text-xs text-gray-600"
-                  >
-                    Ghost 방어 전적: <RecordValues wins={ghost.ownDefenseRecord?.wins} losses={ghost.ownDefenseRecord?.losses} />
+                  <div className="min-w-0 flex-1">
+                    <p id="arena-power-title" className="text-xs font-semibold text-blue-700">현재 디지몬</p>
+                    <h3 className="truncate font-bold">{digimonNickname ? `${digimonNickname}(${selectedDigimon})` : selectedDigimon || "없음"}</h3>
+                    <p className="truncate text-xs text-gray-600">
+                      슬롯 {currentSlotId}
+                      {currentDigimonData?.stage ? ` · ${translateStage(currentDigimonData.stage)}` : ""}
+                      {currentDigimonData?.stats?.type ? ` · ${currentDigimonData.stats.type}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <p
+                  aria-label={`현재 형태 전적: 공격 ${currentRecord.attackWins || 0}승 ${currentRecord.attackLosses || 0}패 · 방어 ${currentRecord.defenseWins || 0}승 ${currentRecord.defenseLosses || 0}패`}
+                  className="mt-2 text-xs"
+                >
+                  공격 <RecordValues wins={currentRecord.attackWins} losses={currentRecord.attackLosses} />
+                  {" · "}방어 <RecordValues wins={currentRecord.defenseWins} losses={currentRecord.defenseLosses} />
+                </p>
+                <ArenaPowerBreakdown
+                  compact
+                  digimonStats={digimonStats}
+                  currentDigimonData={currentDigimonData}
+                  activeGhostCount={activeGhostCount}
+                  onOpenDetails={() => setDetailPanel({ type: "power", title: "아레나 공격 Power 상세" })}
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className={`text-xs font-semibold ${registrationBlocked ? "text-amber-800" : "text-emerald-700"}`}>
+                    {isDead ? "사망 상태" : isStarter ? "등록 불가 단계" : arena.capacity.used >= arena.capacity.limit ? "Ghost 슬롯이 가득 찼습니다." : "공격 및 등록 가능"}
                   </p>
-                  <ArenaGhostPowerBreakdown snapshot={ghost.snapshot} />
-                  {ghost.legacyRecord && <RecordLine label="이전 아레나 전적 · 공격/방어 구분 없음" record={ghost.legacyRecord} legacy />}
-                  {ghost.pendingMirrorCount > 0 && <p className="mt-1 text-xs font-bold text-amber-700">형태 전적 동기화 중 · 삭제 잠시 불가</p>}
-                  {ghost.status !== "active" && <p className="mt-1 text-xs font-bold text-red-700">배틀할 수 없는 이전 Ghost</p>}
                   <button
-                    onClick={() => handleDelete(ghost)}
-                    disabled={ghost.pendingMirrorCount > 0 || Boolean(arena.mutationKey)}
-                    className="mt-3 rounded border border-red-300 px-3 py-1 text-sm text-red-700 disabled:opacity-40"
+                    onClick={arena.registerCurrentGhost}
+                    aria-label="현재 디지몬 Ghost 등록"
+                    disabled={registrationBlocked || Boolean(arena.mutationKey)}
+                    className="min-h-11 rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {arena.mutationKey === `delete:${ghost.ghostId}` ? "삭제 중..." : "삭제"}
+                    {arena.mutationKey === "register" ? "등록 중..." : "Ghost 등록"}
                   </button>
-                </article>
-              ))}
-              {Array.from({ length: emptyGhostSlotCount }, (_, index) => (
-                <article
-                  key={`empty-ghost-slot-${index + 1}`}
-                  aria-label={`빈 Ghost 슬롯 ${index + 1}`}
-                  className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center text-gray-500"
-                >
-                  <div aria-hidden="true" className="mb-3 flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white text-2xl text-gray-400">
-                    —
-                  </div>
-                  <h4 className="font-bold text-gray-600">빈 슬롯</h4>
-                  <p className="mt-1 text-xs">Ghost를 등록할 수 있습니다.</p>
-                </article>
-              ))}
+                </div>
+              </article>
+
+              <section aria-labelledby="my-ghosts-title" className="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h3 id="my-ghosts-title" className="font-bold">내 Ghost</h3>
+                  <span className="rounded-full bg-white px-2 py-1 text-xs font-bold text-gray-600">{arena.capacity.used}/{arena.capacity.limit}</span>
+                </div>
+                {myGhostsLoading ? <p className="text-sm">Ghost 정보를 불러오는 중...</p> : (
+                  <>
+                    {arena.myGhosts.length === 0 && (
+                      <p className="mb-2 text-xs text-gray-600">등록된 Ghost가 없습니다. Ghost가 없어도 상대에게 도전할 수 있습니다.</p>
+                    )}
+                    <div className="grid auto-cols-[minmax(15rem,82%)] grid-flow-col gap-2 overflow-x-auto pb-2 sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+                      {arena.myGhosts.map((ghost) => (
+                        <article
+                          key={ghost.ghostId}
+                          className={`min-w-0 rounded-lg border bg-white p-2 ${arena.highlightedGhostId === ghost.ghostId ? "border-yellow-500 ring-2 ring-yellow-300" : "border-gray-200"}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <GhostSprite snapshot={ghost.snapshot} size="h-12 w-12" />
+                            <div className="min-w-0 flex-1">
+                              <h4 className="truncate text-sm font-bold">{ghost.snapshot?.digimonName || ghost.snapshot?.digimonId}</h4>
+                              <p className="truncate text-[11px] text-gray-600">{translateStage(ghost.snapshot?.stage)} · {getGhostLinkLabel(ghost.linkStatus)}</p>
+                              <GhostRegisteredAt value={ghost.registeredAt} />
+                            </div>
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-x-2">
+                            <RecordLine label="등록 형태 전적" record={ghost.formRecordMirror} />
+                            <p aria-label={`Ghost 방어 전적: ${ghost.ownDefenseRecord?.wins || 0}승 ${ghost.ownDefenseRecord?.losses || 0}패`} className="text-xs text-gray-600">
+                              방어: <RecordValues wins={ghost.ownDefenseRecord?.wins} losses={ghost.ownDefenseRecord?.losses} />
+                            </p>
+                          </div>
+                          <div className="mt-1 flex items-end justify-between gap-2">
+                            <ArenaGhostPowerBreakdown
+                              compact
+                              snapshot={ghost.snapshot}
+                              onOpenDetails={() => setDetailPanel({ type: "ghostPower", title: `${ghost.snapshot?.digimonName || ghost.snapshot?.digimonId || "Ghost"} Power 상세`, snapshot: ghost.snapshot })}
+                            />
+                            <button
+                              onClick={() => handleDelete(ghost)}
+                              disabled={ghost.pendingMirrorCount > 0 || Boolean(arena.mutationKey)}
+                              className="min-h-11 shrink-0 rounded border border-red-300 px-2 text-xs text-red-700 disabled:opacity-40"
+                            >
+                              {arena.mutationKey === `delete:${ghost.ghostId}` ? "삭제 중" : "삭제"}
+                            </button>
+                          </div>
+                          {ghost.legacyRecord && <RecordLine label="이전 아레나 전적 · 공격/방어 구분 없음" record={ghost.legacyRecord} legacy />}
+                          {ghost.pendingMirrorCount > 0 && <p className="mt-1 text-[11px] font-bold text-amber-700">형태 전적 동기화 중 · 삭제 잠시 불가</p>}
+                          {ghost.status !== "active" && <p className="mt-1 text-[11px] font-bold text-red-700">배틀할 수 없는 이전 Ghost</p>}
+                        </article>
+                      ))}
+                      {Array.from({ length: emptyGhostSlotCount }, (_, index) => (
+                        <article
+                          key={`empty-ghost-slot-${index + 1}`}
+                          aria-label={`빈 Ghost 슬롯 ${index + 1}`}
+                          className="flex min-h-[132px] flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white p-3 text-center text-gray-500"
+                        >
+                          <h4 className="font-bold text-gray-600">빈 슬롯</h4>
+                          <p className="mt-1 text-xs">Ghost를 등록할 수 있습니다.</p>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+            </section>
+
+            <section aria-labelledby="opponents-title" className="flex min-h-[18rem] flex-1 flex-col rounded-xl border border-gray-200 p-3 lg:min-h-0">
+              <div className="mb-2 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 id="opponents-title" className="font-bold">도전 상대</h3>
+                  <p className="text-xs text-gray-500">상대를 선택하면 서버에서 배틀을 확정합니다.</p>
+                </div>
+                <div className="flex w-full gap-2 sm:w-auto">
+                  <label className="sr-only" htmlFor="arena-opponent-sort">도전 상대 정렬</label>
+                  <select
+                    id="arena-opponent-sort"
+                    aria-label="도전 상대 정렬"
+                    value={arena.opponentSort}
+                    onChange={(event) => arena.changeOpponentSort(event.target.value)}
+                    disabled={opponentsLoading || arena.opponentsLoadingMore}
+                    className="min-h-11 min-w-0 flex-1 rounded-lg border bg-white px-3 text-sm disabled:opacity-50 sm:w-44"
+                  >
+                    <option value="registered_desc">등록 최신순</option>
+                    <option value="registered_asc">등록 오래된순</option>
+                    <option value="defense_wins_desc">방어 승리 많은 순</option>
+                    <option value="defense_wins_asc">방어 승리 적은 순</option>
+                  </select>
+                  <button onClick={arena.refresh} disabled={arena.loading || arena.opponentsLoadingMore} className="min-h-11 shrink-0 rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-50">새로고침</button>
+                </div>
               </div>
-            </>
+              {opponentsLoading ? (
+                <p className="rounded border border-dashed p-4 text-gray-600">도전 상대 로딩 중...</p>
+              ) : arena.opponentsError && arena.opponents.length === 0 ? (
+                <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <p>{arena.opponentsError}</p>
+                  <button onClick={arena.refresh} className="mt-2 min-h-11 rounded-lg border border-red-300 bg-white px-3 font-semibold">다시 시도</button>
+                </div>
+              ) : arena.opponents.length === 0 ? (
+                <p className="rounded border border-dashed p-4 text-gray-600">현재 도전할 수 있는 Ghost가 없습니다.</p>
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                    {arena.opponents.map((ghost) => (
+                      <article key={ghost.ghostId} className="flex min-h-[76px] items-center justify-between gap-2 rounded-lg border p-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <GhostSprite snapshot={ghost.snapshot} size="h-12 w-12" concealed />
+                          <div className="min-w-0">
+                            <h4 className="truncate text-sm font-bold">{ghost.ownerDisplayName}의 ???</h4>
+                            <GhostRegisteredAt value={ghost.registeredAt} />
+                            <p aria-label={`Ghost 방어: ${ghost.ownDefenseRecord?.wins || 0}승 ${ghost.ownDefenseRecord?.losses || 0}패`} className="text-xs text-gray-600">
+                              Ghost 방어 <RecordValues wins={ghost.ownDefenseRecord?.wins} losses={ghost.ownDefenseRecord?.losses} />
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleBattle(ghost)}
+                          disabled={!ghost.canBattle || isDead || isStarter || Boolean(startingGhostId)}
+                          className="min-h-11 shrink-0 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white disabled:opacity-40"
+                        >
+                          {startingGhostId === ghost.ghostId ? "확정 중" : "도전"}
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                  {arena.opponentsError && (
+                    <p role="alert" className="mt-2 text-center text-xs font-semibold text-red-700">{arena.opponentsError}</p>
+                  )}
+                  {arena.hasMoreOpponents && (
+                    <div className="mt-2 flex shrink-0 justify-center">
+                      <button
+                        type="button"
+                        onClick={arena.loadMoreOpponents}
+                        disabled={arena.opponentsLoadingMore}
+                        className="min-h-11 rounded-lg border border-blue-300 bg-blue-50 px-5 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        {arena.opponentsLoadingMore ? "불러오는 중..." : "상대 더보기"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        </section>
+
+        <section
+          id="arena-history-panel"
+          role="tabpanel"
+          aria-labelledby="arena-history-tab"
+          hidden={activeTab !== "history"}
+          className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4"
+        >
+          {historyVisited && (
+            <ArenaGhostHistory
+              compact
+              currentUser={currentUser}
+              isOnline={Boolean(isFirebaseAvailable && currentUser)}
+              myGhosts={arena.myGhosts}
+              currentCombatIdentityId={arena.currentCombatIdentityId}
+            />
           )}
         </section>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xl font-bold">도전 상대</h3>
-            <button onClick={arena.refresh} disabled={arena.loading} className="rounded border px-3 py-1 text-sm">새로고침</button>
-          </div>
-          {opponentsLoading ? (
-            <p className="rounded border border-dashed p-4 text-gray-600">도전 상대 로딩 중...</p>
-          ) : arena.opponents.length === 0 ? <p className="rounded border border-dashed p-4 text-gray-600">현재 도전할 수 있는 Ghost가 없습니다.</p> : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {arena.opponents.map((ghost) => (
-                <article key={ghost.ghostId} className="flex items-center justify-between rounded-xl border p-3">
-                  <div className="flex items-center gap-3">
-                    <GhostSprite snapshot={ghost.snapshot} size="h-14 w-14" concealed />
-                    <div>
-                      <h4 className="font-bold">{ghost.ownerDisplayName}의 ???</h4>
-                      <GhostRegisteredAt value={ghost.registeredAt} />
-                      <p
-                        aria-label={`Ghost 방어: ${ghost.ownDefenseRecord?.wins || 0}승 ${ghost.ownDefenseRecord?.losses || 0}패`}
-                        className="text-xs text-gray-600"
-                      >
-                        Ghost 방어 <RecordValues wins={ghost.ownDefenseRecord?.wins} losses={ghost.ownDefenseRecord?.losses} />
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleBattle(ghost)}
-                    disabled={!ghost.canBattle || isDead || isStarter || Boolean(startingGhostId)}
-                    className="rounded bg-red-600 px-3 py-2 text-sm text-white disabled:opacity-40"
-                  >
-                    {startingGhostId === ghost.ghostId ? "확정 중..." : "도전"}
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-        <ArenaGhostHistory
-          currentUser={currentUser}
-          isOnline={Boolean(isFirebaseAvailable && currentUser)}
-          myGhosts={arena.myGhosts}
-          currentCombatIdentityId={arena.currentCombatIdentityId}
-        />
+        {detailPanel && (
+          <ArenaDetailPanel title={detailPanel.title} onClose={closeDetailPanel}>
+            {detailPanel.type === "guide" && <ArenaBattleGuideContent />}
+            {detailPanel.type === "power" && (
+              <ArenaPowerBreakdownDetails digimonStats={digimonStats} currentDigimonData={currentDigimonData} activeGhostCount={activeGhostCount} />
+            )}
+            {detailPanel.type === "ghostPower" && <ArenaGhostPowerBreakdownDetails snapshot={detailPanel.snapshot} />}
+          </ArenaDetailPanel>
+        )}
       </main>
     </div>
   );

@@ -33,7 +33,39 @@ function BonusLine({ label, value }) {
   );
 }
 
-export default function ArenaPowerBreakdown({ digimonStats, currentDigimonData, activeGhostCount }) {
+export function ArenaPowerBreakdownDetails({ digimonStats, currentDigimonData, activeGhostCount }) {
+  const power = useMemo(
+    () => buildArenaPowerBreakdown(digimonStats, currentDigimonData, activeGhostCount),
+    [digimonStats, currentDigimonData, activeGhostCount]
+  );
+
+  return (
+    <div className="grid gap-4 text-sm sm:grid-cols-2">
+      <div className="rounded-lg bg-blue-50 p-3">
+        <h4 className="mb-2 font-bold text-gray-800">현재 디지몬 Power 계산</h4>
+        <div className="space-y-1">
+          <div>Base Power: {power.details.basePower}</div>
+          <BonusLine label="Strength 보너스" value={power.details.strengthBonus} />
+          <BonusLine label="Traited Egg 보너스" value={power.details.traitedEggBonus} />
+          <BonusLine label="Effort 보너스" value={power.details.effortBonus} />
+          <div className="border-t border-blue-200 pt-1 font-bold">디지몬 Power = {power.digimonPower}</div>
+        </div>
+      </div>
+      <div className="rounded-lg bg-blue-50 p-3">
+        <h4 className="mb-2 font-bold text-gray-800">아레나 공격 보너스</h4>
+        <div className="space-y-1">
+          <div>활성 Ghost {power.ghostBonus}마리: +{power.ghostBonus}</div>
+          <div className="text-gray-500">Ghost 보너스는 최대 +3</div>
+          <div className="border-t border-blue-200 pt-1 font-bold text-blue-700">
+            최종 공격 Power = {power.digimonPower} + {power.ghostBonus} = {power.effectivePower}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ArenaPowerBreakdown({ digimonStats, currentDigimonData, activeGhostCount, onOpenDetails, compact = false }) {
   const [expanded, setExpanded] = useState(false);
   const power = useMemo(
     () => buildArenaPowerBreakdown(digimonStats, currentDigimonData, activeGhostCount),
@@ -41,7 +73,7 @@ export default function ArenaPowerBreakdown({ digimonStats, currentDigimonData, 
   );
 
   return (
-    <div className="mt-3 rounded-lg border border-blue-200 bg-white/80 p-3 text-sm">
+    <div className={`${compact ? "mt-2 p-2" : "mt-3 p-3"} rounded-lg border border-blue-200 bg-white/80 text-sm`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">아레나 공격 Power</span>
         <span aria-label={`최종 공격 Power ${power.effectivePower}`} className="font-bold text-blue-700">
@@ -49,40 +81,28 @@ export default function ArenaPowerBreakdown({ digimonStats, currentDigimonData, 
         </span>
         <button
           type="button"
-          onClick={() => setExpanded((value) => !value)}
-          aria-expanded={expanded}
+          onClick={onOpenDetails || (() => setExpanded((value) => !value))}
+          aria-expanded={onOpenDetails ? undefined : expanded}
+          aria-haspopup={onOpenDetails ? "dialog" : undefined}
           className="rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-200"
         >
-          Power 상세 {expanded ? "접기 ▲" : "펼치기 ▼"}
+          Power 상세 {onOpenDetails ? "보기" : expanded ? "접기 ▲" : "펼치기 ▼"}
         </button>
       </div>
 
-      <p className="mt-1 text-xs text-gray-600">
-        현재 디지몬 Power {power.digimonPower} + 활성 Ghost 보너스 {power.ghostBonus} = 최종 공격 Power {power.effectivePower}
-      </p>
+      {!compact && (
+        <p className="mt-1 text-xs text-gray-600">
+          현재 디지몬 Power {power.digimonPower} + 활성 Ghost 보너스 {power.ghostBonus} = 최종 공격 Power {power.effectivePower}
+        </p>
+      )}
 
-      {expanded && (
-        <div className="mt-3 grid gap-3 rounded-lg bg-blue-50 p-3 text-xs sm:grid-cols-2">
-          <div>
-            <h4 className="mb-1 font-bold text-gray-800">현재 디지몬 Power 계산</h4>
-            <div className="space-y-1">
-              <div>Base Power: {power.details.basePower}</div>
-              <BonusLine label="Strength 보너스" value={power.details.strengthBonus} />
-              <BonusLine label="Traited Egg 보너스" value={power.details.traitedEggBonus} />
-              <BonusLine label="Effort 보너스" value={power.details.effortBonus} />
-              <div className="border-t border-blue-200 pt-1 font-bold">디지몬 Power = {power.digimonPower}</div>
-            </div>
-          </div>
-          <div>
-            <h4 className="mb-1 font-bold text-gray-800">아레나 공격 보너스</h4>
-            <div className="space-y-1">
-              <div>활성 Ghost {power.ghostBonus}마리: +{power.ghostBonus}</div>
-              <div className="text-gray-500">Ghost 보너스는 최대 +3</div>
-              <div className="border-t border-blue-200 pt-1 font-bold text-blue-700">
-                최종 공격 Power = {power.digimonPower} + {power.ghostBonus} = {power.effectivePower}
-              </div>
-            </div>
-          </div>
+      {!onOpenDetails && expanded && (
+        <div className="mt-3 rounded-lg bg-blue-50 p-3 text-xs">
+          <ArenaPowerBreakdownDetails
+            digimonStats={digimonStats}
+            currentDigimonData={currentDigimonData}
+            activeGhostCount={activeGhostCount}
+          />
         </div>
       )}
     </div>
