@@ -1,6 +1,9 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import ArenaGhostScreen, { formatGhostRegisteredAt, getGhostLinkLabel } from "./ArenaGhostScreen";
+import ArenaGhostScreen, {
+  formatGhostRegisteredAt,
+  getGhostLinkLabel,
+} from "./ArenaGhostScreen";
 
 const mockUseAuth = jest.fn();
 const mockUseArenaGhosts = jest.fn();
@@ -47,6 +50,8 @@ function createArenaState(overrides = {}) {
 describe("ArenaGhostScreen", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.localStorage.clear();
+    window.scrollTo = jest.fn();
     mockUseAuth.mockReturnValue({
       currentUser: { uid: "user-1" },
       isFirebaseAvailable: true,
@@ -61,6 +66,86 @@ describe("ArenaGhostScreen", () => {
     expect(getGhostLinkLabel("legacy")).toBe("이전 아레나 기록");
     expect(formatGhostRegisteredAt("2026-07-22T03:00:00.000Z")).toBe("2026. 7. 22.");
     expect(formatGhostRegisteredAt(null)).toBe("등록일 정보 없음");
+  });
+
+  test("현재 디지몬은 긴 이름과 작은 Power 배지 및 전적을 항상 표시한다", () => {
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={2}
+        selectedDigimon="오메가몬 Alter-S [Ver.2]"
+        digimonNickname="한태희의 아주 긴 파트너 이름"
+        digimonStats={{ power: 10 }}
+      />
+    );
+
+    const name = screen.getByText("한태희의 아주 긴 파트너 이름(오메가몬 Alter-S [Ver.2])");
+    expect(name).toHaveClass("break-words");
+    expect(name).not.toHaveClass("truncate");
+
+    expect(screen.queryByRole("button", { name: /현재 디지몬 정보 (펼치기|접기)/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("현재 형태 전적: 공격 1승 2패 · 방어 3승 4패")).toBeInTheDocument();
+    expect(screen.getByText("공격 및 등록 가능")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "현재 디지몬 Ghost 등록" })).toBeInTheDocument();
+
+    const powerButton = screen.getByRole("button", { name: "Power 상세 보기" });
+    expect(powerButton).toHaveClass("min-h-14", "sm:min-h-16");
+  });
+
+  test("현재 디지몬은 내부 영문 ID 대신 한글 이름을 표시한다", () => {
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={5}
+        selectedDigimon="Tokomon"
+        currentDigimonData={{ name: "토코몬", sprite: 7 }}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "토코몬" })).toBeInTheDocument();
+    expect(screen.queryByText("Tokomon")).not.toBeInTheDocument();
+    expect(screen.getByAltText("현재 디지몬 토코몬")).toBeInTheDocument();
+  });
+
+  test("이전 접힘 설정값과 관계없이 현재 디지몬 정보를 표시한다", () => {
+    window.localStorage.setItem("arena_ghost_current_digimon_collapsed", "true");
+
+    render(<ArenaGhostScreen onClose={jest.fn()} currentSlotId={2} selectedDigimon="토코몬" />);
+
+    expect(screen.getByLabelText("현재 형태 전적: 공격 1승 2패 · 방어 3승 4패")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "현재 디지몬 Ghost 등록" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /현재 디지몬 정보 (펼치기|접기)/ })).not.toBeInTheDocument();
+  });
+
+  test("대전 패널은 외부 스크롤을 막고 상대 목록만 관성 스크롤을 사용한다", () => {
+    mockUseArenaGhosts.mockReturnValue(createArenaState({
+      opponents: [{
+        ghostId: "ghost-scroll",
+        ownerDisplayName: "상대",
+        status: "active",
+        canBattle: true,
+        snapshot: { sprite: 1 },
+        ownDefenseRecord: { wins: 0, losses: 0 },
+      }],
+      opponentTotalCount: 1,
+      opponentPageNumber: 1,
+      opponentTotalPages: 1,
+    }));
+
+    render(<ArenaGhostScreen onClose={jest.fn()} currentSlotId={2} selectedDigimon="토코몬" />);
+
+    expect(document.getElementById("arena-battle-panel")).toHaveClass("overflow-y-auto", "min-[320px]:overflow-hidden");
+    const scrollArea = screen.getByTestId("arena-opponent-scroll-area");
+    expect(scrollArea).toHaveClass(
+      "overflow-visible",
+      "overscroll-contain",
+      "min-h-0",
+      "flex-none",
+      "min-[320px]:overflow-y-auto",
+      "min-[320px]:flex-1",
+      "[-webkit-overflow-scrolling:touch]"
+    );
+    expect(screen.getByRole("heading", { name: "상대의 ???" }).closest("article")).toHaveClass("min-h-[72px]");
   });
 
   test("오프라인 모드에서 온라인 전용 안내를 표시한다", () => {
