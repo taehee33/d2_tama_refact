@@ -217,6 +217,9 @@ export async function fetchArenaGhosts(currentUser, options = {}) {
   if (options.cursor) {
     params.set("cursor", String(options.cursor));
   }
+  if (options.includeTotal === true) {
+    params.set("includeTotal", "true");
+  }
   return requestArenaApi(currentUser, `/api/arena/ghosts?${params.toString()}`, {
     arenaSchemaVersion: ARENA_CLIENT_SCHEMA_VERSION,
   });

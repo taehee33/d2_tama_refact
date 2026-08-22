@@ -29,8 +29,11 @@ export function getArenaGhostErrorNotice(error) {
 }
 
 export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
+  const currentUserUid = currentUser?.uid || null;
   const [myGhosts, setMyGhosts] = useState([]);
-  const [opponents, setOpponents] = useState([]);
+  const [opponentPages, setOpponentPages] = useState([]);
+  const [opponentPageIndex, setOpponentPageIndex] = useState(0);
+  const [opponentTotalCount, setOpponentTotalCount] = useState(null);
   const [capacity, setCapacity] = useState(EMPTY_CAPACITY);
   const [currentCombatIdentityId, setCurrentCombatIdentityId] = useState(null);
   const [currentFormRecord, setCurrentFormRecord] = useState(null);
@@ -39,12 +42,15 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
   const [opponentsLoadingMore, setOpponentsLoadingMore] = useState(false);
   const [opponentsError, setOpponentsError] = useState("");
   const [opponentSort, setOpponentSort] = useState(DEFAULT_OPPONENT_SORT);
-  const [opponentsNextCursor, setOpponentsNextCursor] = useState(null);
   const [mutationKey, setMutationKey] = useState(null);
   const [notice, setNotice] = useState("");
   const [highlightedGhostId, setHighlightedGhostId] = useState(null);
   const opponentRequestSequence = useRef(0);
-  const opponentLoadMoreInFlight = useRef(false);
+  const opponentPageRequestInFlight = useRef(false);
+  const opponentTotalCountRef = useRef(null);
+  const opponentOwnerUidRef = useRef(currentUserUid);
+  const currentOpponentPage = opponentPages[opponentPageIndex] || null;
+  const opponents = currentOpponentPage?.ghosts || [];
 
   const refreshMyGhosts = useCallback(async () => {
     if (!currentUser || !isOnline) {
@@ -74,12 +80,16 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
   const refreshOpponents = useCallback(async ({
     sort = DEFAULT_OPPONENT_SORT,
     cursor = null,
-    append = false,
+    pageIndex = 0,
+    reset = false,
+    includeTotal = false,
   } = {}) => {
     if (!currentUser || !isOnline) {
       opponentRequestSequence.current += 1;
-      setOpponents([]);
-      setOpponentsNextCursor(null);
+      setOpponentPages([]);
+      setOpponentPageIndex(0);
+      setOpponentTotalCount(null);
+      opponentTotalCountRef.current = null;
       setOpponentsLoading(false);
       setOpponentsLoadingMore(false);
       setOpponentsError("");
@@ -88,12 +98,14 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
 
     const requestId = opponentRequestSequence.current + 1;
     opponentRequestSequence.current = requestId;
-    if (append) {
+    if (pageIndex > 0 && !reset) {
       setOpponentsLoadingMore(true);
     } else {
       setOpponentsLoading(true);
-      setOpponents([]);
-      setOpponentsNextCursor(null);
+    }
+    if (reset) {
+      setOpponentPages([]);
+      setOpponentPageIndex(0);
     }
     setOpponentsError("");
 
@@ -103,24 +115,31 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
         limit: OPPONENT_PAGE_SIZE,
         sort,
         cursor,
+        includeTotal,
       });
       if (requestId !== opponentRequestSequence.current) return false;
 
       const nextGhosts = Array.isArray(opponentResult?.ghosts) ? opponentResult.ghosts : [];
-      setOpponents((previous) => {
-        if (!append) return nextGhosts;
-        const knownIds = new Set(previous.map((ghost) => ghost.ghostId));
-        return [...previous, ...nextGhosts.filter((ghost) => !knownIds.has(ghost.ghostId))];
+      const nextPage = {
+        ghosts: nextGhosts,
+        startCursor: cursor,
+        nextCursor: opponentResult?.nextCursor || null,
+      };
+      setOpponentPages((previous) => {
+        const nextPages = reset ? [] : previous.slice();
+        nextPages[pageIndex] = nextPage;
+        return nextPages;
       });
-      setOpponentsNextCursor(opponentResult?.nextCursor || null);
+      setOpponentPageIndex(pageIndex);
+      if (includeTotal && Number.isFinite(Number(opponentResult?.totalCount))) {
+        const nextTotalCount = Math.max(0, Number(opponentResult.totalCount));
+        setOpponentTotalCount(nextTotalCount);
+        opponentTotalCountRef.current = nextTotalCount;
+      }
       return true;
     } catch (error) {
       if (requestId !== opponentRequestSequence.current) return false;
       setOpponentsError(getArenaGhostErrorNotice(error));
-      if (!append) {
-        setOpponents([]);
-        setOpponentsNextCursor(null);
-      }
       return false;
     } finally {
       if (requestId === opponentRequestSequence.current) {
@@ -133,7 +152,15 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
   const refresh = useCallback(async () => {
     const results = await Promise.all([
       refreshMyGhosts(),
-      refreshOpponents({ sort: opponentSort }),
+      refreshOpponents({ sort: opponentSort, reset: true, includeTotal: true }),
+    ]);
+    return results.every(Boolean);
+  }, [opponentSort, refreshMyGhosts, refreshOpponents]);
+
+  const refreshAfterMutation = useCallback(async () => {
+    const results = await Promise.all([
+      refreshMyGhosts(),
+      refreshOpponents({ sort: opponentSort, reset: true, includeTotal: false }),
     ]);
     return results.every(Boolean);
   }, [opponentSort, refreshMyGhosts, refreshOpponents]);
@@ -143,31 +170,63 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     setOpponentSort(nextSort);
   }, [opponentSort]);
 
-  const loadMoreOpponents = useCallback(async () => {
-    if (
-      !opponentsNextCursor ||
-      opponentsLoading ||
-      opponentsLoadingMore ||
-      opponentLoadMoreInFlight.current
-    ) return false;
-    opponentLoadMoreInFlight.current = true;
+  const goToNextOpponentPage = useCallback(async () => {
+    if (opponentsLoading || opponentsLoadingMore || opponentPageRequestInFlight.current) return false;
+    const cachedNextPage = opponentPages[opponentPageIndex + 1];
+    if (cachedNextPage) {
+      setOpponentPageIndex((index) => index + 1);
+      setOpponentsError("");
+      return true;
+    }
+    if (!currentOpponentPage?.nextCursor) return false;
+
+    opponentPageRequestInFlight.current = true;
     try {
       return await refreshOpponents({
         sort: opponentSort,
-        cursor: opponentsNextCursor,
-        append: true,
+        cursor: currentOpponentPage.nextCursor,
+        pageIndex: opponentPageIndex + 1,
       });
     } finally {
-      opponentLoadMoreInFlight.current = false;
+      opponentPageRequestInFlight.current = false;
     }
-  }, [opponentSort, opponentsLoading, opponentsLoadingMore, opponentsNextCursor, refreshOpponents]);
+  }, [
+    currentOpponentPage,
+    opponentPageIndex,
+    opponentPages,
+    opponentSort,
+    opponentsLoading,
+    opponentsLoadingMore,
+    refreshOpponents,
+  ]);
+
+  const goToPreviousOpponentPage = useCallback(() => {
+    if (opponentPageIndex <= 0 || opponentsLoading || opponentsLoadingMore) return false;
+    setOpponentPageIndex((index) => index - 1);
+    setOpponentsError("");
+    return true;
+  }, [opponentPageIndex, opponentsLoading, opponentsLoadingMore]);
 
   useEffect(() => {
     void refreshMyGhosts();
   }, [refreshMyGhosts]);
 
   useEffect(() => {
-    void refreshOpponents({ sort: opponentSort });
+    if (opponentOwnerUidRef.current === currentUserUid) return;
+    opponentOwnerUidRef.current = currentUserUid;
+    opponentRequestSequence.current += 1;
+    opponentTotalCountRef.current = null;
+    setOpponentPages([]);
+    setOpponentPageIndex(0);
+    setOpponentTotalCount(null);
+  }, [currentUserUid]);
+
+  useEffect(() => {
+    void refreshOpponents({
+      sort: opponentSort,
+      reset: true,
+      includeTotal: opponentTotalCountRef.current === null,
+    });
   }, [opponentSort, refreshOpponents]);
 
   const registerCurrentGhost = useCallback(async () => {
@@ -176,7 +235,7 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     setNotice("");
     try {
       const result = await registerArenaGhost(currentUser, currentSlotId);
-      await refresh();
+      await refreshAfterMutation();
       setHighlightedGhostId(result?.ghost?.ghostId || null);
       setNotice("현재 디지몬을 Ghost로 등록했습니다.");
       return result;
@@ -188,7 +247,7 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     } finally {
       setMutationKey(null);
     }
-  }, [currentSlotId, currentUser, mutationKey, refresh]);
+  }, [currentSlotId, currentUser, mutationKey, refreshAfterMutation]);
 
   const removeGhost = useCallback(async (ghost) => {
     if (!currentUser || !ghost?.ghostId || mutationKey) return false;
@@ -197,7 +256,7 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     try {
       await deleteArenaGhost(currentUser, ghost.ghostId);
       if (highlightedGhostId === ghost.ghostId) setHighlightedGhostId(null);
-      await refresh();
+      await refreshAfterMutation();
       setNotice("Ghost를 삭제했습니다. 현재 디지몬에는 영향이 없습니다.");
       return true;
     } catch (error) {
@@ -206,7 +265,11 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     } finally {
       setMutationKey(null);
     }
-  }, [currentUser, highlightedGhostId, mutationKey, refresh]);
+  }, [currentUser, highlightedGhostId, mutationKey, refreshAfterMutation]);
+
+  const opponentTotalPages = opponentTotalCount === null
+    ? null
+    : Math.ceil(opponentTotalCount / OPPONENT_PAGE_SIZE);
 
   return {
     myGhosts,
@@ -220,13 +283,18 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     opponentsLoadingMore,
     opponentsError,
     opponentSort,
-    hasMoreOpponents: Boolean(opponentsNextCursor),
+    opponentTotalCount,
+    opponentPageNumber: opponents.length > 0 ? opponentPageIndex + 1 : 0,
+    opponentTotalPages,
+    hasPreviousOpponents: opponentPageIndex > 0,
+    hasNextOpponents: Boolean(opponentPages[opponentPageIndex + 1] || currentOpponentPage?.nextCursor),
     mutationKey,
     notice,
     highlightedGhostId,
     refresh,
     changeOpponentSort,
-    loadMoreOpponents,
+    goToPreviousOpponentPage,
+    goToNextOpponentPage,
     registerCurrentGhost,
     removeGhost,
   };

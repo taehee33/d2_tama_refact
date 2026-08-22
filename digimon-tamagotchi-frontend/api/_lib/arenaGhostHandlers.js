@@ -422,6 +422,14 @@ function normalizeOpponentSort(sort) {
   return normalizedSort;
 }
 
+function normalizeIncludeTotal(value) {
+  if (value === undefined || value === null || value === "" || value === false || value === "false") {
+    return false;
+  }
+  if (value === true || value === "true") return true;
+  throw new ArenaError("ARENA_INVALID_REQUEST", "상대 전체 수 조회 옵션이 올바르지 않습니다.");
+}
+
 function decodeOpponentCursor(cursor, sort) {
   if (!cursor) return null;
   try {
@@ -468,7 +476,13 @@ function buildOpponentCursorValues(cursor, sort) {
     : [registeredAt, cursor.ghostId];
 }
 
-async function listOpponentGhosts({ uid, cursor = null, sort = DEFAULT_OPPONENT_SORT, deps = {} }) {
+async function listOpponentGhosts({
+  uid,
+  cursor = null,
+  sort = DEFAULT_OPPONENT_SORT,
+  includeTotal = false,
+  deps = {},
+}) {
   const db = deps.db || getArenaFirestore();
   const normalizedSort = normalizeOpponentSort(sort);
   const decodedCursor = decodeOpponentCursor(cursor, normalizedSort);
@@ -480,7 +494,17 @@ async function listOpponentGhosts({ uid, cursor = null, sort = DEFAULT_OPPONENT_
   if (decodedCursor) {
     query = query.startAfter(...buildOpponentCursorValues(decodedCursor, normalizedSort));
   }
-  const snapshots = await query.limit(OPPONENT_LOOKAHEAD_LIMIT).get();
+  const totalCountPromise = includeTotal
+    ? db.collection("arena_ghosts")
+        .where("status", "==", "active")
+        .where("ownerUid", "!=", uid)
+        .count()
+        .get()
+    : null;
+  const [snapshots, totalCountSnapshot] = await Promise.all([
+    query.limit(OPPONENT_LOOKAHEAD_LIMIT).get(),
+    totalCountPromise,
+  ]);
   const rawGhosts = snapshots.docs.map((snapshot) => ({
     ...snapshot.data(),
     ghostId: snapshot.data()?.ghostId || snapshot.id,
@@ -504,7 +528,7 @@ async function listOpponentGhosts({ uid, cursor = null, sort = DEFAULT_OPPONENT_
     );
   }
   const lastOpponent = opponents[opponents.length - 1] || null;
-  return {
+  const result = {
     ghosts: opponents.map((ghost) =>
       buildOpponentGhostDto(ghost, ownerNames.get(ghost.ownerUid) || "알 수 없는 테이머")
     ),
@@ -512,6 +536,10 @@ async function listOpponentGhosts({ uid, cursor = null, sort = DEFAULT_OPPONENT_
       ? encodeOpponentCursor(lastOpponent, normalizedSort)
       : null,
   };
+  if (includeTotal) {
+    result.totalCount = Math.max(0, Number(totalCountSnapshot?.data?.().count || 0));
+  }
+  return result;
 }
 
 async function assertRequestSchema(req, db) {
@@ -546,6 +574,7 @@ function createArenaGhostCollectionHandler(deps = {}) {
             uid: decodedToken.uid,
             cursor: req.query?.cursor || null,
             sort: req.query?.sort || DEFAULT_OPPONENT_SORT,
+            includeTotal: normalizeIncludeTotal(req.query?.includeTotal),
             deps: { ...deps, db },
           }));
           return;

@@ -65,12 +65,40 @@ export function ArenaPowerBreakdownDetails({ digimonStats, currentDigimonData, a
   );
 }
 
-export default function ArenaPowerBreakdown({ digimonStats, currentDigimonData, activeGhostCount, onOpenDetails, compact = false }) {
+export default function ArenaPowerBreakdown({
+  digimonStats,
+  currentDigimonData,
+  activeGhostCount,
+  onOpenDetails,
+  compact = false,
+  inlineSummary = false,
+}) {
   const [expanded, setExpanded] = useState(false);
   const power = useMemo(
     () => buildArenaPowerBreakdown(digimonStats, currentDigimonData, activeGhostCount),
     [digimonStats, currentDigimonData, activeGhostCount]
   );
+
+  if (inlineSummary) {
+    return (
+      <button
+        type="button"
+        onClick={onOpenDetails || (() => setExpanded((value) => !value))}
+        aria-label="Power 상세 보기"
+        aria-expanded={onOpenDetails ? undefined : expanded}
+        aria-haspopup={onOpenDetails ? "dialog" : undefined}
+        className="flex h-full min-h-16 w-full min-w-0 flex-col justify-center rounded-lg border border-blue-200 bg-white/80 px-3 py-2 text-left hover:bg-blue-100"
+      >
+        <span className="text-[11px] font-semibold text-gray-600">최종 Power</span>
+        <span aria-label={`최종 공격 Power ${power.effectivePower}`} className="text-xl font-bold leading-tight text-blue-700">
+          {power.effectivePower}
+        </span>
+        <span className="truncate text-[11px] text-gray-600">
+          {power.digimonPower} + Ghost {power.ghostBonus}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div className={`${compact ? "mt-2 p-2" : "mt-3 p-3"} rounded-lg border border-blue-200 bg-white/80 text-sm`}>

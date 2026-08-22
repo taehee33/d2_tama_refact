@@ -53,9 +53,10 @@ function createOpponentGhost(ghostId, ownerUid, wins, registeredAt) {
 }
 
 function createOpponentListDb(ghosts) {
-  const calls = { limit: null, orderBy: [], startAfter: null };
+  const calls = { limit: null, orderBy: [], startAfter: null, where: [], count: 0 };
   const query = {
-    where() {
+    where(field, operator, value) {
+      calls.where.push([field, operator, value]);
       return this;
     },
     orderBy(field, direction) {
@@ -76,6 +77,23 @@ function createOpponentListDb(ghosts) {
           id: ghost.ghostId,
           data: () => ghost,
         })),
+      };
+    },
+    count() {
+      calls.count += 1;
+      const excludedOwnerUid = [...calls.where]
+        .reverse()
+        .find(([field, operator]) => field === "ownerUid" && operator === "!=")?.[2];
+      return {
+        async get() {
+          return {
+            data: () => ({
+              count: ghosts.filter((ghost) =>
+                ghost.status === "active" && ghost.ownerUid !== excludedOwnerUid
+              ).length,
+            }),
+          };
+        },
       };
     },
   };
@@ -244,6 +262,55 @@ test("상대 목록은 본인 Ghost를 제외하고 6명과 반환된 마지막 
   const decodedCursor = JSON.parse(Buffer.from(result.nextCursor, "base64url").toString("utf8"));
   assert.equal(decodedCursor.sort, DEFAULT_OPPONENT_SORT);
   assert.equal(decodedCursor.ghostId, "ghost-6");
+});
+
+test("상대 목록 전체 수는 활성 상태인 다른 사용자의 Ghost만 집계한다", async () => {
+  const ghosts = [
+    createOpponentGhost("mine-1", "owner-a", 0, "2026-08-22T04:00:00Z"),
+    createOpponentGhost("ghost-1", "owner-1", 0, "2026-08-22T03:00:00Z"),
+    createOpponentGhost("ghost-2", "owner-2", 0, "2026-08-22T02:00:00Z"),
+    { ...createOpponentGhost("inactive", "owner-3", 0, "2026-08-22T01:00:00Z"), status: "disabled" },
+  ];
+  const db = createOpponentListDb(ghosts);
+
+  const result = await listOpponentGhosts({
+    uid: "owner-a",
+    includeTotal: true,
+    deps: { db },
+  });
+
+  assert.equal(result.totalCount, 2);
+  assert.equal(db.calls.count, 1);
+  assert.ok(db.calls.where.some(([field, operator, value]) =>
+    field === "ownerUid" && operator === "!=" && value === "owner-a"
+  ));
+});
+
+test("상대 전체 수를 요청하지 않으면 집계 쿼리와 응답 필드를 생략한다", async () => {
+  const db = createOpponentListDb([
+    createOpponentGhost("ghost-1", "owner-1", 0, "2026-08-22T01:00:00Z"),
+  ]);
+  const result = await listOpponentGhosts({ uid: "viewer", deps: { db } });
+
+  assert.equal(Object.hasOwn(result, "totalCount"), false);
+  assert.equal(db.calls.count, 0);
+});
+
+test("Ghost API는 잘못된 상대 전체 수 옵션을 거부한다", async () => {
+  const handler = createArenaGhostCollectionHandler({
+    verifyRequestUser: async () => ({ uid: "owner-a" }),
+    db: createConfigDb({ minArenaClientSchemaVersion: 2 }),
+  });
+  const response = createResponse();
+
+  await handler({
+    method: "GET",
+    headers: { "x-arena-client-schema-version": "2" },
+    query: { scope: "opponents", includeTotal: "1" },
+  }, response);
+
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.payload.error.code, "ARENA_INVALID_REQUEST");
 });
 
 test("상대 목록은 네 정렬의 쿼리 순서와 cursor 정렬 소속을 검증한다", async () => {

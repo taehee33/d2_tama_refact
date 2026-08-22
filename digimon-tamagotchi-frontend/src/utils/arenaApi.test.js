@@ -47,9 +47,10 @@ describe("Ghost V2 arena API", () => {
       limit: 6,
       sort: "defense_wins_desc",
       cursor: "next-page",
+      includeTotal: true,
     });
     expect(global.fetch.mock.calls[0][0]).toBe(
-      "/api/arena/ghosts?scope=opponents&limit=6&sort=defense_wins_desc&cursor=next-page"
+      "/api/arena/ghosts?scope=opponents&limit=6&sort=defense_wins_desc&cursor=next-page&includeTotal=true"
     );
   });
 
