@@ -23,10 +23,16 @@ function createArenaState(overrides = {}) {
     currentCombatIdentityId: "combat-current",
     currentFormRecord: { attackWins: 1, attackLosses: 2, defenseWins: 3, defenseLosses: 4 },
     loading: false,
+    opponentsLoadingMore: false,
+    opponentsError: "",
+    opponentSort: "registered_desc",
+    hasMoreOpponents: false,
     mutationKey: null,
     notice: "",
     highlightedGhostId: null,
     refresh: jest.fn(),
+    changeOpponentSort: jest.fn(),
+    loadMoreOpponents: jest.fn(),
     registerCurrentGhost: jest.fn(),
     removeGhost: jest.fn(),
     ...overrides,
@@ -125,6 +131,34 @@ describe("ArenaGhostScreen", () => {
     expect(screen.queryByText("현재 도전할 수 있는 Ghost가 없습니다.")).not.toBeInTheDocument();
   });
 
+  test("도전 상대 정렬과 더보기를 Hook 동작에 연결한다", () => {
+    const changeOpponentSort = jest.fn();
+    const loadMoreOpponents = jest.fn();
+    mockUseArenaGhosts.mockReturnValue(createArenaState({
+      opponents: [{
+        ghostId: "ghost-enemy",
+        ownerDisplayName: "상대",
+        canBattle: true,
+        registeredAt: "2026-08-22T00:00:00.000Z",
+        snapshot: { sprite: 1 },
+        ownDefenseRecord: { wins: 3, losses: 1 },
+      }],
+      hasMoreOpponents: true,
+      changeOpponentSort,
+      loadMoreOpponents,
+    }));
+
+    render(<ArenaGhostScreen onClose={jest.fn()} currentSlotId={4} selectedDigimon="스컬그레이몬" />);
+
+    fireEvent.change(screen.getByRole("combobox", { name: "도전 상대 정렬" }), {
+      target: { value: "defense_wins_desc" },
+    });
+    expect(changeOpponentSort).toHaveBeenCalledWith("defense_wins_desc");
+
+    fireEvent.click(screen.getByRole("button", { name: "상대 더보기" }));
+    expect(loadMoreOpponents).toHaveBeenCalledTimes(1);
+  });
+
   test("내 Ghost와 도전 상대 로딩 상태를 독립적으로 표시한다", () => {
     mockUseArenaGhosts.mockReturnValue(createArenaState({
       loading: true,
@@ -195,7 +229,7 @@ describe("ArenaGhostScreen", () => {
     expect(screen.getByText("50")).toBeInTheDocument();
     expect(screen.getAllByText("빈 슬롯")).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "엔젤몬 Ghost Power 상세 펼치기" }));
+    fireEvent.click(screen.getByRole("button", { name: "엔젤몬 Ghost Power 상세 보기" }));
     expect(screen.getByText("등록 당시 Power: 50")).toBeInTheDocument();
     expect(screen.getByText("Ghost 방어 보너스: +1")).toBeInTheDocument();
     expect(screen.getByText("최종 방어 Power = 50 + 1 = 51")).toBeInTheDocument();
@@ -233,17 +267,49 @@ describe("ArenaGhostScreen", () => {
     expect(screen.getByRole("button", { name: "현재 디지몬 Ghost 등록" })).toBeInTheDocument();
     expect(screen.getByLabelText("최종 공격 Power 38")).toHaveTextContent("36 + Ghost 2 = 38");
 
-    fireEvent.click(screen.getByRole("button", { name: "Power 상세 펼치기 ▼" }));
+    fireEvent.click(screen.getByRole("button", { name: "Power 상세 보기" }));
     expect(screen.getByText("Base Power: 10")).toBeInTheDocument();
     expect(screen.getByText("Strength 보너스: +8")).toBeInTheDocument();
     expect(screen.getByText("Traited Egg 보너스: +8")).toBeInTheDocument();
     expect(screen.getByText("Effort 보너스: +10")).toBeInTheDocument();
     expect(screen.getByText("최종 공격 Power = 36 + 2 = 38")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "펼치기 ▼" }));
+    fireEvent.click(screen.getByRole("button", { name: "아레나 공격 Power 상세 닫기" }));
+    fireEvent.click(screen.getByRole("button", { name: "규칙" }));
     expect(screen.getByText("먼저 3번 명중한 쪽이 승리")).toBeInTheDocument();
     expect(screen.getByText(/공격자 Power × 100/)).toBeInTheDocument();
     expect(screen.getByText("방어: Ghost 등록 당시 Power + 고정 방어 보너스 1")).toBeInTheDocument();
     expect(screen.getByText("Weight -4g, Energy -1")).toBeInTheDocument();
+  });
+
+  test("기록 탭은 처음 선택할 때 마운트하고 다시 돌아와도 상태 경계를 유지한다", () => {
+    render(
+      <ArenaGhostScreen
+        onClose={jest.fn()}
+        currentSlotId={2}
+        selectedDigimon="엔젤몬"
+        digimonStats={{ power: 10 }}
+      />
+    );
+
+    expect(screen.queryByTestId("arena-ghost-history")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "기록" }));
+    expect(screen.getByTestId("arena-ghost-history")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "기록" })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByRole("tab", { name: "대전" }));
+    expect(screen.getByTestId("arena-ghost-history").closest('[role="tabpanel"]')).toHaveAttribute("hidden");
+  });
+
+  test("상세 패널은 Escape로 닫히고 실행 버튼으로 포커스를 돌려준다", async () => {
+    render(<ArenaGhostScreen onClose={jest.fn()} currentSlotId={2} selectedDigimon="엔젤몬" />);
+    const guideButton = screen.getByRole("button", { name: "규칙" });
+    guideButton.focus();
+    fireEvent.click(guideButton);
+    expect(screen.getByRole("dialog", { name: "배틀 공식 및 규칙" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "배틀 공식 및 규칙" })).not.toBeInTheDocument());
+    await waitFor(() => expect(guideButton).toHaveFocus());
   });
 });

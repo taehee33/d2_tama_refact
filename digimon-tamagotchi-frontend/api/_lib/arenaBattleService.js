@@ -21,6 +21,7 @@ const {
   normalizeSlotId,
 } = require("./arenaDomain");
 const { ArenaError } = require("./arenaErrors");
+const { classifyGhostSourceLink } = require("./arenaGhostLink");
 const { getArenaFirestore } = require("./arenaTransactions");
 const { projectArenaSlot } = require("./arenaGhostHandlers");
 const { calculateArenaBattle } = require("../_generated/gameProjection.cjs");
@@ -167,8 +168,15 @@ function updateSlotAfterArenaBattle({ slot, projectedStats, attackerWon, battleI
 }
 
 function resolveDefenderProjection({ ghost, sourceSnapshot, requestReceivedAt, projectSource }) {
-  if (!ghost.sourceCombatIdentityId || !sourceSnapshot) return { status: "resolved", linked: false };
-  if (!sourceSnapshot.exists) return { status: "resolved", linked: false, linkStatus: "source_missing" };
+  const classification = classifyGhostSourceLink(ghost, sourceSnapshot);
+  if (classification.status === "terminal_error") return classification;
+  if (classification.status !== "needs_projection") {
+    return {
+      status: "resolved",
+      linked: false,
+      linkStatus: classification.status,
+    };
+  }
   if (projectSource) return projectSource(sourceSnapshot, requestReceivedAt, ghost);
   let projected;
   try {
@@ -177,7 +185,11 @@ function resolveDefenderProjection({ ghost, sourceSnapshot, requestReceivedAt, p
     if (error?.code === "ARENA_SLOT_DEAD" || error?.code === "ARENA_SLOT_STARTER") {
       return { status: "resolved", linked: false, linkStatus: error.code === "ARENA_SLOT_DEAD" ? "dead" : "starter" };
     }
-    return { status: "terminal_error", code: error?.code || "CORRUPT_PROJECTION_INPUT" };
+    return {
+      status: "terminal_error",
+      code: error?.code || "CORRUPT_PROJECTION_INPUT",
+      phase: "projection",
+    };
   }
   const source = projected.slot || {};
   if (
@@ -193,6 +205,28 @@ function resolveDefenderProjection({ ghost, sourceSnapshot, requestReceivedAt, p
     linkStatus: "linked",
     targetCombatIdentityId: ghost.sourceCombatIdentityId,
   };
+}
+
+function raiseDefenderProjectionFailure({ projection, logger = console, battleId, ghost }) {
+  logger.warn("[arena-battle] defender-source-validation-failed", {
+    battleId,
+    ghostId: ghost?.ghostId || null,
+    phase: projection?.phase || "projection",
+    errorCode: projection?.code || "CORRUPT_PROJECTION_INPUT",
+    projectionVersion: ARENA_PROJECTION_VERSION,
+    ghostSchemaVersion: ghost?.schemaVersion || null,
+    snapshotVersion: ghost?.snapshotVersion || null,
+  });
+  if (projection?.code === "ARENA_SLOT_PROJECTION_UNAVAILABLE") {
+    throw new ArenaError(
+      "ARENA_SOURCE_READ_UNAVAILABLE",
+      "방어 Ghost 원본 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      null,
+      null,
+      { retryable: true }
+    );
+  }
+  throw new ArenaError("ARENA_COMBAT_IDENTITY_STALE", "방어 Ghost 원본을 검증하지 못했습니다.");
 }
 
 function buildArchivePayload(responsePayload, context) {
@@ -283,7 +317,12 @@ async function commitArenaBattle({ uid, input, deps = {} }) {
       projectSource: deps.projectDefenderSource,
     });
     if (defenderProjection.status === "terminal_error") {
-      throw new ArenaError("ARENA_COMBAT_IDENTITY_STALE", "방어 Ghost 원본을 검증하지 못했습니다.");
+      raiseDefenderProjectionFailure({
+        projection: defenderProjection,
+        logger: deps.logger || console,
+        battleId,
+        ghost: defender,
+      });
     }
     if (!['resolved', 'deferred'].includes(defenderProjection.status)) {
       throw new ArenaError("ARENA_SOURCE_READ_UNAVAILABLE", "방어 Ghost 원본 projection을 처리하지 못했습니다.", null, null, { retryable: true });
@@ -497,5 +536,6 @@ module.exports = {
   normalizeBattleRequest,
   normalizeSeasonRecord,
   resolveDefenderProjection,
+  raiseDefenderProjectionFailure,
   updateSlotAfterArenaBattle,
 };

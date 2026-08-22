@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-08-22] Ghost 아레나 대전 중심 화면 재구성
+
+- **개발환경 진입 보정:** 개발용 환경 변수에 `REACT_APP_ARENA_GHOST_V2`가 없으면 `GameModals`가 기존 `ArenaScreen`을 선택해 새 화면이 보이지 않던 진입 오류를 수정했다. 개발환경은 V2를 기본 활성화하고, 레거시 화면 검증이 필요할 때만 `false`로 명시해 끌 수 있도록 했다. 운영환경은 기존처럼 `true`를 명시한 경우에만 V2를 노출한다.
+- **내용:** 길게 이어지던 Ghost 아레나를 `대전`과 `기록` 탭으로 분리하고, 기본 대전 화면을 현재 디지몬·내 Ghost·도전 상대 중심의 고정 높이 대시보드로 재구성했다. 현재 디지몬과 최대 3개의 Ghost는 압축 카드로 표시하고, 상대 목록과 배틀 기록은 각 영역 안에서 스크롤하도록 변경했다.
+- **상세 정보:** 배틀 공식과 현재·등록 Power 계산은 본문을 늘리는 아코디언 대신 데스크톱 우측·모바일 하단 상세 패널에서 확인한다. 기록 데이터는 기록 탭을 처음 선택할 때만 마운트하며, 다시 대전 탭으로 이동해도 기록 필터와 더보기 상태를 보존한다.
+- **상대 조회 최적화:** 도전 상대는 서버에서 6명씩 cursor 기반으로 조회하고 `더보기`로 누적한다. 등록 최신·오래된 순과 Ghost 방어 승리 많은·적은 순을 전체 목록 기준으로 정렬하며, 정렬 변경과 새로고침은 첫 페이지부터 다시 조회한다. 본인 Ghost 최대 3명과 다음 항목 확인분을 포함해 Ghost collection 초기 조회 상한을 기존 60개에서 10개로 줄였다.
+- **페이지네이션 정합성:** cursor에 정렬 기준과 정렬 값을 포함해 다른 필터의 cursor 재사용을 거부하고, 원시 쿼리 마지막 문서가 아니라 실제 반환된 마지막 상대를 기준으로 다음 페이지를 시작해 상대가 누락되지 않게 했다. 등록일·방어 승수 정렬용 Firestore 복합 인덱스를 추가했으며 저장 문서와 배틀 갱신 계약은 변경하지 않았다.
+- **접근성·반응형:** 아레나에 dialog 의미를 추가하고 탭의 선택 상태·연결 패널·좌우 방향키 이동을 제공했다. 상세 패널은 Escape 닫기와 실행 버튼 포커스 복귀를 지원하며, 모바일 Ghost 목록은 가로 스크롤, 상대 목록은 1열로 재배치하고 주요 버튼의 최소 높이를 44px로 유지한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, `src/config/arenaFeatures.js`, `src/hooks/useArenaGhosts.js`, `api/_lib/arenaGhostHandlers.js`, `firestore.indexes.json`, `ArenaGhostHistory.jsx`, `components/arena/ArenaDetailPanel.jsx`, Power·규칙 표시 컴포넌트와 관련 테스트.
+- **아키텍처 결정 근거:** 화면 표시와 로드 시점만 변경하고 Ghost snapshot, 전적, Power 계산, 상대 은닉, 서버 배틀 확정, Firestore 정본 및 IndexedDB outbox 계약은 변경하지 않았다.
+- **검증:** 상대 API·Hook·화면 집중 테스트와 `npm run check`를 통과했다. 전체 검사는 프런트 212 suite·1,401 test, 서버 252 pass·20 Emulator-only skip, ESLint, JSDoc typecheck, production build, API 단일 원본, server projection을 포함한다. `test:firestore-emulator` 2개와 `test:arena-emulator` 26개도 통과했으며, 실행 시각이 고정 fixture보다 늦어지면 등록 대상이 사망하던 Arena Emulator 테스트 시각을 실행 시점 기준으로 보정했다.
+
+## [2026-08-20] Arena Ghost 원본 연결 판정 순서와 오류 관측성 개선
+
+- **내용:** Ghost 배틀이 원본 슬롯을 시간 투영하기 전에 `digimonInstanceId`, `combatRevision`, 등록 형태를 먼저 비교하도록 공통 연결 판정 helper를 추가했다. 원본 슬롯이 새 생애면 `dead`, 같은 생애의 이전 형태면 `evolved`로 연결을 종료하고 등록 당시 불변 Ghost snapshot으로 배틀을 계속한다. exact identity에서 형태만 다른 손상 상태는 기존처럼 fail-closed 처리한다.
+- **오류 계약:** exact identity의 원본 projection 실패는 재시도 가능한 `ARENA_SOURCE_READ_UNAVAILABLE` 503으로 구분한다. 구조화 경고에는 battle·Ghost 식별자, 판정 단계, 내부 오류 코드와 schema/projection version만 남기며 UID와 슬롯 payload는 기록하지 않는다. 디지타마 판정도 runtime projection보다 먼저 수행한다.
+- **회귀 범위:** Bakemon Ghost의 원본 슬롯이 수면 스케줄 없는 새 Poyomon 생애로 바뀐 운영 사례를 Emulator로 재현한다. 배틀·Ghost 방어 전적·시즌 전적은 확정하되 종료된 원본 combat record/form mirror는 변경하지 않고 mirror outbox도 만들지 않는지 검증한다.
+- **검증:** 집중 단위 테스트 14개, `npm run check`(프런트 212 suite·1,391 test, 서버 247 pass·20 Emulator-only skip, lint·typecheck·production build·API 단일 원본·server projection), `npm run test:arena-emulator` 26개를 모두 통과했다.
+- **영향 파일:** `api/_lib/arenaGhostLink.js`, `api/_lib/arenaBattleService.js`, `api/_lib/arenaGhostHandlers.js`, `api/_lib/arenaSlotProjection.js`, 관련 단위·Emulator 테스트.
+- **아키텍처 결정 근거:** Ghost snapshot은 등록 당시 모습으로 계속 방어하는 불변 자료이고, 원본 슬롯은 현재 형태 전적 mirror 연결 여부만 결정한다. 따라서 이미 종료된 identity에는 현재 슬롯의 lazy runtime 필드를 요구하지 않고, exact identity만 projection해 Firestore 정본·전적 원자성·lazy update 계약을 유지한다.
+
 ## [2026-08-17] 모바일 상태·호출 팝업 표시 영역 개선
 
 - **내용:** 모바일 세로 화면의 `디지몬 상태`와 `디지몬 상태 상세` 팝업을 화면 상단에 배치하고, 동적 뷰포트와 safe-area를 제외한 높이를 거의 전부 사용하도록 조정했다. 제목과 하단 액션은 고정된 채 본문만 스크롤되며, `호출 상태` 팝업은 좌우 여백을 약 8px로 줄여 긴 호출·케어미스 기록이 더 넓게 보이도록 했다.

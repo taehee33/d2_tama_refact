@@ -176,3 +176,98 @@ test("서버 배틀 transaction과 두 outbox worker가 멱등·정확히 한 �
   assert.equal((await db.doc("game_settings/arena_config").get()).data().currentSeasonId, 13);
   assert.equal((await db.doc(`arena_battles/${battleId}`).get()).data().seasonIdAtBattle, 12);
 });
+
+test("새 생애로 바뀐 Ghost 원본은 projection 없이 연결 종료하고 배틀을 확정한다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
+  const projectId = process.env.FIREBASE_PROJECT_ID || "d2tamarefact";
+  const app = initializeApp({ projectId }, `arena-battle-new-life-${Date.now()}`);
+  const db = getFirestore(app);
+  const attackerUid = "new-life-attacker";
+  const defenderUid = "new-life-defender";
+  const now = new Date();
+
+  t.after(async () => {
+    for (const collection of [
+      "arena_archive_outbox", "arena_mirror_outbox", "arena_battle_logs", "arena_battles",
+      "arena_season_records", "arena_combat_records", "arena_ghost_registrations",
+      "arena_ghost_owners", "arena_ghosts", "users",
+    ]) await db.recursiveDelete(db.collection(collection));
+    await db.doc("game_settings/arena_config").delete().catch(() => {});
+    await deleteApp(app);
+  });
+
+  await db.doc("game_settings/arena_config").set({
+    mode: "active", currentSeasonId: 20, minArenaClientSchemaVersion: 2,
+  });
+  await db.doc(`users/${attackerUid}/slots/slot1`).set(slot("attacker-life", now));
+  await db.doc(`users/${defenderUid}/slots/slot3`).set({
+    ...slot("bakemon-life", now),
+    selectedDigimon: "Bakemon",
+    version: "Ver.3",
+  });
+  const registered = await registerArenaGhost({
+    uid: defenderUid,
+    slotId: "3",
+    deps: {
+      db,
+      runTransaction: (callback) => db.runTransaction(callback),
+      requestReceivedAt: now,
+      randomUUID: () => "bakemon-ghost",
+    },
+  });
+  const defenderGhostId = registered.ghost.ghostId;
+  const registeredGhost = (await db.doc(`arena_ghosts/${defenderGhostId}`).get()).data();
+  const originalRecordRef = db.doc(`arena_combat_records/${registeredGhost.sourceCombatIdentityId}`);
+  const poyomonStats = stats({
+    birthTime: now.getTime(),
+  });
+  delete poyomonStats.sleepSchedule;
+  await db.doc(`users/${defenderUid}/slots/slot3`).set({
+    arenaIdentitySchemaVersion: 1,
+    digimonInstanceId: "poyomon-life",
+    combatRevision: 1,
+    selectedDigimon: "Poyomon",
+    version: "Ver.3",
+    lastSavedAt: now.getTime(),
+    persistenceRevision: 4,
+    digimonStats: poyomonStats,
+  });
+
+  const result = await commitArenaBattle({
+    uid: attackerUid,
+    input: {
+      requestId: "request-new-life-defender",
+      attackerSlotId: "1",
+      defenderGhostId,
+    },
+    deps: {
+      db,
+      runTransaction: (callback) => db.runTransaction(callback),
+      requestReceivedAt: now,
+      seed: "new-life-fixed-seed",
+      calculateBattle: () => ({
+        winner: "attacker",
+        replay: [{ round: 1, actor: "attacker", hit: true }],
+      }),
+    },
+  });
+
+  const battleId = result.battle.battleId;
+  const battleLog = (await db.doc(`arena_battle_logs/${battleId}`).get()).data();
+  const finalGhost = (await db.doc(`arena_ghosts/${defenderGhostId}`).get()).data();
+  const originalRecord = (await originalRecordRef.get()).data();
+  const mirrorJob = await db.doc(`arena_mirror_outbox/${battleId}`).get();
+  const attackerSeason = (await db.collection("arena_season_records")
+    .where("ownerUid", "==", attackerUid).get()).docs[0].data();
+  const defenderSeason = (await db.collection("arena_season_records")
+    .where("ownerUid", "==", defenderUid).get()).docs[0].data();
+
+  assert.equal(battleLog.linkStatusAtBattle, "dead");
+  assert.deepEqual(finalGhost.ownDefenseRecord, { wins: 0, losses: 1 });
+  assert.equal(finalGhost.formRecordMirror.defenseLosses, 0);
+  assert.equal(originalRecord.defenseLosses, 0);
+  assert.equal(mirrorJob.exists, false);
+  assert.equal(attackerSeason.attackWins, 1);
+  assert.equal(defenderSeason.defenseLosses, 1);
+});

@@ -40,6 +40,19 @@ describe("Ghost V2 arena API", () => {
     );
   });
 
+  test("상대 Ghost 조회는 정렬과 cursor를 전달한다", async () => {
+    global.fetch.mockResolvedValue(createResponse(200, { ghosts: [], nextCursor: null }));
+    await fetchArenaGhosts(createUser(), {
+      scope: "opponents",
+      limit: 6,
+      sort: "defense_wins_desc",
+      cursor: "next-page",
+    });
+    expect(global.fetch.mock.calls[0][0]).toBe(
+      "/api/arena/ghosts?scope=opponents&limit=6&sort=defense_wins_desc&cursor=next-page"
+    );
+  });
+
   test("등록 요청은 slotId만 보낸다", async () => {
     global.fetch.mockResolvedValue(createResponse(201, { ghost: { ghostId: "ghost-a" } }));
     await registerArenaGhost(createUser(), 4);

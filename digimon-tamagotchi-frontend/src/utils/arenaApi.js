@@ -211,6 +211,9 @@ export async function fetchArenaGhosts(currentUser, options = {}) {
   if (options.limit !== undefined && options.limit !== null) {
     params.set("limit", String(options.limit));
   }
+  if (options.sort) {
+    params.set("sort", String(options.sort));
+  }
   if (options.cursor) {
     params.set("cursor", String(options.cursor));
   }

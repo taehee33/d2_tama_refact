@@ -11,7 +11,7 @@ export function getArenaArchiveUi(status) {
   }
 }
 
-export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, currentCombatIdentityId }) {
+export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, currentCombatIdentityId, compact = false }) {
   const history = useArenaBattleHistory({ currentUser, isOnline });
   const [filter, setFilter] = useState("all");
   const [replay, setReplay] = useState(null);
@@ -38,8 +38,8 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
   };
 
   return (
-    <section className="mt-7 border-t pt-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <section className={compact ? "flex h-full min-h-0 flex-col" : "mt-7 border-t pt-6"}>
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="text-xl font-bold">배틀 기록</h3>
           <p className="text-xs text-gray-500">최근 기록부터 5개씩 불러옵니다.</p>
@@ -54,21 +54,21 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
       {history.error && <p role="alert" className="mb-3 text-sm text-red-700">{history.error}</p>}
       {replayError && <p role="alert" className="mb-3 text-sm text-red-700">{replayError}</p>}
       {history.loading ? <p>기록을 불러오는 중...</p> : visibleLogs.length === 0 ? <p className="text-sm text-gray-600">표시할 배틀 기록이 없습니다.</p> : (
-        <div className="space-y-2">
+        <div className={`${compact ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""} space-y-2`}>
           {visibleLogs.map((log) => {
             const archiveUi = getArenaArchiveUi(log.archiveStatus);
             return (
-              <article key={log.battleId} className="rounded-lg border p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-bold">{log.attackerName} vs {log.defenderName}</p>
-                    <p className="text-xs text-gray-600">{log.isAttack ? "공격 기록" : "Ghost 방어 기록"} · {log.occurredAt ? log.occurredAt.toLocaleString("ko-KR") : "시간 정보 없음"}</p>
-                    <p className="text-xs text-gray-600">{archiveUi.description}</p>
+              <article key={log.battleId} className={`rounded-lg border text-sm ${compact ? "px-3 py-2" : "p-3"}`}>
+                <div className="flex flex-col justify-between gap-2 sm:min-h-[46px] sm:flex-row sm:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">{log.attackerName} vs {log.defenderName}</p>
+                    <p className="truncate text-xs text-gray-600">{log.isAttack ? "공격 기록" : "Ghost 방어 기록"} · {log.occurredAt ? log.occurredAt.toLocaleString("ko-KR") : "시간 정보 없음"}</p>
+                    <p className="truncate text-xs text-gray-600">{archiveUi.description}</p>
                   </div>
                   <button
                     onClick={() => openReplay(log)}
                     disabled={archiveUi.disabled || replayLoadingId === log.battleId}
-                    className="rounded border px-3 py-1 disabled:opacity-50"
+                    className="min-h-11 shrink-0 rounded border px-3 text-sm disabled:opacity-50"
                   >
                     {replayLoadingId === log.battleId ? "불러오는 중..." : archiveUi.label}
                   </button>
@@ -79,7 +79,7 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
         </div>
       )}
       {!history.loading && history.hasMore && (
-        <div className="mt-4 flex justify-center">
+        <div className="mt-3 flex shrink-0 justify-center">
           <button
             type="button"
             onClick={history.loadMore}

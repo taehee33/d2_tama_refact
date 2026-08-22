@@ -1,68 +1,66 @@
-# 10버튼 원작풍 세로 스킨 디자인 QA
+# Ghost 아레나 대전 중심 재구성 디자인 QA
 
 ## 비교 대상
 
 - source visual truth:
-  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/split-brick-10.png`
-  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/red-device-10.png`
-  - `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/dark-battle-10.png`
+  - `/var/folders/c3/yvqftb655357f3vlx335f7lm0000gn/T/codex-clipboard-2b794694-f784-45dc-a0dc-15ea24d07639.png`
+  - `/var/folders/c3/yvqftb655357f3vlx335f7lm0000gn/T/codex-clipboard-73ac041a-4d40-4907-a395-14986b8138d5.png`
+  - `/var/folders/c3/yvqftb655357f3vlx335f7lm0000gn/T/codex-clipboard-d3ac3fc3-7e8a-44ee-9dab-94da3e33790b.png`
+  - 확정 계획의 `대전/기록` 탭, 고정 높이 모달, 압축 카드, 우측·하단 상세 패널 요구사항
 - browser-rendered implementation:
-  - `docs/design-qa/pixel-split-mobile.png`
-  - `docs/design-qa/pixel-red-mobile.png`
-  - `docs/design-qa/pixel-dark-mobile.png`
-  - `docs/design-qa/pixel-split-wide-full.png`
-  - `docs/design-qa/pixel-red-wide-full.png`
-  - `docs/design-qa/pixel-dark-wide-full.png`
-- combined comparison evidence: `docs/design-qa/pixel-skins-comparison.png`
+  - `docs/design-qa/arena-ghost-desktop.png`
+  - `docs/design-qa/arena-ghost-history.png`
+  - `docs/design-qa/arena-ghost-guide.png`
+  - `docs/design-qa/arena-ghost-mobile.png`
+- combined comparison evidence: `docs/design-qa/arena-ghost-comparison.png`
 
 ## 정규화와 상태
 
-- 모바일 viewport: `390×844` CSS px, device scale factor 1 기준. 세 구현 캡처는 모두 `390×844` PNG다.
-- 넓은 화면 viewport: `1024×900` CSS px. 프레임은 구현의 `max-width: 500px` 규칙에 따라 중앙 정렬했으며 전체 페이지 캡처로 세로 잘림을 배제했다.
-- source raster: 각 `853×1844` PNG를 같은 `390×844` 비율로 축소해 비교했다.
-- state: 현재 시각 `16:09`, 디지몬 라벨 `코로몬`, 상태 메뉴 활성, 조명 켜짐, 냉장고 해제. LCD에는 실제 게임 배경 자산을 넣어 빈 마젠타 영역 대체와 프레임 크롭을 확인했다.
-- 운영 Firestore에 QA 슬롯을 새로 만들지 않기 위해, 브라우저 비교는 실제 컴포넌트와 동일한 DOM 클래스·CSS·래스터·메뉴 아이콘으로 구성한 로컬 전용 비교 하네스에서 캡처했다. 실제 콜백·잠금·저장 계약은 Jest 컴포넌트 테스트로 별도 검증했다.
+- 기존 대전 화면 source는 `1756×1568` PNG이며, 구현 데스크톱은 `1440×900` CSS viewport·`1440×900` PNG·device scale factor 1 기준으로 캡처했다. 비교 보드는 양쪽 이미지를 같은 `object-fit: contain` 영역에 배치해 전체 정보 밀도와 세로 길이를 비교했다.
+- 모바일은 브라우저 DOM 기준 `390×844` CSS viewport에서 dialog `336×820`, 대전 패널 `336×698`을 확인했다. 인앱 브라우저 저장 캡처는 가용 표면에 맞춰 `360×844` PNG로 정규화되었으므로 수치 판정은 DOM 측정값을 함께 사용했다.
+- 상태는 현재 Poyomon, 내 Ghost 3/3, 도전 상대 10개, 배틀 기록 5개다. 실제 `ArenaGhostScreen` 소스와 CSS를 번들하고 Auth·Arena API·기록 데이터만 로컬 fixture로 교체한 비교 하네스를 사용해 운영 Firestore 쓰기나 신규 계정 생성을 피했다.
 
 ## 전체 화면 비교
 
-- 세 스킨 모두 중앙 LCD, 게임기 프레임, 10개 원형 버튼의 `5×2` 리듬이 시안과 일치한다.
-- 블루·화이트 스킨의 소형 게임기, 좌우 분할 배경, 상단 엠블럼을 유지했다.
-- 레드 디바이스와 다크 배틀은 각각 청록 그리드/붉은 벽돌, 검정 그리드/붉은 균열의 원작풍 질감과 프레임 비율을 유지했다.
-- 구현에서는 마젠타 LCD를 게임 화면으로, 마젠타 버튼 중심을 실제 픽셀 아이콘과 한국어 라벨로 교체했다. 이는 계획된 기능적 차이다.
-- 넓은 화면에서는 셸을 500px로 제한하고 중앙 정렬해 늘어짐과 픽셀 텍스처 흐림을 막았다.
+- 기존 화면에서 세로로 분리되어 있던 현재 디지몬, 규칙, 내 Ghost, 상대, 기록이 기본 `대전` 탭과 별도 `기록` 탭으로 재편되었다.
+- `1440×900`에서 헤더·탭·현재 디지몬·내 Ghost 3개·도전 상대 목록이 모달 외부 스크롤 없이 모두 보인다. 상대가 많을 때는 상대 영역만 독립적으로 스크롤한다.
+- 기록 5개는 한 화면 안에 압축 행으로 표시되고 필터·새로고침·더보기 조작이 유지된다.
+- 규칙과 Power 상세는 본문 높이를 바꾸지 않는 우측 패널로 열리며, 모바일에서는 하단 패널 규칙으로 전환된다.
 
 ## 필수 fidelity surface
 
-- typography: 짧은 한국어 라벨은 monospace 굵은 글꼴과 어두운 픽셀 그림자를 사용한다. 390px에서 줄바꿈·잘림이 없고 현재 시각/디지몬 이름의 위계가 과하지 않다.
-- spacing/layout rhythm: 10개 버튼이 정확히 두 행, 각 다섯 칸으로 정렬된다. 버튼 터치 영역은 최소 44px이며 LCD·버튼·배경 사이 충돌이 없다.
-- colors/tokens: 스킨 기본 팔레트가 시안에서 추출한 색을 사용하고, 좌/우 배경과 게임기 틴트를 스킨별 실제 PNG 알파 마스크에 독립 토큰으로 적용한다. 활성 메뉴의 노란 링과 비활성 opacity가 배경과 구분된다.
-- image quality: 세 셸과 모든 메뉴 아이콘은 실제 PNG 래스터다. 390px와 500px 모두 `image-rendering: pixelated`로 픽셀 경계가 유지되며 늘림·잘못된 크롭·투명도 가장자리 문제가 없다.
-- copy/content: 버튼 라벨은 `상태, 먹이, 훈련, 배틀, 교감 / 화장실, 조명, 치료, 호출, 더보기` 순서로 기존 게임 정의와 일치한다.
+- **typography:** 기존 시스템 글꼴·굵기·상태 색을 유지했다. 제목 20–24px, 카드 제목 14–16px, 보조 메타데이터 11–12px로 위계를 줄였고 긴 이름과 상태는 카드 경계에서 말줄임 처리한다.
+- **spacing/layout rhythm:** 모달 최대 폭을 넓히고 12–16px 섹션 간격, 8–12px 카드 간격, 64px 현재 스프라이트, 48px Ghost 스프라이트를 사용한다. 데스크톱 상단은 현재 디지몬과 Ghost 3개가 한 행이며 하단 상대 영역이 남은 높이를 채운다.
+- **colors/tokens:** 기존 Tailwind blue·emerald·red 상태 토큰, 흰 카드, 옅은 파란 현재 디지몬 배경을 유지해 기존 제품과 시각적으로 이어진다. 신규 탭 선택선과 상세 패널 오버레이 대비도 충분하다.
+- **image quality:** 모든 디지몬과 은닉 상대는 기존 실제 PNG 자산과 `pixelated` 렌더링을 사용한다. 임의 도형·대체 아이콘·늘린 이미지는 추가하지 않았다.
+- **copy/content:** 등록 형태 전적, Ghost 방어 전적, 등록일, Power, 서버 확정 안내와 상대 은닉 문구는 유지했다. 공간 절약을 위해 반복 설명만 상세 패널로 이동했다.
 
 ## 상호작용과 접근성
 
-- 10개 버튼의 순서, 한국어 접근성 이름, 메뉴 ID 콜백, 활성 `aria-pressed`를 테스트했다.
-- 조명 꺼짐과 냉장고 상태의 비활성/이유 문구는 기존 `getMenuDisabledState` 정책을 그대로 사용한다.
-- 첫 스킨의 왼쪽 위 소형 게임기만 `외형 꾸미기 열기` 버튼으로 동작한다.
-- 외형 모달의 프리셋, 자유 색상, 스킨별 draft 독립성, 초기화, 취소, 저장 1회 전달을 테스트했다.
-- 브라우저 캡처 중 콘솔 error는 0건이었다.
+- `대전/기록`은 `tablist/tab/tabpanel`, 메인 화면은 `dialog/aria-modal`, 상세 패널은 이름 있는 중첩 dialog로 확인했다.
+- 기록은 탭을 처음 선택할 때 마운트되고 대전으로 돌아간 뒤에도 상태 경계를 유지한다.
+- 상세 패널은 Escape로 닫히고 실행했던 `Power 상세 보기` 버튼으로 포커스가 복귀한다.
+- 모바일 `390×844`에서 대전 본문은 내부 세로 스크롤(`698/804px`), 내 Ghost는 가로 스크롤(`271/736px`), 상대는 1열로 계산된다. 탭·닫기·규칙·등록·삭제·도전 등 주요 조작은 44px 높이를 유지한다.
+- 미리보기 URL의 console error/warning은 0건이다.
 
 ## Findings
 
 - P0/P1/P2 없음.
-- P3: 현재 라벨은 원작 기기 밀도를 우선해 작게 보인다. 390px에서 판독 가능하고 44px 터치 영역을 확보해 차단 이슈로 분류하지 않았다.
+- P3: 모바일에서 세 Ghost 카드의 보조 메타데이터가 조밀하다. 가로 스크롤로 카드 폭을 보존하고 주요 조작은 44px를 유지하므로 차단 이슈로 분류하지 않았다.
 
 ## 비교 이력
 
-- 1차 비교: 세 모바일 시안과 구현을 동일한 `390×844` 상태로 결합해 확인했다. 액션 가능한 P0/P1/P2 차이가 없어 수정 반복은 필요하지 않았다.
-- 넓은 화면 확인: 세 스킨 모두 500px 최대 폭과 중앙 정렬이 유지되고 전체 페이지 캡처에서 영구 컨트롤 잘림이 없음을 확인했다.
+- 1차 비교: 데스크톱 레이아웃은 목표 밀도를 충족했지만 로컬 fixture의 sprite path가 실제 버전별 자산과 달라 잘못된 이미지가 보였다.
+- 수정: Poyomon·레오몬·하이안드로몬·가지몬 fixture에 실제 `Ver3/4/5_Mod_codex` 경로와 번호를 적용하고 자산을 다시 포함했다.
+- 2차 비교: `arena-ghost-desktop.png`과 `arena-ghost-comparison.png`에서 모든 실제 픽셀 스프라이트, 한 화면 대전 구성, 상대 내부 스크롤을 확인했다. 추가 P0/P1/P2는 없었다.
 
 ## Implementation Checklist
 
-- [x] 3개 래스터 셸과 10버튼 `5×2` 배치
-- [x] 실제 `GameScreen`과 기존 메뉴 정의 연결
-- [x] 독립 외형 색상과 스킨별 저장 복구
-- [x] 모바일/넓은 화면 캡처
-- [x] 콜백·잠금·저장 회귀 테스트
+- [x] 대전·기록 탭과 기록 최초 지연 마운트
+- [x] 고정 높이 모달과 현재 디지몬·내 Ghost 압축 카드
+- [x] 상대 2열·모바일 1열 내부 스크롤
+- [x] 규칙·Power 우측/하단 상세 패널
+- [x] Escape 닫기·포커스 복귀·44px 주요 조작
+- [x] 데스크톱·모바일·기록·규칙 브라우저 캡처와 콘솔 검사
 
 final result: passed
