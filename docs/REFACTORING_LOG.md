@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-08-22] Ghost 아레나 `내 Ghost` 독립 탭 전환
+
+- **3탭 정보 구조:** `내 Ghost`를 대전 화면의 접이식 섹션에서 분리해 모바일·데스크톱 공통 `대전 → 내 Ghost → 기록` 탭으로 이동했다. 탭에는 사용 중인 Ghost 슬롯 수를 배지로 표시하고 좌우 방향키 순환, `tablist/tab/tabpanel` 연결을 세 탭에 맞게 확장했다.
+- **대전 공간 확대:** 대전 탭에는 현재 디지몬 전력 요약과 도전 상대만 남겼다. 현재 디지몬은 64px 이미지·정체성·최종 Power를 가로로 사용하고, 도전 상대는 남은 높이를 차지해 목록만 내부 스크롤한다.
+- **Ghost 관리 화면:** 내 Ghost 탭은 모바일 1열, 태블릿 2열, 데스크톱 최대 3열로 카드와 빈 슬롯을 표시한다. 등록 Power, 형태·방어 전적, 연결 상태, 상세·삭제 및 동기화 상태는 기존 동작을 유지한다. 등록 성공 후에는 대전 탭을 유지하고 슬롯 배지만 갱신한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, `src/components/arena/ArenaPowerBreakdown.jsx`, `ArenaGhostScreen.test.jsx`, `design-qa.md`.
+- **아키텍처 결정 근거:** 모바일 뷰포트 판정과 접힘 상태를 제거해 화면 상태를 단순화하고, Power 계산에 필요한 Ghost 데이터는 기존처럼 즉시 조회한다. 상대 6명 cursor 조회, Firestore 인덱스·저장 정본, 전적 갱신과 배틀 판정은 변경하지 않았다.
+- **검증:** 세 탭 순환·ARIA 연결, 독립 Ghost 패널, 반응형 카드 열, 등록 후 탭 유지·배지 갱신을 Jest로 검증하고 `npm run check`를 통과했다. 실제 390×844 아레나 화면은 로그인된 개발 세션에서 최종 확인한다.
+
 ## [2026-08-22] Ghost 아레나 대전 중심 화면 재구성
 
 - **개발환경 진입 보정:** 개발용 환경 변수에 `REACT_APP_ARENA_GHOST_V2`가 없으면 `GameModals`가 기존 `ArenaScreen`을 선택해 새 화면이 보이지 않던 진입 오류를 수정했다. 개발환경은 V2를 기본 활성화하고, 레거시 화면 검증이 필요할 때만 `false`로 명시해 끌 수 있도록 했다. 운영환경은 기존처럼 `true`를 명시한 경우에만 V2를 노출한다.
@@ -8235,3 +8244,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:** 공통 좌표의 중앙·좌우 끝 경계, 세로·가로 스킨의 300×300 계약, 자랑게시판 1:1 장면, 구 로컬 설정 복구와 단일 크기 입력을 회귀 테스트로 고정했다. 최종 품질 검사는 관련 테스트, `npm run check`, `git diff --check`로 수행한다.
 - **영향 파일:** `digimon-tamagotchi-frontend/public/images/immersive/portrait-pixel/*`, `digimon-tamagotchi-frontend/src/utils/gameSceneGeometry.js`, 화면·설정·몰입형 레이아웃 관련 컴포넌트와 CSS·테스트
 - **아키텍처 결정 근거:** 장면 비율과 좌표 변환을 공용 순수 헬퍼에 유지하고 표시 계층과 로컬 UI 설정만 정리했다. React 외부 props, 게임 상태, Firestore·IndexedDB 계약과 슬롯 저장 스키마는 변경하지 않았으며, 이미지 편집도 LCD·인접 베젤에 한정해 제거된 배경 버튼 외곽을 다시 추가하지 않았다.
+
+## [2026-08-22] Ghost 아레나 상대 수 표시와 cursor 페이지 전환
+
+- **내용:** 도전 상대 제목에 현재 페이지 표시 수와 전체 활성 상대 Ghost 수를 `6/13` 형식으로 표시하고, 누적형 `상대 더보기`를 6명 단위 `이전 / 다음` 페이지 이동으로 변경했다. 방문한 페이지의 Ghost 목록과 cursor는 모달 생명주기 동안 메모리에 보관해 이전 페이지와 이미 방문한 다음 페이지를 다시 읽지 않는다. 정렬을 변경하면 페이지 캐시를 비우고 첫 페이지를 조회하며, 수동 새로고침은 첫 페이지로 돌아가 전체 수도 다시 집계한다.
+- **API·비용:** 상대 조회 API에 선택적 `includeTotal=true`를 추가했다. 최초 조회와 수동 새로고침에서만 `status == active`, `ownerUid != 현재 사용자` 조건의 Firestore `count()` 집계를 실행하며 정렬 변경과 페이지 이동에서는 기존 집계값을 재사용한다. 새 페이지의 목록·프로필 읽기는 기존 더보기와 같은 수준이고, 캐시된 페이지 이동은 추가 읽기가 없다. 문서 쓰기, Ghost 저장 계약, 배틀 판정은 변경하지 않았다.
+- **인덱스:** 집계 쿼리를 위해 `arena_ghosts(status ASC, ownerUid ASC)` composite index를 추가했다. 운영 코드 배포 전에 `npm run firestore:indexes:deploy`로 먼저 반영해야 한다.
+- **검증:** API의 활성 타 사용자 집계·선택 필드·잘못된 옵션, Hook의 다음 페이지 조회·방문 페이지 캐시·정렬 초기화·수동 재집계·연속 클릭 방지, 화면의 `6/13`·마지막 페이지·버튼 비활성 및 44px 터치 높이를 테스트했다. 관련 직접 테스트 34개, 루트 `npm run check`(프런트 212 suite·1,404 test, 서버 255 pass·20 Emulator-only skip, production build), Arena Emulator 26개가 모두 통과했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/api/_lib/arenaGhostHandlers.js`, `digimon-tamagotchi-frontend/src/utils/arenaApi.js`, `digimon-tamagotchi-frontend/src/hooks/useArenaGhosts.js`, `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, 관련 테스트, `firestore.indexes.json`, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** offset은 건너뛴 문서까지 읽기 비용이 발생하므로 기존 불투명 cursor 계약을 유지한다. 정확한 전체 수는 목록 cursor와 독립된 집계로 얻되 호출 시점을 최초 진입과 명시적 새로고침으로 제한해 화면 정보성과 Firestore 읽기 비용을 함께 관리한다.

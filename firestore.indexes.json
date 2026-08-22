@@ -85,6 +85,14 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "ownerUid", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "arena_ghosts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "ownDefenseRecord.wins", "order": "DESCENDING" },
         { "fieldPath": "registeredAt", "order": "DESCENDING" }
       ]
