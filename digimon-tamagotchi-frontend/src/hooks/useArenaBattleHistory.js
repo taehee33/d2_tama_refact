@@ -3,10 +3,12 @@ import { collection, getDocs, limit, orderBy, query, startAfter, where } from "f
 import { db } from "../firebase";
 
 export const ARENA_HISTORY_PAGE_SIZE = 5;
+const ARENA_HISTORY_LOOKAHEAD_SIZE = ARENA_HISTORY_PAGE_SIZE + 1;
 
-function createHistoryStream(fieldName) {
+function createHistoryStream(key, conditions) {
   return {
-    fieldName,
+    key,
+    conditions,
     queue: [],
     cursor: null,
     initialized: false,
@@ -14,36 +16,94 @@ function createHistoryStream(fieldName) {
   };
 }
 
-function createHistoryPager() {
+export function buildArenaHistoryStreamDefinitions(filter = "all", currentUid = null) {
+  if (filter.startsWith("combat:") && filter.slice("combat:".length)) {
+    return [{
+      key: "combat",
+      conditions: [["attackerCombatIdentityId", filter.slice("combat:".length)]],
+    }];
+  }
+  if (filter.startsWith("ghost:") && filter.slice("ghost:".length) && currentUid) {
+    const ghostId = filter.slice("ghost:".length);
+    return [
+      {
+        key: "attack",
+        conditions: [["attackerId", currentUid], ["defenderGhostId", ghostId]],
+      },
+      {
+        key: "defense",
+        conditions: [["defenderId", currentUid], ["defenderGhostId", ghostId]],
+      },
+    ];
+  }
+  return [
+    { key: "attack", conditions: [["attackerId", currentUid]] },
+    { key: "defense", conditions: [["defenderId", currentUid]] },
+  ];
+}
+
+function createHistoryPager(filter, currentUid) {
+  return Object.fromEntries(
+    buildArenaHistoryStreamDefinitions(filter, currentUid)
+      .map(({ key, conditions }) => [key, createHistoryStream(key, conditions)])
+  );
+}
+
+function createFilterCache(filter, currentUid) {
   return {
-    attack: createHistoryStream("attackerId"),
-    defense: createHistoryStream("defenderId"),
+    pager: createHistoryPager(filter, currentUid),
+    pages: [],
+    seenBattleIds: new Set(),
   };
+}
+
+function cloneHistoryPager(pager) {
+  return Object.fromEntries(
+    Object.entries(pager).map(([key, stream]) => [key, {
+      ...stream,
+      queue: [...stream.queue],
+    }])
+  );
 }
 
 function getOccurredAtTime(log) {
   return log?.occurredAt?.getTime?.() || 0;
 }
 
-export function takeNextArenaHistoryPage({ attackQueue = [], defenseQueue = [], seenBattleIds = new Set(), pageSize = ARENA_HISTORY_PAGE_SIZE }) {
-  const remainingAttack = [...attackQueue];
-  const remainingDefense = [...defenseQueue];
+function takeNextHistoryStreamsPage({ streams, seenBattleIds, pageSize }) {
+  const queues = streams.map((stream) => [...stream.queue]);
   const page = [];
 
-  while (page.length < pageSize && (remainingAttack.length > 0 || remainingDefense.length > 0)) {
-    const attack = remainingAttack[0];
-    const defense = remainingDefense[0];
-    const takeAttack = !defense || (attack && getOccurredAtTime(attack) >= getOccurredAtTime(defense));
-    const selected = takeAttack ? remainingAttack.shift() : remainingDefense.shift();
+  while (page.length < pageSize && queues.some((queue) => queue.length > 0)) {
+    let selectedQueueIndex = -1;
+    let selectedTime = -Infinity;
+    queues.forEach((queue, index) => {
+      const nextTime = getOccurredAtTime(queue[0]);
+      if (queue.length > 0 && nextTime > selectedTime) {
+        selectedQueueIndex = index;
+        selectedTime = nextTime;
+      }
+    });
+    if (selectedQueueIndex < 0) break;
+    const selected = queues[selectedQueueIndex].shift();
     if (!selected || seenBattleIds.has(selected.battleId)) continue;
     seenBattleIds.add(selected.battleId);
     page.push(selected);
   }
 
+  return { page, queues };
+}
+
+export function takeNextArenaHistoryPage({ attackQueue = [], defenseQueue = [], seenBattleIds = new Set(), pageSize = ARENA_HISTORY_PAGE_SIZE }) {
+  const result = takeNextHistoryStreamsPage({
+    streams: [{ queue: attackQueue }, { queue: defenseQueue }],
+    seenBattleIds,
+    pageSize,
+  });
   return {
-    page,
-    attackQueue: remainingAttack,
-    defenseQueue: remainingDefense,
+    page: result.page,
+    attackQueue: result.queues[0],
+    defenseQueue: result.queues[1],
   };
 }
 
@@ -100,23 +160,45 @@ export function filterArenaBattleHistory(logs, filter) {
   return logs;
 }
 
+function pagerHasMore(pager) {
+  return Object.values(pager).some((stream) =>
+    stream.queue.length > 0 || !stream.initialized || stream.hasMore
+  );
+}
+
 export function useArenaBattleHistory({ currentUser, isOnline }) {
+  const currentUid = currentUser?.uid || null;
+  const [filter, setFilter] = useState("all");
   const [logs, setLogs] = useState([]);
+  const [discoveredLogs, setDiscoveredLogs] = useState([]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
-  const pagerRef = useRef(createHistoryPager());
-  const seenBattleIdsRef = useRef(new Set());
+  const filterCachesRef = useRef(new Map());
+  const discoveredBattleIdsRef = useRef(new Set());
+  const requestSequenceRef = useRef(0);
+  const pageRequestInFlightRef = useRef(false);
+  const ownerUidRef = useRef(currentUid);
+
+  const rememberDiscoveredLogs = useCallback((nextLogs) => {
+    const uniqueLogs = nextLogs.filter((log) => {
+      if (!log?.battleId || discoveredBattleIdsRef.current.has(log.battleId)) return false;
+      discoveredBattleIdsRef.current.add(log.battleId);
+      return true;
+    });
+    if (uniqueLogs.length > 0) {
+      setDiscoveredLogs((currentLogs) => [...currentLogs, ...uniqueLogs]);
+    }
+  }, []);
 
   const fetchStream = useCallback(async (stream) => {
     if (!currentUser || !db || (stream.initialized && !stream.hasMore)) return;
-    const constraints = [
-      where(stream.fieldName, "==", currentUser.uid),
-      orderBy("timestamp", "desc"),
-    ];
+    const constraints = stream.conditions.map(([fieldName, value]) => where(fieldName, "==", value));
+    constraints.push(orderBy("timestamp", "desc"));
     if (stream.cursor) constraints.push(startAfter(stream.cursor));
-    constraints.push(limit(ARENA_HISTORY_PAGE_SIZE));
+    constraints.push(limit(ARENA_HISTORY_LOOKAHEAD_SIZE));
 
     const snapshot = await getDocs(query(collection(db, "arena_battle_logs"), ...constraints));
     const nextLogs = snapshot.docs.map((documentSnapshot) =>
@@ -128,80 +210,185 @@ export function useArenaBattleHistory({ currentUser, isOnline }) {
     stream.queue.push(...nextLogs);
     stream.cursor = snapshot.docs[snapshot.docs.length - 1] || stream.cursor;
     stream.initialized = true;
-    stream.hasMore = snapshot.docs.length === ARENA_HISTORY_PAGE_SIZE;
+    stream.hasMore = snapshot.docs.length === ARENA_HISTORY_LOOKAHEAD_SIZE;
   }, [currentUser]);
 
-  const collectNextPage = useCallback(async () => {
-    const pager = pagerRef.current;
+  const collectNextPage = useCallback(async (cache) => {
+    const streams = Object.values(cache.pager);
     const page = [];
 
     while (page.length < ARENA_HISTORY_PAGE_SIZE) {
       await Promise.all(
-        Object.values(pager)
+        streams
           .filter((stream) => stream.queue.length === 0 && (!stream.initialized || stream.hasMore))
           .map((stream) => fetchStream(stream))
       );
 
-      const result = takeNextArenaHistoryPage({
-        attackQueue: pager.attack.queue,
-        defenseQueue: pager.defense.queue,
-        seenBattleIds: seenBattleIdsRef.current,
+      const result = takeNextHistoryStreamsPage({
+        streams,
+        seenBattleIds: cache.seenBattleIds,
         pageSize: ARENA_HISTORY_PAGE_SIZE - page.length,
       });
-      pager.attack.queue = result.attackQueue;
-      pager.defense.queue = result.defenseQueue;
+      streams.forEach((stream, index) => {
+        stream.queue = result.queues[index];
+      });
       page.push(...result.page);
 
-      const canContinue = Object.values(pager).some((stream) =>
-        stream.queue.length > 0 || (!stream.initialized || stream.hasMore)
-      );
-      if (!canContinue || result.page.length === 0) break;
+      if (!pagerHasMore(cache.pager) || result.page.length === 0) break;
     }
 
-    setHasMore(Object.values(pager).some((stream) => stream.queue.length > 0 || stream.hasMore));
-    return page;
+    return { logs: page, hasNext: pagerHasMore(cache.pager) };
   }, [fetchStream]);
 
-  const refresh = useCallback(async () => {
-    if (!currentUser || !isOnline || !db) {
-      setLogs([]);
-      setHasMore(false);
-      return;
-    }
-    setLoading(true);
+  const showPage = useCallback((cache, nextPageIndex) => {
+    const page = cache?.pages?.[nextPageIndex] || null;
+    setPageIndex(nextPageIndex);
+    setLogs(page?.logs || []);
+    setHasMore(Boolean(cache?.pages?.[nextPageIndex + 1] || page?.hasNext));
     setError("");
-    pagerRef.current = createHistoryPager();
-    seenBattleIdsRef.current = new Set();
+  }, []);
+
+  const loadFirstPage = useCallback(async (nextFilter, { force = false } = {}) => {
+    if (!currentUser || !isOnline || !db) {
+      requestSequenceRef.current += 1;
+      setLogs([]);
+      setPageIndex(0);
+      setHasMore(false);
+      setLoading(false);
+      setLoadingMore(false);
+      setError("");
+      return false;
+    }
+
+    if (!force) {
+      const cached = filterCachesRef.current.get(nextFilter);
+      if (cached?.pages?.[0]) {
+        showPage(cached, 0);
+        return true;
+      }
+    }
+
+    const requestId = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestId;
+    const cache = createFilterCache(nextFilter, currentUser.uid);
+    filterCachesRef.current.set(nextFilter, cache);
+    setLoading(true);
+    setLogs([]);
+    setPageIndex(0);
+    setHasMore(false);
+    setError("");
     try {
-      setLogs(await collectNextPage());
+      const firstPage = await collectNextPage(cache);
+      if (requestId !== requestSequenceRef.current) return false;
+      cache.pages[0] = firstPage;
+      rememberDiscoveredLogs(firstPage.logs);
+      showPage(cache, 0);
+      return true;
     } catch (loadError) {
+      if (requestId !== requestSequenceRef.current) return false;
+      filterCachesRef.current.delete(nextFilter);
       setError(loadError?.message || "배틀 기록을 불러오지 못했습니다.");
       setHasMore(false);
+      return false;
     } finally {
-      setLoading(false);
+      if (requestId === requestSequenceRef.current) setLoading(false);
     }
-  }, [collectNextPage, currentUser, isOnline]);
+  }, [collectNextPage, currentUser, isOnline, rememberDiscoveredLogs, showPage]);
 
-  const loadMore = useCallback(async () => {
-    if (!currentUser || !isOnline || !db || loadingMore || !hasMore) return;
+  const refresh = useCallback(async () => {
+    filterCachesRef.current = new Map();
+    pageRequestInFlightRef.current = false;
+    return loadFirstPage(filter, { force: true });
+  }, [filter, loadFirstPage]);
+
+  const changeFilter = useCallback((nextFilter) => {
+    const normalizedFilter = typeof nextFilter === "string" && nextFilter ? nextFilter : "all";
+    if (normalizedFilter === filter) {
+      const cached = filterCachesRef.current.get(normalizedFilter);
+      if (cached?.pages?.[0]) showPage(cached, 0);
+      return;
+    }
+    requestSequenceRef.current += 1;
+    setFilter(normalizedFilter);
+    setPageIndex(0);
+  }, [filter, showPage]);
+
+  const goToNextPage = useCallback(async () => {
+    if (!currentUser || !isOnline || !db || loading || loadingMore || pageRequestInFlightRef.current) return false;
+    const cache = filterCachesRef.current.get(filter);
+    if (!cache) return false;
+    const nextPageIndex = pageIndex + 1;
+    if (cache.pages[nextPageIndex]) {
+      showPage(cache, nextPageIndex);
+      return true;
+    }
+    if (!cache.pages[pageIndex]?.hasNext) return false;
+
+    pageRequestInFlightRef.current = true;
     setLoadingMore(true);
     setError("");
+    const pagerCheckpoint = cloneHistoryPager(cache.pager);
+    const seenBattleIdsCheckpoint = new Set(cache.seenBattleIds);
     try {
-      const nextPage = await collectNextPage();
-      if (nextPage.length > 0) setLogs((currentLogs) => [...currentLogs, ...nextPage]);
+      const nextPage = await collectNextPage(cache);
+      if (nextPage.logs.length === 0) {
+        cache.pages[pageIndex].hasNext = false;
+        setHasMore(false);
+        return false;
+      }
+      cache.pages[nextPageIndex] = nextPage;
+      rememberDiscoveredLogs(nextPage.logs);
+      showPage(cache, nextPageIndex);
+      return true;
     } catch (loadError) {
-      setError(loadError?.message || "추가 배틀 기록을 불러오지 못했습니다.");
+      cache.pager = pagerCheckpoint;
+      cache.seenBattleIds = seenBattleIdsCheckpoint;
+      setError(loadError?.message || "다음 배틀 기록을 불러오지 못했습니다.");
+      return false;
     } finally {
+      pageRequestInFlightRef.current = false;
       setLoadingMore(false);
     }
-  }, [collectNextPage, currentUser, hasMore, isOnline, loadingMore]);
+  }, [collectNextPage, currentUser, filter, isOnline, loading, loadingMore, pageIndex, rememberDiscoveredLogs, showPage]);
+
+  const goToPreviousPage = useCallback(() => {
+    if (pageIndex <= 0 || loading || loadingMore) return false;
+    const cache = filterCachesRef.current.get(filter);
+    if (!cache?.pages?.[pageIndex - 1]) return false;
+    showPage(cache, pageIndex - 1);
+    return true;
+  }, [filter, loading, loadingMore, pageIndex, showPage]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (ownerUidRef.current === currentUid) return;
+    ownerUidRef.current = currentUid;
+    requestSequenceRef.current += 1;
+    filterCachesRef.current = new Map();
+    discoveredBattleIdsRef.current = new Set();
+    setDiscoveredLogs([]);
+    setFilter("all");
+  }, [currentUid]);
+
+  useEffect(() => {
+    void loadFirstPage(filter);
+  }, [filter, loadFirstPage]);
 
   return useMemo(
-    () => ({ logs, loading, loadingMore, hasMore, error, refresh, loadMore }),
-    [error, hasMore, loadMore, loading, loadingMore, logs, refresh]
+    () => ({
+      filter,
+      logs,
+      discoveredLogs,
+      loading,
+      loadingMore,
+      hasMore,
+      hasPrevious: pageIndex > 0,
+      pageNumber: logs.length > 0 ? pageIndex + 1 : 0,
+      error,
+      refresh,
+      changeFilter,
+      goToPreviousPage,
+      goToNextPage,
+    }),
+    [changeFilter, discoveredLogs, error, filter, goToNextPage, goToPreviousPage, hasMore, loading, loadingMore, logs, pageIndex, refresh]
   );
 }

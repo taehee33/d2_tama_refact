@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { useArenaBattleHistory, buildArenaHistoryFilters, filterArenaBattleHistory } from "../hooks/useArenaBattleHistory";
+import { useArenaBattleHistory, buildArenaHistoryFilters } from "../hooks/useArenaBattleHistory";
 import { getArenaBattleReplay } from "../utils/logArchiveApi";
 
 export function getArenaArchiveUi(status) {
@@ -13,15 +13,13 @@ export function getArenaArchiveUi(status) {
 
 export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, currentCombatIdentityId, compact = false }) {
   const history = useArenaBattleHistory({ currentUser, isOnline });
-  const [filter, setFilter] = useState("all");
   const [replay, setReplay] = useState(null);
   const [replayError, setReplayError] = useState("");
   const [replayLoadingId, setReplayLoadingId] = useState(null);
   const filters = useMemo(
-    () => buildArenaHistoryFilters(history.logs, myGhosts, currentCombatIdentityId),
-    [currentCombatIdentityId, history.logs, myGhosts]
+    () => buildArenaHistoryFilters(history.discoveredLogs, myGhosts, currentCombatIdentityId),
+    [currentCombatIdentityId, history.discoveredLogs, myGhosts]
   );
-  const visibleLogs = useMemo(() => filterArenaBattleHistory(history.logs, filter), [filter, history.logs]);
 
   const openReplay = async (log) => {
     if (!log.archiveId || log.archiveStatus !== "ready") return;
@@ -45,17 +43,23 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
           <p className="text-xs text-gray-500">최근 기록부터 5개씩 불러옵니다.</p>
         </div>
         <div className="flex gap-2">
-          <select value={filter} onChange={(event) => setFilter(event.target.value)} className="rounded border px-2 py-1 text-sm" aria-label="배틀 기록 필터">
+          <select
+            value={history.filter}
+            onChange={(event) => history.changeFilter(event.target.value)}
+            disabled={history.loading || history.loadingMore}
+            className="min-h-11 rounded border px-2 py-1 text-sm disabled:opacity-50"
+            aria-label="배틀 기록 필터"
+          >
             {filters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
-          <button onClick={history.refresh} disabled={history.loading} className="rounded border px-3 py-1 text-sm">새로고침</button>
+          <button onClick={history.refresh} disabled={history.loading || history.loadingMore} className="min-h-11 rounded border px-3 py-1 text-sm disabled:opacity-50">새로고침</button>
         </div>
       </div>
       {history.error && <p role="alert" className="mb-3 text-sm text-red-700">{history.error}</p>}
       {replayError && <p role="alert" className="mb-3 text-sm text-red-700">{replayError}</p>}
-      {history.loading ? <p>기록을 불러오는 중...</p> : visibleLogs.length === 0 ? <p className="text-sm text-gray-600">표시할 배틀 기록이 없습니다.</p> : (
+      {history.loading ? <p>기록을 불러오는 중...</p> : history.logs.length === 0 ? <p className="text-sm text-gray-600">표시할 배틀 기록이 없습니다.</p> : (
         <div className={`${compact ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""} space-y-2`}>
-          {visibleLogs.map((log) => {
+          {history.logs.map((log) => {
             const archiveUi = getArenaArchiveUi(log.archiveStatus);
             return (
               <article key={log.battleId} className={`rounded-lg border text-sm ${compact ? "px-3 py-2" : "p-3"}`}>
@@ -78,17 +82,28 @@ export default function ArenaGhostHistory({ currentUser, isOnline, myGhosts, cur
           })}
         </div>
       )}
-      {!history.loading && history.hasMore && (
-        <div className="mt-3 flex shrink-0 justify-center">
+      {!history.loading && history.logs.length > 0 && (
+        <nav aria-label="배틀 기록 페이지" className="mt-3 flex shrink-0 items-center justify-center gap-3">
           <button
             type="button"
-            onClick={history.loadMore}
-            disabled={history.loadingMore}
-            className="min-w-32 rounded-lg border border-blue-300 bg-blue-50 px-5 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={history.goToPreviousPage}
+            disabled={!history.hasPrevious || history.loadingMore}
+            className="min-h-11 min-w-20 rounded-lg border px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {history.loadingMore ? "불러오는 중..." : "기록 더보기"}
+            이전
           </button>
-        </div>
+          <span aria-live="polite" className="min-w-20 text-center text-sm font-semibold text-gray-700">
+            {history.loadingMore ? "불러오는 중..." : `${history.pageNumber} 페이지`}
+          </span>
+          <button
+            type="button"
+            onClick={history.goToNextPage}
+            disabled={!history.hasMore || history.loadingMore}
+            className="min-h-11 min-w-20 rounded-lg border border-blue-300 bg-blue-50 px-4 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음
+          </button>
+        </nav>
       )}
       {replay && (
         <div role="dialog" aria-label="아레나 상세 기록" className="mt-4 rounded-lg bg-gray-900 p-4 text-white">

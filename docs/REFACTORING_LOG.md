@@ -8253,3 +8253,12 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:** API의 활성 타 사용자 집계·선택 필드·잘못된 옵션, Hook의 다음 페이지 조회·방문 페이지 캐시·정렬 초기화·수동 재집계·연속 클릭 방지, 화면의 `6/13`·마지막 페이지·버튼 비활성 및 44px 터치 높이를 테스트했다. 관련 직접 테스트 34개, 루트 `npm run check`(프런트 212 suite·1,404 test, 서버 255 pass·20 Emulator-only skip, production build), Arena Emulator 26개가 모두 통과했다.
 - **영향 파일:** `digimon-tamagotchi-frontend/api/_lib/arenaGhostHandlers.js`, `digimon-tamagotchi-frontend/src/utils/arenaApi.js`, `digimon-tamagotchi-frontend/src/hooks/useArenaGhosts.js`, `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, 관련 테스트, `firestore.indexes.json`, `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** offset은 건너뛴 문서까지 읽기 비용이 발생하므로 기존 불투명 cursor 계약을 유지한다. 정확한 전체 수는 목록 cursor와 독립된 집계로 얻되 호출 시점을 최초 진입과 명시적 새로고침으로 제한해 화면 정보성과 Firestore 읽기 비용을 함께 관리한다.
+
+## [2026-08-22] Ghost 아레나 기록 탭 cursor 페이지 전환
+
+- **내용:** 기록 탭의 누적형 `기록 더보기`를 5건 단위 `이전 / 현재 페이지 / 다음` 탐색으로 변경했다. 전체·현재 연결 공격·Ghost 기록 필터마다 독립된 cursor와 페이지 캐시를 유지하며, 필터를 다시 선택하면 첫 페이지로 돌아가되 이미 방문한 페이지는 다시 읽지 않는다. 수동 새로고침은 현재 필터를 유지하면서 모든 페이지 cache를 비우고 첫 페이지를 다시 조회한다.
+- **조회·비용:** 전체 기록은 기존 공격·방어 스트림을 시간순 병합하고, 현재 연결과 Ghost 필터는 해당 조건의 전용 Firestore 쿼리를 사용한다. 각 스트림은 최대 6건을 읽어 5건을 표시하고 다음 페이지 존재 여부를 판정한다. 전체 count 집계와 문서 쓰기는 추가하지 않았으며 이전·방문 페이지 이동은 메모리 cache만 사용한다.
+- **인덱스:** Ghost 필터의 공격·방어 조회를 위해 `arena_battle_logs(attackerId ASC, defenderGhostId ASC, timestamp DESC)`와 `arena_battle_logs(defenderId ASC, defenderGhostId ASC, timestamp DESC)` composite index를 추가했다. 운영 배포에서는 프런트 코드보다 인덱스를 먼저 반영해야 한다.
+- **검증:** 공격·방어 시간순 병합과 중복 제거, 필터별 쿼리 조건, 미방문 다음 페이지 조회, 이전·방문 페이지 cache, 필터 재선택, 새로고침 초기화와 화면의 이전·다음 접근성 상태를 관련 Hook·컴포넌트 테스트로 고정했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useArenaBattleHistory.js`, `digimon-tamagotchi-frontend/src/components/ArenaGhostHistory.jsx`, 관련 테스트, `firestore.indexes.json`, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 클라이언트에서 공용 기록을 계속 스캔하면 드문 필터의 5건을 찾기 위해 관련 없는 문서까지 읽게 된다. 필터별 equality query와 cursor cache를 사용하면 새 페이지에서 필요한 기록만 읽고 역방향·재방문 탐색은 추가 비용 없이 제공할 수 있다.
