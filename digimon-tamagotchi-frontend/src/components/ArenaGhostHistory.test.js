@@ -100,9 +100,12 @@ describe("Arena Ghost 배틀 기록", () => {
     expect(result.page.map((log) => log.battleId)).toEqual(["same-battle", "defense-next"]);
   });
 
-  test("최근 기록 안내와 더보기 버튼을 표시하고 다음 페이지를 요청한다", () => {
-    const loadMore = jest.fn();
+  test("최근 기록 안내와 이전·다음 페이지 조작을 표시한다", () => {
+    const goToPreviousPage = jest.fn();
+    const goToNextPage = jest.fn();
+    const changeFilter = jest.fn();
     useArenaBattleHistory.mockReturnValue({
+      filter: "all",
       logs: [{
         battleId: "battle-1",
         attackerName: "엔젤몬",
@@ -111,12 +114,17 @@ describe("Arena Ghost 배틀 기록", () => {
         occurredAt: new Date("2026-07-22T05:00:00Z"),
         archiveStatus: "pending",
       }],
+      discoveredLogs: [],
       loading: false,
       loadingMore: false,
       hasMore: true,
+      hasPrevious: false,
+      pageNumber: 1,
       error: "",
       refresh: jest.fn(),
-      loadMore,
+      changeFilter,
+      goToPreviousPage,
+      goToNextPage,
     });
 
     render(
@@ -130,7 +138,14 @@ describe("Arena Ghost 배틀 기록", () => {
 
     expect(screen.getByText("최근 기록부터 5개씩 불러옵니다.")).toBeInTheDocument();
     expect(screen.getByText("엔젤몬 vs 안드로몬")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "기록 더보기" }));
-    expect(loadMore).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("1 페이지")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "이전" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("combobox", { name: "배틀 기록 필터" }), {
+      target: { value: "combat:combat-1" },
+    });
+    expect(changeFilter).toHaveBeenCalledWith("combat:combat-1");
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    expect(goToNextPage).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "기록 더보기" })).not.toBeInTheDocument();
   });
 });
