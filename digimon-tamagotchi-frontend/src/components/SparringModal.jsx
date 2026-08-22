@@ -8,10 +8,60 @@ import { db } from "../firebase";
 import { digimonDataVer1 } from "../data/v1/digimons";
 import { digimonDataVer2 } from "../data/v2modkor";
 import { calculatePower } from "../logic/battle/hitrate";
-import { getDigimonDataMapByVersion } from "../utils/digimonVersionUtils";
+import {
+  getDigimonDataMapByVersion,
+  getSpriteBasePathByVersion,
+} from "../utils/digimonVersionUtils";
 import "../styles/Battle.css";
 
 const MAX_SLOTS = 10;
+
+/**
+ * 스파링 슬롯의 버전에 맞는 디지몬 데이터와 원본 데이터 맵을 찾는다.
+ * 버전 맵에 없는 레거시 슬롯은 기존 Ver.1/Ver.2 데이터로 보완한다.
+ */
+export function resolveSparringSlotDigimonData(slot) {
+  const selectedDigimon = slot?.selectedDigimon;
+  const dataMap = getDigimonDataMapByVersion(slot?.version || "Ver.1");
+  const digimonData =
+    dataMap?.[selectedDigimon] ||
+    digimonDataVer1[selectedDigimon] ||
+    digimonDataVer2[selectedDigimon] ||
+    null;
+
+  return { dataMap, digimonData };
+}
+
+/**
+ * 슬롯 데이터와 디지몬 데이터를 화면 표시용 이름으로 합친다.
+ */
+export function getSparringSlotDisplayName(slot, digimonData) {
+  const digimonName = digimonData?.name || slot?.selectedDigimon || "디지몬";
+  const nickname =
+    typeof slot?.digimonNickname === "string"
+      ? slot.digimonNickname.trim()
+      : "";
+
+  return nickname ? `${nickname}(${digimonName})` : digimonName;
+}
+
+/**
+ * 스파링 슬롯 디지몬의 버전별 스프라이트 경로를 만든다.
+ */
+export function getSparringSlotSpriteSrc(slot, digimonData, dataMap = {}) {
+  const hasVersionData = Boolean(
+    slot?.selectedDigimon && dataMap?.[slot.selectedDigimon]
+  );
+  const spriteBasePath =
+    digimonData?.spriteBasePath ||
+    (hasVersionData
+      ? getSpriteBasePathByVersion(slot?.version || "Ver.1")
+      : "/images") ||
+    "/images";
+  const spriteNumber = digimonData?.sprite ?? 0;
+
+  return `${spriteBasePath}/${spriteNumber}.png`;
+}
 
 export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) {
   const { currentUser, isFirebaseAvailable } = useAuth();
@@ -96,11 +146,17 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
         ) : (
           <div className="flex flex-col space-y-2 mb-4">
             {slots.map((slot) => {
-              const dataMap = getDigimonDataMapByVersion(slot.version);
-              const digimonData =
-                dataMap?.[slot.selectedDigimon] ||
-                digimonDataVer1[slot.selectedDigimon] ||
-                digimonDataVer2[slot.selectedDigimon];
+              const { dataMap, digimonData } =
+                resolveSparringSlotDigimonData(slot);
+              const digimonDisplayName = getSparringSlotDisplayName(
+                slot,
+                digimonData
+              );
+              const spriteSrc = getSparringSlotSpriteSrc(
+                slot,
+                digimonData,
+                dataMap
+              );
               const actualPower = slot.digimonStats?.power 
                 || (digimonData ? calculatePower(slot.digimonStats || {}, digimonData) : 0)
                 || digimonData?.stats?.basePower 
@@ -113,14 +169,24 @@ export default function SparringModal({ onClose, onSelectSlot, currentSlotId }) 
                     onSelectSlot(slot);
                     onClose();
                   }}
-                  className="px-4 py-3 bg-blue-100 hover:bg-blue-200 rounded-lg text-left transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 bg-blue-100 hover:bg-blue-200 rounded-lg text-left transition-colors"
                 >
-                  <div className="font-bold mb-1">{slot.slotName}</div>
-                  <div className="text-sm font-semibold text-gray-800 mb-1">
-                    "{digimonData?.name || slot.selectedDigimon}"
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-white/70">
+                    <img
+                      src={spriteSrc}
+                      alt={digimonDisplayName}
+                      className="h-14 w-14 object-contain"
+                      style={{ imageRendering: "pixelated" }}
+                    />
                   </div>
-                  <div className="text-sm text-gray-600">
-                    파워: {actualPower}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold mb-1">{slot.slotName}</div>
+                    <div className="truncate text-sm font-semibold text-gray-800 mb-1">
+                      "{digimonDisplayName}"
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      파워: {actualPower}
+                    </div>
                   </div>
                 </button>
               );

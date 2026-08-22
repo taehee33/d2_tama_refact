@@ -2,8 +2,8 @@ export const GAME_SCENE_ASPECT_RATIO = "1 / 1";
 export const GAME_SCENE_ASPECT_RATIO_VALUE = 1;
 
 export const GAME_SCENE_SIZE = Object.freeze({
-  width: 300,
-  height: 300,
+  width: 250,
+  height: 250,
 });
 
 export const GAME_SCENE_SIZE_MIN = 100;

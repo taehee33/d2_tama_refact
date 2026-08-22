@@ -11,11 +11,25 @@ import {
   normalizeGameSceneSize,
 } from "../utils/gameSceneGeometry";
 
+export const GAME_SCENE_SIZE_MIGRATION_KEY = 'digimon_view_settings_default_250_migrated';
+export const GAME_SCENE_SIZE_MIGRATION_VERSION = '1';
+
 /**
  * Sprite 설정을 localStorage에서 로드
  */
 const loadSpriteSettings = () => {
   try {
+    const migrationVersion = localStorage.getItem(GAME_SCENE_SIZE_MIGRATION_KEY);
+    if (migrationVersion !== GAME_SCENE_SIZE_MIGRATION_VERSION) {
+      const migratedSettings = { ...GAME_SCENE_SIZE };
+      localStorage.setItem('digimon_view_settings', JSON.stringify(migratedSettings));
+      localStorage.setItem(
+        GAME_SCENE_SIZE_MIGRATION_KEY,
+        GAME_SCENE_SIZE_MIGRATION_VERSION
+      );
+      return migratedSettings;
+    }
+
     const saved = localStorage.getItem('digimon_view_settings');
     if (saved) {
       return normalizeGameSceneSize(JSON.parse(saved));

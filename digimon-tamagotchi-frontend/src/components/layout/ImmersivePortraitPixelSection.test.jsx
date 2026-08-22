@@ -44,8 +44,8 @@ describe("ImmersivePortraitPixelSection", () => {
     });
     expect(screen.getByRole("region", { name: /세로 디바이스/ })).toHaveAttribute("data-skin-id", skinId);
     expect(screen.getByTestId("game-screen")).toHaveAttribute("data-background", "162");
-    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-width", "300");
-    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-height", "300");
+    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-width", "250");
+    expect(screen.getByTestId("game-screen")).toHaveAttribute("data-height", "250");
     expect(screen.getByText("16:09")).toBeInTheDocument();
     expect(screen.getByText("코로몬")).toBeInTheDocument();
   });
