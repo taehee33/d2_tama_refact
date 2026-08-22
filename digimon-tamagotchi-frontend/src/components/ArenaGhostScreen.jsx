@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useArenaGhosts } from "../hooks/useArenaGhosts";
+import useBodyScrollLock from "../hooks/useBodyScrollLock";
 import { isStarterDigimonId } from "../utils/digimonVersionUtils";
 import { translateStage } from "../utils/stageTranslator";
 import ArenaGhostHistory from "./ArenaGhostHistory";
@@ -89,6 +90,7 @@ export default function ArenaGhostScreen({
   const [detailPanel, setDetailPanel] = useState(null);
   const [startingGhostId, setStartingGhostId] = useState(null);
   const [battleNotice, setBattleNotice] = useState("");
+  useBodyScrollLock();
   const arena = useArenaGhosts({
     currentUser,
     isOnline: Boolean(isFirebaseAvailable && currentUser),
@@ -103,6 +105,10 @@ export default function ArenaGhostScreen({
   const ghostCapacityLimit = Math.max(0, Number(arena.capacity.limit) || 3);
   const emptyGhostSlotCount = Math.max(0, ghostCapacityLimit - arena.myGhosts.length);
   const currentSpriteBasePath = currentDigimonData?.spriteBasePath || "/images";
+  const currentDigimonName = currentDigimonData?.name || selectedDigimon || "없음";
+  const currentDigimonDisplayName = digimonNickname
+    ? `${digimonNickname}(${currentDigimonName})`
+    : currentDigimonName;
   const myGhostsLoading = arena.myGhostsLoading ?? arena.loading;
   const opponentsLoading = arena.opponentsLoading ?? arena.loading;
   const closeDetailPanel = useCallback(() => setDetailPanel(null), []);
@@ -145,7 +151,7 @@ export default function ArenaGhostScreen({
 
   if (!isFirebaseAvailable || !currentUser) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-none bg-black/70 p-4">
         <section className="w-full max-w-lg rounded-xl bg-white p-6 text-center shadow-xl">
           <h2 className="mb-3 text-2xl font-bold">Ghost 아레나</h2>
           <p className="mb-5 text-gray-700">Ghost 아레나는 로그인 후 이용할 수 있는 온라인 기능입니다.</p>
@@ -156,7 +162,7 @@ export default function ArenaGhostScreen({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/75 p-1 min-[320px]:p-3 sm:p-6">
+    <div className="fixed inset-0 z-50 overflow-hidden overscroll-none bg-black/75 p-1 min-[320px]:p-3 sm:p-6">
       <main
         role="dialog"
         aria-modal="true"
@@ -217,31 +223,34 @@ export default function ArenaGhostScreen({
           role="tabpanel"
           aria-labelledby="arena-battle-tab"
           hidden={activeTab !== "battle"}
-          className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 lg:overflow-hidden"
+          className="min-h-0 flex-1 overflow-y-auto p-2.5 min-[320px]:overflow-hidden sm:p-4"
         >
-          <div className="flex h-full min-h-0 flex-col gap-3">
+          <div className="flex h-full min-h-0 flex-col gap-2 sm:gap-3">
             <section aria-labelledby="arena-power-title" className="shrink-0">
-              <article className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                <div className="grid grid-cols-[4rem_minmax(0,1fr)] items-stretch gap-3 min-[360px]:grid-cols-[4rem_minmax(0,1fr)_minmax(6.75rem,12rem)]">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-white p-1">
+              <article className="rounded-xl border border-blue-200 bg-blue-50 p-2.5 sm:p-3">
+                <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-stretch gap-2 min-[320px]:grid-cols-[3.5rem_minmax(0,1fr)_5rem] sm:grid-cols-[4rem_minmax(0,1fr)_minmax(6.75rem,12rem)] sm:gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-blue-200 bg-white p-1 sm:h-16 sm:w-16">
                     <img
                       src={`${currentSpriteBasePath}/${currentDigimonData?.sprite ?? 0}.png`}
-                      alt={`현재 디지몬 ${selectedDigimon || "없음"}`}
-                      className="h-14 w-14 object-contain pixelated"
+                      alt={`현재 디지몬 ${currentDigimonName}`}
+                      className="h-12 w-12 object-contain pixelated sm:h-14 sm:w-14"
                     />
                   </div>
                   <div className="min-w-0 self-center">
                     <p id="arena-power-title" className="text-xs font-semibold text-blue-700">현재 디지몬</p>
-                    <h3 className="truncate font-bold">{digimonNickname ? `${digimonNickname}(${selectedDigimon})` : selectedDigimon || "없음"}</h3>
-                    <p className="truncate text-xs text-gray-600">
+                    <h3 className="break-words text-sm font-bold leading-tight sm:truncate sm:text-base">
+                      {currentDigimonDisplayName}
+                    </h3>
+                    <p className="break-words text-[11px] leading-tight text-gray-600 sm:truncate sm:text-xs">
                       슬롯 {currentSlotId}
                       {currentDigimonData?.stage ? ` · ${translateStage(currentDigimonData.stage)}` : ""}
                       {currentDigimonData?.stats?.type ? ` · ${currentDigimonData.stats.type}` : ""}
                     </p>
                   </div>
-                  <div className="col-span-2 min-[360px]:col-span-1">
+                  <div className="col-span-2 min-[320px]:col-span-1">
                     <ArenaPowerBreakdown
                       inlineSummary
+                      mobileBadge
                       digimonStats={digimonStats}
                       currentDigimonData={currentDigimonData}
                       activeGhostCount={activeGhostCount}
@@ -274,7 +283,7 @@ export default function ArenaGhostScreen({
               </article>
             </section>
 
-            <section aria-labelledby="opponents-title" className="flex min-h-[20rem] flex-1 flex-col rounded-xl border border-gray-200 p-3 lg:min-h-0">
+            <section aria-labelledby="opponents-title" className="flex min-h-[20rem] flex-1 flex-col rounded-xl border border-gray-200 p-2.5 min-[320px]:min-h-0 min-[320px]:overflow-hidden sm:p-3">
               <div className="mb-2 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -286,7 +295,7 @@ export default function ArenaGhostScreen({
                       {arena.opponents.length}/{arena.opponentTotalCount ?? "-"}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">상대를 선택하면 서버에서 배틀을 확정합니다.</p>
+                  <p className="hidden text-xs text-gray-500 sm:block">상대를 선택하면 서버에서 배틀을 확정합니다.</p>
                 </div>
                 <div className="flex w-full gap-2 sm:w-auto">
                   <label className="sr-only" htmlFor="arena-opponent-sort">도전 상대 정렬</label>
@@ -317,11 +326,14 @@ export default function ArenaGhostScreen({
                 <p className="rounded border border-dashed p-4 text-gray-600">현재 도전할 수 있는 Ghost가 없습니다.</p>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="grid min-h-0 flex-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  <div
+                    data-testid="arena-opponent-scroll-area"
+                    className="grid min-h-0 flex-none gap-2 overflow-visible overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] min-[320px]:flex-1 min-[320px]:overflow-y-auto sm:grid-cols-2"
+                  >
                     {arena.opponents.map((ghost) => (
-                      <article key={ghost.ghostId} className="flex min-h-[76px] items-center justify-between gap-2 rounded-lg border p-2">
+                      <article key={ghost.ghostId} className="flex min-h-[72px] items-center justify-between gap-2 rounded-lg border p-2 sm:min-h-[76px]">
                         <div className="flex min-w-0 items-center gap-2">
-                          <GhostSprite snapshot={ghost.snapshot} size="h-12 w-12" concealed />
+                          <GhostSprite snapshot={ghost.snapshot} size="h-11 w-11 sm:h-12 sm:w-12" concealed />
                           <div className="min-w-0">
                             <h4 className="truncate text-sm font-bold">{ghost.ownerDisplayName}의 ???</h4>
                             <GhostRegisteredAt value={ghost.registeredAt} />

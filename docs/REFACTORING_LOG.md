@@ -8262,3 +8262,18 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:** 공격·방어 시간순 병합과 중복 제거, 필터별 쿼리 조건, 미방문 다음 페이지 조회, 이전·방문 페이지 cache, 필터 재선택, 새로고침 초기화와 화면의 이전·다음 접근성 상태를 관련 Hook·컴포넌트 테스트로 고정했다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useArenaBattleHistory.js`, `digimon-tamagotchi-frontend/src/components/ArenaGhostHistory.jsx`, 관련 테스트, `firestore.indexes.json`, `docs/REFACTORING_LOG.md`
 - **아키텍처 결정 근거:** 클라이언트에서 공용 기록을 계속 스캔하면 드문 필터의 5건을 찾기 위해 관련 없는 문서까지 읽게 된다. 필터별 equality query와 cursor cache를 사용하면 새 페이지에서 필요한 기록만 읽고 역방향·재방문 탐색은 추가 비용 없이 제공할 수 있다.
+
+## [2026-08-22] Ghost 아레나 모바일 이름·상대 공간과 스크롤 소유권 개선
+
+- **내용:** 모바일 현재 디지몬을 56px 이미지, 줄바꿈 가능한 이름과 폭 80px Power 배지로 압축했습니다. 내부 영문 ID 대신 현재 버전 데이터의 한글 이름을 우선 사용하고, 닉네임이 있으면 `닉네임(한글 이름)`으로 표시합니다.
+- **스크롤:** 상대 카드 목록만 남은 높이에서 스크롤하도록 소유권을 단일화하고 overscroll contain과 iOS 관성 스크롤을 적용했습니다. 별도 body scroll lock Hook이 html/body와 현재 scrollY를 보존·복구해 뒤 게임 화면으로 스크롤이 전달되지 않게 합니다.
+- **검증:** 긴 이름 노출, 상대 목록 전용 스크롤과 72px 카드, 문서 scroll lock·원래 위치 복원을 관련 Jest 테스트로 고정했습니다. 서버 API, Firestore 읽기·쓰기·인덱스, 상대 cursor와 배틀 판정은 변경하지 않았습니다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, `digimon-tamagotchi-frontend/src/components/arena/ArenaPowerBreakdown.jsx`, `digimon-tamagotchi-frontend/src/hooks/useBodyScrollLock.js`, 관련 테스트, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 상대 목록만 실제 scroller로 두고 문서 잠금을 화면에서 분리한 Hook으로 관리해 가용 높이와 스크롤 안정성을 개선하면서 데이터·배틀 계층을 유지했습니다.
+
+## [2026-08-22] Ghost 아레나 현재 디지몬 정보 상시 표시
+
+- **내용:** 모바일 현재 디지몬 카드의 펼치기·접기 버튼을 제거하고 공격·방어 전적, 등록 상태와 Ghost 등록 버튼을 모든 화면 크기에서 항상 표시합니다. 버튼 한 행이 사라져 펼친 정보는 유지하면서 카드 높이 증가를 줄였습니다.
+- **설정 정리:** 더 이상 필요하지 않은 `arena_ghost_current_digimon_collapsed` localStorage 읽기·쓰기와 상태 helper를 제거했습니다. 브라우저에 남은 기존 값은 참조하지 않으며 공식 슬롯 데이터에는 영향이 없습니다.
+- **검증:** 토글 부재, 전적·상태·등록 조작 상시 노출과 기존 저장값 무시를 화면 테스트로 고정했습니다. 한글 이름, Power 상세, 상대 cursor 페이지와 서버·Firestore 계약은 변경하지 않았습니다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, 관련 테스트, `docs/REFACTORING_LOG.md`

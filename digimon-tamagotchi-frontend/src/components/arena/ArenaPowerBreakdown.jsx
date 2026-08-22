@@ -72,6 +72,7 @@ export default function ArenaPowerBreakdown({
   onOpenDetails,
   compact = false,
   inlineSummary = false,
+  mobileBadge = false,
 }) {
   const [expanded, setExpanded] = useState(false);
   const power = useMemo(
@@ -87,13 +88,13 @@ export default function ArenaPowerBreakdown({
         aria-label="Power 상세 보기"
         aria-expanded={onOpenDetails ? undefined : expanded}
         aria-haspopup={onOpenDetails ? "dialog" : undefined}
-        className="flex h-full min-h-16 w-full min-w-0 flex-col justify-center rounded-lg border border-blue-200 bg-white/80 px-3 py-2 text-left hover:bg-blue-100"
+        className={`flex h-full w-full min-w-0 flex-col justify-center rounded-lg border border-blue-200 bg-white/80 text-left hover:bg-blue-100 ${mobileBadge ? "min-h-14 px-2 py-1.5 sm:min-h-16 sm:px-3 sm:py-2" : "min-h-16 px-3 py-2"}`}
       >
-        <span className="text-[11px] font-semibold text-gray-600">최종 Power</span>
+        <span className="text-[10px] font-semibold leading-tight text-gray-600 sm:text-[11px]">최종 Power</span>
         <span aria-label={`최종 공격 Power ${power.effectivePower}`} className="text-xl font-bold leading-tight text-blue-700">
           {power.effectivePower}
         </span>
-        <span className="truncate text-[11px] text-gray-600">
+        <span className="truncate text-[10px] leading-tight text-gray-600 sm:text-[11px]">
           {power.digimonPower} + Ghost {power.ghostBonus}
         </span>
       </button>
