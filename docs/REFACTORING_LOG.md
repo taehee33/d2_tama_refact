@@ -8265,11 +8265,19 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 
 ## [2026-08-22] Ghost 아레나 모바일 이름·상대 공간과 스크롤 소유권 개선
 
-- **내용:** 모바일 현재 디지몬을 56px 이미지, 줄바꿈 가능한 이름과 폭 80px Power 배지로 압축했습니다. 내부 영문 ID 대신 현재 버전 데이터의 한글 이름을 우선 사용하고, 닉네임이 있으면 `닉네임(한글 이름)`으로 표시합니다.
-- **스크롤:** 상대 카드 목록만 남은 높이에서 스크롤하도록 소유권을 단일화하고 overscroll contain과 iOS 관성 스크롤을 적용했습니다. 별도 body scroll lock Hook이 html/body와 현재 scrollY를 보존·복구해 뒤 게임 화면으로 스크롤이 전달되지 않게 합니다.
-- **검증:** 긴 이름 노출, 상대 목록 전용 스크롤과 72px 카드, 문서 scroll lock·원래 위치 복원을 관련 Jest 테스트로 고정했습니다. 서버 API, Firestore 읽기·쓰기·인덱스, 상대 cursor와 배틀 판정은 변경하지 않았습니다.
+- **내용:** 모바일 현재 디지몬을 56px 이미지, 줄바꿈 가능한 이름, 폭 80px Power 배지의 접힘 요약으로 변경했다. 첫 이용은 접힘이며 사용자가 선택한 펼침 상태는 `arena_ghost_current_digimon_collapsed` localStorage UI 설정으로 기기에 보존한다. 펼친 상태에서 기존 전적·등록 상태·Ghost 등록 기능을 그대로 제공하고 데스크톱은 저장된 값과 무관하게 항상 전체 정보를 표시한다.
+- **스크롤:** 대전 tabpanel의 외부 스크롤을 제거하고 상대 카드 목록만 남은 높이에서 스크롤하도록 소유권을 단일화했다. 상대 헤더·정렬·새로고침·cursor 페이지 조작은 고정하며 목록에 overscroll contain과 iOS 관성 스크롤을 적용했다. 아레나 모달은 별도 body scroll lock Hook으로 html/body와 현재 scrollY를 보존·복구해 목록 끝의 제스처가 뒤 게임 화면으로 전달되지 않게 했다.
+- **검증:** 긴 닉네임·종 이름 노출, 접힘 접근성 속성·기기 저장·잘못된 값 복구, 상대 목록 전용 스크롤과 72px 카드, 문서 scroll lock·원래 위치 복원을 관련 Jest 테스트로 고정했다. 서버 API, Firestore 읽기·쓰기·인덱스, 상대 페이지 cursor와 배틀 판정은 변경하지 않았다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, `digimon-tamagotchi-frontend/src/components/arena/ArenaPowerBreakdown.jsx`, `digimon-tamagotchi-frontend/src/hooks/useBodyScrollLock.js`, 관련 테스트, `docs/REFACTORING_LOG.md`
-- **아키텍처 결정 근거:** 상대 목록만 실제 scroller로 두고 문서 잠금을 화면에서 분리한 Hook으로 관리해 가용 높이와 스크롤 안정성을 개선하면서 데이터·배틀 계층을 유지했습니다.
+- **표시 보완:** 현재 디지몬 이름은 슬롯의 내부 영문 ID가 아니라 현재 버전 데이터의 한글 `name`을 우선 사용하며, 닉네임이 있으면 `닉네임(한글 이름)`으로 표시합니다.
+- **아키텍처 결정 근거:** 모바일에서 tabpanel과 상대 목록이 동시에 세로 스크롤을 소유하면 작은 목록 영역과 iOS scroll chaining이 함께 발생한다. 상대 목록만 실제 scroller로 두고 문서 잠금을 화면에서 분리한 Hook으로 관리하면 가용 높이와 스크롤 안정성을 개선하면서 데이터·배틀 계층을 건드리지 않는다.
+
+## [2026-08-22] 스파링 상대 슬롯별 디지몬 이미지 표시
+
+- **내용:** 스파링 슬롯 선택 카드마다 슬롯의 `selectedDigimon`·버전에 맞는 디지몬 스프라이트를 표시했습니다. Ver.1~Ver.5의 `spriteBasePath`를 사용하고, 레거시 데이터나 미확인 디지몬은 기존 fallback 경로를 유지합니다. 저장된 디지몬 별명이 있으면 카드 이름에도 함께 표시합니다.
+- **검증:** 버전별 스프라이트 경로, 슬롯별 이미지·별명, 현재 슬롯 제외, 카드 선택·닫기 동작, 로딩 상태와 기본 스프라이트 fallback을 컴포넌트 테스트로 고정했습니다. Firestore 문서·슬롯 스키마·BattleScreen과 배틀 저장 흐름은 변경하지 않았습니다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/SparringModal.jsx`, `digimon-tamagotchi-frontend/src/components/SparringModal.test.jsx`, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 이미 슬롯 조회 시 확보하는 디지몬 ID·버전·닉네임과 공용 버전 데이터 맵을 재사용해 새로운 저장 필드나 조회를 추가하지 않았습니다. 이미지 표시 계산은 모달의 표시 경계에 두어 기존 스파링 선택·배틀 로직과 저장 계약을 보존했습니다.
 
 ## [2026-08-22] Ghost 아레나 현재 디지몬 정보 상시 표시
 
@@ -8277,3 +8285,11 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **설정 정리:** 더 이상 필요하지 않은 `arena_ghost_current_digimon_collapsed` localStorage 읽기·쓰기와 상태 helper를 제거했습니다. 브라우저에 남은 기존 값은 참조하지 않으며 공식 슬롯 데이터에는 영향이 없습니다.
 - **검증:** 토글 부재, 전적·상태·등록 조작 상시 노출과 기존 저장값 무시를 화면 테스트로 고정했습니다. 한글 이름, Power 상세, 상대 cursor 페이지와 서버·Firestore 계약은 변경하지 않았습니다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, 관련 테스트, `docs/REFACTORING_LOG.md`
+
+## [2026-08-22] 화면 크기 기본값 및 숫자 입력 UX 개선
+
+- **내용:** 게임 화면 기본 크기를 기존 `300×300px`에서 `250×250px`로 변경했습니다. 화면 크기 직접 입력은 편집 중 빈 값·중간 숫자·범위 밖 숫자를 유지하고, blur·Enter·저장 시에만 `100~600px` 범위로 보정하도록 숫자 입력 draft와 실제 크기 상태를 분리했습니다. 기본 크기 초기화는 `250×250px`을 즉시 적용합니다.
+- **마이그레이션:** `digimon_view_settings`는 전용 localStorage 마이그레이션 키를 사용해 최초 1회 기존 값을 `250×250px`으로 변경합니다. 마이그레이션 이후 사용자가 저장한 크기는 다시 초기화하지 않으며, Firestore·슬롯 문서·서버 API는 변경하지 않았습니다.
+- **검증:** 기본 크기 상수와 몰입형 화면 기본값, 기존 저장값의 1회 초기화와 이후 사용자 크기 보존, 직접 입력의 중간값 유지와 blur·Enter·저장 시 범위 보정, 초기화 버튼 동작을 관련 테스트로 고정했습니다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/utils/gameSceneGeometry.js`, `digimon-tamagotchi-frontend/src/components/SettingsModal.jsx`, `digimon-tamagotchi-frontend/src/hooks/useGameState.js`, 관련 테스트, `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 입력 중 문자열 draft를 화면 크기 상태와 분리해 브라우저의 편집 흐름을 보존하고, 최종 반영 경계에서만 기존 공용 정규화 함수를 호출했습니다. 기본값 변경은 UI 보조 설정인 localStorage에 한정된 버전 마이그레이션으로 처리해 공식 슬롯 저장 계약과 실시간 저장 경계를 건드리지 않았습니다.
