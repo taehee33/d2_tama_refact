@@ -31,8 +31,23 @@ const {
 
 const ARENA_CONFIG_PATH = "game_settings/arena_config";
 const GHOST_LIMIT = 3;
-const DEFAULT_OPPONENT_LIMIT = 30;
-const MAX_OPPONENT_LIMIT = 50;
+const OPPONENT_PAGE_SIZE = 6;
+const OPPONENT_LOOKAHEAD_LIMIT = OPPONENT_PAGE_SIZE + GHOST_LIMIT + 1;
+const DEFAULT_OPPONENT_SORT = "registered_desc";
+const OPPONENT_SORTS = Object.freeze({
+  registered_desc: {
+    fields: [["registeredAt", "desc"], [FieldPath.documentId(), "desc"]],
+  },
+  registered_asc: {
+    fields: [["registeredAt", "asc"], [FieldPath.documentId(), "asc"]],
+  },
+  defense_wins_desc: {
+    fields: [["ownDefenseRecord.wins", "desc"], ["registeredAt", "desc"], [FieldPath.documentId(), "desc"]],
+  },
+  defense_wins_asc: {
+    fields: [["ownDefenseRecord.wins", "asc"], ["registeredAt", "desc"], [FieldPath.documentId(), "desc"]],
+  },
+});
 
 function toDate(value) {
   if (value instanceof Date) return value;
@@ -399,42 +414,79 @@ async function listOwnerGhosts({ uid, slotId = null, deps = {} }) {
   };
 }
 
-function decodeOpponentCursor(cursor) {
+function normalizeOpponentSort(sort) {
+  const normalizedSort = sort || DEFAULT_OPPONENT_SORT;
+  if (!Object.hasOwn(OPPONENT_SORTS, normalizedSort)) {
+    throw new ArenaError("ARENA_INVALID_REQUEST", "상대 목록 정렬 기준이 올바르지 않습니다.");
+  }
+  return normalizedSort;
+}
+
+function decodeOpponentCursor(cursor, sort) {
   if (!cursor) return null;
   try {
     const parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
-    if (!Number.isFinite(Number(parsed.registeredAtMs)) || typeof parsed.ghostId !== "string") {
+    const hasValidWins = !sort.startsWith("defense_wins_") || Number.isFinite(Number(parsed.defenseWins));
+    if (
+      parsed.version !== 1 ||
+      parsed.sort !== sort ||
+      !Number.isFinite(Number(parsed.registeredAtMs)) ||
+      typeof parsed.ghostId !== "string" ||
+      !hasValidWins
+    ) {
       throw new Error("invalid");
     }
-    return { registeredAtMs: Number(parsed.registeredAtMs), ghostId: parsed.ghostId };
+    return {
+      defenseWins: Number(parsed.defenseWins || 0),
+      registeredAtMs: Number(parsed.registeredAtMs),
+      ghostId: parsed.ghostId,
+    };
   } catch (error) {
     throw new ArenaError("ARENA_INVALID_REQUEST", "상대 목록 cursor가 올바르지 않습니다.");
   }
 }
 
-function encodeOpponentCursor(ghost) {
+function encodeOpponentCursor(ghost, sort) {
   const registeredAtMs = toDate(ghost.registeredAt)?.getTime();
   if (!Number.isFinite(registeredAtMs)) return null;
   return Buffer.from(
-    JSON.stringify({ registeredAtMs, ghostId: ghost.ghostId }),
+    JSON.stringify({
+      version: 1,
+      sort,
+      defenseWins: Number(ghost.ownDefenseRecord?.wins || 0),
+      registeredAtMs,
+      ghostId: ghost.ghostId,
+    }),
     "utf8"
   ).toString("base64url");
 }
 
-async function listOpponentGhosts({ uid, limit = DEFAULT_OPPONENT_LIMIT, cursor = null, deps = {} }) {
+function buildOpponentCursorValues(cursor, sort) {
+  const registeredAt = Timestamp.fromMillis(cursor.registeredAtMs);
+  return sort.startsWith("defense_wins_")
+    ? [cursor.defenseWins, registeredAt, cursor.ghostId]
+    : [registeredAt, cursor.ghostId];
+}
+
+async function listOpponentGhosts({ uid, cursor = null, sort = DEFAULT_OPPONENT_SORT, deps = {} }) {
   const db = deps.db || getArenaFirestore();
-  const safeLimit = Math.max(1, Math.min(MAX_OPPONENT_LIMIT, Number(limit) || DEFAULT_OPPONENT_LIMIT));
-  const decodedCursor = decodeOpponentCursor(cursor);
+  const normalizedSort = normalizeOpponentSort(sort);
+  const decodedCursor = decodeOpponentCursor(cursor, normalizedSort);
   let query = db.collection("arena_ghosts")
-    .where("status", "==", "active")
-    .orderBy("registeredAt", "desc")
-    .orderBy(FieldPath.documentId(), "desc");
-  if (decodedCursor) {
-    query = query.startAfter(Timestamp.fromMillis(decodedCursor.registeredAtMs), decodedCursor.ghostId);
+    .where("status", "==", "active");
+  for (const [field, direction] of OPPONENT_SORTS[normalizedSort].fields) {
+    query = query.orderBy(field, direction);
   }
-  const snapshots = await query.limit(safeLimit * 2).get();
-  const rawGhosts = snapshots.docs.map((snapshot) => snapshot.data());
-  const opponents = rawGhosts.filter((ghost) => ghost.ownerUid !== uid).slice(0, safeLimit);
+  if (decodedCursor) {
+    query = query.startAfter(...buildOpponentCursorValues(decodedCursor, normalizedSort));
+  }
+  const snapshots = await query.limit(OPPONENT_LOOKAHEAD_LIMIT).get();
+  const rawGhosts = snapshots.docs.map((snapshot) => ({
+    ...snapshot.data(),
+    ghostId: snapshot.data()?.ghostId || snapshot.id,
+  }));
+  const opponentCandidates = rawGhosts.filter((ghost) => ghost.ownerUid !== uid);
+  const opponents = opponentCandidates.slice(0, OPPONENT_PAGE_SIZE);
   const ownerUids = [...new Set(opponents.map((ghost) => ghost.ownerUid).filter(Boolean))];
   const ownerSnapshots = ownerUids.length
     ? await db.getAll(...ownerUids.flatMap((ownerUid) => [
@@ -451,13 +503,13 @@ async function listOpponentGhosts({ uid, limit = DEFAULT_OPPONENT_LIMIT, cursor 
       profile.tamerName || root.tamerName || root.displayName || `테이머_${ownerUids[index].slice(0, 6)}`
     );
   }
-  const lastRawGhost = rawGhosts[rawGhosts.length - 1] || null;
+  const lastOpponent = opponents[opponents.length - 1] || null;
   return {
     ghosts: opponents.map((ghost) =>
       buildOpponentGhostDto(ghost, ownerNames.get(ghost.ownerUid) || "알 수 없는 테이머")
     ),
-    nextCursor: rawGhosts.length >= safeLimit * 2 && lastRawGhost
-      ? encodeOpponentCursor(lastRawGhost)
+    nextCursor: opponentCandidates.length > OPPONENT_PAGE_SIZE && lastOpponent
+      ? encodeOpponentCursor(lastOpponent, normalizedSort)
       : null,
   };
 }
@@ -492,8 +544,8 @@ function createArenaGhostCollectionHandler(deps = {}) {
         if (scope === "opponents") {
           sendJson(res, 200, await listOpponentGhosts({
             uid: decodedToken.uid,
-            limit: req.query?.limit,
             cursor: req.query?.cursor || null,
+            sort: req.query?.sort || DEFAULT_OPPONENT_SORT,
             deps: { ...deps, db },
           }));
           return;
@@ -536,7 +588,10 @@ function createArenaGhostItemHandler(deps = {}) {
 }
 
 module.exports = {
+  DEFAULT_OPPONENT_SORT,
   GHOST_LIMIT,
+  OPPONENT_PAGE_SIZE,
+  OPPONENT_SORTS,
   buildOpponentGhostDto,
   buildOwnerGhostDto,
   classifyGhostLinkStatus,

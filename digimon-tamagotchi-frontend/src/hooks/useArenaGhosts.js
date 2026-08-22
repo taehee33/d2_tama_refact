@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteArenaGhost,
   fetchArenaGhosts,
@@ -6,6 +6,8 @@ import {
 } from "../utils/arenaApi";
 
 const EMPTY_CAPACITY = Object.freeze({ used: 0, limit: 3 });
+export const DEFAULT_OPPONENT_SORT = "registered_desc";
+export const OPPONENT_PAGE_SIZE = 6;
 
 export function getArenaGhostErrorNotice(error) {
   switch (error?.code) {
@@ -34,47 +36,139 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
   const [currentFormRecord, setCurrentFormRecord] = useState(null);
   const [myGhostsLoading, setMyGhostsLoading] = useState(Boolean(currentUser && isOnline));
   const [opponentsLoading, setOpponentsLoading] = useState(Boolean(currentUser && isOnline));
+  const [opponentsLoadingMore, setOpponentsLoadingMore] = useState(false);
+  const [opponentsError, setOpponentsError] = useState("");
+  const [opponentSort, setOpponentSort] = useState(DEFAULT_OPPONENT_SORT);
+  const [opponentsNextCursor, setOpponentsNextCursor] = useState(null);
   const [mutationKey, setMutationKey] = useState(null);
   const [notice, setNotice] = useState("");
   const [highlightedGhostId, setHighlightedGhostId] = useState(null);
+  const opponentRequestSequence = useRef(0);
+  const opponentLoadMoreInFlight = useRef(false);
 
-  const refresh = useCallback(async () => {
+  const refreshMyGhosts = useCallback(async () => {
     if (!currentUser || !isOnline) {
       setMyGhosts([]);
-      setOpponents([]);
       setCapacity(EMPTY_CAPACITY);
       setMyGhostsLoading(false);
-      setOpponentsLoading(false);
-      return;
+      return false;
     }
 
     setMyGhostsLoading(true);
-    setOpponentsLoading(true);
     setNotice("");
-    const mineRequest = fetchArenaGhosts(currentUser, { scope: "mine", slotId: currentSlotId })
-      .then((mine) => {
+    try {
+      const mine = await fetchArenaGhosts(currentUser, { scope: "mine", slotId: currentSlotId });
       setMyGhosts(Array.isArray(mine?.ghosts) ? mine.ghosts : []);
       setCapacity(mine?.capacity || EMPTY_CAPACITY);
       setCurrentCombatIdentityId(mine?.currentCombatIdentityId || null);
       setCurrentFormRecord(mine?.currentFormRecord || null);
-      })
-      .finally(() => setMyGhostsLoading(false));
-    const opponentsRequest = fetchArenaGhosts(currentUser, { scope: "opponents", limit: 30 })
-      .then((opponentResult) => {
-        setOpponents(Array.isArray(opponentResult?.ghosts) ? opponentResult.ghosts : []);
-      })
-      .finally(() => setOpponentsLoading(false));
-
-    const results = await Promise.allSettled([mineRequest, opponentsRequest]);
-    const failedResult = results.find((result) => result.status === "rejected");
-    if (failedResult) {
-      setNotice(getArenaGhostErrorNotice(failedResult.reason));
+      return true;
+    } catch (error) {
+      setNotice(getArenaGhostErrorNotice(error));
+      return false;
+    } finally {
+      setMyGhostsLoading(false);
     }
   }, [currentSlotId, currentUser, isOnline]);
 
+  const refreshOpponents = useCallback(async ({
+    sort = DEFAULT_OPPONENT_SORT,
+    cursor = null,
+    append = false,
+  } = {}) => {
+    if (!currentUser || !isOnline) {
+      opponentRequestSequence.current += 1;
+      setOpponents([]);
+      setOpponentsNextCursor(null);
+      setOpponentsLoading(false);
+      setOpponentsLoadingMore(false);
+      setOpponentsError("");
+      return false;
+    }
+
+    const requestId = opponentRequestSequence.current + 1;
+    opponentRequestSequence.current = requestId;
+    if (append) {
+      setOpponentsLoadingMore(true);
+    } else {
+      setOpponentsLoading(true);
+      setOpponents([]);
+      setOpponentsNextCursor(null);
+    }
+    setOpponentsError("");
+
+    try {
+      const opponentResult = await fetchArenaGhosts(currentUser, {
+        scope: "opponents",
+        limit: OPPONENT_PAGE_SIZE,
+        sort,
+        cursor,
+      });
+      if (requestId !== opponentRequestSequence.current) return false;
+
+      const nextGhosts = Array.isArray(opponentResult?.ghosts) ? opponentResult.ghosts : [];
+      setOpponents((previous) => {
+        if (!append) return nextGhosts;
+        const knownIds = new Set(previous.map((ghost) => ghost.ghostId));
+        return [...previous, ...nextGhosts.filter((ghost) => !knownIds.has(ghost.ghostId))];
+      });
+      setOpponentsNextCursor(opponentResult?.nextCursor || null);
+      return true;
+    } catch (error) {
+      if (requestId !== opponentRequestSequence.current) return false;
+      setOpponentsError(getArenaGhostErrorNotice(error));
+      if (!append) {
+        setOpponents([]);
+        setOpponentsNextCursor(null);
+      }
+      return false;
+    } finally {
+      if (requestId === opponentRequestSequence.current) {
+        setOpponentsLoading(false);
+        setOpponentsLoadingMore(false);
+      }
+    }
+  }, [currentUser, isOnline]);
+
+  const refresh = useCallback(async () => {
+    const results = await Promise.all([
+      refreshMyGhosts(),
+      refreshOpponents({ sort: opponentSort }),
+    ]);
+    return results.every(Boolean);
+  }, [opponentSort, refreshMyGhosts, refreshOpponents]);
+
+  const changeOpponentSort = useCallback((nextSort) => {
+    if (nextSort === opponentSort) return;
+    setOpponentSort(nextSort);
+  }, [opponentSort]);
+
+  const loadMoreOpponents = useCallback(async () => {
+    if (
+      !opponentsNextCursor ||
+      opponentsLoading ||
+      opponentsLoadingMore ||
+      opponentLoadMoreInFlight.current
+    ) return false;
+    opponentLoadMoreInFlight.current = true;
+    try {
+      return await refreshOpponents({
+        sort: opponentSort,
+        cursor: opponentsNextCursor,
+        append: true,
+      });
+    } finally {
+      opponentLoadMoreInFlight.current = false;
+    }
+  }, [opponentSort, opponentsLoading, opponentsLoadingMore, opponentsNextCursor, refreshOpponents]);
+
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void refreshMyGhosts();
+  }, [refreshMyGhosts]);
+
+  useEffect(() => {
+    void refreshOpponents({ sort: opponentSort });
+  }, [opponentSort, refreshOpponents]);
 
   const registerCurrentGhost = useCallback(async () => {
     if (!currentUser || !currentSlotId || mutationKey) return null;
@@ -123,10 +217,16 @@ export function useArenaGhosts({ currentUser, isOnline, currentSlotId }) {
     loading: myGhostsLoading || opponentsLoading,
     myGhostsLoading,
     opponentsLoading,
+    opponentsLoadingMore,
+    opponentsError,
+    opponentSort,
+    hasMoreOpponents: Boolean(opponentsNextCursor),
     mutationKey,
     notice,
     highlightedGhostId,
     refresh,
+    changeOpponentSort,
+    loadMoreOpponents,
     registerCurrentGhost,
     removeGhost,
   };

@@ -185,7 +185,7 @@ test("새 생애로 바뀐 Ghost 원본은 projection 없이 연결 종료하고
   const db = getFirestore(app);
   const attackerUid = "new-life-attacker";
   const defenderUid = "new-life-defender";
-  const now = new Date("2026-08-20T12:00:00.000Z");
+  const now = new Date();
 
   t.after(async () => {
     for (const collection of [
