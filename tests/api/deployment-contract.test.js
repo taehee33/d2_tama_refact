@@ -136,7 +136,7 @@ test("커뮤니티 API 네 진입점은 실제 배포 디렉터리에서 로드�
   }
 });
 
-test("알림 단일 라우터는 아홉 operation을 각각의 handler로 전달한다", async () => {
+test("알림 단일 라우터는 열 개 operation을 각각의 handler로 전달한다", async () => {
   const { createNotificationRouter } = require(path.join(
     DEPLOYED_API_ROOT,
     "notifications/[operation].js"
@@ -147,6 +147,7 @@ test("알림 단일 라우터는 아홉 operation을 각각의 handler로 전달
     prepare: "prepareHandler",
     "evaluate-slot": "evaluateSlotHandler",
     ack: "ackHandler",
+    inbox: "inboxHandler",
     status: "statusHandler",
     test: "testHandler",
     read: "readHandler",

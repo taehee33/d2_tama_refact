@@ -81,7 +81,7 @@ function GlobalNotificationCenter({ placement = "floating" }) {
           recentNotifications={recentNotifications}
           isLoading={isLoading}
           errorMessage={errorMessage}
-          onRefresh={() => loadStatus()}
+          onRefresh={() => loadStatus({ force: true })}
           onMarkAllRead={markAllNotificationsRead}
           hasUnreadNotifications={unreadCount > 0}
           isMarkingAllRead={isMarkingAllRead}

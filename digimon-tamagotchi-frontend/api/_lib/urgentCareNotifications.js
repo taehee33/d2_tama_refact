@@ -9,6 +9,9 @@ const {
 } = require("./firestoreAdmin");
 const { allowMethods, handleApiError, sendJson } = require("./http");
 const {
+  assertNotificationDocumentContract,
+} = require("./notificationDocumentContract");
+const {
   resolveDigimonDisplayName,
   resolveNotificationSettings,
   resolveTamerName,
@@ -444,7 +447,7 @@ async function prepareUrgentCareNotifications({
               currentTime,
             }),
           ]);
-          writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
+          const notificationData = {
             type: "urgent_care",
             title: "디지몬 긴급 케어 알림",
             body: notificationBody,
@@ -463,7 +466,9 @@ async function prepareUrgentCareNotifications({
             readAt: null,
             createdAt: nowMs,
             updatedAt: nowMs,
-          }));
+          };
+          assertNotificationDocumentContract(notificationData);
+          writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), notificationData));
         }
       }
       slotAlerts.push({
@@ -753,7 +758,7 @@ async function evaluateUrgentCareSlotNotification({
         currentTime,
       }),
     ]);
-    writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), {
+    const notificationData = {
       type: "urgent_care",
       title: "디지몬 긴급 케어 알림",
       body: notificationBody,
@@ -773,7 +778,9 @@ async function evaluateUrgentCareSlotNotification({
       readAt: null,
       createdAt: nowMs,
       updatedAt: nowMs,
-    }));
+    };
+    assertNotificationDocumentContract(notificationData);
+    writes.push(createSetWrite(buildUrgentNotificationPath(uid, deliveryId), notificationData));
     if (writes.length) await commitInBatches(writes, commit);
   }
 
