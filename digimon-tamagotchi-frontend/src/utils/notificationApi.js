@@ -64,6 +64,11 @@ export async function getNotificationStatus(currentUser, options = {}) {
   return payload.status || null;
 }
 
+export async function getNotificationInbox(currentUser) {
+  const payload = await requestNotification(currentUser, "inbox");
+  return payload.inbox || { recentNotifications: [] };
+}
+
 export async function sendTestNotification(currentUser) {
   const payload = await requestNotification(currentUser, "test", {
     method: "POST",

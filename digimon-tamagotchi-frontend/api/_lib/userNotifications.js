@@ -12,6 +12,9 @@ const {
 } = require("./firestoreAdmin");
 const { allowMethods, handleApiError, sendJson } = require("./http");
 const {
+  assertNotificationDocumentContract,
+} = require("./notificationDocumentContract");
+const {
   resolveNotificationSettings,
 } = require("./notificationReports");
 const {
@@ -26,6 +29,7 @@ const {
 
 const MAX_RECENT_NOTIFICATIONS = 10;
 const MAX_RECENT_DELIVERIES = 10;
+const MAX_NOTIFICATION_ID_LENGTH = 1500;
 const URGENT_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const COMMUNITY_BOARD_LABELS = {
   showcase: "자랑게시판",
@@ -199,6 +203,11 @@ async function createUserNotification({
   const inAppState = settings.notificationChannels?.inApp === false
     ? { status: "hidden" }
     : { status: "stored" };
+  const createdAt = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  assertNotificationDocumentContract({
+    createdAt,
+    channelState: { inApp: inAppState },
+  });
   const discordState = sendDiscord
     ? await maybeSendDiscordNotification({
         uid,
@@ -260,6 +269,7 @@ async function createUserNotification({
     currentTime,
   });
 
+  assertNotificationDocumentContract(notification.data);
   await commit([createSetWrite(notification.path, notification.data)]);
 
   return {
@@ -339,6 +349,42 @@ function buildDeliveryQuery(uid) {
   };
 }
 
+function buildInboxQuery() {
+  return {
+    from: [{ collectionId: "notifications" }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "channelState.inApp.status" },
+        op: "EQUAL",
+        value: { stringValue: "stored" },
+      },
+    },
+    orderBy: [
+      { field: { fieldPath: "createdAt" }, direction: "DESCENDING" },
+      { field: { fieldPath: "__name__" }, direction: "DESCENDING" },
+    ],
+    limit: MAX_RECENT_NOTIFICATIONS,
+  };
+}
+
+function buildLatestNotificationByTypeQuery(type) {
+  return {
+    from: [{ collectionId: "notifications" }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "type" },
+        op: "EQUAL",
+        value: { stringValue: normalizeString(type) },
+      },
+    },
+    orderBy: [
+      { field: { fieldPath: "createdAt" }, direction: "DESCENDING" },
+      { field: { fieldPath: "__name__" }, direction: "DESCENDING" },
+    ],
+    limit: 1,
+  };
+}
+
 function mapNotificationDocument(document) {
   const data = document?.data || {};
   return {
@@ -347,14 +393,10 @@ function mapNotificationDocument(document) {
     title: normalizeString(data.title, "알림"),
     body: normalizeString(data.body),
     targetPath: normalizeString(data.targetPath),
-    readAt: data.readAt || null,
-    createdAt: data.createdAt || null,
+    readAt: data.readAt ?? null,
+    createdAt: data.createdAt ?? null,
     channelState: data.channelState || {},
   };
-}
-
-function isVisibleInAppNotification(notification) {
-  return notification?.channelState?.inApp?.status !== "hidden";
 }
 
 function normalizeNotificationIds(value) {
@@ -362,14 +404,46 @@ function normalizeNotificationIds(value) {
     return [];
   }
 
-  return [...new Set(value.map((id) => normalizeString(id)).filter(Boolean))];
+  const normalizedIds = [...new Set(value.map((id) => normalizeString(id)).filter(Boolean))];
+  if (normalizedIds.length > MAX_RECENT_NOTIFICATIONS) {
+    const error = new RangeError(`알림 ID는 최대 ${MAX_RECENT_NOTIFICATIONS}개까지 처리할 수 있습니다.`);
+    error.status = 400;
+    throw error;
+  }
+  normalizedIds.forEach((id) => {
+    if (id === "." || id === ".." || id.includes("/") || id.length > MAX_NOTIFICATION_ID_LENGTH) {
+      const error = new TypeError("안전하지 않은 알림 ID가 포함되어 있습니다.");
+      error.status = 400;
+      throw error;
+    }
+  });
+  return normalizedIds;
+}
+
+async function getUserNotificationInbox({
+  uid,
+  runFirestoreQuery = runQuery,
+}) {
+  if (!uid) {
+    throw new Error("알림함을 조회할 사용자 ID가 필요합니다.");
+  }
+
+  const notificationDocuments = await runFirestoreQuery(
+    buildInboxQuery(),
+    `users/${uid}`
+  );
+  return {
+    recentNotifications: notificationDocuments
+      .map(mapNotificationDocument)
+      .slice(0, MAX_RECENT_NOTIFICATIONS),
+  };
 }
 
 async function markUserNotificationsRead({
   uid,
   notificationIds = [],
   allVisible = false,
-  listCollectionDocuments = listDocuments,
+  runFirestoreQuery = runQuery,
   commit = commitWrites,
   currentTime = new Date(),
 }) {
@@ -382,13 +456,11 @@ async function markUserNotificationsRead({
   let targetIds = requestedIds;
 
   if (allVisible) {
-    const notificationDocuments = await listCollectionDocuments(`users/${uid}/notifications`).catch(() => []);
-    targetIds = notificationDocuments
-      .map(mapNotificationDocument)
-      .filter(isVisibleInAppNotification)
-      .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt))
-      .slice(0, MAX_RECENT_NOTIFICATIONS)
-      .filter((notification) => !notification.readAt)
+    const inbox = await getUserNotificationInbox({ uid, runFirestoreQuery }).catch(() => ({
+      recentNotifications: [],
+    }));
+    targetIds = inbox.recentNotifications
+      .filter((notification) => notification.readAt == null)
       .map((notification) => notification.id);
   }
 
@@ -408,7 +480,8 @@ async function markUserNotificationsRead({
         readAt: nowMs,
         updatedAt: nowMs,
       },
-      ["readAt", "updatedAt"]
+      ["readAt", "updatedAt"],
+      { currentDocument: { exists: true } }
     )
   );
 
@@ -516,9 +589,13 @@ async function getUserNotificationStatus({
   currentTime = new Date(),
 }) {
   const settings = await resolveUserSettings(uid, getDocumentByPath);
-  const [notificationDocuments, deliveryDocuments, notificationStateDocuments, pushSubscriptionDocuments, projection, urgentCheckDocument] =
+  const [inbox, latestTestDocuments, deliveryDocuments, notificationStateDocuments, pushSubscriptionDocuments, projection, urgentCheckDocument] =
     await Promise.all([
-      listCollectionDocuments(`users/${uid}/notifications`).catch(() => []),
+      getUserNotificationInbox({ uid, runFirestoreQuery }).catch(() => ({ recentNotifications: [] })),
+      runFirestoreQuery(
+        buildLatestNotificationByTypeQuery("system_test"),
+        `users/${uid}`
+      ).catch(() => []),
       runFirestoreQuery(buildDeliveryQuery(uid)).catch(() => []),
       listCollectionDocuments(`users/${uid}/notificationState`).catch(() => []),
       listCollectionDocuments(`users/${uid}/pushSubscriptions`).catch(() => []),
@@ -532,14 +609,10 @@ async function getUserNotificationStatus({
       getDocumentByPath("notification_runtime/urgentCare").catch(() => null),
     ]);
 
-  const recentNotifications = notificationDocuments
-    .map(mapNotificationDocument)
-    .filter(isVisibleInAppNotification)
-    .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt))
-    .slice(0, MAX_RECENT_NOTIFICATIONS);
-  const allNotifications = notificationDocuments
-    .map(mapNotificationDocument)
-    .sort((left, right) => normalizeTimestampMs(right.createdAt) - normalizeTimestampMs(left.createdAt));
+  const recentNotifications = inbox.recentNotifications;
+  const latestTestNotification = latestTestDocuments[0]
+    ? mapNotificationDocument(latestTestDocuments[0])
+    : null;
   const recentDeliveries = deliveryDocuments.map((document) => ({
     id: document.id,
     status: normalizeString(document.data?.status, "unknown"),
@@ -576,7 +649,7 @@ async function getUserNotificationStatus({
         ? normalizeTimestampMs(urgentCheckDocument.data.checkedAt) + URGENT_CHECK_INTERVAL_MS
         : null,
       latestTestNotification:
-        allNotifications.find((notification) => notification.type === "system_test") || null,
+        latestTestNotification,
       currentSlot: slotId
         ? await buildCurrentSlotUrgentDiagnostics({
             uid,
@@ -669,6 +742,25 @@ function createNotificationStatusHandler(deps = {}) {
   };
 }
 
+function createNotificationInboxHandler(deps = {}) {
+  return async function notificationInboxHandler(req, res) {
+    if (!allowMethods(req, res, ["GET"])) return;
+
+    try {
+      const { verifyRequestUser } = require("./auth");
+      const decodedToken = await (deps.verifyRequestUser || verifyRequestUser)(req);
+      const inbox = await getUserNotificationInbox({
+        uid: decodedToken.uid,
+        runFirestoreQuery: deps.runQuery || runQuery,
+      });
+
+      sendJson(res, 200, { ok: true, inbox });
+    } catch (error) {
+      handleApiError(res, error);
+    }
+  };
+}
+
 function createTestNotificationHandler(deps = {}) {
   return async function testNotificationHandler(req, res) {
     if (!allowMethods(req, res, ["POST"])) return;
@@ -710,7 +802,7 @@ function createNotificationReadHandler(deps = {}) {
         uid: decodedToken.uid,
         notificationIds: req.body?.notificationIds,
         allVisible: req.body?.allVisible === true,
-        listCollectionDocuments: deps.listDocuments || listDocuments,
+        runFirestoreQuery: deps.runQuery || runQuery,
         commit: deps.commitWrites || commitWrites,
         currentTime: (deps.getCurrentTime || (() => new Date()))(),
       });
@@ -767,15 +859,19 @@ function createPushUnsubscribeHandler(deps = {}) {
 
 module.exports = {
   buildCommunityCommentNotification,
+  buildInboxQuery,
+  buildLatestNotificationByTypeQuery,
   buildNotificationId,
   buildProjectionSummary,
   buildUserNotification,
+  createNotificationInboxHandler,
   createNotificationReadHandler,
   createNotificationStatusHandler,
   createPushSubscribeHandler,
   createPushUnsubscribeHandler,
   createTestNotificationHandler,
   createUserNotification,
+  getUserNotificationInbox,
   getUserNotificationStatus,
   markUserNotificationsRead,
   maybeSendDiscordNotification,

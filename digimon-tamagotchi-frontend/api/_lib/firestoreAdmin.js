@@ -394,8 +394,8 @@ function createSetWrite(documentPath, data, options = {}) {
   return write;
 }
 
-function createUpdateWrite(documentPath, data, fieldPaths) {
-  return {
+function createUpdateWrite(documentPath, data, fieldPaths, options = {}) {
+  const write = {
     update: {
       name: getDocumentName(documentPath),
       fields: encodeFirestoreFields(data),
@@ -404,6 +404,10 @@ function createUpdateWrite(documentPath, data, fieldPaths) {
       fieldPaths: Array.isArray(fieldPaths) ? fieldPaths : [],
     },
   };
+  if (options.currentDocument) {
+    write.currentDocument = options.currentDocument;
+  }
+  return write;
 }
 
 async function commitWrites(writes = []) {

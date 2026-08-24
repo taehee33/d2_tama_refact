@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-08-24] Firestore 알림함 전체 컬렉션 재조회 제거
+
+- **원인과 개선:** Usage Insights에서 하루 읽기의 대부분을 차지한 사용자 `notifications` 경로를 추적해, 최근 10개를 표시할 때마다 누적 알림 전체를 읽고 메모리에서 정렬하던 경로를 제거했다. 전역 알림 센터는 신규 `inbox` API를 사용하며 `channelState.inApp.status == stored`, `createdAt DESC`, `__name__ DESC`, `limit 10` 쿼리만 실행한다. hidden·레거시 문서를 찾기 위한 페이지 순회나 전체 조회 fallback은 두지 않았다.
+- **API·캐시 경계:** 전역 Provider의 inbox와 설정 화면의 상세 status를 분리했다. Provider는 사용자별 60초 freshness와 진행 중 요청 공유를 적용하고, focus·알림창 열기가 겹쳐도 같은 요청을 재사용한다. 수동 새로고침은 캐시를 무시하며 UID 변경·로그아웃은 캐시를 초기화한다. 상세 status의 최신 테스트 알림도 별도 `type + createdAt` 제한 쿼리로 변경했다.
+- **생성·읽음 계약:** 일반·커뮤니티·테스트·긴급 알림은 commit 전에 공용 순수 helper로 0 이상의 유한한 숫자 `createdAt`과 `stored|hidden` 인앱 상태를 검증한다. 읽음 처리는 인증 토큰 UID 하위의 안전한 ID 최대 10개만 갱신하며 `readAt`, `updatedAt` 외 상태를 변경하지 않는다. 구버전 `allVisible` 요청도 제한된 inbox 쿼리만 사용한다.
+- **인덱스·운영:** `notifications(channelState.inApp.status ASC, createdAt DESC)`와 `notifications(type ASC, createdAt DESC)` 복합 인덱스를 추가했다. 운영 배포에서는 코드보다 인덱스를 먼저 반영하고, 같은 사용 패턴의 24시간 Usage Insights에서 `notifications` 읽기 5,000 미만과 전체 읽기 15,000 미만을 확인한다. TTL·레거시 migration·슬롯 저장 계약·DB 이전은 변경하지 않았다.
+- **영향 파일:** `api/_lib/notificationDocumentContract.js`, `api/_lib/userNotifications.js`, `api/_lib/urgentCareNotifications.js`, `api/notifications/[operation].js`, `src/contexts/NotificationCenterContext.jsx`, `src/utils/notificationApi.js`, 알림 UI·API 테스트, `firestore.indexes.json`, `docs/REFACTORING_LOG.md`.
+- **검증:** 제한 쿼리·동일 시각 정렬·hidden/레거시 제외·필수 필드 실패·UID/ID 제한·읽음 상태 보존·60초 캐시·in-flight 공유·사용자 전환을 회귀 테스트로 고정했다. 전체 `npm run check`에서 프런트 215 suite·1,429 test, 서버 261 pass·20 Emulator-only skip, lint·typecheck·production build·API 단일 원본·server projection이 통과했고 Firestore Emulator 2개 테스트도 통과했다.
+
 ## [2026-08-22] Ghost 아레나 `내 Ghost` 독립 탭 전환
 
 - **3탭 정보 구조:** `내 Ghost`를 대전 화면의 접이식 섹션에서 분리해 모바일·데스크톱 공통 `대전 → 내 Ghost → 기록` 탭으로 이동했다. 탭에는 사용 중인 Ghost 슬롯 수를 배지로 표시하고 좌우 방향키 순환, `tablist/tab/tabpanel` 연결을 세 탭에 맞게 확장했다.

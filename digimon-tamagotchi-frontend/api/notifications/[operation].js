@@ -8,6 +8,7 @@ const {
 } = require("../_lib/urgentCareNotifications");
 const {
   createNotificationReadHandler,
+  createNotificationInboxHandler,
   createNotificationStatusHandler,
   createPushSubscribeHandler,
   createPushUnsubscribeHandler,
@@ -36,6 +37,7 @@ function createNotificationRouter(deps = {}) {
     prepare: deps.prepareHandler || createUrgentCarePrepareHandler(),
     "evaluate-slot": deps.evaluateSlotHandler || createUrgentCareEvaluateHandler(),
     ack: deps.ackHandler || createUrgentCareAckHandler(),
+    inbox: deps.inboxHandler || createNotificationInboxHandler(),
     status: deps.statusHandler || createNotificationStatusHandler(),
     test: deps.testHandler || createTestNotificationHandler(),
     read: deps.readHandler || createNotificationReadHandler(),
