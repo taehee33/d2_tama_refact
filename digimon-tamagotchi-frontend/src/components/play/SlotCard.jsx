@@ -7,6 +7,7 @@ import {
   getSlotStageLabel,
 } from "../../utils/slotViewUtils";
 import { getSlotStatusChips } from "../../utils/slotStatusChips";
+import { SlotStatusChipRow } from "./RecentSlotPresenter";
 
 function SlotCard({
   slot,
@@ -96,16 +97,7 @@ function SlotCard({
         )}
 
         {visibleStatusChips.length > 0 && (
-          <div className="service-status-chip-row" aria-label="슬롯 상태">
-            {visibleStatusChips.map((chip) => (
-              <span
-                key={chip.id}
-                className={`service-status-chip service-status-chip--${chip.tone}`}
-              >
-                {chip.label}
-              </span>
-            ))}
-          </div>
+          <SlotStatusChipRow slot={slot} label="슬롯 상태" chips={visibleStatusChips} />
         )}
 
         {isNicknameOpen && (

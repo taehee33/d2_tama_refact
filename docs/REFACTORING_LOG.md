@@ -8295,6 +8295,25 @@ if (digimonDataVer1 && savedName && digimonDataVer1[savedName]) {
 - **검증:** 토글 부재, 전적·상태·등록 조작 상시 노출과 기존 저장값 무시를 화면 테스트로 고정했습니다. 한글 이름, Power 상세, 상대 cursor 페이지와 서버·Firestore 계약은 변경하지 않았습니다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/components/ArenaGhostScreen.jsx`, 관련 테스트, `docs/REFACTORING_LOG.md`
 
+## [2026-08-24] 홈·플레이 모바일 이어하기 정보 계층 재구성
+
+- **내용:** 홈의 인사말·슬롯 수·업적을 압축된 요약 영역으로 정리하고, 최근 디지몬을 공통 가로형 presenter로 통합했다. 홈의 대표 슬롯 아래 목록은 `다른 디지몬`으로 분리해 대표 슬롯을 중복 표시하지 않으며, 모바일 빠른 이동은 설명을 줄인 2열 타일로 표시한다. PlayHub는 상단 요약과 최근 이어하기 카드를 압축하고 슬롯 목록 제목과 정렬·보기 설정을 두 줄로 분리했다.
+- **보기 모드:** 기존 `digimon_slot_list_view_mode` 키와 저장값은 그대로 사용한다. 저장값이 없을 때만 `matchMedia("(max-width: 768px)")` 결과로 모바일은 `간략히`, 데스크톱은 `자세히`를 선택한다. 간략 카드의 2열 그리드·관리 메뉴·44px 터치 영역은 유지한다.
+- **공통 모바일 프레임:** 최근 슬롯과 상태 칩을 `RecentSlotPresenter` 경계로 모으고, 768px 이하의 카드 밀도·고정 하단 탭 여백·320px 브랜드/채팅 축약 규칙을 추가했다. Firestore·IndexedDB outbox·슬롯 문서·라우트와 게임 내부 화면은 변경하지 않았다.
+- **검증:** Home·PlayHub·SlotCard·공통 presenter 테스트 23개와 모바일/데스크톱 보기 모드·저장값 우선 동작을 확인했다. 관련 Jest와 루트 `npm run check`를 모두 통과했다. 320px·390px·430px 화면에서 가로 넘침과 고정 내비 가림이 없는 것도 브라우저로 확인했다.
+- **영향 파일:**
+  - `digimon-tamagotchi-frontend/src/components/play/RecentSlotPresenter.jsx`
+  - `digimon-tamagotchi-frontend/src/components/play/RecentSlotPresenter.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/play/SlotCard.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Home.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/Home.test.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/PlayHub.jsx`
+  - `digimon-tamagotchi-frontend/src/pages/PlayHub.test.jsx`
+  - `digimon-tamagotchi-frontend/src/components/layout/TopNavigation.jsx`
+  - `digimon-tamagotchi-frontend/src/index.css`
+  - `docs/REFACTORING_LOG.md`
+- **아키텍처 결정 근거:** 최근 슬롯은 홈과 PlayHub에서 같은 데이터·상태 칩·이어하기 동선을 보여야 하므로 표시 조립만 presenter로 분리하고, 보조 정보와 이동 핸들러는 각 화면이 주입하도록 했다. 모바일 보기 기본값은 UI 보조 설정 경계에서만 판단해 기존 저장 선택을 우선하고, 공식 슬롯 저장 계약이나 실시간 쓰기 경계를 확장하지 않는다.
+
 ## [2026-08-22] 화면 크기 기본값 및 숫자 입력 UX 개선
 
 - **내용:** 게임 화면 기본 크기를 기존 `300×300px`에서 `250×250px`로 변경했습니다. 화면 크기 직접 입력은 편집 중 빈 값·중간 숫자·범위 밖 숫자를 유지하고, blur·Enter·저장 시에만 `100~600px` 범위로 보정하도록 숫자 입력 draft와 실제 크기 상태를 분리했습니다. 기본 크기 초기화는 `250×250px`을 즉시 적용합니다.
