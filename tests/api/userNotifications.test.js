@@ -420,7 +420,7 @@ test("allVisible 읽음 처리는 최근 unread 알림만 갱신한다", async (
       id: "n2",
       data: {
         title: "이미 읽음",
-        readAt: now - 500,
+        readAt: 0,
         createdAt: now - 2000,
         channelState: { inApp: { status: "stored" } },
       },
@@ -437,6 +437,6 @@ test("allVisible 읽음 처리는 최근 unread 알림만 갱신한다", async (
 
   assert.deepEqual(result.notificationIds, ["n1"]);
   assert.equal(store.store.get("users/user-1/notifications/n1").data.readAt, now);
-  assert.equal(store.store.get("users/user-1/notifications/n2").data.readAt, now - 500);
+  assert.equal(store.store.get("users/user-1/notifications/n2").data.readAt, 0);
   assert.equal(store.store.get("users/user-1/notifications/n1").data.channelState.inApp.status, "stored");
 });

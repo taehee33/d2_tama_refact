@@ -21,7 +21,7 @@ export const CLOSE_NOTIFICATION_EVENT = "d2-tama:close-notification";
 const INBOX_FRESHNESS_MS = 60 * 1000;
 
 function getUnreadNotifications(status) {
-  return (status?.recentNotifications || []).filter((notification) => !notification.readAt);
+  return (status?.recentNotifications || []).filter((notification) => notification.readAt == null);
 }
 
 function applyReadState(status, notificationIds, readAt) {
@@ -34,7 +34,7 @@ function applyReadState(status, notificationIds, readAt) {
     ...status,
     recentNotifications: (status.recentNotifications || []).map((notification) =>
       idSet.has(notification.id)
-        ? { ...notification, readAt: notification.readAt || readAt }
+        ? { ...notification, readAt: notification.readAt ?? readAt }
         : notification
     ),
   };

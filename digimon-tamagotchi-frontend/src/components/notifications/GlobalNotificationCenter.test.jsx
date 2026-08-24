@@ -140,6 +140,22 @@ describe("GlobalNotificationCenter", () => {
     expect(await screen.findByText("새 알림이 없습니다.")).toBeInTheDocument();
   });
 
+  test("readAt이 0인 알림도 읽은 상태로 처리한다", async () => {
+    mockGetNotificationInbox.mockResolvedValue(createStatus({
+      recentNotifications: [
+        {
+          ...createStatus().recentNotifications[0],
+          readAt: 0,
+        },
+      ],
+    }));
+
+    renderWithProvider(<GlobalNotificationCenter />);
+
+    await waitFor(() => expect(mockGetNotificationInbox).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
   test("채널별 미연결 스킵 상태를 알림 항목에 표시한다", async () => {
     mockGetNotificationInbox.mockResolvedValue(createStatus({
       recentNotifications: [

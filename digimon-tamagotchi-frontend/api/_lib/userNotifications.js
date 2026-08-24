@@ -455,7 +455,7 @@ async function markUserNotificationsRead({
       recentNotifications: [],
     }));
     targetIds = inbox.recentNotifications
-      .filter((notification) => !notification.readAt)
+      .filter((notification) => notification.readAt == null)
       .map((notification) => notification.id);
   }
 
