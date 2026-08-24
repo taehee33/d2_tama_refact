@@ -4,17 +4,15 @@ import { ADS_ENABLED } from "../constants/ads";
 import AdBanner from "../components/AdBanner";
 import KakaoAd from "../components/KakaoAd";
 import NewDigimonModal from "../components/play/NewDigimonModal";
+import RecentSlotPresenter from "../components/play/RecentSlotPresenter";
 import SlotCard from "../components/play/SlotCard";
 import SlotOrderModal from "../components/play/SlotOrderModal";
 import useTamerProfile from "../hooks/useTamerProfile";
 import useUserSlots from "../hooks/useUserSlots";
 import {
   getSlotDisplayName,
-  getSlotSpriteSrc,
 } from "../utils/slotViewUtils";
 import { formatSlotCreatedAt } from "../utils/dateUtils";
-import { getSlotPrimaryInfo } from "../utils/slotInfoUtils";
-import { getSlotStatusChips } from "../utils/slotStatusChips";
 import {
   ACHIEVEMENT_VER1_MASTER,
   ACHIEVEMENT_VER2_MASTER,
@@ -26,7 +24,29 @@ const SLOT_LIST_VIEW_MODES = {
   compact: "compact",
 };
 
-function getInitialSlotListViewMode() {
+function isMobileViewport() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    if (typeof window.matchMedia === "function") {
+      return window.matchMedia("(max-width: 768px)").matches;
+    }
+  } catch (error) {
+    // matchMedia를 사용할 수 없는 환경에서는 화면 너비를 사용합니다.
+  }
+
+  return Number(window.innerWidth) <= 768;
+}
+
+function getDefaultSlotListViewMode() {
+  return isMobileViewport()
+    ? SLOT_LIST_VIEW_MODES.compact
+    : SLOT_LIST_VIEW_MODES.detail;
+}
+
+export function getInitialSlotListViewMode() {
   if (typeof window === "undefined") {
     return SLOT_LIST_VIEW_MODES.detail;
   }
@@ -35,9 +55,9 @@ function getInitialSlotListViewMode() {
     const savedMode = window.localStorage.getItem(SLOT_LIST_VIEW_STORAGE_KEY);
     return Object.values(SLOT_LIST_VIEW_MODES).includes(savedMode)
       ? savedMode
-      : SLOT_LIST_VIEW_MODES.detail;
+      : getDefaultSlotListViewMode();
   } catch (error) {
-    return SLOT_LIST_VIEW_MODES.detail;
+    return getDefaultSlotListViewMode();
   }
 }
 
@@ -72,8 +92,6 @@ function PlayHub() {
   const showVer1Master = achievements.includes(ACHIEVEMENT_VER1_MASTER);
   const showVer2Master = achievements.includes(ACHIEVEMENT_VER2_MASTER);
   const hasSlots = slots.length > 0;
-  const recentSlotCreatedAtLabel = formatSlotCreatedAt(recentSlot?.createdAt);
-  const recentSlotStatusChips = getSlotStatusChips(recentSlot);
 
   const hasOrderChanged = useMemo(
     () =>
@@ -204,8 +222,8 @@ function PlayHub() {
 
   return (
     <section className="service-page service-page--play">
-      <div className="service-hero">
-        <div className="service-hero__content">
+      <div className="service-hero service-hero--play">
+        <div className="service-hero__content service-play-summary">
           <p className="service-section-label">플레이 허브</p>
           <h1>{displayTamerName}님의 디지몬 보관함</h1>
           <div className="service-chip-row">
@@ -238,51 +256,15 @@ function PlayHub() {
                 <p className="service-muted">현재 계정의 디지몬 목록을 준비하고 있습니다.</p>
               </>
             ) : recentSlot ? (
-              <>
-                <div className="service-recent-slot">
-                  <div className="service-slot-card__media service-recent-slot__media">
-                    <img
-                      src={getSlotSpriteSrc(recentSlot)}
-                      alt={`${getSlotDisplayName(recentSlot)} 썸네일`}
-                      className="service-slot-card__sprite"
-                      style={{ imageRendering: "pixelated" }}
-                    />
-                  </div>
-                  <div className="service-recent-slot__body">
-                    <p className="service-section-label">{`슬롯 ${recentSlot.id}`}</p>
-                    <h2>{getSlotDisplayName(recentSlot)}</h2>
-                    <div className="service-slot-meta">
-                      <p className="service-slot-meta__item">
-                        {getSlotPrimaryInfo(recentSlot)}
-                      </p>
-                      <p className="service-slot-meta__item">
-                        {recentSlotCreatedAtLabel ? `생성일 ${recentSlotCreatedAtLabel}` : "생성일 미상"}
-                      </p>
-                    </div>
-                    {recentSlotStatusChips.length > 0 && (
-                      <div className="service-status-chip-row" aria-label="최근 슬롯 상태">
-                        {recentSlotStatusChips.map((chip) => (
-                          <span
-                            key={chip.id}
-                            className={`service-status-chip service-status-chip--${chip.tone}`}
-                          >
-                            {chip.label}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="service-inline-actions service-inline-actions--primary">
-                      <button
-                        type="button"
-                        className="service-button service-button--primary"
-                        onClick={() => navigate(`/play/${recentSlot.id}`)}
-                      >
-                        이어하기
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
+              <RecentSlotPresenter
+                slot={recentSlot}
+                supplementaryInfo={[
+                  recentSlot.createdAt
+                    ? `생성일 ${formatSlotCreatedAt(recentSlot.createdAt)}`
+                    : "생성일 미상",
+                ]}
+                onContinue={() => navigate(`/play/${recentSlot.id}`)}
+              />
             ) : (
               <>
                 <h2>첫 디지몬을 시작하세요.</h2>
@@ -312,7 +294,7 @@ function PlayHub() {
       ) : null}
 
       <div className="service-section-header service-section-header--slot-list">
-        <div>
+        <div className="service-section-header__heading">
           <p className="service-section-label">내 디지몬</p>
           <h2>슬롯 목록</h2>
         </div>

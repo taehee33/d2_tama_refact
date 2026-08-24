@@ -106,7 +106,15 @@ function TopNavigation({ tamerName = "" }) {
           </span>
           <span className="service-brand__copy">
             <span className="service-brand__eyebrow">Digimon THamagotchi</span>
-            <span className="service-brand__title">디지몬 타마고치</span>
+            <span className="service-brand__title service-brand__title--full">
+              디지몬 타마고치
+            </span>
+            <span
+              className="service-brand__title service-brand__title--compact"
+              aria-hidden="true"
+            >
+              디지몬
+            </span>
           </span>
         </Link>
 

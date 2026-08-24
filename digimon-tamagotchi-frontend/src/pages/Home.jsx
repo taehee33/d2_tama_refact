@@ -16,25 +16,9 @@ import {
   ACHIEVEMENT_VER2_MASTER,
 } from "../utils/userProfileUtils";
 import usePwaInstallPrompt from "../hooks/usePwaInstallPrompt";
-import { getSlotStatusChips } from "../utils/slotStatusChips";
-
-function SlotStatusChipRow({ slot, label }) {
-  const chips = getSlotStatusChips(slot);
-  if (chips.length === 0) return null;
-
-  return (
-    <div className="service-status-chip-row" aria-label={label}>
-      {chips.map((chip) => (
-        <span
-          key={chip.id}
-          className={`service-status-chip service-status-chip--${chip.tone}`}
-        >
-          {chip.label}
-        </span>
-      ))}
-    </div>
-  );
-}
+import RecentSlotPresenter, {
+  SlotStatusChipRow,
+} from "../components/play/RecentSlotPresenter";
 
 function Home() {
   const navigate = useNavigate();
@@ -43,18 +27,23 @@ function Home() {
   const { slots, loading, recentSlot, recentSlots = [] } = useUserSlots({ maxSlots });
   const { isActionable: isInstallActionable } = usePwaInstallPrompt();
   const visibleRecentSlots = recentSlots.length > 0 ? recentSlots : slots;
+  const otherRecentSlots = visibleRecentSlots
+    .filter((slot) => String(slot.id) !== String(recentSlot?.id))
+    .slice(0, 3);
 
   if (!currentUser) {
     return null;
   }
 
   return (
-    <section className="service-page">
-      <div className="service-hero">
-        <div className="service-hero__content">
+    <section className="service-page service-page--home">
+      <div className="service-hero service-hero--home">
+        <div className="service-hero__content service-home-summary">
           <p className="service-section-label">홈</p>
           <h1>{displayTamerName}님, 오늘도 디지몬이 기다리고 있습니다.</h1>
-          <p>최근 슬롯을 바로 이어서 플레이하거나, 플레이 허브에서 새 디지타마를 시작하세요.</p>
+          <p className="service-home-summary__description">
+            최근 슬롯을 바로 이어서 플레이하거나, 플레이 허브에서 새 디지타마를 시작하세요.
+          </p>
           <div className="service-chip-row">
             <span className="service-badge">{`현재 슬롯 ${slots.length} / ${maxSlots}`}</span>
             {achievements.includes(ACHIEVEMENT_VER1_MASTER) && (
@@ -72,47 +61,12 @@ function Home() {
             {loading ? (
               <p className="service-muted">최근 슬롯을 불러오는 중입니다.</p>
             ) : recentSlot ? (
-              <>
-                <div className="service-recent-slot">
-                  <div className="service-slot-card__media service-recent-slot__media">
-                    <img
-                      src={getSlotSpriteSrc(recentSlot)}
-                      alt={`${getSlotDisplayName(recentSlot)} 대표 스프라이트`}
-                      className="service-slot-card__sprite"
-                      style={{ imageRendering: "pixelated" }}
-                    />
-                  </div>
-                  <div className="service-recent-slot__body">
-                    <p className="service-section-label">{`슬롯 ${recentSlot.id}`}</p>
-                    <h2>{getSlotDisplayName(recentSlot)}</h2>
-                    <div className="service-slot-meta">
-                      <p className="service-slot-meta__item">
-                        {getSlotPrimaryInfo(recentSlot)}
-                      </p>
-                      <p className="service-slot-meta__item">
-                        {getSlotSecondaryInfo(recentSlot)}
-                      </p>
-                    </div>
-                    <SlotStatusChipRow slot={recentSlot} label="최근 슬롯 상태" />
-                    <div className="service-inline-actions">
-                      <button
-                        type="button"
-                        className="service-button service-button--primary"
-                        onClick={() => navigate(`/play/${recentSlot.id}`)}
-                      >
-                        이어하기
-                      </button>
-                      <button
-                        type="button"
-                        className="service-button service-button--ghost"
-                        onClick={() => navigate(`/play/${recentSlot.id}/full`)}
-                      >
-                        몰입형 화면
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </>
+              <RecentSlotPresenter
+                slot={recentSlot}
+                supplementaryInfo={[getSlotSecondaryInfo(recentSlot)]}
+                onContinue={() => navigate(`/play/${recentSlot.id}`)}
+                onImmersive={() => navigate(`/play/${recentSlot.id}/full`)}
+              />
             ) : (
               <>
                 <h2>새 디지몬 시작하기</h2>
@@ -130,7 +84,7 @@ function Home() {
         <div className="service-card">
           <p className="service-section-label">빠른 이동</p>
           <h2>다음 단계</h2>
-          <div className="service-action-grid">
+          <div className="service-action-grid service-action-grid--home">
             <Link className="service-action-card" to="/play">
               <strong>플레이 허브</strong>
               <span>슬롯 정리, 새 디지몬 시작, 몰입형 화면 이동</span>
@@ -156,16 +110,18 @@ function Home() {
           </div>
         </div>
 
-        <div className="service-card service-card--soft">
-          <p className="service-section-label">최근 디지몬</p>
-          <h2>바로 이어서 키우기</h2>
+        <div className="service-card service-card--soft service-home-other-slots">
+          <p className="service-section-label">다른 디지몬</p>
+          <h2>대표 슬롯 외에 이어하기</h2>
           {loading ? (
             <p className="service-muted">슬롯을 준비하고 있습니다.</p>
           ) : slots.length === 0 ? (
             <p className="service-muted">아직 시작한 디지몬이 없습니다.</p>
+          ) : otherRecentSlots.length === 0 ? (
+            <p className="service-muted">다른 슬롯이 없습니다.</p>
           ) : (
             <div className="service-mini-list">
-              {visibleRecentSlots.slice(0, 3).map((slot) => (
+              {otherRecentSlots.map((slot) => (
                 <button
                   key={slot.id}
                   type="button"
