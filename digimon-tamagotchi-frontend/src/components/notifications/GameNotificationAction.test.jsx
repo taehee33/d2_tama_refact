@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NotificationCenterProvider } from "../../contexts/NotificationCenterContext";
 import GameNotificationAction from "./GameNotificationAction";
 
-const mockGetNotificationStatus = jest.fn();
+const mockGetNotificationInbox = jest.fn();
 const mockMarkNotificationsRead = jest.fn();
 const mockSetIsChatOpen = jest.fn();
 const mockNavigate = jest.fn();
@@ -30,7 +30,7 @@ jest.mock("../../contexts/AblyContext", () => ({
 }));
 
 jest.mock("../../utils/notificationApi", () => ({
-  getNotificationStatus: (...args) => mockGetNotificationStatus(...args),
+  getNotificationInbox: (...args) => mockGetNotificationInbox(...args),
   markNotificationsRead: (...args) => mockMarkNotificationsRead(...args),
 }));
 
@@ -67,11 +67,11 @@ function renderAction() {
 describe("GameNotificationAction", () => {
   beforeEach(() => {
     mockLocation.pathname = "/play/4";
-    mockGetNotificationStatus.mockReset();
+    mockGetNotificationInbox.mockReset();
     mockMarkNotificationsRead.mockReset();
     mockSetIsChatOpen.mockReset();
     mockNavigate.mockReset();
-    mockGetNotificationStatus.mockResolvedValue(createStatus());
+    mockGetNotificationInbox.mockResolvedValue(createStatus());
     mockMarkNotificationsRead.mockResolvedValue({
       notificationIds: ["n1"],
       markedCount: 1,
@@ -103,6 +103,6 @@ describe("GameNotificationAction", () => {
     renderAction();
 
     expect(screen.queryByRole("button", { name: "알림" })).not.toBeInTheDocument();
-    await waitFor(() => expect(mockGetNotificationStatus).toHaveBeenCalled());
+    await waitFor(() => expect(mockGetNotificationInbox).toHaveBeenCalled());
   });
 });
