@@ -203,6 +203,11 @@ async function createUserNotification({
   const inAppState = settings.notificationChannels?.inApp === false
     ? { status: "hidden" }
     : { status: "stored" };
+  const createdAt = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  assertNotificationDocumentContract({
+    createdAt,
+    channelState: { inApp: inAppState },
+  });
   const discordState = sendDiscord
     ? await maybeSendDiscordNotification({
         uid,
