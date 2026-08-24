@@ -9,6 +9,11 @@ const mockGetSlotDisplayName = jest.fn();
 const mockGetSlotStageLabel = jest.fn();
 const mockGetSlotSpriteSrc = jest.fn();
 const mockDeleteSlot = jest.fn();
+const originalMatchMedia = window.matchMedia;
+
+function setMobileViewport(matches) {
+  window.matchMedia = jest.fn().mockImplementation(() => ({ matches }));
+}
 
 jest.mock("react-router-dom", () => ({
   __esModule: true,
@@ -84,10 +89,14 @@ describe("PlayHub", () => {
     });
   });
 
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
   test("최근 이어하기 카드에 디지몬 썸네일을 표시한다", () => {
     render(<PlayHub />);
 
-    expect(screen.getByRole("img", { name: "뿔몬 썸네일" })).toHaveAttribute(
+    expect(screen.getByRole("img", { name: "뿔몬 대표 스프라이트" })).toHaveAttribute(
       "src",
       "/images/225.png"
     );
@@ -223,6 +232,7 @@ describe("PlayHub", () => {
   });
 
   test("슬롯 목록 보기 방식은 기본 자세히이며 간략히 선택을 저장한다", () => {
+    setMobileViewport(false);
     mockUseUserSlots.mockReturnValue({
       slots: [
         {
@@ -254,6 +264,65 @@ describe("PlayHub", () => {
 
     expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--compact");
     expect(window.localStorage.getItem("digimon_slot_list_view_mode")).toBe("compact");
+  });
+
+  test("저장값이 없으면 모바일에서는 슬롯 목록을 간략히 표시한다", () => {
+    setMobileViewport(true);
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: null,
+    });
+
+    const { container } = render(<PlayHub />);
+
+    expect(screen.getByRole("button", { name: "간략히" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--compact");
+  });
+
+  test("저장된 보기 방식은 모바일 기본값보다 우선한다", () => {
+    setMobileViewport(true);
+    window.localStorage.setItem("digimon_slot_list_view_mode", "detail");
+    mockUseUserSlots.mockReturnValue({
+      slots: [
+        {
+          id: 1,
+          slotName: "슬롯1",
+          selectedDigimon: "Koromon",
+          device: "Digital Monster Color 25th",
+          version: "Ver.1",
+        },
+      ],
+      loading: false,
+      error: "",
+      createSlot: jest.fn(),
+      deleteSlot: mockDeleteSlot,
+      saveNickname: jest.fn(),
+      resetNickname: jest.fn(),
+      saveOrder: jest.fn(),
+      canCreateMore: true,
+      recentSlot: null,
+    });
+
+    const { container } = render(<PlayHub />);
+
+    expect(screen.getByRole("button", { name: "자세히" })).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".service-slot-grid")).toHaveClass("service-slot-grid--detail");
   });
 
   test("슬롯 순서 변경 버튼은 보기 방식 전환 왼쪽에 표시한다", () => {
