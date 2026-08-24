@@ -475,7 +475,8 @@ async function markUserNotificationsRead({
         readAt: nowMs,
         updatedAt: nowMs,
       },
-      ["readAt", "updatedAt"]
+      ["readAt", "updatedAt"],
+      { currentDocument: { exists: true } }
     )
   );
 

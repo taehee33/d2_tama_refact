@@ -45,12 +45,13 @@ export function NotificationCenterProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { isChatOpen, setIsChatOpen } = usePresenceContext();
-  const [status, setStatus] = useState(null);
+  const [statusEntry, setStatusEntry] = useState({ uid: "", value: null });
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const currentUid = currentUser?.uid || "";
+  const status = statusEntry.uid === currentUid ? statusEntry.value : null;
   const activeUidRef = useRef(currentUid);
   const inboxCacheRef = useRef({ uid: "", value: null, fetchedAt: 0 });
   const inboxRequestRef = useRef({ uid: "", promise: null });
@@ -91,7 +92,7 @@ export function NotificationCenterProvider({ children }) {
 
       if (!request && !force && cached.uid === uid && cached.value &&
           Date.now() - cached.fetchedAt < INBOX_FRESHNESS_MS) {
-        setStatus(cached.value);
+        setStatusEntry({ uid, value: cached.value });
         return cached.value;
       }
 
@@ -110,7 +111,7 @@ export function NotificationCenterProvider({ children }) {
         value: nextStatus,
         fetchedAt: Date.now(),
       };
-      setStatus(nextStatus);
+      setStatusEntry({ uid, value: nextStatus });
       return nextStatus;
     } catch (error) {
       if (activeUidRef.current === uid) {
@@ -130,6 +131,9 @@ export function NotificationCenterProvider({ children }) {
   useEffect(() => {
     inboxCacheRef.current = { uid: "", value: null, fetchedAt: 0 };
     inboxRequestRef.current = { uid: "", promise: null };
+    setStatusEntry({ uid: currentUid, value: null });
+    setIsOpen(false);
+    setErrorMessage("");
   }, [currentUid]);
 
   const openNotification = useCallback(() => {
@@ -166,13 +170,13 @@ export function NotificationCenterProvider({ children }) {
 
   useEffect(() => {
     if (!routePolicy.shouldShowNotification || !currentUser) {
-      setStatus(null);
+      setStatusEntry({ uid: currentUid, value: null });
       setIsOpen(false);
       return;
     }
 
     void loadStatus();
-  }, [currentUser, loadStatus, routePolicy.shouldShowNotification]);
+  }, [currentUid, currentUser, loadStatus, routePolicy.shouldShowNotification]);
 
   useEffect(() => {
     if (!routePolicy.shouldShowNotification || !currentUser) {
@@ -214,15 +218,18 @@ export function NotificationCenterProvider({ children }) {
         ? result.notificationIds
         : requestedNotificationIds;
       const readAt = result?.readAt || Date.now();
-      setStatus((currentStatus) => {
-        const nextStatus = applyReadState(currentStatus, notificationIds, readAt);
+      setStatusEntry((currentEntry) => {
+        if (currentEntry.uid !== currentUser.uid) {
+          return currentEntry;
+        }
+        const nextStatus = applyReadState(currentEntry.value, notificationIds, readAt);
         if (inboxCacheRef.current.uid === currentUser.uid) {
           inboxCacheRef.current = {
             ...inboxCacheRef.current,
             value: nextStatus,
           };
         }
-        return nextStatus;
+        return { uid: currentUser.uid, value: nextStatus };
       });
     } catch (error) {
       setErrorMessage(error?.message || "알림 읽음 처리에 실패했습니다.");

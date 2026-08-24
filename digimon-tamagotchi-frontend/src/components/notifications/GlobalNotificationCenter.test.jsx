@@ -291,7 +291,12 @@ describe("GlobalNotificationCenter", () => {
   });
 
   test("사용자 UID가 바뀌면 inbox 캐시를 초기화한다", async () => {
-    mockGetNotificationInbox.mockResolvedValue(createStatus());
+    let rejectSecondInbox;
+    mockGetNotificationInbox
+      .mockResolvedValueOnce(createStatus())
+      .mockImplementationOnce(() => new Promise((resolve, reject) => {
+        rejectSecondInbox = reject;
+      }));
     const { rerender } = renderWithProvider(<GlobalNotificationCenter />);
     expect(await screen.findByText("1")).toBeInTheDocument();
 
@@ -305,7 +310,14 @@ describe("GlobalNotificationCenter", () => {
       </NotificationCenterProvider>
     );
 
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
     await waitFor(() => expect(mockGetNotificationInbox).toHaveBeenCalledTimes(2));
     expect(mockGetNotificationInbox.mock.calls[1][0].uid).toBe("user-2");
+
+    await act(async () => {
+      rejectSecondInbox(new Error("새 사용자 inbox 실패"));
+    });
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+    expect(mockMarkNotificationsRead).not.toHaveBeenCalled();
   });
 });

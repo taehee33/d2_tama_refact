@@ -339,6 +339,7 @@ test("알림 상태는 projectionUnavailable 슬롯을 요약한다", async () =
 
 test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async () => {
   const now = Date.parse("2026-06-25T00:00:00.000Z");
+  let committedWrites = [];
   const store = createStore({
     "users/user-1/notifications/n1": {
       id: "n1",
@@ -364,7 +365,10 @@ test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async
     uid: "user-1",
     notificationIds: ["n1"],
     listCollectionDocuments: store.list,
-    commit: store.commit,
+    commit: async (writes) => {
+      committedWrites = writes;
+      await store.commit(writes);
+    },
     currentTime: new Date(now),
   });
 
@@ -373,6 +377,7 @@ test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async
   assert.equal(store.store.get("users/user-1/notifications/n1").data.title, "첫 알림");
   assert.equal(store.store.get("users/user-1/notifications/n1").data.channelState.inApp.status, "stored");
   assert.equal(store.store.get("users/user-2/notifications/n1").data.readAt, null);
+  assert.deepEqual(committedWrites[0].currentDocument, { exists: true });
 });
 
 test("알림 읽음 처리는 빈 notificationIds를 안전하게 무시한다", async () => {
