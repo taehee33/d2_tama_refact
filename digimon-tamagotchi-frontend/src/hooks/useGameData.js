@@ -32,7 +32,6 @@ import {
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { resolveSlotNotificationEligible } from "../utils/notificationEligibility";
-import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 import {
   getStarterDigimonId,
@@ -74,6 +73,19 @@ import {
   buildNewLifeTransitionEnvelope,
   commitNewLifeTransition,
 } from "../persistence/newLifeTransition";
+import {
+  buildEvolutionStageInstanceId,
+  CARE_MISTAKE_RECONCILIATION_STATUS,
+  CARE_MISTAKE_TRANSITION_TYPES,
+  buildCareMistakeOccurrenceFromActivityLog,
+  isCareMistakeActivityLog,
+  isCareMistakeResolutionActivityLog,
+} from "../logic/stats/careMistakeProjection";
+import {
+  buildCareMistakeReconciliationPlan,
+  commitCareMistakeReconciliation,
+} from "../persistence/careMistakeReconciliation";
+import { buildActivityLogEventId } from "../utils/activityLogEventId";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -101,6 +113,45 @@ const GAME_TIMESTAMP_KEYS = new Set([
   "lastSavedAt",
 ]);
 
+const CARE_MISTAKE_STATE_FIELDS = Object.freeze([
+  "careMistakes",
+  "careMistakeLedger",
+  "unresolvedCareMistakeCount",
+  "latestUnresolvedCareMistakeIncidentId",
+  "latestCareMistakeAt",
+  "careMistakeSchemaVersion",
+  "careMistakeReconciliationVersion",
+  "careMistakeReconciliationStatus",
+  "evolutionStageInstanceId",
+]);
+
+function omitCareMistakeStateFields(stats = {}) {
+  const result = { ...stats };
+  CARE_MISTAKE_STATE_FIELDS.forEach((field) => delete result[field]);
+  return result;
+}
+
+function getActivityLogMergeKey(log = {}) {
+  const eventId = buildActivityLogEventId(log);
+  if (eventId) return `event:${eventId}`;
+  return `legacy:${String(log.type || "")}:${toEpochMs(log.timestamp) ?? ""}:${String(log.text || "")}`;
+}
+
+function mergeActivityLogs(...sources) {
+  const seen = new Set();
+  const merged = sources
+    .flatMap((source) => (Array.isArray(source) ? source : []))
+    .filter((log) => {
+      const key = getActivityLogMergeKey(log);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  return merged.sort((left, right) =>
+    (toEpochMs(left?.timestamp) || 0) - (toEpochMs(right?.timestamp) || 0)
+  ).slice(-MAX_ACTIVITY_LOGS);
+}
+
 export function raiseGameSaveError(error, setError) {
   if (typeof setError === "function") {
     setError(error);
@@ -114,6 +165,7 @@ export function createNextSlotLoadAccess(currentAccess = {}) {
     phase: GAME_PERSISTENCE_PHASE.LOADING,
     generation: (Number(currentAccess.generation) || 0) + 1,
     loadedIdentity: null,
+    careMistakeReconciliationStatus: null,
   };
 }
 
@@ -265,6 +317,15 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
     activityLogs: _dropActivityLogs,
     battleLogs: _dropBattleLogs,
     selectedDigimon: _dropSelectedDigimon,
+    careMistakes: _dropCareMistakes,
+    careMistakeLedger: _dropCareMistakeLedger,
+    unresolvedCareMistakeCount: _dropUnresolvedCareMistakeCount,
+    latestUnresolvedCareMistakeIncidentId: _dropLatestCareMistakeIncidentId,
+    latestCareMistakeAt: _dropLatestCareMistakeAt,
+    careMistakeSchemaVersion: _dropCareMistakeSchemaVersion,
+    careMistakeReconciliationVersion: _dropCareMistakeReconciliationVersion,
+    careMistakeReconciliationStatus: _dropCareMistakeReconciliationStatus,
+    evolutionStageInstanceId: _dropEvolutionStageInstanceId,
     ...digimonStatsOnly
   } = stats || {};
 
@@ -342,6 +403,162 @@ export function buildSlotDocumentUpdatePayload({
   }
 
   return updateData;
+}
+
+export function resolveCareMistakeProjectionFromSlot(slotData = {}, stats = {}) {
+  const projectionSource = {
+    ...stats,
+    ...slotData,
+    ...(slotData.digimonStats || {}),
+  };
+  return {
+    careMistakes: Math.max(0, Number(projectionSource.careMistakes) || 0),
+    unresolvedCareMistakeCount: Math.max(
+      0,
+      Number(projectionSource.unresolvedCareMistakeCount ?? projectionSource.careMistakes) || 0
+    ),
+    latestUnresolvedCareMistakeIncidentId:
+      projectionSource.latestUnresolvedCareMistakeIncidentId ?? null,
+    latestCareMistakeAt: toEpochMs(projectionSource.latestCareMistakeAt),
+    careMistakeSchemaVersion: projectionSource.careMistakeSchemaVersion ?? null,
+    careMistakeReconciliationVersion:
+      projectionSource.careMistakeReconciliationVersion ?? null,
+    careMistakeReconciliationStatus:
+      projectionSource.careMistakeReconciliationStatus || "not_started",
+    evolutionStageInstanceId: projectionSource.evolutionStageInstanceId || null,
+  };
+}
+
+/**
+ * 저장 직전 새 케어미스 로그와 projection 변화를 하나의 전이 의도로 묶습니다.
+ * 기존 snapshot의 careMistakes 값은 incident 정본이 아니므로 전이 입력으로
+ * 사용하지 않고, 로그 delta 또는 명시적인 해소 의도만 사용합니다.
+ */
+export function buildCareMistakeTransitionFromStats({
+  previousStats = {},
+  nextStats = {},
+  previousLogs = [],
+  nextLogs = [],
+  identity = {},
+  explicitTransition = null,
+  nowMs = Date.now(),
+} = {}) {
+  const stageInstanceId =
+    explicitTransition?.evolutionStageInstanceId ||
+    explicitTransition?.identity?.evolutionStageInstanceId ||
+    nextStats.evolutionStageInstanceId ||
+    previousStats.evolutionStageInstanceId ||
+    buildEvolutionStageInstanceId({
+      digimonInstanceId: identity.digimonInstanceId,
+      evolutionStageStartedAt:
+        nextStats.evolutionStageStartedAt || previousStats.evolutionStageStartedAt,
+      evolutionStage: nextStats.evolutionStage || previousStats.evolutionStage,
+    });
+  const transitionIdentity = {
+    ...identity,
+    evolutionStageInstanceId: stageInstanceId,
+  };
+  const previousLogIds = new Set(
+    (Array.isArray(previousLogs) ? previousLogs : [])
+      .map((log) => buildActivityLogEventId(log))
+      .filter(Boolean)
+  );
+  const transitionActivityEvents = (Array.isArray(nextLogs) ? nextLogs : [])
+    .filter((log) =>
+      !isCareMistakeActivityLog(log) &&
+      !isCareMistakeResolutionActivityLog(log)
+    )
+    .map((log) => ({
+      ...log,
+      eventId: buildActivityLogEventId(log),
+    }))
+    .filter((log) => log.eventId && !previousLogIds.has(log.eventId));
+  if (explicitTransition?.transitionType) {
+    return {
+      ...explicitTransition,
+      identity: transitionIdentity,
+      evolutionStageInstanceId: stageInstanceId,
+      ...(transitionActivityEvents.length > 0
+        ? {
+            activityEvents: [
+              ...(explicitTransition.activityEvents || []),
+              ...transitionActivityEvents,
+            ],
+          }
+        : {}),
+    };
+  }
+
+  const previousEventIds = previousLogIds;
+  const stageStartedAt = toEpochMs(
+    nextStats.evolutionStageStartedAt || previousStats.evolutionStageStartedAt
+  );
+  const occurrences = (Array.isArray(nextLogs) ? nextLogs : [])
+    .filter((log) => isCareMistakeActivityLog(log))
+    .filter((log) => {
+      const logStageId = log?.evolutionStageInstanceId;
+      if (logStageId && stageInstanceId && logStageId !== stageInstanceId) return false;
+      const timestamp = toEpochMs(log?.timestamp);
+      return !(stageStartedAt != null && timestamp != null && timestamp < stageStartedAt);
+    })
+    .filter((log) => {
+      const eventId = buildActivityLogEventId(log);
+      return eventId && !previousEventIds.has(eventId);
+    })
+    .map((log, index) => {
+      const occurrence = buildCareMistakeOccurrenceFromActivityLog(
+        log,
+        transitionIdentity,
+        "care-auto",
+        index
+      );
+      if (!occurrence) return null;
+      const { eventId: _eventId, ...operation } = occurrence;
+      return operation;
+    })
+    .filter(Boolean);
+
+  if (occurrences.length > 0) {
+    return {
+      transitionType: CARE_MISTAKE_TRANSITION_TYPES.OCCURRED,
+      createdAt: nowMs,
+      identity: transitionIdentity,
+      evolutionStageInstanceId: stageInstanceId,
+      operations: occurrences,
+      ...(transitionActivityEvents.length > 0
+        ? { activityEvents: transitionActivityEvents }
+        : {}),
+    };
+  }
+
+  const previousCount = Math.max(
+    0,
+    Number(previousStats.unresolvedCareMistakeCount ?? previousStats.careMistakes) || 0
+  );
+  const nextCount = Math.max(
+    0,
+    Number(nextStats.unresolvedCareMistakeCount ?? nextStats.careMistakes) || 0
+  );
+  if (
+    nextCount < previousCount &&
+    (previousStats.latestUnresolvedCareMistakeIncidentId || nextStats.latestUnresolvedCareMistakeIncidentId)
+  ) {
+    return {
+      transitionType: CARE_MISTAKE_TRANSITION_TYPES.RESOLVED,
+      createdAt: nowMs,
+      identity: transitionIdentity,
+      evolutionStageInstanceId: stageInstanceId,
+      operations: [{
+        incidentId:
+          previousStats.latestUnresolvedCareMistakeIncidentId ||
+          nextStats.latestUnresolvedCareMistakeIncidentId,
+        resolvedAt: nowMs,
+        resolvedBy: "play_or_snack",
+      }],
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -562,6 +779,86 @@ export async function loadSlotCollectionsState({
 }
 
 /**
+ * 현재 생애의 케어 incident를 읽습니다. stage 필터는 구버전 문서와의
+ * 호환을 위해 클라이언트에서 한 번 더 적용합니다.
+ */
+export async function loadCareMistakeIncidents({
+  slotRef = null,
+  digimonInstanceId = null,
+  evolutionStageInstanceId = null,
+  loadIncidents,
+} = {}) {
+  const incidents = loadIncidents
+    ? await loadIncidents()
+    : await (async () => {
+        if (!slotRef || !digimonInstanceId) return [];
+        const incidentsRef = collection(slotRef, "careMistakeIncidents");
+        const incidentsQuery = query(
+          incidentsRef,
+          where("digimonInstanceId", "==", digimonInstanceId),
+          orderBy("occurredAt", "asc"),
+          limit(200)
+        );
+        const incidentsSnap = await getDocs(incidentsQuery);
+        return incidentsSnap.docs.map((snapshot) => ({
+          incidentId: snapshot.id,
+          ...snapshot.data(),
+        }));
+      })();
+
+  return (Array.isArray(incidents) ? incidents : []).filter((incident) =>
+    !evolutionStageInstanceId || incident.evolutionStageInstanceId === evolutionStageInstanceId
+  );
+}
+
+/**
+ * reconciliation은 화면용 최근 50건이 아닌 현재 stage의 전체 로그를 감사한다.
+ * 일부만 읽고 verified로 표시하면 오래된 케어미스가 다시 유실될 수 있다.
+ */
+export async function loadCareMistakeReconciliationLogs({
+  slotRef = null,
+  slotInstanceId = null,
+  digimonInstanceId = null,
+  evolutionStageStartedAt = null,
+  loadLogs,
+} = {}) {
+  const stageStartedAt = toEpochMs(evolutionStageStartedAt);
+  const logs = loadLogs
+    ? await loadLogs()
+    : await (async () => {
+        if (!slotRef) return [];
+        const logsSnapshot = await getDocs(collection(slotRef, "logs"));
+        return logsSnapshot.docs.map((snapshot) => ({
+          id: snapshot.id,
+          ...snapshot.data(),
+        }));
+      })();
+
+  if (!Array.isArray(logs)) {
+    throw new TypeError("케어미스 reconciliation 로그 결과가 배열이 아닙니다.");
+  }
+
+  return logs
+    .map(normalizeLogTimestamp)
+    .filter((log) => {
+      const timestamp = toEpochMs(log.timestamp);
+      if (stageStartedAt != null && (timestamp == null || timestamp < stageStartedAt)) {
+        return false;
+      }
+      if (log.slotInstanceId && slotInstanceId && log.slotInstanceId !== slotInstanceId) {
+        return false;
+      }
+      if (log.digimonInstanceId && digimonInstanceId && log.digimonInstanceId !== digimonInstanceId) {
+        return false;
+      }
+      return true;
+    })
+    .sort((left, right) =>
+      (toEpochMs(left.timestamp) || 0) - (toEpochMs(right.timestamp) || 0)
+    );
+}
+
+/**
  * 로드한 activity/battle logs를 저장된 슬롯 스탯에 합칩니다.
  * 이 단계에서는 로그 컬렉션 병합과 legacy proteinCount cleanup 힌트만 반환합니다.
  *
@@ -683,6 +980,43 @@ export function buildLoadedSlotRuntimeState({
   };
 }
 
+function hasInitializedGameplayStats(stats = {}) {
+  return Boolean(
+    toEpochMs(stats.birthTime) != null ||
+      toEpochMs(stats.evolutionStageStartedAt) != null ||
+      stats.sprite != null ||
+      stats.evolutionStage ||
+      stats.timeToEvolveSeconds != null
+  );
+}
+
+/**
+ * 새 슬롯은 최초 로드 전까지 digimonStats가 비어 있다. reconciliation
+ * projection만 먼저 합쳐져도 알 초기화를 건너뛰지 않도록 게임 스탯과
+ * 단계 시작 시각을 슬롯 생성 시각 기준으로 완성한다.
+ */
+export function initializePristineSlotStats({
+  slotData = {},
+  savedName,
+  savedStats = {},
+  dataMap = null,
+} = {}) {
+  if (hasInitializedGameplayStats(savedStats)) return savedStats;
+
+  // 슬롯 문서 생성 뒤 첫 게임 로드가 지연됐더라도 알 단계를 건너뛰지
+  // 않는다. 실제 육성 시간은 첫 정상 hydration 시점부터 시작한다.
+  const startedAt = Date.now();
+  const initializedStats = initializeStats(savedName, {}, dataMap || {});
+
+  return {
+    ...initializedStats,
+    ...savedStats,
+    birthTime: startedAt,
+    evolutionStageStartedAt: startedAt,
+    lastSavedAt: startedAt,
+  };
+}
+
 /**
  * 로드한 슬롯의 starter-init / saved-runtime 분기를 한 번에 계산합니다.
  * Firestore write나 setter 호출 없이 hydration 결과와 재구성 로그만 반환합니다.
@@ -714,11 +1048,13 @@ export function buildLoadedSlotHydrationPlan({
   runtimeAdaptedDataMaps = {},
   evolutionDataForSlot = null,
 } = {}) {
-  if (Object.keys(savedStats).length === 0) {
-    const nowMs = Date.now();
-    const digimonStats = initializeStats(savedName, {}, dataMap);
-    digimonStats.birthTime = nowMs;
-    digimonStats.lastSavedAt = nowMs;
+  if (!hasInitializedGameplayStats(savedStats)) {
+    const digimonStats = initializePristineSlotStats({
+      slotData,
+      savedName,
+      savedStats,
+      dataMap,
+    });
 
     return {
       hydrationResult: buildLoadedSlotHydrationResult({
@@ -798,15 +1134,12 @@ export function buildLazyUpdateRuntimeResult({
     ...Object.values(runtimeAdaptedDataMaps)
   );
   const digimonStats = normalizeGameTimingFields(
-    repairCareMistakeLedger(
-      applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
-        digimonSnapshot,
-        ...(nowMs != null && Number.isFinite(Number(nowMs))
-          ? { nowMs: Number(nowMs) }
-          : {}),
-      }),
-      baseStats.activityLogs || []
-    ).nextStats
+    applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
+      digimonSnapshot,
+      ...(nowMs != null && Number.isFinite(Number(nowMs))
+        ? { nowMs: Number(nowMs) }
+        : {}),
+    })
   );
 
   return {
@@ -1002,12 +1335,14 @@ export function useGameData({
     saveQueueRef.current = createGameSaveQueue();
   }
   const saveOperationSequenceRef = useRef(0);
+  const reconstructedLogsRef = useRef([]);
   const statsPopupCommandLedgerRef = useRef(new Map());
   const latestStatsPopupCommandSequenceRef = useRef(new Map());
   useEffect(() => {
     statsPopupCommandLedgerRef.current.clear();
     latestStatsPopupCommandSequenceRef.current.clear();
     saveOperationSequenceRef.current = 0;
+    reconstructedLogsRef.current = [];
   }, [currentUser?.uid, slotId]);
   const slotRuntimeDataMap = digimonDataVer1;
   const runtimeAdaptedDataMaps = useMemo(
@@ -1062,8 +1397,9 @@ export function useGameData({
     clearPendingStateAfterHydration,
     flushOutbox,
     getLatestStateSnapshot,
+    getPendingActivityLogs,
+    getPendingCareTransitions,
     getPendingState,
-    persistStateSnapshot,
     persistStateSnapshotReceipt,
     persistEvolutionTransitionReceipt,
     persistActivityLogReceipt,
@@ -1118,15 +1454,20 @@ export function useGameData({
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
    * @param {Object} newStats - 새로운 스탯
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
+   * @param {Object|null} transition - 케어미스/냉장고/호출 확인 전이 의도 (선택적)
    */
   async function executeSaveStats(
     newStats,
     updatedLogs = null,
     saveContext = null,
-    legacyMetadata = null
+    legacyMetadata = null,
+    transition = null,
+    persistenceOptions = {}
   ) {
     // 예약 이후 슬롯/사용자/세대가 바뀌었으면 React setter를 포함해 아무 작업도 하지 않는다.
-    if (!canStartGameplayWrite(saveContext)) return false;
+    if (!canStartGameplayWrite(saveContext, {
+      allowCareTransition: persistenceOptions.allowCareTransition === true,
+    })) return false;
     // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
     const isNewStart = newStats.isDead === false && 
                        newStats.evolutionStage === "Digitama" && 
@@ -1175,7 +1516,9 @@ export function useGameData({
     } else {
       baseStats = await applyLazyUpdateForAction();
     }
-    if (!canStartGameplayWrite(saveContext)) return false;
+    if (!canStartGameplayWrite(saveContext, {
+      allowCareTransition: persistenceOptions.allowCareTransition === true,
+    })) return false;
     const nowMs = Date.now();
     let effectiveNewStats = newStats;
     if (!isNewStart && legacyMetadata) {
@@ -1192,26 +1535,16 @@ export function useGameData({
       });
     }
     
-    // Activity Logs 처리: 함수형 업데이트로 확실히 누적
-    let finalLogs;
-    if (updatedLogs !== null) {
-      // updatedLogs는 이미 addActivityLog로 생성된 배열 (이전 로그 포함)
-      finalLogs = updatedLogs;
-      // setActivityLogs를 함수형 업데이트로 호출하여 이전 로그 보존 보장
-      setActivityLogs((prevLogs) => {
-        // updatedLogs가 이미 이전 로그를 포함하고 있어야 하지만,
-        // 혹시 모를 상황을 대비해 최신 상태 확인 후 반환
-        // updatedLogs는 addActivityLog로 생성되었으므로 이전 로그를 포함하고 있음
-        return updatedLogs;
-      });
-    } else {
-      // updatedLogs가 null이면 이전 로그 유지
-      finalLogs = baseStats.activityLogs || activityLogs || [];
-      setActivityLogs((prevLogs) => {
-        // 이전 로그가 없으면 빈 배열로 초기화
-        return prevLogs || [];
-      });
-    }
+    // Activity Logs 처리: 원격 snapshot의 lazy reconstruction 로그와
+    // 호출자가 전달한 최신 로그를 합쳐 오래된 배열이 새 사건을 덮지 않게 한다.
+    const requestedLogs = updatedLogs !== null
+      ? updatedLogs
+      : newStats.activityLogs || activityLogs || [];
+    const finalLogs = mergeActivityLogs(
+      baseStats.activityLogs || [],
+      requestedLogs
+    );
+    setActivityLogs(() => finalLogs);
     
     // preservedStats의 값들을 우선 적용 (undefined가 아닌 경우만)
     const mergedStats = { ...baseStats };
@@ -1232,9 +1565,12 @@ export function useGameData({
       wakeUntil,
     });
 
+    const statsForMerge = transition?.transitionType || isNewStart
+      ? effectiveNewStats
+      : omitCareMistakeStateFields(effectiveNewStats);
     const finalStats = {
       ...mergedStats,
-      ...effectiveNewStats, // 큐 실행 시점의 최신 상태에 호출자의 변경 의도를 적용
+      ...statsForMerge, // 큐 실행 시점의 최신 상태에 호출자의 변경 의도를 적용
       // 새로운 시작일 때 사망 관련 필드 강제 보존
       ...(isNewStart ? {
         isDead: false,
@@ -1256,9 +1592,7 @@ export function useGameData({
       ...rootSlotFields,
       lastSavedAt: nowMs,
     };
-    const repairedFinalStats = normalizeGameTimingFields(
-      repairCareMistakeLedger(finalStats, finalLogs).nextStats
-    );
+    const repairedFinalStats = normalizeGameTimingFields(finalStats);
     
     console.log("[saveStats] finalStats:", {
       isNewStart,
@@ -1279,20 +1613,39 @@ export function useGameData({
       ? { ...statsWithoutProteinCount, selectedDigimon: effectiveSelectedDigimon }
       : statsWithoutProteinCount;
 
+    const careTransition = buildCareMistakeTransitionFromStats({
+      previousStats: baseStats,
+      nextStats: statsForState,
+      previousLogs: baseStats.activityLogs || [],
+      nextLogs: finalLogs,
+      identity: {
+        slotInstanceId: saveContext?.slotInstanceId,
+        digimonInstanceId: saveContext?.digimonInstanceId,
+      },
+      explicitTransition: transition,
+      nowMs,
+    });
+
     setDigimonStats(statsForState);
 
     // Firebase 로그인 필수
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        const didPersist = await persistStateSnapshot({
+        const persistenceReceipt = await persistStateSnapshotReceipt({
           statsSnapshot: statsForState,
           updatedLogs,
           nowMs,
           saveContext,
+          transition: careTransition,
+          activityEvents: persistenceOptions.activityEvents || [],
+          allowCareTransition: persistenceOptions.allowCareTransition === true,
         });
-        if (!didPersist) {
+        if (
+          persistenceReceipt.status !== "synced" &&
+          persistenceReceipt.status !== "queued"
+        ) {
           const conflictError = new Error("다른 기기의 변경사항 확인이 필요합니다.");
-          conflictError.code = "game/revision-conflict-pending";
+          conflictError.code = persistenceReceipt.errorCode || "game/revision-conflict-pending";
           throw conflictError;
         }
         evaluateSlotUrgentNotification(currentUser, slotId).catch((error) => {
@@ -1311,7 +1664,12 @@ export function useGameData({
     return true;
   }
 
-  function saveStats(newStats, updatedLogs = null) {
+  function saveStats(
+    newStats,
+    updatedLogs = null,
+    transition = null,
+    persistenceOptions = {}
+  ) {
     const saveContext = captureSaveContext();
     const sequence = ++saveOperationSequenceRef.current;
     const invocationStats = digimonStats || {};
@@ -1319,7 +1677,7 @@ export function useGameData({
       executeSaveStats(newStats, updatedLogs, saveContext, {
         sequence,
         invocationStats,
-      })
+      }, transition, persistenceOptions)
     );
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
@@ -1528,12 +1886,29 @@ export function useGameData({
             ...(effectiveSelectedDigimon ? { selectedDigimon: effectiveSelectedDigimon } : {}),
             lastSavedAt: executionNow,
           });
+          const careTransition = buildCareMistakeTransitionFromStats({
+            previousStats: baseStats,
+            nextStats: finalStats,
+            previousLogs: reconstructedLogsRef.current.length > 0
+              ? []
+              : baseStats.activityLogs || [],
+            nextLogs: reconstructedLogsRef.current.length > 0
+              ? reconstructedLogsRef.current
+              : activityLogs || [],
+            identity: {
+              slotInstanceId: saveContext?.slotInstanceId,
+              digimonInstanceId: saveContext?.digimonInstanceId,
+            },
+            nowMs: executionNow,
+          });
+          reconstructedLogsRef.current = [];
           const stateReceipt = await persistStateSnapshotReceipt({
             statsSnapshot: finalStats,
             updatedLogs: isNocturnalCommand ? activityLogs : null,
             nowMs: executionNow,
             saveContext,
             commandId,
+            transition: careTransition,
           });
 
           if (stateReceipt.status === "synced" || stateReceipt.status === "queued") {
@@ -1545,9 +1920,6 @@ export function useGameData({
               });
             }
             setDigimonStats(finalStats);
-            lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
-              if (log?.type) appendLogToSubcollection(log).catch(() => {});
-            });
             checkDeathStatus(finalStats);
           }
           return stateReceipt;
@@ -1618,11 +1990,12 @@ export function useGameData({
           runtimeAdaptedDataMaps,
         });
         const updated = lazyUpdateResult.digimonStats;
-
-        // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
-        lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
-          if (log?.type) appendLogToSubcollection(log).catch(() => {});
-        });
+        if (lazyUpdateResult.reconstructedLogsToPersist.length > 0) {
+          reconstructedLogsRef.current = [
+            ...reconstructedLogsRef.current,
+            ...lazyUpdateResult.reconstructedLogsToPersist,
+          ];
+        }
 
         // 사망 상태 변경 감지
         checkDeathStatus(updated);
@@ -1741,9 +2114,239 @@ export function useGameData({
             loadedActivityLogs,
             loadedBattleLogs,
           });
-          savedStats = loadedCollectionsState.savedStats;
+          savedStats = initializePristineSlotStats({
+            slotData,
+            savedName,
+            savedStats: loadedCollectionsState.savedStats,
+            dataMap,
+          });
 
-          // hydration 중에는 정리 쓰기를 하지 않는다. 다음 정상 저장 payload에서 제거된다.
+          // 케어 projection은 슬롯의 숫자나 legacy ledger가 아니라 incident와
+          // 현재 stage 로그를 재생해 계산한다. 읽기 실패 시 기존 값을 보존하고
+          // reconciliation을 ambiguous로 표시해 추측 저장을 막는다.
+          const stageInstanceId =
+            slotData.evolutionStageInstanceId ||
+            savedStats.evolutionStageInstanceId ||
+            buildEvolutionStageInstanceId({
+              digimonInstanceId: slotData.digimonInstanceId,
+              evolutionStageStartedAt:
+                slotData.evolutionStageStartedAt || savedStats.evolutionStageStartedAt,
+              evolutionStage: slotData.evolutionStage || savedStats.evolutionStage,
+            });
+          let loadedCareMistakeIncidents = [];
+          let careIncidentLoadFailed = false;
+          try {
+            loadedCareMistakeIncidents = await loadCareMistakeIncidents({
+              slotRef: slotRefForLogs,
+              digimonInstanceId: slotData.digimonInstanceId,
+              evolutionStageInstanceId: stageInstanceId,
+            });
+          } catch (careIncidentError) {
+            careIncidentLoadFailed = true;
+            console.warn("케어미스 incident 조회 오류:", careIncidentError);
+          }
+          let reconciliationActivityLogs = [];
+          let reconciliationActivityLogLoadFailed = false;
+          try {
+            reconciliationActivityLogs = await loadCareMistakeReconciliationLogs({
+              slotRef: slotRefForLogs,
+              slotInstanceId: slotData.slotInstanceId,
+              digimonInstanceId: slotData.digimonInstanceId,
+              evolutionStageStartedAt:
+                slotData.evolutionStageStartedAt || savedStats.evolutionStageStartedAt,
+            });
+          } catch (reconciliationLogError) {
+            reconciliationActivityLogLoadFailed = true;
+            console.warn("케어미스 전체 감사 로그 조회 오류:", reconciliationLogError);
+          }
+          let pendingActivityLogs = [];
+          let pendingActivityLogLoadFailed = false;
+          try {
+            pendingActivityLogs = await getPendingActivityLogs();
+          } catch (pendingActivityError) {
+            pendingActivityLogLoadFailed = true;
+            console.warn("미전송 케어미스 활동 로그 조회 오류:", pendingActivityError);
+          }
+          let pendingCareTransitions = [];
+          let pendingCareTransitionLoadFailed = false;
+          try {
+            pendingCareTransitions = await getPendingCareTransitions();
+          } catch (pendingCareTransitionError) {
+            pendingCareTransitionLoadFailed = true;
+            console.warn("미전송 케어미스 전이 조회 오류:", pendingCareTransitionError);
+          }
+          let pendingState = null;
+          let pendingStateLoadFailed = false;
+          try {
+            pendingState = await getPendingState();
+          } catch (pendingStateError) {
+            pendingStateLoadFailed = true;
+            console.warn("미전송 상태 스냅샷 조회 오류:", pendingStateError);
+          }
+          const pendingStateActivityLogs = Array.isArray(
+            pendingState?.state?.stateSnapshot?.activityLogs
+          )
+            ? pendingState.state.stateSnapshot.activityLogs
+            : [];
+          const pendingActivityLogsForReconciliation = [
+            ...pendingActivityLogs,
+            ...pendingStateActivityLogs,
+          ];
+          const careReconciliationPlan = buildCareMistakeReconciliationPlan({
+            slotData: {
+              ...slotData,
+              evolutionStageInstanceId: stageInstanceId,
+            },
+            savedStats,
+            activityLogs: reconciliationActivityLogLoadFailed
+              ? null
+              : reconciliationActivityLogs,
+            incidents: loadedCareMistakeIncidents,
+            pendingActivityLogs: pendingActivityLogLoadFailed
+              ? null
+              : pendingActivityLogsForReconciliation,
+          });
+          const legacyCareProjection = resolveCareMistakeProjectionFromSlot(
+            slotData,
+            savedStats
+          );
+          const hasCareEventEvidence =
+            loadedCareMistakeIncidents.length > 0 ||
+            reconciliationActivityLogs.some((log) =>
+              isCareMistakeActivityLog(log) ||
+              isCareMistakeResolutionActivityLog(log)
+            ) ||
+            (savedStats.activityLogs || []).some((log) => isCareMistakeActivityLog(log)) ||
+            pendingActivityLogsForReconciliation.some((log) =>
+              isCareMistakeActivityLog(log)
+            );
+          const hasPendingCareTransitions =
+            pendingCareTransitions.length > 0 ||
+            Boolean(pendingState?.state?.transition?.transitionType);
+          const hasLegacyCareProjection =
+            legacyCareProjection.careMistakes > 0 ||
+            legacyCareProjection.unresolvedCareMistakeCount > 0;
+          const remoteReconciliationStatus =
+            slotData.careMistakeReconciliationStatus || null;
+          const remoteProjectionMatchesPlan =
+            legacyCareProjection.careMistakes === careReconciliationPlan.projection.careMistakes &&
+            legacyCareProjection.unresolvedCareMistakeCount ===
+              careReconciliationPlan.projection.unresolvedCareMistakeCount &&
+            legacyCareProjection.latestUnresolvedCareMistakeIncidentId ===
+              careReconciliationPlan.projection.latestUnresolvedCareMistakeIncidentId &&
+            legacyCareProjection.latestCareMistakeAt ===
+              careReconciliationPlan.projection.latestCareMistakeAt;
+          let careProjection;
+          if (
+            careIncidentLoadFailed ||
+            reconciliationActivityLogLoadFailed ||
+            pendingActivityLogLoadFailed ||
+            pendingCareTransitionLoadFailed ||
+            pendingStateLoadFailed
+          ) {
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (!careReconciliationPlan.canActivateProjection) {
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus: careReconciliationPlan.status,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (hasLegacyCareProjection && !hasCareEventEvidence) {
+            // 카운터만 남은 슬롯은 로그로 증명할 수 없으므로 0으로 추측해
+            // 덮어쓰지 않는다. 운영자 reconciliation 대상이다.
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (
+            remoteReconciliationStatus ===
+            CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS
+          ) {
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (
+            remoteReconciliationStatus ===
+            CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS
+          ) {
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (hasPendingCareTransitions) {
+            // 로컬 전이가 남아 있으면 서버 로그만으로 projection을 확정하지
+            // 않는다. 동일한 로컬 체인의 전이를 먼저 원격에 반영한다.
+            careProjection = {
+              ...legacyCareProjection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
+              evolutionStageInstanceId: stageInstanceId,
+            };
+          } else if (
+            (
+              remoteReconciliationStatus ===
+                CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED &&
+              remoteProjectionMatchesPlan
+            ) ||
+            (!remoteReconciliationStatus && !hasCareEventEvidence)
+          ) {
+            careProjection = {
+              ...careReconciliationPlan.projection,
+              careMistakeReconciliationStatus:
+                CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED,
+            };
+          } else {
+            // 로그와 incident를 모두 읽어 검증할 수 있는 경우에만 로드 중
+            // reconciliation transaction으로 projection을 활성화한다.
+            try {
+              const reconciliationResult = await commitCareMistakeReconciliation({
+                db,
+                slotRef: slotRefForLogs,
+                plan: careReconciliationPlan,
+                baseRevision: slotData.revision ?? 0,
+                runTransaction,
+              });
+              if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
+              slotData = {
+                ...slotData,
+                revision: reconciliationResult.revision,
+                ...reconciliationResult.projection,
+                digimonStats: {
+                  ...savedStats,
+                  ...reconciliationResult.projection,
+                },
+              };
+              careProjection = reconciliationResult.projection;
+            } catch (reconciliationError) {
+              console.warn("케어미스 reconciliation 커밋 오류:", reconciliationError);
+              careProjection = {
+                ...legacyCareProjection,
+                careMistakeReconciliationStatus:
+                  CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
+                evolutionStageInstanceId: stageInstanceId,
+              };
+            }
+          }
+          savedStats = {
+            ...savedStats,
+            ...careProjection,
+          };
+
+          // lazy reconstruction 결과는 여기서 단독 로그로 저장하지 않는다.
+          // 다만 검증 가능한 기존 care evidence의 reconciliation transaction은
+          // 위에서 projection·incident와 함께 이미 원자적으로 확정될 수 있다.
 
           const hydrationPlan = buildLoadedSlotHydrationPlan({
             slotData,
@@ -1768,12 +2371,6 @@ export function useGameData({
             ...(hydrationPlan.reconstructedLogsToPersist || []),
           ];
           {
-            let pendingState = null;
-            try {
-              pendingState = await getPendingState();
-            } catch (localPersistenceError) {
-              console.warn("로컬 pending 조회 오류:", localPersistenceError);
-            }
             if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
             const pendingHydration = resolvePendingHydration({
               pendingState,
@@ -1871,13 +2468,65 @@ export function useGameData({
               setDeathReason(hydrationResult.deathReason);
             }
 
-            updatePersistenceAccess({
-              phase: GAME_PERSISTENCE_PHASE.READY,
-              loadedIdentity: loadedPersistenceIdentity,
-            });
-            reconstructedLogsToPersist.forEach((log) => {
-              if (log?.type) appendLogToSubcollection(log).catch(() => {});
-            });
+            const canPersistHydrationReconstruction = ![
+              CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
+              CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
+            ].includes(careProjection.careMistakeReconciliationStatus);
+            if (
+              reconstructedLogsToPersist.length > 0 &&
+              canPersistHydrationReconstruction
+            ) {
+              // 재구성 사건이 IndexedDB에 내구성 있게 적재되기 전에는
+              // READY phase여도 reconciliation 차단 UI를 유지한다.
+              updatePersistenceAccess({
+                phase: GAME_PERSISTENCE_PHASE.READY,
+                loadedIdentity: loadedPersistenceIdentity,
+                careMistakeReconciliationStatus:
+                  CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
+              });
+              const hydrationCareTransition = buildCareMistakeTransitionFromStats({
+                previousStats: savedStats,
+                nextStats: hydrationResult.digimonStats,
+                previousLogs: [],
+                nextLogs: reconstructedLogsToPersist,
+                identity: loadedPersistenceIdentity,
+                nowMs: Date.now(),
+              });
+              const hydrationActivityEvents = reconstructedLogsToPersist.filter(
+                (log) =>
+                  !isCareMistakeActivityLog(log) &&
+                  !isCareMistakeResolutionActivityLog(log)
+              );
+              try {
+                await saveStats(
+                  hydrationResult.digimonStats,
+                  mergeActivityLogs(
+                    hydrationResult.activityLogs,
+                    reconstructedLogsToPersist
+                  ),
+                  hydrationCareTransition,
+                  {
+                    activityEvents: hydrationCareTransition
+                      ? []
+                      : hydrationActivityEvents,
+                    allowCareTransition: true,
+                  }
+                );
+                updatePersistenceAccess({
+                  careMistakeReconciliationStatus:
+                    careProjection.careMistakeReconciliationStatus,
+                });
+              } catch (hydrationSaveError) {
+                console.warn("hydration 재구성 전이 저장이 대기열에 남았습니다.", hydrationSaveError);
+              }
+            } else {
+              updatePersistenceAccess({
+                phase: GAME_PERSISTENCE_PHASE.READY,
+                loadedIdentity: loadedPersistenceIdentity,
+                careMistakeReconciliationStatus:
+                  careProjection.careMistakeReconciliationStatus,
+              });
+            }
           }
         } else {
           const notFoundError = new Error("슬롯 문서를 찾을 수 없습니다.");

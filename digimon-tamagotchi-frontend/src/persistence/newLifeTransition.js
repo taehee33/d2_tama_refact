@@ -1,4 +1,5 @@
 import { normalizeGameRevision, GameRevisionConflictError } from "./gameRevision";
+import { buildEmptyCareMistakeStageProjection } from "../logic/stats/careMistakeProjection";
 
 export const NEW_LIFE_TRANSITION_SCHEMA_VERSION = 1;
 
@@ -167,12 +168,29 @@ export async function commitNewLifeTransition({
     }
 
     const nextRevision = actualRevision + 1;
+    const nextStageStartedAt =
+      updateData?.digimonStats?.evolutionStageStartedAt ??
+      updateData?.digimonStats?.birthTime ??
+      envelope.createdAt;
+    const nextStage = updateData?.digimonStats?.evolutionStage || envelope.targetDigimon;
+    const nextCareProjection = buildEmptyCareMistakeStageProjection({
+      digimonInstanceId: envelope.nextDigimonInstanceId,
+      evolutionStageStartedAt: nextStageStartedAt,
+      evolutionStage: nextStage,
+    });
     transaction.update(slotRef, {
       ...(updateData || {}),
+      digimonStats: {
+        ...(updateData?.digimonStats || {}),
+        ...nextCareProjection,
+      },
+      ...nextCareProjection,
       arenaIdentitySchemaVersion: envelope.nextArenaIdentitySchemaVersion,
       digimonInstanceId: envelope.nextDigimonInstanceId,
       combatRevision: envelope.nextCombatRevision,
       selectedDigimon: envelope.targetDigimon,
+      lastEvolutionTransitionId: envelope.transitionId,
+      lastEvolutionEventId: envelope.eventId,
       logIdentitySchemaVersion: 1,
       previousLifeCleanup: {
         schemaVersion: 1,

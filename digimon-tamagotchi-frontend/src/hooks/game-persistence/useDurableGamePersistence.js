@@ -20,6 +20,12 @@ import {
   buildEvolutionTransitionEnvelope,
   commitEvolutionTransition,
 } from "../../persistence/evolutionTransition";
+import {
+  GameTransitionConflictError,
+  buildGameTransitionEnvelope,
+  commitGameTransition,
+} from "../../persistence/careMistakeTransition";
+import { TRANSITION_STATUS } from "../../persistence/transitionQueue";
 import { buildActivityLogEventId } from "../../utils/activityLogEventId";
 import {
   buildPersistentActivityLogPayload,
@@ -29,6 +35,10 @@ import {
 } from "../../utils/activityLogPersistence";
 import { buildPersistentBattleLogPayload } from "../../utils/battleLogPersistence";
 import { toEpochMs } from "../../utils/time";
+import {
+  isCareMistakeActivityLog,
+  isCareMistakeResolutionActivityLog,
+} from "../../logic/stats/careMistakeProjection";
 import { useGameOutboxSync } from "../game-runtime/useGameOutboxSync";
 import {
   getFeedSummaryBucketEndAt,
@@ -78,8 +88,15 @@ export function canUseGameplayPersistence({
   saveContext,
   loadedRevision,
   hasConflict = false,
+  allowCareTransition = false,
 } = {}) {
   if (access?.phase !== GAME_PERSISTENCE_PHASE.READY || hasConflict) return false;
+  if (
+    access?.careMistakeReconciliationStatus &&
+    access.careMistakeReconciliationStatus !== "verified" &&
+    (!allowCareTransition ||
+      access.careMistakeReconciliationStatus !== "in_progress")
+  ) return false;
   if (loadedRevision == null) return false;
   const loadedIdentity = resolveLoadedPersistenceIdentity({
     access,
@@ -138,6 +155,14 @@ const OUTBOX_SCHEMA_VERSION = 1;
 function formatSyncError(error, fallback = "알 수 없는 동기화 오류") {
   const message = String(error?.message || error || fallback).trim();
   return message || fallback;
+}
+
+function createClientInstanceId() {
+  const browserCrypto = typeof window !== "undefined" ? window.crypto : null;
+  const randomUuid = typeof browserCrypto?.randomUUID === "function"
+    ? browserCrypto.randomUUID()
+    : null;
+  return randomUuid || `client:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 }
 
 export function resolveNewReplayActions({
@@ -266,6 +291,8 @@ export function useDurableGamePersistence({
       return null;
     }
   });
+  const [clientInstanceId] = useState(createClientInstanceId);
+  const fallbackTransitionSequenceRef = useRef(0);
   const [localPersistenceStatus, setLocalPersistenceStatus] = useState(() =>
     outbox ? LOCAL_PERSISTENCE_STATUS.AVAILABLE : LOCAL_PERSISTENCE_STATUS.UNAVAILABLE
   );
@@ -300,7 +327,7 @@ export function useDurableGamePersistence({
     };
   }, [activeAccessRef, currentUser?.uid, getOutboxIdentity, slotId]);
 
-  const canStartGameplayWrite = useCallback((saveContext = null) =>
+  const canStartGameplayWrite = useCallback((saveContext = null, options = {}) =>
     canUseGameplayPersistence({
       access: activeAccessRef.current,
       currentUid: currentUser?.uid,
@@ -308,6 +335,7 @@ export function useDurableGamePersistence({
       saveContext,
       loadedRevision: revisionRef.current,
       hasConflict: Boolean(conflictRef.current),
+      allowCareTransition: options.allowCareTransition === true,
     }), [activeAccessRef, currentUser?.uid, slotId]);
 
   const changePersistenceAccess = useCallback((patch) => {
@@ -358,16 +386,21 @@ export function useDurableGamePersistence({
       return GAME_SYNC_STATUS.CONFLICT;
     }
 
-    const [stateRecord, activityEvents, battleEvents, feedEvents] = await Promise.all([
+    const [stateRecord, transitionRecords, activityEvents, battleEvents, feedEvents] = await Promise.all([
       outbox.getStateMutation(identity),
+      outbox.listTransitions ? outbox.listTransitions(identity) : [],
       outbox.listActivityEvents(identity),
       outbox.listBattleEvents(identity),
       outbox.listFeedEvents(identity),
     ]);
+    const pendingTransitions = transitionRecords.filter((record) =>
+      record.status === TRANSITION_STATUS.PENDING || record.status === TRANSITION_STATUS.BLOCKED
+    );
     const pendingFeedEvents = feedEvents.filter((event) => event.syncStatus !== "synced");
     const recordCount = activityEvents.length + battleEvents.length + pendingFeedEvents.length;
     const pendingItems = [
       ...(stateRecord ? [stateRecord] : []),
+      ...pendingTransitions,
       ...activityEvents,
       ...battleEvents,
       ...pendingFeedEvents,
@@ -375,10 +408,10 @@ export function useDurableGamePersistence({
     const pendingTimestamps = pendingItems
       .map((item) => Number(item?.queuedAt ?? item?.occurredAt ?? item?.updatedAt))
       .filter((value) => Number.isFinite(value) && value > 0);
-    setStateSyncStatus(stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED);
-    if (!stateRecord) setStateSyncError("");
-    setPendingRecordCount(recordCount);
-    setPendingSaveCount(recordCount + (stateRecord ? 1 : 0));
+    setStateSyncStatus(stateRecord || pendingTransitions.length ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED);
+    if (!stateRecord && pendingTransitions.length === 0) setStateSyncError("");
+    setPendingRecordCount(recordCount + pendingTransitions.length);
+    setPendingSaveCount(recordCount + (stateRecord ? 1 : 0) + pendingTransitions.length);
     setOldestPendingAt(pendingTimestamps.length ? Math.min(...pendingTimestamps) : null);
     if (activityEvents.length || battleEvents.length) {
       setRecordSyncStatus(GAME_RECORD_SYNC_STATUS.LOCAL);
@@ -392,7 +425,9 @@ export function useDurableGamePersistence({
       ? Math.min(...pendingFeedEvents.map((event) => getFeedSummaryBucketEndAt(event.occurredAt)))
       : null;
     setNextRecordSyncAt(nextFeedAt);
-    return stateRecord ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.SYNCED;
+    return stateRecord || pendingTransitions.length
+      ? GAME_SYNC_STATUS.LOCAL
+      : GAME_SYNC_STATUS.SYNCED;
   }, [getOutboxIdentity, outbox]);
 
   const holdRevisionConflict = useCallback((record, conflictError) => {
@@ -488,6 +523,7 @@ export function useDurableGamePersistence({
     saveContext = null,
     localRecordIsDurable = false,
     localWriteFailed = false,
+    allowCareTransition = false,
   } = {}) => {
     const resolvedCommandId = commandId || record?.commandId || record?.mutationId || null;
     const mutationId = record?.mutationId || null;
@@ -506,7 +542,7 @@ export function useDurableGamePersistence({
       !currentUser?.uid ||
       !slotId ||
       !isFirebaseAvailable ||
-      !canStartGameplayWrite(saveContext)
+      !canStartGameplayWrite(saveContext, { allowCareTransition })
     ) {
       return {
         receipt: createGameSaveReceipt({
@@ -531,7 +567,20 @@ export function useDurableGamePersistence({
     const localSnapshot = stateEnvelope.stateSnapshot || {};
 
     try {
-      const result = stateEnvelope.transition
+      const result = stateEnvelope.transition?.transitionType
+        ? await commitGameTransition({
+            db,
+            slotRef,
+            baseRevision: stateEnvelope.baseRevision,
+            updateData: buildUpdateDataForSnapshot(
+              localSnapshot,
+              record.updatedAt,
+              stateEnvelope.transition
+            ),
+            transition: stateEnvelope.transition,
+            runTransaction,
+          })
+        : stateEnvelope.transition
         ? await commitEvolutionTransition({
             db,
             slotRef,
@@ -554,9 +603,35 @@ export function useDurableGamePersistence({
             baseRevision: stateEnvelope.baseRevision,
             updateData: buildUpdateDataForSnapshot(localSnapshot, record.updatedAt),
             runTransaction,
+            activityEvents: stateEnvelope.activityEvents,
+            activityLogIdentity: {
+              slotInstanceId: record.slotInstanceId,
+              digimonInstanceId: record.digimonInstanceId,
+            },
           });
+      if (stateEnvelope.transition?.transitionType && outbox?.updateTransitionStatus) {
+        await outbox.updateTransitionStatus({
+          uid: record.uid,
+          slotId: record.slotId,
+          slotInstanceId: record.slotInstanceId,
+          digimonInstanceId: record.digimonInstanceId,
+          transitionId: stateEnvelope.transition.transitionId,
+          status: TRANSITION_STATUS.COMMITTED,
+          resultRevision: result.revision,
+        });
+      }
+      const committedSnapshot = result.projection
+        ? {
+            ...localSnapshot,
+            ...result.projection,
+            digimonStats: {
+              ...(localSnapshot.digimonStats || {}),
+              ...result.projection,
+            },
+          }
+        : localSnapshot;
       revisionRef.current = result.revision;
-      lastSyncedStatsRef.current = localSnapshot;
+      lastSyncedStatsRef.current = committedSnapshot;
       setLastStateSyncedAt(Date.now());
       setStateSyncError("");
       setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
@@ -590,6 +665,36 @@ export function useDurableGamePersistence({
         error: null,
       };
     } catch (commitError) {
+      const isTransitionConflict =
+        commitError instanceof GameTransitionConflictError ||
+        String(commitError?.code || "").startsWith("game/transition-");
+      if (isTransitionConflict) {
+        if (stateEnvelope.transition?.transitionId && outbox?.blockTransitionChain) {
+          await outbox.blockTransitionChain({
+            uid: record.uid,
+            slotId: record.slotId,
+            slotInstanceId: record.slotInstanceId,
+            digimonInstanceId: record.digimonInstanceId,
+            localSequence: stateEnvelope.transition.localSequence || 0,
+            errorCode: commitError.code || "game/transition-conflict",
+          });
+        }
+        holdRevisionConflict(record, {
+          ...commitError,
+          expectedRevision:
+            commitError.expectedRevision ?? stateEnvelope.baseRevision ?? revisionRef.current,
+          actualRevision: commitError.actualRevision ?? revisionRef.current,
+        });
+        return {
+          receipt: createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+            commandId: resolvedCommandId,
+            mutationId,
+            errorCode: commitError.code,
+          }),
+          error: null,
+        };
+      }
       if (!(commitError instanceof GameRevisionConflictError)) {
         setStateSyncError(formatSyncError(commitError));
         setStateSyncStatus(localRecordIsDurable ? GAME_SYNC_STATUS.LOCAL : GAME_SYNC_STATUS.UNAVAILABLE);
@@ -647,6 +752,11 @@ export function useDurableGamePersistence({
           baseRevision: commitError.actualRevision,
           updateData: buildUpdateDataForSnapshot(replayedSnapshot),
           runTransaction,
+          activityEvents: stateEnvelope.activityEvents,
+          activityLogIdentity: {
+            slotInstanceId: record.slotInstanceId,
+            digimonInstanceId: record.digimonInstanceId,
+          },
         });
       } catch (replayError) {
         if (replayError instanceof GameRevisionConflictError) {
@@ -714,6 +824,7 @@ export function useDurableGamePersistence({
     holdRevisionConflict,
     isFirebaseAvailable,
     normalizeStats,
+    outbox,
     refreshOutboxStatus,
     selectedDigimon,
     setDigimonStats,
@@ -723,6 +834,10 @@ export function useDurableGamePersistence({
   const commitStateRecord = useCallback(async (record) => {
     const outcome = await commitStateRecordWithReceipt(record, {
       localRecordIsDurable: true,
+      allowCareTransition: Boolean(
+        record?.state?.transition?.transitionType &&
+        record.state.transition.transitionType !== "EVOLUTION"
+      ),
     });
     if (outcome.receipt.status === GAME_SAVE_RECEIPT_STATUS.SYNCED) return true;
     if (
@@ -732,15 +847,263 @@ export function useDurableGamePersistence({
     throw outcome.error || new Error("게임 상태 저장에 실패했습니다.");
   }, [commitStateRecordWithReceipt]);
 
+  const buildCareTransitionEnvelopeForSnapshot = useCallback(({
+    transition,
+    statsSnapshot,
+    nowMs,
+    identity,
+    baseRevision,
+    localSequence,
+    parentTransitionId = null,
+  }) => {
+    const stageInstanceId =
+      transition?.evolutionStageInstanceId ||
+      transition?.identity?.evolutionStageInstanceId ||
+      statsSnapshot?.evolutionStageInstanceId ||
+      null;
+    const transitionIdentity = {
+      ...identity,
+      evolutionStageInstanceId: stageInstanceId,
+    };
+    const operations = (Array.isArray(transition?.operations)
+      ? transition.operations
+      : [transition]
+    ).map((operation, index) => {
+      const { eventId: _eventId, ...operationWithoutGeneratedEventId } = operation || {};
+      return {
+        ...operationWithoutGeneratedEventId,
+        index,
+        transitionType:
+          operationWithoutGeneratedEventId.transitionType || transition.transitionType,
+      };
+    });
+    const normalizedTransitionType = transition?.transitionType || operations[0]?.transitionType;
+    const requiresStage = operations.some((operation) =>
+      operation.transitionType === "CARE_MISTAKE_OCCURRED" ||
+      operation.transitionType === "CARE_MISTAKE_RESOLVED"
+    );
+    if (requiresStage && !stageInstanceId) {
+      throw new GameTransitionConflictError(
+        "현재 stage identity를 확인할 수 없어 케어미스 전이를 저장할 수 없습니다.",
+        { code: "game/transition-stage-missing" }
+      );
+    }
+
+    return buildGameTransitionEnvelope({
+      ...transition,
+      identity: transitionIdentity,
+      transitionType: normalizedTransitionType,
+      transitionId: transition?.transitionId || null,
+      clientInstanceId: transition?.clientInstanceId || clientInstanceId,
+      localSequence,
+      parentTransitionId,
+      baseRevision,
+      createdAt: transition?.createdAt ?? nowMs,
+      operations,
+      activityEvents: [],
+      eventIds: [],
+      resultingState: statsSnapshot,
+      updateData: null,
+    });
+  }, [clientInstanceId]);
+
+  const enqueueCareTransition = useCallback(async ({
+    statsSnapshot,
+    transition,
+    nowMs,
+    saveContext,
+    allowCareTransition = false,
+  }) => {
+    const identity = getOutboxIdentity();
+    if (!outbox?.enqueueTransition || !identity) return null;
+    if (!canStartGameplayWrite(saveContext, { allowCareTransition })) return null;
+    const transitionType = transition?.transitionType;
+    const stageInstanceId =
+      transition?.evolutionStageInstanceId ||
+      transition?.identity?.evolutionStageInstanceId ||
+      statsSnapshot?.evolutionStageInstanceId ||
+      null;
+    const transitionIdentity = {
+      ...identity,
+      evolutionStageInstanceId: stageInstanceId,
+    };
+    const operations = (Array.isArray(transition?.operations)
+      ? transition.operations
+      : [transition]
+    ).map((operation, index) => {
+      const {
+        eventId: _eventId,
+        requestFingerprint: _requestFingerprint,
+        resultRevision: _resultRevision,
+        ...operationWithoutGeneratedFields
+      } = operation || {};
+      return {
+        ...operationWithoutGeneratedFields,
+        index,
+        transitionType:
+          operationWithoutGeneratedFields.transitionType || transitionType,
+      };
+    });
+    const requiresStage = operations.some((operation) =>
+      operation.transitionType === "CARE_MISTAKE_OCCURRED" ||
+      operation.transitionType === "CARE_MISTAKE_RESOLVED"
+    );
+    if (requiresStage && !stageInstanceId) {
+      throw new GameTransitionConflictError(
+        "현재 stage identity를 확인할 수 없어 케어미스 전이를 저장할 수 없습니다.",
+        { code: "game/transition-stage-missing" }
+      );
+    }
+    const {
+      requestFingerprint: _requestFingerprint,
+      resultRevision: _resultRevision,
+      ...transitionWithoutReceiptFields
+    } = transition || {};
+    const record = await outbox.enqueueTransition({
+      ...identity,
+      clientInstanceId: transition?.clientInstanceId || clientInstanceId,
+      transitionType,
+      baseRevision: transition?.baseRevision ?? revisionRef.current ?? 0,
+      createdAt: transition?.createdAt ?? nowMs,
+      resultingState: statsSnapshot,
+      transition: {
+        ...transitionWithoutReceiptFields,
+        identity: transitionIdentity,
+        operations,
+        activityEvents: [],
+        eventIds: [],
+        resultingState: statsSnapshot,
+        updateData: null,
+      },
+    });
+    return record;
+  }, [
+    canStartGameplayWrite,
+    clientInstanceId,
+    getOutboxIdentity,
+    outbox,
+  ]);
+
+  const flushTransitionQueueInternal = useCallback(async (
+    saveContext = null,
+    { allowCareTransition = true } = {}
+  ) => {
+    const identity = getOutboxIdentity();
+    if (!outbox?.getNextTransition || !identity || !isFirebaseAvailable) {
+      return { status: "empty", syncedCount: 0 };
+    }
+    const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+    let syncedCount = 0;
+    let lastResult = null;
+
+    while (canStartGameplayWrite(saveContext, { allowCareTransition })) {
+      const next = await outbox.getNextTransition(identity);
+      if (next.status === "empty" || next.status === "waiting") {
+        return { status: "synced", syncedCount, result: lastResult };
+      }
+      if (next.status === TRANSITION_STATUS.BLOCKED) {
+        return { status: "conflict", syncedCount, record: next.record };
+      }
+
+      const record = next.record;
+      const parent = record.parentTransitionId
+        ? await outbox.getTransition({
+            ...identity,
+            transitionId: record.parentTransitionId,
+          })
+        : null;
+      const baseRevision = parent?.resultRevision ?? record.baseRevision;
+      const storedTransition = record.transition || {};
+      const transition = buildCareTransitionEnvelopeForSnapshot({
+        transition: storedTransition,
+        statsSnapshot: record.resultingState || storedTransition.resultingState || {},
+        nowMs: record.createdAt,
+        identity,
+        baseRevision,
+        localSequence: record.localSequence,
+        parentTransitionId: record.parentTransitionId,
+      });
+      try {
+        const result = await commitGameTransition({
+          db,
+          slotRef,
+          baseRevision,
+          updateData: buildUpdateDataForSnapshot(
+            record.resultingState || storedTransition.resultingState || {},
+            record.updatedAt || record.createdAt,
+            transition
+          ),
+          transition,
+          runTransaction,
+        });
+        await outbox.updateTransitionStatus({
+          ...identity,
+          transitionId: record.transitionId,
+          status: TRANSITION_STATUS.COMMITTED,
+          resultRevision: result.revision,
+        });
+        revisionRef.current = result.revision;
+        const resultingState = record.resultingState || storedTransition.resultingState || {};
+        lastSyncedStatsRef.current = {
+          ...resultingState,
+          ...result.projection,
+        };
+        if (typeof setDigimonStats === "function") {
+          setDigimonStats((previousStats) => ({
+            ...(previousStats || {}),
+            ...resultingState,
+            ...result.projection,
+          }));
+        }
+        if (result.projection?.careMistakeReconciliationStatus === "verified") {
+          changePersistenceAccess({
+            careMistakeReconciliationStatus: "verified",
+          });
+        }
+        lastResult = result;
+        syncedCount += 1;
+      } catch (error) {
+        if (error instanceof GameTransitionConflictError || String(error?.code || "").startsWith("game/transition-")) {
+          await outbox.blockTransitionChain({
+            ...identity,
+            localSequence: record.localSequence,
+            errorCode: error.code || "game/transition-conflict",
+          });
+          return { status: "conflict", syncedCount, record, error };
+        }
+        return { status: "queued", syncedCount, record, error };
+      }
+    }
+
+    return { status: "blocked", syncedCount, result: lastResult };
+  }, [
+    buildCareTransitionEnvelopeForSnapshot,
+    buildUpdateDataForSnapshot,
+    canStartGameplayWrite,
+    changePersistenceAccess,
+    currentUser?.uid,
+    getOutboxIdentity,
+    isFirebaseAvailable,
+    outbox,
+    setDigimonStats,
+    slotId,
+  ]);
+
   const queueStateSnapshot = useCallback(async ({
     statsSnapshot,
     updatedLogs,
     nowMs,
     saveContext,
     transition = null,
+    activityEvents = [],
+    allowCareTransition = false,
   }) => {
     const identity = getOutboxIdentity();
-    if (!outbox || !identity || !canStartGameplayWrite(saveContext)) return null;
+    if (
+      !outbox ||
+      !identity ||
+      !canStartGameplayWrite(saveContext, { allowCareTransition })
+    ) return null;
     const existing = await outbox.getStateMutation(identity);
     const beforeStats = existing?.state?.stateSnapshot || lastSyncedStatsRef.current || digimonStats || {};
     const nextActions = updatedLogs
@@ -758,13 +1121,34 @@ export function useDurableGamePersistence({
       ...nextActions.filter((action) => !existingActionIds.has(action.eventId)),
     ];
     const requestedTransition = transition
-      ? buildEvolutionTransitionEnvelope({
-          ...transition,
-          nowMs: transition.createdAt ?? nowMs,
-          identity,
-        })
+      ? transition.transitionType
+        ? buildGameTransitionEnvelope({
+            ...transition,
+            identity: transition.identity || identity,
+            clientInstanceId: transition.clientInstanceId || clientInstanceId,
+            localSequence:
+              transition.localSequence ?? ++fallbackTransitionSequenceRef.current,
+            parentTransitionId: transition.parentTransitionId || null,
+            baseRevision:
+              transition.baseRevision ?? existing?.state?.baseRevision ?? revisionRef.current ?? 0,
+            nowMs: transition.createdAt ?? nowMs,
+            resultingState: statsSnapshot,
+          })
+        : buildEvolutionTransitionEnvelope({
+            ...transition,
+            nowMs: transition.createdAt ?? nowMs,
+            identity,
+          })
       : null;
     const existingTransition = existing?.state?.transition || null;
+    const resolvedActivityEvents = [
+      ...(Array.isArray(existing?.state?.activityEvents)
+        ? existing.state.activityEvents
+        : []),
+      ...(Array.isArray(activityEvents) ? activityEvents : []),
+    ].filter((event, index, events) =>
+      event?.eventId && events.findIndex((candidate) => candidate?.eventId === event.eventId) === index
+    );
     if (
       existingTransition &&
       requestedTransition &&
@@ -778,7 +1162,7 @@ export function useDurableGamePersistence({
     }
     const resolvedTransition = requestedTransition || existingTransition || null;
 
-    if (!canStartGameplayWrite(saveContext)) return null;
+    if (!canStartGameplayWrite(saveContext, { allowCareTransition })) return null;
     const candidateRecord = {
       ...identity,
       mutationId: existing?.mutationId || createMutationId(nowMs),
@@ -791,6 +1175,9 @@ export function useDurableGamePersistence({
         stateSnapshot: statsSnapshot,
         actions,
         ...(resolvedTransition ? { transition: resolvedTransition } : {}),
+        ...(resolvedActivityEvents.length > 0
+          ? { activityEvents: resolvedActivityEvents }
+          : {}),
         hasUnreplayableChanges: Boolean(
           existing?.state?.hasUnreplayableChanges ||
           (updatedLogs ? nextActions.length === 0 || nextActions.some((action) => !action.safe) : true)
@@ -804,7 +1191,14 @@ export function useDurableGamePersistence({
       error.gameSaveFallbackRecord = candidateRecord;
       throw error;
     }
-  }, [activityLogs, canStartGameplayWrite, digimonStats, getOutboxIdentity, outbox]);
+  }, [
+    activityLogs,
+    canStartGameplayWrite,
+    clientInstanceId,
+    digimonStats,
+    getOutboxIdentity,
+    outbox,
+  ]);
 
   const persistStateSnapshotOperation = useCallback(async ({
     statsSnapshot,
@@ -813,11 +1207,115 @@ export function useDurableGamePersistence({
     saveContext,
     commandId = null,
     transition = null,
+    activityEvents = [],
+    allowCareTransition = false,
   }) => {
-    if (!canStartGameplayWrite(saveContext)) {
-      return commitStateRecordWithReceipt(null, { commandId, saveContext });
+    if (!canStartGameplayWrite(saveContext, { allowCareTransition })) {
+      return commitStateRecordWithReceipt(null, {
+        commandId,
+        saveContext,
+        allowCareTransition,
+      });
     }
     setStateSyncStatus(GAME_SYNC_STATUS.SAVING);
+
+    const transitionWithActivityEvents = transition?.transitionType && activityEvents.length > 0
+      ? {
+          ...transition,
+          activityEvents: [
+            ...(transition.activityEvents || []),
+            ...activityEvents,
+          ],
+        }
+      : transition;
+
+    if (transitionWithActivityEvents?.transitionType && outbox?.enqueueTransition) {
+      let transitionRecord = null;
+      try {
+        transitionRecord = await enqueueCareTransition({
+          statsSnapshot,
+          transition: transitionWithActivityEvents,
+          nowMs,
+          saveContext,
+          allowCareTransition,
+        });
+        if (!transitionRecord) {
+          return {
+            receipt: createGameSaveReceipt({
+              status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+              commandId,
+              blockedReason: GAME_SAVE_BLOCKED_REASON.SLOT_CHANGED,
+            }),
+            error: null,
+          };
+        }
+        setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
+        const flushResult = await flushTransitionQueueInternal(saveContext, {
+          allowCareTransition,
+        });
+        if (flushResult.status === "conflict") {
+          setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
+          setStateSyncError("케어미스 전이 충돌을 해결해야 합니다.");
+          return {
+            receipt: createGameSaveReceipt({
+              status: GAME_SAVE_RECEIPT_STATUS.CONFLICT,
+              commandId,
+              mutationId: null,
+              errorCode: flushResult.error?.code || "game/transition-conflict",
+            }),
+            error: flushResult.error || null,
+          };
+        }
+        const committed = await outbox.getTransition({
+          uid: transitionRecord.uid,
+          slotId: transitionRecord.slotId,
+          slotInstanceId: transitionRecord.slotInstanceId,
+          digimonInstanceId: transitionRecord.digimonInstanceId,
+          transitionId: transitionRecord.transitionId,
+        });
+        const isCommitted = committed?.status === TRANSITION_STATUS.COMMITTED;
+        if (isCommitted) {
+          setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
+          setLastStateSyncedAt(Date.now());
+          setStateSyncError("");
+        } else if (flushResult.error) {
+          setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
+          setStateSyncError(formatSyncError(flushResult.error));
+        }
+        return {
+          receipt: {
+            ...createGameSaveReceipt({
+              status: isCommitted
+                ? GAME_SAVE_RECEIPT_STATUS.SYNCED
+                : GAME_SAVE_RECEIPT_STATUS.QUEUED,
+              commandId,
+            }),
+            transitionId: transitionRecord.transitionId,
+            revision: committed?.resultRevision ?? null,
+            idempotent: flushResult.result?.idempotent === true,
+          },
+          error: isCommitted ? null : flushResult.error || null,
+        };
+      } catch (error) {
+        if (transitionRecord) {
+          setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
+          setStateSyncError(formatSyncError(error));
+          return {
+            receipt: {
+              ...createGameSaveReceipt({
+                status: GAME_SAVE_RECEIPT_STATUS.QUEUED,
+                commandId,
+                errorCode: normalizeGameSaveErrorCode(error),
+              }),
+              transitionId: transitionRecord.transitionId,
+            },
+            error,
+          };
+        }
+        throw error;
+      }
+    }
+
     let record = null;
     let localWriteFailed = false;
     if (outbox && currentUser?.uid && slotId) {
@@ -827,7 +1325,9 @@ export function useDurableGamePersistence({
           updatedLogs,
           nowMs,
           saveContext,
-          transition,
+          transition: transitionWithActivityEvents,
+          activityEvents,
+          allowCareTransition,
         });
         setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
       } catch (error) {
@@ -853,12 +1353,23 @@ export function useDurableGamePersistence({
     }
 
     const identity = getOutboxIdentity();
-    const fallbackTransition = transition && identity
-      ? buildEvolutionTransitionEnvelope({
-          ...transition,
-          nowMs: transition.createdAt ?? nowMs,
-          identity,
-        })
+    const fallbackTransition = transitionWithActivityEvents && identity
+      ? transitionWithActivityEvents.transitionType
+        ? buildCareTransitionEnvelopeForSnapshot({
+            transition: transitionWithActivityEvents,
+            statsSnapshot,
+            nowMs,
+            identity,
+            baseRevision: transitionWithActivityEvents.baseRevision ?? revisionRef.current ?? 0,
+            localSequence:
+              transitionWithActivityEvents.localSequence || ++fallbackTransitionSequenceRef.current,
+            parentTransitionId: transitionWithActivityEvents.parentTransitionId || null,
+          })
+        : buildEvolutionTransitionEnvelope({
+            ...transitionWithActivityEvents,
+            nowMs: transitionWithActivityEvents.createdAt ?? nowMs,
+            identity,
+          })
       : null;
     const recordToCommit = record || {
       ...(identity || {}),
@@ -869,6 +1380,7 @@ export function useDurableGamePersistence({
         baseRevision: revisionRef.current,
         stateSnapshot: statsSnapshot,
         actions: [],
+        ...(activityEvents.length > 0 ? { activityEvents } : {}),
         ...(fallbackTransition ? { transition: fallbackTransition } : {}),
         hasUnreplayableChanges: true,
       },
@@ -878,11 +1390,20 @@ export function useDurableGamePersistence({
       saveContext,
       localRecordIsDurable: Boolean(record?.localRecordIsDurable),
       localWriteFailed,
+      allowCareTransition: Boolean(
+        allowCareTransition ||
+        (recordToCommit.state?.transition?.transitionType &&
+          recordToCommit.state.transition.transitionType !== "EVOLUTION")
+      ),
     });
   }, [
     canStartGameplayWrite,
+    buildCareTransitionEnvelopeForSnapshot,
     commitStateRecordWithReceipt,
     currentUser?.uid,
+    enqueueCareTransition,
+    fallbackTransitionSequenceRef,
+    flushTransitionQueueInternal,
     getOutboxIdentity,
     outbox,
     queueStateSnapshot,
@@ -961,6 +1482,28 @@ export function useDurableGamePersistence({
       slotInstanceId: identity.slotInstanceId,
       digimonInstanceId: identity.digimonInstanceId,
     };
+    if (
+      isCareMistakeActivityLog(payload) ||
+      isCareMistakeResolutionActivityLog(payload)
+    ) {
+      const barrierError = new Error(
+        "케어미스 기록은 상태 전이와 함께 저장해야 합니다."
+      );
+      barrierError.code = "game/care-transition-required";
+      return {
+        receipt: {
+          ...createGameSaveReceipt({
+            status: GAME_SAVE_RECEIPT_STATUS.BLOCKED,
+            commandId,
+            blockedReason: "CARE_TRANSITION_REQUIRED",
+            errorCode: barrierError.code,
+          }),
+          eventId: getPersistentActivityLogDocId(payload),
+        },
+        remoteSucceeded: false,
+        error: barrierError,
+      };
+    }
     const eventId = getPersistentActivityLogDocId(payload);
     let localRecordIsDurable = false;
     let activityOutboxRecord = null;
@@ -1234,7 +1777,7 @@ export function useDurableGamePersistence({
 
   const flushOutboxInternal = useCallback(async () => {
     const identity = getOutboxIdentity();
-    if (!canStartGameplayWrite()) return false;
+    if (!canStartGameplayWrite(null, { allowCareTransition: true })) return false;
     if (!outbox || !identity || !isFirebaseAvailable) {
       if (!outbox) {
         setStateSyncStatus(GAME_SYNC_STATUS.UNAVAILABLE);
@@ -1247,6 +1790,20 @@ export function useDurableGamePersistence({
     let stateRecord = null;
     let syncedRecordCount = 0;
     try {
+      if (outbox.getNextTransition) {
+        const transitionResult = await flushTransitionQueueInternal();
+        syncedRecordCount += transitionResult.syncedCount || 0;
+        if (transitionResult.status === "conflict") {
+          setStateSyncStatus(GAME_SYNC_STATUS.CONFLICT);
+          setStateSyncError("케어미스 전이 충돌을 해결해야 합니다.");
+          return false;
+        }
+        if (transitionResult.status === "queued") {
+          setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
+          if (transitionResult.error) setStateSyncError(formatSyncError(transitionResult.error));
+          return false;
+        }
+      }
       stateRecord = await outbox.getStateMutation(identity);
       if (stateRecord && conflictRef.current) {
         hasConflict = true;
@@ -1303,7 +1860,7 @@ export function useDurableGamePersistence({
       }
       return false;
     }
-  }, [canStartGameplayWrite, commitStateRecord, currentUser, flushFeed, getOutboxIdentity, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
+  }, [canStartGameplayWrite, commitStateRecord, currentUser, flushFeed, flushTransitionQueueInternal, getOutboxIdentity, isFirebaseAvailable, outbox, refreshOutboxStatus, slotId]);
 
   const flushOutbox = useCallback(
     () => saveQueue.enqueue(flushOutboxInternal),
@@ -1474,6 +2031,26 @@ export function useDurableGamePersistence({
     }
   }, [getOutboxIdentity, outbox]);
 
+  const getPendingActivityLogs = useCallback(async () => {
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity || typeof outbox.listActivityEvents !== "function") return [];
+    const events = await outbox.listActivityEvents(identity);
+    return events
+      .map((event) => event?.payload)
+      .filter((payload) => payload && typeof payload === "object");
+  }, [getOutboxIdentity, outbox]);
+
+  const getPendingCareTransitions = useCallback(async () => {
+    const identity = getOutboxIdentity();
+    if (!outbox || !identity || typeof outbox.listTransitions !== "function") return [];
+    const records = await outbox.listTransitions(identity);
+    return records.filter((record) =>
+      (record.status === TRANSITION_STATUS.PENDING ||
+        record.status === TRANSITION_STATUS.BLOCKED) &&
+      record.transition?.transitionType
+    );
+  }, [getOutboxIdentity, outbox]);
+
   const clearDigimonLifeOutbox = useCallback(async ({
     slotInstanceId,
     digimonInstanceId,
@@ -1556,6 +2133,8 @@ export function useDurableGamePersistence({
     flushOutbox,
     getLatestStateSnapshot,
     getPendingState,
+    getPendingActivityLogs,
+    getPendingCareTransitions,
     persistStateSnapshot,
     persistStateSnapshotReceipt,
     persistEvolutionTransitionReceipt,

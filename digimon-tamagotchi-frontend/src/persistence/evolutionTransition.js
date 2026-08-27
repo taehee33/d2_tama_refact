@@ -3,6 +3,7 @@ import {
   GameRevisionConflictError,
   normalizeGameRevision,
 } from "./gameRevision";
+import { buildEmptyCareMistakeStageProjection } from "../logic/stats/careMistakeProjection";
 
 export const EVOLUTION_TRANSITION_SCHEMA_VERSION = 1;
 
@@ -189,10 +190,29 @@ export async function commitEvolutionTransition({
 
     const combatIdentity = buildFormTransitionCombatIdentity(remoteData);
     const nextRevision = actualRevision + 1;
+    const nextStageStartedAt =
+      updateData?.digimonStats?.evolutionStageStartedAt ?? normalizedTransition.createdAt;
+    const nextStage =
+      updateData?.digimonStats?.evolutionStage ||
+      remoteData.evolutionStage ||
+      normalizedTransition.targetDigimon;
+    const nextCareProjection = buildEmptyCareMistakeStageProjection({
+      digimonInstanceId: remoteData.digimonInstanceId,
+      evolutionStageStartedAt: nextStageStartedAt,
+      evolutionStage: nextStage,
+    });
+    const nextStats = {
+      ...(updateData?.digimonStats || {}),
+      ...nextCareProjection,
+    };
     transaction.update(slotRef, {
       ...(updateData || {}),
+      digimonStats: nextStats,
+      ...nextCareProjection,
       ...combatIdentity,
       selectedDigimon: normalizedTransition.targetDigimon,
+      lastEvolutionTransitionId: normalizedTransition.transitionId,
+      lastEvolutionEventId: normalizedTransition.eventId,
       revision: nextRevision,
     });
     transaction.set(logRef, {

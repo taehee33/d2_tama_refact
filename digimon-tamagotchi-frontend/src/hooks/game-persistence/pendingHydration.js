@@ -117,12 +117,41 @@ export function resolvePendingHydration({
     );
   }
 
-  if (areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot)) {
+  const hasPendingAtomicEffects =
+    (Array.isArray(stateEnvelope.activityEvents) &&
+      stateEnvelope.activityEvents.length > 0) ||
+    Boolean(stateEnvelope.transition);
+  if (
+    areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot) &&
+    !hasPendingAtomicEffects
+  ) {
     return {
       status: PENDING_HYDRATION_STATUS.CLEANUP,
       expectedRevision,
       actualRevision,
       localSavedAt,
+    };
+  }
+
+  if (
+    areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot) &&
+    hasPendingAtomicEffects
+  ) {
+    return {
+      status: PENDING_HYDRATION_STATUS.APPLY,
+      expectedRevision,
+      actualRevision,
+      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
+      lastSavedAt: localSavedAt,
+      selectedDigimon:
+        localSnapshot.selectedDigimon || serverHydrationResult.selectedDigimon || null,
+      activityLogs: localSnapshot.activityLogs || serverHydrationResult.activityLogs || [],
+      digimonStats: {
+        ...localSnapshot,
+        ...(serverHydrationResult.selectedDigimon
+          ? { selectedDigimon: serverHydrationResult.selectedDigimon }
+          : {}),
+      },
     };
   }
 

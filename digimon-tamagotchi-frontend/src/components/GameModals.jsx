@@ -50,7 +50,7 @@ import {
   getNormalEvolutionCandidates,
   isIgnoringAllEvolutionConditions,
 } from "../logic/evolution/developerOptions";
-import { appendCareMistakeEntry, resolveLatestCareMistakeEntry } from "../logic/stats/careMistakeLedger";
+import { CARE_MISTAKE_TRANSITION_TYPES } from "../logic/stats/careMistakeProjection";
 import {
   getStarterDigimonId,
   normalizeDigimonVersionLabel,
@@ -135,7 +135,7 @@ export default function GameModals({
   
   // 수면방해 처리 함수
   // 반환값: { updatedStats, updatedLogs, sleepDisturbed: boolean }
-  const handleSleepDisturbance = (updatedStats, updatedLogs, actionType) => {
+  const handleSleepDisturbance = (updatedStats, updatedLogs, actionType, transition = null) => {
     const schedule = getSleepSchedule(selectedDigimon, digimonDataVer1, updatedStats);
     const nowSleeping = isWithinSleepSchedule(schedule, new Date()) && !(wakeUntil && Date.now() < wakeUntil);
     
@@ -158,7 +158,7 @@ export default function GameModals({
         activityLogs: logsWithDisturbance,
       };
       if (appendLogToSubcollection) appendLogToSubcollection(sleepDisturbanceLog).catch(() => {});
-      setDigimonStatsAndSave(statsWithDisturbance, logsWithDisturbance);
+      setDigimonStatsAndSave(statsWithDisturbance, logsWithDisturbance, transition);
       return {
         updatedStats: statsWithDisturbance,
         updatedLogs: logsWithDisturbance,
@@ -608,26 +608,56 @@ export default function GameModals({
             if (result === "success") {
               const currentStats = digimonStats || {};
               const resolvedAt = Date.now();
-              const resolutionResult = resolveLatestCareMistakeEntry(currentStats, {
-                resolvedAt,
-                resolvedBy: "play_or_snack",
-              });
-              const updatedStats = resolutionResult.nextStats;
-              const newCareMistakes = updatedStats.careMistakes || 0;
+              const currentCareMistakes = Math.max(
+                0,
+                Number(
+                  currentStats.unresolvedCareMistakeCount ?? currentStats.careMistakes
+                ) || 0
+              );
+              const newCareMistakes = Math.max(0, currentCareMistakes - 1);
+              const updatedStats = {
+                ...currentStats,
+                careMistakes: newCareMistakes,
+                unresolvedCareMistakeCount: newCareMistakes,
+                latestUnresolvedCareMistakeIncidentId:
+                  newCareMistakes > 0
+                    ? currentStats.latestUnresolvedCareMistakeIncidentId || null
+                    : null,
+                latestCareMistakeAt:
+                  newCareMistakes > 0 ? currentStats.latestCareMistakeAt || null : null,
+              };
+              const careTransition = {
+                transitionType: CARE_MISTAKE_TRANSITION_TYPES.RESOLVED,
+                createdAt: resolvedAt,
+                evolutionStageInstanceId: currentStats.evolutionStageInstanceId,
+                operations: [{
+                  incidentId: currentStats.latestUnresolvedCareMistakeIncidentId || null,
+                  resolvedAt,
+                  resolvedBy: "play_or_snack",
+                }],
+              };
               
               // Activity Log 추가
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
                 "PLAY_OR_SNACK",
-                `놀아주기/간식주기 성공! Care Mistakes: ${currentStats.careMistakes || 0} → ${newCareMistakes}`
+                `놀아주기/간식주기 성공! Care Mistakes: ${currentCareMistakes} → ${newCareMistakes}`
               );
-              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "놀아주기/간식주기");
+              const sleepResult = handleSleepDisturbance(
+                updatedStats,
+                updatedLogs,
+                "놀아주기/간식주기",
+                careTransition
+              );
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
+                await setDigimonStatsAndSave(
+                  sleepResult.updatedStats,
+                  sleepResult.updatedLogs,
+                  careTransition
+                );
               }
             }
           }}
@@ -643,29 +673,54 @@ export default function GameModals({
             if (result === "success") {
               const currentStats = digimonStats || {};
               const occurredAt = Date.now();
-              const appendResult = appendCareMistakeEntry(currentStats, {
-                occurredAt,
-                reasonKey: "tease",
-                text: `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${(currentStats.careMistakes || 0) + 1}`,
-                source: "interaction",
-              });
-              const updatedStats = appendResult.nextStats;
-              const newCareMistakes = updatedStats.careMistakes || 0;
+              const currentCareMistakes = Math.max(
+                0,
+                Number(
+                  currentStats.unresolvedCareMistakeCount ?? currentStats.careMistakes
+                ) || 0
+              );
+              const newCareMistakes = currentCareMistakes + 1;
+              const careText =
+                `케어미스(사유: 괜히 괴롭히기): ${currentCareMistakes} → ${newCareMistakes}`;
+              const updatedStats = {
+                ...currentStats,
+                careMistakes: newCareMistakes,
+                unresolvedCareMistakeCount: newCareMistakes,
+                latestCareMistakeAt: occurredAt,
+              };
+              const careTransition = {
+                transitionType: CARE_MISTAKE_TRANSITION_TYPES.OCCURRED,
+                createdAt: occurredAt,
+                evolutionStageInstanceId: currentStats.evolutionStageInstanceId,
+                operations: [{
+                  reasonKey: "tease",
+                  occurredAt,
+                  text: careText,
+                }],
+              };
               
               // Activity Log 추가
               const currentLogs = currentStats.activityLogs || activityLogs || [];
               const updatedLogs = addActivityLog(
                 currentLogs,
                 "CAREMISTAKE",
-                `케어미스(사유: 괜히 괴롭히기): ${currentStats.careMistakes || 0} → ${newCareMistakes}`,
+                careText,
                 occurredAt
               );
-              if (appendLogToSubcollection) appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
-              const sleepResult = handleSleepDisturbance(updatedStats, updatedLogs, "괜히 괴롭히기");
+              const sleepResult = handleSleepDisturbance(
+                updatedStats,
+                updatedLogs,
+                "괜히 괴롭히기",
+                careTransition
+              );
               
               // 수면방해가 발생하지 않았을 때만 저장 (수면방해 발생 시 handleSleepDisturbance에서 이미 저장됨)
               if (!sleepResult.sleepDisturbed && setDigimonStatsAndSave) {
-                await setDigimonStatsAndSave(sleepResult.updatedStats, sleepResult.updatedLogs);
+                await setDigimonStatsAndSave(
+                  sleepResult.updatedStats,
+                  sleepResult.updatedLogs,
+                  careTransition
+                );
               }
             }
           }}

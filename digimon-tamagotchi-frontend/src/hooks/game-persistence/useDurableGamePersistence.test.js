@@ -133,6 +133,44 @@ describe("canUseGameplayPersistence", () => {
     })).toBe(true);
   });
 
+  test("reconciliation이 끝나지 않은 동안 gameplay mutation을 막고 대기 전이만 허용한다", () => {
+    const saveContext = {
+      ...TEST_PERSISTENCE_IDENTITY,
+      generation: 3,
+    };
+    expect(canUseGameplayPersistence({
+      access: { ...readyAccess, careMistakeReconciliationStatus: "in_progress" },
+      currentUid: "user-1",
+      currentSlotId: 1,
+      loadedRevision: 4,
+      saveContext,
+    })).toBe(false);
+    expect(canUseGameplayPersistence({
+      access: { ...readyAccess, careMistakeReconciliationStatus: "in_progress" },
+      currentUid: "user-1",
+      currentSlotId: 1,
+      loadedRevision: 4,
+      saveContext,
+      allowCareTransition: true,
+    })).toBe(true);
+    expect(canUseGameplayPersistence({
+      access: { ...readyAccess, careMistakeReconciliationStatus: "ambiguous" },
+      currentUid: "user-1",
+      currentSlotId: 1,
+      loadedRevision: 4,
+      saveContext,
+      allowCareTransition: true,
+    })).toBe(false);
+    expect(canUseGameplayPersistence({
+      access: { ...readyAccess, careMistakeReconciliationStatus: "failed" },
+      currentUid: "user-1",
+      currentSlotId: 1,
+      loadedRevision: 4,
+      saveContext,
+      allowCareTransition: true,
+    })).toBe(false);
+  });
+
   test.each([
     ["loading", { access: { ...readyAccess, phase: GAME_PERSISTENCE_PHASE.LOADING } }],
     ["conflict", { hasConflict: true }],

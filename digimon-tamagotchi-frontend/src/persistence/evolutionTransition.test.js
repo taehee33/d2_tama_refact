@@ -72,7 +72,12 @@ test("진화는 형태·스탯·revision·combat identity·로그를 한 transac
     input.slotRef,
     expect.objectContaining({
       selectedDigimon: "Greymon",
-      digimonStats: { strength: 0 },
+      digimonStats: expect.objectContaining({
+        strength: 0,
+        careMistakes: 0,
+        unresolvedCareMistakeCount: 0,
+        careMistakeReconciliationStatus: "verified",
+      }),
       revision: 5,
       combatRevision: 8,
     })

@@ -9,7 +9,6 @@ import {
   getDoc,
   setDoc,
   updateDoc,
-  deleteField,
   collection,
   getDocs,
   query,
@@ -20,6 +19,76 @@ import {
 import { db } from '../firebase';
 import { deleteSlotWithSubcollections } from '../utils/firestoreHelpers';
 import { resolveSlotNotificationEligible } from '../utils/notificationEligibility';
+
+const CARE_MISTAKE_PROJECTION_FIELDS = Object.freeze([
+  'careMistakes',
+  'unresolvedCareMistakeCount',
+  'latestUnresolvedCareMistakeIncidentId',
+  'latestCareMistakeAt',
+  'careMistakeSchemaVersion',
+  'careMistakeReconciliationVersion',
+  'careMistakeReconciliationStatus',
+  'evolutionStageInstanceId',
+  'careMistakeReconciliationChecksum',
+  'lastGameTransitionId',
+]);
+
+function hasOwn(value, key) {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function stripCareMistakeProjection(stats = {}) {
+  const safeStats = { ...(stats || {}) };
+  CARE_MISTAKE_PROJECTION_FIELDS.forEach((field) => delete safeStats[field]);
+  delete safeStats.careMistakeLedger;
+  return safeStats;
+}
+
+function resolveAuthoritativeCareProjection(slotData = {}) {
+  const nestedStats = slotData.digimonStats;
+  const projection = {};
+  CARE_MISTAKE_PROJECTION_FIELDS.forEach((field) => {
+    if (hasOwn(slotData, field)) {
+      projection[field] = slotData[field];
+    } else if (hasOwn(nestedStats, field)) {
+      projection[field] = nestedStats[field];
+    }
+  });
+  return projection;
+}
+
+function protectLegacySlotPayload(slotData = {}, currentSlotData = null) {
+  const safeSlotData = { ...(slotData || {}) };
+  CARE_MISTAKE_PROJECTION_FIELDS.forEach((field) => delete safeSlotData[field]);
+
+  const currentStats = currentSlotData?.digimonStats;
+  if (hasOwn(safeSlotData, 'digimonStats')) {
+    const requestedStats = safeSlotData.digimonStats;
+    safeSlotData.digimonStats = {
+      ...(currentStats && typeof currentStats === 'object' ? currentStats : {}),
+      ...stripCareMistakeProjection(requestedStats),
+    };
+    const authoritativeNestedProjection =
+      currentStats && typeof currentStats === 'object'
+        ? resolveAuthoritativeCareProjection({ digimonStats: currentStats })
+        : {};
+    CARE_MISTAKE_PROJECTION_FIELDS
+      .filter((field) => field !== 'careMistakeReconciliationChecksum' && field !== 'lastGameTransitionId')
+      .forEach((field) => {
+        if (hasOwn(authoritativeNestedProjection, field)) {
+          safeSlotData.digimonStats[field] = authoritativeNestedProjection[field];
+        } else {
+          delete safeSlotData.digimonStats[field];
+        }
+      });
+    delete safeSlotData.digimonStats.careMistakeLedger;
+  }
+
+  if (currentSlotData) {
+    Object.assign(safeSlotData, resolveAuthoritativeCareProjection(currentSlotData));
+  }
+  return safeSlotData;
+}
 
 class UserSlotRepository {
   /**
@@ -85,14 +154,17 @@ class UserSlotRepository {
     }
 
     const slotRef = doc(db, 'users', userId, 'slots', `slot${slotId}`);
+    const currentSlotSnap = await getDoc(slotRef);
+    const currentSlotData = currentSlotSnap.exists() ? currentSlotSnap.data() : null;
+    const safeSlotData = protectLegacySlotPayload(slotData, currentSlotData);
     await setDoc(
       slotRef,
       {
-        ...slotData,
+        ...safeSlotData,
         notificationEligible: resolveSlotNotificationEligible({
-          selectedDigimon: slotData?.selectedDigimon,
-          stats: slotData?.digimonStats,
-          slotData,
+          selectedDigimon: safeSlotData?.selectedDigimon,
+          stats: safeSlotData?.digimonStats,
+          slotData: safeSlotData,
         }),
         updatedAt: serverTimestamp(),
       },
@@ -112,16 +184,25 @@ class UserSlotRepository {
       throw new Error('userId is required');
     }
 
-    // proteinCount 필드 제거 (strength로 통합됨)
-    const { proteinCount, ...statsWithoutProteinCount } = digimonStats;
-    
     const slotRef = doc(db, 'users', userId, 'slots', `slot${slotId}`);
+    const currentSlotSnap = await getDoc(slotRef);
+    const currentSlotData = currentSlotSnap.exists() ? currentSlotSnap.data() : null;
+    const currentStats = currentSlotData?.digimonStats || {};
+    const statsWithoutProteinCount = {
+      ...currentStats,
+      ...(digimonStats || {}),
+    };
+    delete statsWithoutProteinCount.proteinCount;
+    const safeSlotData = protectLegacySlotPayload(
+      { digimonStats: statsWithoutProteinCount },
+      currentSlotData
+    );
+
     await updateDoc(slotRef, {
-      digimonStats: statsWithoutProteinCount,
-      'digimonStats.proteinCount': deleteField(), // Firestore에서 필드 제거 (마이그레이션)
+      digimonStats: safeSlotData.digimonStats,
       notificationEligible: resolveSlotNotificationEligible({
         selectedDigimon: digimonStats?.selectedDigimon,
-        stats: statsWithoutProteinCount,
+        stats: safeSlotData.digimonStats,
       }),
       updatedAt: serverTimestamp(),
     });
@@ -232,4 +313,3 @@ class UserSlotRepository {
 // 싱글톤 인스턴스
 export const userSlotRepository = new UserSlotRepository();
 export default userSlotRepository;
-

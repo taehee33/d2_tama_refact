@@ -11,12 +11,16 @@ function createMemoryStorage() {
     state_mutations: new Map(),
     events: new Map(),
     legacy_quarantine: new Map(),
+    game_transitions: new Map(),
+    game_transition_sequences: new Map(),
   };
 
   const keyFields = {
     state_mutations: 'scopeKey',
     events: 'eventKey',
     legacy_quarantine: 'quarantineKey',
+    game_transitions: 'transitionId',
+    game_transition_sequences: 'scopeKey',
   };
 
   return {
@@ -45,6 +49,22 @@ function createMemoryStorage() {
         stores[storeName].delete(key);
       }
       return clone(action.result);
+    },
+    async atomicUpdateMany(operations) {
+      const existing = operations.map((operation) =>
+        clone(stores[operation.storeName].get(operation.key) ?? null)
+      );
+      const actions = operations.map((operation, index) => operation.updater(existing[index]));
+      actions.forEach((action, index) => {
+        const operation = operations[index];
+        if (action.action === 'put') {
+          const value = clone(action.value);
+          stores[operation.storeName].set(value[keyFields[operation.storeName]], value);
+        } else if (action.action === 'delete') {
+          stores[operation.storeName].delete(operation.key);
+        }
+      });
+      return actions.map((action) => clone(action.result));
     },
     async deleteWhere(storeNames, predicate) {
       let deletedCount = 0;
@@ -103,6 +123,13 @@ const IDENTITY_METHODS = new Set([
   'pruneSyncedFeedEvents',
   'clearSlotInstanceScope',
   'clearDigimonLifeRecords',
+  'enqueueTransition',
+  'getTransition',
+  'listTransitions',
+  'getNextTransition',
+  'updateTransitionStatus',
+  'blockTransitionChain',
+  'discardTransition',
 ]);
 
 function createTestOutbox(options) {
@@ -267,6 +294,92 @@ function clone(value) {
 }
 
 describe('indexedDbOutbox', () => {
+  it('transition envelope를 sequence 순서로 보관하고 선행 commit 전 후속 전이를 막는다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage(), now: () => 1000 });
+    const first = await outbox.enqueueTransition({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      clientInstanceId: 'client-a',
+      transitionType: 'CARE_MISTAKE_OCCURRED',
+      baseRevision: 0,
+      transition: { transitionId: 'care-1' },
+    });
+    const second = await outbox.enqueueTransition({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      clientInstanceId: 'client-a',
+      transitionType: 'FRIDGE_ENTERED',
+      baseRevision: 1,
+      transition: { transitionId: 'fridge-1' },
+    });
+
+    expect(first.localSequence).toBe(1);
+    expect(second.localSequence).toBe(2);
+    expect(second.parentTransitionId).toBe(first.transitionId);
+    await expect(outbox.getNextTransition({ uid: 'user-a', slotId: 'slot-1' })).resolves.toMatchObject({
+      status: 'ready',
+      record: { transitionId: first.transitionId },
+    });
+
+    await outbox.updateTransitionStatus({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      transitionId: first.transitionId,
+      status: 'committed',
+      resultRevision: 1,
+    });
+    await expect(outbox.getNextTransition({ uid: 'user-a', slotId: 'slot-1' })).resolves.toMatchObject({
+      status: 'ready',
+      record: { transitionId: second.transitionId },
+    });
+  });
+
+  it('오프라인 T1→T2→T3→T4는 각 parent commit 후에만 다음 전이를 연다', async () => {
+    const outbox = createTestOutbox({ storage: createMemoryStorage(), now: () => 2000 });
+    const transitionTypes = [
+      'CARE_MISTAKE_OCCURRED',
+      'FRIDGE_ENTERED',
+      'FRIDGE_EXITED',
+      'CALL_HISTORY_ACKNOWLEDGED',
+    ];
+    const records = [];
+    for (const transitionType of transitionTypes) {
+      records.push(await outbox.enqueueTransition({
+        uid: 'user-a',
+        slotId: 'slot-1',
+        clientInstanceId: 'client-a',
+        transitionType,
+        baseRevision: records.length,
+        transition: { transitionType },
+      }));
+    }
+
+    expect(records.map((record) => record.localSequence)).toEqual([1, 2, 3, 4]);
+    expect(records.map((record) => record.parentTransitionId)).toEqual([
+      null,
+      records[0].transitionId,
+      records[1].transitionId,
+      records[2].transitionId,
+    ]);
+
+    for (let index = 0; index < records.length; index += 1) {
+      await expect(outbox.getNextTransition({ uid: 'user-a', slotId: 'slot-1' }))
+        .resolves.toMatchObject({
+          status: 'ready',
+          record: { transitionId: records[index].transitionId },
+        });
+      await outbox.updateTransitionStatus({
+        uid: 'user-a',
+        slotId: 'slot-1',
+        transitionId: records[index].transitionId,
+        status: 'committed',
+        resultRevision: index + 1,
+      });
+    }
+    await expect(outbox.getNextTransition({ uid: 'user-a', slotId: 'slot-1' }))
+      .resolves.toMatchObject({ status: 'empty' });
+  });
+
   it('uid+slot 범위별로 최신 state mutation만 보관하고 structured clone을 유지한다', async () => {
     const outbox = createTestOutbox({
       storage: createMemoryStorage(),

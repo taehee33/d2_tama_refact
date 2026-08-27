@@ -1,3 +1,5 @@
+import { collection, doc } from "firebase/firestore";
+
 const SAFE_REPLAY_FIELDS = {
   FEED: [
     "fullness",
@@ -20,6 +22,19 @@ const SAFE_REPLAY_FIELDS = {
   DETOX: ["proteinOverdose"],
   ACTION: ["isLightsOn", "wakeUntil", "isNocturnal"],
 };
+
+const CARE_MISTAKE_PROJECTION_FIELDS = Object.freeze([
+  "careMistakes",
+  "unresolvedCareMistakeCount",
+  "latestUnresolvedCareMistakeIncidentId",
+  "latestCareMistakeAt",
+  "careMistakeSchemaVersion",
+  "careMistakeReconciliationVersion",
+  "careMistakeReconciliationStatus",
+  "evolutionStageInstanceId",
+  "careMistakeReconciliationChecksum",
+  "lastGameTransitionId",
+]);
 
 export const UNSAFE_REPLAY_TYPES = new Set([
   "DEATH",
@@ -155,12 +170,56 @@ export function replaySafeActions(remoteStats = {}, actions = []) {
   };
 }
 
+function hasOwn(value, key) {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
+}
+
+/**
+ * legacy snapshot 저장이 care projection과 transition identity를 덮어쓰지
+ * 않도록 transaction 시점의 원격 값을 다시 주입합니다.
+ *
+ * @param {Object} updateData
+ * @param {Object} remoteData
+ * @returns {Object}
+ */
+export function protectCareMistakeProjection(updateData = {}, remoteData = {}) {
+  const safeUpdateData = { ...(updateData || {}) };
+  CARE_MISTAKE_PROJECTION_FIELDS.forEach((field) => {
+    if (hasOwn(remoteData, field)) {
+      safeUpdateData[field] = remoteData[field];
+    } else {
+      delete safeUpdateData[field];
+    }
+  });
+
+  const remoteStats = remoteData?.digimonStats;
+  if (hasOwn(updateData, "digimonStats") && updateData.digimonStats &&
+      typeof updateData.digimonStats === "object" && !Array.isArray(updateData.digimonStats)) {
+    const safeStats = { ...updateData.digimonStats };
+    delete safeStats.careMistakeLedger;
+    CARE_MISTAKE_PROJECTION_FIELDS
+      .filter((field) => field !== "careMistakeReconciliationChecksum" && field !== "lastGameTransitionId")
+      .forEach((field) => {
+        if (hasOwn(remoteStats, field)) {
+          safeStats[field] = remoteStats[field];
+        } else {
+          delete safeStats[field];
+        }
+      });
+    safeUpdateData.digimonStats = safeStats;
+  }
+
+  return safeUpdateData;
+}
+
 export async function commitRevisionedSlot({
   db,
   slotRef,
   baseRevision,
   updateData,
   runTransaction,
+  activityEvents = [],
+  activityLogIdentity = {},
 }) {
   return runTransaction(db, async (transaction) => {
     const slotSnapshot = await transaction.get(slotRef);
@@ -177,8 +236,25 @@ export async function commitRevisionedSlot({
     }
 
     const nextRevision = actualRevision + 1;
+    (Array.isArray(activityEvents) ? activityEvents : []).forEach((event) => {
+      if (!event?.eventId) return;
+      transaction.set(
+        doc(collection(slotRef, "logs"), String(event.eventId)),
+        {
+          ...event,
+          eventId: String(event.eventId),
+          ...(activityLogIdentity.slotInstanceId
+            ? { slotInstanceId: activityLogIdentity.slotInstanceId }
+            : {}),
+          ...(activityLogIdentity.digimonInstanceId
+            ? { digimonInstanceId: activityLogIdentity.digimonInstanceId }
+            : {}),
+        },
+        { merge: true }
+      );
+    });
     transaction.update(slotRef, {
-      ...updateData,
+      ...protectCareMistakeProjection(updateData, remoteData),
       revision: nextRevision,
     });
     return { revision: nextRevision };

@@ -14,10 +14,53 @@ export function GameLocalPersistenceWarning() {
 function GameSlotLoadState({
   phase = "loading",
   error = null,
+  reconciliationStatus = null,
   onRetry,
   onBack,
 }) {
   const isFailed = phase === "failed";
+  const isReconciliation = phase === "reconciliation";
+
+  if (isReconciliation) {
+    const statusLabel = {
+      in_progress: "확인 중",
+      ambiguous: "운영자 확인 필요",
+      failed: "재시도 필요",
+      not_started: "확인 대기",
+    }[reconciliationStatus] || "확인 필요";
+
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
+        <section
+          className="w-full max-w-md rounded-xl border border-amber-200 bg-white p-7 text-center shadow-sm"
+          aria-live="polite"
+        >
+          <div className="mb-4 text-4xl" aria-hidden="true">🧾</div>
+          <h1 className="text-xl font-bold text-slate-900">케어미스 기록을 확인하고 있습니다.</h1>
+          <p className="mt-2 text-slate-600">
+            기록과 현재 카운터를 확인할 때까지 게임 변경을 잠시 막습니다.
+          </p>
+          <p className="mt-3 text-sm font-semibold text-amber-800">상태: {statusLabel}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+              onClick={onRetry}
+            >
+              다시 확인
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700 hover:bg-slate-100"
+              onClick={onBack}
+            >
+              플레이 허브로 돌아가기
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
