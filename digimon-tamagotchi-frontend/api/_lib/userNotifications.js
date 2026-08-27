@@ -203,6 +203,11 @@ async function createUserNotification({
   const inAppState = settings.notificationChannels?.inApp === false
     ? { status: "hidden" }
     : { status: "stored" };
+  const createdAt = currentTime instanceof Date ? currentTime.getTime() : Number(currentTime);
+  assertNotificationDocumentContract({
+    createdAt,
+    channelState: { inApp: inAppState },
+  });
   const discordState = sendDiscord
     ? await maybeSendDiscordNotification({
         uid,
@@ -455,7 +460,7 @@ async function markUserNotificationsRead({
       recentNotifications: [],
     }));
     targetIds = inbox.recentNotifications
-      .filter((notification) => !notification.readAt)
+      .filter((notification) => notification.readAt == null)
       .map((notification) => notification.id);
   }
 
@@ -475,7 +480,8 @@ async function markUserNotificationsRead({
         readAt: nowMs,
         updatedAt: nowMs,
       },
-      ["readAt", "updatedAt"]
+      ["readAt", "updatedAt"],
+      { currentDocument: { exists: true } }
     )
   );
 

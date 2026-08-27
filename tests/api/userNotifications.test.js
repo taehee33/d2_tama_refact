@@ -191,19 +191,32 @@ test("Discord가 꺼져 있어도 인앱 알림은 저장한다", async () => {
 
 test("신규 알림 필수 필드가 유효하지 않으면 commit하지 않는다", async () => {
   let commitCalled = false;
+  let pushSubscriptionRead = false;
   await assert.rejects(createUserNotification({
     uid: "user-1",
     type: "system_test",
     title: "테스트",
     body: "본문",
-    sendWebPush: false,
-    getDocumentByPath: async () => null,
+    sendWebPush: true,
+    getDocumentByPath: async (path) => path.endsWith("/settings/main")
+      ? {
+          data: {
+            isNotificationEnabled: true,
+            notificationChannels: { inApp: true, webPush: true },
+          },
+        }
+      : null,
+    listCollectionDocuments: async () => {
+      pushSubscriptionRead = true;
+      return [];
+    },
     commit: async () => {
       commitCalled = true;
     },
     currentTime: "invalid-time",
   }), /createdAt/);
   assert.equal(commitCalled, false);
+  assert.equal(pushSubscriptionRead, false);
 });
 
 test("inbox는 hidden과 레거시 문서를 제외하고 stored 알림 최대 10개만 반환한다", async () => {
@@ -339,6 +352,7 @@ test("알림 상태는 projectionUnavailable 슬롯을 요약한다", async () =
 
 test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async () => {
   const now = Date.parse("2026-06-25T00:00:00.000Z");
+  let committedWrites = [];
   const store = createStore({
     "users/user-1/notifications/n1": {
       id: "n1",
@@ -364,7 +378,10 @@ test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async
     uid: "user-1",
     notificationIds: ["n1"],
     listCollectionDocuments: store.list,
-    commit: store.commit,
+    commit: async (writes) => {
+      committedWrites = writes;
+      await store.commit(writes);
+    },
     currentTime: new Date(now),
   });
 
@@ -373,6 +390,7 @@ test("알림 읽음 처리는 요청한 사용자 알림만 갱신한다", async
   assert.equal(store.store.get("users/user-1/notifications/n1").data.title, "첫 알림");
   assert.equal(store.store.get("users/user-1/notifications/n1").data.channelState.inApp.status, "stored");
   assert.equal(store.store.get("users/user-2/notifications/n1").data.readAt, null);
+  assert.deepEqual(committedWrites[0].currentDocument, { exists: true });
 });
 
 test("알림 읽음 처리는 빈 notificationIds를 안전하게 무시한다", async () => {
@@ -420,7 +438,7 @@ test("allVisible 읽음 처리는 최근 unread 알림만 갱신한다", async (
       id: "n2",
       data: {
         title: "이미 읽음",
-        readAt: now - 500,
+        readAt: 0,
         createdAt: now - 2000,
         channelState: { inApp: { status: "stored" } },
       },
@@ -437,6 +455,6 @@ test("allVisible 읽음 처리는 최근 unread 알림만 갱신한다", async (
 
   assert.deepEqual(result.notificationIds, ["n1"]);
   assert.equal(store.store.get("users/user-1/notifications/n1").data.readAt, now);
-  assert.equal(store.store.get("users/user-1/notifications/n2").data.readAt, now - 500);
+  assert.equal(store.store.get("users/user-1/notifications/n2").data.readAt, 0);
   assert.equal(store.store.get("users/user-1/notifications/n1").data.channelState.inApp.status, "stored");
 });

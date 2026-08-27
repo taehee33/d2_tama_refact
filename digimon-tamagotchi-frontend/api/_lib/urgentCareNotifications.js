@@ -405,6 +405,10 @@ async function prepareUrgentCareNotifications({
           createdAt: nowMs,
           expiresAt: nowMs + DELIVERY_TTL_MS,
         };
+        assertNotificationDocumentContract({
+          createdAt: nowMs,
+          channelState: { inApp: buildInAppChannelState(settings) },
+        });
         const reserved = await reserveUrgentDelivery({
           deliveryId,
           data: deliveryData,
@@ -716,6 +720,10 @@ async function evaluateUrgentCareSlotNotification({
     createdAt: nowMs,
     expiresAt: nowMs + DELIVERY_TTL_MS,
   };
+  assertNotificationDocumentContract({
+    createdAt: nowMs,
+    channelState: { inApp: buildInAppChannelState(settings) },
+  });
   const reserved = await reserveUrgentDelivery({
     deliveryId,
     data: deliveryData,

@@ -140,6 +140,22 @@ describe("GlobalNotificationCenter", () => {
     expect(await screen.findByText("새 알림이 없습니다.")).toBeInTheDocument();
   });
 
+  test("readAt이 0인 알림도 읽은 상태로 처리한다", async () => {
+    mockGetNotificationInbox.mockResolvedValue(createStatus({
+      recentNotifications: [
+        {
+          ...createStatus().recentNotifications[0],
+          readAt: 0,
+        },
+      ],
+    }));
+
+    renderWithProvider(<GlobalNotificationCenter />);
+
+    await waitFor(() => expect(mockGetNotificationInbox).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+  });
+
   test("채널별 미연결 스킵 상태를 알림 항목에 표시한다", async () => {
     mockGetNotificationInbox.mockResolvedValue(createStatus({
       recentNotifications: [
@@ -275,7 +291,12 @@ describe("GlobalNotificationCenter", () => {
   });
 
   test("사용자 UID가 바뀌면 inbox 캐시를 초기화한다", async () => {
-    mockGetNotificationInbox.mockResolvedValue(createStatus());
+    let rejectSecondInbox;
+    mockGetNotificationInbox
+      .mockResolvedValueOnce(createStatus())
+      .mockImplementationOnce(() => new Promise((resolve, reject) => {
+        rejectSecondInbox = reject;
+      }));
     const { rerender } = renderWithProvider(<GlobalNotificationCenter />);
     expect(await screen.findByText("1")).toBeInTheDocument();
 
@@ -289,7 +310,14 @@ describe("GlobalNotificationCenter", () => {
       </NotificationCenterProvider>
     );
 
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
     await waitFor(() => expect(mockGetNotificationInbox).toHaveBeenCalledTimes(2));
     expect(mockGetNotificationInbox.mock.calls[1][0].uid).toBe("user-2");
+
+    await act(async () => {
+      rejectSecondInbox(new Error("새 사용자 inbox 실패"));
+    });
+    expect(screen.queryByText("1")).not.toBeInTheDocument();
+    expect(mockMarkNotificationsRead).not.toHaveBeenCalled();
   });
 });
