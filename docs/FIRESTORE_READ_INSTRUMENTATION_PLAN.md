@@ -1,8 +1,8 @@
 # Firestore 읽기 원인 계측 실행 계획
 
-작성일: 2026-08-13  
-대상 브랜치: main  
-기준 커밋: ed90fea  
+작성일: 2026-08-13
+대상 브랜치: main
+기준 커밋: ed90fea
 상태: 구현 준비 완료
 
 ## 목표
@@ -325,7 +325,7 @@ Firestore Rules, schema, transaction을 바꾸지 않으므로 이 두 PR만을 
 | 1B-4 | server tests/docs | 1B-1~3 |
 | 측정 | production reproduction | PR 1A와 1B 배포 |
 
-Lane A: PR 1A-1 → 1A-2/1A-3 → 1A-4  
+Lane A: PR 1A-1 → 1A-2/1A-3 → 1A-4
 Lane B: PR 1B-1 → 1B-2/1B-3 → 1B-4
 
 두 lane은 코드상 병렬화할 수 있지만, 서버 계약을 클라이언트에서 먼저 검증하려는 분할 목적을 유지하기 위해 순차 진행한다. 별도 worktree 병렬화는 권장하지 않는다.

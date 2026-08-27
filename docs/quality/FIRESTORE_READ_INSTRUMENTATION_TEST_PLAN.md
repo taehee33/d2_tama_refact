@@ -1,7 +1,7 @@
 # Firestore 읽기 계측 QA 계획
 
-작성일: 2026-08-13  
-브랜치: main  
+작성일: 2026-08-13
+브랜치: main
 관련 계획: docs/FIRESTORE_READ_INSTRUMENTATION_PLAN.md
 
 ## Affected Pages/Routes
