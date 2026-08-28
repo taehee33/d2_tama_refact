@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { doc, getFirestore } from "firebase/firestore";
 import {
+  acquireCareMistakeReconciliationLease,
   buildCareMistakeReconciliationBatches,
   buildCareMistakeReconciliationPlan,
   commitCareMistakeReconciliation,
@@ -35,8 +36,8 @@ function createPlan() {
       ...identity,
       evolutionStageStartedAt: 100,
       evolutionStage: "성장기",
-      careMistakes: 0,
-      unresolvedCareMistakeCount: 0,
+      careMistakes: 2,
+      unresolvedCareMistakeCount: 2,
     },
     savedStats: {},
     activityLogs: [
@@ -57,13 +58,13 @@ function createPlan() {
   });
 }
 
-test("슬롯 4 fixture는 현재 stage 발생 5건과 해소 0건을 5로 복구한다", () => {
+test("저장 5건과 현재 stage 발생 5건이 일치하면 추가 복구 없이 verified가 된다", () => {
   const plan = buildCareMistakeReconciliationPlan({
     slotData: {
       ...identity,
       evolutionStageStartedAt: 100,
-      careMistakes: 2,
-      unresolvedCareMistakeCount: 2,
+      careMistakes: 5,
+      unresolvedCareMistakeCount: 5,
     },
     activityLogs: Array.from({ length: 5 }, (_, index) => ({
       eventId: `slot4-care-${index + 1}`,
@@ -79,6 +80,199 @@ test("슬롯 4 fixture는 현재 stage 발생 5건과 해소 0건을 5로 복구
     careMistakes: 5,
     unresolvedCareMistakeCount: 5,
   });
+  expect(plan.recoveryBasis.legacyRecoveryCount).toBe(0);
+});
+
+test("LIFO는 confirmed evidence보다 최신인 synthetic recovery를 먼저 해소한다", () => {
+  const existingIncidents = [200, 300].map((occurredAt, index) => ({
+    ...identity,
+    incidentId: `confirmed-${index + 1}`,
+    occurredAt,
+    reasonKey: "hunger_call",
+    text: "확인된 케어미스",
+    status: "unresolved",
+  }));
+  const input = {
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      evolutionStage: "성장기",
+      careMistakes: 5,
+      unresolvedCareMistakeCount: 5,
+    },
+    activityLogs: [],
+    incidents: existingIncidents,
+  };
+
+  const first = buildCareMistakeReconciliationPlan(input);
+  const second = buildCareMistakeReconciliationPlan(input);
+  const recovered = first.incidents.filter((incident) => incident.source === "legacy_recovery");
+
+  expect(first.status).toBe("verified");
+  expect(first.recoveryBasis).toMatchObject({
+    preservedCount: 5,
+    replayedUnresolvedIncidentIds: ["confirmed-1", "confirmed-2"],
+    legacyRecoveryCount: 3,
+  });
+  expect(recovered).toHaveLength(3);
+  expect(recovered.map((incident) => incident.occurredAt)).toEqual([301, 302, 303]);
+  expect(first.projection.latestUnresolvedCareMistakeIncidentId).toBe(
+    recovered[2].incidentId
+  );
+  expect(recovered.every((incident) => incident.originalOccurredAtKnown === false)).toBe(true);
+  expect(second.checksum).toBe(first.checksum);
+  expect(second.incidents.map((incident) => incident.incidentId)).toEqual(
+    first.incidents.map((incident) => incident.incidentId)
+  );
+
+  const persistedReload = buildCareMistakeReconciliationPlan({
+    ...input,
+    incidents: first.incidents,
+  });
+  const repeatedReload = buildCareMistakeReconciliationPlan({
+    ...input,
+    incidents: first.incidents,
+    nowMs: 999999,
+  });
+  expect(persistedReload.recoveryBasis.legacyRecoveryCount).toBe(0);
+  expect(persistedReload.incidents.filter((incident) =>
+    incident.source === "legacy_recovery"
+  )).toHaveLength(3);
+  expect(repeatedReload.checksum).toBe(persistedReload.checksum);
+});
+
+test("preserved 2 / replayed 5는 자동 수정하지 않고 ambiguous가 된다", () => {
+  const plan = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      careMistakes: 2,
+      unresolvedCareMistakeCount: 2,
+    },
+    activityLogs: [],
+    incidents: Array.from({ length: 5 }, (_, index) => ({
+      ...identity,
+      incidentId: `confirmed-${index + 1}`,
+      occurredAt: 200 + index,
+      reasonKey: "hunger_call",
+      status: "unresolved",
+    })),
+  });
+
+  expect(plan.status).toBe("ambiguous");
+  expect(plan.canActivateProjection).toBe(false);
+  expect(plan.recoveryBasis.legacyRecoveryCount).toBe(-3);
+});
+
+test("현재 stage incident timestamp가 손상되면 제외하지 않고 ambiguous가 된다", () => {
+  const plan = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      careMistakes: 1,
+      unresolvedCareMistakeCount: 1,
+    },
+    activityLogs: [],
+    incidents: [{
+      ...identity,
+      incidentId: "broken-incident",
+      occurredAt: "not-a-date",
+      reasonKey: "hunger_call",
+      status: "unresolved",
+    }],
+  });
+
+  expect(plan.status).toBe("ambiguous");
+  expect(plan.audit.hasInterpretableCurrentIncidents).toBe(false);
+});
+
+test("stage identity 충돌과 counter 일부 손상은 작은 값으로 조용히 복구하지 않는다", () => {
+  const plan = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageInstanceId: "root-stage",
+      evolutionStageStartedAt: 100,
+      careMistakes: 3,
+    },
+    savedStats: {
+      evolutionStageInstanceId: "nested-stage",
+      unresolvedCareMistakeCount: 999,
+    },
+    activityLogs: [],
+    incidents: [],
+  });
+
+  expect(plan.status).toBe("ambiguous");
+  expect(plan.audit).toMatchObject({
+    hasConsistentStageIdentity: false,
+    hasValidLegacyCounters: false,
+  });
+  expect(plan.canActivateProjection).toBe(false);
+});
+
+test("stage identity가 없으면 life·기준 시각·stage로만 결정적으로 재구성한다", () => {
+  const input = {
+    slotData: {
+      slotInstanceId: "slot-instance",
+      digimonInstanceId: "digimon-instance",
+      evolutionStage: "성장기",
+      birthTime: 100,
+      createdAt: 50,
+      careMistakes: 0,
+      unresolvedCareMistakeCount: 0,
+    },
+    savedStats: {},
+    activityLogs: [{
+      eventId: "evolution-1",
+      type: "EVOLUTION",
+      digimonInstanceId: "digimon-instance",
+      timestamp: 200,
+    }],
+    incidents: [],
+  };
+  const first = buildCareMistakeReconciliationPlan(input);
+  const second = buildCareMistakeReconciliationPlan({
+    ...input,
+    nowMs: 999999,
+    slotData: { ...input.slotData, lastSavedAt: 888888 },
+  });
+
+  expect(first.recoveredStageStartedAt).toBe(200);
+  expect(first.identity.evolutionStageInstanceId).toBeTruthy();
+  expect(second.identity.evolutionStageInstanceId).toBe(
+    first.identity.evolutionStageInstanceId
+  );
+  expect(second.checksum).toBe(first.checksum);
+});
+
+test("손상 plan은 lease·staging·transaction을 포함해 total zero-write다", async () => {
+  const { db, slotRef } = createDbAndSlot();
+  const plan = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      careMistakes: 401,
+      unresolvedCareMistakeCount: 401,
+    },
+    activityLogs: [],
+    incidents: [],
+  });
+  const acquireLease = jest.fn();
+  const stageBatches = jest.fn();
+  const runTransaction = jest.fn();
+
+  await expect(commitCareMistakeReconciliation({
+    db,
+    slotRef,
+    plan,
+    baseRevision: 4,
+    acquireLease,
+    stageBatches,
+    runTransaction,
+  })).rejects.toThrow("검증된 careMistake reconciliation plan이 필요합니다.");
+  expect(acquireLease).not.toHaveBeenCalled();
+  expect(stageBatches).not.toHaveBeenCalled();
+  expect(runTransaction).not.toHaveBeenCalled();
 });
 
 test("대량 reconciliation은 결정적 batch로 나눈다", () => {
@@ -189,13 +383,13 @@ test("staging 중단 후 재시작하면 완료 batch를 다시 쓰지 않는다
   });
 });
 
-test("슬롯 5 fixture는 실제 호출 케어미스 2건을 projection 0보다 우선한다", () => {
+test("저장 2건과 실제 호출 2건이 일치하면 verified가 된다", () => {
   const plan = buildCareMistakeReconciliationPlan({
     slotData: {
       ...identity,
       evolutionStageStartedAt: 100,
-      careMistakes: 0,
-      unresolvedCareMistakeCount: 0,
+      careMistakes: 2,
+      unresolvedCareMistakeCount: 2,
     },
     activityLogs: [
       {
@@ -245,6 +439,7 @@ test("검증된 reconciliation은 누락 incident와 projection을 한 transacti
     slotRef,
     plan,
     baseRevision: 4,
+    acquireLease: jest.fn(async () => ({ acquired: true })),
     stageBatches: jest.fn(async () => ({ stagedBatchCount: 1 })),
     runTransaction: async (_db, callback) => callback(transaction),
   });
@@ -301,6 +496,7 @@ test("같은 reconciliation receipt는 재시도해도 revision과 incident를 �
     slotRef,
     plan,
     baseRevision: 4,
+    acquireLease: jest.fn(async () => ({ acquired: true })),
     stageBatches: jest.fn(async () => ({ stagedBatchCount: 1 })),
     runTransaction: async (_db, callback) => callback(firstTransaction),
   });
@@ -326,6 +522,7 @@ test("같은 reconciliation receipt는 재시도해도 revision과 incident를 �
     slotRef,
     plan,
     baseRevision: 4,
+    acquireLease: jest.fn(async () => ({ acquired: true })),
     stageBatches: jest.fn(async () => ({ stagedBatchCount: 1 })),
     runTransaction: async (_db, callback) => callback(retryTransaction),
   });
@@ -335,4 +532,183 @@ test("같은 reconciliation receipt는 재시도해도 revision과 incident를 �
   expect(retryTransaction.set).not.toHaveBeenCalled();
   expect(retryTransaction.create).not.toHaveBeenCalled();
   expect(receipt).toBeTruthy();
+});
+
+test("owner attempt ID가 달라도 lease 밖의 영속 artifact는 동일하다", async () => {
+  const { db, slotRef } = createDbAndSlot();
+  const plan = createPlan();
+  const run = async (ownerAttemptId) => {
+    const transaction = {
+      get: jest.fn(async (ref) =>
+        ref.path === slotRef.path
+          ? snapshot({ ...identity, revision: 4, digimonStats: {} })
+          : snapshot()
+      ),
+      update: jest.fn(),
+      set: jest.fn(),
+      create: jest.fn(),
+    };
+    const result = await commitCareMistakeReconciliation({
+      db,
+      slotRef,
+      plan,
+      baseRevision: 4,
+      ownerAttemptId,
+      acquireLease: jest.fn(async () => ({ acquired: true })),
+      stageBatches: jest.fn(async () => ({ stagedBatchCount: 1 })),
+      runTransaction: async (_db, callback) => callback(transaction),
+      committedAtValue: 500,
+    });
+    return {
+      result,
+      slotUpdate: transaction.update.mock.calls[0][1],
+      incidents: transaction.create.mock.calls.map(([ref, value]) => [ref.path, value]),
+      receipt: transaction.set.mock.calls.find(([, value]) =>
+        value.transitionType === "CARE_MISTAKE_RECONCILED"
+      ).map((value, index) => index === 0 ? value.path : value),
+    };
+  };
+
+  const first = await run("owner-a");
+  const second = await run("owner-b");
+  expect(second).toEqual(first);
+});
+
+test("활성 lease는 쓰지 않고 대기하며 stale lease는 같은 run을 인수한다", async () => {
+  const { db, slotRef } = createDbAndSlot();
+  const plan = createPlan();
+  const runRef = doc(db, `${slotRef.path}/careMistakeReconciliations/run-1`);
+  const activeTransaction = {
+    get: jest.fn(async () => snapshot({
+      checksum: plan.checksum,
+      ownerAttemptId: "other-owner",
+      status: "staging",
+      updatedAt: 900,
+    })),
+    set: jest.fn(),
+  };
+  const active = await acquireCareMistakeReconciliationLease({
+    db,
+    runRef,
+    transitionId: "run-1",
+    plan,
+    ownerAttemptId: "my-owner",
+    nowMs: 1000,
+    leaseMs: 500,
+    runTransaction: async (_db, callback) => callback(activeTransaction),
+  });
+  expect(active).toMatchObject({ acquired: false, retryAt: 1400 });
+  expect(activeTransaction.set).not.toHaveBeenCalled();
+
+  const staleTransaction = {
+    get: jest.fn(async () => snapshot({
+      checksum: plan.checksum,
+      ownerAttemptId: "other-owner",
+      status: "staging",
+      updatedAt: 100,
+    })),
+    set: jest.fn(),
+  };
+  const stale = await acquireCareMistakeReconciliationLease({
+    db,
+    runRef,
+    transitionId: "run-1",
+    plan,
+    ownerAttemptId: "my-owner",
+    nowMs: 1000,
+    leaseMs: 500,
+    updatedAtValue: 1000,
+    runTransaction: async (_db, callback) => callback(staleTransaction),
+  });
+  expect(stale).toMatchObject({ acquired: true, resumed: true, takenOver: true });
+  expect(staleTransaction.set).toHaveBeenCalledWith(
+    runRef,
+    expect.objectContaining({ ownerAttemptId: "my-owner", status: "staging" }),
+    { merge: true }
+  );
+
+  const committedTransaction = {
+    get: jest.fn(async () => snapshot({
+      checksum: plan.checksum,
+      ownerAttemptId: "previous-owner",
+      status: "committed",
+      updatedAt: 100,
+    })),
+    set: jest.fn(),
+  };
+  const committed = await acquireCareMistakeReconciliationLease({
+    db,
+    runRef,
+    transitionId: "run-1",
+    plan,
+    ownerAttemptId: "my-owner",
+    nowMs: 1000,
+    leaseMs: 500,
+    runTransaction: async (_db, callback) => callback(committedTransaction),
+  });
+  expect(committed).toMatchObject({
+    acquired: true,
+    resumed: true,
+    existingStatus: "committed",
+  });
+  expect(committedTransaction.set).not.toHaveBeenCalled();
+});
+
+test("동시 두 실행은 활성 lease 하나만 통과시켜 receipt와 revision을 한 번만 만든다", async () => {
+  const { db, slotRef } = createDbAndSlot();
+  const plan = createPlan();
+  let leaseOwner = null;
+  const acquireLease = jest.fn(async ({ ownerAttemptId }) => {
+    if (!leaseOwner) {
+      leaseOwner = ownerAttemptId;
+      return { acquired: true };
+    }
+    return { acquired: leaseOwner === ownerAttemptId, retryAt: 5000 };
+  });
+  const stageBatches = jest.fn(async () => ({ stagedBatchCount: 1 }));
+  const transaction = {
+    get: jest.fn(async (ref) =>
+      ref.path === slotRef.path
+        ? snapshot({ ...identity, revision: 4, digimonStats: {} })
+        : snapshot()
+    ),
+    update: jest.fn(),
+    set: jest.fn(),
+    create: jest.fn(),
+  };
+  const runTransaction = jest.fn(async (_db, callback) => callback(transaction));
+
+  const results = await Promise.allSettled([
+    commitCareMistakeReconciliation({
+      db,
+      slotRef,
+      plan,
+      baseRevision: 4,
+      ownerAttemptId: "owner-a",
+      acquireLease,
+      stageBatches,
+      runTransaction,
+    }),
+    commitCareMistakeReconciliation({
+      db,
+      slotRef,
+      plan,
+      baseRevision: 4,
+      ownerAttemptId: "owner-b",
+      acquireLease,
+      stageBatches,
+      runTransaction,
+    }),
+  ]);
+
+  expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+  expect(results.find((result) => result.status === "rejected").reason).toMatchObject({
+    code: "game/reconciliation-in-progress",
+  });
+  expect(stageBatches).toHaveBeenCalledTimes(1);
+  expect(runTransaction).toHaveBeenCalledTimes(1);
+  expect(transaction.update).toHaveBeenCalledTimes(1);
+  expect(transaction.set.mock.calls.filter(([, value]) =>
+    value.transitionType === "CARE_MISTAKE_RECONCILED"
+  )).toHaveLength(1);
 });

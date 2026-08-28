@@ -5386,9 +5386,33 @@ function normalizeLedgerEntry(entry) {
     reasonKey,
     text: entry.text || "케어미스 발생",
     source: entry.source || inferCareMistakeSource(entry.text || ""),
+    ...(typeof entry.originalOccurredAtKnown === "boolean"
+      ? { originalOccurredAtKnown: entry.originalOccurredAtKnown }
+      : {}),
+    ...(entry.replayVersion ? { replayVersion: entry.replayVersion } : {}),
+    ...(entry.replayBasisHash ? { replayBasisHash: entry.replayBasisHash } : {}),
+    ...(Number.isInteger(entry.ordinal) ? { ordinal: entry.ordinal } : {}),
     resolvedAt: careMistakeLedger_ensureTimestamp(entry.resolvedAt) ?? null,
     resolvedBy: entry.resolvedBy || null,
   };
+}
+
+function buildCareMistakeLedgerFromIncidents(incidents = []) {
+  return initializeCareMistakeLedger((Array.isArray(incidents) ? incidents : []).map(
+    (incident) => ({
+      id: incident.incidentId,
+      occurredAt: incident.occurredAt,
+      reasonKey: incident.reasonKey,
+      text: incident.text,
+      source: incident.source,
+      originalOccurredAtKnown: incident.originalOccurredAtKnown,
+      replayVersion: incident.replayVersion,
+      replayBasisHash: incident.replayBasisHash,
+      ordinal: incident.ordinal,
+      resolvedAt: incident.resolvedAt,
+      resolvedBy: incident.resolvedBy,
+    })
+  ));
 }
 
 function initializeCareMistakeLedger(existingLedger = []) {

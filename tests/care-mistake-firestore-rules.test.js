@@ -204,3 +204,95 @@ test("케어미스 incident·로그·projection·receipt transaction만 Rules를
   assert.equal((await getDoc(abortedReceiptRef)).exists(), false);
   assert.equal((await getDoc(slotRef)).data().revision, 1);
 });
+
+test("legacy recovery incident는 활동 로그 없이 원자적으로 확정할 수 있다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
+  const emulator = parseEmulatorHost(process.env.FIRESTORE_EMULATOR_HOST);
+  const testEnvironment = await initializeTestEnvironment({
+    projectId: `care-mistake-legacy-recovery-${Date.now()}`,
+    firestore: {
+      ...emulator,
+      rules: fs.readFileSync(path.resolve(__dirname, "../firestore.rules"), "utf8"),
+    },
+  });
+  t.after(() => testEnvironment.cleanup());
+
+  const db = testEnvironment.authenticatedContext("alice").firestore();
+  const slotRef = doc(db, "users/alice/slots/slot1");
+  const incidentRef = doc(
+    db,
+    "users/alice/slots/slot1/careMistakeIncidents/legacy-incident-1"
+  );
+  const receiptRef = doc(
+    db,
+    "users/alice/slots/slot1/gameTransitions/legacy-transition-1"
+  );
+
+  await setDoc(slotRef, {
+    revision: 0,
+    slotInstanceIdSchemaVersion: 1,
+    slotInstanceId: "slot-life-1",
+    arenaIdentitySchemaVersion: 1,
+    digimonInstanceId: "digimon-life-1",
+    combatRevision: 1,
+    selectedDigimon: "Agumon",
+    ...slotProjection(0),
+    digimonStats: {},
+  });
+
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    await transaction.get(slotRef);
+    transaction.set(incidentRef, {
+      incidentId: "legacy-incident-1",
+      transitionId: "legacy-transition-1",
+      eventId: null,
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-1",
+      evolutionStageInstanceId: "stage-1",
+      occurredAt: 1000,
+      reasonKey: "legacy_recovery",
+      text: "복구된 케어미스 기록",
+      status: "unresolved",
+      resolvedAt: null,
+      resolvedBy: null,
+      previousUnresolvedIncidentId: null,
+      source: "legacy_recovery",
+      originalOccurredAtKnown: false,
+      replayVersion: "care-replay-v1",
+      replayBasisHash: "basis-1",
+      ordinal: 1,
+    });
+    transaction.update(slotRef, {
+      ...slotProjection(1),
+      latestUnresolvedCareMistakeIncidentId: "legacy-incident-1",
+      revision: 1,
+      lastGameTransitionId: "legacy-transition-1",
+    });
+    transaction.set(receiptRef, {
+      schemaVersion: 1,
+      transitionId: "legacy-transition-1",
+      clientInstanceId: "reconciliation",
+      localSequence: 0,
+      parentTransitionId: null,
+      transitionType: "CARE_MISTAKE_RECONCILED",
+      baseRevision: 0,
+      resultRevision: 1,
+      eventIds: [],
+      incidentIds: ["legacy-incident-1"],
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-1",
+      evolutionStageInstanceId: "stage-1",
+      resultingStateHash: "hash-legacy-1",
+      projection: {
+        ...slotProjection(1),
+        latestUnresolvedCareMistakeIncidentId: "legacy-incident-1",
+      },
+      requestFingerprint: "fingerprint-legacy-1",
+    });
+  }));
+
+  assert.equal((await getDoc(incidentRef)).data().originalOccurredAtKnown, false);
+  assert.equal((await getDoc(receiptRef)).data().eventIds.length, 0);
+  assert.equal((await getDoc(slotRef)).data().revision, 1);
+});

@@ -636,6 +636,22 @@ export function useDurableGamePersistence({
       setStateSyncError("");
       setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
       setNextStateSyncAt(getNextStateSyncAt());
+      if (result.projection) {
+        if (typeof setDigimonStats === "function") {
+          setDigimonStats((previousStats) => ({
+            ...(previousStats || {}),
+            ...localSnapshot,
+            ...result.projection,
+          }));
+        }
+        if (result.projection.careMistakeReconciliationStatus === "verified") {
+          // Firestore transaction 성공이 게임 허용의 경계다. 이후 로컬
+          // outbox 정리 실패는 저장 경고만 남기고 검증 상태를 되돌리지 않는다.
+          changePersistenceAccess({
+            careMistakeReconciliationStatus: "verified",
+          });
+        }
+      }
       let localCleanup = await cleanupCommittedStateRecord(record, { localWriteFailed });
       conflictRef.current = null;
       setSyncConflict(null);
@@ -819,6 +835,7 @@ export function useDurableGamePersistence({
     activeAccessRef,
     buildUpdateDataForSnapshot,
     canStartGameplayWrite,
+    changePersistenceAccess,
     cleanupCommittedStateRecord,
     currentUser,
     holdRevisionConflict,

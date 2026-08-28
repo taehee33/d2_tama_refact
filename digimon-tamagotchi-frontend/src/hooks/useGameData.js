@@ -29,6 +29,10 @@ import {
   GAME_PERSISTENCE_PHASE,
   useDurableGamePersistence,
 } from "./game-persistence/useDurableGamePersistence";
+import {
+  CARE_MISTAKE_LOAD_ACTION,
+  resolveCareMistakeLoadPolicy,
+} from "./game-persistence/careMistakeLoadPolicy";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { resolveSlotNotificationEligible } from "../utils/notificationEligibility";
@@ -81,6 +85,7 @@ import {
   isCareMistakeActivityLog,
   isCareMistakeResolutionActivityLog,
 } from "../logic/stats/careMistakeProjection";
+import { buildCareMistakeLedgerFromIncidents } from "../logic/stats/careMistakeLedger";
 import {
   buildCareMistakeReconciliationPlan,
   commitCareMistakeReconciliation,
@@ -779,13 +784,12 @@ export async function loadSlotCollectionsState({
 }
 
 /**
- * 현재 생애의 케어 incident를 읽습니다. stage 필터는 구버전 문서와의
- * 호환을 위해 클라이언트에서 한 번 더 적용합니다.
+ * 현재 생애의 케어 incident 원본을 모두 읽습니다. stage 필터와 필수 필드
+ * 검증은 손상 문서를 숨기지 않도록 reconciliation plan에서 수행합니다.
  */
 export async function loadCareMistakeIncidents({
   slotRef = null,
   digimonInstanceId = null,
-  evolutionStageInstanceId = null,
   loadIncidents,
 } = {}) {
   const incidents = loadIncidents
@@ -795,9 +799,7 @@ export async function loadCareMistakeIncidents({
         const incidentsRef = collection(slotRef, "careMistakeIncidents");
         const incidentsQuery = query(
           incidentsRef,
-          where("digimonInstanceId", "==", digimonInstanceId),
-          orderBy("occurredAt", "asc"),
-          limit(200)
+          where("digimonInstanceId", "==", digimonInstanceId)
         );
         const incidentsSnap = await getDocs(incidentsQuery);
         return incidentsSnap.docs.map((snapshot) => ({
@@ -806,9 +808,9 @@ export async function loadCareMistakeIncidents({
         }));
       })();
 
-  return (Array.isArray(incidents) ? incidents : []).filter((incident) =>
-    !evolutionStageInstanceId || incident.evolutionStageInstanceId === evolutionStageInstanceId
-  );
+  // stage 필터링은 raw 필수 필드 검증과 함께 plan에서 수행한다. 여기서
+  // 누락 stage/timestamp 문서를 버리면 손상을 정상 데이터처럼 숨길 수 있다.
+  return Array.isArray(incidents) ? incidents : [];
 }
 
 /**
@@ -842,7 +844,7 @@ export async function loadCareMistakeReconciliationLogs({
     .map(normalizeLogTimestamp)
     .filter((log) => {
       const timestamp = toEpochMs(log.timestamp);
-      if (stageStartedAt != null && (timestamp == null || timestamp < stageStartedAt)) {
+      if (stageStartedAt != null && timestamp != null && timestamp < stageStartedAt) {
         return false;
       }
       if (log.slotInstanceId && slotInstanceId && log.slotInstanceId !== slotInstanceId) {
@@ -2139,7 +2141,6 @@ export function useGameData({
             loadedCareMistakeIncidents = await loadCareMistakeIncidents({
               slotRef: slotRefForLogs,
               digimonInstanceId: slotData.digimonInstanceId,
-              evolutionStageInstanceId: stageInstanceId,
             });
           } catch (careIncidentError) {
             careIncidentLoadFailed = true;
@@ -2193,10 +2194,7 @@ export function useGameData({
             ...pendingStateActivityLogs,
           ];
           const careReconciliationPlan = buildCareMistakeReconciliationPlan({
-            slotData: {
-              ...slotData,
-              evolutionStageInstanceId: stageInstanceId,
-            },
+            slotData,
             savedStats,
             activityLogs: reconciliationActivityLogLoadFailed
               ? null
@@ -2210,22 +2208,11 @@ export function useGameData({
             slotData,
             savedStats
           );
-          const hasCareEventEvidence =
-            loadedCareMistakeIncidents.length > 0 ||
-            reconciliationActivityLogs.some((log) =>
-              isCareMistakeActivityLog(log) ||
-              isCareMistakeResolutionActivityLog(log)
-            ) ||
-            (savedStats.activityLogs || []).some((log) => isCareMistakeActivityLog(log)) ||
-            pendingActivityLogsForReconciliation.some((log) =>
-              isCareMistakeActivityLog(log)
-            );
           const hasPendingCareTransitions =
             pendingCareTransitions.length > 0 ||
             Boolean(pendingState?.state?.transition?.transitionType);
-          const hasLegacyCareProjection =
-            legacyCareProjection.careMistakes > 0 ||
-            legacyCareProjection.unresolvedCareMistakeCount > 0;
+          const resolvedStageInstanceId =
+            careReconciliationPlan.identity.evolutionStageInstanceId || stageInstanceId;
           const remoteReconciliationStatus =
             slotData.careMistakeReconciliationStatus || null;
           const remoteProjectionMatchesPlan =
@@ -2236,72 +2223,35 @@ export function useGameData({
               careReconciliationPlan.projection.latestUnresolvedCareMistakeIncidentId &&
             legacyCareProjection.latestCareMistakeAt ===
               careReconciliationPlan.projection.latestCareMistakeAt;
+          const careLoadPolicy = resolveCareMistakeLoadPolicy({
+            hasReadFailure:
+              careIncidentLoadFailed ||
+              reconciliationActivityLogLoadFailed ||
+              pendingActivityLogLoadFailed ||
+              pendingCareTransitionLoadFailed ||
+              pendingStateLoadFailed,
+            plan: careReconciliationPlan,
+            hasPendingCareTransitions,
+            remoteReconciliationStatus,
+            remoteProjectionMatchesPlan,
+          });
           let careProjection;
-          if (
-            careIncidentLoadFailed ||
-            reconciliationActivityLogLoadFailed ||
-            pendingActivityLogLoadFailed ||
-            pendingCareTransitionLoadFailed ||
-            pendingStateLoadFailed
-          ) {
+          if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.BLOCK) {
             careProjection = {
               ...legacyCareProjection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
-              evolutionStageInstanceId: stageInstanceId,
+              careMistakeReconciliationStatus: careLoadPolicy.status,
+              evolutionStageInstanceId: resolvedStageInstanceId,
             };
-          } else if (!careReconciliationPlan.canActivateProjection) {
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus: careReconciliationPlan.status,
-              evolutionStageInstanceId: stageInstanceId,
-            };
-          } else if (hasLegacyCareProjection && !hasCareEventEvidence) {
-            // 카운터만 남은 슬롯은 로그로 증명할 수 없으므로 0으로 추측해
-            // 덮어쓰지 않는다. 운영자 reconciliation 대상이다.
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
-              evolutionStageInstanceId: stageInstanceId,
-            };
-          } else if (
-            remoteReconciliationStatus ===
-            CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS
-          ) {
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
-              evolutionStageInstanceId: stageInstanceId,
-            };
-          } else if (
-            remoteReconciliationStatus ===
-            CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS
-          ) {
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
-              evolutionStageInstanceId: stageInstanceId,
-            };
-          } else if (hasPendingCareTransitions) {
+          } else if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.WAIT_FOR_LOCAL) {
             // 로컬 전이가 남아 있으면 서버 로그만으로 projection을 확정하지
             // 않는다. 동일한 로컬 체인의 전이를 먼저 원격에 반영한다.
             careProjection = {
               ...legacyCareProjection,
               careMistakeReconciliationStatus:
                 CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
-              evolutionStageInstanceId: stageInstanceId,
+              evolutionStageInstanceId: resolvedStageInstanceId,
             };
-          } else if (
-            (
-              remoteReconciliationStatus ===
-                CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED &&
-              remoteProjectionMatchesPlan
-            ) ||
-            (!remoteReconciliationStatus && !hasCareEventEvidence)
-          ) {
+          } else if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.ACCEPT_VERIFIED) {
             careProjection = {
               ...careReconciliationPlan.projection,
               careMistakeReconciliationStatus:
@@ -2322,9 +2272,15 @@ export function useGameData({
               slotData = {
                 ...slotData,
                 revision: reconciliationResult.revision,
+                evolutionStageStartedAt:
+                  careReconciliationPlan.recoveredStageStartedAt,
+                evolutionStageInstanceId: resolvedStageInstanceId,
                 ...reconciliationResult.projection,
                 digimonStats: {
                   ...savedStats,
+                  evolutionStageStartedAt:
+                    careReconciliationPlan.recoveredStageStartedAt,
+                  evolutionStageInstanceId: resolvedStageInstanceId,
                   ...reconciliationResult.projection,
                 },
               };
@@ -2334,14 +2290,25 @@ export function useGameData({
               careProjection = {
                 ...legacyCareProjection,
                 careMistakeReconciliationStatus:
-                  CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
-                evolutionStageInstanceId: stageInstanceId,
+                  reconciliationError?.code === "game/reconciliation-in-progress"
+                    ? CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS
+                    : CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
+                evolutionStageInstanceId: resolvedStageInstanceId,
               };
             }
           }
           savedStats = {
             ...savedStats,
             ...careProjection,
+            // incident 정본을 화면용 legacy ledger 형태로만 투영한다.
+            // sanitize 단계에서 제거되므로 활동 로그나 슬롯 정본에 재저장되지 않는다.
+            ...(!careIncidentLoadFailed && careReconciliationPlan.canActivateProjection
+              ? {
+                  careMistakeLedger: buildCareMistakeLedgerFromIncidents(
+                    careReconciliationPlan.incidents
+                  ),
+                }
+              : {}),
           };
 
           // lazy reconstruction 결과는 여기서 단독 로그로 저장하지 않는다.

@@ -57,10 +57,15 @@ function CareMistakeHistory({ entries, formatTimestamp }) {
           ) : (
             sortedEntries.map((entry, index) => {
               const timestamp = toEpochMs(entry.occurredAt);
-              const formattedTime = timestamp
-                ? formatTimestamp(timestamp)
-                : "시간 정보 없음";
-              const isSyncEntry = entry.source === "sync";
+              const isLegacyRecovery =
+                entry.source === "legacy_recovery" ||
+                entry.originalOccurredAtKnown === false;
+              const formattedTime = isLegacyRecovery
+                ? "복구된 기록 · 실제 시각 알 수 없음"
+                : timestamp
+                  ? formatTimestamp(timestamp)
+                  : "시간 정보 없음";
+              const isSyncEntry = entry.source === "sync" || isLegacyRecovery;
 
               return (
                 <div

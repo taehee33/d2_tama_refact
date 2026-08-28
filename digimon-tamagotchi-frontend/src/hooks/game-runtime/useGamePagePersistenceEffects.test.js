@@ -294,13 +294,13 @@ describe("useGamePagePersistenceEffects", () => {
       isLoadingSlot: false,
       immersiveSettings: {
         layoutMode: "landscape",
-        skinId: "tama-mint",
+        skinId: "brick-ver1",
       },
     });
 
     expect(saveImmersiveSettings).toHaveBeenCalledWith({
       layoutMode: "landscape",
-      skinId: "tama-mint",
+      skinId: "brick-ver1",
     });
   });
 

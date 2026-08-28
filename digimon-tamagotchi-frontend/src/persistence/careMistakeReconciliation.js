@@ -24,6 +24,8 @@ import {
 export const CARE_MISTAKE_RECONCILIATION_VERSION = 1;
 export const CARE_MISTAKE_RECONCILIATION_BATCH_SIZE = 50;
 export const CARE_MISTAKE_RECONCILIATION_MAX_INCIDENTS = 400;
+export const CARE_MISTAKE_REPLAY_VERSION = "care-replay-v1";
+export const CARE_MISTAKE_RECONCILIATION_LEASE_MS = 5 * 60 * 1000;
 
 export const CARE_MISTAKE_RECONCILIATION_TRANSITION_TYPE =
   CARE_MISTAKE_TRANSITION_TYPES.RECONCILED;
@@ -45,24 +47,62 @@ function normalizeResolutionLog(log = {}) {
   return text.includes("성공") || text.includes("해소") || text.includes("Care Mistakes");
 }
 
-function getStageStartedAt(slotData = {}, savedStats = {}) {
-  return toEpochMs(
-    slotData.evolutionStageStartedAt ??
-      savedStats.evolutionStageStartedAt ??
-      savedStats.stageStartedAt
-  );
+function normalizeNonEmptyString(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function resolveStageIdentity(slotData = {}, savedStats = {}, digimonInstanceId) {
-  return (
-    slotData.evolutionStageInstanceId ||
-    savedStats.evolutionStageInstanceId ||
-    buildEvolutionStageInstanceId({
-      digimonInstanceId,
-      evolutionStageStartedAt: getStageStartedAt(slotData, savedStats),
-      evolutionStage: slotData.evolutionStage || savedStats.evolutionStage,
-    })
+function getLatestLifeTransitionAt(logs = [], digimonInstanceId = null) {
+  return (Array.isArray(logs) ? logs : []).reduce((latest, log) => {
+    const type = String(log?.type || "").trim().toUpperCase();
+    if (type !== "EVOLUTION" && type !== "NEW_START") return latest;
+    if (
+      log?.digimonInstanceId &&
+      digimonInstanceId &&
+      log.digimonInstanceId !== digimonInstanceId
+    ) return latest;
+    const timestamp = toEpochMs(log?.timestamp);
+    return Number.isSafeInteger(timestamp) ? Math.max(latest ?? timestamp, timestamp) : latest;
+  }, null);
+}
+
+function resolveStageContext({ slotData = {}, savedStats = {}, logs = [] } = {}) {
+  const digimonInstanceId =
+    normalizeNonEmptyString(slotData.digimonInstanceId) ||
+    normalizeNonEmptyString(savedStats.digimonInstanceId);
+  const rootStageIdentity = normalizeNonEmptyString(slotData.evolutionStageInstanceId);
+  const nestedStageIdentity = normalizeNonEmptyString(savedStats.evolutionStageInstanceId);
+  const hasConflictingStageIdentity = Boolean(
+    rootStageIdentity && nestedStageIdentity && rootStageIdentity !== nestedStageIdentity
   );
+  const recoveredStageStartedAt = [
+    slotData.evolutionStageStartedAt,
+    savedStats.evolutionStageStartedAt,
+    savedStats.stageStartedAt,
+    getLatestLifeTransitionAt(logs, digimonInstanceId),
+    savedStats.birthTime,
+    slotData.createdAt,
+  ].map(toEpochMs).find(Number.isSafeInteger) ?? null;
+  const evolutionStage =
+    normalizeNonEmptyString(slotData.evolutionStage) ||
+    normalizeNonEmptyString(savedStats.evolutionStage);
+  const evolutionStageInstanceId = hasConflictingStageIdentity
+    ? null
+    : rootStageIdentity || nestedStageIdentity || (
+      digimonInstanceId && recoveredStageStartedAt != null && evolutionStage
+        ? buildEvolutionStageInstanceId({
+            digimonInstanceId,
+            evolutionStageStartedAt: recoveredStageStartedAt,
+            evolutionStage,
+          })
+        : null
+    );
+  return {
+    digimonInstanceId,
+    evolutionStage,
+    evolutionStageInstanceId,
+    recoveredStageStartedAt,
+    hasConflictingStageIdentity,
+  };
 }
 
 function sortLogs(logs = []) {
@@ -134,7 +174,20 @@ function mergeIncident(existing, candidate) {
   };
 }
 
-function buildChecksum({ identity, incidents, sourceEventIds }) {
+function getReconciliationIncidentMetadata(incident = {}) {
+  return {
+    source: incident.source || null,
+    originalOccurredAtKnown:
+      typeof incident.originalOccurredAtKnown === "boolean"
+        ? incident.originalOccurredAtKnown
+        : null,
+    replayVersion: incident.replayVersion || null,
+    replayBasisHash: incident.replayBasisHash || null,
+    ordinal: Number.isInteger(incident.ordinal) ? incident.ordinal : null,
+  };
+}
+
+function buildChecksum({ identity, incidents, sourceEventIds, recoveryBasis }) {
   const canonical = JSON.stringify({
     identity,
     incidents: sortCareMistakeIncidents(incidents).map((incident) => ({
@@ -144,8 +197,12 @@ function buildChecksum({ identity, incidents, sourceEventIds }) {
       status: incident.status,
       resolvedAt: incident.resolvedAt,
       resolvedBy: incident.resolvedBy,
+      ...getReconciliationIncidentMetadata(
+        incidents.find((candidate) => candidate.incidentId === incident.incidentId)
+      ),
     })),
     sourceEventIds: [...sourceEventIds].sort(),
+    recoveryBasis,
   });
   return `care-reconcile:${hashText(canonical)}`;
 }
@@ -158,8 +215,60 @@ function buildBatchChecksum(identity, incidents) {
       status: incident.status,
       resolvedAt: incident.resolvedAt,
       previousUnresolvedIncidentId: incident.previousUnresolvedIncidentId,
+      ...getReconciliationIncidentMetadata(incident),
     })),
   }))}`;
+}
+
+function collectLegacyCounterCandidates(slotData = {}, savedStats = {}) {
+  const candidates = [];
+  [
+    ["root.careMistakes", slotData, "careMistakes"],
+    ["root.unresolvedCareMistakeCount", slotData, "unresolvedCareMistakeCount"],
+    ["stats.careMistakes", savedStats, "careMistakes"],
+    ["stats.unresolvedCareMistakeCount", savedStats, "unresolvedCareMistakeCount"],
+  ].forEach(([source, container, key]) => {
+    if (!Object.prototype.hasOwnProperty.call(container || {}, key)) return;
+    candidates.push({ source, value: container[key] });
+  });
+  return candidates;
+}
+
+function buildLegacyRecoveryIncident({
+  identity,
+  recoveredStageStartedAt,
+  replayBasisHash,
+  syntheticOrderingBase,
+  ordinal,
+} = {}) {
+  const canonical = JSON.stringify([
+    "legacy-recovery-v1",
+    identity.slotInstanceId,
+    identity.digimonInstanceId,
+    identity.evolutionStageInstanceId,
+    recoveredStageStartedAt,
+    replayBasisHash,
+    ordinal,
+  ]);
+  const occurredAt = syntheticOrderingBase + ordinal;
+  return {
+    incidentId: `care:legacy-recovery:${ordinal}:${hashText(canonical)}`,
+    transitionId: null,
+    eventId: null,
+    ...identity,
+    occurredAt,
+    reasonKey: "legacy_recovery",
+    text: "복구된 케어미스 기록",
+    status: "unresolved",
+    resolvedAt: null,
+    resolvedBy: null,
+    previousUnresolvedIncidentId: null,
+    source: "legacy_recovery",
+    originalOccurredAtKnown: false,
+    replayVersion: CARE_MISTAKE_REPLAY_VERSION,
+    replayBasisHash,
+    ordinal,
+  };
 }
 
 export function buildCareMistakeReconciliationBatches(plan, {
@@ -206,6 +315,7 @@ export async function stageCareMistakeReconciliationBatches({
   getDocument = getDoc,
   createWriteBatch = writeBatch,
   stagedAtValue,
+  ownerAttemptId = null,
 } = {}) {
   if (!db || !slotRef || !transitionId) {
     throw new TypeError("reconciliation staging 저장 정보가 필요합니다.");
@@ -238,6 +348,9 @@ export async function stageCareMistakeReconciliationBatches({
       transitionId,
       ...plan.identity,
       checksum: plan.checksum,
+      replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
+      replayBasisHash: plan.replayBasisHash,
+      ...(ownerAttemptId ? { ownerAttemptId } : {}),
       incidentCount: plan.incidents.length,
       batchCount: batches.length,
       status: "staging",
@@ -262,6 +375,9 @@ export async function stageCareMistakeReconciliationBatches({
   finalWriter.set(runRef, {
     status: "ready",
     checksum: plan.checksum,
+    replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
+    replayBasisHash: plan.replayBasisHash,
+    ...(ownerAttemptId ? { ownerAttemptId } : {}),
     incidentCount: plan.incidents.length,
     batchCount: batches.length,
     stagedBatchCount,
@@ -316,6 +432,93 @@ export function buildCareMistakeReconciliationTransitionId({
   }))}`;
 }
 
+export function createCareMistakeReconciliationOwnerAttemptId() {
+  const randomId =
+    typeof window !== "undefined" && typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+  return `care-reconciliation-attempt:${randomId}`;
+}
+
+export async function acquireCareMistakeReconciliationLease({
+  db,
+  runRef,
+  transitionId,
+  plan,
+  ownerAttemptId,
+  nowMs = Date.now(),
+  leaseMs = CARE_MISTAKE_RECONCILIATION_LEASE_MS,
+  runTransaction = firestoreRunTransaction,
+  updatedAtValue,
+} = {}) {
+  if (
+    !db ||
+    !runRef ||
+    !transitionId ||
+    !plan?.canActivateProjection ||
+    !normalizeNonEmptyString(ownerAttemptId) ||
+    !Number.isSafeInteger(nowMs) ||
+    !Number.isSafeInteger(leaseMs) ||
+    leaseMs < 1
+  ) {
+    throw new TypeError("reconciliation lease 인수가 올바르지 않습니다.");
+  }
+
+  return runTransaction(db, async (transaction) => {
+    const runSnapshot = await transaction.get(runRef);
+    const existing = runSnapshot.exists() ? runSnapshot.data() || {} : null;
+    if (existing?.checksum && existing.checksum !== plan.checksum) {
+      const error = new Error("기존 reconciliation run의 checksum이 다릅니다.");
+      error.code = "game/reconciliation-run-conflict";
+      throw error;
+    }
+    if (existing?.status === "ready" || existing?.status === "committed") {
+      return {
+        acquired: true,
+        resumed: true,
+        existingStatus: existing.status,
+        runRef,
+      };
+    }
+
+    const existingOwner = normalizeNonEmptyString(existing?.ownerAttemptId);
+    const existingUpdatedAt = toEpochMs(existing?.updatedAt);
+    const activeOtherOwner = Boolean(
+      existingOwner &&
+      existingOwner !== ownerAttemptId &&
+      Number.isSafeInteger(existingUpdatedAt) &&
+      nowMs - existingUpdatedAt >= 0 &&
+      nowMs - existingUpdatedAt < leaseMs
+    );
+    if (activeOtherOwner) {
+      return {
+        acquired: false,
+        ownerAttemptId: existingOwner,
+        retryAt: existingUpdatedAt + leaseMs,
+        runRef,
+      };
+    }
+
+    transaction.set(runRef, {
+      schemaVersion: 1,
+      transitionId,
+      ...plan.identity,
+      checksum: plan.checksum,
+      replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
+      replayBasisHash: plan.replayBasisHash,
+      ownerAttemptId,
+      status: "staging",
+      updatedAt: updatedAtValue || serverTimestamp(),
+    }, { merge: true });
+    return {
+      acquired: true,
+      resumed: Boolean(existing),
+      takenOver: Boolean(existingOwner && existingOwner !== ownerAttemptId),
+      runRef,
+    };
+  });
+}
+
 /**
  * 기존 슬롯의 케어미스 로그를 incident로 재생합니다.
  * 기존 careMistakes 값은 감사 결과에만 사용하고 재생 입력으로 사용하지 않습니다.
@@ -329,12 +532,26 @@ export function buildCareMistakeReconciliationPlan({
   nowMs = Date.now(),
 } = {}) {
   const slotInstanceId = slotData.slotInstanceId || savedStats.slotInstanceId || null;
-  const digimonInstanceId = slotData.digimonInstanceId || savedStats.digimonInstanceId || null;
-  const stageStartedAt = getStageStartedAt(slotData, savedStats);
-  const evolutionStageInstanceId = resolveStageIdentity(
+  const inputLogs = [
+    ...(Array.isArray(activityLogs) ? activityLogs : []),
+    ...(Array.isArray(pendingActivityLogs) ? pendingActivityLogs : []),
+  ];
+  const stageContext = resolveStageContext({
     slotData,
     savedStats,
-    digimonInstanceId
+    logs: inputLogs,
+  });
+  const {
+    digimonInstanceId,
+    evolutionStageInstanceId,
+    recoveredStageStartedAt: stageStartedAt,
+    hasConflictingStageIdentity,
+  } = stageContext;
+  const counterCandidates = collectLegacyCounterCandidates(slotData, savedStats);
+  const countersAreValid = counterCandidates.every(({ value }) =>
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= CARE_MISTAKE_RECONCILIATION_MAX_INCIDENTS
   );
   const audit = {
     hasValidSlotInstanceId: typeof slotInstanceId === "string" && slotInstanceId.trim().length > 0,
@@ -343,10 +560,15 @@ export function buildCareMistakeReconciliationPlan({
     hasCurrentStageStartedAt: Number.isFinite(stageStartedAt),
     hasCurrentStageIdentity:
       typeof evolutionStageInstanceId === "string" && evolutionStageInstanceId.trim().length > 0,
+    hasConsistentStageIdentity: !hasConflictingStageIdentity,
     hasReadableActivityLogs: Array.isArray(activityLogs),
     hasInterpretableCareEvents: true,
+    hasInterpretableCurrentIncidents: true,
     hasIncludedPendingEvents: Array.isArray(pendingActivityLogs),
     hasDeduplicableEventIds: true,
+    hasValidLegacyCounters: countersAreValid,
+    hasConsistentLegacyProjection: true,
+    hasSafeSyntheticOrdering: true,
     withinAutomaticIncidentLimit: true,
   };
 
@@ -355,10 +577,7 @@ export function buildCareMistakeReconciliationPlan({
     digimonInstanceId,
     evolutionStageInstanceId,
   });
-  const allLogs = deduplicateLogs([
-    ...(Array.isArray(activityLogs) ? activityLogs : []),
-    ...(Array.isArray(pendingActivityLogs) ? pendingActivityLogs : []),
-  ]);
+  const allLogs = deduplicateLogs(inputLogs);
   const careEvidenceLogs = allLogs.filter(
     (log) => isCareMistakeActivityLog(log) || normalizeResolutionLog(log)
   );
@@ -372,7 +591,6 @@ export function buildCareMistakeReconciliationPlan({
   if (audit.hasReadableActivityLogs && audit.hasCurrentStageStartedAt) {
     sortLogs(allLogs).forEach((log, index) => {
       const timestamp = toEpochMs(log?.timestamp);
-      if (log?.eventId) sourceEventIds.add(log.eventId);
       if (timestamp == null) {
         if (isCareMistakeActivityLog(log) || normalizeResolutionLog(log)) {
           audit.hasInterpretableCareEvents = false;
@@ -381,18 +599,40 @@ export function buildCareMistakeReconciliationPlan({
       }
       if (timestamp < stageStartedAt) return;
       if (isCareMistakeActivityLog(log)) {
+        if (log?.eventId) sourceEventIds.add(log.eventId);
         careLogs.push({ log, index });
       } else if (normalizeResolutionLog(log)) {
+        if (log?.eventId) sourceEventIds.add(log.eventId);
         resolutionLogs.push({ log, index });
       }
     });
   }
 
-  const currentIncidents = sortCareMistakeIncidents(incidents).filter(
-    (incident) =>
-      incident.slotInstanceId === identity.slotInstanceId &&
-      incident.digimonInstanceId === identity.digimonInstanceId &&
-      incident.evolutionStageInstanceId === identity.evolutionStageInstanceId
+  const currentIncidents = [];
+  (Array.isArray(incidents) ? incidents : []).forEach((incident) => {
+    const rawLifeId = normalizeNonEmptyString(incident?.digimonInstanceId);
+    const rawStageId = normalizeNonEmptyString(incident?.evolutionStageInstanceId);
+    if (rawLifeId && rawLifeId !== identity.digimonInstanceId) return;
+    if (rawStageId && rawStageId !== identity.evolutionStageInstanceId) return;
+    const normalized = normalizeCareMistakeIncident(incident);
+    if (
+      !normalized ||
+      normalized.slotInstanceId !== identity.slotInstanceId ||
+      normalized.digimonInstanceId !== identity.digimonInstanceId ||
+      normalized.evolutionStageInstanceId !== identity.evolutionStageInstanceId ||
+      !Number.isSafeInteger(normalized.occurredAt)
+    ) {
+      audit.hasInterpretableCurrentIncidents = false;
+      return;
+    }
+    currentIncidents.push({
+      ...normalized,
+      ...getReconciliationIncidentMetadata(incident),
+    });
+  });
+  currentIncidents.sort((left, right) =>
+    left.occurredAt - right.occurredAt ||
+    String(left.incidentId).localeCompare(String(right.incidentId))
   );
   const incidentMap = new Map(currentIncidents.map((incident) => [incident.incidentId, incident]));
 
@@ -405,9 +645,12 @@ export function buildCareMistakeReconciliationPlan({
     incidentMap.set(candidate.incidentId, mergeIncident(incidentMap.get(candidate.incidentId), candidate));
   });
 
-  const replayedIncidents = sortCareMistakeIncidents(Array.from(incidentMap.values()));
-  audit.withinAutomaticIncidentLimit =
-    replayedIncidents.length <= CARE_MISTAKE_RECONCILIATION_MAX_INCIDENTS;
+  // normalizeCareMistakeIncident 기반 공용 sorter는 core 필드만 반환하므로
+  // legacy recovery metadata를 잃는다. 이미 정규화한 incident를 직접 정렬한다.
+  const replayedIncidents = Array.from(incidentMap.values()).sort((left, right) =>
+    left.occurredAt - right.occurredAt ||
+    String(left.incidentId).localeCompare(String(right.incidentId))
+  );
   const resolutionOperations = [];
   resolutionLogs.forEach(({ log }) => {
     const unresolved = replayedIncidents.filter((incident) => incident.status === "unresolved");
@@ -422,6 +665,58 @@ export function buildCareMistakeReconciliationPlan({
       resolutionOperations.push({ incidentId: target.incidentId, resolvedAt, resolvedBy: "play_or_snack" });
     }
   });
+
+  const replayedUnresolved = replayedIncidents.filter(
+    (incident) => incident.status === "unresolved"
+  );
+  const replayedUnresolvedCount = replayedUnresolved.length;
+  const preservedCount = counterCandidates.length
+    ? Math.max(...counterCandidates.map(({ value }) =>
+        Number.isInteger(value) ? value : 0
+      ))
+    : replayedUnresolvedCount;
+  const legacyRecoveryCount = preservedCount - replayedUnresolvedCount;
+  audit.hasConsistentLegacyProjection = legacyRecoveryCount >= 0;
+  const recoveryBasis = {
+    replayVersion: CARE_MISTAKE_REPLAY_VERSION,
+    preservedCount,
+    replayedUnresolvedIncidentIds: replayedUnresolved
+      .map((incident) => incident.incidentId)
+      .sort(),
+    legacyRecoveryCount,
+  };
+  const replayBasisHash = `care-replay-basis:${hashText(JSON.stringify(recoveryBasis))}`;
+  const syntheticOrderingBase = Math.max(
+    Number.isSafeInteger(stageStartedAt) ? stageStartedAt - 1 : Number.NaN,
+    ...replayedUnresolved.map((incident) => incident.occurredAt)
+  );
+  if (
+    legacyRecoveryCount > 0 &&
+    (!Number.isSafeInteger(syntheticOrderingBase) ||
+      !Number.isSafeInteger(syntheticOrderingBase + legacyRecoveryCount))
+  ) {
+    audit.hasSafeSyntheticOrdering = false;
+  }
+
+  const validBeforeRecovery = Object.values(audit).every(Boolean);
+  if (validBeforeRecovery && legacyRecoveryCount > 0) {
+    for (let ordinal = 1; ordinal <= legacyRecoveryCount; ordinal += 1) {
+      const recoveryIncident = buildLegacyRecoveryIncident({
+        identity,
+        recoveredStageStartedAt: stageStartedAt,
+        replayBasisHash,
+        syntheticOrderingBase,
+        ordinal,
+      });
+      replayedIncidents.push(recoveryIncident);
+    }
+    replayedIncidents.sort((left, right) =>
+      left.occurredAt - right.occurredAt ||
+      String(left.incidentId).localeCompare(String(right.incidentId))
+    );
+  }
+  audit.withinAutomaticIncidentLimit =
+    replayedIncidents.length <= CARE_MISTAKE_RECONCILIATION_MAX_INCIDENTS;
 
   // 최종 unresolved 집합을 기준으로 head 연결을 다시 만든다. 특히 레거시
   // 로그에서 새로 만든 incident는 이 링크가 있어야 이후 교감 해소가
@@ -438,7 +733,12 @@ export function buildCareMistakeReconciliationPlan({
     ? CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED
     : CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS;
   const projection = deriveCareMistakeProjection({ incidents: replayedIncidents, identity });
-  const checksum = buildChecksum({ identity, incidents: replayedIncidents, sourceEventIds });
+  const checksum = buildChecksum({
+    identity,
+    incidents: replayedIncidents,
+    sourceEventIds,
+    recoveryBasis,
+  });
   const occurrenceOperations = careLogs
     .map(({ log, index }) => buildIncidentFromLog(log, identity, index))
     .filter(Boolean)
@@ -473,6 +773,9 @@ export function buildCareMistakeReconciliationPlan({
       ...operation,
     }))],
     sourceEventIds: Array.from(sourceEventIds),
+    recoveredStageStartedAt: stageStartedAt,
+    recoveryBasis,
+    replayBasisHash,
     checksum,
     generatedAt: toEpochMs(nowMs) ?? Date.now(),
     canActivateProjection: status === CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED,
@@ -519,6 +822,9 @@ export async function commitCareMistakeReconciliation({
   baseRevision,
   runTransaction = firestoreRunTransaction,
   stageBatches = stageCareMistakeReconciliationBatches,
+  acquireLease = acquireCareMistakeReconciliationLease,
+  ownerAttemptId = createCareMistakeReconciliationOwnerAttemptId(),
+  leaseNowMs = Date.now(),
   committedAtValue,
 } = {}) {
   if (!db || !slotRef || !plan?.canActivateProjection) {
@@ -536,7 +842,24 @@ export async function commitCareMistakeReconciliation({
     plan,
   });
   const transitionRef = doc(collection(slotRef, "gameTransitions"), transitionId);
-  await stageBatches({ db, slotRef, plan, transitionId });
+  const runRef = doc(collection(slotRef, "careMistakeReconciliations"), transitionId);
+  const lease = await acquireLease({
+    db,
+    runRef,
+    transitionId,
+    plan,
+    ownerAttemptId,
+    nowMs: leaseNowMs,
+  });
+  if (!lease?.acquired) {
+    const error = new Error("다른 기기에서 케어미스 기록을 확인하고 있습니다.");
+    error.code = "game/reconciliation-in-progress";
+    error.retryAt = lease?.retryAt ?? null;
+    throw error;
+  }
+  if (lease.existingStatus !== "ready" && lease.existingStatus !== "committed") {
+    await stageBatches({ db, slotRef, plan, transitionId, ownerAttemptId });
+  }
   const incidentRefs = new Map(
     plan.incidents.map((incident) => [
       incident.incidentId,
@@ -651,11 +974,13 @@ export async function commitCareMistakeReconciliation({
     const nextStats = {
       ...(slotData.digimonStats || {}),
       ...projection,
+      evolutionStageStartedAt: plan.recoveredStageStartedAt,
     };
     delete nextStats.careMistakeLedger;
     const slotUpdate = {
       digimonStats: nextStats,
       ...projection,
+      evolutionStageStartedAt: plan.recoveredStageStartedAt,
       careMistakeReconciliationChecksum: plan.checksum,
       lastGameTransitionId: transitionId,
       revision: nextRevision,
@@ -691,9 +1016,18 @@ export async function commitCareMistakeReconciliation({
       resultingStateHash: plan.checksum,
       requestFingerprint,
       projection,
+      replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
+      replayBasisHash: plan.replayBasisHash,
+      recoveryBasis: plan.recoveryBasis,
       reconciliationVersion: CARE_MISTAKE_RECONCILIATION_VERSION,
       committedAt: committedAtValue || serverTimestamp(),
     });
+    transaction.set(runRef, {
+      ownerAttemptId,
+      status: "committed",
+      resultRevision: nextRevision,
+      updatedAt: committedAtValue || serverTimestamp(),
+    }, { merge: true });
 
     return {
       transitionId,

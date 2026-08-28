@@ -9,6 +9,7 @@ import {
 } from "./useDurableGamePersistence";
 
 const mockRunTransaction = jest.fn();
+const mockCommitGameTransition = jest.fn();
 const TEST_SLOT_INSTANCE_ID = "slot-instance-1";
 const TEST_DIGIMON_INSTANCE_ID = "digimon-instance-1";
 const TEST_PERSISTENCE_IDENTITY = Object.freeze({
@@ -27,6 +28,11 @@ jest.mock("firebase/firestore", () => ({
 }));
 
 jest.mock("../../firebase", () => ({ db: "DB" }));
+
+jest.mock("../../persistence/careMistakeTransition", () => ({
+  ...jest.requireActual("../../persistence/careMistakeTransition"),
+  commitGameTransition: (...args) => mockCommitGameTransition(...args),
+}));
 
 function createMemoryOutbox(order) {
   let stateRecord = null;
@@ -645,6 +651,54 @@ describe("useDurableGamePersistence", () => {
 
     expect(mockRunTransaction).toHaveBeenCalledTimes(1);
     expect(result.current.stateSyncError).toContain("이전 대기 항목");
+  });
+
+  test("Firestore 검증 commit 성공 후 IndexedDB cleanup 실패여도 playable을 유지한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    outbox.deleteStateMutation = jest.fn().mockResolvedValue(false);
+    mockCommitGameTransition.mockResolvedValue({
+      revision: 1,
+      idempotent: false,
+      projection: {
+        careMistakes: 1,
+        unresolvedCareMistakeCount: 1,
+        latestUnresolvedCareMistakeIncidentId: "incident-1",
+        latestCareMistakeAt: 100,
+        careMistakeSchemaVersion: 1,
+        careMistakeReconciliationVersion: 1,
+        careMistakeReconciliationStatus: "verified",
+        evolutionStageInstanceId: "stage-1",
+      },
+    });
+    const params = createHookParams(outbox);
+    params.persistenceAccessRef.current.careMistakeReconciliationStatus = "in_progress";
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: {
+          fullness: 5,
+          evolutionStageInstanceId: "stage-1",
+        },
+        nowMs: 500,
+        commandId: "care-commit-cleanup-failure",
+        allowCareTransition: true,
+        transition: {
+          transitionType: "CARE_MISTAKE_OCCURRED",
+          evolutionStageInstanceId: "stage-1",
+          reasonKey: "hunger_call",
+          occurredAt: 100,
+        },
+      });
+    });
+
+    expect(receipt).toMatchObject({ status: "synced", localCleanup: "failed" });
+    expect(params.persistenceAccessRef.current.careMistakeReconciliationStatus).toBe(
+      "verified"
+    );
+    expect(params.setDigimonStats).toHaveBeenCalled();
+    expect(result.current.canStartGameplayWrite()).toBe(true);
   });
 
   test("같은 generation의 저장 A·B는 실행 시점 최신 revision으로 연속 커밋한다", async () => {
