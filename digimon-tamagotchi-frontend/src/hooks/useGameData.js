@@ -32,6 +32,7 @@ import {
 import {
   CARE_MISTAKE_LOAD_ACTION,
   resolveCareMistakeLoadPolicy,
+  resolveCareMistakeReconciliationRetryDelay,
 } from "./game-persistence/careMistakeLoadPolicy";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
@@ -2039,6 +2040,8 @@ export function useGameData({
   useEffect(() => {
     if (!slotId) return;
 
+    let reconciliationRetryTimerId = null;
+
     const nextLoadAccess = createNextSlotLoadAccess(persistenceAccessRef.current);
     const generation = nextLoadAccess.generation;
     updatePersistenceAccess(nextLoadAccess);
@@ -2287,6 +2290,20 @@ export function useGameData({
               careProjection = reconciliationResult.projection;
             } catch (reconciliationError) {
               console.warn("케어미스 reconciliation 커밋 오류:", reconciliationError);
+              if (reconciliationError?.code === "game/reconciliation-in-progress") {
+                const retryDelay = resolveCareMistakeReconciliationRetryDelay(
+                  reconciliationError.retryAt
+                );
+                if (retryDelay != null) {
+                  reconciliationRetryTimerId = setTimeout(() => {
+                    if (!isCurrentSlotLoadRequest(
+                      persistenceAccessRef.current,
+                      generation
+                    )) return;
+                    setSlotLoadRetryRevision((revision) => revision + 1);
+                  }, retryDelay);
+                }
+              }
               careProjection = {
                 ...legacyCareProjection,
                 careMistakeReconciliationStatus:
@@ -2519,6 +2536,9 @@ export function useGameData({
 
     loadSlot();
     return () => {
+      if (reconciliationRetryTimerId != null) {
+        clearTimeout(reconciliationRetryTimerId);
+      }
       if (isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) {
         persistenceAccessRef.current = {
           ...persistenceAccessRef.current,

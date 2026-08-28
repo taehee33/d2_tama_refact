@@ -8,6 +8,20 @@ export const CARE_MISTAKE_LOAD_ACTION = Object.freeze({
 });
 
 /**
+ * 다른 기기의 reconciliation lease가 끝난 직후 슬롯을 다시 읽기 위한 지연값입니다.
+ * Firestore에서 받은 절대 시각만 사용하며 잘못된 값은 자동 재시도하지 않습니다.
+ */
+export function resolveCareMistakeReconciliationRetryDelay(
+  retryAt,
+  nowMs = Date.now()
+) {
+  if (!Number.isSafeInteger(retryAt) || !Number.isSafeInteger(nowMs)) {
+    return null;
+  }
+  return Math.max(0, retryAt - nowMs);
+}
+
+/**
  * 슬롯 로드 중 케어미스 정합성 처리 방향만 결정하는 순수 정책입니다.
  * 원격의 오래된 ambiguous/in_progress 문자열은 영구 차단 근거로 쓰지 않고,
  * 실제 활성 작업 여부는 reconciliation lease가 판정합니다.

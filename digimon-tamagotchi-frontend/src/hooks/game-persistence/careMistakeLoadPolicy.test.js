@@ -1,6 +1,7 @@
 import {
   CARE_MISTAKE_LOAD_ACTION,
   resolveCareMistakeLoadPolicy,
+  resolveCareMistakeReconciliationRetryDelay,
 } from "./careMistakeLoadPolicy";
 
 function verifiedPlan(legacyRecoveryCount = 0) {
@@ -49,4 +50,10 @@ test("읽기 실패와 손상 plan은 쓰지 않고 차단한다", () => {
   expect(resolveCareMistakeLoadPolicy({
     plan: { canActivateProjection: false, status: "ambiguous" },
   }).action).toBe(CARE_MISTAKE_LOAD_ACTION.BLOCK);
+});
+
+test("활성 reconciliation lease 만료 시각을 자동 재시도 지연으로 변환한다", () => {
+  expect(resolveCareMistakeReconciliationRetryDelay(10_000, 7_500)).toBe(2_500);
+  expect(resolveCareMistakeReconciliationRetryDelay(7_000, 7_500)).toBe(0);
+  expect(resolveCareMistakeReconciliationRetryDelay(null, 7_500)).toBeNull();
 });

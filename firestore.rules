@@ -418,7 +418,23 @@ service cloud.firestore {
             request.resource.data.replayBasisHash is string &&
             request.resource.data.ordinal is int &&
             request.resource.data.ordinal >= 1 &&
-            request.resource.data.ordinal <= 400
+            request.resource.data.ordinal <= 400 &&
+            hasAfterTransitionForSlot(userId, slotId) &&
+            getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.transitionType == "CARE_MISTAKE_RECONCILED" &&
+            getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.replayBasisHash is string &&
+            request.resource.data.replayBasisHash == getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.replayBasisHash
           )
         ) &&
         request.resource.data.occurredAt is int &&

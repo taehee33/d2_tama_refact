@@ -2,10 +2,8 @@ import { toEpochMs } from "../utils/time";
 import {
   collection,
   doc,
-  getDoc,
   runTransaction as firestoreRunTransaction,
   serverTimestamp,
-  writeBatch,
 } from "firebase/firestore";
 import {
   CARE_MISTAKE_RECONCILIATION_STATUS,
@@ -66,9 +64,14 @@ function getLatestLifeTransitionAt(logs = [], digimonInstanceId = null) {
 }
 
 function resolveStageContext({ slotData = {}, savedStats = {}, logs = [] } = {}) {
-  const digimonInstanceId =
-    normalizeNonEmptyString(slotData.digimonInstanceId) ||
-    normalizeNonEmptyString(savedStats.digimonInstanceId);
+  const rootDigimonIdentity = normalizeNonEmptyString(slotData.digimonInstanceId);
+  const nestedDigimonIdentity = normalizeNonEmptyString(savedStats.digimonInstanceId);
+  const digimonInstanceId = rootDigimonIdentity || nestedDigimonIdentity;
+  const hasConflictingDigimonIdentity = Boolean(
+    rootDigimonIdentity &&
+    nestedDigimonIdentity &&
+    rootDigimonIdentity !== nestedDigimonIdentity
+  );
   const rootStageIdentity = normalizeNonEmptyString(slotData.evolutionStageInstanceId);
   const nestedStageIdentity = normalizeNonEmptyString(savedStats.evolutionStageInstanceId);
   const hasConflictingStageIdentity = Boolean(
@@ -101,6 +104,7 @@ function resolveStageContext({ slotData = {}, savedStats = {}, logs = [] } = {})
     evolutionStage,
     evolutionStageInstanceId,
     recoveredStageStartedAt,
+    hasConflictingDigimonIdentity,
     hasConflictingStageIdentity,
   };
 }
@@ -131,6 +135,27 @@ function deduplicateLogs(logs = []) {
     const key = stableKey || `unstable:${index}`;
     if (seen.has(key)) return false;
     seen.add(key);
+    return true;
+  });
+}
+
+function hasConsistentDuplicateEventIds(logs = []) {
+  const fingerprints = new Map();
+  return logs.every((log) => {
+    const eventId = normalizeNonEmptyString(log?.eventId);
+    if (!eventId) return true;
+    const fingerprint = JSON.stringify({
+      type: String(log?.type || "").trim().toUpperCase(),
+      timestamp: toEpochMs(log?.timestamp),
+      text: String(log?.text || ""),
+      reasonKey: normalizeNonEmptyString(log?.reasonKey),
+      slotInstanceId: normalizeNonEmptyString(log?.slotInstanceId),
+      digimonInstanceId: normalizeNonEmptyString(log?.digimonInstanceId),
+      evolutionStageInstanceId: normalizeNonEmptyString(log?.evolutionStageInstanceId),
+    });
+    const existing = fingerprints.get(eventId);
+    if (existing != null && existing !== fingerprint) return false;
+    fingerprints.set(eventId, fingerprint);
     return true;
   });
 }
@@ -312,8 +337,7 @@ export async function stageCareMistakeReconciliationBatches({
   slotRef,
   plan,
   transitionId,
-  getDocument = getDoc,
-  createWriteBatch = writeBatch,
+  runTransaction = firestoreRunTransaction,
   stagedAtValue,
   ownerAttemptId = null,
 } = {}) {
@@ -323,67 +347,86 @@ export async function stageCareMistakeReconciliationBatches({
   const batches = buildCareMistakeReconciliationBatches(plan);
   const runRef = doc(collection(slotRef, "careMistakeReconciliations"), transitionId);
   let stagedBatchCount = 0;
+  const assertRunOwner = (runSnapshot) => {
+    if (!ownerAttemptId || !runSnapshot.exists()) return;
+    const runData = runSnapshot.data() || {};
+    const existingOwner = normalizeNonEmptyString(runData.ownerAttemptId);
+    if (existingOwner && existingOwner !== ownerAttemptId) {
+      const error = new Error("reconciliation lease 소유자가 변경되었습니다.");
+      error.code = "game/reconciliation-owner-conflict";
+      throw error;
+    }
+    if (runData.checksum && runData.checksum !== plan.checksum) {
+      const error = new Error("기존 reconciliation run의 checksum이 다릅니다.");
+      error.code = "game/reconciliation-run-conflict";
+      throw error;
+    }
+  };
 
   for (const batch of batches) {
     const batchRef = doc(collection(runRef, "batches"), batch.batchId);
-    const existingSnapshot = await getDocument(batchRef);
-    if (existingSnapshot.exists()) {
-      const existing = existingSnapshot.data() || {};
-      if (
-        existing.checksum !== batch.checksum ||
-        existing.incidentCount !== batch.incidentCount
-      ) {
-        const error = new Error("기존 reconciliation staging batch의 checksum이 다릅니다.");
-        error.code = "game/reconciliation-staging-conflict";
-        error.batchId = batch.batchId;
-        throw error;
+    await runTransaction(db, async (transaction) => {
+      const runSnapshot = await transaction.get(runRef);
+      const existingSnapshot = await transaction.get(batchRef);
+      assertRunOwner(runSnapshot);
+      if (existingSnapshot.exists()) {
+        const existing = existingSnapshot.data() || {};
+        if (
+          existing.checksum !== batch.checksum ||
+          existing.incidentCount !== batch.incidentCount
+        ) {
+          const error = new Error("기존 reconciliation staging batch의 checksum이 다릅니다.");
+          error.code = "game/reconciliation-staging-conflict";
+          error.batchId = batch.batchId;
+          throw error;
+        }
+        // stale owner가 남긴 동일 checksum batch는 새 lease owner가 재사용한다.
+        return;
       }
-      stagedBatchCount += 1;
-      continue;
-    }
+      transaction.set(runRef, {
+        schemaVersion: 1,
+        transitionId,
+        ...plan.identity,
+        checksum: plan.checksum,
+        replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
+        replayBasisHash: plan.replayBasisHash,
+        ...(ownerAttemptId ? { ownerAttemptId } : {}),
+        incidentCount: plan.incidents.length,
+        batchCount: batches.length,
+        status: "staging",
+        updatedAt: stagedAtValue || serverTimestamp(),
+      }, { merge: true });
+      transaction.set(batchRef, {
+        schemaVersion: 1,
+        transitionId,
+        batchId: batch.batchId,
+        batchIndex: batch.batchIndex,
+        incidentCount: batch.incidentCount,
+        checksum: batch.checksum,
+        ...(ownerAttemptId ? { ownerAttemptId } : {}),
+        incidentIds: batch.incidents.map((incident) => incident.incidentId),
+        incidents: batch.incidents,
+        stagedAt: stagedAtValue || serverTimestamp(),
+      });
+    });
+    stagedBatchCount += 1;
+  }
 
-    const batchWriter = createWriteBatch(db);
-    batchWriter.set(runRef, {
-      schemaVersion: 1,
-      transitionId,
-      ...plan.identity,
+  await runTransaction(db, async (transaction) => {
+    const runSnapshot = await transaction.get(runRef);
+    assertRunOwner(runSnapshot);
+    transaction.set(runRef, {
+      status: "ready",
       checksum: plan.checksum,
       replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
       replayBasisHash: plan.replayBasisHash,
       ...(ownerAttemptId ? { ownerAttemptId } : {}),
       incidentCount: plan.incidents.length,
       batchCount: batches.length,
-      status: "staging",
+      stagedBatchCount,
       updatedAt: stagedAtValue || serverTimestamp(),
     }, { merge: true });
-    batchWriter.set(batchRef, {
-      schemaVersion: 1,
-      transitionId,
-      batchId: batch.batchId,
-      batchIndex: batch.batchIndex,
-      incidentCount: batch.incidentCount,
-      checksum: batch.checksum,
-      incidentIds: batch.incidents.map((incident) => incident.incidentId),
-      incidents: batch.incidents,
-      stagedAt: stagedAtValue || serverTimestamp(),
-    });
-    await batchWriter.commit();
-    stagedBatchCount += 1;
-  }
-
-  const finalWriter = createWriteBatch(db);
-  finalWriter.set(runRef, {
-    status: "ready",
-    checksum: plan.checksum,
-    replayVersion: plan.recoveryBasis?.replayVersion || CARE_MISTAKE_REPLAY_VERSION,
-    replayBasisHash: plan.replayBasisHash,
-    ...(ownerAttemptId ? { ownerAttemptId } : {}),
-    incidentCount: plan.incidents.length,
-    batchCount: batches.length,
-    stagedBatchCount,
-    updatedAt: stagedAtValue || serverTimestamp(),
-  }, { merge: true });
-  await finalWriter.commit();
+  });
 
   return { runRef, batches, stagedBatchCount };
 }
@@ -531,7 +574,13 @@ export function buildCareMistakeReconciliationPlan({
   pendingActivityLogs = [],
   nowMs = Date.now(),
 } = {}) {
-  const slotInstanceId = slotData.slotInstanceId || savedStats.slotInstanceId || null;
+  const rootSlotIdentity = normalizeNonEmptyString(slotData.slotInstanceId);
+  const nestedSlotIdentity = normalizeNonEmptyString(savedStats.slotInstanceId);
+  const slotInstanceId = rootSlotIdentity || nestedSlotIdentity;
+  const hasConflictingSlotIdentity = Boolean(
+    rootSlotIdentity && nestedSlotIdentity && rootSlotIdentity !== nestedSlotIdentity
+  );
+  const normalizedNowMs = toEpochMs(nowMs);
   const inputLogs = [
     ...(Array.isArray(activityLogs) ? activityLogs : []),
     ...(Array.isArray(pendingActivityLogs) ? pendingActivityLogs : []),
@@ -545,6 +594,7 @@ export function buildCareMistakeReconciliationPlan({
     digimonInstanceId,
     evolutionStageInstanceId,
     recoveredStageStartedAt: stageStartedAt,
+    hasConflictingDigimonIdentity,
     hasConflictingStageIdentity,
   } = stageContext;
   const counterCandidates = collectLegacyCounterCandidates(slotData, savedStats);
@@ -553,21 +603,29 @@ export function buildCareMistakeReconciliationPlan({
     value >= 0 &&
     value <= CARE_MISTAKE_RECONCILIATION_MAX_INCIDENTS
   );
+  const countersAreConsistent = new Set(
+    counterCandidates.map(({ value }) => value)
+  ).size <= 1;
   const audit = {
     hasValidSlotInstanceId: typeof slotInstanceId === "string" && slotInstanceId.trim().length > 0,
     hasValidDigimonInstanceId:
       typeof digimonInstanceId === "string" && digimonInstanceId.trim().length > 0,
-    hasCurrentStageStartedAt: Number.isFinite(stageStartedAt),
+    hasCurrentStageStartedAt:
+      Number.isSafeInteger(stageStartedAt) &&
+      Number.isSafeInteger(normalizedNowMs) &&
+      stageStartedAt <= normalizedNowMs,
     hasCurrentStageIdentity:
       typeof evolutionStageInstanceId === "string" && evolutionStageInstanceId.trim().length > 0,
+    hasConsistentSlotIdentity: !hasConflictingSlotIdentity,
+    hasConsistentDigimonIdentity: !hasConflictingDigimonIdentity,
     hasConsistentStageIdentity: !hasConflictingStageIdentity,
     hasReadableActivityLogs: Array.isArray(activityLogs),
     hasInterpretableCareEvents: true,
     hasInterpretableCurrentIncidents: true,
     hasIncludedPendingEvents: Array.isArray(pendingActivityLogs),
-    hasDeduplicableEventIds: true,
+    hasDeduplicableEventIds: hasConsistentDuplicateEventIds(inputLogs),
     hasValidLegacyCounters: countersAreValid,
-    hasConsistentLegacyProjection: true,
+    hasConsistentLegacyProjection: countersAreConsistent,
     hasSafeSyntheticOrdering: true,
     withinAutomaticIncidentLimit: true,
   };
@@ -581,9 +639,8 @@ export function buildCareMistakeReconciliationPlan({
   const careEvidenceLogs = allLogs.filter(
     (log) => isCareMistakeActivityLog(log) || normalizeResolutionLog(log)
   );
-  audit.hasDeduplicableEventIds = careEvidenceLogs.every(
-    (log) => getStableLogKey(log) != null
-  );
+  audit.hasDeduplicableEventIds = audit.hasDeduplicableEventIds &&
+    careEvidenceLogs.every((log) => getStableLogKey(log) != null);
   const sourceEventIds = new Set();
   const careLogs = [];
   const resolutionLogs = [];
@@ -598,6 +655,12 @@ export function buildCareMistakeReconciliationPlan({
         return;
       }
       if (timestamp < stageStartedAt) return;
+      if (timestamp > normalizedNowMs) {
+        if (isCareMistakeActivityLog(log) || normalizeResolutionLog(log)) {
+          audit.hasInterpretableCareEvents = false;
+        }
+        return;
+      }
       if (isCareMistakeActivityLog(log)) {
         if (log?.eventId) sourceEventIds.add(log.eventId);
         careLogs.push({ log, index });
@@ -620,7 +683,9 @@ export function buildCareMistakeReconciliationPlan({
       normalized.slotInstanceId !== identity.slotInstanceId ||
       normalized.digimonInstanceId !== identity.digimonInstanceId ||
       normalized.evolutionStageInstanceId !== identity.evolutionStageInstanceId ||
-      !Number.isSafeInteger(normalized.occurredAt)
+      !Number.isSafeInteger(normalized.occurredAt) ||
+      normalized.occurredAt < stageStartedAt ||
+      normalized.occurredAt > normalizedNowMs
     ) {
       audit.hasInterpretableCurrentIncidents = false;
       return;
@@ -636,12 +701,21 @@ export function buildCareMistakeReconciliationPlan({
   );
   const incidentMap = new Map(currentIncidents.map((incident) => [incident.incidentId, incident]));
 
+  const replayOrderByIncidentId = new Map();
+  const evidenceEventIdByIncidentId = new Map();
   careLogs.forEach(({ log, index }) => {
     const candidate = buildIncidentFromLog(log, identity, index);
     if (!candidate?.incidentId) {
       audit.hasInterpretableCareEvents = false;
       return;
     }
+    const previousEventId = evidenceEventIdByIncidentId.get(candidate.incidentId);
+    if (previousEventId && previousEventId !== candidate.eventId) {
+      audit.hasDeduplicableEventIds = false;
+      return;
+    }
+    evidenceEventIdByIncidentId.set(candidate.incidentId, candidate.eventId);
+    replayOrderByIncidentId.set(candidate.incidentId, index);
     incidentMap.set(candidate.incidentId, mergeIncident(incidentMap.get(candidate.incidentId), candidate));
   });
 
@@ -652,18 +726,26 @@ export function buildCareMistakeReconciliationPlan({
     String(left.incidentId).localeCompare(String(right.incidentId))
   );
   const resolutionOperations = [];
-  resolutionLogs.forEach(({ log }) => {
-    const unresolved = replayedIncidents.filter((incident) => incident.status === "unresolved");
-    const target = unresolved[unresolved.length - 1];
+  const consumedResolutionEvidence = new Set();
+  resolutionLogs.forEach(({ log, index }) => {
+    const resolvedAt = toEpochMs(log.timestamp);
+    const target = [...replayedIncidents].reverse().find((incident) => {
+      if (consumedResolutionEvidence.has(incident.incidentId)) return false;
+      if (incident.occurredAt > resolvedAt) return false;
+      if (
+        incident.occurredAt === resolvedAt &&
+        (replayOrderByIncidentId.get(incident.incidentId) ?? -1) > index
+      ) return false;
+      return true;
+    });
     if (!target) return;
-    const resolvedAt = toEpochMs(log.timestamp) ?? nowMs;
-    const updated = replayedIncidents.find((incident) => incident.incidentId === target.incidentId);
-    if (updated) {
-      updated.status = "resolved";
-      updated.resolvedAt = resolvedAt;
-      updated.resolvedBy = "play_or_snack";
-      resolutionOperations.push({ incidentId: target.incidentId, resolvedAt, resolvedBy: "play_or_snack" });
-    }
+    consumedResolutionEvidence.add(target.incidentId);
+    // 이미 incident 정본에 반영된 해소 로그는 다시 다음 unresolved에 적용하지 않는다.
+    if (target.status === "resolved") return;
+    target.status = "resolved";
+    target.resolvedAt = resolvedAt;
+    target.resolvedBy = "play_or_snack";
+    resolutionOperations.push({ incidentId: target.incidentId, resolvedAt, resolvedBy: "play_or_snack" });
   });
 
   const replayedUnresolved = replayedIncidents.filter(
@@ -676,7 +758,8 @@ export function buildCareMistakeReconciliationPlan({
       ))
     : replayedUnresolvedCount;
   const legacyRecoveryCount = preservedCount - replayedUnresolvedCount;
-  audit.hasConsistentLegacyProjection = legacyRecoveryCount >= 0;
+  audit.hasConsistentLegacyProjection =
+    audit.hasConsistentLegacyProjection && legacyRecoveryCount >= 0;
   const recoveryBasis = {
     replayVersion: CARE_MISTAKE_REPLAY_VERSION,
     preservedCount,
@@ -909,6 +992,26 @@ export async function commitCareMistakeReconciliation({
       const error = new Error("reconciliation 대상 슬롯 identity가 변경되었습니다.");
       error.code = "game/reconciliation-identity-conflict";
       throw error;
+    }
+
+    const runSnapshot = await transaction.get(runRef);
+    if (runSnapshot.exists()) {
+      const runData = runSnapshot.data() || {};
+      if (
+        runData.checksum && runData.checksum !== plan.checksum
+      ) {
+        const error = new Error("reconciliation run checksum이 변경되었습니다.");
+        error.code = "game/reconciliation-run-conflict";
+        throw error;
+      }
+      if (
+        runData.ownerAttemptId &&
+        runData.ownerAttemptId !== ownerAttemptId
+      ) {
+        const error = new Error("reconciliation lease 소유자가 변경되었습니다.");
+        error.code = "game/reconciliation-owner-conflict";
+        throw error;
+      }
     }
 
     // Firestore transaction의 모든 read를 write보다 먼저 수행합니다.
