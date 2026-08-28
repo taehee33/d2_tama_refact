@@ -72,6 +72,7 @@ import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { mergeAcknowledgedRecentCallIds } from "../utils/callStatusUtils";
 import { fetchOperatorStatus } from "../utils/operatorApi";
 import { persistOperatorStatsPatch } from "../logic/stats/operatorStatsEdit";
+import { CARE_MISTAKE_TRANSITION_TYPES } from "../logic/stats/careMistakeProjection";
 
 const DEFAULT_SEASON_ID = 1;
 const MEAT_SPRITES = ["/images/526.png", "/images/527.png", "/images/528.png", "/images/529.png"];
@@ -415,7 +416,17 @@ function Game({ immersive = false }){
     selectedDigimon,
   ]);
 
-  const isGameplayReady = persistencePhase === "ready" && syncConflict == null;
+  const careMistakeReconciliationStatus =
+    digimonStats?.careMistakeReconciliationStatus ||
+    syncInfo?.careMistakeReconciliationStatus ||
+    null;
+  const isCareMistakeReconciliationBlocked =
+    careMistakeReconciliationStatus &&
+    careMistakeReconciliationStatus !== "verified";
+  const isGameplayReady =
+    persistencePhase === "ready" &&
+    syncConflict == null &&
+    !isCareMistakeReconciliationBlocked;
   const shouldBlockGameRuntime = !isGameplayReady;
 
   const setSelectedDigimonAndSave = useCallback(async (name, options = {}) => {
@@ -869,7 +880,11 @@ function Game({ immersive = false }){
       };
 
       setDigimonStats(updatedStats);
-      setDigimonStatsAndSave(updatedStats).catch((error) => {
+      setDigimonStatsAndSave(updatedStats, null, {
+        transitionType: CARE_MISTAKE_TRANSITION_TYPES.CALL_HISTORY_ACKNOWLEDGED,
+        createdAt: Date.now(),
+        operations: [{ callIds: nextIds }],
+      }).catch((error) => {
         console.warn("[Game] 최근 호출 확인 상태 저장 실패", error);
       });
     },
@@ -1450,6 +1465,20 @@ function Game({ immersive = false }){
       <GameSlotLoadState
         phase="failed"
         error={slotLoadError}
+        onRetry={retrySlotLoad}
+        onBack={() => navigate("/play")}
+      />
+    );
+  }
+
+  if (
+    careMistakeReconciliationStatus &&
+    careMistakeReconciliationStatus !== "verified"
+  ) {
+    return (
+      <GameSlotLoadState
+        phase="reconciliation"
+        reconciliationStatus={careMistakeReconciliationStatus}
         onRetry={retrySlotLoad}
         onBack={() => navigate("/play")}
       />

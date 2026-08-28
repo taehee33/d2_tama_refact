@@ -78,10 +78,380 @@ service cloud.firestore {
             request.resource.data.slotInstanceId == resource.data.slotInstanceId;
     }
 
-    function isArenaSlotUpdateValid() {
+    function isCareProjectionShapeStrict(data) {
+      return data.keys().hasAll([
+          "careMistakes",
+          "unresolvedCareMistakeCount",
+          "latestUnresolvedCareMistakeIncidentId",
+          "latestCareMistakeAt",
+          "careMistakeSchemaVersion",
+          "careMistakeReconciliationVersion",
+          "careMistakeReconciliationStatus",
+          "evolutionStageInstanceId"
+        ]) &&
+        data.careMistakes is int &&
+        data.careMistakes >= 0 &&
+        data.unresolvedCareMistakeCount is int &&
+        data.unresolvedCareMistakeCount >= 0 &&
+        data.careMistakes == data.unresolvedCareMistakeCount &&
+        (data.latestUnresolvedCareMistakeIncidentId == null ||
+          data.latestUnresolvedCareMistakeIncidentId is string) &&
+        data.careMistakeSchemaVersion == 1 &&
+        data.careMistakeReconciliationVersion is int &&
+        data.careMistakeReconciliationVersion >= 1 &&
+        data.careMistakeReconciliationStatus == "verified" &&
+        data.evolutionStageInstanceId is string &&
+        data.evolutionStageInstanceId.size() > 0;
+    }
+
+    function hasCareProjectionFields(data) {
+      return data is map && data.keys().hasAny([
+        "careMistakes",
+        "unresolvedCareMistakeCount",
+        "latestUnresolvedCareMistakeIncidentId",
+        "latestCareMistakeAt",
+        "careMistakeSchemaVersion",
+        "careMistakeReconciliationVersion",
+        "careMistakeReconciliationStatus",
+        "evolutionStageInstanceId"
+      ]);
+    }
+
+    function hasCareProjectionRootUpdateFields(keys) {
+      return keys.hasAny([
+        "careMistakes",
+        "unresolvedCareMistakeCount",
+        "latestUnresolvedCareMistakeIncidentId",
+        "latestCareMistakeAt",
+        "careMistakeSchemaVersion",
+        "careMistakeReconciliationVersion",
+        "careMistakeReconciliationStatus",
+        "evolutionStageInstanceId",
+        "careMistakeReconciliationChecksum",
+        "lastGameTransitionId"
+      ]);
+    }
+
+    function hasCareProjectionNestedUpdateFields(beforeData, afterData) {
+      return beforeData is map && afterData is map &&
+        afterData.diff(beforeData).affectedKeys().hasAny([
+          "careMistakes",
+          "unresolvedCareMistakeCount",
+          "latestUnresolvedCareMistakeIncidentId",
+          "latestCareMistakeAt",
+          "careMistakeSchemaVersion",
+          "careMistakeReconciliationVersion",
+          "careMistakeReconciliationStatus",
+          "evolutionStageInstanceId"
+        ]);
+    }
+
+    function slotPath(userId, slotId) {
+      return /databases/$(database)/documents/users/$(userId)/slots/$(slotId);
+    }
+
+    function gameTransitionPath(userId, slotId, transitionId) {
+      return /databases/$(database)/documents/users/$(userId)/slots/$(slotId)/gameTransitions/$(transitionId);
+    }
+
+    function logPath(userId, slotId, eventId) {
+      return /databases/$(database)/documents/users/$(userId)/slots/$(slotId)/logs/$(eventId);
+    }
+
+    function hasAfterTransitionForSlot(userId, slotId) {
+      return getAfter(slotPath(userId, slotId)).data.lastGameTransitionId is string &&
+        existsAfter(gameTransitionPath(
+          userId,
+          slotId,
+          getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+        ));
+    }
+
+    function hasAfterTransitionEvent(userId, slotId, eventId) {
+      return hasAfterTransitionForSlot(userId, slotId) &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+        )).data.eventIds.hasAny([eventId]);
+    }
+
+    function hasAfterTransitionIncident(userId, slotId, incidentId) {
+      return hasAfterTransitionForSlot(userId, slotId) &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+        )).data.incidentIds.hasAny([incidentId]);
+    }
+
+    function isAllowedGameTransitionType(data) {
+      return data.transitionType == "CARE_MISTAKE_OCCURRED" ||
+        data.transitionType == "CARE_MISTAKE_RESOLVED" ||
+        data.transitionType == "CALL_HISTORY_ACKNOWLEDGED" ||
+        data.transitionType == "FRIDGE_ENTERED" ||
+        data.transitionType == "FRIDGE_EXITED" ||
+        data.transitionType == "CARE_MISTAKE_RECONCILED" ||
+        data.transitionType == "EVOLUTION";
+    }
+
+    function isGameTransitionCreateValid(userId, slotId, transitionId) {
+      return request.resource.data.keys().hasAll([
+          "schemaVersion",
+          "transitionId",
+          "transitionType",
+          "clientInstanceId",
+          "localSequence",
+          "parentTransitionId",
+          "baseRevision",
+          "resultRevision",
+          "slotInstanceId",
+          "digimonInstanceId",
+          "evolutionStageInstanceId",
+          "eventIds",
+          "incidentIds",
+          "resultingStateHash",
+          "projection",
+          "requestFingerprint"
+        ]) &&
+        request.resource.data.schemaVersion == 1 &&
+        request.resource.data.transitionId == transitionId &&
+        request.resource.data.transitionId is string &&
+        isAllowedGameTransitionType(request.resource.data) &&
+        request.resource.data.clientInstanceId is string &&
+        request.resource.data.localSequence is int &&
+        request.resource.data.localSequence >= 0 &&
+        (request.resource.data.parentTransitionId == null ||
+          request.resource.data.parentTransitionId is string) &&
+        request.resource.data.baseRevision is int &&
+        request.resource.data.resultRevision is int &&
+        request.resource.data.resultRevision == request.resource.data.baseRevision + 1 &&
+        request.resource.data.eventIds is list &&
+        request.resource.data.incidentIds is list &&
+        request.resource.data.evolutionStageInstanceId ==
+          getAfter(slotPath(userId, slotId)).data.evolutionStageInstanceId &&
+        request.resource.data.resultingStateHash is string &&
+        request.resource.data.requestFingerprint is string &&
+        request.resource.data.slotInstanceId == getAfter(slotPath(userId, slotId)).data.slotInstanceId &&
+        request.resource.data.digimonInstanceId == getAfter(slotPath(userId, slotId)).data.digimonInstanceId &&
+        request.resource.data.resultRevision == getAfter(slotPath(userId, slotId)).data.revision &&
+        getAfter(slotPath(userId, slotId)).data.lastGameTransitionId == transitionId &&
+        isCareProjectionShapeStrict(request.resource.data.projection);
+    }
+
+    function isEvolutionProjectionResetValid(userId, slotId) {
+      return request.resource.data.keys().hasAll([
+          "lastEvolutionTransitionId",
+          "lastEvolutionEventId"
+        ]) &&
+        isCareProjectionShapeStrict(request.resource.data) &&
+        request.resource.data.revision is int &&
+        resource.data.revision is int &&
+        request.resource.data.revision == resource.data.revision + 1 &&
+        request.resource.data.selectedDigimon is string &&
+        request.resource.data.selectedDigimon != resource.data.selectedDigimon &&
+        request.resource.data.lastEvolutionTransitionId is string &&
+        request.resource.data.lastEvolutionEventId is string &&
+        existsAfter(logPath(
+          userId,
+          slotId,
+          request.resource.data.lastEvolutionEventId
+        )) &&
+        getAfter(logPath(
+          userId,
+          slotId,
+          request.resource.data.lastEvolutionEventId
+        )).data.transitionId == request.resource.data.lastEvolutionTransitionId &&
+        getAfter(logPath(
+          userId,
+          slotId,
+          request.resource.data.lastEvolutionEventId
+        )).data.digimonInstanceId == request.resource.data.digimonInstanceId;
+    }
+
+    function isCareTransitionSlotProjectionValid(userId, slotId) {
+      return isCareProjectionShapeStrict(request.resource.data) &&
+        request.resource.data.revision is int &&
+        resource.data.revision is int &&
+        request.resource.data.revision == resource.data.revision + 1 &&
+        request.resource.data.lastGameTransitionId is string &&
+        hasAfterTransitionForSlot(userId, slotId) &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          request.resource.data.lastGameTransitionId
+        )).data.resultRevision == request.resource.data.revision &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          request.resource.data.lastGameTransitionId
+        )).data.projection is map &&
+        isCareProjectionShapeStrict(getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          request.resource.data.lastGameTransitionId
+        )).data.projection) &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          request.resource.data.lastGameTransitionId
+        )).data.projection.careMistakes == request.resource.data.careMistakes &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          request.resource.data.lastGameTransitionId
+        )).data.projection.unresolvedCareMistakeCount ==
+          request.resource.data.unresolvedCareMistakeCount;
+    }
+
+    function isCareProjectionUpdateValid(userId, slotId) {
+      let affectedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let nestedCareProjectionAffected =
+        (
+          request.resource.data.keys().hasAny(["digimonStats"]) &&
+          request.resource.data.digimonStats is map &&
+          (
+            !resource.data.keys().hasAny(["digimonStats"]) ||
+            !(resource.data.digimonStats is map)
+              ? hasCareProjectionFields(request.resource.data.digimonStats)
+              : hasCareProjectionNestedUpdateFields(
+                  resource.data.digimonStats,
+                  request.resource.data.digimonStats
+                )
+          )
+        ) ||
+        (
+          !request.resource.data.keys().hasAny(["digimonStats"]) &&
+          resource.data.keys().hasAny(["digimonStats"]) &&
+          hasCareProjectionFields(resource.data.digimonStats)
+        );
+      return !hasCareProjectionRootUpdateFields(affectedKeys) &&
+        !nestedCareProjectionAffected
+        ? true
+        : affectedKeys.hasAny(["lastGameTransitionId"])
+          ? request.resource.data.lastGameTransitionId is string &&
+            isCareTransitionSlotProjectionValid(userId, slotId)
+          : affectedKeys.hasAny(["selectedDigimon"])
+            ? isEvolutionProjectionResetValid(userId, slotId)
+            : false;
+    }
+
+    function isArenaSlotUpdateValid(userId, slotId) {
       // bridge 기간에는 아직 backfill되지 않은 legacy slot만 기존 update를 허용한다.
       return isSlotInstanceUpdateValid() &&
-        (!hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid());
+        (!hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid()) &&
+        isCareProjectionUpdateValid(userId, slotId);
+    }
+
+    function isCareMistakeActivityLog(data) {
+      return data.keys().hasAll(["type"]) &&
+        (
+          data.type == "CAREMISTAKE" ||
+          (
+            data.type == "CARE_MISTAKE" && data.text is string &&
+            (data.text.matches(".*케어미스.*") || data.text.matches(".*Care Mistake.*"))
+          )
+        );
+    }
+
+    function isCareMistakeResolutionLog(data) {
+      return data.keys().hasAll(["type"]) &&
+        (
+          data.type == "CARE_MISTAKE_RESOLVED" ||
+          (
+            data.type == "PLAY_OR_SNACK" && data.text is string &&
+            (data.text.matches(".*케어미스.*") || data.text.matches(".*Care Mistakes.*"))
+          )
+        );
+    }
+
+    function isCareMistakeLogAuthorized(userId, slotId, logId) {
+      return request.resource.data.keys().hasAll([
+          "transitionId",
+          "eventId",
+          "slotInstanceId",
+          "digimonInstanceId",
+          "evolutionStageInstanceId"
+        ]) &&
+        request.resource.data.transitionId is string &&
+        request.resource.data.eventId == logId &&
+        request.resource.data.slotInstanceId == getAfter(slotPath(userId, slotId)).data.slotInstanceId &&
+        request.resource.data.digimonInstanceId == getAfter(slotPath(userId, slotId)).data.digimonInstanceId &&
+        request.resource.data.evolutionStageInstanceId == getAfter(slotPath(userId, slotId)).data.evolutionStageInstanceId &&
+        hasAfterTransitionEvent(userId, slotId, logId);
+    }
+
+    function isCareIncidentCreateValid(userId, slotId, incidentId) {
+      return request.resource.data.keys().hasAll([
+          "incidentId",
+          "transitionId",
+          "eventId",
+          "slotInstanceId",
+          "digimonInstanceId",
+          "evolutionStageInstanceId",
+          "occurredAt",
+          "reasonKey",
+          "text",
+          "status",
+          "resolvedAt",
+          "resolvedBy",
+          "previousUnresolvedIncidentId"
+        ]) &&
+        request.resource.data.incidentId == incidentId &&
+        request.resource.data.status == "unresolved" &&
+        request.resource.data.transitionId is string &&
+        request.resource.data.eventId is string &&
+        request.resource.data.occurredAt is int &&
+        request.resource.data.reasonKey is string &&
+        request.resource.data.text is string &&
+        request.resource.data.evolutionStageInstanceId is string &&
+        request.resource.data.resolvedAt == null &&
+        request.resource.data.resolvedBy == null &&
+        (request.resource.data.previousUnresolvedIncidentId == null ||
+          request.resource.data.previousUnresolvedIncidentId is string) &&
+        request.resource.data.slotInstanceId == getAfter(slotPath(userId, slotId)).data.slotInstanceId &&
+        request.resource.data.digimonInstanceId == getAfter(slotPath(userId, slotId)).data.digimonInstanceId &&
+        request.resource.data.evolutionStageInstanceId == getAfter(slotPath(userId, slotId)).data.evolutionStageInstanceId &&
+        request.resource.data.transitionId == getAfter(slotPath(userId, slotId)).data.lastGameTransitionId &&
+        hasAfterTransitionIncident(userId, slotId, incidentId);
+    }
+
+    function isCareIncidentUpdateValid(userId, slotId, incidentId) {
+      let transitionIsReconciliation = hasAfterTransitionForSlot(userId, slotId) &&
+        getAfter(gameTransitionPath(
+          userId,
+          slotId,
+          getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+        )).data.transitionType == "CARE_MISTAKE_RECONCILED";
+      return resource.data.incidentId == incidentId &&
+        request.resource.data.incidentId == incidentId &&
+        resource.data.status == "unresolved" &&
+        request.resource.data.slotInstanceId == resource.data.slotInstanceId &&
+        request.resource.data.digimonInstanceId == resource.data.digimonInstanceId &&
+        request.resource.data.evolutionStageInstanceId == resource.data.evolutionStageInstanceId &&
+        request.resource.data.transitionId == resource.data.transitionId &&
+        (
+          (
+            request.resource.data.status == "resolved" &&
+            request.resource.data.resolvedAt is int &&
+            request.resource.data.resolvedBy is string &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "status",
+              "resolvedAt",
+              "resolvedBy"
+            ])
+          ) ||
+          (
+            transitionIsReconciliation &&
+            request.resource.data.status == "unresolved" &&
+            request.resource.data.resolvedAt == null &&
+            request.resource.data.resolvedBy == null &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "previousUnresolvedIncidentId"
+            ])
+          )
+        ) &&
+        hasAfterTransitionIncident(userId, slotId, incidentId);
     }
 
     // 공식 관리 경계: 사용자 문서와 슬롯/로그
@@ -103,11 +473,42 @@ service cloud.firestore {
       match /slots/{slotId} {
         allow read: if isOwner(userId);
         allow create: if isOwner(userId) && isArenaSlotCreateValid();
-        allow update: if isOwner(userId) && isArenaSlotUpdateValid();
+        allow update: if isOwner(userId) && isArenaSlotUpdateValid(userId, slotId);
         allow delete: if isOwner(userId);
 
         match /logs/{logId} {
-          allow read, write: if isOwner(userId);
+          allow read: if isOwner(userId);
+          allow create, update: if isOwner(userId) &&
+            (!isCareMistakeActivityLog(request.resource.data) &&
+              !isCareMistakeResolutionLog(request.resource.data) ||
+              isCareMistakeLogAuthorized(userId, slotId, logId));
+          allow delete: if isOwner(userId);
+        }
+
+        match /careMistakeIncidents/{incidentId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) &&
+            isCareIncidentCreateValid(userId, slotId, incidentId);
+          allow update: if isOwner(userId) &&
+            isCareIncidentUpdateValid(userId, slotId, incidentId);
+          allow delete: if false;
+        }
+
+        match /gameTransitions/{transitionId} {
+          allow read: if isOwner(userId);
+          allow create: if isOwner(userId) &&
+            isGameTransitionCreateValid(userId, slotId, transitionId);
+          allow update, delete: if false;
+        }
+
+        match /careMistakeReconciliations/{runId} {
+          allow read, create, update: if isOwner(userId);
+          allow delete: if false;
+
+          match /batches/{batchId} {
+            allow read, create, update: if isOwner(userId);
+            allow delete: if false;
+          }
         }
 
         match /battleLogs/{logId} {

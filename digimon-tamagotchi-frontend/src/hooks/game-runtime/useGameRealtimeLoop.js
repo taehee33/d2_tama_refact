@@ -16,7 +16,6 @@ import { handleStrengthTick } from "../../logic/stats/strength";
 import { handleEnergyRecovery } from "../../logic/stats/stats";
 import {
   initializeCareMistakeLedger,
-  repairCareMistakeLedger,
 } from "../../logic/stats/careMistakeLedger";
 import { buildTickPoopInjuryLogs } from "../../logic/stats/injuryHistory";
 import {
@@ -418,14 +417,9 @@ export function useGameRealtimeLoop({
           });
         }
 
-        const repairedPrevStats = repairCareMistakeLedger(
-          prevStats,
-          prevStats.activityLogs || []
-        ).nextStats;
-        const oldCareMistakes = repairedPrevStats.careMistakes || 0;
-        const previousLedger = initializeCareMistakeLedger(
-          repairedPrevStats.careMistakeLedger
-        );
+        const oldCareMistakes =
+          prevStats.unresolvedCareMistakeCount ?? prevStats.careMistakes ?? 0;
+        const previousLedger = initializeCareMistakeLedger(prevStats.careMistakeLedger);
         updatedStats = checkCallTimeouts(
           updatedStats,
           new Date(),
@@ -475,11 +469,8 @@ export function useGameRealtimeLoop({
               entry.occurredAt
             );
             const appendedLog = nextLogs[nextLogs.length - 1];
-            const wasAdded = nextLogs.length > currentLogs.length;
             currentLogs = nextLogs;
-            if (wasAdded && live.appendLogToSubcollection && appendedLog) {
-              live.appendLogToSubcollection(appendedLog).catch(() => {});
-            }
+            void appendedLog;
           });
 
           setActivityLogs(currentLogs);

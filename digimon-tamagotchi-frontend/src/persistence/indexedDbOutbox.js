@@ -1,5 +1,11 @@
+import {
+  TRANSITION_SEQUENCE_STORE,
+  TRANSITION_STORE,
+  createTransitionQueue,
+} from './transitionQueue';
+
 const DEFAULT_DB_NAME = 'd2-tama-outbox';
-const DEFAULT_DB_VERSION = 2;
+const DEFAULT_DB_VERSION = 3;
 const FEED_RETENTION_DAYS = 30;
 const FEED_RETENTION_MAX_COUNT = 5000;
 const FEED_BUCKET_MINUTES = 15;
@@ -94,6 +100,10 @@ export function createIndexedDbStorage(options = {}) {
       const database = await getDatabase();
       return runAtomicStoreUpdate(database, storeName, key, updater);
     },
+    async atomicUpdateMany(operations) {
+      const database = await getDatabase();
+      return runAtomicStoreUpdates(database, operations);
+    },
     async deleteWhere(storeNames, predicate) {
       const database = await getDatabase();
       return runAtomicDeleteWhere(database, storeNames, predicate);
@@ -144,6 +154,8 @@ export function createIndexedDbOutbox(options = {}) {
     }
     return migrationPromise;
   };
+
+  const transitionQueue = createTransitionQueue({ storage, now });
 
   const getScopedEvents = async (category, input) => {
     await ensureMigration();
@@ -233,6 +245,34 @@ export function createIndexedDbOutbox(options = {}) {
   };
 
   return {
+    enqueueTransition(input) {
+      return ensureMigration().then(() => transitionQueue.enqueue(input));
+    },
+
+    getTransition(input) {
+      return ensureMigration().then(() => transitionQueue.get(input));
+    },
+
+    listTransitions(input) {
+      return ensureMigration().then(() => transitionQueue.list(input));
+    },
+
+    getNextTransition(input) {
+      return ensureMigration().then(() => transitionQueue.getNext(input));
+    },
+
+    updateTransitionStatus(input) {
+      return ensureMigration().then(() => transitionQueue.updateStatus(input));
+    },
+
+    blockTransitionChain(input) {
+      return ensureMigration().then(() => transitionQueue.blockFrom(input));
+    },
+
+    discardTransition(input) {
+      return ensureMigration().then(() => transitionQueue.discard(input));
+    },
+
     async putStateMutation(input) {
       await ensureMigration();
       const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
@@ -358,7 +398,7 @@ export function createIndexedDbOutbox(options = {}) {
         identity.slotInstanceId
       );
       return storage.deleteWhere(
-        [STATE_STORE, EVENT_STORE],
+        [STATE_STORE, EVENT_STORE, TRANSITION_STORE, TRANSITION_SEQUENCE_STORE],
         (_storeName, record) => record?.scopeKey === scopeKey
       );
     },
@@ -372,7 +412,7 @@ export function createIndexedDbOutbox(options = {}) {
         identity.slotInstanceId
       );
       return storage.deleteWhere(
-        [STATE_STORE, EVENT_STORE],
+        [STATE_STORE, EVENT_STORE, TRANSITION_STORE],
         (_storeName, record) =>
           record?.scopeKey === scopeKey &&
           record?.digimonInstanceId === identity.digimonInstanceId
@@ -624,6 +664,14 @@ function openDatabase(indexedDBApi, dbName, dbVersion) {
       if (!database.objectStoreNames.contains(QUARANTINE_STORE)) {
         database.createObjectStore(QUARANTINE_STORE, { keyPath: 'quarantineKey' });
       }
+
+      if (!database.objectStoreNames.contains(TRANSITION_STORE)) {
+        database.createObjectStore(TRANSITION_STORE, { keyPath: 'transitionId' });
+      }
+
+      if (!database.objectStoreNames.contains(TRANSITION_SEQUENCE_STORE)) {
+        database.createObjectStore(TRANSITION_SEQUENCE_STORE, { keyPath: 'scopeKey' });
+      }
     };
 
     request.onsuccess = () => {
@@ -740,6 +788,90 @@ function runAtomicStoreUpdate(database, storeName, key, updater) {
     transaction.onabort = () => {
       if (!settled) reject(transaction.error ?? new Error('IndexedDB compare transaction이 중단되었습니다.'));
     };
+  });
+}
+
+function runAtomicStoreUpdates(database, operations) {
+  if (!Array.isArray(operations) || operations.length === 0) {
+    throw new TypeError('atomicUpdateMany operations가 필요합니다.');
+  }
+
+  const storeNames = Array.from(new Set(operations.map((operation) => operation.storeName)));
+  return new Promise((resolve, reject) => {
+    let transaction;
+    let settled = false;
+    let remaining = operations.length;
+    const existingValues = new Array(operations.length);
+    const results = new Array(operations.length);
+
+    const abortWithError = (error) => {
+      if (settled) return;
+      settled = true;
+      try {
+        transaction.abort();
+      } catch (_abortError) {
+        // noop
+      }
+      reject(error);
+    };
+
+    try {
+      transaction = database.transaction(storeNames, 'readwrite');
+      transaction.oncomplete = () => {
+        if (!settled) resolve(results);
+      };
+      transaction.onerror = () => {
+        if (!settled) {
+          settled = true;
+          reject(transaction.error ?? new Error('IndexedDB 다중 store transaction이 실패했습니다.'));
+        }
+      };
+      transaction.onabort = () => {
+        if (!settled) {
+          settled = true;
+          reject(transaction.error ?? new Error('IndexedDB 다중 store transaction이 중단되었습니다.'));
+        }
+      };
+
+      operations.forEach((operation, index) => {
+        if (typeof operation?.updater !== 'function') {
+          throw new TypeError('atomicUpdateMany updater가 필요합니다.');
+        }
+        const store = transaction.objectStore(operation.storeName);
+        const request = store.get(operation.key);
+        request.onsuccess = () => {
+          if (settled) return;
+          existingValues[index] = clonePlainData(request.result ?? null);
+          remaining -= 1;
+          if (remaining !== 0) return;
+
+          try {
+            operations.forEach((currentOperation, operationIndex) => {
+              const action = normalizeAtomicAction(
+                currentOperation.updater(existingValues[operationIndex])
+              );
+              results[operationIndex] = clonePlainData(action.result);
+              if (action.action === 'put') {
+                transaction
+                  .objectStore(currentOperation.storeName)
+                  .put(clonePlainData(action.value));
+              } else if (action.action === 'delete') {
+                transaction
+                  .objectStore(currentOperation.storeName)
+                  .delete(currentOperation.key);
+              }
+            });
+          } catch (error) {
+            abortWithError(error);
+          }
+        };
+        request.onerror = () => {
+          abortWithError(request.error ?? new Error('IndexedDB 다중 store 조회가 실패했습니다.'));
+        };
+      });
+    } catch (error) {
+      abortWithError(error);
+    }
   });
 }
 

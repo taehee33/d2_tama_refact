@@ -294,14 +294,45 @@ function buildRecentLoggedCallEntry({ type, callEntry, currentTimeMs }) {
   };
 }
 
-function mergeRecentCallHistory(activityLogs, callStatus, careMistakeLedger, currentTimeMs) {
+function isCurrentStageHistoryEntry(
+  entry,
+  { evolutionStageStartedAt = null, evolutionStageInstanceId = null, timestampKey = "timestamp" } = {}
+) {
+  const entryStageId = entry?.evolutionStageInstanceId;
+  if (entryStageId && evolutionStageInstanceId) {
+    return entryStageId === evolutionStageInstanceId;
+  }
+
+  const stageStartedAt = ensureTimestamp(evolutionStageStartedAt);
+  if (stageStartedAt == null) return true;
+  const occurredAt = ensureTimestamp(entry?.[timestampKey]);
+  return occurredAt != null && occurredAt >= stageStartedAt;
+}
+
+function mergeRecentCallHistory(
+  activityLogs,
+  callStatus,
+  careMistakeLedger,
+  currentTimeMs,
+  stageIdentity = {}
+) {
   const loggedEntries = ["hunger", "strength", "sleep"]
     .map((type) => buildRecentLoggedCallEntry({
       type,
       callEntry: callStatus?.[type],
       currentTimeMs,
     }))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((entry) => isCurrentStageHistoryEntry(entry, stageIdentity));
+
+  const currentStageActivityLogs = activityLogs.filter((entry) =>
+    isCurrentStageHistoryEntry(entry, stageIdentity)
+  );
+  const currentStageLedger = (Array.isArray(careMistakeLedger) ? careMistakeLedger : [])
+    .filter((entry) => isCurrentStageHistoryEntry(entry, {
+      ...stageIdentity,
+      timestampKey: "occurredAt",
+    }));
 
   const priority = {
     ledger: 0,
@@ -310,7 +341,11 @@ function mergeRecentCallHistory(activityLogs, callStatus, careMistakeLedger, cur
   };
   const mergedByKey = new Map();
 
-  [...buildRecentLedgerHistory(careMistakeLedger), ...buildRecentCallHistory(activityLogs), ...loggedEntries]
+  [
+    ...buildRecentLedgerHistory(currentStageLedger),
+    ...buildRecentCallHistory(currentStageActivityLogs),
+    ...loggedEntries,
+  ]
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
     .forEach((entry) => {
       const key = entry.dedupeKey || entry.id;
@@ -545,7 +580,11 @@ export function buildCallStatusViewModel({
     activityLogs,
     callStatus,
     digimonStats?.careMistakeLedger,
-    currentTimeMs
+    currentTimeMs,
+    {
+      evolutionStageStartedAt: digimonStats?.evolutionStageStartedAt,
+      evolutionStageInstanceId: digimonStats?.evolutionStageInstanceId,
+    }
   )
     .map((entry) => ({
       ...entry,

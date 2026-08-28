@@ -157,6 +157,12 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
   merged.careMistakeLedger = [];
+  merged.unresolvedCareMistakeCount = 0;
+  merged.latestUnresolvedCareMistakeIncidentId = null;
+  merged.latestCareMistakeAt = null;
+  merged.careMistakeSchemaVersion = 1;
+  merged.careMistakeReconciliationVersion = null;
+  merged.careMistakeReconciliationStatus = "verified";
   merged.injuries = isNewStart
     ? 0
     : (oldStats.injuries !== undefined ? oldStats.injuries : (merged.injuries || 0)); // 이번 생 누적 부상 횟수 유지
@@ -246,6 +252,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   } else {
     merged.evolutionStageStartedAt = Date.now();
   }
+  merged.evolutionStageInstanceId = null;
 
   delete merged.lastMaxPoopTime;
 

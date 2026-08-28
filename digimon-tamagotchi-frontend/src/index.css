@@ -26,6 +26,7 @@
   --z-toast: 600;
 }
 
+
 .community-page {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;

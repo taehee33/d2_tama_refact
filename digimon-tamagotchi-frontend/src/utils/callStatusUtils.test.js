@@ -596,4 +596,56 @@ describe("callStatusUtils", () => {
       "케어미스(사유: 힘 호출 10분 무시)"
     );
   });
+
+  test("최근 호출/케어미스는 현재 진화 단계 이후 기록만 보여준다", () => {
+    const stageStartedAt = now - 60 * 60 * 1000;
+    const viewModel = buildCallStatusViewModel({
+      digimonStats: {
+        fullness: 3,
+        strength: 3,
+        evolutionStageStartedAt: stageStartedAt,
+        evolutionStageInstanceId: "stage-current",
+        callStatus: {
+          hunger: { isActive: false, startedAt: null, isLogged: false },
+          strength: { isActive: false, startedAt: null, isLogged: false },
+          sleep: { isActive: false, startedAt: null, isLogged: false },
+        },
+        activityLogs: [
+          {
+            type: "CARE_MISTAKE",
+            text: "수면 조명 경고가 케어미스로 처리되었습니다.",
+            timestamp: stageStartedAt - 1000,
+            evolutionStageInstanceId: "stage-old",
+          },
+          {
+            type: "CARE_MISTAKE",
+            text: "힘 호출이 케어미스로 처리되었습니다.",
+            timestamp: stageStartedAt + 1000,
+            evolutionStageInstanceId: "stage-current",
+          },
+        ],
+        careMistakeLedger: [
+          {
+            id: "old-sleep",
+            reasonKey: "sleep_light_warning",
+            occurredAt: stageStartedAt - 1000,
+            evolutionStageInstanceId: "stage-old",
+          },
+          {
+            id: "current-strength",
+            reasonKey: "strength_call",
+            occurredAt: stageStartedAt + 1000,
+            evolutionStageInstanceId: "stage-current",
+          },
+        ],
+      },
+      sleepStatus: "AWAKE",
+      currentTime: now,
+    });
+
+    expect(viewModel.recentCallHistory).toHaveLength(1);
+    expect(viewModel.recentCallHistory[0]).toEqual(
+      expect.objectContaining({ callType: "strength" })
+    );
+  });
 });

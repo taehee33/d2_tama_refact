@@ -11,6 +11,7 @@ import {
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   loadSlotCollectionsState,
+  loadCareMistakeReconciliationLogs,
   resolveActionLazyUpdateRuntimeContext,
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
@@ -615,6 +616,46 @@ describe("loadSlotCollectionsState", () => {
   });
 });
 
+describe("loadCareMistakeReconciliationLogs", () => {
+  test("화면 상한 50건과 무관하게 현재 stage 전체 로그를 유지한다", async () => {
+    const currentStageLogs = Array.from({ length: 75 }, (_, index) => ({
+      id: `current-${index}`,
+      type: "CAREMISTAKE",
+      timestamp: 1000 + index,
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-1",
+    }));
+
+    const result = await loadCareMistakeReconciliationLogs({
+      slotInstanceId: "slot-life-1",
+      digimonInstanceId: "digimon-life-1",
+      evolutionStageStartedAt: 1000,
+      loadLogs: async () => [
+        { id: "previous-stage", timestamp: 999 },
+        ...currentStageLogs,
+        {
+          id: "other-life",
+          timestamp: 1100,
+          slotInstanceId: "slot-life-1",
+          digimonInstanceId: "digimon-life-old",
+        },
+      ],
+    });
+
+    expect(result).toHaveLength(75);
+    expect(result[0].id).toBe("current-0");
+    expect(result[74].id).toBe("current-74");
+  });
+
+  test("전체 감사 조회 실패를 빈 로그로 숨기지 않는다", async () => {
+    await expect(loadCareMistakeReconciliationLogs({
+      loadLogs: async () => {
+        throw new Error("read failed");
+      },
+    })).rejects.toThrow("read failed");
+  });
+});
+
 describe("buildLoadedSlotCollectionsState", () => {
   test("로드한 activity/battle logs를 저장된 stats에 합치고 cleanup 힌트를 반환한다", () => {
     const result = buildLoadedSlotCollectionsState({
@@ -1037,6 +1078,56 @@ describe("buildLoadedSlotHydrationPlan", () => {
     expect(result.hydrationResult.digimonStats.sprite).toBe(42);
 
     warnSpy.mockRestore();
+    nowSpy.mockRestore();
+  });
+
+  test("새 슬롯의 reconciliation projection만 있어도 알 상태를 초기화한다", () => {
+    const dataMap = {
+      Digitama: {
+        sprite: 7,
+        hungerTimer: 60,
+        strengthTimer: 60,
+        poopTimer: 60,
+        stage: "Digitama",
+        evolutionStage: "Digitama",
+        timeToEvolveSeconds: 600,
+      },
+    };
+
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(5000);
+    const result = buildLoadedSlotHydrationPlan({
+      slotData: {
+        slotName: "새 슬롯",
+        createdAt: 1000,
+        lastSavedAt: 1000,
+      },
+      slotId: 5,
+      slotVersionLabel: "Ver.1",
+      rootSlotFields: { isLightsOn: true, wakeUntil: null },
+      loadedActivityLogs: [],
+      savedName: "Digitama",
+      savedStats: {
+        careMistakes: 0,
+        unresolvedCareMistakeCount: 0,
+        careMistakeReconciliationStatus: "verified",
+        evolutionStageInstanceId: "stage:life-5:Digitama:1000",
+        activityLogs: [],
+        battleLogs: [],
+      },
+      dataMap,
+    });
+
+    expect(result.hydrationResult.digimonStats).toEqual(
+      expect.objectContaining({
+        sprite: 7,
+        evolutionStage: "Digitama",
+        birthTime: 5000,
+        evolutionStageStartedAt: 5000,
+        lastSavedAt: 5000,
+        timeToEvolveSeconds: 600,
+        careMistakeReconciliationStatus: "verified",
+      })
+    );
     nowSpy.mockRestore();
   });
 });

@@ -3,6 +3,7 @@ import {
   buildReplayAction,
   commitRevisionedSlot,
   normalizeGameRevision,
+  protectCareMistakeProjection,
   replaySafeActions,
 } from "./gameRevision";
 
@@ -51,6 +52,53 @@ describe("gameRevision", () => {
       runTransaction,
     })).rejects.toBeInstanceOf(GameRevisionConflictError);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  test("legacy snapshot은 원격 care projection을 보존하고 stale nested 값을 제거한다", () => {
+    const remoteData = {
+      careMistakes: 4,
+      unresolvedCareMistakeCount: 4,
+      latestUnresolvedCareMistakeIncidentId: "incident-4",
+      latestCareMistakeAt: 4000,
+      careMistakeSchemaVersion: 1,
+      careMistakeReconciliationVersion: 1,
+      careMistakeReconciliationStatus: "verified",
+      evolutionStageInstanceId: "stage-1",
+      careMistakeReconciliationChecksum: "checksum-1",
+      lastGameTransitionId: "transition-4",
+      digimonStats: {
+        fullness: 2,
+        careMistakes: 4,
+        unresolvedCareMistakeCount: 4,
+        evolutionStageInstanceId: "stage-1",
+      },
+    };
+    const safe = protectCareMistakeProjection({
+      careMistakes: 0,
+      latestUnresolvedCareMistakeIncidentId: null,
+      lastGameTransitionId: "stale-transition",
+      digimonStats: {
+        fullness: 3,
+        careMistakes: 0,
+        unresolvedCareMistakeCount: 0,
+        evolutionStageInstanceId: "stale-stage",
+        careMistakeLedger: [],
+      },
+    }, remoteData);
+
+    expect(safe).toMatchObject({
+      careMistakes: 4,
+      unresolvedCareMistakeCount: 4,
+      latestUnresolvedCareMistakeIncidentId: "incident-4",
+      lastGameTransitionId: "transition-4",
+      digimonStats: {
+        fullness: 3,
+        careMistakes: 4,
+        unresolvedCareMistakeCount: 4,
+        evolutionStageInstanceId: "stage-1",
+      },
+    });
+    expect(safe.digimonStats.careMistakeLedger).toBeUndefined();
   });
 
   test("먹이와 훈련 결과를 원격 최신 상태에 순서대로 재생한다", () => {

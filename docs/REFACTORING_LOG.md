@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-08-27] 새 슬롯 알 초기화와 현재 진화 단계 케어미스 표시 보정
+
+- **새 슬롯 차단 원인:** 최초 `digimonStats: {}` 로드 중 reconciliation projection이 먼저 합쳐지면 빈 스탯이 초기화된 것으로 오판되었다. 알 스탯과 단계 시작 시각이 없어 reconciliation이 `ambiguous`로 차단되고, 오래된 슬롯 저장 시각만으로 lazy update가 실행되면 허위 수면 케어미스까지 재구성될 수 있었다.
+- **개선:** 스프라이트·진화 단계·생일 등 실제 게임 스탯이 없는 슬롯은 projection 유무와 무관하게 starter로 초기화한다. `birthTime`, `evolutionStageStartedAt`, `lastSavedAt`을 첫 정상 hydration 시각으로 통일한 후 reconciliation을 실행해, 슬롯 생성 후 오래 차단됐더라도 즉시 `verified`로 열리고 알 상태부터 시작하게 했다.
+- **표시 경계:** Firestore incident는 복구·감사를 위해 내부에 보존하지만, `최근 호출/케어미스 기록`은 `evolutionStageInstanceId`를 우선하고 레거시 기록은 `evolutionStageStartedAt` 이후 시각인 경우만 표시한다. 진화 전 호출·케어미스는 현재 단계 UI와 미확인 배지에서 제외된다.
+- **영향 파일:** `src/hooks/useGameData.js`, `src/utils/callStatusUtils.js`, 관련 테스트, `docs/REFACTORING_LOG.md`.
+- **검증·배포:** 수정 전 새 슬롯이 비정상 경과시간과 여러 건의 허위 수면 케어미스를 만드는 테스트, 진화 전 기록 1건이 현재 단계 UI에 노출되는 테스트를 각각 실패시켰다. 수정 후 집중 6 suite·154 test와 전체 프런트 219 suite·1,460 test, 서버 287 test, lint·typecheck·production build가 통과했다. Vercel deployment `dpl_54o3hvNvWoApdepvSixi7TPzphjD`를 운영 alias `dthama.vercel.app`에 반영했고 `main.d0a939ae.js`·HTTP 200을 확인했다.
+
+## [2026-08-26] 케어미스 incident 정본화와 원자적 게임 전이 P0
+
+- **원인:** lazy update가 메모리에서 케어미스를 생성한 뒤 활동 로그만 Firestore에 저장되었고, 다음 hydration에서 저장된 `careMistakes` 숫자를 정본처럼 사용해 나머지 로그를 해소 처리했다. 이 분리 저장과 오래된 snapshot 재저장이 겹치며 실제 호출 기록은 5건인데 2→0으로 유실되는 문제가 발생했다.
+- **정본과 projection:** `careMistakeIncidents/{incidentId}`를 물리적 정본으로 추가했다. 슬롯의 `careMistakes`, `unresolvedCareMistakeCount`, 최신 incident ID와 시각은 현재 `digimonInstanceId + evolutionStageInstanceId`의 unresolved incident에서 파생한다. 호출 읽음은 숫자를 바꾸지 않고, 교감 성공은 최신 unresolved incident 하나만 LIFO로 해소하며, 진화는 새 stage identity와 0 projection을 생성한다.
+- **원자적 전이:** IndexedDB에 `localSequence`, parent transition, base revision을 가진 전이 envelope를 먼저 내구성 있게 적재한다. Firestore transaction은 revision과 identity를 확인한 뒤 incident, 결정적 ID의 로그, 슬롯 projection, `gameTransitions/{transitionId}` receipt를 함께 확정한다. 재시도는 receipt fingerprint로 멱등하고, 선행 전이가 commit되기 전에 후행 전이를 원격 commit하지 않는다.
+- **호환 경계:** 기존 snapshot 저장은 모든 케어미스 projection·schema·stage 필드를 제거해 오래된 숫자가 incident 정본을 덮지 못하게 했다. 케어미스 로그의 단독 저장을 차단하고, 냉장고 진입·해제도 같은 전이 큐를 통해 저장한다.
+- **복구 정책:** `not_started|in_progress|verified|ambiguous|failed`를 구분하며 `verified`일 때만 게임 변경을 허용한다. reconciliation은 화면용 최근 50건이 아닌 현재 stage 이후 전체 로그, incident, IndexedDB pending을 감사한다. 증명할 수 없으면 기존 projection을 추측해 수정하지 않는다. 최대 400건까지 50건 단위의 결정적 staging batch로 나누고, checksum이 같은 완료 batch는 건너뛰어 중단 후 재시작할 수 있다. 400건 초과는 운영자 확인이 필요한 `ambiguous`로 남긴다.
+- **읽기 전용 운영 감사:** `care-mistake:audit`은 슬롯·전체 로그·incident를 읽고 `writesPerformed: 0`을 보고한다. `d2tamarefact`의 동일 계정 슬롯 4·5를 실측한 결과, 슬롯 4는 현재 stage 발생 5건·해소 0건·저장 0, 슬롯 5는 발생 2건·해소 0건·저장 0으로 둘 다 `verified`였다.
+- **영향 파일:** `src/logic/stats/careMistakeProjection.js`, `src/persistence/careMistakeTransition.js`, `careMistakeReconciliation.js`, `transitionQueue.js`, IndexedDB outbox·revision·진화·환생 persistence, `useDurableGamePersistence.js`, `useGameData.js`, `useFridge.js`, 게임 로드 차단 UI, `scripts/auditCareMistakeReconciliation.js`, `firestore.rules`, `firestore.indexes.json`, 관련 테스트.
+- **검증:** 발생 5건→5, 슬롯 5의 배고픔·힘 호출 2건→2, 교감 LIFO 해소, 읽음·냉장고 projection 불변, receipt 10회 재시도 멱등성, T1→T4 로컬 전이 순서, staging 중단·재시작, 원자 transaction 롤백, 오래된 snapshot 차단, `ambiguous|failed` 변경 차단을 회귀 테스트로 고정했다. `npm run check`에서 프런트 219 suite·1,458 test, 서버 287 test(266 pass·21 Emulator-only skip), lint·typecheck·production build·API 단일 원본·server projection이 통과했고, Firestore Emulator 3개와 Arena·Jogress Emulator 26개도 통과했다.
+
 ## [2026-08-24] Firestore 알림함 전체 컬렉션 재조회 제거
 
 - **원인과 개선:** Usage Insights에서 하루 읽기의 대부분을 차지한 사용자 `notifications` 경로를 추적해, 최근 10개를 표시할 때마다 누적 알림 전체를 읽고 메모리에서 정렬하던 경로를 제거했다. 전역 알림 센터는 신규 `inbox` API를 사용하며 `channelState.inApp.status == stored`, `createdAt DESC`, `__name__ DESC`, `limit 10` 쿼리만 실행한다. hidden·레거시 문서를 찾기 위한 페이지 순회나 전체 조회 fallback은 두지 않았다.

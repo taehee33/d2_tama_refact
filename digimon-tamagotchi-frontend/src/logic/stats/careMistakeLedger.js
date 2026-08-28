@@ -85,11 +85,38 @@ export function countActiveCareMistakeEntries(ledger = []) {
 }
 
 export function appendCareMistakeEntry(stats = {}, { occurredAt = Date.now(), reasonKey = "other", text = "케어미스 발생", source = "realtime", id = null } = {}) {
-  const repairedStats = repairCareMistakeLedger(stats, stats.activityLogs || []).nextStats;
-  const ledger = initializeCareMistakeLedger(repairedStats.careMistakeLedger);
+  // 신규 런타임 사건은 기존 카운터나 활동 로그를 근거로 과거 incident를
+  // 임의 해소/생성하지 않는다. 기존 ledger가 있으면 호환 읽기만 사용하고,
+  // 정본 projection은 careMistakeProjection reducer가 계산한다.
+  const repairedStats = {
+    ...stats,
+    careMistakeLedger: initializeCareMistakeLedger(stats.careMistakeLedger),
+  };
+  const ledger = repairedStats.careMistakeLedger;
   const timestamp = ensureTimestamp(occurredAt) ?? Date.now();
   const eventId = id || buildCareMistakeEventId(reasonKey, timestamp);
   if (eventId && ledger.some((entry) => entry.id === eventId)) {
+    return {
+      added: false,
+      entry: ledger.find((entry) => entry.id === eventId) || null,
+      nextStats: {
+        ...repairedStats,
+        careMistakeLedger: ledger,
+      },
+    };
+  }
+
+  // 레거시 슬롯은 ledger 없이 CAREMISTAKE 활동 로그만 남아 있을 수 있다.
+  // 같은 reason·시각의 로그가 이미 있으면 lazy update가 동일 사건을 다시
+  // 카운트하지 않도록 한다. 로그를 ledger로 승격하는 작업은 reconciliation이
+  // 담당하므로 여기서는 기존 카운터와 ledger를 그대로 보존한다.
+  const hasMatchingActivityLog = (Array.isArray(stats.activityLogs) ? stats.activityLogs : [])
+    .some((log) =>
+      isCareMistakeLog(log) &&
+      ensureTimestamp(log.timestamp) === timestamp &&
+      getCareMistakeReasonKeyFromText(log.text || "") === reasonKey
+    );
+  if (hasMatchingActivityLog) {
     return {
       added: false,
       entry: ledger.find((entry) => entry.id === eventId) || null,
@@ -110,21 +137,29 @@ export function appendCareMistakeEntry(stats = {}, { occurredAt = Date.now(), re
     resolvedBy: null,
   });
   const nextLedger = [...ledger, entry].sort((a, b) => (a.occurredAt || 0) - (b.occurredAt || 0));
+  const nextCareMistakeCount = (repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0) + 1;
 
   return {
     added: true,
     entry,
     nextStats: {
       ...repairedStats,
-      careMistakes: (repairedStats.careMistakes || 0) + 1,
+      careMistakes: nextCareMistakeCount,
+      unresolvedCareMistakeCount: nextCareMistakeCount,
+      latestCareMistakeAt: timestamp,
       careMistakeLedger: nextLedger,
     },
   };
 }
 
 export function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.now(), resolvedBy = "play_or_snack" } = {}) {
-  const repairedStats = repairCareMistakeLedger(stats, stats.activityLogs || []).nextStats;
-  const ledger = initializeCareMistakeLedger(repairedStats.careMistakeLedger);
+  // 해소 대상은 이미 확정된 ledger만 사용한다. 로그 개수와 저장 카운터를
+  // 비교해 대상을 추측하는 동작은 P0 transaction 경계에서 수행한다.
+  const repairedStats = {
+    ...stats,
+    careMistakeLedger: initializeCareMistakeLedger(stats.careMistakeLedger),
+  };
+  const ledger = repairedStats.careMistakeLedger;
   const unresolved = getActiveCareMistakeEntries(ledger);
   const target = unresolved[unresolved.length - 1];
 
@@ -135,7 +170,14 @@ export function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.no
       nextStats: {
         ...repairedStats,
         careMistakeLedger: ledger,
-        careMistakes: Math.max(0, repairedStats.careMistakes || 0),
+        careMistakes: Math.max(
+          0,
+          repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0
+        ),
+        unresolvedCareMistakeCount: Math.max(
+          0,
+          repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0
+        ),
       },
     };
   }
@@ -156,6 +198,10 @@ export function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.no
     nextStats: {
       ...repairedStats,
       careMistakes: Math.max(0, (repairedStats.careMistakes || 0) - 1),
+      unresolvedCareMistakeCount: Math.max(
+        0,
+        (repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0) - 1
+      ),
       careMistakeLedger: nextLedger,
     },
   };
