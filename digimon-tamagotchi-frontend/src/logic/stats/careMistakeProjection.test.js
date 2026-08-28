@@ -178,7 +178,7 @@ describe("careMistakeProjection", () => {
 });
 
 describe("careMistakeReconciliation", () => {
-  test("projection 0이어도 현재 stage 로그 2건을 verified incident 2건으로 복구한다", () => {
+  test("projection 0보다 replay 증거 2건이 많으면 자동으로 덮지 않는다", () => {
     const stageStartedAt = 1000;
     const plan = buildCareMistakeReconciliationPlan({
       slotData: {
@@ -199,12 +199,13 @@ describe("careMistakeReconciliation", () => {
       ],
     });
 
-    expect(plan.status).toBe("verified");
+    expect(plan.status).toBe("ambiguous");
     expect(plan.projection).toMatchObject({ careMistakes: 2, unresolvedCareMistakeCount: 2 });
     expect(plan.incidents).toHaveLength(2);
+    expect(plan.canActivateProjection).toBe(false);
   });
 
-  test("projection 2와 현재 stage 로그 5건은 5건으로 복구하고 임의 해소하지 않는다", () => {
+  test("projection 2보다 replay 증거 5건이 많으면 zero-write ambiguous로 둔다", () => {
     const plan = buildCareMistakeReconciliationPlan({
       slotData: {
         slotInstanceId: "slot-4-instance",
@@ -220,9 +221,10 @@ describe("careMistakeReconciliation", () => {
       })),
     });
 
-    expect(plan.status).toBe("verified");
+    expect(plan.status).toBe("ambiguous");
     expect(plan.projection.careMistakes).toBe(5);
     expect(plan.incidents.every((incident) => incident.status === "unresolved")).toBe(true);
+    expect(plan.canActivateProjection).toBe(false);
   });
 
   test("현재 stage 시작 시각을 증명할 수 없으면 projection을 추측하지 않는다", () => {

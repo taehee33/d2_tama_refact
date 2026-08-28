@@ -87,4 +87,21 @@ describe("CareHistorySection", () => {
     expect(screen.getByText("시각:1")).toBeInTheDocument();
     expect(screen.getByText("시각:2")).toBeInTheDocument();
   });
+
+  test("legacy recovery는 synthetic timestamp 대신 실제 시각 미상으로 표시한다", () => {
+    const formatTimestamp = jest.fn((timestamp) => `시각:${timestamp}`);
+    renderSection({
+      formatTimestamp,
+      careMistakeHistoryEntries: [{
+        occurredAt: 123456,
+        text: "복구된 케어미스 기록",
+        source: "legacy_recovery",
+        originalOccurredAtKnown: false,
+      }],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /현재 활성 케어미스 이력/ }));
+    expect(screen.getByText("복구된 기록 · 실제 시각 알 수 없음")).toBeInTheDocument();
+    expect(formatTimestamp).not.toHaveBeenCalled();
+  });
 });

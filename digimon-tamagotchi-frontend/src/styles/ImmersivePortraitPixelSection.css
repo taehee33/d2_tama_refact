@@ -124,10 +124,19 @@
   width: 42.2%;
 }
 
+[data-skin-id="pixel-split-brick"] .portrait-pixel-shell__screen {
+  transform: translateY(-8px);
+}
+
+[data-skin-id="pixel-red-device"] .portrait-pixel-shell__screen {
+  transform: translate(-4px, -8px);
+}
+
 [data-skin-id="pixel-dark-battle"] .portrait-pixel-shell__screen {
   top: 20.45%;
   left: 18.4%;
   width: 44.6%;
+  transform: translate(-6px, -8px);
 }
 
 .portrait-pixel-shell__screen > div {

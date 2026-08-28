@@ -1,11 +1,34 @@
 import {
   appendCareMistakeEntry,
+  buildCareMistakeLedgerFromIncidents,
   getDisplayCareMistakeEntries,
   repairCareMistakeLedger,
   resolveLatestCareMistakeEntry,
 } from "./careMistakeLedger";
 
 describe("careMistakeLedger", () => {
+  test("legacy recovery incident의 실제 시각 미상 metadata를 화면 투영에 보존한다", () => {
+    expect(buildCareMistakeLedgerFromIncidents([{
+      incidentId: "legacy-1",
+      occurredAt: 100,
+      reasonKey: "legacy_recovery",
+      text: "복구된 케어미스 기록",
+      source: "legacy_recovery",
+      originalOccurredAtKnown: false,
+      replayVersion: "care-replay-v1",
+      replayBasisHash: "basis-1",
+      ordinal: 1,
+      resolvedAt: null,
+    }])).toEqual([expect.objectContaining({
+      id: "legacy-1",
+      source: "legacy_recovery",
+      originalOccurredAtKnown: false,
+      replayVersion: "care-replay-v1",
+      replayBasisHash: "basis-1",
+      ordinal: 1,
+    })]);
+  });
+
   test("레거시 슬롯은 현재 단계 로그와 sync placeholder를 합쳐 카운터 수만큼 복원한다", () => {
     const stageStartedAt = Date.parse("2026-03-31T00:00:00.000Z");
     const eventAt = Date.parse("2026-03-31T09:18:00.000Z");

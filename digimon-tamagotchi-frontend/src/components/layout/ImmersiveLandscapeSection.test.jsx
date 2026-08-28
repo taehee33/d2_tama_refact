@@ -4,8 +4,8 @@ import ImmersiveLandscapeSection from "./ImmersiveLandscapeSection";
 
 describe("ImmersiveLandscapeSection", () => {
   const immersiveSkin = {
-    id: "tama-mint",
-    name: "민트",
+    id: "test-landscape-frame",
+    name: "테스트 프레임",
     landscapeFrameSrc: "/assets/frame.png",
     landscapeViewport: {
       leftPct: 10,
@@ -22,7 +22,7 @@ describe("ImmersiveLandscapeSection", () => {
       <ImmersiveLandscapeSection
         deviceShellProps={{
           layoutMode: "landscape",
-          skinId: "tama-mint",
+          skinId: "brick-ver1",
           isMobile: true,
           showRotateHint: true,
           landscapeSide: "left",

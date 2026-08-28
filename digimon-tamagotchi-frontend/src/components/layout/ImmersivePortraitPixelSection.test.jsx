@@ -1,4 +1,6 @@
 import React from "react";
+import fs from "fs";
+import path from "path";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import ImmersivePortraitPixelSection from "./ImmersivePortraitPixelSection";
 import { getImmersiveSkinById } from "../../utils/immersiveSettings";
@@ -37,6 +39,23 @@ function renderSection(overrides = {}) {
 }
 
 describe("ImmersivePortraitPixelSection", () => {
+  it("픽셀 스킨별 최종 게임 화면 이동값을 유지한다", () => {
+    const stylesheet = fs.readFileSync(
+      path.resolve(__dirname, "../../styles/ImmersivePortraitPixelSection.css"),
+      "utf8"
+    );
+
+    expect(stylesheet).toContain(
+      '[data-skin-id="pixel-split-brick"] .portrait-pixel-shell__screen {\n  transform: translateY(-8px);'
+    );
+    expect(stylesheet).toContain(
+      '[data-skin-id="pixel-red-device"] .portrait-pixel-shell__screen {\n  transform: translate(-4px, -8px);'
+    );
+    expect(stylesheet).toContain(
+      '[data-skin-id="pixel-dark-battle"] .portrait-pixel-shell__screen {\n  top: 20.45%;\n  left: 18.4%;\n  width: 44.6%;\n  transform: translate(-6px, -8px);'
+    );
+  });
+
   test.each(["pixel-split-brick", "pixel-red-device", "pixel-dark-battle"])("%s 스킨에 현재 게임 화면을 렌더링한다", (skinId) => {
     renderSection({
       skinId,

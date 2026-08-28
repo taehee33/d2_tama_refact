@@ -11,6 +11,7 @@ import {
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   loadSlotCollectionsState,
+  loadCareMistakeIncidents,
   loadCareMistakeReconciliationLogs,
   resolveActionLazyUpdateRuntimeContext,
   resolveLastSavedAtSource,
@@ -653,6 +654,36 @@ describe("loadCareMistakeReconciliationLogs", () => {
         throw new Error("read failed");
       },
     })).rejects.toThrow("read failed");
+  });
+
+  test("timestamp가 손상된 care 로그는 plan 검증을 위해 버리지 않는다", async () => {
+    const result = await loadCareMistakeReconciliationLogs({
+      evolutionStageStartedAt: 1000,
+      loadLogs: async () => [{
+        id: "broken-care",
+        type: "CAREMISTAKE",
+        text: "케어미스",
+        timestamp: "not-a-date",
+      }],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("broken-care");
+  });
+});
+
+describe("loadCareMistakeIncidents", () => {
+  test("필수 stage/timestamp가 손상된 raw incident를 plan 전에 숨기지 않는다", async () => {
+    const incidents = [{
+      incidentId: "broken-incident",
+      digimonInstanceId: "life-1",
+      occurredAt: null,
+    }];
+    await expect(loadCareMistakeIncidents({
+      digimonInstanceId: "life-1",
+      evolutionStageInstanceId: "stage-1",
+      loadIncidents: async () => incidents,
+    })).resolves.toEqual(incidents);
   });
 });
 

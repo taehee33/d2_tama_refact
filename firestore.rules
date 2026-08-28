@@ -400,7 +400,43 @@ service cloud.firestore {
         request.resource.data.incidentId == incidentId &&
         request.resource.data.status == "unresolved" &&
         request.resource.data.transitionId is string &&
-        request.resource.data.eventId is string &&
+        (
+          request.resource.data.eventId is string ||
+          (
+            request.resource.data.eventId == null &&
+            request.resource.data.keys().hasAll([
+              "source",
+              "originalOccurredAtKnown",
+              "replayVersion",
+              "replayBasisHash",
+              "ordinal"
+            ]) &&
+            request.resource.data.source == "legacy_recovery" &&
+            request.resource.data.reasonKey == "legacy_recovery" &&
+            request.resource.data.originalOccurredAtKnown == false &&
+            request.resource.data.replayVersion == "care-replay-v1" &&
+            request.resource.data.replayBasisHash is string &&
+            request.resource.data.ordinal is int &&
+            request.resource.data.ordinal >= 1 &&
+            request.resource.data.ordinal <= 400 &&
+            hasAfterTransitionForSlot(userId, slotId) &&
+            getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.transitionType == "CARE_MISTAKE_RECONCILED" &&
+            getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.replayBasisHash is string &&
+            request.resource.data.replayBasisHash == getAfter(gameTransitionPath(
+              userId,
+              slotId,
+              getAfter(slotPath(userId, slotId)).data.lastGameTransitionId
+            )).data.replayBasisHash
+          )
+        ) &&
         request.resource.data.occurredAt is int &&
         request.resource.data.reasonKey is string &&
         request.resource.data.text is string &&

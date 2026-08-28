@@ -4,6 +4,41 @@
 
 ---
 
+## [2026-08-28] 케어미스 레거시 missing-only 복구와 영구 차단 해제
+
+- **문제:** 기존 슬롯에서 케어미스 카운터만 남거나 reconciliation 상태가 `ambiguous`/`in_progress`로 고정되면, 실제 읽기와 정합성 검사가 정상이어도 게임 진입이 영구 차단될 수 있었다. 또한 기존 incident가 일부 있는 슬롯에서 카운터 전체를 다시 복구하면 사건이 과다 생성될 위험이 있었다.
+- **결정적 복구 계약:** 현재 stage의 incident·발생/해소 로그를 replay하고, root/nested 관련 카운터가 모두 `0..400` 정수일 때 `preservedCount - replayedUnresolvedCount` 부족분만 `legacy_recovery` incident로 생성한다. replay가 보존 카운터보다 많거나 identity·timestamp·counter·synthetic ordering이 손상된 경우 slot/run/batch/incident/receipt를 전혀 쓰지 않는 `ambiguous`로 유지한다.
+- **Identity와 멱등성:** `care-replay-v1` basis에 보존 카운터, 사전순 incident ID 집합과 부족분을 포함한다. `lastSavedAt`, 현재 시각과 lease owner는 transition/checksum/incident ID에서 제외한다. 단계 identity가 없을 때는 단계 시작 시각 우선순위와 기존 helper로만 재구성하며 root/nested 충돌은 자동 복구하지 않는다.
+- **감사 강화:** 발생·해소 evidence를 시각 순서대로 재생하고 이미 해소된 incident가 같은 해소 로그를 소비하도록 해 미래 사건이나 다음 사건이 중복 해소되지 않게 했다. root/nested의 slot·생애·단계 identity와 관련 카운터가 서로 다르거나 동일 event ID의 payload가 충돌하고, incident·로그 시각이 현재 단계 범위 밖이면 `ambiguous`로 판정해 쓰지 않는다.
+- **LIFO와 표시:** synthetic incident는 기존 confirmed unresolved의 최대 정렬 시각 뒤에 배치해 먼저 해소되도록 했다. 실제 발생 시각으로 오인하지 않도록 `originalOccurredAtKnown: false`를 보존하고 화면에는 `복구된 기록 · 실제 시각 알 수 없음`으로 표시한다. 사용자 활동 로그는 생성하지 않는다.
+- **Lease와 플레이 허용:** 검증된 plan만 5분 lease를 만들고 active owner는 대기, stale owner는 transaction으로 인수한다. staging batch 쓰기와 run owner 검증을 같은 transaction으로 결속해 새 owner는 checksum이 같은 기존 batch를 재사용하고 이전 owner의 후속 쓰기는 차단한다. lease 만료 시각에는 현재 세션이 슬롯 로드를 자동 재시도한다. Firestore commit 성공 즉시 `verified`와 gameplay 허용을 확정하며 이후 IndexedDB cleanup 실패는 비차단 저장 경고만 남긴다.
+- **Firestore Rules:** `eventId: null`은 `source: legacy_recovery`, replay metadata, ordinal `1..400`을 모두 만족하고 현재 transition이 `CARE_MISTAKE_RECONCILED`이며 `replayBasisHash`도 일치할 때만 허용했다. 일반 care incident와 직접 projection 쓰기 제한은 유지했다.
+- **영향 파일:** `src/persistence/careMistakeReconciliation.js`, `src/hooks/useGameData.js`, `src/hooks/game-persistence/careMistakeLoadPolicy.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `src/logic/stats/careMistakeLedger.js`, `src/components/stats-popup/CareHistorySection.jsx`, 관련 테스트, `firestore.rules`, `tests/care-mistake-firestore-rules.test.js`, 생성된 `api/_generated/gameProjection.cjs`.
+- **검증:** 배포 전 독립 리뷰에서 찾은 시간순 replay, counter·identity·timestamp·eventId 충돌과 stale owner fencing 회귀를 추가했다. 관련 reconciliation 4 suites·115 tests와 Firestore Rules 4 tests를 통과했으며, 전체 프런트·서버·Emulator·production build 결과는 최종 릴리스 검증에서 다시 확정한다.
+
+## [2026-08-28] 클리어 블루·민트 셸 스킨 제거
+
+- **내용:** `tama-clear-blue`와 `tama-mint`를 몰입형 스킨 프리셋과 선택창에서 제거했다. 블루·화이트 벽돌, 레드 디바이스, 다크 배틀과 기존 기본·클래식 스킨은 유지한다.
+- **호환 동작:** 기존 저장값의 두 ID는 더 이상 유효한 스킨 목록에 포함되지 않으므로, 기존 `normalizeImmersiveSettings`의 잘못된 ID fallback을 통해 `tama-default-none`으로 정규화한다. Firestore 기존 문서는 일괄 삭제하지 않으며 저장 스키마와 공식 저장 경계도 변경하지 않았다.
+- **스타일 정리:** 제거된 두 디바이스 테마와 선택창 swatch CSS만 삭제하고, 다른 화면에서 사용하는 일반 민트 색상 토큰은 유지했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/data/immersiveSettings.js`, `src/index.css`, `src/utils/immersiveSettings.test.js`, `src/components/layout/ImmersiveSkinPicker.test.jsx`, 기존 민트 fixture를 교체한 레이아웃·영속성 테스트.
+- **아키텍처 결정 근거:** 스킨 조회·순환·선택창이 모두 `IMMERSIVE_SKINS`를 단일 목록으로 사용하므로 프리셋만 축소하고 정규화 경계는 유지했다. 런타임 저장 payload, Firestore transaction, IndexedDB outbox는 건드리지 않았다.
+- **검증:** 관련 Jest 5 suite·18 tests 통과, 전체 프런트 220 suite·1,482 tests 통과, 서버 288 tests(266 pass·22 Emulator-only skip) 통과, API 단일 원본 검사 통과. 모바일 390×844 브라우저 확인에서 선택 항목 6개, `민트`·`클리어 블루` 미표시를 확인했다. `npm run check`는 기존 careMistake 소스 변경으로 생성된 `api/_generated/gameProjection.cjs` 불일치 때문에 마지막 `check:server-projection`에서 종료되었으며, 실행 중 갱신된 생성 파일은 초기 상태로 복구했다.
+
+## [2026-08-28] 레드·다크 픽셀 스킨 게임 화면 좌우 위치 미세 조정
+
+- **내용:** 사용자가 조정한 공통 세로 이동값 `-8px`을 유지하고, 레드 디바이스는 `-4px`, 다크 배틀은 `-6px` 가로 이동을 추가로 적용했다. 블루·화이트 벽돌은 세로 `-8px`만 적용한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/styles/ImmersivePortraitPixelSection.css`.
+- **아키텍처 결정 근거:** 스킨별 화면 선택자에서 transform을 분리해 레드 디바이스와 다크 배틀의 가로 위치만 각각 조정하고, 화면 크기·프레임·메타 정보·메뉴 및 게임 저장 경계는 변경하지 않았다.
+- **검증:** `ImmersivePortraitPixelSection.test.jsx` 1 suite·6 tests와 `git diff --check`를 통과했다. 모바일 개발 화면을 최신 CSS로 갱신했으며 콘솔 오류는 없었다.
+
+## [2026-08-28] 픽셀 세로 스킨 게임 화면 8px 상향
+
+- **내용:** 블루·화이트 벽돌, 레드 디바이스와 다크 배틀 세로 스킨에서 실제 게임 화면만 `8px` 위로 이동했다. 화면 크기, 디바이스 프레임, 상단 메타 정보와 메뉴 버튼 위치는 유지한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/styles/ImmersivePortraitPixelSection.css`.
+- **아키텍처 결정 근거:** 세 스킨의 화면 선택자에만 CSS의 세로 `-8px` 이동을 적용해 반응형 프레임의 기존 비율과 공통 게임 화면 렌더링을 보존했다. 게임 상태·저장 payload·Firestore 정본·IndexedDB outbox는 변경하지 않았다.
+- **검증:** `ImmersivePortraitPixelSection.test.jsx` 1 suite·6 tests 통과, 프런트 전체 220 suites·1,480 tests 통과, 서버 266 tests 통과·22개 Emulator 전용 스킵. `npm run check`는 기존 케어미스 소스 변경으로 생성된 `api/_generated/gameProjection.cjs` 불일치 검사에서 종료되었고, 이번 UI 변경과 무관한 생성 파일은 원상 보존했다. 로컬 개발 서버를 모바일 390×844 뷰포트로 실행했다.
+
 ## [2026-08-27] 새 슬롯 알 초기화와 현재 진화 단계 케어미스 표시 보정
 
 - **새 슬롯 차단 원인:** 최초 `digimonStats: {}` 로드 중 reconciliation projection이 먼저 합쳐지면 빈 스탯이 초기화된 것으로 오판되었다. 알 스탯과 단계 시작 시각이 없어 reconciliation이 `ambiguous`로 차단되고, 오래된 슬롯 저장 시각만으로 lazy update가 실행되면 허위 수면 케어미스까지 재구성될 수 있었다.
