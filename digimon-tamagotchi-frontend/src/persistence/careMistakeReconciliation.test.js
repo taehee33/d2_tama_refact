@@ -313,6 +313,42 @@ test("incident에 이미 반영된 해소 로그는 다음 unresolved incident�
   expect(reloaded.incidents.find((incident) => incident.eventId === "care-2")?.status).toBe("unresolved");
 });
 
+test("같은 해소 시각이 저장된 incident가 더 오래되어도 이후 unresolved incident를 해소하지 않는다", () => {
+  const persisted = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      careMistakes: 0,
+      unresolvedCareMistakeCount: 0,
+    },
+    activityLogs: [
+      { eventId: "care-1", type: "CAREMISTAKE", text: "배고픔 호출 -> 케어미스!", timestamp: 200 },
+      { eventId: "resolve-1", type: "CARE_MISTAKE_RESOLVED", text: "케어미스 해소", timestamp: 300 },
+    ],
+    incidents: [],
+    nowMs: 1000,
+  });
+  const plan = buildCareMistakeReconciliationPlan({
+    slotData: {
+      ...identity,
+      evolutionStageStartedAt: 100,
+      careMistakes: 1,
+      unresolvedCareMistakeCount: 1,
+    },
+    activityLogs: [
+      { eventId: "care-1", type: "CAREMISTAKE", text: "배고픔 호출 -> 케어미스!", timestamp: 200 },
+      { eventId: "care-2", type: "CAREMISTAKE", text: "힘 호출 -> 케어미스!", timestamp: 250 },
+      { eventId: "resolve-1", type: "CARE_MISTAKE_RESOLVED", text: "케어미스 해소", timestamp: 300 },
+    ],
+    incidents: persisted.incidents,
+    nowMs: 1000,
+  });
+
+  expect(plan.status).toBe("verified");
+  expect(plan.projection.careMistakes).toBe(1);
+  expect(plan.incidents.find((incident) => incident.eventId === "care-2")?.status).toBe("unresolved");
+});
+
 test.each([
   ["stage 시작 전", 99],
   ["현재 시각 이후", 1001],

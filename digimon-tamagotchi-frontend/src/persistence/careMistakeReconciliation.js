@@ -729,7 +729,7 @@ export function buildCareMistakeReconciliationPlan({
   const consumedResolutionEvidence = new Set();
   resolutionLogs.forEach(({ log, index }) => {
     const resolvedAt = toEpochMs(log.timestamp);
-    const target = [...replayedIncidents].reverse().find((incident) => {
+    const isEligible = (incident) => {
       if (consumedResolutionEvidence.has(incident.incidentId)) return false;
       if (incident.occurredAt > resolvedAt) return false;
       if (
@@ -737,7 +737,18 @@ export function buildCareMistakeReconciliationPlan({
         (replayOrderByIncidentId.get(incident.incidentId) ?? -1) > index
       ) return false;
       return true;
-    });
+    };
+    const reverseIncidents = [...replayedIncidents].reverse();
+    // incident 정본에 같은 resolvedAt이 이미 남아 있으면 해당 로그의 소비 대상이다.
+    // 이를 먼저 찾지 않으면 그 뒤에 발생한 unresolved incident를 잘못 해소할 수 있다.
+    const persistedTarget = reverseIncidents.find((incident) =>
+      incident.status === "resolved" &&
+      incident.resolvedAt === resolvedAt &&
+      isEligible(incident)
+    );
+    const target = persistedTarget || reverseIncidents.find((incident) =>
+      incident.status === "unresolved" && isEligible(incident)
+    );
     if (!target) return;
     consumedResolutionEvidence.add(target.incidentId);
     // 이미 incident 정본에 반영된 해소 로그는 다시 다음 unresolved에 적용하지 않는다.
