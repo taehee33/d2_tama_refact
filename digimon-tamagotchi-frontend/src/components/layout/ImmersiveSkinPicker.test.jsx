@@ -18,6 +18,10 @@ describe("ImmersiveSkinPicker", () => {
     expect(
       screen.getByText("세로 몰입형에서는 기본 화면을 유지합니다.")
     ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /민트/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /클리어 블루/i })
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /벽돌 Ver\.1/i }));
 

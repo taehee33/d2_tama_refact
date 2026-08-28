@@ -3351,20 +3351,6 @@ code {
   --immersive-shell-trim: rgba(255, 255, 255, 0.76);
 }
 
-.immersive-device-shell[data-skin-id="tama-mint"] {
-  --immersive-shell-main: #74d5b7;
-  --immersive-shell-shadow: #329a81;
-  --immersive-shell-ink: #124d46;
-  --immersive-shell-trim: rgba(236, 255, 248, 0.7);
-}
-
-.immersive-device-shell[data-skin-id="tama-clear-blue"] {
-  --immersive-shell-main: #78b9f2;
-  --immersive-shell-shadow: #3b78c9;
-  --immersive-shell-ink: #153d6f;
-  --immersive-shell-trim: rgba(241, 248, 255, 0.7);
-}
-
 .immersive-device-shell[data-skin-id="brick-ver1"] {
   --immersive-shell-main: #d7dde7;
   --immersive-shell-shadow: #97a1b0;
@@ -3903,14 +3889,6 @@ code {
 
 .immersive-skin-picker__swatch[data-skin-id="tama-default-none"] {
   background: linear-gradient(180deg, #eef2f7, #c3ccd9);
-}
-
-.immersive-skin-picker__swatch[data-skin-id="tama-mint"] {
-  background: linear-gradient(180deg, #98f0d1, #49c1a2);
-}
-
-.immersive-skin-picker__swatch[data-skin-id="tama-clear-blue"] {
-  background: linear-gradient(180deg, #b5dcff, #5fa2ee);
 }
 
 .immersive-skin-picker__swatch[data-skin-id="brick-ver1"] {

@@ -63,16 +63,6 @@ export const IMMERSIVE_SKINS = Object.freeze([
     description: "원작풍 핑크 셸",
   },
   {
-    id: "tama-mint",
-    name: "민트",
-    description: "산뜻한 민트 셸",
-  },
-  {
-    id: "tama-clear-blue",
-    name: "클리어 블루",
-    description: "투명감 있는 블루 셸",
-  },
-  {
     id: "brick-ver1",
     name: "벽돌 Ver.1",
     description: "가로 전용 벽돌 디바이스 프레임",

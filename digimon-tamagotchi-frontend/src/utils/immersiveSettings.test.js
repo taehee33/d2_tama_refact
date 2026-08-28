@@ -24,6 +24,19 @@ describe("immersiveSettings utils", () => {
     ).toEqual(DEFAULT_IMMERSIVE_SETTINGS);
   });
 
+  test.each(["tama-mint", "tama-clear-blue"])(
+    "%s 저장값은 기본(없음) 스킨으로 정규화한다",
+    (removedSkinId) => {
+      expect(
+        normalizeImmersiveSettings({
+          layoutMode: IMMERSIVE_LAYOUT_MODES.PORTRAIT,
+          skinId: removedSkinId,
+          landscapeSide: IMMERSIVE_LANDSCAPE_SIDES.AUTO,
+        })
+      ).toEqual(DEFAULT_IMMERSIVE_SETTINGS);
+    }
+  );
+
   test("유효한 immersiveSettings는 그대로 유지한다", () => {
     const brickSkin = IMMERSIVE_SKINS.find((skin) => skin.id === "brick-ver1");
 
