@@ -24,6 +24,7 @@ describe("buildStatsCenterViewModel", () => {
       winRatio: 75,
       effort: 2,
       careMistakes: 1,
+      sleepDisturbances: 3,
       isInjured: true,
       revision: 9,
       careMistakeLedger: deepFreeze([{ id: "care-1", occurredAt: 1 }]),
@@ -47,7 +48,7 @@ describe("buildStatsCenterViewModel", () => {
       result.statusItems.map((item) => [item.key, item.value])
     );
 
-    expect(result.statusItems).toHaveLength(10);
+    expect(result.statusItems).toHaveLength(11);
     expect(result.healthRiskItems).toHaveLength(5);
     expect(result.lifespanInfo).toMatchObject({
       label: "누적 수명",
@@ -60,11 +61,70 @@ describe("buildStatsCenterViewModel", () => {
       strength: "5(+2)/5",
       energy: "12/20",
       winRate: "75%",
+      sleepDisturbances: "3회",
       sleep: "수면 중",
       injury: "치료 필요",
     });
     expect(JSON.stringify(stats)).toBe(beforeStats);
     expect(JSON.stringify(digimonData)).toBe(beforeDigimonData);
+  });
+
+  test("수면 방해를 케어 미스 아래에 표시하고 없거나 잘못된 값은 0회로 보정한다", () => {
+    const missingResult = buildStatsCenterViewModel({ stats: { careMistakes: 2 } });
+    const invalidResult = buildStatsCenterViewModel({
+      stats: { careMistakes: 2, sleepDisturbances: "잘못된 값" },
+    });
+    const labels = missingResult.statusItems.map((item) => item.label);
+    const careMistakeIndex = labels.indexOf("케어 미스");
+
+    expect(labels[careMistakeIndex + 1]).toBe("수면 방해");
+    expect(missingResult.statusItems[careMistakeIndex + 1].value).toBe("0회");
+    expect(
+      invalidResult.statusItems.find((item) => item.key === "sleepDisturbances")
+    ).toEqual({ key: "sleepDisturbances", label: "수면 방해", value: "0회" });
+  });
+
+  test("현재 진화 구간의 수면 방해 상세 기록을 표시 모델로 만든다", () => {
+    const result = buildStatsCenterViewModel({
+      stats: {
+        sleepDisturbances: 3,
+        evolutionStageStartedAt: 2000,
+      },
+      activityLogs: [
+        { type: "SLEEP_DISTURBANCE", text: "훈련으로 깨움", timestamp: 4000 },
+        { type: "SLEEP_DISTURBANCE", text: "먹이로 깨움", timestamp: 3000 },
+        { type: "SLEEP_END", text: "자연 기상", timestamp: 2500 },
+        { type: "SLEEP_DISTURBANCE", text: "이전 구간", timestamp: 1000 },
+      ],
+    });
+
+    expect(result.sleepDisturbanceHistory).toMatchObject({
+      counter: 3,
+      detailCount: 2,
+      hasMissingDetails: true,
+      isLegacyRange: false,
+    });
+    expect(result.sleepDisturbanceHistory.entries.map((entry) => entry.text)).toEqual([
+      "훈련으로 깨움",
+      "먹이로 깨움",
+    ]);
+    expect(result.sleepDisturbanceHistory.entries[0].timestampLabel).not.toBe("N/A");
+  });
+
+  test("단계 시작 시각이 없는 레거시 슬롯은 보유 이력 전체를 범위로 표시한다", () => {
+    const result = buildStatsCenterViewModel({
+      stats: { sleepDisturbances: 1 },
+      activityLogs: [
+        { type: "SLEEP_DISTURBANCE", text: "레거시 이력", timestamp: 1000 },
+      ],
+    });
+
+    expect(result.sleepDisturbanceHistory).toMatchObject({
+      counter: 1,
+      detailCount: 1,
+      hasMissingDetails: false,
+      isLegacyRange: true,
+    });
   });
 
   test("내부 메타데이터와 케어 미스 상세 기록은 진단 섹션에만 둔다", () => {

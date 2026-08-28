@@ -76,6 +76,7 @@ describe("StatsPanel 내부/고급 카운터 표시", () => {
           winRate: 25,
           effort: 3,
           careMistakes: 6,
+          sleepDisturbances: 4,
           proteinOverdose: 2,
           overfeeds: 1,
           battles: 5,
@@ -100,6 +101,7 @@ describe("StatsPanel 내부/고급 카운터 표시", () => {
     expect(screen.getByText("승률: 25%")).toBeInTheDocument();
     expect(screen.getByText("노력치: 3")).toBeInTheDocument();
     expect(screen.getByText("케어 미스: 6")).toBeInTheDocument();
+    expect(screen.getByText("수면 방해: 4회")).toBeInTheDocument();
     expect(screen.getByText("수면 상태: 수면 중")).toBeInTheDocument();
 
     const devInfoButton = screen.getByRole("button", { name: /3. 개발 정보/i });
@@ -116,6 +118,18 @@ describe("StatsPanel 내부/고급 카운터 표시", () => {
     expect(screen.getByText("배틀 횟수: 5")).toBeInTheDocument();
     expect(screen.getByText("승리: 3 / 패배: 2")).toBeInTheDocument();
     expect(window.localStorage.getItem("statsPanel_showDevInfo")).toBe("true");
+  });
+
+  test("수면 방해 값이 없거나 잘못된 기존 슬롯은 0회로 표시한다", () => {
+    const { rerender } = render(
+      <StatsPanel stats={{ sleepDisturbances: undefined }} sleepStatus="AWAKE" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /스탯 패널/i }));
+    expect(screen.getByText("수면 방해: 0회")).toBeInTheDocument();
+
+    rerender(<StatsPanel stats={{ sleepDisturbances: "잘못된 값" }} sleepStatus="AWAKE" />);
+    expect(screen.getByText("수면 방해: 0회")).toBeInTheDocument();
   });
 
   test("내부 시간과 값이 없는 상태 문구도 한글 표시를 유지한다", () => {

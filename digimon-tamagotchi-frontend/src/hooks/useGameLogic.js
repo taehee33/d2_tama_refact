@@ -8,6 +8,9 @@ import {
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
 import { toEpochMs } from "../utils/time";
+import { isSleepDisturbanceLog } from "../utils/sleepDisturbanceLogs";
+
+export { isSleepDisturbanceLog } from "../utils/sleepDisturbanceLogs";
 
 const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -29,20 +32,6 @@ const SLEEP_STATUS = {
  */
 function ensureTimestamp(val) {
   return toEpochMs(val);
-}
-
-/**
- * 수면 방해 로그 여부를 판별한다.
- * 신규 타입(SLEEP_DISTURBANCE)과 기존 CARE_MISTAKE 기반 로그를 모두 인식한다.
- * @param {Object} log
- * @returns {boolean}
- */
-export function isSleepDisturbanceLog(log) {
-  if (!log) return false;
-  if (log.type === 'SLEEP_DISTURBANCE') return true;
-  const text = (log.text || '').trim();
-  if (!text.includes('수면 방해')) return false;
-  return log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE';
 }
 
 /**

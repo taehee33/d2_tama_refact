@@ -7,6 +7,7 @@ jest.mock("./StatsPopup", () => function MockStatsPopup() {
 });
 
 jest.mock("./StatsCenterPopup", () => function MockStatsCenterPopup({
+  activityLogs,
   canViewDiagnostics,
   isOperatorStatusLoading,
   currentTime,
@@ -18,6 +19,7 @@ jest.mock("./StatsCenterPopup", () => function MockStatsCenterPopup({
     <div data-testid="stats-center-popup">
       <span>{`${canViewDiagnostics}:${isOperatorStatusLoading}`}</span>
       <span>{currentTime instanceof Date ? currentTime.toISOString() : "시계 없음"}</span>
+      <span>{`activityLogs:${activityLogs?.length || 0}`}</span>
       <button type="button" onClick={onClose}>닫기</button>
       <button type="button" onClick={onOpenLegacy}>기존 화면</button>
       <span>{typeof onSaveOperatorStats === "function" ? "운영자 저장 연결" : "운영자 저장 없음"}</span>
@@ -30,6 +32,7 @@ function renderGameModals({
   handlers = {},
   flags = {},
   toggleModal = jest.fn(),
+  activityLogs = [],
 } = {}) {
   const view = render(
     <GameModals
@@ -38,7 +41,7 @@ function renderGameModals({
       gameState={{
         selectedDigimon: "Koromon",
         digimonStats: { age: 1 },
-        activityLogs: [],
+        activityLogs,
         slotVersion: "Ver.1",
       }}
       handlers={handlers}
@@ -122,6 +125,17 @@ describe("GameModals 스탯 화면 경계", () => {
     );
     expect(screen.getByTestId("stats-center-popup")).toHaveTextContent("운영자 저장 연결");
     expect(screen.queryByTestId("legacy-stats-popup")).not.toBeInTheDocument();
+  });
+
+  test("신규 스탯 센터에 기존 활동 로그를 전달한다", () => {
+    renderGameModals({
+      modals: { statsCenter: true },
+      activityLogs: [
+        { type: "SLEEP_DISTURBANCE", text: "수면 방해", timestamp: 1000 },
+      ],
+    });
+
+    expect(screen.getByTestId("stats-center-popup")).toHaveTextContent("activityLogs:1");
   });
 
   test("신규 화면에서 기존 화면으로 갈 때 단일 전환 handler만 호출한다", () => {
