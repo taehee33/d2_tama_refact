@@ -133,6 +133,21 @@ describe("SleepSection", () => {
     expect(screen.queryByText("이전 구간")).not.toBeInTheDocument();
   });
 
+  test("단계 시작 시각이 없으면 레거시 범위와 카운트·상세 기록 차이를 안내한다", () => {
+    renderSection({
+      stats: { sleepDisturbances: 2 },
+      currentStageStartedAt: null,
+      activityLogs: [
+        { type: "SLEEP_DISTURBANCE", text: "레거시 기록", timestamp: now - 1000 },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /수면 방해 이력 \(1건\)/ }));
+    expect(screen.getByText("카운트 2회 · 상세 기록 1건")).toBeInTheDocument();
+    expect(screen.getByText(/단계 시작 시각이 없어/)).toBeInTheDocument();
+    expect(screen.getByText("레거시 기록")).toBeInTheDocument();
+  });
+
   test("냉장고 상태에서도 야행성 제어는 같은 위치에 유지한다", () => {
     renderSection({ stats: { isFrozen: true, isNocturnal: true } });
     expect(screen.getByText("4. 냉장고 상태")).toBeInTheDocument();

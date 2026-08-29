@@ -15,6 +15,11 @@ function strengthDisplay(strength=0){
   return `${base}${over>0 ? "(+" + over + ")" : ""}`;
 }
 
+function nonNegativeCountDisplay(value=0){
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? Math.max(0, normalized) : 0;
+}
+
 // 시간 포맷 (일/시간/분/초)
 function formatTime(sec=0){
   const d = Math.floor(sec / 86400);
@@ -191,6 +196,7 @@ const StatsPanel = ({ stats, sleepStatus = "AWAKE", isMobile = false }) => {
             <p>승률: {stats.winRate || 0}%</p>
             <p>노력치: {stats.effort || 0}</p>
             <p>케어 미스: {stats.careMistakes || 0}</p>
+            <p>수면 방해: {nonNegativeCountDisplay(stats.sleepDisturbances)}회</p>
             <p>수면 상태: {formatSleepStatus(sleepStatus)}</p>
             {stats.isFrozen && (
               <p className="text-blue-600 font-semibold">🧊 냉장고</p>

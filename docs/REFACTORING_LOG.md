@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-08-29] 신규 디지몬 상태 수면 방해 이력 펼침
+
+- **표시 개선:** 신규 `디지몬 상태`의 `수면 방해 N회` 행을 카운트가 있을 때 펼침 버튼으로 만들어, 현재 진화 구간에 발생한 사유와 시각을 최신순으로 표시한다. 0회인 행은 기존처럼 읽기 전용으로 유지한다.
+- **범위·호환성:** 공용 순수 helper가 신규 `SLEEP_DISTURBANCE`와 레거시 `CARE_MISTAKE` 기록을 함께 인식하고 `evolutionStageStartedAt` 이후만 선택한다. 단계 시작 시각이 없으면 보유 로그 전체를 레거시 범위로 표시하며, 카운트보다 상세 로그가 적으면 보관 한도·레거시 데이터 가능성을 안내한다.
+- **화면 역할:** 스탯 펼침은 현재 진화 구간, 기존 `활동 로그 > 수면`은 현재 생애의 수면 기록을 담당한다. 호출/알람 내역과 전용 수면 아이콘은 추가하지 않았다.
+- **아키텍처 결정 근거:** 기존 `sleepDisturbances`와 활동 로그만 읽어 표시하며, 카운터 증가·진화 초기화·Firestore 저장·IndexedDB outbox 계약은 변경하지 않았다.
+- **영향 파일:** `src/utils/sleepDisturbanceLogs.js`, `src/components/StatsCenterPopup.jsx`, `src/components/stats-center/StatusTab.jsx`, `src/components/stats-popup/SleepSection.jsx`, `src/components/GameModals.jsx`, 관련 테스트.
+- **검증:** 현재 구간 필터·최신순 정렬·펼침/접힘, 카운트·상세 기록 불일치, 레거시 fallback, 0회 읽기 전용 행, Old/New 이력과 활동 로그 수면 탭 분류를 회귀 테스트로 고정했다. 집중 7 suite·87 tests와 전체 `npm run check`(프런트 222 suite·1,509 tests, 서버 266 pass·22 Emulator-only skip, lint·typecheck·production build·projection 검사)를 통과했다.
+
+## [2026-08-28] 디지몬 상태·스탯 패널 수면 방해 횟수 표시
+
+- **표시 개선:** 신규 `디지몬 상태` 화면과 기존 `스탯 패널`의 케어 미스 아래에 현재 진화 구간의 `수면 방해` 횟수를 추가했다. 필드가 없거나 숫자로 변환할 수 없는 기존 슬롯은 `0회`로 안전하게 표시한다.
+- **재사용 결정:** 수면 중 강제 기상 시 이미 증가하고 진화 시 초기화되며 Firestore 슬롯에 저장되는 기존 `sleepDisturbances`를 그대로 사용했다. 새 스키마·저장 로직·마이그레이션은 추가하지 않았다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/components/stats-center/statsCenterViewModel.js`, `src/components/StatsPanel.jsx`, 관련 컴포넌트 테스트.
+- **검증:** 전달된 카운터, 표시 순서, missing·invalid fallback을 신규 상태 화면과 기존 스탯 패널 테스트로 고정했다. 집중 3 suite·31 tests와 전체 `npm run check`(프런트 220 suite·1,498 tests, 서버 266 pass·22 Emulator-only skip, lint·typecheck·production build·projection 검사)를 통과했다.
+
 ## [2026-08-28] 케어미스 레거시 missing-only 복구와 영구 차단 해제
 
 - **문제:** 기존 슬롯에서 케어미스 카운터만 남거나 reconciliation 상태가 `ambiguous`/`in_progress`로 고정되면, 실제 읽기와 정합성 검사가 정상이어도 게임 진입이 영구 차단될 수 있었다. 또한 기존 incident가 일부 있는 슬롯에서 카운터 전체를 다시 복구하면 사건이 과다 생성될 위험이 있었다.

@@ -315,6 +315,7 @@ export default function GameModals({
       {modals?.statsCenter && (
         <StatsCenterPopup
           stats={digimonStats}
+          activityLogs={activityLogs}
           digimonData={currentDigimonData}
           sleepStatus={ui?.sleepStatus || "AWAKE"}
           currentTime={customTime}

@@ -1,4 +1,6 @@
 import { buildHealthRiskViewModel } from "./healthRiskViewModel";
+import { formatTimestamp as formatActivityTimestamp } from "../../utils/dateUtils";
+import { selectCurrentStageSleepDisturbanceLogs } from "../../utils/sleepDisturbanceLogs";
 
 const DEFAULT_HEART_MAX = 5;
 const MAX_POOP_COUNT = 8;
@@ -19,6 +21,10 @@ function firstDefined(...values) {
 function toFiniteNumber(value, fallback = 0) {
   const normalized = Number(value);
   return Number.isFinite(normalized) ? normalized : fallback;
+}
+
+function toNonNegativeCount(value) {
+  return Math.max(0, toFiniteNumber(value));
 }
 
 function firstPositiveNumber(...values) {
@@ -150,9 +156,34 @@ function buildStatusItems({ stats, digimonData, sleepStatus }) {
     { key: "winRate", label: "승률", value: `${toFiniteNumber(winRate)}%` },
     { key: "effort", label: "노력치", value: `${toFiniteNumber(stats.effort)}` },
     { key: "careMistakes", label: "케어 미스", value: `${toFiniteNumber(stats.careMistakes)}회` },
+    {
+      key: "sleepDisturbances",
+      label: "수면 방해",
+      value: `${toNonNegativeCount(stats.sleepDisturbances)}회`,
+    },
     { key: "sleep", label: "수면", value: formatSleepStatus(sleepStatus) },
     { key: "injury", label: "부상", value: stats.isInjured ? "치료 필요" : "정상" },
   ];
+}
+
+function buildSleepDisturbanceHistory(stats, activityLogs) {
+  const counter = toNonNegativeCount(stats.sleepDisturbances);
+  const { logs, isLegacyRange } = selectCurrentStageSleepDisturbanceLogs({
+    activityLogs,
+    currentStageStartedAt: stats.evolutionStageStartedAt,
+  });
+
+  return {
+    counter,
+    detailCount: logs.length,
+    hasMissingDetails: logs.length < counter,
+    isLegacyRange,
+    entries: logs.map((log, index) => ({
+      id: `${toFiniteNumber(log?.timestamp)}-${index}`,
+      text: log?.text || "수면 방해 발생",
+      timestampLabel: formatActivityTimestamp(log?.timestamp),
+    })),
+  };
 }
 
 function buildDiagnosticSections(stats) {
@@ -230,14 +261,15 @@ function buildDiagnosticSections(stats) {
  * 신규 스탯 센터의 표시용 값만 정규화합니다.
  * 원본 변경, 저장 payload 생성, lazy update, 게임 규칙 재계산은 하지 않습니다.
  *
- * @param {{stats?: Object, digimonData?: Object|null, sleepStatus?: string, currentTime?: Date|number|string}} input
- * @returns {{statusItems: Array<{key: string, label: string, value: string}>, healthRiskItems: Array<Object>, lifespanInfo: Object, diagnosticSections: Array<Object>}}
+ * @param {{stats?: Object, digimonData?: Object|null, sleepStatus?: string, currentTime?: Date|number|string, activityLogs?: Array<Object>}} input
+ * @returns {{statusItems: Array<{key: string, label: string, value: string}>, sleepDisturbanceHistory: Object, healthRiskItems: Array<Object>, lifespanInfo: Object, diagnosticSections: Array<Object>}}
  */
 export function buildStatsCenterViewModel({
   stats = {},
   digimonData = null,
   sleepStatus = "AWAKE",
   currentTime = Date.now(),
+  activityLogs = [],
 } = {}) {
   const safeStats = stats || {};
   const healthRiskViewModel = buildHealthRiskViewModel(safeStats, currentTime);
@@ -248,6 +280,7 @@ export function buildStatsCenterViewModel({
       digimonData,
       sleepStatus,
     }),
+    sleepDisturbanceHistory: buildSleepDisturbanceHistory(safeStats, activityLogs),
     ...healthRiskViewModel,
     diagnosticSections: buildDiagnosticSections(safeStats),
   };

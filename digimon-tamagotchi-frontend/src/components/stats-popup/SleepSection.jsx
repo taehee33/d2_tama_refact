@@ -1,21 +1,17 @@
 import React, { useState } from "react";
-import { isSleepDisturbanceLog } from "../../hooks/useGameLogic";
 import { formatTimestamp } from "../../utils/dateUtils";
 import { formatSleepSchedule, getTimeUntilSleep, getTimeUntilWake } from "../../utils/sleepUtils";
 import { toEpochMs } from "../../utils/time";
+import { selectCurrentStageSleepDisturbanceLogs } from "../../utils/sleepDisturbanceLogs";
 
 /** 현재 진화 구간의 수면 방해 이력을 표시합니다. */
-function SleepDisturbanceHistory({ activityLogs, currentStageStartedAt }) {
+function SleepDisturbanceHistory({ activityLogs, currentStageStartedAt, counter = 0 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const logs = (activityLogs || [])
-    .filter(isSleepDisturbanceLog)
-    .filter((log) => {
-      const logMs = toEpochMs(log.timestamp);
-      if (logMs == null) return false;
-      if (currentStageStartedAt == null) return true;
-      return logMs >= currentStageStartedAt;
-    })
-    .sort((a, b) => (toEpochMs(b.timestamp) || 0) - (toEpochMs(a.timestamp) || 0));
+  const { logs, isLegacyRange } = selectCurrentStageSleepDisturbanceLogs({
+    activityLogs,
+    currentStageStartedAt,
+  });
+  const hasMissingDetails = logs.length < counter;
 
   return (
     <div className="mt-2 border-t pt-2">
@@ -29,9 +25,19 @@ function SleepDisturbanceHistory({ activityLogs, currentStageStartedAt }) {
 
       {isOpen && (
         <div className="mt-2 space-y-1 max-h-60 overflow-y-auto">
+          {hasMissingDetails && (
+            <div className="text-xs p-2 bg-amber-50 border border-amber-200 rounded text-amber-700">
+              카운트 {counter}회 · 상세 기록 {logs.length}건
+            </div>
+          )}
+          {isLegacyRange && (
+            <div className="text-xs p-2 bg-blue-50 border border-blue-200 rounded text-blue-700">
+              단계 시작 시각이 없어 보유 중인 수면 방해 기록을 모두 표시합니다.
+            </div>
+          )}
           {logs.length === 0 ? (
             <div className="text-xs p-2 bg-gray-50 border border-gray-200 rounded text-gray-600">
-              수면 방해 이력이 없습니다. (로그가 아직 기록되지 않았을 수 있습니다)
+              수면 방해 상세 기록이 없습니다. (보관 한도 또는 레거시 데이터)
             </div>
           ) : logs.map((log, index) => {
             const timestamp = toEpochMs(log.timestamp);
@@ -185,7 +191,11 @@ export default function SleepSection({
       )}
 
       {!isFrozen && sleepDisturbances > 0 && (
-        <SleepDisturbanceHistory activityLogs={activityLogs} currentStageStartedAt={currentStageStartedAt} />
+        <SleepDisturbanceHistory
+          activityLogs={activityLogs}
+          currentStageStartedAt={currentStageStartedAt}
+          counter={sleepDisturbances}
+        />
       )}
 
       <div className="mt-3 pt-3 border-t">
