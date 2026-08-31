@@ -17,6 +17,7 @@
     "notification-subscribers:backfill": "node scripts/backfillNotificationSubscribers.js --apply",
     "notification:diagnose-slot": "node scripts/diagnoseSlotNotificationState.js",
     "care-mistake:audit": "node scripts/auditCareMistakeReconciliation.js",
+    "care-mistake:v2-dry-run": "node scripts/dryRunCareMistakeV2.js",
     "arena:ghost:audit": "node scripts/auditArenaGhostReadiness.js",
     "arena:identity:backfill": "node scripts/backfillArenaCombatIdentity.js",
     "arena:ghost:migrate": "node scripts/migrateArenaGhosts.js",
@@ -52,5 +53,5 @@
     "firebase-tools": "^13.0.0",
     "knip": "6.29.0"
   },
-  "version": "0.7.2.0"
+  "version": "0.8.0.0"
 }

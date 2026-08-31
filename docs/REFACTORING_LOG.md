@@ -4,6 +4,41 @@
 
 ---
 
+## [2026-08-31] 케어미스 V2 canary 동시 저장 revision 경쟁 수정
+
+- **운영 발견:** 신규 익명 canary 슬롯 진입 직후 배경·몰입형 설정 effect와 상태 저장이 같은 V2 revision으로 동시에 command를 보내 `409` 재시도 폭주를 만들었다. `commitCareV2Patch`가 실시간 stats dependency로 매초 새로 생성되어 설정 effect를 다시 실행한 것도 반복을 증폭했다.
+- **수정:** 배경·몰입형 설정과 형태 보조 patch를 기존 게임 저장 queue에 통합했다. 각 작업은 queue 실행 시점에 최신 `loadedRevision`과 `careMistakeState`를 읽고, 앞 command의 revision·receipt 반영이 끝난 뒤 다음 command를 보낸다. 최신 stats는 ref로 전달해 callback identity가 1초 렌더에 따라 바뀌지 않게 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.test.js`.
+- **검증:** 동시 background·immersive patch가 단일 active commit으로 revision `1 → 2 → 3`과 receipt를 이어받는 회귀 테스트를 추가했다. 전체 gate와 production canary는 수정 커밋 후 다시 실행한다.
+
+## [2026-08-31] 케어미스 V2 operation-first trusted 슬롯 삭제
+
+- **삭제 정본:** V2 슬롯 삭제를 owner 인증 server API로 전환하고 uid·slotId·slotInstanceId 기반 immutable operation과 slotId 외부 lock을 분리했다. 삭제 중 slot root가 먼저 사라져도 lock이 같은 번호의 native init과 client descendant write를 차단해 새 instance가 과거 recursive delete 재시도에 휩쓸리지 않는다.
+- **Operation-first·lease:** 삭제 API는 current slot보다 operation을 먼저 읽는다. Complete 재시도는 현재 경로를 읽지 않고 즉시 성공하며, 부분 삭제 resume은 최초 expected revision을 다시 검증하지 않는다. 5분 executor lease, attempt와 정제된 last error를 보존해 동시 BulkWriter 실행을 막고 실패·process 종료 뒤 takeover를 허용한다.
+- **권한·클라이언트:** 일반 사용자는 자기 슬롯의 integrity, command, native init과 delete만 수행하고 migration·baseline override·linked-head repair는 operator-only로 잠갔다. V1 삭제는 유지하며 V2는 server complete 뒤에만 해당 slot instance의 IndexedDB outbox를 정리한다.
+- **Rules:** deletion operation·lock의 client 접근을 거부하고 lock이 있는 slotId의 V1 create/update/delete와 logs·battleLogs·incident·transition·reconciliation descendant write를 차단했다.
+- **영향 파일:** `api/_lib/careMistakeV2Service.js`, `careMistakeV2Handlers.js`, `src/persistence/careMistakeV2Api.js`, `src/hooks/useUserSlots.js`, `firestore.rules`, 관련 테스트와 `docs/CARE_MISTAKE_V2_PHASE2.md`.
+- **검증:** operation-first root-missing resume, complete A 재호출 시 새 B 불변, active lease·takeover, stale write 0, owner/operator 권한과 V1/V2 client 분기를 집중 회귀 테스트로 고정했다. lint·typecheck, 프런트 226 suite·1,537 tests, 서버 314 tests(290 pass·24 Emulator-only skip), Firestore Rules 8 tests, API 진입점 단일 원본과 server projection 검사를 통과했다. Clean baseline은 이 변경을 커밋한 뒤 전체 gate와 Arena/Jogress Emulator를 다시 실행해 확정한다.
+
+## [2026-08-30] 케어미스 V2 trusted server cutover 2단계
+
+- **서버 저장 경계:** V2 command의 canonical fingerprint, transition 우선 멱등 재시도, root/current receipt·stage·revision stale 검증, 결정적 incident ID와 상태·receipt·incident·로그 원자 commit을 Vercel serverless API로 구현했다. 12-function 상한을 지키기 위해 기존 `operator/status` 라우터에 합쳤다. 새 슬롯은 `NATIVE_INIT` transaction으로 revision 1에서 시작하며 V1 슬롯과 V1 `NEW_LIFE`는 기존 경로를 유지한다. V2 `NEW_LIFE`는 내구성 outbox와 trusted command로 전환했고 서버가 slot identity를 보존하면서 생애·combat identity를 새로 확정한다.
+- **Integrity·repair:** slot, receipt lineage, head를 read transaction의 동일 snapshot으로 검증하고 일시 실패를 `integrity_unknown`으로 분리했다. Migration, baseline override, 400건 이하 linked-head rebuild에 expected revision/current receipt, immutable repair receipt, revision `+1`과 repair request fingerprint를 적용했다.
+- **Rules·client cutover:** V1 compatible write는 보존하면서 client self-upgrade, V2 slot/state/receipt/incident/transition/log 직접 write를 거부했다. V2 hydration은 integrity 확정 전 mutation을 보류하고, state·activity/feed/battle·transition outbox에 epoch를 저장하며 stale causal chain을 IndexedDB 단일 transaction으로 `legacy_quarantine`에 격리한다.
+- **영향 파일:** `api/operator/status.js`, `api/_lib/careMistakeV2*.js`, `src/persistence/careMistakeV2Api.js`, `useDurableGamePersistence.js`, `useGameData.js`, `useUserSlots.js`, IndexedDB outbox/transition queue, `firestore.rules`, 관련 테스트와 `docs/CARE_MISTAKE_V2_PHASE2.md`.
+- **범위 제외:** 운영 배포, 운영 migration·repair, 운영자 UI, 슬롯 4·5 변경은 수행하지 않았다.
+- **검증:** lint·typecheck, 프런트 225 suite·1,532 tests, 서버 302 tests(279 pass·23 Emulator-only skip), API 진입점 12개 단일 원본, production build를 통과했다. Firestore Rules 7 tests와 Arena/Jogress Emulator 26 tests도 통과했다. `check:server-projection`은 새 V2 export를 포함해 갱신된 생성 bundle이 Git HEAD와 다른 작업 중 상태만 보고했다.
+
+## [2026-08-30] 케어미스 V2 읽기 전용 분류·chain 감사 1단계
+
+- **레거시 canonical 고정:** `digimonStats.careMistakes`만 migration baseline 후보로 사용하고 root mirror·활동 로그·기존 incident는 불완전성 진단에만 사용하도록 V2 classifier를 분리했다. 유효한 nested baseline이 없거나 생애 identity가 불완전하면 다른 자료로 추정하지 않고 `repair_required`로 분류한다.
+- **V2 integrity:** baseline과 post-cutover count 합계, root/nested mirror, immutable root receipt lineage와 현재 receipt를 검증하고 hydration에서는 현재 head 한 건만 확인해 `effectiveIntegrityStatus`를 계산한다. 저장된 `verified` 값이 있어도 drift를 자동 보정하지 않는다.
+- **결정적 chain:** `occurredRevision → operationIndex → incidentId` 순서, semantic operation key 중복 금지, cycle·누락·count·집합 일치 검사를 순수 함수로 추가했다. 최대 400건만 repair 가능하며 401건 이상은 truncation 없이 `OVER_REPAIR_BOUNDARY`로 거부한다.
+- **Repair preview:** linked-head rebuild는 pointer/head만 결정적으로 계산하고 revision 일치와 성공 시 `+1`을 순수 repair plan으로 고정했다. snapshot helper로 incident 사실과 세 projection count가 rebuild 전후 바뀌지 않음을 검증한다. 실제 Firestore repair write/API는 이번 단계에 포함하지 않았다.
+- **읽기 전용 운영 도구:** `care-mistake:v2-dry-run`이 기본 슬롯 4·5의 canonical baseline, classification, diagnostics, V2 unresolved 수, 저장 count, head, chain/order 상태와 repairability를 출력한다. 스크립트에는 slot/incident/receipt write 경로가 없고 `writesPerformed: 0`을 고정하며, Firestore write API를 import하거나 호출하지 않는 조건도 소스 정적 회귀 테스트로 잠갔다.
+- **영향 파일:** `src/logic/stats/careMistakeV2Domain.js`, `careMistakeV2Chain.js`, `scripts/dryRunCareMistakeV2.js`, server projection entry·생성 bundle, 관련 테스트와 `docs/CARE_MISTAKE_V2_PHASE1.md`.
+- **검증:** V2 순수 함수 18개와 dry-run/기존 audit Node 테스트 7개를 통과했다. 전체 `npm run check`의 lint·typecheck·프런트 224 suite·1,524 tests·서버 269 pass/22 Emulator skip·production build까지 성공했고, 마지막 projection 검사는 이번 변경으로 생성 bundle이 Git HEAD와 다른 정상 상태를 보고했다. 생성기를 연속 실행한 SHA-256이 일치해 bundle 멱등성을 별도 확인했다. Firestore Emulator 6 tests와 Arena/Jogress Emulator 26 tests도 통과했다. 실제 슬롯 4·5 결과는 대상 UID로 read-only dry-run 후 추가 기록한다.
+
 ## [2026-08-29] 신규 디지몬 상태 수면 방해 이력 펼침
 
 - **표시 개선:** 신규 `디지몬 상태`의 `수면 방해 N회` 행을 카운트가 있을 때 펼침 버튼으로 만들어, 현재 진화 구간에 발생한 사유와 시각을 최신순으로 표시한다. 0회인 행은 기존처럼 읽기 전용으로 유지한다.

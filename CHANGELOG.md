@@ -2,6 +2,25 @@
 
 이 문서는 운영 배포 버전별 사용자 영향 변경사항을 기록합니다.
 
+## [0.8.0.0] - 2026-09-01
+
+### Added
+
+- 케어미스 발생·해소·진화·환생을 revision과 receipt chain으로 검증하는 V2 저장 구조를 추가했습니다.
+- 같은 command를 반복 전송해도 결과가 한 번만 반영되며, stale revision은 관련 문서를 변경하지 않고 거부합니다.
+- 삭제 operation·slotId lock·5분 execution lease를 사용하는 trusted V2 슬롯 삭제를 추가했습니다.
+
+### Changed
+
+- V2 슬롯의 command, native init, integrity 조회와 삭제를 인증된 서버 API가 처리하고, migration·baseline override·linked-head repair는 operator 권한으로 분리했습니다.
+- V2 저장이 동시에 발생하면 단일 queue에서 최신 revision과 receipt를 이어받아 순차적으로 처리합니다.
+- IndexedDB outbox는 trusted 삭제가 완료된 뒤에만 해당 slot instance 대기 작업을 정리하며, 진행 중이거나 실패하면 재시도를 위해 보존합니다.
+
+### Security
+
+- Firestore Rules가 V2 slot·receipt·incident·deletion operation의 클라이언트 직접 쓰기를 거부하고, 삭제 lock이 있는 동안 같은 slotId의 재사용과 descendant 쓰기를 차단합니다.
+- 일반 사용자는 자신의 슬롯만 삭제할 수 있으며 action이나 target UID를 변조해 operator 기능으로 승격할 수 없습니다.
+
 ## [0.7.2.0] - 2026-08-29
 
 ### Added

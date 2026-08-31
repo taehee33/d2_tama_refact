@@ -25,6 +25,8 @@ function GameSlotLoadState({
     const statusLabel = {
       in_progress: "확인 중",
       ambiguous: "운영자 확인 필요",
+      repair_required: "운영자 확인 필요",
+      integrity_unknown: "일시 오류 · 다시 확인 필요",
       failed: "재시도 필요",
       not_started: "확인 대기",
     }[reconciliationStatus] || "확인 필요";

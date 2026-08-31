@@ -68,6 +68,35 @@ service cloud.firestore {
         request.resource.data.selectedDigimon.size() > 0;
     }
 
+    function hasCareV2OwnedFields(data) {
+      return data is map && data.keys().hasAny([
+        "careMistakeState",
+        "rootReceiptId",
+        "receiptId"
+      ]);
+    }
+
+    function isCareV2SlotData(data) {
+      return data is map &&
+        data.keys().hasAll(["careMistakeState"]) &&
+        data.careMistakeState is map &&
+        data.careMistakeState.schemaVersion == 2;
+    }
+
+    function isStoredCareV2Slot(userId, slotId) {
+      return isCareV2SlotData(get(slotPath(userId, slotId)).data);
+    }
+
+    function isClientV1SlotCreate() {
+      return !hasCareV2OwnedFields(request.resource.data);
+    }
+
+    function isClientV1SlotUpdate() {
+      // V1 → V2 승격과 이미 V2가 된 슬롯의 mutation은 trusted server 전용이다.
+      return !isCareV2SlotData(resource.data) &&
+        !hasCareV2OwnedFields(request.resource.data);
+    }
+
     function isSlotInstanceUpdateValid() {
       // bridge 기간의 legacy slot은 identity를 아직 쓰지 않는 update도 임시 허용한다.
       return !hasSlotInstanceIdentityFields(resource.data)
@@ -148,6 +177,14 @@ service cloud.firestore {
 
     function slotPath(userId, slotId) {
       return /databases/$(database)/documents/users/$(userId)/slots/$(slotId);
+    }
+
+    function slotDeletionLockPath(userId, slotId) {
+      return /databases/$(database)/documents/users/$(userId)/careMistakeV2SlotDeletionLocks/$(slotId);
+    }
+
+    function isSlotDeletionUnlocked(userId, slotId) {
+      return !exists(slotDeletionLockPath(userId, slotId));
     }
 
     function gameTransitionPath(userId, slotId, transitionId) {
@@ -338,7 +375,8 @@ service cloud.firestore {
 
     function isArenaSlotUpdateValid(userId, slotId) {
       // bridge 기간에는 아직 backfill되지 않은 legacy slot만 기존 update를 허용한다.
-      return isSlotInstanceUpdateValid() &&
+      return isClientV1SlotUpdate() &&
+        isSlotInstanceUpdateValid() &&
         (!hasArenaCombatIdentityFields(resource.data) || isStrictArenaIdentityUpdateValid()) &&
         isCareProjectionUpdateValid(userId, slotId);
     }
@@ -506,49 +544,76 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      match /careMistakeV2SlotDeletions/{operationId} {
+        allow read, write: if false;
+      }
+
+      match /careMistakeV2SlotDeletionLocks/{slotId} {
+        allow read, write: if false;
+      }
+
       match /slots/{slotId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isArenaSlotCreateValid();
-        allow update: if isOwner(userId) && isArenaSlotUpdateValid(userId, slotId);
-        allow delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          isClientV1SlotCreate() && isArenaSlotCreateValid();
+        allow update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          isArenaSlotUpdateValid(userId, slotId);
+        allow delete: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          !isCareV2SlotData(resource.data);
 
         match /logs/{logId} {
           allow read: if isOwner(userId);
-          allow create, update: if isOwner(userId) &&
+          allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             (!isCareMistakeActivityLog(request.resource.data) &&
               !isCareMistakeResolutionLog(request.resource.data) ||
               isCareMistakeLogAuthorized(userId, slotId, logId));
-          allow delete: if isOwner(userId);
+          allow delete: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
         }
 
         match /careMistakeIncidents/{incidentId} {
           allow read: if isOwner(userId);
-          allow create: if isOwner(userId) &&
+          allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isCareIncidentCreateValid(userId, slotId, incidentId);
-          allow update: if isOwner(userId) &&
+          allow update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isCareIncidentUpdateValid(userId, slotId, incidentId);
           allow delete: if false;
         }
 
         match /gameTransitions/{transitionId} {
           allow read: if isOwner(userId);
-          allow create: if isOwner(userId) &&
+          allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isGameTransitionCreateValid(userId, slotId, transitionId);
           allow update, delete: if false;
         }
 
         match /careMistakeReconciliations/{runId} {
-          allow read, create, update: if isOwner(userId);
+          allow read: if isOwner(userId);
+          allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
           allow delete: if false;
 
           match /batches/{batchId} {
-            allow read, create, update: if isOwner(userId);
+            allow read: if isOwner(userId);
+            allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+              !isStoredCareV2Slot(userId, slotId);
             allow delete: if false;
           }
         }
 
+        match /careMistakeReceipts/{receiptId} {
+          allow read: if isOwner(userId);
+          allow write: if false;
+        }
+
         match /battleLogs/{logId} {
-          allow read, write: if isOwner(userId);
+          allow read: if isOwner(userId);
+          allow write: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
         }
       }
     }

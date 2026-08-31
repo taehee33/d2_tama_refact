@@ -2,6 +2,7 @@ import {
   buildFallbackSlotHydrationResult,
   createNextSlotLoadAccess,
   createGameSaveQueue,
+  enqueueCareV2Patch,
   buildLazyUpdateRuntimeResult,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
@@ -126,6 +127,68 @@ describe("createGameSaveQueue", () => {
     await queue.enqueue(nextTask);
 
     expect(nextTask).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("enqueueCareV2Patch", () => {
+  test("동시에 요청된 V2 patch는 앞 결과의 revision과 state를 이어서 직렬 commit한다", async () => {
+    const saveQueue = createGameSaveQueue();
+    let access = {
+      loadedRevision: 1,
+      loadedIdentity: { digimonInstanceId: "life-a" },
+      careMistakeState: {
+        schemaVersion: 2,
+        rootReceiptId: "root-a",
+        receiptId: "receipt-1",
+        evolutionStageInstanceId: "stage-a",
+      },
+    };
+    const expectedRevisions = [];
+    let activeCommits = 0;
+    let maxActiveCommits = 0;
+    const commitCommand = jest.fn(async (_user, _slotId, command) => {
+      expectedRevisions.push(command.expectedRevision);
+      activeCommits += 1;
+      maxActiveCommits = Math.max(maxActiveCommits, activeCommits);
+      await Promise.resolve();
+      activeCommits -= 1;
+      const revision = command.expectedRevision + 1;
+      return {
+        revision,
+        careMistakeState: {
+          ...access.careMistakeState,
+          receiptId: `receipt-${revision}`,
+        },
+      };
+    });
+    const common = {
+      saveQueue,
+      getAccess: () => access,
+      currentUser: { uid: "canary-user" },
+      slotId: 1,
+      commitCommand,
+      updateAccess: (patch) => { access = { ...access, ...patch }; },
+      setRevision: jest.fn(),
+    };
+
+    const first = enqueueCareV2Patch({
+      ...common,
+      commandId: "background-a",
+      payload: { updateData: { backgroundSettings: { theme: "a" } } },
+    });
+    const second = enqueueCareV2Patch({
+      ...common,
+      commandId: "immersive-a",
+      payload: { updateData: { immersiveSettings: { enabled: true } } },
+    });
+
+    const results = await Promise.all([first, second]);
+
+    expect(expectedRevisions).toEqual([1, 2]);
+    expect(results.map((result) => result.revision)).toEqual([2, 3]);
+    expect(access.loadedRevision).toBe(3);
+    expect(access.careMistakeState.receiptId).toBe("receipt-3");
+    expect(maxActiveCommits).toBe(1);
   });
 });
 

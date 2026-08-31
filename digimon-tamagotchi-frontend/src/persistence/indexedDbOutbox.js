@@ -108,6 +108,10 @@ export function createIndexedDbStorage(options = {}) {
       const database = await getDatabase();
       return runAtomicDeleteWhere(database, storeNames, predicate);
     },
+    async quarantineWhere(storeNames, predicate, describe) {
+      const database = await getDatabase();
+      return runAtomicQuarantineWhere(database, storeNames, predicate, describe);
+    },
     async migrateLegacyRecords(nowTimestamp = Date.now()) {
       const database = await getDatabase();
       return migrateLegacyOutboxRecords(database, nowTimestamp);
@@ -205,6 +209,7 @@ export function createIndexedDbOutbox(options = {}) {
         input.syncStatus === 'synced' || Number.isFinite(input.syncedAt)
           ? normalizeTimestamp(input.syncedAt, occurredAt)
           : null,
+      ...(input.careEpoch ? { careEpoch: clonePlainData(input.careEpoch) } : {}),
     };
 
     if (category === EVENT_CATEGORY.FEED) {
@@ -292,6 +297,7 @@ export function createIndexedDbOutbox(options = {}) {
         updatedAt,
         queuedAt,
         state: clonePlainData(input.state),
+        ...(input.careEpoch ? { careEpoch: clonePlainData(input.careEpoch) } : {}),
       };
 
       return storage.atomicUpdate(STATE_STORE, scopeKey, (existing) => {
@@ -424,6 +430,35 @@ export function createIndexedDbOutbox(options = {}) {
       return (await storage.getAll(QUARANTINE_STORE)).map(clonePlainData);
     },
 
+    async quarantineStaleCareEpoch(input) {
+      await ensureMigration();
+      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
+      const scopeKey = buildScopeKey(identity.uid, identity.slotId, identity.slotInstanceId);
+      const expected = normalizeCareEpoch(input.currentEpoch);
+      const reason = normalizeRequiredString(input.reason || 'stale-care-epoch', 'reason');
+      return storage.quarantineWhere(
+        [STATE_STORE, EVENT_STORE, TRANSITION_STORE],
+        (_storeName, record) => {
+          if (record?.scopeKey !== scopeKey ||
+              record?.digimonInstanceId !== identity.digimonInstanceId) return false;
+          const epoch = readRecordCareEpoch(record);
+          return !epoch || epoch.careSchemaVersion !== expected.careSchemaVersion ||
+            epoch.rootReceiptId !== expected.rootReceiptId ||
+            epoch.receiptId !== expected.receiptId ||
+            epoch.evolutionStageInstanceId !== expected.evolutionStageInstanceId;
+        },
+        (storeName, record, originalKey) => ({
+          quarantineKey: `care-epoch:${storeName}:${String(originalKey)}:${now()}`,
+          originalStore: storeName,
+          originalKey: String(originalKey),
+          reason,
+          quarantinedAt: now(),
+          serverEpoch: expected,
+          record: clonePlainData(record),
+        })
+      );
+    },
+
     async summarizeFeedBuckets(input) {
       const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
       const bucketMinutes = input.bucketMinutes ?? FEED_BUCKET_MINUTES;
@@ -509,7 +544,9 @@ function assertStorage(storage) {
     'delete',
     'getAll',
     'atomicUpdate',
+    'atomicUpdateMany',
     'deleteWhere',
+    'quarantineWhere',
     'migrateLegacyRecords',
   ];
 
@@ -518,6 +555,37 @@ function assertStorage(storage) {
       throw new TypeError(`storage.${methodName} 구현이 필요합니다.`);
     }
   });
+}
+
+function normalizeCareEpoch(value = {}) {
+  const careSchemaVersion = Number(value.careSchemaVersion);
+  if (careSchemaVersion !== 2) throw new TypeError('careSchemaVersion 2가 필요합니다.');
+  return {
+    careSchemaVersion,
+    rootReceiptId: normalizeRequiredString(value.rootReceiptId, 'rootReceiptId'),
+    receiptId: normalizeRequiredString(value.receiptId, 'receiptId'),
+    evolutionStageInstanceId: normalizeRequiredString(
+      value.evolutionStageInstanceId,
+      'evolutionStageInstanceId'
+    ),
+  };
+}
+
+function readRecordCareEpoch(record = {}) {
+  const candidates = [
+    record.careEpoch,
+    record.state?.careEpoch,
+    record.transition?.careEpoch,
+    record.transition,
+    record.payload?.careEpoch,
+  ];
+  const value = candidates.find((candidate) => candidate?.careSchemaVersion != null);
+  if (!value) return null;
+  try {
+    return normalizeCareEpoch(value);
+  } catch (_error) {
+    return null;
+  }
 }
 
 function buildScopeKey(uid, slotId, slotInstanceId) {
@@ -929,6 +997,55 @@ function runAtomicDeleteWhere(database, storeNames, predicate) {
     transaction.onabort = () => {
       if (!settled) reject(transaction.error ?? new Error('IndexedDB 범위 정리가 중단되었습니다.'));
     };
+  });
+}
+
+function runAtomicQuarantineWhere(database, storeNames, predicate, describe) {
+  const names = Array.from(new Set([...normalizeStoreNames(storeNames), QUARANTINE_STORE]));
+  return new Promise((resolve, reject) => {
+    let transaction;
+    let quarantinedCount = 0;
+    let pendingReads = names.filter((name) => name !== QUARANTINE_STORE).length;
+    let settled = false;
+    try {
+      transaction = database.transaction(names, 'readwrite');
+      const quarantineStore = transaction.objectStore(QUARANTINE_STORE);
+      names.filter((name) => name !== QUARANTINE_STORE).forEach((storeName) => {
+        const store = transaction.objectStore(storeName);
+        const request = store.getAll();
+        request.onsuccess = () => {
+          try {
+            (request.result || []).forEach((record) => {
+              const originalKey = record?.[store.keyPath];
+              if (!predicate(storeName, clonePlainData(record), originalKey)) return;
+              quarantineStore.put(clonePlainData(describe(storeName, record, originalKey)));
+              store.delete(originalKey);
+              quarantinedCount += 1;
+            });
+            pendingReads -= 1;
+          } catch (error) {
+            settled = true;
+            try { transaction.abort(); } catch (_abortError) { /* noop */ }
+            reject(error);
+          }
+        };
+        request.onerror = () => {
+          settled = true;
+          reject(request.error ?? new Error('stale epoch 조회가 실패했습니다.'));
+        };
+      });
+      transaction.oncomplete = () => {
+        if (!settled && pendingReads === 0) resolve({ quarantinedCount });
+      };
+      transaction.onerror = () => {
+        if (!settled) reject(transaction.error ?? new Error('stale epoch 격리가 실패했습니다.'));
+      };
+      transaction.onabort = () => {
+        if (!settled) reject(transaction.error ?? new Error('stale epoch 격리가 중단되었습니다.'));
+      };
+    } catch (error) {
+      reject(error);
+    }
   });
 }
 
