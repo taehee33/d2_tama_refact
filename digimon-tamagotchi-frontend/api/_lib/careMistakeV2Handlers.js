@@ -5,11 +5,22 @@ const { allowMethods, handleApiError, parseJsonBody, sendError, sendJson } = req
 const {
   CareMistakeV2Error,
   commitCareMistakeV2Command,
+  deleteCareMistakeV2Slot,
   getCareMistakeV2Integrity,
   migrateCareMistakeV2Slot,
   nativeInitCareMistakeV2Slot,
   repairCareMistakeV2,
 } = require("./careMistakeV2Service");
+
+function assertOwnerScopedInput(input) {
+  if (Object.prototype.hasOwnProperty.call(input || {}, "targetUid")) {
+    throw new CareMistakeV2Error(
+      "TARGET_UID_NOT_ALLOWED",
+      "일반 사용자 작업에는 targetUid를 지정할 수 없습니다.",
+      403
+    );
+  }
+}
 
 function createCareMistakeV2Handler(deps = {}) {
   const verifyUser = deps.verifyRequestUser || verifyRequestUser;
@@ -21,6 +32,13 @@ function createCareMistakeV2Handler(deps = {}) {
     try {
       const viewer = await verifyUser(req);
       if (req.method === "GET") {
+        if (Object.prototype.hasOwnProperty.call(req.query || {}, "targetUid")) {
+          throw new CareMistakeV2Error(
+            "TARGET_UID_NOT_ALLOWED",
+            "일반 사용자 조회에는 targetUid를 지정할 수 없습니다.",
+            403
+          );
+        }
         const result = await (deps.getIntegrity || getCareMistakeV2Integrity)({
           uid: viewer.uid,
           slotId: req.query?.slotId,
@@ -32,6 +50,7 @@ function createCareMistakeV2Handler(deps = {}) {
 
       const input = await parseJsonBody(req);
       if (input.action === "command") {
+        assertOwnerScopedInput(input);
         const result = await (deps.commitCommand || commitCareMistakeV2Command)({
           uid: viewer.uid,
           slotId: input.slotId,
@@ -42,6 +61,7 @@ function createCareMistakeV2Handler(deps = {}) {
         return;
       }
       if (input.action === "native_init") {
+        assertOwnerScopedInput(input);
         const result = await (deps.nativeInit || nativeInitCareMistakeV2Slot)({
           uid: viewer.uid,
           slotId: input.slotId,
@@ -52,9 +72,22 @@ function createCareMistakeV2Handler(deps = {}) {
         sendJson(res, result.idempotent ? 200 : 201, result);
         return;
       }
-      if (input.action === "migrate") {
-        const result = await (deps.migrate || migrateCareMistakeV2Slot)({
+      if (input.action === "delete_slot") {
+        assertOwnerScopedInput(input);
+        const result = await (deps.deleteSlot || deleteCareMistakeV2Slot)({
           uid: viewer.uid,
+          slotId: input.slotId,
+          slotInstanceId: input.slotInstanceId,
+          expectedRevision: input.expectedRevision,
+          deps,
+        });
+        sendJson(res, result.status === "in_progress" ? 202 : 200, result);
+        return;
+      }
+      if (input.action === "migrate") {
+        await (deps.assertOperator || assertArenaAdmin)(viewer, deps);
+        const result = await (deps.migrate || migrateCareMistakeV2Slot)({
+          uid: input.targetUid,
           slotId: input.slotId,
           expectedRevision: input.expectedRevision,
           deps,

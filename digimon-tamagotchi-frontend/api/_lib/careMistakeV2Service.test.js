@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const {
   buildCommandFingerprint,
   commitCareMistakeV2Command,
+  deleteCareMistakeV2Slot,
   migrateCareMistakeV2Slot,
   nativeInitCareMistakeV2Slot,
   repairCareMistakeV2,
@@ -37,8 +38,12 @@ class FakeCollection extends FakeRef {
 function createHarness(initial = {}) {
   const store = new Map(Object.entries(initial));
   let writeCount = 0;
+  const readPaths = [];
   const transaction = {
-    get: async (ref) => new FakeSnapshot(ref, store.get(ref.path)),
+    get: async (ref) => {
+      readPaths.push(ref.path);
+      return new FakeSnapshot(ref, store.get(ref.path));
+    },
     create(ref, data) {
       if (store.has(ref.path)) throw new Error(`already exists: ${ref.path}`);
       store.set(ref.path, structuredClone(data));
@@ -53,15 +58,32 @@ function createHarness(initial = {}) {
       store.set(ref.path, structuredClone({ ...(store.get(ref.path) || {}), ...data }));
       writeCount += 1;
     },
+    delete(ref) {
+      store.delete(ref.path);
+      writeCount += 1;
+    },
   };
   return {
     store,
+    readPaths,
     get writeCount() { return writeCount; },
     db: {
       doc: (path) => new FakeRef(store, path),
       runTransaction: (callback) => callback(transaction),
     },
   };
+}
+
+function recursivelyDeleteFromStore(store, ref) {
+  for (const key of [...store.keys()]) {
+    if (key === ref.path || key.startsWith(`${ref.path}/`)) store.delete(key);
+  }
+}
+
+function snapshotTree(store, prefix) {
+  return [...store.entries()]
+    .filter(([key]) => key === prefix || key.startsWith(`${prefix}/`))
+    .map(([key, value]) => [key, structuredClone(value)]);
 }
 
 function nativeSlot() {
@@ -295,4 +317,230 @@ test("baseline repair는 count만 바꾸고 revision/receipt를 교체하며 sta
   );
   assert.equal(harness.writeCount, writesBeforeFailure);
   assert.equal(harness.store.get("users/user-a/slots/slot1").revision, 2);
+});
+
+test("부분 삭제로 root가 사라진 retry는 operation을 먼저 읽고 revision 재검증 없이 resume한다", async () => {
+  const harness = createHarness();
+  await nativeInitCareMistakeV2Slot({
+    uid: "user-a", slotId: 1, commandId: "native-command-a", slotData: nativeSlot(),
+    deps: { db: harness.db },
+  });
+  const slotPath = "users/user-a/slots/slot1";
+  const fixedNow = new Date("2026-08-31T00:00:00.000Z");
+
+  await assert.rejects(
+    deleteCareMistakeV2Slot({
+      uid: "user-a",
+      slotId: 1,
+      slotInstanceId: "slot-life-a",
+      expectedRevision: 1,
+      deps: {
+        db: harness.db,
+        now: fixedNow,
+        executorId: "executor-a",
+        recursiveDelete: async (ref) => {
+          harness.store.delete(ref.path);
+          throw new Error("injected partial delete");
+        },
+      },
+    }),
+    (error) => error.code === "SLOT_DELETE_RETRY_REQUIRED"
+  );
+  assert.equal(harness.store.has(slotPath), false);
+  assert.equal(
+    [...harness.store.keys()].some((key) => key.startsWith(`${slotPath}/`)),
+    true
+  );
+
+  const readsBeforeRetry = harness.readPaths.length;
+  const resumed = await deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 999,
+    deps: {
+      db: harness.db,
+      now: fixedNow,
+      executorId: "executor-b",
+      recursiveDelete: async (ref) => recursivelyDeleteFromStore(harness.store, ref),
+    },
+  });
+  const retryReads = harness.readPaths.slice(readsBeforeRetry);
+  assert.match(retryReads[0], /careMistakeV2SlotDeletions/);
+  assert.equal(retryReads.includes(slotPath), false);
+  assert.equal(resumed.status, "complete");
+  assert.equal(
+    [...harness.store.keys()].some((key) => key === slotPath || key.startsWith(`${slotPath}/`)),
+    false
+  );
+  assert.equal(
+    harness.store.has("users/user-a/careMistakeV2SlotDeletionLocks/slot1"),
+    false
+  );
+});
+
+test("완료된 A 삭제 재호출은 같은 slotId의 새 instance B를 읽거나 삭제하지 않는다", async () => {
+  const harness = createHarness();
+  await nativeInitCareMistakeV2Slot({
+    uid: "user-a", slotId: 1, commandId: "native-command-a", slotData: nativeSlot(),
+    deps: { db: harness.db },
+  });
+  await deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 1,
+    deps: {
+      db: harness.db,
+      executorId: "executor-a",
+      recursiveDelete: async (ref) => recursivelyDeleteFromStore(harness.store, ref),
+    },
+  });
+  await nativeInitCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    commandId: "native-command-b",
+    slotData: {
+      ...nativeSlot(),
+      slotInstanceId: "slot-life-b",
+      digimonInstanceId: "digimon-life-b",
+      evolutionStageInstanceId: "stage-b",
+    },
+    deps: { db: harness.db },
+  });
+  const slotPath = "users/user-a/slots/slot1";
+  const before = snapshotTree(harness.store, slotPath);
+  const readsBeforeRetry = harness.readPaths.length;
+  let recursiveDeleteCalls = 0;
+
+  const retry = await deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 1,
+    deps: {
+      db: harness.db,
+      executorId: "executor-c",
+      recursiveDelete: async () => { recursiveDeleteCalls += 1; },
+    },
+  });
+
+  assert.equal(retry.status, "complete");
+  assert.equal(retry.idempotent, true);
+  assert.equal(recursiveDeleteCalls, 0);
+  assert.deepEqual(snapshotTree(harness.store, slotPath), before);
+  assert.deepEqual(harness.readPaths.slice(readsBeforeRetry), [
+    harness.readPaths[readsBeforeRetry],
+  ]);
+  assert.match(harness.readPaths[readsBeforeRetry], /careMistakeV2SlotDeletions/);
+});
+
+test("active lease는 두 번째 recursive delete를 막고 만료 뒤 takeover를 허용한다", async () => {
+  const harness = createHarness();
+  await nativeInitCareMistakeV2Slot({
+    uid: "user-a", slotId: 1, commandId: "native-command-a", slotData: nativeSlot(),
+    deps: { db: harness.db },
+  });
+  const now = new Date("2026-08-31T00:00:00.000Z");
+  await assert.rejects(deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 1,
+    deps: {
+      db: harness.db,
+      now,
+      executorId: "executor-a",
+      recursiveDelete: async () => { throw new Error("pause deletion"); },
+    },
+  }));
+  const operationPath = [...harness.store.keys()].find((key) =>
+    key.includes("/careMistakeV2SlotDeletions/")
+  );
+  harness.store.set(operationPath, {
+    ...harness.store.get(operationPath),
+    executorId: "executor-a",
+    leaseUntil: new Date(now.getTime() + 60_000),
+  });
+  let deleteCalls = 0;
+  const concurrent = await deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 1,
+    deps: {
+      db: harness.db,
+      now,
+      executorId: "executor-b",
+      recursiveDelete: async () => { deleteCalls += 1; },
+    },
+  });
+  assert.equal(concurrent.status, "in_progress");
+  assert.equal(deleteCalls, 0);
+
+  const resumed = await deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 1,
+    deps: {
+      db: harness.db,
+      now: new Date(now.getTime() + 60_001),
+      executorId: "executor-c",
+      recursiveDelete: async (ref) => {
+        deleteCalls += 1;
+        recursivelyDeleteFromStore(harness.store, ref);
+      },
+    },
+  });
+  assert.equal(resumed.status, "complete");
+  assert.equal(deleteCalls, 1);
+});
+
+test("최초 삭제의 stale revision은 operation과 lock을 만들지 않는다", async () => {
+  const harness = createHarness();
+  await nativeInitCareMistakeV2Slot({
+    uid: "user-a", slotId: 1, commandId: "native-command-a", slotData: nativeSlot(),
+    deps: { db: harness.db },
+  });
+  const writesBefore = harness.writeCount;
+  const storeBefore = structuredClone([...harness.store.entries()]);
+  await assert.rejects(deleteCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 0,
+    deps: { db: harness.db, executorId: "executor-a" },
+  }), (error) => error.code === "STALE_SLOT_DELETE_REVISION");
+  assert.equal(harness.writeCount, writesBefore);
+  assert.deepEqual([...harness.store.entries()], storeBefore);
+  assert.equal(
+    [...harness.store.keys()].some((key) => key.includes("careMistakeV2SlotDeletion")),
+    false
+  );
+});
+
+test("native init은 slot root보다 외부 deletion lock을 먼저 확인한다", async () => {
+  const lockPath = "users/user-a/careMistakeV2SlotDeletionLocks/slot1";
+  const harness = createHarness({
+    [lockPath]: {
+      operationId: "delete-a",
+      slotInstanceId: "slot-life-a",
+      status: "in_progress",
+    },
+  });
+  await assert.rejects(nativeInitCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    commandId: "native-command-b",
+    slotData: {
+      ...nativeSlot(),
+      slotInstanceId: "slot-life-b",
+      digimonInstanceId: "digimon-life-b",
+    },
+    deps: { db: harness.db },
+  }), (error) => error.code === "SLOT_DELETION_IN_PROGRESS");
+  assert.equal(harness.readPaths[0], lockPath);
+  assert.equal(harness.readPaths.includes("users/user-a/slots/slot1"), false);
+  assert.equal(harness.writeCount, 0);
 });

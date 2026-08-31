@@ -20,6 +20,7 @@ import { buildEvolutionStageInstanceId } from "../logic/stats/careMistakeProject
 import {
   buildCareMistakeV2Command,
   commitCareMistakeV2ApiCommand,
+  deleteCareMistakeV2ApiSlot,
   nativeInitCareMistakeV2ApiSlot,
 } from "../persistence/careMistakeV2Api";
 
@@ -52,6 +53,36 @@ function createSlotCommandId(prefix, slotId) {
     ? window.crypto.randomUUID()
     : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
   return `${prefix}:slot${slotId}:${randomId}`;
+}
+
+/**
+ * V1은 기존 클라이언트 삭제를 유지하고 V2만 trusted server 삭제로 보냅니다.
+ * 호출자는 이 함수가 성공한 뒤에만 해당 slot instance의 로컬 outbox를 정리해야 합니다.
+ */
+export async function deleteSlotByCareSchema({
+  currentUser,
+  slotId,
+  slotData,
+  deleteV2 = deleteCareMistakeV2ApiSlot,
+  deleteLegacy = (uid, id) => userSlotRepository.deleteUserSlot(uid, id),
+} = {}) {
+  if (slotData?.careMistakeState?.schemaVersion !== 2) {
+    await deleteLegacy(currentUser.uid, slotId);
+    return { status: "complete", schemaVersion: 1 };
+  }
+
+  const result = await deleteV2(currentUser, slotId, {
+    slotInstanceId: slotData.slotInstanceId,
+    expectedRevision: slotData.revision,
+  });
+  if (result.status !== "complete") {
+    const pendingError = new Error(
+      "슬롯 삭제가 진행 중입니다. 잠시 후 다시 시도해 주세요."
+    );
+    pendingError.code = "SLOT_DELETION_IN_PROGRESS";
+    throw pendingError;
+  }
+  return result;
 }
 
 export function useUserSlots({ maxSlots = 10 } = {}) {
@@ -230,7 +261,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
       }
 
       const deletedSlot = slots.find((slot) => String(slot.id) === String(slotId)) || null;
-      await userSlotRepository.deleteUserSlot(currentUser.uid, slotId);
+      await deleteSlotByCareSchema({ currentUser, slotId, slotData: deletedSlot });
       try {
         await clearDeletedSlotOutbox({
           outbox,

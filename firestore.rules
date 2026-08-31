@@ -179,6 +179,14 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(userId)/slots/$(slotId);
     }
 
+    function slotDeletionLockPath(userId, slotId) {
+      return /databases/$(database)/documents/users/$(userId)/careMistakeV2SlotDeletionLocks/$(slotId);
+    }
+
+    function isSlotDeletionUnlocked(userId, slotId) {
+      return !exists(slotDeletionLockPath(userId, slotId));
+    }
+
     function gameTransitionPath(userId, slotId, transitionId) {
       return /databases/$(database)/documents/users/$(userId)/slots/$(slotId)/gameTransitions/$(transitionId);
     }
@@ -536,45 +544,63 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      match /careMistakeV2SlotDeletions/{operationId} {
+        allow read, write: if false;
+      }
+
+      match /careMistakeV2SlotDeletionLocks/{slotId} {
+        allow read, write: if false;
+      }
+
       match /slots/{slotId} {
         allow read: if isOwner(userId);
-        allow create: if isOwner(userId) && isClientV1SlotCreate() && isArenaSlotCreateValid();
-        allow update: if isOwner(userId) && isArenaSlotUpdateValid(userId, slotId);
-        allow delete: if isOwner(userId) && !isCareV2SlotData(resource.data);
+        allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          isClientV1SlotCreate() && isArenaSlotCreateValid();
+        allow update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          isArenaSlotUpdateValid(userId, slotId);
+        allow delete: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+          !isCareV2SlotData(resource.data);
 
         match /logs/{logId} {
           allow read: if isOwner(userId);
-          allow create, update: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId) &&
+          allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             (!isCareMistakeActivityLog(request.resource.data) &&
               !isCareMistakeResolutionLog(request.resource.data) ||
               isCareMistakeLogAuthorized(userId, slotId, logId));
-          allow delete: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId);
+          allow delete: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
         }
 
         match /careMistakeIncidents/{incidentId} {
           allow read: if isOwner(userId);
-          allow create: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId) &&
+          allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isCareIncidentCreateValid(userId, slotId, incidentId);
-          allow update: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId) &&
+          allow update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isCareIncidentUpdateValid(userId, slotId, incidentId);
           allow delete: if false;
         }
 
         match /gameTransitions/{transitionId} {
           allow read: if isOwner(userId);
-          allow create: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId) &&
+          allow create: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId) &&
             isGameTransitionCreateValid(userId, slotId, transitionId);
           allow update, delete: if false;
         }
 
         match /careMistakeReconciliations/{runId} {
           allow read: if isOwner(userId);
-          allow create, update: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId);
+          allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
           allow delete: if false;
 
           match /batches/{batchId} {
             allow read: if isOwner(userId);
-            allow create, update: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId);
+            allow create, update: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+              !isStoredCareV2Slot(userId, slotId);
             allow delete: if false;
           }
         }
@@ -586,7 +612,8 @@ service cloud.firestore {
 
         match /battleLogs/{logId} {
           allow read: if isOwner(userId);
-          allow write: if isOwner(userId) && !isStoredCareV2Slot(userId, slotId);
+          allow write: if isOwner(userId) && isSlotDeletionUnlocked(userId, slotId) &&
+            !isStoredCareV2Slot(userId, slotId);
         }
       }
     }

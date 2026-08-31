@@ -3,6 +3,7 @@ import {
   buildCareMistakeV2Command,
   canMutateWithCareIntegrity,
   commitCareMistakeV2ApiCommand,
+  deleteCareMistakeV2ApiSlot,
   fetchCareMistakeV2Integrity,
   nativeInitCareMistakeV2ApiSlot,
 } from "./careMistakeV2Api";
@@ -63,5 +64,43 @@ test("native bootstrap은 client 직접 Firestore write 없이 server endpoint�
   expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual(expect.objectContaining({
     action: "native_init",
     slotId: 2,
+  }));
+});
+
+test("V2 슬롯 삭제는 slot instance와 최초 revision을 trusted endpoint로 보낸다", async () => {
+  const fetchImpl = jest.fn(async () => response({
+    status: "complete",
+    operationId: "delete-a",
+    idempotent: false,
+  }));
+  const result = await deleteCareMistakeV2ApiSlot(user, 4, {
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 9,
+    fetchImpl,
+  });
+
+  expect(result.status).toBe("complete");
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({
+    action: "delete_slot",
+    slotId: 4,
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 9,
+  });
+});
+
+test("active deletion lease의 202 응답은 in_progress 결과로 유지한다", async () => {
+  const fetchImpl = jest.fn(async () => response({
+    status: "in_progress",
+    operationId: "delete-a",
+    retryAfterMs: 1000,
+  }, { status: 202 }));
+  const result = await deleteCareMistakeV2ApiSlot(user, 4, {
+    slotInstanceId: "slot-life-a",
+    expectedRevision: 9,
+    fetchImpl,
+  });
+  expect(result).toEqual(expect.objectContaining({
+    status: "in_progress",
+    retryAfterMs: 1000,
   }));
 });

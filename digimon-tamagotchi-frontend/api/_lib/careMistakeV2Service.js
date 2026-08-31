@@ -13,6 +13,9 @@ const {
 } = require("../_generated/gameProjection.cjs");
 
 const RECEIPT_COLLECTION = "careMistakeReceipts";
+const SLOT_DELETION_COLLECTION = "careMistakeV2SlotDeletions";
+const SLOT_DELETION_LOCK_COLLECTION = "careMistakeV2SlotDeletionLocks";
+const SLOT_DELETION_LEASE_MS = 5 * 60 * 1000;
 const COMMAND_TYPES = new Set([
   "STATE_MUTATION",
   "CARE_MISTAKE_OCCURRED",
@@ -43,6 +46,7 @@ const PROTECTED_ROOT_FIELDS = new Set([
   "digimonInstanceId",
   "combatRevision",
   "selectedDigimon",
+  "careMistakeDeletion",
 ]);
 
 class CareMistakeV2Error extends Error {
@@ -118,6 +122,80 @@ function buildCommandFingerprint({ uid, slotId, command }) {
 function deterministicId(prefix, ...parts) {
   const digest = crypto.createHash("sha256").update(parts.join("\u001f")).digest("hex").slice(0, 40);
   return `${prefix}:${digest}`;
+}
+
+function careSlotDeletionOperationId({ uid, slotId, slotInstanceId }) {
+  return deterministicId("care-slot-delete-v2", uid, slotId, slotInstanceId);
+}
+
+function resolveNow(deps = {}) {
+  return typeof deps.now === "function" ? deps.now() : deps.now || new Date();
+}
+
+function toMillis(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function deletionRefs(db, uid, normalizedSlotId, slotInstanceId) {
+  const operationId = careSlotDeletionOperationId({
+    uid,
+    slotId: normalizedSlotId,
+    slotInstanceId,
+  });
+  return {
+    operationId,
+    slotRef: db.doc(`users/${uid}/slots/${normalizedSlotId}`),
+    operationRef: db.doc(`users/${uid}/${SLOT_DELETION_COLLECTION}/${operationId}`),
+    lockRef: db.doc(`users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`),
+  };
+}
+
+function assertDeletionIdentity(operation, normalizedSlotId, slotInstanceId) {
+  if (
+    operation.slotId !== normalizedSlotId ||
+    operation.slotInstanceId !== slotInstanceId
+  ) {
+    throw new CareMistakeV2Error(
+      "SLOT_DELETE_IDENTITY_CONFLICT",
+      "삭제 operation identity가 요청과 일치하지 않습니다."
+    );
+  }
+}
+
+function assertDeletionLock(lock, operationId, slotInstanceId) {
+  if (
+    !lock ||
+    lock.operationId !== operationId ||
+    lock.slotInstanceId !== slotInstanceId ||
+    lock.status !== "in_progress"
+  ) {
+    throw new CareMistakeV2Error(
+      "SLOT_DELETE_LOCK_INTEGRITY_FAILURE",
+      "슬롯 삭제 lock을 확인할 수 없습니다."
+    );
+  }
+}
+
+async function assertSlotDeletionUnlocked(transaction, lockRef) {
+  const lock = snapshotData(await transaction.get(lockRef));
+  if (lock) {
+    throw new CareMistakeV2Error(
+      "SLOT_DELETION_IN_PROGRESS",
+      "슬롯 삭제가 진행 중입니다. 잠시 후 다시 시도해 주세요."
+    );
+  }
+}
+
+function sanitizeDeletionError(error) {
+  return {
+    code: typeof error?.code === "string" ? error.code.slice(0, 120) : "RECURSIVE_DELETE_FAILED",
+    message: typeof error?.message === "string"
+      ? error.message.replace(/[\r\n]+/g, " ").slice(0, 300)
+      : "슬롯 하위 데이터 삭제에 실패했습니다.",
+  };
 }
 
 function careRootReceiptId({ uid, slotId, slotInstanceId, digimonInstanceId }) {
@@ -302,6 +380,9 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
   }
   const fingerprint = buildCommandFingerprint({ uid, slotId: normalizedSlotId, command });
   const slotRef = db.doc(`users/${uid}/slots/${normalizedSlotId}`);
+  const lockRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`
+  );
   const transitionRef = slotRef.collection("gameTransitions").doc(commandId);
   const transact = deps.runTransaction || ((callback) => db.runTransaction(callback));
   return transact(async (transaction) => {
@@ -317,6 +398,7 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
       return { ...(existing.result || {}), idempotent: true };
     }
 
+    await assertSlotDeletionUnlocked(transaction, lockRef);
     const integrity = await readIntegritySnapshot(transaction, slotRef);
     assertVerifiedV2(integrity);
     const { slotData } = integrity;
@@ -554,9 +636,29 @@ async function nativeInitCareMistakeV2Slot({ uid, slotId, commandId, slotData, d
   };
   const fingerprint = buildCommandFingerprint({ uid, slotId: normalizedSlotId, command });
   const slotRef = db.doc(`users/${uid}/slots/${normalizedSlotId}`);
+  const lockRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`
+  );
+  const deletedInstanceOperationRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_COLLECTION}/${careSlotDeletionOperationId({
+      uid,
+      slotId: normalizedSlotId,
+      slotInstanceId,
+    })}`
+  );
   const transitionRef = slotRef.collection("gameTransitions").doc(normalizedCommandId);
   const transact = deps.runTransaction || ((callback) => db.runTransaction(callback));
   return transact(async (transaction) => {
+    await assertSlotDeletionUnlocked(transaction, lockRef);
+    const deletedInstanceOperation = snapshotData(
+      await transaction.get(deletedInstanceOperationRef)
+    );
+    if (deletedInstanceOperation) {
+      throw new CareMistakeV2Error(
+        "SLOT_INSTANCE_DELETED",
+        "이미 삭제된 슬롯 instance는 다시 생성할 수 없습니다."
+      );
+    }
     const existing = snapshotData(await transaction.get(transitionRef));
     if (existing) {
       if (existing.requestFingerprint !== fingerprint) {
@@ -617,8 +719,12 @@ async function migrateCareMistakeV2Slot({ uid, slotId, expectedRevision, deps = 
   const db = deps.db || getArenaFirestore();
   const normalizedSlotId = normalizeSlotId(slotId);
   const slotRef = db.doc(`users/${uid}/slots/${normalizedSlotId}`);
+  const lockRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`
+  );
   const transact = deps.runTransaction || ((callback) => db.runTransaction(callback));
   return transact(async (transaction) => {
+    await assertSlotDeletionUnlocked(transaction, lockRef);
     const slotData = snapshotData(await transaction.get(slotRef));
     if (!slotData) throw new CareMistakeV2Error("SLOT_NOT_FOUND", "슬롯을 찾을 수 없습니다.", 404);
     if (slotData.careMistakeState?.schemaVersion === CARE_MISTAKE_V2_SCHEMA_VERSION) {
@@ -676,10 +782,15 @@ async function migrateCareMistakeV2Slot({ uid, slotId, expectedRevision, deps = 
 
 async function getCareMistakeV2Integrity({ uid, slotId, deps = {} }) {
   const db = deps.db || getArenaFirestore();
-  const slotRef = db.doc(`users/${uid}/slots/${normalizeSlotId(slotId)}`);
+  const normalizedSlotId = normalizeSlotId(slotId);
+  const slotRef = db.doc(`users/${uid}/slots/${normalizedSlotId}`);
+  const lockRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`
+  );
   const transact = deps.runTransaction || ((callback) => db.runTransaction(callback, { readOnly: true }));
   try {
     return await transact(async (transaction) => {
+      await assertSlotDeletionUnlocked(transaction, lockRef);
       const snapshot = await readIntegritySnapshot(transaction, slotRef);
       if (!snapshot.state) {
         return {
@@ -709,6 +820,221 @@ async function getCareMistakeV2Integrity({ uid, slotId, deps = {} }) {
   }
 }
 
+async function deleteCareMistakeV2Slot({
+  uid,
+  slotId,
+  slotInstanceId,
+  expectedRevision,
+  deps = {},
+}) {
+  const db = deps.db || getArenaFirestore();
+  const normalizedSlotId = normalizeSlotId(slotId);
+  const normalizedSlotInstanceId = requiredId(slotInstanceId, "slotInstanceId");
+  const normalizedExpectedRevision = normalizeRevision(expectedRevision);
+  const refs = deletionRefs(db, uid, normalizedSlotId, normalizedSlotInstanceId);
+  const executorId = requiredId(
+    deps.executorId || crypto.randomUUID(),
+    "executorId"
+  );
+  const transact = deps.runTransaction || ((callback) => db.runTransaction(callback));
+
+  const claim = await transact(async (transaction) => {
+    // P0 계약: operation을 현재 슬롯보다 항상 먼저 읽는다.
+    const operation = snapshotData(await transaction.get(refs.operationRef));
+    const now = resolveNow(deps);
+
+    if (operation) {
+      assertDeletionIdentity(operation, normalizedSlotId, normalizedSlotInstanceId);
+      if (operation.status === "complete") {
+        return {
+          status: "complete",
+          operationId: refs.operationId,
+          idempotent: true,
+          execute: false,
+        };
+      }
+      if (operation.status !== "in_progress") {
+        throw new CareMistakeV2Error(
+          "SLOT_DELETE_OPERATION_INVALID",
+          "슬롯 삭제 operation 상태가 올바르지 않습니다."
+        );
+      }
+
+      const lock = snapshotData(await transaction.get(refs.lockRef));
+      assertDeletionLock(
+        lock,
+        refs.operationId,
+        normalizedSlotInstanceId
+      );
+      const leaseRemainingMs = toMillis(operation.leaseUntil) - now.getTime();
+      if (leaseRemainingMs > 0) {
+        return {
+          status: "in_progress",
+          operationId: refs.operationId,
+          retryAfterMs: leaseRemainingMs,
+          idempotent: true,
+          execute: false,
+        };
+      }
+
+      transaction.update(refs.operationRef, {
+        attempt: normalizeRevision(operation.attempt || 0, "attempt") + 1,
+        executorId,
+        leaseUntil: new Date(now.getTime() + SLOT_DELETION_LEASE_MS),
+        lastError: null,
+        updatedAt: now,
+      });
+      return {
+        status: "in_progress",
+        operationId: refs.operationId,
+        idempotent: true,
+        execute: true,
+      };
+    }
+
+    const existingLock = snapshotData(await transaction.get(refs.lockRef));
+    if (existingLock) {
+      throw new CareMistakeV2Error(
+        "SLOT_DELETION_IN_PROGRESS",
+        "같은 슬롯 번호의 삭제가 이미 진행 중입니다."
+      );
+    }
+
+    const slotData = snapshotData(await transaction.get(refs.slotRef));
+    if (!slotData) {
+      throw new CareMistakeV2Error("SLOT_NOT_FOUND", "슬롯을 찾을 수 없습니다.", 404);
+    }
+    if (slotData.careMistakeState?.schemaVersion !== CARE_MISTAKE_V2_SCHEMA_VERSION) {
+      throw new CareMistakeV2Error(
+        "INVALID_CARE_MISTAKE_STATE",
+        "V2 슬롯만 trusted delete할 수 있습니다.",
+        422
+      );
+    }
+    if (slotData.slotInstanceId !== normalizedSlotInstanceId) {
+      throw new CareMistakeV2Error(
+        "STALE_SLOT_DELETE_IDENTITY",
+        "삭제 대상 슬롯 instance가 변경되었습니다."
+      );
+    }
+    if (normalizeRevision(slotData.revision, "revision") !== normalizedExpectedRevision) {
+      throw new CareMistakeV2Error(
+        "STALE_SLOT_DELETE_REVISION",
+        "삭제 대상 슬롯 revision이 변경되었습니다."
+      );
+    }
+
+    const leaseUntil = new Date(now.getTime() + SLOT_DELETION_LEASE_MS);
+    transaction.create(refs.operationRef, {
+      schemaVersion: 1,
+      operationId: refs.operationId,
+      status: "in_progress",
+      slotId: normalizedSlotId,
+      slotInstanceId: normalizedSlotInstanceId,
+      expectedRevision: normalizedExpectedRevision,
+      attempt: 1,
+      leaseUntil,
+      executorId,
+      lastError: null,
+      createdAt: now,
+      updatedAt: now,
+      completedAt: null,
+    });
+    transaction.create(refs.lockRef, {
+      schemaVersion: 1,
+      operationId: refs.operationId,
+      slotId: normalizedSlotId,
+      slotInstanceId: normalizedSlotInstanceId,
+      status: "in_progress",
+      createdAt: now,
+      updatedAt: now,
+    });
+    transaction.update(refs.slotRef, {
+      careMistakeDeletion: {
+        schemaVersion: 1,
+        operationId: refs.operationId,
+        slotInstanceId: normalizedSlotInstanceId,
+        status: "in_progress",
+        requestedRevision: normalizedExpectedRevision,
+        requestedAt: now,
+      },
+      updatedAt: now,
+    });
+    return {
+      status: "in_progress",
+      operationId: refs.operationId,
+      idempotent: false,
+      execute: true,
+    };
+  });
+
+  if (!claim.execute) return claim;
+
+  const recursiveDelete = deps.recursiveDelete || ((ref) => db.recursiveDelete(ref));
+  try {
+    await recursiveDelete(refs.slotRef);
+  } catch (error) {
+    const failureAt = resolveNow(deps);
+    await transact(async (transaction) => {
+      const operation = snapshotData(await transaction.get(refs.operationRef));
+      if (
+        operation?.status === "in_progress" &&
+        operation.executorId === executorId
+      ) {
+        transaction.update(refs.operationRef, {
+          leaseUntil: failureAt,
+          lastError: sanitizeDeletionError(error),
+          updatedAt: failureAt,
+        });
+      }
+    });
+    throw new CareMistakeV2Error(
+      "SLOT_DELETE_RETRY_REQUIRED",
+      "슬롯 삭제를 완료하지 못했습니다. 다시 시도해 주세요.",
+      503,
+      { operationId: refs.operationId }
+    );
+  }
+
+  const completedAt = resolveNow(deps);
+  const completion = await transact(async (transaction) => {
+    const operation = snapshotData(await transaction.get(refs.operationRef));
+    if (!operation) {
+      throw new CareMistakeV2Error(
+        "SLOT_DELETE_OPERATION_INVALID",
+        "슬롯 삭제 operation이 사라졌습니다."
+      );
+    }
+    assertDeletionIdentity(operation, normalizedSlotId, normalizedSlotInstanceId);
+    if (operation.status === "complete") {
+      return { status: "complete", operationId: refs.operationId, idempotent: true };
+    }
+    if (operation.executorId !== executorId) {
+      throw new CareMistakeV2Error(
+        "SLOT_DELETE_EXECUTION_LOST",
+        "슬롯 삭제 실행 권한이 다른 요청으로 이전되었습니다."
+      );
+    }
+    const lock = snapshotData(await transaction.get(refs.lockRef));
+    assertDeletionLock(lock, refs.operationId, normalizedSlotInstanceId);
+    transaction.update(refs.operationRef, {
+      status: "complete",
+      leaseUntil: null,
+      executorId: null,
+      lastError: null,
+      completedAt,
+      updatedAt: completedAt,
+    });
+    transaction.delete(refs.lockRef);
+    return {
+      status: "complete",
+      operationId: refs.operationId,
+      idempotent: claim.idempotent,
+    };
+  });
+  return completion;
+}
+
 async function repairCareMistakeV2({ uid, slotId, repairType, repairId, expectedRevision,
   expectedReceiptId, baseline, reason, operator, deps = {} }) {
   const db = deps.db || getArenaFirestore();
@@ -717,6 +1043,9 @@ async function repairCareMistakeV2({ uid, slotId, repairType, repairId, expected
   const slotRef = db.doc(`users/${uid}/slots/${normalizedSlotId}`);
   const receiptId = deterministicId("care-repair-v2", uid, normalizedSlotId, normalizedRepairId);
   const receiptRef = slotRef.collection(RECEIPT_COLLECTION).doc(receiptId);
+  const lockRef = db.doc(
+    `users/${uid}/${SLOT_DELETION_LOCK_COLLECTION}/${normalizedSlotId}`
+  );
   const requestFingerprint = crypto.createHash("sha256").update(JSON.stringify(canonicalize({
     uid: requiredId(uid, "uid"),
     slotId: normalizedSlotId,
@@ -730,6 +1059,7 @@ async function repairCareMistakeV2({ uid, slotId, repairType, repairId, expected
   }))).digest("hex");
   const transact = deps.runTransaction || ((callback) => db.runTransaction(callback));
   return transact(async (transaction) => {
+    await assertSlotDeletionUnlocked(transaction, lockRef);
     const existing = snapshotData(await transaction.get(receiptRef));
     if (existing) {
       if (existing.requestFingerprint !== requestFingerprint) {
@@ -836,6 +1166,7 @@ module.exports = {
   RECEIPT_COLLECTION,
   buildCommandFingerprint,
   commitCareMistakeV2Command,
+  deleteCareMistakeV2Slot,
   getCareMistakeV2Integrity,
   migrateCareMistakeV2Slot,
   nativeInitCareMistakeV2Slot,

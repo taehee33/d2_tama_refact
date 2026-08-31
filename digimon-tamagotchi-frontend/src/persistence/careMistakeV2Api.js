@@ -78,6 +78,24 @@ export async function nativeInitCareMistakeV2ApiSlot(user, slotId, {
   return parseResponse(response);
 }
 
+export async function deleteCareMistakeV2ApiSlot(user, slotId, {
+  slotInstanceId,
+  expectedRevision,
+  fetchImpl = fetch,
+} = {}) {
+  const response = await fetchImpl("/api/operator/status?action=care-mistake-v2", {
+    method: "POST",
+    headers: await authHeaders(user),
+    body: JSON.stringify({
+      action: "delete_slot",
+      slotId,
+      slotInstanceId,
+      expectedRevision,
+    }),
+  });
+  return parseResponse(response);
+}
+
 export function isCareMistakeV2Slot(slotData = {}) {
   return slotData?.careMistakeState?.schemaVersion === 2;
 }

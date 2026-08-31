@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-08-31] 케어미스 V2 operation-first trusted 슬롯 삭제
+
+- **삭제 정본:** V2 슬롯 삭제를 owner 인증 server API로 전환하고 uid·slotId·slotInstanceId 기반 immutable operation과 slotId 외부 lock을 분리했다. 삭제 중 slot root가 먼저 사라져도 lock이 같은 번호의 native init과 client descendant write를 차단해 새 instance가 과거 recursive delete 재시도에 휩쓸리지 않는다.
+- **Operation-first·lease:** 삭제 API는 current slot보다 operation을 먼저 읽는다. Complete 재시도는 현재 경로를 읽지 않고 즉시 성공하며, 부분 삭제 resume은 최초 expected revision을 다시 검증하지 않는다. 5분 executor lease, attempt와 정제된 last error를 보존해 동시 BulkWriter 실행을 막고 실패·process 종료 뒤 takeover를 허용한다.
+- **권한·클라이언트:** 일반 사용자는 자기 슬롯의 integrity, command, native init과 delete만 수행하고 migration·baseline override·linked-head repair는 operator-only로 잠갔다. V1 삭제는 유지하며 V2는 server complete 뒤에만 해당 slot instance의 IndexedDB outbox를 정리한다.
+- **Rules:** deletion operation·lock의 client 접근을 거부하고 lock이 있는 slotId의 V1 create/update/delete와 logs·battleLogs·incident·transition·reconciliation descendant write를 차단했다.
+- **영향 파일:** `api/_lib/careMistakeV2Service.js`, `careMistakeV2Handlers.js`, `src/persistence/careMistakeV2Api.js`, `src/hooks/useUserSlots.js`, `firestore.rules`, 관련 테스트와 `docs/CARE_MISTAKE_V2_PHASE2.md`.
+- **검증:** operation-first root-missing resume, complete A 재호출 시 새 B 불변, active lease·takeover, stale write 0, owner/operator 권한과 V1/V2 client 분기를 집중 회귀 테스트로 고정했다. lint·typecheck, 프런트 226 suite·1,537 tests, 서버 314 tests(290 pass·24 Emulator-only skip), Firestore Rules 8 tests, API 진입점 단일 원본과 server projection 검사를 통과했다. Clean baseline은 이 변경을 커밋한 뒤 전체 gate와 Arena/Jogress Emulator를 다시 실행해 확정한다.
+
 ## [2026-08-30] 케어미스 V2 trusted server cutover 2단계
 
 - **서버 저장 경계:** V2 command의 canonical fingerprint, transition 우선 멱등 재시도, root/current receipt·stage·revision stale 검증, 결정적 incident ID와 상태·receipt·incident·로그 원자 commit을 Vercel serverless API로 구현했다. 12-function 상한을 지키기 위해 기존 `operator/status` 라우터에 합쳤다. 새 슬롯은 `NATIVE_INIT` transaction으로 revision 1에서 시작하며 V1 슬롯과 V1 `NEW_LIFE`는 기존 경로를 유지한다. V2 `NEW_LIFE`는 내구성 outbox와 trusted command로 전환했고 서버가 slot identity를 보존하면서 생애·combat identity를 새로 확정한다.
