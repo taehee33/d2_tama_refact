@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-08-31] 케어미스 V2 canary 동시 저장 revision 경쟁 수정
+
+- **운영 발견:** 신규 익명 canary 슬롯 진입 직후 배경·몰입형 설정 effect와 상태 저장이 같은 V2 revision으로 동시에 command를 보내 `409` 재시도 폭주를 만들었다. `commitCareV2Patch`가 실시간 stats dependency로 매초 새로 생성되어 설정 effect를 다시 실행한 것도 반복을 증폭했다.
+- **수정:** 배경·몰입형 설정과 형태 보조 patch를 기존 게임 저장 queue에 통합했다. 각 작업은 queue 실행 시점에 최신 `loadedRevision`과 `careMistakeState`를 읽고, 앞 command의 revision·receipt 반영이 끝난 뒤 다음 command를 보낸다. 최신 stats는 ref로 전달해 callback identity가 1초 렌더에 따라 바뀌지 않게 했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.test.js`.
+- **검증:** 동시 background·immersive patch가 단일 active commit으로 revision `1 → 2 → 3`과 receipt를 이어받는 회귀 테스트를 추가했다. 전체 gate와 production canary는 수정 커밋 후 다시 실행한다.
+
 ## [2026-08-31] 케어미스 V2 operation-first trusted 슬롯 삭제
 
 - **삭제 정본:** V2 슬롯 삭제를 owner 인증 server API로 전환하고 uid·slotId·slotInstanceId 기반 immutable operation과 slotId 외부 lock을 분리했다. 삭제 중 slot root가 먼저 사라져도 lock이 같은 번호의 native init과 client descendant write를 차단해 새 instance가 과거 recursive delete 재시도에 휩쓸리지 않는다.

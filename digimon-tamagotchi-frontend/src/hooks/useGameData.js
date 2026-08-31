@@ -214,6 +214,63 @@ export function createGameSaveQueue() {
   };
 }
 
+export function enqueueCareV2Patch({
+  saveQueue,
+  getAccess,
+  currentUser,
+  slotId,
+  commandType = "STATE_MUTATION",
+  commandId,
+  payload,
+  commitCommand = commitCareMistakeV2ApiCommand,
+  updateAccess,
+  setRevision,
+  getStatsSnapshot = () => null,
+}) {
+  return saveQueue.enqueue(async () => {
+    const access = getAccess();
+    const state = access?.careMistakeState;
+    if (state?.schemaVersion !== 2) return null;
+
+    const result = await commitCommand(
+      currentUser,
+      slotId,
+      buildCareMistakeV2Command({
+        commandId,
+        commandType,
+        state,
+        expectedRevision: access.loadedRevision,
+        payload,
+      })
+    );
+    updateAccess({
+      loadedRevision: result.revision,
+      careMistakeState: result.careMistakeState,
+      careMistakeReconciliationStatus: CARE_MISTAKE_V2_INTEGRITY.VERIFIED,
+      ...(result.digimonInstanceId
+        ? {
+            loadedIdentity: {
+              ...access.loadedIdentity,
+              digimonInstanceId: result.digimonInstanceId,
+            },
+          }
+        : {}),
+      ...(payload?.updateData?.arenaIdentitySchemaVersion === 1
+        ? {
+            combatIdentity: {
+              arenaIdentitySchemaVersion: payload.updateData.arenaIdentitySchemaVersion,
+              digimonInstanceId:
+                result.digimonInstanceId || payload.updateData.digimonInstanceId,
+              combatRevision: payload.updateData.combatRevision,
+            },
+          }
+        : {}),
+    });
+    setRevision(result.revision, getStatsSnapshot());
+    return result;
+  });
+}
+
 /**
  * 저장 직전 null/undefined 필드 제거 (문서 용량 절감, spriteBasePath: null 등 불필요 저장 방지)
  * @param {Object} obj - 1depth 객체 (중첩 객체/배열은 그대로 유지)
@@ -1352,6 +1409,8 @@ export function useGameData({
   if (!saveQueueRef.current) {
     saveQueueRef.current = createGameSaveQueue();
   }
+  const latestDigimonStatsRef = useRef(digimonStats);
+  latestDigimonStatsRef.current = digimonStats;
   const saveOperationSequenceRef = useRef(0);
   const reconstructedLogsRef = useRef([]);
   const statsPopupCommandLedgerRef = useRef(new Map());
@@ -1462,47 +1521,18 @@ export function useGameData({
     commandType = "STATE_MUTATION",
     commandId,
     payload,
-  }) => {
-    const state = persistenceAccessRef.current?.careMistakeState;
-    if (state?.schemaVersion !== 2) return null;
-    const expectedRevision = persistenceAccessRef.current?.loadedRevision;
-    const result = await commitCareMistakeV2ApiCommand(
-      currentUser,
-      slotId,
-      buildCareMistakeV2Command({
-        commandId,
-        commandType,
-        state,
-        expectedRevision,
-        payload,
-      })
-    );
-    updatePersistenceAccess({
-      loadedRevision: result.revision,
-      careMistakeState: result.careMistakeState,
-      careMistakeReconciliationStatus: CARE_MISTAKE_V2_INTEGRITY.VERIFIED,
-      ...(result.digimonInstanceId
-        ? {
-            loadedIdentity: {
-              ...persistenceAccessRef.current.loadedIdentity,
-              digimonInstanceId: result.digimonInstanceId,
-            },
-          }
-        : {}),
-      ...(payload?.updateData?.arenaIdentitySchemaVersion === 1
-        ? {
-            combatIdentity: {
-              arenaIdentitySchemaVersion: payload.updateData.arenaIdentitySchemaVersion,
-              digimonInstanceId:
-                result.digimonInstanceId || payload.updateData.digimonInstanceId,
-              combatRevision: payload.updateData.combatRevision,
-            },
-          }
-        : {}),
-    });
-    setLoadedRevision(result.revision, digimonStats);
-    return result;
-  }, [currentUser, digimonStats, setLoadedRevision, slotId, updatePersistenceAccess]);
+  }) => enqueueCareV2Patch({
+    saveQueue: saveQueueRef.current,
+    getAccess: () => persistenceAccessRef.current,
+    currentUser,
+    slotId,
+    commandType,
+    commandId,
+    payload,
+    updateAccess: updatePersistenceAccess,
+    setRevision: setLoadedRevision,
+    getStatsSnapshot: () => latestDigimonStatsRef.current,
+  }), [currentUser, setLoadedRevision, slotId, updatePersistenceAccess]);
 
   const retrySlotLoad = useCallback(() => {
     // 현재 요청을 즉시 stale 처리해 effect 재실행 전의 늦은 응답도 반영되지 않게 한다.
