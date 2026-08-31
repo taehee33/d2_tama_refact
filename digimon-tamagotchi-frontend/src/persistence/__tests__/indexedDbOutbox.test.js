@@ -77,6 +77,22 @@ function createMemoryStorage() {
       }
       return deletedCount;
     },
+    async quarantineWhere(storeNames, predicate, describe) {
+      const matches = [];
+      for (const storeName of storeNames) {
+        for (const [key, record] of stores[storeName]) {
+          if (predicate(storeName, clone(record), key)) {
+            matches.push({ storeName, key, record: clone(record) });
+          }
+        }
+      }
+      matches.forEach(({ storeName, key, record }) => {
+        const quarantine = describe(storeName, clone(record), key);
+        stores.legacy_quarantine.set(quarantine.quarantineKey, clone(quarantine));
+        stores[storeName].delete(key);
+      });
+      return { quarantinedCount: matches.length };
+    },
     async migrateLegacyRecords(nowTimestamp) {
       let quarantinedCount = 0;
       for (const storeName of ['state_mutations', 'events']) {
@@ -123,6 +139,7 @@ const IDENTITY_METHODS = new Set([
   'pruneSyncedFeedEvents',
   'clearSlotInstanceScope',
   'clearDigimonLifeRecords',
+  'quarantineStaleCareEpoch',
   'enqueueTransition',
   'getTransition',
   'listTransitions',
@@ -915,6 +932,40 @@ describe('indexedDbOutbox', () => {
       slotId: 'slot-1',
       digimonInstanceId: 'digimon-new',
     })).resolves.toHaveLength(1);
+  });
+
+  it('stale care epoch는 state·event causal records를 한 번에 quarantine한다', async () => {
+    const storage = createMemoryStorage();
+    const outbox = createTestOutbox({ storage, now: () => 999 });
+    await outbox.putStateMutation({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      mutationId: 'mutation-old',
+      updatedAt: 10,
+      state: { careEpoch: { careSchemaVersion: 1 } },
+    });
+    await outbox.putActivityEvent({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      eventId: 'activity-old',
+      occurredAt: 10,
+      payload: { text: 'ghost history' },
+    });
+
+    await expect(outbox.quarantineStaleCareEpoch({
+      uid: 'user-a',
+      slotId: 'slot-1',
+      currentEpoch: {
+        careSchemaVersion: 2,
+        rootReceiptId: 'root-a',
+        receiptId: 'receipt-a',
+        evolutionStageInstanceId: 'stage-a',
+      },
+      reason: 'STALE_PRE_CUTOVER_COMMAND',
+    })).resolves.toEqual({ quarantinedCount: 2 });
+    await expect(outbox.getStateMutation({ uid: 'user-a', slotId: 'slot-1' })).resolves.toBeNull();
+    await expect(outbox.listActivityEvents({ uid: 'user-a', slotId: 'slot-1' })).resolves.toEqual([]);
+    await expect(outbox.listLegacyQuarantine()).resolves.toHaveLength(2);
   });
 
   it('IndexedDB unavailable 오류를 별도로 구분한다', () => {

@@ -88,6 +88,7 @@ export function normalizeTransitionRecord(input = {}, { nowMs = Date.now() } = {
     requestFingerprint: input.requestFingerprint || null,
     resultRevision: input.resultRevision == null ? null : normalizeInteger(input.resultRevision, "resultRevision"),
     errorCode: input.errorCode || null,
+    ...(input.careEpoch ? { careEpoch: clone(input.careEpoch) } : {}),
   };
 }
 

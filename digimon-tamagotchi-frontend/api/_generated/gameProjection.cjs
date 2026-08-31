@@ -40,13 +40,27 @@ __webpack_require__.r(__webpack_exports__);
 // EXPORTS
 __webpack_require__.d(__webpack_exports__, {
   ARENA_BATTLE_RULES_VERSION: () => (/* reexport */ ARENA_BATTLE_RULES_VERSION),
+  CARE_MISTAKE_CHAIN_DIAGNOSTIC: () => (/* reexport */ CARE_MISTAKE_CHAIN_DIAGNOSTIC),
+  CARE_MISTAKE_CHAIN_STATUS: () => (/* reexport */ CARE_MISTAKE_CHAIN_STATUS),
+  CARE_MISTAKE_EFFECTIVE_INTEGRITY: () => (/* reexport */ CARE_MISTAKE_EFFECTIVE_INTEGRITY),
+  CARE_MISTAKE_EPOCH_OPERATION: () => (/* reexport */ CARE_MISTAKE_EPOCH_OPERATION),
+  CARE_MISTAKE_ORDERING_STATUS: () => (/* reexport */ CARE_MISTAKE_ORDERING_STATUS),
+  CARE_MISTAKE_V2_CLASSIFICATION: () => (/* reexport */ CARE_MISTAKE_V2_CLASSIFICATION),
+  CARE_MISTAKE_V2_DIAGNOSTIC: () => (/* reexport */ CARE_MISTAKE_V2_DIAGNOSTIC),
+  CARE_MISTAKE_V2_REPAIR_LIMIT: () => (/* reexport */ CARE_MISTAKE_V2_REPAIR_LIMIT),
+  CARE_MISTAKE_V2_SCHEMA_VERSION: () => (/* reexport */ CARE_MISTAKE_V2_SCHEMA_VERSION),
   DEFAULT_REALTIME_ARENA_RULES_VERSION: () => (/* reexport */ DEFAULT_REALTIME_ARENA_RULES_VERSION),
   adaptDataMapToOldFormat: () => (/* reexport */ adaptDataMapToOldFormat),
+  advanceCareMistakeRevision: () => (/* reexport */ advanceCareMistakeRevision),
   applyLazyUpdate: () => (/* reexport */ applyLazyUpdate),
   assertRealtimeArenaRules: () => (/* reexport */ assertRealtimeArenaRules),
+  auditCareMistakeFullChain: () => (/* reexport */ auditCareMistakeFullChain),
+  buildLinkedHeadRepairPlan: () => (/* reexport */ buildLinkedHeadRepairPlan),
   calculateArenaBattle: () => (/* reexport */ calculateArenaBattle),
   calculateArenaHitRate: () => (/* reexport */ calculateArenaHitRate),
   calculatePower: () => (/* reexport */ calculatePower),
+  classifyCareMistakeSlotV2: () => (/* reexport */ classifyCareMistakeSlotV2),
+  compareCareMistakeIncidentOrder: () => (/* reexport */ compareCareMistakeIncidentOrder),
   createRealtimeArenaCpuCandidates: () => (/* reexport */ createRealtimeArenaCpuCandidates),
   createRealtimeArenaRulesSnapshot: () => (/* reexport */ createRealtimeArenaRulesSnapshot),
   createSeededRandom: () => (/* reexport */ createSeededRandom),
@@ -57,14 +71,21 @@ __webpack_require__.d(__webpack_exports__, {
   getJogressResult: () => (/* reexport */ getJogressResult),
   getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
   initializeStats: () => (/* reexport */ initializeStats),
+  isNonNegativeInteger: () => (/* reexport */ isNonNegativeInteger),
   isStarterDigimonId: () => (/* reexport */ isStarterDigimonId),
   normalizeDigimonVersionLabel: () => (/* reexport */ normalizeDigimonVersionLabel),
   projectState: () => (/* reexport */ projectState),
+  resolveCareMistakeV2Identity: () => (/* reexport */ resolveCareMistakeV2Identity),
+  resolveEffectiveCareMistakeIntegrity: () => (/* reexport */ resolveEffectiveCareMistakeIntegrity),
   resolveOnlineJogressPair: () => (/* reexport */ resolveOnlineJogressPair),
   resolveRealtimeArenaRound: () => (/* reexport */ resolveRealtimeArenaRound),
+  selectCareMistakeV2UnresolvedIncidents: () => (/* reexport */ selectCareMistakeV2UnresolvedIncidents),
   selectRealtimeArenaCpuAction: () => (/* reexport */ selectRealtimeArenaCpuAction),
   selectRealtimeArenaCpuOpponent: () => (/* reexport */ selectRealtimeArenaCpuOpponent),
-  selectRealtimeArenaFallbackAction: () => (/* reexport */ selectRealtimeArenaFallbackAction)
+  selectRealtimeArenaFallbackAction: () => (/* reexport */ selectRealtimeArenaFallbackAction),
+  snapshotLinkedHeadProtectedFields: () => (/* reexport */ snapshotLinkedHeadProtectedFields),
+  validateCareMistakeIncidentOrdering: () => (/* reexport */ validateCareMistakeIncidentOrdering),
+  validateCareMistakeV2Projection: () => (/* reexport */ validateCareMistakeV2Projection)
 });
 
 ;// ./src/data/defaultStatsFile.js
@@ -8302,6 +8323,559 @@ function calculateArenaBattle({
   };
 }
 
+;// ./src/logic/stats/careMistakeV2Domain.js
+const CARE_MISTAKE_V2_SCHEMA_VERSION = 2;
+const CARE_MISTAKE_V2_REPAIR_LIMIT = 400;
+
+const CARE_MISTAKE_V2_CLASSIFICATION = Object.freeze({
+  LEGACY_BASELINE: "legacy_baseline",
+  DEGRADED: "degraded",
+  REPAIR_REQUIRED: "repair_required",
+  VERIFIED_V2: "verified_v2",
+});
+
+const CARE_MISTAKE_EFFECTIVE_INTEGRITY = Object.freeze({
+  VERIFIED: "verified",
+  REPAIR_REQUIRED: "repair_required",
+});
+
+const CARE_MISTAKE_V2_DIAGNOSTIC = Object.freeze({
+  INVALID_LEGACY_CANONICAL_BASELINE: "INVALID_LEGACY_CANONICAL_BASELINE",
+  INCOMPLETE_CARE_IDENTITY: "INCOMPLETE_CARE_IDENTITY",
+  LEGACY_ROOT_COUNTER_MISMATCH: "LEGACY_ROOT_COUNTER_MISMATCH",
+  LEGACY_UNRESOLVED_COUNTER_MISMATCH: "LEGACY_UNRESOLVED_COUNTER_MISMATCH",
+  LEGACY_EVIDENCE_COUNTER_MISMATCH: "LEGACY_EVIDENCE_COUNTER_MISMATCH",
+  INVALID_CARE_MISTAKE_STATE: "INVALID_CARE_MISTAKE_STATE",
+  INVALID_CARE_MISTAKE_COUNT: "INVALID_CARE_MISTAKE_COUNT",
+  CARE_MISTAKE_PROJECTION_MISMATCH: "CARE_MISTAKE_PROJECTION_MISMATCH",
+  CARE_MISTAKE_MIRROR_MISMATCH: "CARE_MISTAKE_MIRROR_MISMATCH",
+  CARE_RECEIPT_NOT_FOUND: "CARE_RECEIPT_NOT_FOUND",
+  CARE_ROOT_RECEIPT_NOT_FOUND: "CARE_ROOT_RECEIPT_NOT_FOUND",
+  CARE_RECEIPT_IDENTITY_MISMATCH: "CARE_RECEIPT_IDENTITY_MISMATCH",
+  CARE_RECEIPT_LINEAGE_BROKEN: "CARE_RECEIPT_LINEAGE_BROKEN",
+  CARE_RECEIPT_LINEAGE_CYCLE: "CARE_RECEIPT_LINEAGE_CYCLE",
+  CARE_HEAD_NULLABILITY_MISMATCH: "CARE_HEAD_NULLABILITY_MISMATCH",
+  CARE_HEAD_INCIDENT_NOT_FOUND: "CARE_HEAD_INCIDENT_NOT_FOUND",
+  CARE_HEAD_INCIDENT_INVALID: "CARE_HEAD_INCIDENT_INVALID",
+});
+
+function normalizeId(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function uniqueDiagnostics(values = []) {
+  return Array.from(new Set(values.filter(Boolean))).sort();
+}
+
+function getCareMistakeState(slotData = {}) {
+  return slotData?.careMistakeState && typeof slotData.careMistakeState === "object"
+    ? slotData.careMistakeState
+    : null;
+}
+
+function resolveCareMistakeV2Identity(slotData = {}) {
+  const stats = slotData?.digimonStats || {};
+  const state = getCareMistakeState(slotData) || {};
+  return {
+    slotInstanceId: normalizeId(slotData.slotInstanceId ?? stats.slotInstanceId),
+    digimonInstanceId: normalizeId(slotData.digimonInstanceId ?? stats.digimonInstanceId),
+    rootReceiptId: normalizeId(state.rootReceiptId),
+    receiptId: normalizeId(state.receiptId),
+    evolutionStageInstanceId: normalizeId(
+      state.evolutionStageInstanceId ??
+      slotData.evolutionStageInstanceId ??
+      stats.evolutionStageInstanceId
+    ),
+  };
+}
+
+function normalizeReceipt(receipt = {}) {
+  if (!receipt || typeof receipt !== "object") return null;
+  const receiptId = normalizeId(receipt.receiptId ?? receipt.id);
+  return receiptId ? { ...receipt, receiptId } : null;
+}
+
+function validateReceiptLineage({ state, slotData, receipts }) {
+  const diagnostics = [];
+  const receiptMap = new Map(
+    (Array.isArray(receipts) ? receipts : [])
+      .map(normalizeReceipt)
+      .filter(Boolean)
+      .map((receipt) => [receipt.receiptId, receipt])
+  );
+  const currentReceipt = receiptMap.get(state.receiptId);
+  const rootReceipt = receiptMap.get(state.rootReceiptId);
+  if (!currentReceipt) diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_NOT_FOUND);
+  if (!rootReceipt) diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_ROOT_RECEIPT_NOT_FOUND);
+  if (!currentReceipt || !rootReceipt) return diagnostics;
+
+  const identity = resolveCareMistakeV2Identity(slotData);
+  const receiptIdentityMatches = (receipt) =>
+    receipt.rootReceiptId === state.rootReceiptId &&
+    (!receipt.slotInstanceId || receipt.slotInstanceId === identity.slotInstanceId) &&
+    (!receipt.digimonInstanceId || receipt.digimonInstanceId === identity.digimonInstanceId);
+  if (!receiptIdentityMatches(currentReceipt) || !receiptIdentityMatches(rootReceipt)) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_IDENTITY_MISMATCH);
+    return diagnostics;
+  }
+
+  const visited = new Set();
+  let cursor = currentReceipt;
+  while (cursor.receiptId !== state.rootReceiptId) {
+    if (visited.has(cursor.receiptId)) {
+      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_LINEAGE_CYCLE);
+      return diagnostics;
+    }
+    visited.add(cursor.receiptId);
+    const parentId = normalizeId(cursor.supersedesReceiptId);
+    const parent = parentId ? receiptMap.get(parentId) : null;
+    if (!parent || !receiptIdentityMatches(parent)) {
+      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_LINEAGE_BROKEN);
+      return diagnostics;
+    }
+    cursor = parent;
+  }
+  return diagnostics;
+}
+
+function validateCareMistakeV2Projection({
+  slotData = {},
+  receipts = [],
+} = {}) {
+  const diagnostics = [];
+  const state = getCareMistakeState(slotData);
+  const stats = slotData?.digimonStats || {};
+  if (!state || state.schemaVersion !== CARE_MISTAKE_V2_SCHEMA_VERSION) {
+    return {
+      valid: false,
+      state,
+      diagnosticCodes: [CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_CARE_MISTAKE_STATE],
+    };
+  }
+
+  const identity = resolveCareMistakeV2Identity(slotData);
+  if (!identity.slotInstanceId || !identity.digimonInstanceId ||
+      !identity.rootReceiptId || !identity.receiptId || !identity.evolutionStageInstanceId) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
+  }
+
+  const baseline = state.baselineRemainingCount;
+  const postCutover = state.postCutoverUnresolvedCount;
+  const unresolved = state.unresolvedCareMistakeCount;
+  if (![baseline, postCutover, unresolved].every(isNonNegativeInteger)) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_CARE_MISTAKE_COUNT);
+  } else if (unresolved !== baseline + postCutover) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_MISTAKE_PROJECTION_MISMATCH);
+  }
+
+  const mirrors = [
+    slotData.careMistakes,
+    slotData.unresolvedCareMistakeCount,
+    stats.careMistakes,
+    stats.unresolvedCareMistakeCount,
+  ];
+  if (!mirrors.every((value) => value === unresolved)) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_MISTAKE_MIRROR_MISMATCH);
+  }
+  diagnostics.push(...validateReceiptLineage({ state, slotData, receipts }));
+
+  const diagnosticCodes = uniqueDiagnostics(diagnostics);
+  return { valid: diagnosticCodes.length === 0, state, diagnosticCodes };
+}
+
+function isValidLegacyBaseline(value) {
+  return isNonNegativeInteger(value) && value <= CARE_MISTAKE_V2_REPAIR_LIMIT;
+}
+
+function classifyCareMistakeSlotV2({
+  slotData = {},
+  receipts = [],
+  legacyEvidence = {},
+} = {}) {
+  const state = getCareMistakeState(slotData);
+  if (state?.schemaVersion === CARE_MISTAKE_V2_SCHEMA_VERSION) {
+    const validation = validateCareMistakeV2Projection({ slotData, receipts });
+    return {
+      canonicalBaseline: validation.valid ? state.baselineRemainingCount : null,
+      classification: validation.valid
+        ? CARE_MISTAKE_V2_CLASSIFICATION.VERIFIED_V2
+        : CARE_MISTAKE_V2_CLASSIFICATION.REPAIR_REQUIRED,
+      diagnosticCodes: validation.diagnosticCodes,
+    };
+  }
+
+  const diagnostics = [];
+  const stats = slotData?.digimonStats || {};
+  const canonicalBaseline = stats.careMistakes;
+  const identity = resolveCareMistakeV2Identity(slotData);
+  if (!identity.slotInstanceId || !identity.digimonInstanceId || !identity.evolutionStageInstanceId) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
+  }
+  if (!isValidLegacyBaseline(canonicalBaseline)) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_LEGACY_CANONICAL_BASELINE);
+  }
+  if (slotData.careMistakes != null && slotData.careMistakes !== canonicalBaseline) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_ROOT_COUNTER_MISMATCH);
+  }
+  const unresolvedMirrors = [slotData.unresolvedCareMistakeCount, stats.unresolvedCareMistakeCount]
+    .filter((value) => value != null);
+  if (unresolvedMirrors.some((value) => value !== canonicalBaseline)) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_UNRESOLVED_COUNTER_MISMATCH);
+  }
+  const occurrenceCount = legacyEvidence.occurrenceCount;
+  const resolutionCount = legacyEvidence.resolutionCount;
+  if (isNonNegativeInteger(occurrenceCount) && isNonNegativeInteger(resolutionCount) &&
+      Math.max(0, occurrenceCount - resolutionCount) !== canonicalBaseline) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_EVIDENCE_COUNTER_MISMATCH);
+  }
+
+  const diagnosticCodes = uniqueDiagnostics(diagnostics);
+  const hasBlockingDiagnostic = diagnosticCodes.includes(
+    CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_LEGACY_CANONICAL_BASELINE
+  ) || diagnosticCodes.includes(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
+  return {
+    canonicalBaseline: isValidLegacyBaseline(canonicalBaseline) ? canonicalBaseline : null,
+    classification: hasBlockingDiagnostic
+      ? CARE_MISTAKE_V2_CLASSIFICATION.REPAIR_REQUIRED
+      : diagnosticCodes.length > 0
+        ? CARE_MISTAKE_V2_CLASSIFICATION.DEGRADED
+        : CARE_MISTAKE_V2_CLASSIFICATION.LEGACY_BASELINE,
+    diagnosticCodes,
+  };
+}
+
+function findIncidentById(incidents, incidentId) {
+  return (Array.isArray(incidents) ? incidents : []).find(
+    (incident) => normalizeId(incident?.incidentId ?? incident?.id) === incidentId
+  ) || null;
+}
+
+function resolveEffectiveCareMistakeIntegrity({
+  slotData = {},
+  receipts = [],
+  incidents = [],
+} = {}) {
+  const projection = validateCareMistakeV2Projection({ slotData, receipts });
+  if (!projection.valid) {
+    return {
+      effectiveIntegrityStatus: CARE_MISTAKE_EFFECTIVE_INTEGRITY.REPAIR_REQUIRED,
+      diagnosticCodes: projection.diagnosticCodes,
+    };
+  }
+
+  const state = projection.state;
+  const diagnostics = [];
+  const headId = normalizeId(state.latestUnresolvedIncidentId);
+  if (state.postCutoverUnresolvedCount === 0 && headId) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_NULLABILITY_MISMATCH);
+  } else if (state.postCutoverUnresolvedCount > 0 && !headId) {
+    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_NULLABILITY_MISMATCH);
+  } else if (headId) {
+    const head = findIncidentById(incidents, headId);
+    if (!head) {
+      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_INCIDENT_NOT_FOUND);
+    } else if (
+      head.careSchemaVersion !== CARE_MISTAKE_V2_SCHEMA_VERSION ||
+      head.rootReceiptId !== state.rootReceiptId ||
+      head.evolutionStageInstanceId !== state.evolutionStageInstanceId ||
+      head.status !== "unresolved" ||
+      head.resolvedAt !== null
+    ) {
+      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_INCIDENT_INVALID);
+    }
+  }
+
+  const diagnosticCodes = uniqueDiagnostics(diagnostics);
+  return {
+    effectiveIntegrityStatus: diagnosticCodes.length
+      ? CARE_MISTAKE_EFFECTIVE_INTEGRITY.REPAIR_REQUIRED
+      : CARE_MISTAKE_EFFECTIVE_INTEGRITY.VERIFIED,
+    diagnosticCodes,
+  };
+}
+
+;// ./src/logic/stats/careMistakeV2Chain.js
+
+
+const CARE_MISTAKE_CHAIN_STATUS = Object.freeze({
+  VALID: "valid",
+  INVALID: "invalid",
+  OVER_REPAIR_BOUNDARY: "over_repair_boundary",
+});
+
+const CARE_MISTAKE_ORDERING_STATUS = Object.freeze({
+  VALID: "valid",
+  INVALID: "invalid",
+});
+
+const CARE_MISTAKE_EPOCH_OPERATION = Object.freeze({
+  MIGRATION: "migration",
+  BASELINE_OVERRIDE: "baseline_override",
+  LINKED_HEAD_REPAIR: "linked_head_repair",
+});
+
+const CARE_MISTAKE_CHAIN_DIAGNOSTIC = Object.freeze({
+  INVALID_INCIDENT_ORDERING: "INVALID_INCIDENT_ORDERING",
+  DUPLICATE_INCIDENT_OPERATION_KEY: "DUPLICATE_INCIDENT_OPERATION_KEY",
+  DUPLICATE_INCIDENT_ID: "DUPLICATE_INCIDENT_ID",
+  OVER_REPAIR_BOUNDARY: "OVER_REPAIR_BOUNDARY",
+  POST_CUTOVER_COUNT_MISMATCH: "POST_CUTOVER_COUNT_MISMATCH",
+  HEAD_CHAIN_CYCLE: "HEAD_CHAIN_CYCLE",
+  HEAD_CHAIN_INCIDENT_MISSING: "HEAD_CHAIN_INCIDENT_MISSING",
+  HEAD_CHAIN_SET_MISMATCH: "HEAD_CHAIN_SET_MISMATCH",
+  HEAD_CHAIN_ORDER_MISMATCH: "HEAD_CHAIN_ORDER_MISMATCH",
+  HEAD_CHAIN_NULLABILITY_MISMATCH: "HEAD_CHAIN_NULLABILITY_MISMATCH",
+  REVISION_CONFLICT: "REVISION_CONFLICT",
+  INVALID_EPOCH_OPERATION: "INVALID_EPOCH_OPERATION",
+  REPAIR_RECEIPT_REQUIRED: "REPAIR_RECEIPT_REQUIRED",
+});
+
+function careMistakeV2Chain_normalizeId(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeIncident(incident = {}) {
+  const incidentId = careMistakeV2Chain_normalizeId(incident.incidentId ?? incident.id);
+  return incidentId ? { ...incident, incidentId } : { ...incident, incidentId: null };
+}
+
+function careMistakeV2Chain_uniqueDiagnostics(values = []) {
+  return Array.from(new Set(values.filter(Boolean))).sort();
+}
+
+function selectCareMistakeV2UnresolvedIncidents({ state = {}, incidents = [] } = {}) {
+  return (Array.isArray(incidents) ? incidents : [])
+    .map(normalizeIncident)
+    .filter((incident) =>
+      incident.careSchemaVersion === CARE_MISTAKE_V2_SCHEMA_VERSION &&
+      incident.rootReceiptId === state.rootReceiptId &&
+      incident.evolutionStageInstanceId === state.evolutionStageInstanceId &&
+      incident.status === "unresolved" &&
+      incident.resolvedAt === null
+    );
+}
+
+function compareCareMistakeIncidentOrder(left, right) {
+  return left.occurredRevision - right.occurredRevision ||
+    left.operationIndex - right.operationIndex ||
+    String(left.incidentId).localeCompare(String(right.incidentId));
+}
+
+function validateCareMistakeIncidentOrdering(incidents = []) {
+  const diagnostics = [];
+  const incidentIds = new Set();
+  const operationKeys = new Set();
+  const normalized = (Array.isArray(incidents) ? incidents : []).map(normalizeIncident);
+  normalized.forEach((incident) => {
+    if (!incident.incidentId || !isNonNegativeInteger(incident.occurredRevision) ||
+        !isNonNegativeInteger(incident.operationIndex)) {
+      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.INVALID_INCIDENT_ORDERING);
+      return;
+    }
+    if (incidentIds.has(incident.incidentId)) {
+      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.DUPLICATE_INCIDENT_ID);
+    }
+    incidentIds.add(incident.incidentId);
+    const operationKey = `${incident.occurredRevision}:${incident.operationIndex}`;
+    if (operationKeys.has(operationKey)) {
+      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.DUPLICATE_INCIDENT_OPERATION_KEY);
+    }
+    operationKeys.add(operationKey);
+  });
+  const diagnosticCodes = careMistakeV2Chain_uniqueDiagnostics(diagnostics);
+  return {
+    orderingStatus: diagnosticCodes.length
+      ? CARE_MISTAKE_ORDERING_STATUS.INVALID
+      : CARE_MISTAKE_ORDERING_STATUS.VALID,
+    diagnosticCodes,
+    orderedIncidents: diagnosticCodes.length
+      ? []
+      : [...normalized].sort(compareCareMistakeIncidentOrder),
+  };
+}
+
+function buildExpectedPointers(orderedIncidents) {
+  return orderedIncidents.map((incident, index) => ({
+    incidentId: incident.incidentId,
+    previousUnresolvedIncidentId: orderedIncidents[index - 1]?.incidentId || null,
+  }));
+}
+
+function auditCareMistakeFullChain({ state = {}, incidents = [] } = {}) {
+  const targets = selectCareMistakeV2UnresolvedIncidents({ state, incidents });
+  const storedCount = state.postCutoverUnresolvedCount;
+  if ((isNonNegativeInteger(storedCount) && storedCount > CARE_MISTAKE_V2_REPAIR_LIMIT) ||
+      targets.length > CARE_MISTAKE_V2_REPAIR_LIMIT) {
+    return {
+      chainStatus: CARE_MISTAKE_CHAIN_STATUS.OVER_REPAIR_BOUNDARY,
+      orderingStatus: CARE_MISTAKE_ORDERING_STATUS.INVALID,
+      repairability: "none",
+      diagnosticCodes: [CARE_MISTAKE_CHAIN_DIAGNOSTIC.OVER_REPAIR_BOUNDARY],
+      v2UnresolvedIncidentCount: targets.length,
+      expectedHeadIncidentId: null,
+      pointerChanges: [],
+    };
+  }
+
+  const ordering = validateCareMistakeIncidentOrdering(targets);
+  if (ordering.orderingStatus !== CARE_MISTAKE_ORDERING_STATUS.VALID) {
+    return {
+      chainStatus: CARE_MISTAKE_CHAIN_STATUS.INVALID,
+      orderingStatus: ordering.orderingStatus,
+      repairability: "none",
+      diagnosticCodes: ordering.diagnosticCodes,
+      v2UnresolvedIncidentCount: targets.length,
+      expectedHeadIncidentId: null,
+      pointerChanges: [],
+    };
+  }
+
+  const diagnostics = [];
+  const ordered = ordering.orderedIncidents;
+  const expectedPointers = buildExpectedPointers(ordered);
+  const expectedHeadIncidentId = ordered.at(-1)?.incidentId || null;
+  if (!isNonNegativeInteger(storedCount) || storedCount !== targets.length) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.POST_CUTOVER_COUNT_MISMATCH);
+  }
+  if ((targets.length === 0 && state.latestUnresolvedIncidentId != null) ||
+      (targets.length > 0 && careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId) == null)) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_NULLABILITY_MISMATCH);
+  }
+
+  const byId = new Map(targets.map((incident) => [incident.incidentId, incident]));
+  const visited = new Set();
+  let cursorId = careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId);
+  while (cursorId) {
+    if (visited.has(cursorId)) {
+      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_CYCLE);
+      break;
+    }
+    const incident = byId.get(cursorId);
+    if (!incident) {
+      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_INCIDENT_MISSING);
+      break;
+    }
+    visited.add(cursorId);
+    cursorId = careMistakeV2Chain_normalizeId(incident.previousUnresolvedIncidentId);
+  }
+  if (visited.size !== targets.length || targets.some((incident) => !visited.has(incident.incidentId))) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_SET_MISMATCH);
+  }
+
+  const pointerChanges = expectedPointers.filter(({ incidentId, previousUnresolvedIncidentId }) => {
+    const current = careMistakeV2Chain_normalizeId(byId.get(incidentId)?.previousUnresolvedIncidentId);
+    return current !== previousUnresolvedIncidentId;
+  });
+  if (careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId) !== expectedHeadIncidentId || pointerChanges.length > 0) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_ORDER_MISMATCH);
+  }
+
+  const diagnosticCodes = careMistakeV2Chain_uniqueDiagnostics(diagnostics);
+  const countMatches = storedCount === targets.length;
+  const repairable = ordering.orderingStatus === CARE_MISTAKE_ORDERING_STATUS.VALID && countMatches;
+  return {
+    chainStatus: diagnosticCodes.length
+      ? CARE_MISTAKE_CHAIN_STATUS.INVALID
+      : CARE_MISTAKE_CHAIN_STATUS.VALID,
+    orderingStatus: ordering.orderingStatus,
+    repairability: diagnosticCodes.length && repairable ? "linked_head_repair" : "none",
+    diagnosticCodes,
+    v2UnresolvedIncidentCount: targets.length,
+    expectedHeadIncidentId,
+    pointerChanges,
+  };
+}
+
+function advanceCareMistakeRevision({
+  operationType,
+  currentRevision,
+  expectedRevision,
+} = {}) {
+  const validOperations = new Set(Object.values(CARE_MISTAKE_EPOCH_OPERATION));
+  const diagnostics = [];
+  if (!validOperations.has(operationType)) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.INVALID_EPOCH_OPERATION);
+  }
+  if (!isNonNegativeInteger(currentRevision) || expectedRevision !== currentRevision) {
+    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.REVISION_CONFLICT);
+  }
+  if (diagnostics.length) {
+    return {
+      ok: false,
+      diagnosticCodes: careMistakeV2Chain_uniqueDiagnostics(diagnostics),
+      nextRevision: null,
+    };
+  }
+  return { ok: true, diagnosticCodes: [], nextRevision: currentRevision + 1 };
+}
+
+function buildLinkedHeadRepairPlan({
+  state = {},
+  incidents = [],
+  currentRevision,
+  expectedRevision,
+  nextReceiptId,
+} = {}) {
+  const revision = advanceCareMistakeRevision({
+    operationType: CARE_MISTAKE_EPOCH_OPERATION.LINKED_HEAD_REPAIR,
+    currentRevision,
+    expectedRevision,
+  });
+  const repairReceiptId = careMistakeV2Chain_normalizeId(nextReceiptId);
+  if (!revision.ok || !repairReceiptId) {
+    return {
+      ok: false,
+      diagnosticCodes: careMistakeV2Chain_uniqueDiagnostics([
+        ...revision.diagnosticCodes,
+        repairReceiptId ? null : CARE_MISTAKE_CHAIN_DIAGNOSTIC.REPAIR_RECEIPT_REQUIRED,
+      ]),
+    };
+  }
+  const audit = auditCareMistakeFullChain({ state, incidents });
+  if (audit.chainStatus === CARE_MISTAKE_CHAIN_STATUS.VALID) {
+    return { ok: true, noChange: true, audit, nextRevision: currentRevision };
+  }
+  if (audit.repairability !== "linked_head_repair") {
+    return { ok: false, diagnosticCodes: audit.diagnosticCodes, audit };
+  }
+  return {
+    ok: true,
+    noChange: false,
+    nextRevision: revision.nextRevision,
+    nextReceiptId: repairReceiptId,
+    statePatch: {
+      latestUnresolvedIncidentId: audit.expectedHeadIncidentId,
+      receiptId: repairReceiptId,
+    },
+    incidentPointerUpdates: audit.pointerChanges,
+    audit,
+  };
+}
+
+function snapshotLinkedHeadProtectedFields({ state = {}, incidents = [] } = {}) {
+  return {
+    baselineRemainingCount: state.baselineRemainingCount,
+    postCutoverUnresolvedCount: state.postCutoverUnresolvedCount,
+    unresolvedCareMistakeCount: state.unresolvedCareMistakeCount,
+    incidents: (Array.isArray(incidents) ? incidents : [])
+      .map(normalizeIncident)
+      .sort((left, right) => String(left.incidentId).localeCompare(String(right.incidentId)))
+      .map((incident) => ({
+        incidentId: incident.incidentId,
+        occurredRevision: incident.occurredRevision,
+        operationIndex: incident.operationIndex,
+        rootReceiptId: incident.rootReceiptId,
+        evolutionStageInstanceId: incident.evolutionStageInstanceId,
+        status: incident.status,
+        resolvedAt: incident.resolvedAt ?? null,
+      })),
+  };
+}
+
 ;// ./src/logic/realtime-arena/rulesets.js
 const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-2";
 
@@ -8621,6 +9195,8 @@ function selectRealtimeArenaFallbackAction({ seed, battleId, round, role }) {
 }
 
 ;// ./src/server/gameProjectionEntry.js
+
+
 
 
 

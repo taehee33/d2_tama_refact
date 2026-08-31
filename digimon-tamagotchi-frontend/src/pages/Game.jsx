@@ -422,7 +422,9 @@ function Game({ immersive = false }){
     null;
   const isCareMistakeReconciliationBlocked =
     careMistakeReconciliationStatus &&
-    careMistakeReconciliationStatus !== "verified";
+    !["verified", "legacy_baseline", "degraded"].includes(
+      careMistakeReconciliationStatus
+    );
   const isGameplayReady =
     persistencePhase === "ready" &&
     syncConflict == null &&
@@ -1472,8 +1474,7 @@ function Game({ immersive = false }){
   }
 
   if (
-    careMistakeReconciliationStatus &&
-    careMistakeReconciliationStatus !== "verified"
+    isCareMistakeReconciliationBlocked
   ) {
     return (
       <GameSlotLoadState

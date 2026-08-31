@@ -10,6 +10,7 @@ import {
 
 const mockRunTransaction = jest.fn();
 const mockCommitGameTransition = jest.fn();
+const mockCommitCareMistakeV2ApiCommand = jest.fn();
 const TEST_SLOT_INSTANCE_ID = "slot-instance-1";
 const TEST_DIGIMON_INSTANCE_ID = "digimon-instance-1";
 const TEST_PERSISTENCE_IDENTITY = Object.freeze({
@@ -32,6 +33,11 @@ jest.mock("../../firebase", () => ({ db: "DB" }));
 jest.mock("../../persistence/careMistakeTransition", () => ({
   ...jest.requireActual("../../persistence/careMistakeTransition"),
   commitGameTransition: (...args) => mockCommitGameTransition(...args),
+}));
+
+jest.mock("../../persistence/careMistakeV2Api", () => ({
+  ...jest.requireActual("../../persistence/careMistakeV2Api"),
+  commitCareMistakeV2ApiCommand: (...args) => mockCommitCareMistakeV2ApiCommand(...args),
 }));
 
 function createMemoryOutbox(order) {
@@ -224,6 +230,7 @@ describe("useDurableGamePersistence", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRunTransaction.mockReset();
+    mockCommitCareMistakeV2ApiCommand.mockReset();
     getDoc.mockReset();
     setDoc.mockReset();
     setDoc.mockResolvedValue(undefined);
@@ -699,6 +706,74 @@ describe("useDurableGamePersistence", () => {
     );
     expect(params.setDigimonStats).toHaveBeenCalled();
     expect(result.current.canStartGameplayWrite()).toBe(true);
+  });
+
+  test("V2 NEW_LIFE는 클라이언트 Firestore transaction 대신 trusted command로 identity를 전달한다", async () => {
+    const outbox = createMemoryOutbox([]);
+    const params = createHookParams(outbox);
+    params.persistenceAccessRef.current = {
+      ...params.persistenceAccessRef.current,
+      loadedRevision: 1,
+      careMistakeReconciliationStatus: "verified",
+      careMistakeState: {
+        schemaVersion: 2,
+        rootReceiptId: "root-a",
+        receiptId: "receipt-a",
+        evolutionStageInstanceId: "stage-a",
+      },
+    };
+    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
+      revision: 2,
+      idempotent: false,
+      careMistakeState: {
+        ...params.persistenceAccessRef.current.careMistakeState,
+        rootReceiptId: "root-b",
+        receiptId: "root-b",
+        evolutionStageInstanceId: "stage-b",
+      },
+      projection: { careMistakes: 0, careMistakeReconciliationStatus: "verified" },
+    });
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: {
+          selectedDigimon: "Punimon",
+          evolutionStageInstanceId: "stage-b",
+          digimonInstanceId: "digimon-life-b",
+        },
+        nowMs: 700,
+        commandId: "new-life-command",
+        allowCareTransition: true,
+        transition: {
+          transitionId: "new-life-command",
+          transitionType: "NEW_LIFE",
+          newLife: true,
+          targetDigimon: "Punimon",
+          nextDigimonInstanceId: "digimon-life-b",
+          nextEvolutionStageInstanceId: "stage-b",
+          logEntry: { eventId: "new-life-log", type: "NEW_START", text: "new life" },
+        },
+      });
+    });
+
+    expect(receipt).toMatchObject({ status: "synced", revision: 2 });
+    expect(mockRunTransaction).not.toHaveBeenCalled();
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
+      params.currentUser,
+      1,
+      expect.objectContaining({
+        commandId: "new-life-command",
+        commandType: "NEW_LIFE",
+        expectedRevision: 1,
+        payload: expect.objectContaining({
+          nextDigimonInstanceId: "digimon-life-b",
+          nextEvolutionStageInstanceId: "stage-b",
+          updateData: expect.objectContaining({ selectedDigimon: "Punimon" }),
+        }),
+      })
+    );
   });
 
   test("같은 generation의 저장 A·B는 실행 시점 최신 revision으로 연속 커밋한다", async () => {

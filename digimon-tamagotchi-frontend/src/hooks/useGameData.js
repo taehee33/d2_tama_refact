@@ -92,6 +92,13 @@ import {
   commitCareMistakeReconciliation,
 } from "../persistence/careMistakeReconciliation";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
+import {
+  CARE_MISTAKE_V2_INTEGRITY,
+  buildCareMistakeV2Command,
+  commitCareMistakeV2ApiCommand,
+  fetchCareMistakeV2Integrity,
+  isCareMistakeV2Slot,
+} from "../persistence/careMistakeV2Api";
 
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
@@ -118,6 +125,14 @@ const GAME_TIMESTAMP_KEYS = new Set([
   "sleepStartAt",
   "lastSavedAt",
 ]);
+
+function createCareV2ClientCommandId(prefix) {
+  const randomId = typeof window !== "undefined" &&
+    typeof window.crypto?.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  return `${prefix}:${randomId}`;
+}
 
 const CARE_MISTAKE_STATE_FIELDS = Object.freeze([
   "careMistakes",
@@ -1407,6 +1422,7 @@ export function useGameData({
     persistEvolutionTransitionReceipt,
     persistActivityLogReceipt,
     quarantinePendingState,
+    quarantineStaleCareEpoch,
     refreshGameRevision,
     resolveSyncConflict,
     setLoadedRevision,
@@ -1441,6 +1457,52 @@ export function useGameData({
     persistenceAccessRef,
     onPersistenceAccessChange: updatePersistenceAccess,
   });
+
+  const commitCareV2Patch = useCallback(async ({
+    commandType = "STATE_MUTATION",
+    commandId,
+    payload,
+  }) => {
+    const state = persistenceAccessRef.current?.careMistakeState;
+    if (state?.schemaVersion !== 2) return null;
+    const expectedRevision = persistenceAccessRef.current?.loadedRevision;
+    const result = await commitCareMistakeV2ApiCommand(
+      currentUser,
+      slotId,
+      buildCareMistakeV2Command({
+        commandId,
+        commandType,
+        state,
+        expectedRevision,
+        payload,
+      })
+    );
+    updatePersistenceAccess({
+      loadedRevision: result.revision,
+      careMistakeState: result.careMistakeState,
+      careMistakeReconciliationStatus: CARE_MISTAKE_V2_INTEGRITY.VERIFIED,
+      ...(result.digimonInstanceId
+        ? {
+            loadedIdentity: {
+              ...persistenceAccessRef.current.loadedIdentity,
+              digimonInstanceId: result.digimonInstanceId,
+            },
+          }
+        : {}),
+      ...(payload?.updateData?.arenaIdentitySchemaVersion === 1
+        ? {
+            combatIdentity: {
+              arenaIdentitySchemaVersion: payload.updateData.arenaIdentitySchemaVersion,
+              digimonInstanceId:
+                result.digimonInstanceId || payload.updateData.digimonInstanceId,
+              combatRevision: payload.updateData.combatRevision,
+            },
+          }
+        : {}),
+    });
+    setLoadedRevision(result.revision, digimonStats);
+    return result;
+  }, [currentUser, digimonStats, setLoadedRevision, slotId, updatePersistenceAccess]);
 
   const retrySlotLoad = useCallback(() => {
     // 현재 요청을 즉시 stale 처리해 effect 재실행 전의 늦은 응답도 반영되지 않게 한다.
@@ -1751,6 +1813,63 @@ export function useGameData({
         nextCombatIdentity,
         createdAt: transition.createdAt ?? nowMs,
       });
+      if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
+        const nextEvolutionStageInstanceId = buildEvolutionStageInstanceId({
+          digimonInstanceId: envelope.nextDigimonInstanceId,
+          evolutionStageStartedAt:
+            statsSnapshot.evolutionStageStartedAt || statsSnapshot.birthTime || nowMs,
+          evolutionStage: statsSnapshot.evolutionStage || envelope.targetDigimon,
+        });
+        const receipt = await persistStateSnapshotReceipt({
+          statsSnapshot: {
+            ...statsSnapshot,
+            ...nextCombatIdentity,
+            evolutionStageInstanceId: nextEvolutionStageInstanceId,
+          },
+          updatedLogs: statsSnapshot.activityLogs || [],
+          nowMs,
+          commandId: envelope.transitionId,
+          saveContext,
+          transition: {
+            ...envelope,
+            transitionType: "NEW_LIFE",
+            newLife: true,
+            nextEvolutionStageInstanceId,
+          },
+          allowCareTransition: true,
+        });
+        if (receipt.status !== "synced" && receipt.status !== "queued") {
+          const error = new Error("새 생애 상태를 저장하지 못했습니다.");
+          error.code = receipt.errorCode || "game/new-life-v2-save-failed";
+          throw error;
+        }
+        updatePersistenceAccess({
+          loadedIdentity: {
+            uid: currentUser.uid,
+            slotId,
+            slotInstanceId: saveContext.slotInstanceId,
+            digimonInstanceId: envelope.nextDigimonInstanceId,
+          },
+          combatIdentity: {
+            arenaIdentitySchemaVersion: envelope.nextArenaIdentitySchemaVersion,
+            digimonInstanceId: envelope.nextDigimonInstanceId,
+            combatRevision: envelope.nextCombatRevision,
+          },
+        });
+        Promise.resolve(clearDigimonLifeOutbox({
+          slotInstanceId: saveContext.slotInstanceId,
+          digimonInstanceId: saveContext.digimonInstanceId,
+        })).catch((cleanupError) => {
+          console.warn("이전 생애 IndexedDB outbox 정리에 실패했습니다.", cleanupError);
+        });
+        return {
+          revision: receipt.revision,
+          transitionId: envelope.transitionId,
+          previousDigimonInstanceId: saveContext.digimonInstanceId,
+          nextDigimonInstanceId: envelope.nextDigimonInstanceId,
+          idempotent: receipt.idempotent === true,
+        };
+      }
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       const result = await commitNewLifeTransition({
         db,
@@ -2126,6 +2245,64 @@ export function useGameData({
             dataMap,
           });
 
+          let pendingState = null;
+          let careProjection = null;
+          let careIncidentLoadFailed = false;
+          let careV2Integrity = null;
+          if (isCareMistakeV2Slot(slotData)) {
+            const integrity = await fetchCareMistakeV2Integrity(currentUser, slotId);
+            careV2Integrity = integrity;
+            if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
+            const state = integrity.careMistakeState || slotData.careMistakeState;
+            const effectiveStatus = integrity.effectiveIntegrityStatus ||
+              CARE_MISTAKE_V2_INTEGRITY.UNKNOWN;
+            updatePersistenceAccess({
+              loadedRevision: integrity.revision ?? slotData.revision ?? 0,
+              careMistakeState: state || null,
+              combatIdentity: {
+                arenaIdentitySchemaVersion: slotData.arenaIdentitySchemaVersion,
+                digimonInstanceId: slotData.digimonInstanceId,
+                combatRevision: slotData.combatRevision,
+              },
+              careMistakeReconciliationStatus: effectiveStatus,
+            });
+            careProjection = {
+              careMistakes: state?.unresolvedCareMistakeCount ?? slotData.careMistakes ?? 0,
+              unresolvedCareMistakeCount:
+                state?.unresolvedCareMistakeCount ?? slotData.unresolvedCareMistakeCount ?? 0,
+              latestUnresolvedCareMistakeIncidentId:
+                state?.latestUnresolvedIncidentId ?? null,
+              latestCareMistakeAt: slotData.latestCareMistakeAt ?? null,
+              careMistakeSchemaVersion: 2,
+              careMistakeReconciliationVersion:
+                slotData.careMistakeReconciliationVersion ?? 2,
+              careMistakeReconciliationStatus: effectiveStatus,
+              evolutionStageInstanceId:
+                state?.evolutionStageInstanceId || slotData.evolutionStageInstanceId,
+            };
+            if (state?.rootReceiptId && state?.receiptId && state?.evolutionStageInstanceId) {
+              await quarantineStaleCareEpoch({
+                currentEpoch: {
+                  careSchemaVersion: 2,
+                  rootReceiptId: state.rootReceiptId,
+                  receiptId: state.receiptId,
+                  evolutionStageInstanceId: state.evolutionStageInstanceId,
+                },
+                reason: "STALE_CARE_EPOCH_ON_HYDRATION",
+              });
+            }
+            try {
+              pendingState = await getPendingState();
+            } catch (pendingStateError) {
+              console.warn("V2 미전송 상태 스냅샷 조회 오류:", pendingStateError);
+            }
+            savedStats = {
+              ...savedStats,
+              ...careProjection,
+              careMistakeState: state,
+            };
+          } else {
+
           // 케어 projection은 슬롯의 숫자나 legacy ledger가 아니라 incident와
           // 현재 stage 로그를 재생해 계산한다. 읽기 실패 시 기존 값을 보존하고
           // reconciliation을 ambiguous로 표시해 추측 저장을 막는다.
@@ -2139,7 +2316,6 @@ export function useGameData({
               evolutionStage: slotData.evolutionStage || savedStats.evolutionStage,
             });
           let loadedCareMistakeIncidents = [];
-          let careIncidentLoadFailed = false;
           try {
             loadedCareMistakeIncidents = await loadCareMistakeIncidents({
               slotRef: slotRefForLogs,
@@ -2179,7 +2355,6 @@ export function useGameData({
             pendingCareTransitionLoadFailed = true;
             console.warn("미전송 케어미스 전이 조회 오류:", pendingCareTransitionError);
           }
-          let pendingState = null;
           let pendingStateLoadFailed = false;
           try {
             pendingState = await getPendingState();
@@ -2238,7 +2413,6 @@ export function useGameData({
             remoteReconciliationStatus,
             remoteProjectionMatchesPlan,
           });
-          let careProjection;
           if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.BLOCK) {
             careProjection = {
               ...legacyCareProjection,
@@ -2327,6 +2501,7 @@ export function useGameData({
                 }
               : {}),
           };
+          }
 
           // lazy reconstruction 결과는 여기서 단독 로그로 저장하지 않는다.
           // 다만 검증 가능한 기존 care evidence의 reconciliation transaction은
@@ -2507,6 +2682,15 @@ export function useGameData({
               updatePersistenceAccess({
                 phase: GAME_PERSISTENCE_PHASE.READY,
                 loadedIdentity: loadedPersistenceIdentity,
+                loadedRevision: slotData.revision ?? 0,
+                careMistakeState: isCareMistakeV2Slot(slotData)
+                  ? (careV2Integrity?.careMistakeState || slotData.careMistakeState)
+                  : null,
+                combatIdentity: {
+                  arenaIdentitySchemaVersion: slotData.arenaIdentitySchemaVersion,
+                  digimonInstanceId: slotData.digimonInstanceId,
+                  combatRevision: slotData.combatRevision,
+                },
                 careMistakeReconciliationStatus:
                   careProjection.careMistakeReconciliationStatus,
               });
@@ -2561,11 +2745,18 @@ export function useGameData({
 
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-        await updateDoc(slotRef, {
-          backgroundSettings: newBackgroundSettings,
-          updatedAt: serverTimestamp(),
-        });
+        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
+          await commitCareV2Patch({
+            commandId: createCareV2ClientCommandId("background-settings"),
+            payload: { updateData: { backgroundSettings: newBackgroundSettings } },
+          });
+        } else {
+          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+          await updateDoc(slotRef, {
+            backgroundSettings: newBackgroundSettings,
+            updatedAt: serverTimestamp(),
+          });
+        }
         console.log('[saveBackgroundSettings] Firebase 저장 완료');
       } catch (error) {
         console.error("배경화면 설정 저장 오류:", error);
@@ -2575,7 +2766,7 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, commitCareV2Patch, slotId, currentUser, isFirebaseAvailable]);
 
   const saveImmersiveSettings = useCallback(async (newImmersiveSettings) => {
     const saveContext = captureSaveContext();
@@ -2585,11 +2776,18 @@ export function useGameData({
 
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-        await updateDoc(slotRef, {
-          immersiveSettings: normalizedSettings,
-          updatedAt: serverTimestamp(),
-        });
+        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
+          await commitCareV2Patch({
+            commandId: createCareV2ClientCommandId("immersive-settings"),
+            payload: { updateData: { immersiveSettings: normalizedSettings } },
+          });
+        } else {
+          const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+          await updateDoc(slotRef, {
+            immersiveSettings: normalizedSettings,
+            updatedAt: serverTimestamp(),
+          });
+        }
         console.log("[saveImmersiveSettings] Firebase 저장 완료");
       } catch (saveError) {
         console.error("몰입형 설정 저장 오류:", saveError);
@@ -2599,7 +2797,7 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, commitCareV2Patch, slotId, currentUser, isFirebaseAvailable]);
 
   /**
    * 선택된 디지몬 이름과 표시명을 슬롯 루트 문서에 저장합니다.
@@ -2622,6 +2820,51 @@ export function useGameData({
       }
 
       try {
+        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
+          const sameForm = selectedDigimon === nextSelectedDigimon;
+          const combatIdentity = options.newLife === true
+            ? createNewLifeCombatIdentity()
+            : sameForm
+              ? {}
+              : buildFormTransitionCombatIdentity(
+                  persistenceAccessRef.current.combatIdentity
+                );
+          const nextDigimonInstanceId = options.newLife === true
+            ? combatIdentity.digimonInstanceId
+            : persistenceAccessRef.current.loadedIdentity?.digimonInstanceId;
+          const nextEvolutionStageInstanceId = buildEvolutionStageInstanceId({
+            digimonInstanceId: nextDigimonInstanceId,
+            evolutionStageStartedAt:
+              digimonStats?.evolutionStageStartedAt || digimonStats?.lastSavedAt || Date.now(),
+            evolutionStage: digimonStats?.evolutionStage || nextSelectedDigimon,
+          });
+          await commitCareV2Patch({
+            commandId: createCareV2ClientCommandId(
+              options.newLife === true ? "new-life" : "selected-digimon"
+            ),
+            commandType: options.newLife === true
+              ? "NEW_LIFE"
+              : sameForm ? "STATE_MUTATION" : "EVOLUTION",
+            payload: {
+              updateData: {
+                ...combatIdentity,
+                selectedDigimon: nextSelectedDigimon,
+                digimonDisplayName: buildDigimonDisplayName(
+                  nextSelectedDigimon,
+                  digimonNickname,
+                  evolutionDataForSlot
+                ),
+                isLightsOn,
+                wakeUntil,
+              },
+              ...(options.newLife === true ? { nextDigimonInstanceId } : {}),
+              ...(!sameForm || options.newLife === true
+                ? { nextEvolutionStageInstanceId }
+                : {}),
+            },
+          });
+          return;
+        }
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         await runTransaction(db, async (transaction) => {
           const slotSnapshot = await transaction.get(slotRef);
@@ -2672,6 +2915,9 @@ export function useGameData({
       wakeUntil,
       canStartGameplayWrite,
       captureSaveContext,
+      commitCareV2Patch,
+      digimonStats,
+      selectedDigimon,
     ]
   );
 
