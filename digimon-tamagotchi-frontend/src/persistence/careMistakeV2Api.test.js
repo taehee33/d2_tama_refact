@@ -52,6 +52,58 @@ test("command는 현재 root/receipt/stage/revision epoch를 전송한다", asyn
   }));
 });
 
+test("V2 command JSON은 Firestore sentinel과 서버 소유 필드를 전송하지 않는다", async () => {
+  const fetchImpl = jest.fn(async () => response({ revision: 12 }));
+  const command = buildCareMistakeV2Command({
+    commandId: "command-json-safe",
+    commandType: "STATE_MUTATION",
+    state,
+    expectedRevision: 11,
+    payload: {
+      updateData: {
+        digimonStats: { fullness: 4 },
+        lastSavedAt: 1234,
+        updatedAt: { _methodName: "serverTimestamp" },
+        lastSavedAtServer: { _methodName: "serverTimestamp" },
+        dailySleepMistake: { _methodName: "deleteField" },
+      },
+    },
+  });
+
+  await commitCareMistakeV2ApiCommand(user, 4, command, { fetchImpl });
+
+  const body = fetchImpl.mock.calls[0][1].body;
+  const request = JSON.parse(body);
+  expect(body).not.toContain("_methodName");
+  expect(request.command.payload.updateData).toEqual({
+    digimonStats: { fullness: 4 },
+    lastSavedAt: 1234,
+  });
+});
+
+test("허용 경로 밖의 sentinel-shaped object는 전송 전에 거부한다", async () => {
+  const fetchImpl = jest.fn();
+  const command = buildCareMistakeV2Command({
+    commandId: "command-invalid-sentinel",
+    commandType: "STATE_MUTATION",
+    state,
+    expectedRevision: 11,
+    payload: {
+      updateData: {
+        digimonStats: {
+          fullness: 4,
+          nested: { _methodName: "serverTimestamp" },
+        },
+      },
+    },
+  });
+
+  await expect(
+    commitCareMistakeV2ApiCommand(user, 4, command, { fetchImpl })
+  ).rejects.toMatchObject({ code: "INVALID_PAYLOAD", status: 400 });
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
 test("native bootstrap은 client 직접 Firestore write 없이 server endpoint를 사용한다", async () => {
   const fetchImpl = jest.fn(async () => response({ revision: 1 }, { status: 201 }));
   const result = await nativeInitCareMistakeV2ApiSlot(user, 2, {

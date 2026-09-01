@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { initializeApp, deleteApp } = require("firebase-admin/app");
-const { getFirestore } = require("firebase-admin/firestore");
+const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const {
   acknowledgeUrgentCareDeliveries,
   listPendingUrgentDeliveries,
@@ -17,6 +17,10 @@ const {
 const {
   listNotificationSubscribers,
 } = require("../digimon-tamagotchi-frontend/api/_lib/notificationSubscribers");
+const {
+  commitCareMistakeV2Command,
+  nativeInitCareMistakeV2Slot,
+} = require("../digimon-tamagotchi-frontend/api/_lib/careMistakeV2Service");
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || "d2tamarefact";
 
@@ -138,4 +142,118 @@ test("Firestore Emulator에서 revision, eventId, 알림 delivery가 원자적·
   });
   assert.equal(firstAck.acknowledged, 1);
   assert.equal(secondAck.alreadyAcknowledged, 1);
+});
+
+test("Care Mistake V2 저장 경계는 실제 Timestamp와 legacy 필드 삭제를 보장한다", {
+  skip: !process.env.FIRESTORE_EMULATOR_HOST,
+}, async (t) => {
+  process.env.FIREBASE_PROJECT_ID = PROJECT_ID;
+  const app = initializeApp({ projectId: PROJECT_ID }, `care-v2-boundary-${Date.now()}`);
+  const db = getFirestore(app);
+  const slotRef = db.doc("users/care-v2-emulator/slots/slot7");
+  const createdAt = Date.parse("2026-08-30T00:00:00.000Z");
+  const initialSlot = {
+    slotInstanceId: "slot-life-emulator",
+    digimonInstanceId: "digimon-life-emulator",
+    evolutionStageInstanceId: "stage-emulator",
+    selectedDigimon: "Botamon",
+    createdAt,
+    lastSavedAt: createdAt,
+    digimonStats: {
+      birthTime: createdAt,
+      evolutionStageStartedAt: createdAt,
+      lastSavedAt: createdAt,
+      lifespanSeconds: 0,
+      timeToEvolveSeconds: 8,
+      hungerTimer: 0,
+      hungerCountdown: 0,
+      strengthTimer: 0,
+      strengthCountdown: 0,
+      poopTimer: 999,
+      poopCountdown: 999 * 60,
+      fullness: 3,
+      careMistakes: 0,
+    },
+  };
+
+  t.after(async () => {
+    await db.recursiveDelete(db.doc("users/care-v2-emulator"));
+    await deleteApp(app);
+  });
+
+  const initialized = await nativeInitCareMistakeV2Slot({
+    uid: "care-v2-emulator",
+    slotId: 7,
+    commandId: "native-emulator",
+    slotData: initialSlot,
+    deps: { db, now: new Date(createdAt) },
+  });
+  await slotRef.update({ dailySleepMistake: true });
+
+  const state = initialized.careMistakeState;
+  const legacyResult = await commitCareMistakeV2Command({
+    uid: "care-v2-emulator",
+    slotId: 7,
+    command: {
+      commandId: "state-emulator-1",
+      commandType: "STATE_MUTATION",
+      careSchemaVersion: 2,
+      rootReceiptId: state.rootReceiptId,
+      receiptId: state.receiptId,
+      evolutionStageInstanceId: state.evolutionStageInstanceId,
+      expectedRevision: 1,
+      payload: {
+        updateData: {
+          lastSavedAt: createdAt + 1_000,
+          updatedAt: { _methodName: "serverTimestamp" },
+          lastSavedAtServer: { _methodName: "serverTimestamp" },
+          dailySleepMistake: { _methodName: "deleteField" },
+          digimonStats: { fullness: 4 },
+        },
+      },
+    },
+    deps: { db, now: new Date(createdAt + 1_000) },
+  });
+  const currentResult = await commitCareMistakeV2Command({
+    uid: "care-v2-emulator",
+    slotId: 7,
+    command: {
+      commandId: "state-emulator-2",
+      commandType: "STATE_MUTATION",
+      careSchemaVersion: 2,
+      rootReceiptId: state.rootReceiptId,
+      receiptId: state.receiptId,
+      evolutionStageInstanceId: state.evolutionStageInstanceId,
+      expectedRevision: 2,
+      payload: {
+        updateData: {
+          lastSavedAt: createdAt + 2_000,
+          digimonStats: { fullness: 5 },
+        },
+      },
+    },
+    deps: { db, now: new Date(createdAt + 2_000) },
+  });
+
+  const stored = (await slotRef.get()).data();
+  assert.equal(initialized.revision, 1);
+  assert.equal(legacyResult.revision, 2);
+  assert.equal(currentResult.revision, 3);
+  assert.equal(stored.revision, 3);
+  assert.ok(stored.updatedAt instanceof Timestamp);
+  assert.ok(stored.lastSavedAtServer instanceof Timestamp);
+  assert.equal(stored.updatedAt.toMillis(), createdAt + 2_000);
+  assert.equal(stored.lastSavedAtServer.toMillis(), createdAt + 2_000);
+  assert.equal(Object.hasOwn(stored, "dailySleepMistake"), false);
+  assert.equal(JSON.stringify(stored).includes("_methodName"), false);
+  assert.equal(stored.slotInstanceId, initialSlot.slotInstanceId);
+  assert.equal(stored.digimonInstanceId, initialSlot.digimonInstanceId);
+  assert.equal(stored.selectedDigimon, initialSlot.selectedDigimon);
+  assert.equal(stored.digimonStats.birthTime, initialSlot.digimonStats.birthTime);
+  assert.equal(
+    stored.digimonStats.evolutionStageStartedAt,
+    initialSlot.digimonStats.evolutionStageStartedAt
+  );
+  assert.equal(stored.digimonStats.fullness, 5);
+  assert.equal(stored.careMistakeState.rootReceiptId, state.rootReceiptId);
 });

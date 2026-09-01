@@ -227,6 +227,176 @@ test("성공 command 재시도는 stale revision 검사보다 receipt를 먼저 
   assert.equal(harness.store.get("users/user-a/slots/slot1").digimonStats.careMistakes, 0);
 });
 
+test("legacy sentinel은 허용 경로에서만 서버 timestamp와 필드 삭제로 변환한다", async () => {
+  const harness = createHarness();
+  const initialized = await nativeInitCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    commandId: "native-command-sentinel",
+    slotData: nativeSlot(),
+    deps: { db: harness.db, now: new Date("2026-08-30T00:00:00.000Z") },
+  });
+  // 과거 문서에 남아 있던 root legacy 필드를 재현한다.
+  const slotPath = "users/user-a/slots/slot1";
+  const receiptPath = `${slotPath}/careMistakeReceipts/${initialized.careMistakeState.receiptId}`;
+  const logPath = `${slotPath}/logs/existing-log`;
+  const incidentPath = `${slotPath}/careMistakeIncidents/existing-incident`;
+  harness.store.get(slotPath).dailySleepMistake = true;
+  harness.store.set(logPath, { eventId: "existing-log", type: "FEED", timestamp: 1234 });
+  harness.store.set(incidentPath, {
+    incidentId: "existing-incident",
+    status: "resolved",
+    rootReceiptId: initialized.careMistakeState.rootReceiptId,
+  });
+  const receiptBefore = structuredClone(harness.store.get(receiptPath));
+  const logBefore = structuredClone(harness.store.get(logPath));
+  const incidentBefore = structuredClone(harness.store.get(incidentPath));
+  const careStateBefore = structuredClone(harness.store.get(slotPath).careMistakeState);
+  const committedAt = new Date("2026-08-30T00:00:05.000Z");
+  const command = {
+    commandId: "state-command-sentinel",
+    commandType: "STATE_MUTATION",
+    careSchemaVersion: 2,
+    rootReceiptId: initialized.careMistakeState.rootReceiptId,
+    receiptId: initialized.careMistakeState.receiptId,
+    evolutionStageInstanceId: initialized.careMistakeState.evolutionStageInstanceId,
+    expectedRevision: 1,
+    payload: {
+      updateData: {
+        lastSavedAt: 1_777_000_005_123,
+        updatedAt: { _methodName: "serverTimestamp" },
+        lastSavedAtServer: { _methodName: "serverTimestamp" },
+        dailySleepMistake: { _methodName: "deleteField" },
+        digimonStats: { fullness: 4 },
+      },
+    },
+  };
+
+  const result = await commitCareMistakeV2Command({
+    uid: "user-a",
+    slotId: 1,
+    command,
+    deps: { db: harness.db, now: committedAt },
+  });
+  const slot = harness.store.get("users/user-a/slots/slot1");
+
+  assert.equal(result.revision, 2);
+  assert.deepEqual(slot.updatedAt, committedAt);
+  assert.deepEqual(slot.lastSavedAtServer, committedAt);
+  assert.equal(Object.hasOwn(slot, "dailySleepMistake"), false);
+  assert.equal(JSON.stringify(slot).includes("_methodName"), false);
+  assert.equal(slot.digimonStats.fullness, 4);
+  assert.equal(slot.digimonStats.customGameplayMarker, 42);
+  assert.deepEqual(slot.careMistakeState, careStateBefore);
+  assert.deepEqual(harness.store.get(receiptPath), receiptBefore);
+  assert.deepEqual(harness.store.get(logPath), logBefore);
+  assert.deepEqual(harness.store.get(incidentPath), incidentBefore);
+});
+
+test("허용 경로 밖 sentinel-shaped object와 unknown method는 write 없이 거부한다", async (t) => {
+  const cases = [
+    ["updateData 자체가 sentinel", { _methodName: "serverTimestamp" }],
+    ["중첩 serverTimestamp", { digimonStats: { nested: { _methodName: "serverTimestamp" } } }],
+    ["unknown method", { backgroundSettings: { marker: { _methodName: "increment" } } }],
+    ["잘못된 허용 경로 method", { lastSavedAtServer: { _methodName: "deleteField" } }],
+  ];
+
+  for (const [name, updateData] of cases) {
+    await t.test(name, async () => {
+      const harness = createHarness();
+      const initialized = await nativeInitCareMistakeV2Slot({
+        uid: "user-a",
+        slotId: 1,
+        commandId: `native-invalid-${name}`,
+        slotData: nativeSlot(),
+        deps: { db: harness.db },
+      });
+      const writesBefore = harness.writeCount;
+
+      await assert.rejects(
+        commitCareMistakeV2Command({
+          uid: "user-a",
+          slotId: 1,
+          command: {
+            commandId: `state-invalid-${name}`,
+            commandType: "STATE_MUTATION",
+            careSchemaVersion: 2,
+            rootReceiptId: initialized.careMistakeState.rootReceiptId,
+            receiptId: initialized.careMistakeState.receiptId,
+            evolutionStageInstanceId: initialized.careMistakeState.evolutionStageInstanceId,
+            expectedRevision: 1,
+            payload: { updateData },
+          },
+          deps: { db: harness.db },
+        }),
+        (error) => error.code === "INVALID_PAYLOAD" && error.status === 400
+      );
+      assert.equal(harness.writeCount, writesBefore);
+    });
+  }
+});
+
+test("NATIVE_INIT 이후 두 STATE_MUTATION은 revision 1→2→3과 gameplay identity를 보존한다", async () => {
+  const harness = createHarness();
+  const initialSlot = nativeSlot();
+  const initialized = await nativeInitCareMistakeV2Slot({
+    uid: "user-a",
+    slotId: 1,
+    commandId: "native-regression",
+    slotData: initialSlot,
+    deps: { db: harness.db, now: new Date("2026-08-30T00:00:00.000Z") },
+  });
+  const state = initialized.careMistakeState;
+  const buildCommand = (commandId, expectedRevision, lastSavedAt, fullness) => ({
+    commandId,
+    commandType: "STATE_MUTATION",
+    careSchemaVersion: 2,
+    rootReceiptId: state.rootReceiptId,
+    receiptId: state.receiptId,
+    evolutionStageInstanceId: state.evolutionStageInstanceId,
+    expectedRevision,
+    payload: {
+      updateData: {
+        lastSavedAt,
+        lastSavedAtServer: { _methodName: "serverTimestamp" },
+        updatedAt: { _methodName: "serverTimestamp" },
+        dailySleepMistake: { _methodName: "deleteField" },
+        digimonStats: { fullness },
+      },
+    },
+  });
+
+  const second = await commitCareMistakeV2Command({
+    uid: "user-a",
+    slotId: 1,
+    command: buildCommand("state-regression-1", 1, initialSlot.lastSavedAt + 1_000, 4),
+    deps: { db: harness.db, now: new Date("2026-08-30T00:00:01.000Z") },
+  });
+  const third = await commitCareMistakeV2Command({
+    uid: "user-a",
+    slotId: 1,
+    command: buildCommand("state-regression-2", 2, initialSlot.lastSavedAt + 2_000, 5),
+    deps: { db: harness.db, now: new Date("2026-08-30T00:00:02.000Z") },
+  });
+  const slot = harness.store.get("users/user-a/slots/slot1");
+
+  assert.equal(initialized.revision, 1);
+  assert.equal(second.revision, 2);
+  assert.equal(third.revision, 3);
+  assert.equal(slot.revision, 3);
+  assert.equal(slot.slotInstanceId, initialSlot.slotInstanceId);
+  assert.equal(slot.digimonInstanceId, initialSlot.digimonInstanceId);
+  assert.equal(slot.selectedDigimon, initialSlot.selectedDigimon);
+  assert.equal(slot.digimonStats.birthTime, initialSlot.digimonStats.birthTime);
+  assert.equal(
+    slot.digimonStats.evolutionStageStartedAt,
+    initialSlot.digimonStats.evolutionStageStartedAt
+  );
+  assert.equal(slot.digimonStats.fullness, 5);
+  assert.equal(slot.careMistakeState.rootReceiptId, state.rootReceiptId);
+  assert.equal(JSON.stringify(slot).includes("_methodName"), false);
+});
+
 test("동일 commandId/action이라도 receipt·stage·revision이 다르면 fingerprint가 다르다", () => {
   const base = {
     commandId: "same-command",

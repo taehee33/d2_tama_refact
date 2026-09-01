@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-02] Care Mistake V2 JSON 저장 경계 긴급 복구
+
+- **원인:** `fae01c3`(#58)에서 Firestore 직접 저장용 `serverTimestamp()`·`deleteField()` sentinel을 V2 HTTP JSON payload에 포함했다. JSON 직렬화 뒤 sentinel은 서버 동작이 아니라 `{ "_methodName": ... }` 일반 map이 되었고, 서버가 이를 슬롯 문서에 그대로 저장했다. loader는 오염된 `lastSavedAtServer`를 유효한 숫자 `lastSavedAt`보다 먼저 선택해 신규 슬롯과 V2 저장이 발생한 기존 슬롯을 `LOAD_ERROR`로 차단했다.
+- **클라이언트 경계:** V2 command 전송 전에 `updatedAt`, `lastSavedAtServer`, `dailySleepMistake`를 `updateData`에서 제거한다. 남은 payload 어디에서든 `_methodName` 객체가 발견되면 네트워크 요청 전에 `400 INVALID_PAYLOAD`로 거부한다. 레거시 Firestore 직접 저장 payload 조립은 변경하지 않았다.
+- **서버 경계:** `updatedAt`과 `lastSavedAtServer`를 서버 소유 필드로 고정했다. 모든 성공 command는 `updatedAt`을 서버 시각으로 기록하고, 유효한 `lastSavedAt` snapshot 저장은 `lastSavedAtServer`도 같은 서버 시각으로 기록한다. 구버전 호환은 `STATE_MUTATION.payload.updateData`의 `updatedAt/serverTimestamp`, `lastSavedAtServer/serverTimestamp`, `dailySleepMistake/deleteField` 세 조합만 허용하며, 다른 위치·method의 sentinel-shaped object는 write 없이 거부한다. 정상 `updateData` commit은 root legacy `dailySleepMistake`를 제거한다.
+- **무손실 자연 치유:** loader는 기존 timestamp 우선순위를 유지하면서 각 후보를 실제 timestamp로 검증하고 첫 유효값만 사용한다. 오염된 `lastSavedAtServer` 뒤에 유효한 numeric `lastSavedAt`이 있으면 정상 hydration하며, 유효한 시간 기준이 없거나 `birthTime`·`evolutionStageStartedAt`·필수 timer가 빠졌으면 기존대로 `LOAD_ERROR`다. loader repair/bootstrap write와 `initializeStats()` 재호출은 추가하지 않았다. 오염 슬롯은 최초 성공한 정상 mutation에서 timestamp와 legacy 필드만 자연 치유하며 identity, 진화 기준 시각, Care Mistake V2 state·receipt·incident·로그와 mutation 무관 stats를 보존한다.
+- **회귀 검증:** `NATIVE_INIT revision 1 → STATE_MUTATION revision 2 → STATE_MUTATION revision 3`과 같은 command ID 재시도 멱등성을 고정했다. Firestore Emulator 실제 read-back에서 `updatedAt`·`lastSavedAtServer`가 `Timestamp`, `dailySleepMistake`와 sentinel map이 부재하며 identity·진화 기준·Care Mistake state가 보존됨을 확인했다. `npm run check`(프런트 226 suite·1,562 tests, production build 포함), Firestore Emulator 9 tests, Arena/Jogress Emulator 26 tests가 모두 통과했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/persistence/careMistakeV2Api.js`, `src/hooks/useGameData.js`, `api/_lib/careMistakeV2Service.js`, 관련 단위 테스트, `tests/firestore-emulator.test.js`, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** V2 전체 롤백, Firestore schema 변경, 별도 repair/CAS/bootstrap 계층 없이 장애를 만든 JSON 저장 경계만 복구했다. 따라서 #58의 Care Mistake V2 identity·revision·migration·incident 계약과 #59의 완전한 신규 gameplay 초기화는 유지된다.
+
 ## [2026-09-01] Care Mistake V2 신규 슬롯 초기화 회귀 수정
 
 - **원인:** `v0.8.0.0`의 `NATIVE_INIT` 전환에서 신규 슬롯 요청이 빈 `digimonStats`를 전달했고, 서버는 Care Mistake V2 projection만 병합해 `verified` 상태로 저장했다. 첫 hydration이 기존 `initializeStats()`로 gameplay stats를 메모리에만 만들었기 때문에, 저장 전에 재접속하면 생애·진화·배고픔·힘·똥 시간 기준이 현재 시각으로 다시 시작됐다.

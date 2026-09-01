@@ -324,14 +324,17 @@ export function resolveLastSavedAtSource(
   persistedStats = {},
   liveStats = {}
 ) {
-  return (
-    slotData.lastSavedAtServer ||
-    slotData.lastSavedAt ||
-    persistedStats.lastSavedAtServer ||
-    persistedStats.lastSavedAt ||
-    liveStats.lastSavedAt ||
-    null
-  );
+  const candidates = [
+    slotData.lastSavedAtServer,
+    slotData.lastSavedAt,
+    persistedStats.lastSavedAtServer,
+    persistedStats.lastSavedAt,
+    liveStats.lastSavedAt,
+  ];
+  return candidates.find((candidate) => {
+    const timestamp = toEpochMs(candidate);
+    return timestamp != null && timestamp >= 0;
+  }) ?? null;
 }
 
 /**

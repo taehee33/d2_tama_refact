@@ -61,6 +61,11 @@ const NATIVE_INIT_NON_NEGATIVE_STATS_FIELDS = Object.freeze([
   "poopTimer",
   "poopCountdown",
 ]);
+const LEGACY_SENTINEL_ALLOWLIST = Object.freeze({
+  updatedAt: "serverTimestamp",
+  lastSavedAtServer: "serverTimestamp",
+  dailySleepMistake: "deleteField",
+});
 
 class CareMistakeV2Error extends Error {
   constructor(code, message, status = 409, details = null) {
@@ -289,9 +294,52 @@ function applyProjection(slotData, state) {
   };
 }
 
-function sanitizeClientUpdate(updateData = {}) {
+function invalidPayload(path) {
+  throw new CareMistakeV2Error(
+    "INVALID_PAYLOAD",
+    `${path}에 허용되지 않은 Firestore sentinel이 포함되어 있습니다.`,
+    400
+  );
+}
+
+function isExactLegacySentinel(value, methodName) {
+  return value != null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    value._methodName === methodName;
+}
+
+function assertNoSentinelShapedObject(value, path) {
+  if (value == null || typeof value !== "object") return;
+  if (Object.prototype.hasOwnProperty.call(value, "_methodName")) {
+    invalidPayload(path);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      assertNoSentinelShapedObject(entry, `${path}[${index}]`);
+    });
+    return;
+  }
+  Object.entries(value).forEach(([key, entry]) => {
+    assertNoSentinelShapedObject(entry, `${path}.${key}`);
+  });
+}
+
+function sanitizeClientUpdate(updateData = {}, { allowLegacySentinels = false } = {}) {
   if (!updateData || typeof updateData !== "object" || Array.isArray(updateData)) return {};
+  if (Object.prototype.hasOwnProperty.call(updateData, "_methodName")) {
+    invalidPayload("payload.updateData");
+  }
   const safe = Object.entries(updateData).reduce((result, [key, value]) => {
+    if (Object.prototype.hasOwnProperty.call(LEGACY_SENTINEL_ALLOWLIST, key)) {
+      if (!allowLegacySentinels ||
+          !isExactLegacySentinel(value, LEGACY_SENTINEL_ALLOWLIST[key])) {
+        invalidPayload(`payload.updateData.${key}`);
+      }
+      return result;
+    }
+    assertNoSentinelShapedObject(value, `payload.updateData.${key}`);
     if (!PROTECTED_ROOT_FIELDS.has(key) && key !== "digimonStats") result[key] = value;
     return result;
   }, {});
@@ -305,8 +353,8 @@ function sanitizeClientUpdate(updateData = {}) {
   return safe;
 }
 
-function mergeSlotUpdate(slotData, clientUpdate) {
-  const safe = sanitizeClientUpdate(clientUpdate);
+function mergeSlotUpdate(slotData, clientUpdate, options = {}) {
+  const safe = sanitizeClientUpdate(clientUpdate, options);
   return {
     ...slotData,
     ...safe,
@@ -450,7 +498,28 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
     assertCommandEpoch(command, slotData, state);
     const currentRevision = normalizeRevision(slotData.revision, "revision");
     const nextRevision = currentRevision + 1;
-    let nextSlot = mergeSlotUpdate(slotData, command.payload?.updateData);
+    const now = resolveNow(deps);
+    const rawUpdateData = command.payload?.updateData;
+    const hasUpdateData = rawUpdateData != null &&
+      typeof rawUpdateData === "object" &&
+      !Array.isArray(rawUpdateData);
+    let nextSlot = mergeSlotUpdate(slotData, rawUpdateData, {
+      allowLegacySentinels: commandType === "STATE_MUTATION",
+    });
+    if (hasUpdateData) {
+      // 정상 슬롯 갱신의 일부로만 legacy root 필드를 자연 치유한다.
+      delete nextSlot.dailySleepMistake;
+    }
+    const hasValidLastSavedAt = typeof rawUpdateData?.lastSavedAt === "number" &&
+      Number.isFinite(rawUpdateData.lastSavedAt) &&
+      rawUpdateData.lastSavedAt >= 0;
+    const hasLegacyLastSavedAtServer = isExactLegacySentinel(
+      rawUpdateData?.lastSavedAtServer,
+      "serverTimestamp"
+    );
+    if (hasValidLastSavedAt || hasLegacyLastSavedAtServer) {
+      nextSlot.lastSavedAtServer = now;
+    }
     // identity epoch은 command type에 따라 서버가만 변경한다.
     nextSlot.slotInstanceIdSchemaVersion = slotData.slotInstanceIdSchemaVersion;
     nextSlot.slotInstanceId = slotData.slotInstanceId;
@@ -533,7 +602,7 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
           ref: headRef,
           update: {
             status: "resolved",
-            resolvedAt: deps.now || new Date(),
+            resolvedAt: now,
             resolvedBy: String(command.payload?.resolvedBy || "game_action"),
           },
         });
@@ -602,14 +671,14 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
           receiptType: "native_init",
           slotData: nextSlot,
           revision: nextRevision,
-          now: deps.now || new Date(),
+          now,
         })
       );
     }
 
     nextSlot = applyProjection(nextSlot, state);
     nextSlot.revision = nextRevision;
-    nextSlot.updatedAt = deps.now || new Date();
+    nextSlot.updatedAt = now;
     const activityEvents = Array.isArray(command.payload?.activityEvents)
       ? command.payload.activityEvents
       : [];
@@ -651,7 +720,7 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
       revisionBefore: currentRevision,
       revisionAfter: nextRevision,
       result,
-      createdAt: deps.now || new Date(),
+      createdAt: now,
     });
     return result;
   });
@@ -727,6 +796,7 @@ async function nativeInitCareMistakeV2Slot({ uid, slotId, commandId, slotData, d
     }, state);
     createdSlot.revision = 1;
     createdSlot.createdAt = createdSlot.createdAt || now;
+    createdSlot.lastSavedAtServer = now;
     createdSlot.updatedAt = now;
     const result = commandResult({
       commandId: normalizedCommandId,

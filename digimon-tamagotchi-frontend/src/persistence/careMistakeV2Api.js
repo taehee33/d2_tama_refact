@@ -16,6 +16,54 @@ export class CareMistakeV2ApiError extends Error {
   }
 }
 
+const V2_SERVER_OWNED_UPDATE_FIELDS = Object.freeze([
+  "updatedAt",
+  "lastSavedAtServer",
+  "dailySleepMistake",
+]);
+
+function assertNoFirestoreSentinel(value, path = "request") {
+  if (value == null || typeof value !== "object") return;
+  if (Object.prototype.hasOwnProperty.call(value, "_methodName")) {
+    throw new CareMistakeV2ApiError(
+      "INVALID_PAYLOAD",
+      `${path}에는 Firestore sentinel을 사용할 수 없습니다.`,
+      400
+    );
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => {
+      assertNoFirestoreSentinel(entry, `${path}[${index}]`);
+    });
+    return;
+  }
+  Object.entries(value).forEach(([key, entry]) => {
+    assertNoFirestoreSentinel(entry, `${path}.${key}`);
+  });
+}
+
+function prepareCommandForTransport(command = {}) {
+  const payload = command?.payload && typeof command.payload === "object"
+    ? { ...command.payload }
+    : command?.payload;
+  if (payload?.updateData && typeof payload.updateData === "object" &&
+      !Array.isArray(payload.updateData)) {
+    const updateData = { ...payload.updateData };
+    V2_SERVER_OWNED_UPDATE_FIELDS.forEach((field) => {
+      delete updateData[field];
+    });
+    payload.updateData = updateData;
+  }
+  const prepared = { ...command, payload };
+  assertNoFirestoreSentinel(prepared, "command");
+  return prepared;
+}
+
+function stringifyJsonPayload(payload) {
+  assertNoFirestoreSentinel(payload);
+  return JSON.stringify(payload);
+}
+
 async function authHeaders(user) {
   if (!user?.getIdToken) throw new CareMistakeV2ApiError("AUTH_REQUIRED", "로그인이 필요합니다.", 401);
   return {
@@ -57,10 +105,11 @@ export async function fetchCareMistakeV2Integrity(user, slotId, { fetchImpl = fe
 export async function commitCareMistakeV2ApiCommand(user, slotId, command, {
   fetchImpl = fetch,
 } = {}) {
+  const preparedCommand = prepareCommandForTransport(command);
   const response = await fetchImpl("/api/operator/status?action=care-mistake-v2", {
     method: "POST",
     headers: await authHeaders(user),
-    body: JSON.stringify({ action: "command", slotId, command }),
+    body: stringifyJsonPayload({ action: "command", slotId, command: preparedCommand }),
   });
   return parseResponse(response);
 }
@@ -73,7 +122,7 @@ export async function nativeInitCareMistakeV2ApiSlot(user, slotId, {
   const response = await fetchImpl("/api/operator/status?action=care-mistake-v2", {
     method: "POST",
     headers: await authHeaders(user),
-    body: JSON.stringify({ action: "native_init", slotId, commandId, slotData }),
+    body: stringifyJsonPayload({ action: "native_init", slotId, commandId, slotData }),
   });
   return parseResponse(response);
 }
@@ -86,7 +135,7 @@ export async function deleteCareMistakeV2ApiSlot(user, slotId, {
   const response = await fetchImpl("/api/operator/status?action=care-mistake-v2", {
     method: "POST",
     headers: await authHeaders(user),
-    body: JSON.stringify({
+    body: stringifyJsonPayload({
       action: "delete_slot",
       slotId,
       slotInstanceId,

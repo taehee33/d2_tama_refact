@@ -1211,7 +1211,7 @@ describe("buildLoadedSlotHydrationPlan", () => {
     })).toBe(false);
   });
 
-  test("필수 timer 또는 timestamp가 하나라도 없으면 load invariant를 충족하지 않는다", () => {
+  test("필수 timer 또는 생애·진화 timestamp가 하나라도 없으면 load invariant를 충족하지 않는다", () => {
     const dataMap = {
       Digitama: {
         evolutionStage: "Digitama",
@@ -1227,16 +1227,38 @@ describe("buildLoadedSlotHydrationPlan", () => {
     };
     const withoutTimer = { ...complete };
     delete withoutTimer.hungerCountdown;
-    const withoutTimestamp = { ...complete };
-    delete withoutTimestamp.evolutionStageStartedAt;
+    const withoutBirthTime = { ...complete };
+    delete withoutBirthTime.birthTime;
+    const withoutEvolutionStageStartedAt = { ...complete };
+    delete withoutEvolutionStageStartedAt.evolutionStageStartedAt;
+
+    const variants = [withoutTimer, withoutBirthTime, withoutEvolutionStageStartedAt];
+    variants.forEach((savedStats) => expect(hasCompletePersistedGameplayState({
+      slotData: { lastSavedAt: 1000 },
+      savedStats,
+    })).toBe(false));
+  });
+
+  test("오염된 server timestamp는 유효한 numeric fallback이 있을 때만 load invariant를 통과한다", () => {
+    const dataMap = {
+      Digitama: {
+        evolutionStage: "Digitama",
+        hungerTimer: 0,
+        strengthTimer: 0,
+        poopTimer: 999,
+        timeToEvolveSeconds: 8,
+      },
+    };
+    const complete = initializeStats("Digitama", {}, dataMap, { nowMs: 1000 });
+    const malformedServerTimestamp = { _methodName: "serverTimestamp" };
 
     expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAt: 1000 },
-      savedStats: withoutTimer,
-    })).toBe(false);
+      slotData: { lastSavedAtServer: malformedServerTimestamp, lastSavedAt: 1000 },
+      savedStats: complete,
+    })).toBe(true);
     expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAt: 1000 },
-      savedStats: withoutTimestamp,
+      slotData: { lastSavedAtServer: malformedServerTimestamp },
+      savedStats: { ...complete, lastSavedAt: Number.NaN },
     })).toBe(false);
   });
 
@@ -1388,6 +1410,32 @@ describe("resolveLastSavedAtSource", () => {
         }
       )
     ).toBe(1500);
+  });
+
+  test("오염된 서버 시각은 건너뛰고 유효한 root lastSavedAt을 사용한다", () => {
+    expect(
+      resolveLastSavedAtSource(
+        {
+          lastSavedAtServer: { _methodName: "serverTimestamp" },
+          lastSavedAt: 2000,
+        },
+        { lastSavedAt: 1500 },
+        { lastSavedAt: 1000 }
+      )
+    ).toBe(2000);
+  });
+
+  test("오염된 서버 시각 뒤에 유효한 시간 기준이 없으면 null을 반환한다", () => {
+    expect(
+      resolveLastSavedAtSource(
+        {
+          lastSavedAtServer: { _methodName: "serverTimestamp" },
+          lastSavedAt: Number.NaN,
+        },
+        { lastSavedAt: -1 },
+        {}
+      )
+    ).toBeNull();
   });
 });
 
