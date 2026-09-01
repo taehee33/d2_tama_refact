@@ -87,12 +87,30 @@ function snapshotTree(store, prefix) {
 }
 
 function nativeSlot() {
+  const createdAt = 1_777_000_000_123;
   return {
     slotInstanceId: "slot-life-a",
     digimonInstanceId: "digimon-life-a",
     evolutionStageInstanceId: "stage-a",
     selectedDigimon: "Botamon",
-    digimonStats: { fullness: 3, careMistakes: 99 },
+    createdAt,
+    lastSavedAt: createdAt,
+    digimonStats: {
+      birthTime: createdAt,
+      evolutionStageStartedAt: createdAt,
+      lastSavedAt: createdAt,
+      lifespanSeconds: 0,
+      timeToEvolveSeconds: 8,
+      hungerTimer: 0,
+      hungerCountdown: 0,
+      strengthTimer: 0,
+      strengthCountdown: 0,
+      poopTimer: 999,
+      poopCountdown: 999 * 60,
+      fullness: 3,
+      careMistakes: 99,
+      customGameplayMarker: 42,
+    },
   };
 }
 
@@ -112,11 +130,66 @@ test("NATIVE_INIT은 slot/state/receipt/transition을 revision 1로 원자 생�
   assert.equal(slot.careMistakeState.schemaVersion, 2);
   assert.equal(slot.careMistakes, 0);
   assert.equal(slot.digimonStats.careMistakes, 0);
+  assert.equal(slot.digimonStats.customGameplayMarker, 42);
+  assert.equal(slot.createdAt, slot.digimonStats.birthTime);
+  assert.equal(slot.lastSavedAt, slot.digimonStats.lastSavedAt);
   assert.equal(harness.writeCount, 3);
   assert.equal(
     harness.store.get(`users/user-a/slots/slot1/careMistakeReceipts/${slot.careMistakeState.receiptId}`).cutoverRevision,
     1
   );
+});
+
+test("NATIVE_INIT은 불완전 gameplay stats를 write 없이 거부한다", async (t) => {
+  const cases = [
+    ["빈 stats", () => ({})],
+    ["projection-only stats", () => ({ careMistakeSchemaVersion: 2, careMistakes: 0 })],
+    ["필수 필드 누락", (slot) => {
+      const stats = { ...slot.digimonStats };
+      delete stats.hungerTimer;
+      return stats;
+    }],
+    ["null", (slot) => ({ ...slot.digimonStats, strengthCountdown: null })],
+    ["NaN", (slot) => ({ ...slot.digimonStats, poopCountdown: NaN })],
+    ["Infinity", (slot) => ({ ...slot.digimonStats, timeToEvolveSeconds: Infinity })],
+    ["음수", (slot) => ({ ...slot.digimonStats, lifespanSeconds: -1 })],
+  ];
+
+  for (const [name, buildStats] of cases) {
+    await t.test(name, async () => {
+      const harness = createHarness();
+      const slotData = nativeSlot();
+      slotData.digimonStats = buildStats(slotData);
+      await assert.rejects(
+        nativeInitCareMistakeV2Slot({
+          uid: "user-a",
+          slotId: 1,
+          commandId: `invalid-${name}`,
+          slotData,
+          deps: { db: harness.db },
+        }),
+        (error) => error.code === "INVALID_NATIVE_INIT_STATS" && error.status === 400
+      );
+      assert.equal(harness.writeCount, 0);
+    });
+  }
+});
+
+test("NATIVE_INIT은 초기 timestamp 불일치를 write 없이 거부한다", async () => {
+  const harness = createHarness();
+  const slotData = nativeSlot();
+  slotData.digimonStats.lastSavedAt += 1;
+  await assert.rejects(
+    nativeInitCareMistakeV2Slot({
+      uid: "user-a",
+      slotId: 1,
+      commandId: "invalid-timestamps",
+      slotData,
+      deps: { db: harness.db },
+    }),
+    (error) => error.code === "INVALID_NATIVE_INIT_STATS"
+  );
+  assert.equal(harness.writeCount, 0);
 });
 
 test("성공 command 재시도는 stale revision 검사보다 receipt를 먼저 보고 추가 write하지 않는다", async () => {

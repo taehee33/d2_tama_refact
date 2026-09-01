@@ -48,6 +48,19 @@ const PROTECTED_ROOT_FIELDS = new Set([
   "selectedDigimon",
   "careMistakeDeletion",
 ]);
+const NATIVE_INIT_NON_NEGATIVE_STATS_FIELDS = Object.freeze([
+  "birthTime",
+  "evolutionStageStartedAt",
+  "lastSavedAt",
+  "lifespanSeconds",
+  "timeToEvolveSeconds",
+  "hungerTimer",
+  "hungerCountdown",
+  "strengthTimer",
+  "strengthCountdown",
+  "poopTimer",
+  "poopCountdown",
+]);
 
 class CareMistakeV2Error extends Error {
   constructor(code, message, status = 409, details = null) {
@@ -89,6 +102,37 @@ function snapshotExists(snapshot) {
 
 function snapshotData(snapshot) {
   return snapshotExists(snapshot) ? snapshot.data() || {} : null;
+}
+
+function assertCompleteNativeInitGameplayStats(slotData) {
+  const stats = slotData?.digimonStats;
+  const createdAt = slotData?.createdAt;
+  const isPlainStats = stats != null &&
+    typeof stats === "object" &&
+    !Array.isArray(stats);
+  const invalidFields = !isPlainStats
+    ? [...NATIVE_INIT_NON_NEGATIVE_STATS_FIELDS]
+    : NATIVE_INIT_NON_NEGATIVE_STATS_FIELDS.filter((field) =>
+      typeof stats[field] !== "number" ||
+      !Number.isFinite(stats[field]) ||
+      stats[field] < 0
+    );
+  const hasValidCreatedAt =
+    typeof createdAt === "number" && Number.isFinite(createdAt) && createdAt >= 0;
+  const timestampsMatch = hasValidCreatedAt && isPlainStats &&
+    slotData.lastSavedAt === createdAt &&
+    stats.birthTime === createdAt &&
+    stats.evolutionStageStartedAt === createdAt &&
+    stats.lastSavedAt === createdAt;
+
+  if (invalidFields.length > 0 || !hasValidCreatedAt || !timestampsMatch) {
+    throw new CareMistakeV2Error(
+      "INVALID_NATIVE_INIT_STATS",
+      "신규 슬롯 gameplay 초기 상태가 완전하지 않습니다.",
+      400,
+      { invalidFields, timestampsMatch }
+    );
+  }
 }
 
 function canonicalize(value) {
@@ -617,6 +661,7 @@ async function nativeInitCareMistakeV2Slot({ uid, slotId, commandId, slotData, d
   const db = deps.db || getArenaFirestore();
   const normalizedSlotId = normalizeSlotId(slotId);
   const normalizedCommandId = requiredId(commandId, "commandId");
+  assertCompleteNativeInitGameplayStats(slotData);
   const slotInstanceId = requiredId(slotData?.slotInstanceId, "slotInstanceId");
   const digimonInstanceId = requiredId(slotData?.digimonInstanceId, "digimonInstanceId");
   const stageId = requiredId(

@@ -112,6 +112,22 @@ const initializeDataMap = {
 };
 
 describe("initializeStats", () => {
+  test("주입된 nowMs를 birthTime과 evolutionStageStartedAt의 단일 기준으로 사용한다", () => {
+    const nowMs = 1_777_000_000_123;
+    const result = initializeStats("Digitama", {}, initializeDataMap, { nowMs });
+
+    expect(result.birthTime).toBe(nowMs);
+    expect(result.evolutionStageStartedAt).toBe(nowMs);
+  });
+
+  test.each([null, NaN, Infinity, -1, "1000"])(
+    "올바르지 않은 nowMs %p를 거부한다",
+    (nowMs) => {
+      expect(() => initializeStats("Digitama", {}, initializeDataMap, { nowMs }))
+        .toThrow("initializeStats nowMs는 0 이상의 유한한 number여야 합니다.");
+    }
+  );
+
   test("진화 시에는 이번 생 누적 부상 횟수를 유지하고 활성 부상 상태만 초기화한다", () => {
     const result = initializeStats(
       "Agumon",

@@ -8,6 +8,7 @@ import {
   buildLoadedSlotHydrationResult,
   buildLoadedSlotHydrationPlan,
   buildLoadedSlotRuntimeState,
+  hasCompletePersistedGameplayState,
   buildComparableSlotSnapshot,
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
@@ -1081,7 +1082,7 @@ describe("buildLoadedSlotRuntimeState", () => {
 });
 
 describe("buildLoadedSlotHydrationPlan", () => {
-  test("저장된 stats가 없으면 starter hydration 결과를 조립한다", () => {
+  test("저장된 stats가 없으면 자동 초기화 없이 hydration을 차단한다", () => {
     const dataMap = {
       Digitama: {
         hungerTimer: 60,
@@ -1091,34 +1092,16 @@ describe("buildLoadedSlotHydrationPlan", () => {
         evolutionStage: "Digitama",
       },
     };
-    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(123456789);
-
-    const result = buildLoadedSlotHydrationPlan({
-      slotData: {
-        slotName: "빈 슬롯",
-      },
+    expect(() => buildLoadedSlotHydrationPlan({
+      slotData: { slotName: "빈 슬롯" },
       slotId: 1,
       slotVersionLabel: "Ver.1",
-      rootSlotFields: {
-        isLightsOn: true,
-        wakeUntil: null,
-      },
+      rootSlotFields: { isLightsOn: true, wakeUntil: null },
       loadedActivityLogs: [{ type: "CARE", timestamp: 1000 }],
       savedName: "Digitama",
       savedStats: {},
       dataMap,
-    });
-
-    expect(result.reconstructedLogsToPersist).toEqual([]);
-    expect(result.hydrationResult.slotName).toBe("빈 슬롯");
-    expect(result.hydrationResult.selectedDigimon).toBe("Digitama");
-    expect(result.hydrationResult.activityLogs).toEqual([
-      { type: "CARE", timestamp: 1000 },
-    ]);
-    expect(result.hydrationResult.digimonStats.birthTime).toBe(123456789);
-    expect(result.hydrationResult.digimonStats.lastSavedAt).toBe(123456789);
-
-    nowSpy.mockRestore();
+    })).toThrow(expect.objectContaining({ code: "game/slot-load-incomplete" }));
   });
 
   test("저장된 stats가 있으면 runtime rebuild를 거친 hydration 결과를 반환한다", () => {
@@ -1156,6 +1139,8 @@ describe("buildLoadedSlotHydrationPlan", () => {
       savedName: "Agumon",
       savedStats: {
         ...baseStats,
+        birthTime: 1000,
+        evolutionStageStartedAt: 1000,
         sprite: 1,
         activityLogs: [{ type: "CARE", timestamp: 900 }],
         battleLogs: [],
@@ -1175,7 +1160,7 @@ describe("buildLoadedSlotHydrationPlan", () => {
     nowSpy.mockRestore();
   });
 
-  test("새 슬롯의 reconciliation projection만 있어도 알 상태를 초기화한다", () => {
+  test("reconciliation projection만 있는 부분 stats는 자동 초기화 없이 차단한다", () => {
     const dataMap = {
       Digitama: {
         sprite: 7,
@@ -1188,8 +1173,7 @@ describe("buildLoadedSlotHydrationPlan", () => {
       },
     };
 
-    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(5000);
-    const result = buildLoadedSlotHydrationPlan({
+    expect(() => buildLoadedSlotHydrationPlan({
       slotData: {
         slotName: "새 슬롯",
         createdAt: 1000,
@@ -1209,20 +1193,164 @@ describe("buildLoadedSlotHydrationPlan", () => {
         battleLogs: [],
       },
       dataMap,
-    });
+    })).toThrow(expect.objectContaining({ code: "game/slot-load-incomplete" }));
+  });
 
-    expect(result.hydrationResult.digimonStats).toEqual(
-      expect.objectContaining({
+  test.each([
+    ["빈 stats", {}],
+    ["projection-only", {
+      careMistakes: 0,
+      careMistakeSchemaVersion: 2,
+      evolutionStageInstanceId: "stage-a",
+    }],
+    ["일부 gameplay field", { birthTime: 1000 }],
+  ])("%s는 load invariant를 충족하지 않는다", (_name, savedStats) => {
+    expect(hasCompletePersistedGameplayState({
+      slotData: { lastSavedAt: 1000 },
+      savedStats,
+    })).toBe(false);
+  });
+
+  test("필수 timer 또는 timestamp가 하나라도 없으면 load invariant를 충족하지 않는다", () => {
+    const dataMap = {
+      Digitama: {
+        evolutionStage: "Digitama",
+        hungerTimer: 0,
+        strengthTimer: 0,
+        poopTimer: 999,
+        timeToEvolveSeconds: 8,
+      },
+    };
+    const complete = {
+      ...initializeStats("Digitama", {}, dataMap, { nowMs: 1000 }),
+      lastSavedAt: 1000,
+    };
+    const withoutTimer = { ...complete };
+    delete withoutTimer.hungerCountdown;
+    const withoutTimestamp = { ...complete };
+    delete withoutTimestamp.evolutionStageStartedAt;
+
+    expect(hasCompletePersistedGameplayState({
+      slotData: { lastSavedAt: 1000 },
+      savedStats: withoutTimer,
+    })).toBe(false);
+    expect(hasCompletePersistedGameplayState({
+      slotData: { lastSavedAt: 1000 },
+      savedStats: withoutTimestamp,
+    })).toBe(false);
+  });
+
+  test.each([
+    ["V1 legacy", (stats) => ({
+      slotData: { lastSavedAt: 1000 },
+      savedStats: Object.fromEntries(
+        Object.entries(stats).filter(([key]) => key !== "lastSavedAt")
+      ),
+    })],
+    ["V2 migrated", (stats) => ({
+      slotData: { lastSavedAtServer: { toMillis: () => 1000 } },
+      savedStats: {
+        ...stats,
+        careMistakeSchemaVersion: 2,
+        careMistakeReconciliationStatus: "verified",
+      },
+    })],
+    ["V2 native-init", (stats) => ({
+      slotData: { lastSavedAt: 1000, careMistakeState: { schemaVersion: 2 } },
+      savedStats: {
+        ...stats,
+        careMistakeSchemaVersion: 2,
+        careMistakeReconciliationStatus: "verified",
+      },
+    })],
+  ])("정상 %s 슬롯은 기존 timestamp를 보존해 hydration한다", (_name, buildFixture) => {
+    const dataMap = {
+      Digitama: {
         sprite: 7,
         evolutionStage: "Digitama",
-        birthTime: 5000,
-        evolutionStageStartedAt: 5000,
-        lastSavedAt: 5000,
-        timeToEvolveSeconds: 600,
-        careMistakeReconciliationStatus: "verified",
-      })
-    );
+        hungerTimer: 0,
+        strengthTimer: 0,
+        poopTimer: 999,
+        timeToEvolveSeconds: 8,
+        stats: { maxEnergy: 0, sleepSchedule: { start: 20, end: 8 } },
+      },
+    };
+    const initialized = {
+      ...initializeStats("Digitama", {}, dataMap, { nowMs: 1000 }),
+      lastSavedAt: 1000,
+    };
+    const fixture = buildFixture(initialized);
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(2000);
+
+    const result = buildLoadedSlotHydrationPlan({
+      ...fixture,
+      slotId: 1,
+      slotVersionLabel: "Ver.1",
+      rootSlotFields: { isLightsOn: true, wakeUntil: null },
+      loadedActivityLogs: [],
+      savedName: "Digitama",
+      dataMap,
+      slotRuntimeDataMap: dataMap,
+      runtimeAdaptedDataMaps: { "Ver.1": dataMap },
+      evolutionDataForSlot: dataMap,
+    });
+
+    expect(result.hydrationResult.digimonStats.birthTime).toBe(1000);
+    expect(result.hydrationResult.digimonStats.evolutionStageStartedAt).toBe(1000);
+    expect(result.hydrationResult.digimonStats.lifespanSeconds).toBeGreaterThanOrEqual(1);
     nowSpy.mockRestore();
+  });
+
+  test("신규 저장 상태를 재접속해도 생애·진화·배고픔·힘·똥 진행값을 초기화하지 않는다", () => {
+    const dataMap = {
+      Digitama: {
+        sprite: 7,
+        evolutionStage: "Digitama",
+        fullness: 5,
+        strength: 5,
+        hungerTimer: 1,
+        strengthTimer: 1,
+        poopTimer: 1,
+        timeToEvolveSeconds: 120,
+        stats: { maxEnergy: 0, sleepSchedule: { start: 23, end: 7 } },
+      },
+    };
+    const createdAt = 1_000;
+    const persistedStats = {
+      ...initializeStats("Digitama", {}, dataMap, { nowMs: createdAt }),
+      lastSavedAt: createdAt,
+    };
+    const hydrateAt = (nowMs) => {
+      const nowSpy = jest.spyOn(Date, "now").mockReturnValue(nowMs);
+      try {
+        return buildLoadedSlotHydrationPlan({
+          slotData: { createdAt, lastSavedAt: createdAt },
+          slotId: 1,
+          slotVersionLabel: "Ver.1",
+          rootSlotFields: { isLightsOn: true, wakeUntil: null },
+          loadedActivityLogs: [],
+          savedName: "Digitama",
+          savedStats: persistedStats,
+          dataMap,
+          slotRuntimeDataMap: dataMap,
+          runtimeAdaptedDataMaps: { "Ver.1": dataMap },
+          evolutionDataForSlot: dataMap,
+        }).hydrationResult.digimonStats;
+      } finally {
+        nowSpy.mockRestore();
+      }
+    };
+
+    const firstReconnect = hydrateAt(31_000);
+    const secondReconnect = hydrateAt(41_000);
+
+    expect(secondReconnect.birthTime).toBe(createdAt);
+    expect(secondReconnect.evolutionStageStartedAt).toBe(createdAt);
+    expect(secondReconnect.lifespanSeconds).toBeGreaterThan(firstReconnect.lifespanSeconds);
+    expect(secondReconnect.timeToEvolveSeconds).toBeLessThan(firstReconnect.timeToEvolveSeconds);
+    expect(secondReconnect.hungerCountdown).toBeLessThan(firstReconnect.hungerCountdown);
+    expect(secondReconnect.strengthCountdown).toBeLessThan(firstReconnect.strengthCountdown);
+    expect(secondReconnect.poopCountdown).toBeLessThan(firstReconnect.poopCountdown);
   });
 });
 
