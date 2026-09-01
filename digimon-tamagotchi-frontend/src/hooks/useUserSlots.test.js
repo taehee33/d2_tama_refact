@@ -1,6 +1,53 @@
-import { deleteSlotByCareSchema } from "./useUserSlots";
+import {
+  buildNativeSlotInitializationData,
+  deleteSlotByCareSchema,
+} from "./useUserSlots";
+import {
+  SUPPORTED_DIGIMON_VERSIONS,
+  getStarterDigimonId,
+} from "../utils/digimonVersionUtils";
 
 const currentUser = { uid: "alice" };
+
+test.each(SUPPORTED_DIGIMON_VERSIONS)(
+  "%s 신규 슬롯 payload는 기존 초기화 원본과 하나의 createdAt을 사용한다",
+  (version) => {
+    const createdAt = 1_777_000_000_123;
+    const result = buildNativeSlotInitializationData({
+      version,
+      device: "DMC",
+      createdAt,
+      slotIdentity: { slotInstanceIdSchemaVersion: 1, slotInstanceId: "slot-life" },
+      combatIdentity: {
+        arenaIdentitySchemaVersion: 1,
+        digimonInstanceId: "digimon-life",
+        combatRevision: 1,
+      },
+    });
+
+    expect(result.selectedDigimon).toBe(getStarterDigimonId(version));
+    expect(result.createdAt).toBe(createdAt);
+    expect(result.lastSavedAt).toBe(createdAt);
+    expect(result.digimonStats).toEqual(expect.objectContaining({
+      birthTime: createdAt,
+      evolutionStageStartedAt: createdAt,
+      lastSavedAt: createdAt,
+      lifespanSeconds: 0,
+    }));
+    expect(result.digimonStats.timeToEvolveSeconds).toBeGreaterThanOrEqual(0);
+    [
+      "hungerTimer",
+      "hungerCountdown",
+      "strengthTimer",
+      "strengthCountdown",
+      "poopTimer",
+      "poopCountdown",
+    ].forEach((field) => {
+      expect(Number.isFinite(result.digimonStats[field])).toBe(true);
+      expect(result.digimonStats[field]).toBeGreaterThanOrEqual(0);
+    });
+  }
+);
 
 test("V2 슬롯은 trusted delete 완료를 기다리고 legacy delete를 호출하지 않는다", async () => {
   const deleteV2 = jest.fn(async () => ({ status: "complete" }));

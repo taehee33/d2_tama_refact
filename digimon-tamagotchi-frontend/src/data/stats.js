@@ -77,7 +77,13 @@ export function clearActiveInjuryState(stats) {
   };
 }
 
-export function initializeStats(digiName, oldStats={}, dataMap={}){
+export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
+  const nowMs = options.nowMs === undefined
+    ? Date.now()
+    : options.nowMs;
+  if (typeof nowMs !== "number" || !Number.isFinite(nowMs) || nowMs < 0) {
+    throw new TypeError("initializeStats nowMs는 0 이상의 유한한 number여야 합니다.");
+  }
   if(!dataMap[digiName]){
     console.error(`initializeStats: [${digiName}] not found in dataMap!`);
     digiName = getStarterDigimonIdFromDataMap(dataMap); // fallback
@@ -103,7 +109,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
   if (isNewStart) {
     merged.age = 0;
-    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? nowMs;
     merged.isDead = false; // 새로운 시작이면 항상 false
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
@@ -133,7 +139,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
     merged.poopPenaltyFrozenDurationMs = 0;
   } else {
     merged.age = oldStats.age || merged.age;
-    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? nowMs;
     // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
     // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
   }
@@ -248,9 +254,9 @@ export function initializeStats(digiName, oldStats={}, dataMap={}){
   // 현재 진화 단계 시작 시각 (케어미스 이력 필터: 이 시점 이후 로그만 표시 → 카운터와 일치)
   if (isNewStart) {
     merged.evolutionStageStartedAt =
-      ensureTimestamp(merged.birthTime) ?? Date.now();
+      ensureTimestamp(merged.birthTime) ?? nowMs;
   } else {
-    merged.evolutionStageStartedAt = Date.now();
+    merged.evolutionStageStartedAt = nowMs;
   }
   merged.evolutionStageInstanceId = null;
 

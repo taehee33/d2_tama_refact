@@ -99,7 +99,6 @@ import {
   fetchCareMistakeV2Integrity,
   isCareMistakeV2Slot,
 } from "../persistence/careMistakeV2Api";
-
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
   "frozenAt",
@@ -1055,41 +1054,45 @@ export function buildLoadedSlotRuntimeState({
   };
 }
 
-function hasInitializedGameplayStats(stats = {}) {
-  return Boolean(
-    toEpochMs(stats.birthTime) != null ||
-      toEpochMs(stats.evolutionStageStartedAt) != null ||
-      stats.sprite != null ||
-      stats.evolutionStage ||
-      stats.timeToEvolveSeconds != null
-  );
+const REQUIRED_GAMEPLAY_TIMING_FIELDS = Object.freeze([
+  "lifespanSeconds",
+  "timeToEvolveSeconds",
+  "hungerTimer",
+  "hungerCountdown",
+  "strengthTimer",
+  "strengthCountdown",
+  "poopTimer",
+  "poopCountdown",
+]);
+
+export class GameSlotLoadInvariantError extends Error {
+  constructor({ slotData = null } = {}) {
+    super("저장된 게임 상태가 불완전합니다. 슬롯을 삭제한 뒤 다시 생성해 주세요.");
+    this.name = "GameSlotLoadInvariantError";
+    this.code = "game/slot-load-incomplete";
+    this.slotData = slotData;
+  }
 }
 
-/**
- * 새 슬롯은 최초 로드 전까지 digimonStats가 비어 있다. reconciliation
- * projection만 먼저 합쳐져도 알 초기화를 건너뛰지 않도록 게임 스탯과
- * 단계 시작 시각을 슬롯 생성 시각 기준으로 완성한다.
- */
-export function initializePristineSlotStats({
+export function hasCompletePersistedGameplayState({
   slotData = {},
-  savedName,
   savedStats = {},
-  dataMap = null,
 } = {}) {
-  if (hasInitializedGameplayStats(savedStats)) return savedStats;
+  const hasTimestamp = (value) => toEpochMs(value) != null;
+  const hasNonNegativeNumber = (field) =>
+    typeof savedStats[field] === "number" &&
+    Number.isFinite(savedStats[field]) &&
+    savedStats[field] >= 0;
 
-  // 슬롯 문서 생성 뒤 첫 게임 로드가 지연됐더라도 알 단계를 건너뛰지
-  // 않는다. 실제 육성 시간은 첫 정상 hydration 시점부터 시작한다.
-  const startedAt = Date.now();
-  const initializedStats = initializeStats(savedName, {}, dataMap || {});
-
-  return {
-    ...initializedStats,
-    ...savedStats,
-    birthTime: startedAt,
-    evolutionStageStartedAt: startedAt,
-    lastSavedAt: startedAt,
-  };
+  return (
+    savedStats != null &&
+    typeof savedStats === "object" &&
+    !Array.isArray(savedStats) &&
+    hasTimestamp(savedStats.birthTime) &&
+    hasTimestamp(savedStats.evolutionStageStartedAt) &&
+    hasTimestamp(resolveLastSavedAtSource(slotData, savedStats)) &&
+    REQUIRED_GAMEPLAY_TIMING_FIELDS.every(hasNonNegativeNumber)
+  );
 }
 
 /**
@@ -1123,26 +1126,8 @@ export function buildLoadedSlotHydrationPlan({
   runtimeAdaptedDataMaps = {},
   evolutionDataForSlot = null,
 } = {}) {
-  if (!hasInitializedGameplayStats(savedStats)) {
-    const digimonStats = initializePristineSlotStats({
-      slotData,
-      savedName,
-      savedStats,
-      dataMap,
-    });
-
-    return {
-      hydrationResult: buildLoadedSlotHydrationResult({
-        slotData,
-        slotId,
-        slotVersionLabel,
-        rootSlotFields,
-        activityLogs: loadedActivityLogs,
-        selectedDigimon: savedName,
-        digimonStats,
-      }),
-      reconstructedLogsToPersist: [],
-    };
+  if (!hasCompletePersistedGameplayState({ slotData, savedStats })) {
+    throw new GameSlotLoadInvariantError({ slotData });
   }
 
   const runtimeState = buildLoadedSlotRuntimeState({
@@ -2248,6 +2233,12 @@ export function useGameData({
           const savedName =
             slotData.selectedDigimon || getStarterDigimonId(slotVersionLabel);
           let savedStats = normalizeGameTimingFields(slotData.digimonStats || {});
+
+          // 불완전 슬롯은 로그 조회나 케어미스 정합성 transaction보다 먼저 차단한다.
+          // 과거 피해 데이터를 현재 시각으로 추정하거나 Firestore에 보정하지 않는다.
+          if (!hasCompletePersistedGameplayState({ slotData, savedStats })) {
+            throw new GameSlotLoadInvariantError({ slotData });
+          }
           
           const slotRefForLogs = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
           const { loadedActivityLogs, loadedBattleLogs } =
@@ -2268,12 +2259,7 @@ export function useGameData({
             loadedActivityLogs,
             loadedBattleLogs,
           });
-          savedStats = initializePristineSlotStats({
-            slotData,
-            savedName,
-            savedStats: loadedCollectionsState.savedStats,
-            dataMap,
-          });
+          savedStats = loadedCollectionsState.savedStats;
 
           let pendingState = null;
           let careProjection = null;

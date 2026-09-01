@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-01] Care Mistake V2 신규 슬롯 초기화 회귀 수정
+
+- **원인:** `v0.8.0.0`의 `NATIVE_INIT` 전환에서 신규 슬롯 요청이 빈 `digimonStats`를 전달했고, 서버는 Care Mistake V2 projection만 병합해 `verified` 상태로 저장했다. 첫 hydration이 기존 `initializeStats()`로 gameplay stats를 메모리에만 만들었기 때문에, 저장 전에 재접속하면 생애·진화·배고픔·힘·똥 시간 기준이 현재 시각으로 다시 시작됐다.
+- **신규 슬롯 계약:** gameplay 초기값의 유일한 원본은 기존 `initializeStats()`다. 슬롯 생성 시 `createdAt`을 한 번 만들고 `{ nowMs: createdAt }`을 주입해 기존 버전별 공식으로 완전한 stats를 만든다. 현재 schema의 root/nested 저장 시각과 생애·진화 시작 시각을 같은 number로 확정하고 identity, Care Mistake V2 초기 상태, revision과 함께 기존 `NATIVE_INIT` transaction에 저장한다.
+- **서버 경계:** `NATIVE_INIT` 서버는 gameplay 값을 생성하거나 현재 시각으로 보정하지 않는다. 전달받은 필수 timestamp·timer·countdown을 `0`과 누락을 구분해 검증하고, Care Mistake V2 projection만 병합한다. 불완전 요청은 `INVALID_NATIVE_INIT_STATS`로 write 없이 거부한다.
+- **로드 경계:** 기존 정상 슬롯은 timestamp를 보존한 채 기존 hydration과 lazy update를 사용하며 hydration 자체로 저장하지 않는다. `{}`, projection-only, 부분 stats처럼 불완전한 슬롯은 초기값을 주입하거나 bootstrap하지 않고, 로그 조회·정합성 transaction보다 먼저 `LOAD_ERROR`로 차단한다. 피해 슬롯과 과거 시간은 추정 복구하지 않고 삭제 후 재생성한다.
+- **READY 불변식:** `verified`는 Care Mistake projection 정합성만으로 READY를 의미하지 않는다. READY 이전에 gameplay 초기 상태가 Firestore에 완전하게 확정돼 있어야 한다.
+- **영향 파일:** `src/data/stats.js`, `src/hooks/useUserSlots.js`, `src/hooks/useGameData.js`, `api/_lib/careMistakeV2Service.js`, 관련 테스트.
+- **검증:** Ver.1~5 신규 payload와 동일 timestamp, 서버의 값 보존·엄격 검증, 불완전 슬롯 fail-closed, 정상 V1 legacy·V2 migrated·V2 native hydration 및 재접속 시간 진행을 회귀 테스트로 고정했다. `npm run check`의 lint·typecheck·프런트 1,557 tests·서버 323 tests·production build·server projection 검사가 모두 통과했고, Firestore Emulator 8 tests와 Arena/Jogress Emulator 26 tests도 통과했다.
+
 ## [2026-08-31] 케어미스 V2 canary 동시 저장 revision 경쟁 수정
 
 - **운영 발견:** 신규 익명 canary 슬롯 진입 직후 배경·몰입형 설정 effect와 상태 저장이 같은 V2 revision으로 동시에 command를 보내 `409` 재시도 폭주를 만들었다. `commitCareV2Patch`가 실시간 stats dependency로 매초 새로 생성되어 설정 effect를 다시 실행한 것도 반복을 증폭했다.

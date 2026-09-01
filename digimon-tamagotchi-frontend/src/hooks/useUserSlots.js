@@ -7,9 +7,14 @@ import {
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
+import { initializeStats } from "../data/stats";
+import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
 import { sortSlotsByRecentActivity } from "../utils/slotRecency";
-import { getStarterDigimonId } from "../utils/digimonVersionUtils";
+import {
+  getDigimonDataMapByVersion,
+  getStarterDigimonId,
+} from "../utils/digimonVersionUtils";
 import { buildPlayHubProjectedSlot } from "../utils/playHubSlotProjection";
 import { toEpochMs } from "../utils/time";
 import { createNewLifeCombatIdentity } from "../logic/arena/combatIdentity";
@@ -53,6 +58,42 @@ function createSlotCommandId(prefix, slotId) {
     ? window.crypto.randomUUID()
     : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
   return `${prefix}:slot${slotId}:${randomId}`;
+}
+
+export function buildNativeSlotInitializationData({
+  version,
+  device,
+  createdAt,
+  slotIdentity,
+  combatIdentity,
+} = {}) {
+  const startingDigimon = getStarterDigimonId(version);
+  const evolutionStageInstanceId = buildEvolutionStageInstanceId({
+    digimonInstanceId: combatIdentity.digimonInstanceId,
+    evolutionStageStartedAt: createdAt,
+    evolutionStage: startingDigimon,
+  });
+  const dataMap = adaptDataMapToOldFormat(getDigimonDataMapByVersion(version));
+  const digimonStats = {
+    ...initializeStats(startingDigimon, {}, dataMap, { nowMs: createdAt }),
+    lastSavedAt: createdAt,
+  };
+
+  return {
+    ...slotIdentity,
+    ...combatIdentity,
+    logIdentitySchemaVersion: 1,
+    evolutionStageInstanceId,
+    selectedDigimon: startingDigimon,
+    digimonStats,
+    digimonNickname: null,
+    createdAt,
+    device,
+    version,
+    immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
+    displayOrder: 1,
+    lastSavedAt: createdAt,
+  };
 }
 
 /**
@@ -218,33 +259,22 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         );
       }
 
-      const startingDigimon = getStarterDigimonId(version);
       const createdAt = Date.now();
       const slotIdentity = createSlotInstanceIdentity();
       const combatIdentity = createNewLifeCombatIdentity();
-      const evolutionStageInstanceId = buildEvolutionStageInstanceId({
-        digimonInstanceId: combatIdentity.digimonInstanceId,
-        evolutionStageStartedAt: createdAt,
-        evolutionStage: startingDigimon,
+      const slotData = buildNativeSlotInitializationData({
+        version,
+        device,
+        createdAt,
+        slotIdentity,
+        combatIdentity,
       });
 
       await nativeInitCareMistakeV2ApiSlot(currentUser, slotId, {
         commandId: createSlotCommandId("native-init", slotId),
         slotData: {
-          ...slotIdentity,
-          ...combatIdentity,
-          logIdentitySchemaVersion: 1,
-          evolutionStageInstanceId,
-          selectedDigimon: startingDigimon,
-          digimonStats: {},
+          ...slotData,
           slotName: `슬롯${slotId}`,
-          digimonNickname: null,
-          createdAt,
-          device,
-          version,
-          immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
-          displayOrder: 1,
-          lastSavedAt: createdAt,
         },
       });
 
