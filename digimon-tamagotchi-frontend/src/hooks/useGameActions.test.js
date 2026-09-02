@@ -2,6 +2,7 @@ import {
   applyBattleInjuryOutcome,
   buildArenaBattleArchiveWrite,
   buildActivityLogCommitState,
+  buildAtomicActivityPersistenceOptions,
   buildArenaBattleLocalOutcome,
   buildBattleCommitPlan,
   buildBattleCostStats,
@@ -571,11 +572,13 @@ describe("buildFeedOutcome", () => {
 });
 
 describe("buildCleanOutcome", () => {
-  test("청소 결과는 똥 관련 overflow 상태를 초기화하고 로그 문구를 반환한다", () => {
+  test.each([1, 8])(
+    "똥 %i개 청소는 overflow 상태를 초기화하고 로그 문구를 반환한다",
+    (poopCount) => {
     const now = new Date("2026-04-11T12:34:56.000Z");
     const result = buildCleanOutcome({
       prevStats: {
-        poopCount: 3,
+        poopCount,
         poopReachedMaxAt: 1000,
         lastPoopPenaltyAt: 2000,
         poopPenaltyFrozenDurationMs: 3000,
@@ -585,7 +588,7 @@ describe("buildCleanOutcome", () => {
       now,
     });
 
-    expect(result.logText).toBe("Cleaned Poop (Full flush, 3 → 0)");
+    expect(result.logText).toBe(`Cleaned Poop (Full flush, ${poopCount} → 0)`);
     expect(result.updatedStats).toMatchObject({
       poopCount: 0,
       poopReachedMaxAt: null,
@@ -593,6 +596,37 @@ describe("buildCleanOutcome", () => {
       poopPenaltyFrozenDurationMs: 0,
       isInjured: true,
       lastSavedAt: now.getTime(),
+    });
+    }
+  );
+});
+
+describe("buildAtomicActivityPersistenceOptions", () => {
+  test.each([
+    ["CLEAN", "Cleaned Poop (Full flush, 1 → 0)"],
+    ["TRAIN", "Training: Great"],
+    ["SLEEP_DISTURBANCE", "수면 방해(사유: 청소)"],
+  ])("%s 이벤트는 상태 저장에 원자적으로 포함한다", (type, text) => {
+    const entry = { type, text, timestamp: 1000 };
+
+    expect(buildAtomicActivityPersistenceOptions(entry)).toEqual({
+      activityEvents: [entry],
+    });
+  });
+
+  test("일반 먹이 로그는 기존 쓰기 절감 정책대로 영구 저장하지 않는다", () => {
+    expect(buildAtomicActivityPersistenceOptions({
+      type: "FEED",
+      text: "Feed: Meat",
+      timestamp: 1000,
+    })).toEqual({});
+  });
+
+  test("거절된 먹이 로그는 중요 이력으로 상태 저장에 포함한다", () => {
+    const entry = { type: "FEED", text: "Feed: Refused", timestamp: 1000 };
+
+    expect(buildAtomicActivityPersistenceOptions(entry)).toEqual({
+      activityEvents: [entry],
     });
   });
 });

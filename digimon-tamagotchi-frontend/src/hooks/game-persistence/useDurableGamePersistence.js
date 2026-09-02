@@ -86,6 +86,28 @@ export const LOCAL_PERSISTENCE_STATUS = {
   UNAVAILABLE: "unavailable",
 };
 
+export function normalizeStateActivityEvents(activityEvents = [], identity = {}) {
+  return (Array.isArray(activityEvents) ? activityEvents : [])
+    .map((event) => {
+      const payload = buildPersistentActivityLogPayload(event);
+      if (!payload.eventId) return null;
+      return {
+        ...event,
+        ...payload,
+        ...(identity.slotInstanceId
+          ? { slotInstanceId: identity.slotInstanceId }
+          : {}),
+        ...(identity.digimonInstanceId
+          ? { digimonInstanceId: identity.digimonInstanceId }
+          : {}),
+      };
+    })
+    .filter((event, index, events) =>
+      event?.eventId &&
+      events.findIndex((candidate) => candidate?.eventId === event.eventId) === index
+    );
+}
+
 const MUTABLE_CARE_INTEGRITY_STATUSES = new Set([
   "verified",
   "legacy_baseline",
@@ -1354,14 +1376,12 @@ export function useDurableGamePersistence({
           })
       : null;
     const existingTransition = existing?.state?.transition || null;
-    const resolvedActivityEvents = [
+    const resolvedActivityEvents = normalizeStateActivityEvents([
       ...(Array.isArray(existing?.state?.activityEvents)
         ? existing.state.activityEvents
         : []),
       ...(Array.isArray(activityEvents) ? activityEvents : []),
-    ].filter((event, index, events) =>
-      event?.eventId && events.findIndex((candidate) => candidate?.eventId === event.eventId) === index
-    );
+    ], identity);
     if (
       existingTransition &&
       requestedTransition &&
@@ -1436,15 +1456,25 @@ export function useDurableGamePersistence({
     }
     setStateSyncStatus(GAME_SYNC_STATUS.SAVING);
 
-    const transitionWithActivityEvents = transition?.transitionType && activityEvents.length > 0
+    const identity = getOutboxIdentity();
+    const normalizedActivityEvents = normalizeStateActivityEvents(
+      activityEvents,
+      identity || {}
+    );
+
+    const transitionWithActivityEvents =
+      transition?.transitionType && normalizedActivityEvents.length > 0
       ? {
           ...transition,
           activityEvents: [
             ...(transition.activityEvents || []),
-            ...activityEvents,
+            ...normalizedActivityEvents,
           ],
         }
       : transition;
+    const standaloneActivityEvents = transition?.transitionType
+      ? []
+      : normalizedActivityEvents;
 
     if (
       !getActiveCareV2Epoch(activeAccessRef.current) &&
@@ -1547,7 +1577,7 @@ export function useDurableGamePersistence({
           nowMs,
           saveContext,
           transition: transitionWithActivityEvents,
-          activityEvents,
+          activityEvents: standaloneActivityEvents,
           allowCareTransition,
         });
         setStateSyncStatus(GAME_SYNC_STATUS.LOCAL);
@@ -1573,7 +1603,6 @@ export function useDurableGamePersistence({
       }
     }
 
-    const identity = getOutboxIdentity();
     const fallbackTransition = transitionWithActivityEvents && identity
       ? transitionWithActivityEvents.transitionType
         ? buildCareTransitionEnvelopeForSnapshot({
@@ -1604,7 +1633,9 @@ export function useDurableGamePersistence({
         baseRevision: revisionRef.current,
         stateSnapshot: statsSnapshot,
         actions: [],
-        ...(activityEvents.length > 0 ? { activityEvents } : {}),
+        ...(standaloneActivityEvents.length > 0
+          ? { activityEvents: standaloneActivityEvents }
+          : {}),
         ...(fallbackTransition ? { transition: fallbackTransition } : {}),
         hasUnreplayableChanges: true,
       },

@@ -4,6 +4,7 @@ import {
   canUseGameplayPersistence,
   GAME_PERSISTENCE_PHASE,
   isCurrentConflictIdentity,
+  normalizeStateActivityEvents,
   resolveNewReplayActions,
   useDurableGamePersistence,
 } from "./useDurableGamePersistence";
@@ -198,6 +199,35 @@ describe("canUseGameplayPersistence", () => {
       saveContext: { ...TEST_PERSISTENCE_IDENTITY, generation: 3 },
       ...override,
     })).toBe(false);
+  });
+});
+
+describe("normalizeStateActivityEvents", () => {
+  test("outbox 유무와 관계없이 eventId와 현재 생애 identity를 보강한다", () => {
+    const events = normalizeStateActivityEvents([{
+      type: "CLEAN",
+      text: "Cleaned Poop (Full flush, 1 → 0)",
+      timestamp: 1000,
+    }], TEST_PERSISTENCE_IDENTITY);
+
+    expect(events).toEqual([expect.objectContaining({
+      type: "CLEAN",
+      eventId: expect.any(String),
+      slotInstanceId: TEST_SLOT_INSTANCE_ID,
+      digimonInstanceId: TEST_DIGIMON_INSTANCE_ID,
+    })]);
+  });
+
+  test("같은 eventId는 하나로 중복 제거한다", () => {
+    const event = {
+      eventId: "clean:1000",
+      type: "CLEAN",
+      text: "Cleaned Poop",
+      timestamp: 1000,
+    };
+
+    expect(normalizeStateActivityEvents([event, event], TEST_PERSISTENCE_IDENTITY))
+      .toHaveLength(1);
   });
 });
 

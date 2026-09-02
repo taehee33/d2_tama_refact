@@ -23,6 +23,7 @@ import {
   shiftSleepScheduleByHours,
 } from "../utils/sleepUtils";
 import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
+import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
@@ -83,6 +84,16 @@ export function buildActivityLogCommitState({
       activityLogs: updatedLogs,
     },
   };
+}
+
+/**
+ * 상태 snapshot과 같은 transaction에 저장할 활동 이벤트를 조립합니다.
+ * 반복성 먹이 로그처럼 영구 저장 대상이 아닌 이벤트는 기존 정책대로 제외합니다.
+ */
+export function buildAtomicActivityPersistenceOptions(entry) {
+  return shouldPersistActivityLog(entry)
+    ? { activityEvents: [entry] }
+    : {};
 }
 
 export function buildFeedLogText({
@@ -701,7 +712,6 @@ export function useGameActions({
   applyLazyUpdateBeforeAction,
   setActivityLogs,
   activityLogs,
-  appendLogToSubcollection,
   appendBattleLogToSubcollection,
   selectedDigimon,
   wakeUntil,
@@ -761,12 +771,11 @@ export function useGameActions({
         reason,
         timestamp,
       });
-      if (appendLogToSubcollection) {
-        appendLogToSubcollection(sleepDisturbanceCommitState.entry).catch(() => {});
-      }
       setDigimonStatsAndSave(
         sleepDisturbanceCommitState.statsWithLogs,
-        sleepDisturbanceCommitState.updatedLogs
+        sleepDisturbanceCommitState.updatedLogs,
+        null,
+        buildAtomicActivityPersistenceOptions(sleepDisturbanceCommitState.entry)
       ).catch((error) => {
         console.error("수면 방해 로그 저장 오류:", error);
       });
@@ -847,10 +856,11 @@ export function useGameActions({
             nextStats: updatedStats,
             entry: newLog,
           });
-          if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
           setDigimonStatsAndSave(
             activityCommitState.statsWithLogs,
-            activityCommitState.updatedLogs
+            activityCommitState.updatedLogs,
+            null,
+            buildAtomicActivityPersistenceOptions(newLog)
           ).catch((error) => {
             console.error("먹이 거부 로그 저장 오류:", error);
           });
@@ -944,10 +954,11 @@ export function useGameActions({
           nextStats: updatedStats,
           entry: newLog,
         });
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
-          activityCommitState.updatedLogs
+          activityCommitState.updatedLogs,
+          null,
+          buildAtomicActivityPersistenceOptions(newLog)
         ).catch((error) => {
           console.error("먹이 로그 저장 오류:", error);
         });
@@ -1034,12 +1045,11 @@ export function useGameActions({
           nextStats: baseStats,
           entry: trainingSkipOutcome.entry,
         });
-        if (appendLogToSubcollection) {
-          appendLogToSubcollection(trainingSkipOutcome.entry).catch(() => {});
-        }
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
-          activityCommitState.updatedLogs
+          activityCommitState.updatedLogs,
+          null,
+          buildAtomicActivityPersistenceOptions(trainingSkipOutcome.entry)
         ).catch((error) => {
           console.error("체중 부족 로그 저장 오류:", error);
         });
@@ -1061,12 +1071,11 @@ export function useGameActions({
           nextStats: baseStats,
           entry: trainingSkipOutcome.entry,
         });
-        if (appendLogToSubcollection) {
-          appendLogToSubcollection(trainingSkipOutcome.entry).catch(() => {});
-        }
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
-          activityCommitState.updatedLogs
+          activityCommitState.updatedLogs,
+          null,
+          buildAtomicActivityPersistenceOptions(trainingSkipOutcome.entry)
         ).catch((error) => {
           console.error("에너지 부족 로그 저장 오류:", error);
         });
@@ -1097,10 +1106,11 @@ export function useGameActions({
         nextStats: finalStats,
         entry: newLog,
       });
-      if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
       setDigimonStatsAndSave(
         activityCommitState.statsWithLogs,
-        activityCommitState.updatedLogs
+        activityCommitState.updatedLogs,
+        null,
+        buildAtomicActivityPersistenceOptions(newLog)
       ).catch((error) => {
         console.error("훈련 결과 저장 오류:", error);
       });
@@ -1153,10 +1163,11 @@ export function useGameActions({
           nextStats: cleanOutcome.updatedStats,
           entry: newLog,
         });
-        if (appendLogToSubcollection) appendLogToSubcollection(newLog).catch(() => {});
         setDigimonStatsAndSave(
           activityCommitState.statsWithLogs,
-          activityCommitState.updatedLogs
+          activityCommitState.updatedLogs,
+          null,
+          buildAtomicActivityPersistenceOptions(newLog)
         ).catch((error) => {
           console.error("청소 상태 저장 오류:", error);
         });
