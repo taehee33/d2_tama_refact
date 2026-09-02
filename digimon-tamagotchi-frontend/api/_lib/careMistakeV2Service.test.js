@@ -210,7 +210,24 @@ test("성공 command 재시도는 stale revision 검사보다 receipt를 먼저 
     receiptId: state.receiptId,
     evolutionStageInstanceId: state.evolutionStageInstanceId,
     expectedRevision: 1,
-    payload: { updateData: { digimonStats: { fullness: 4, careMistakes: 777 } } },
+    payload: {
+      updateData: {
+        digimonStats: {
+          fullness: 4,
+          poopCount: 0,
+          poopReachedMaxAt: null,
+          lastPoopPenaltyAt: null,
+          poopPenaltyFrozenDurationMs: 0,
+          careMistakes: 777,
+        },
+      },
+      activityEvents: [{
+        eventId: "clean:1000",
+        type: "CLEAN",
+        text: "Cleaned Poop (Full flush, 8 → 0)",
+        timestamp: 1000,
+      }],
+    },
   };
   const first = await commitCareMistakeV2Command({
     uid: "user-a", slotId: 1, command, deps: { db: harness.db },
@@ -225,6 +242,11 @@ test("성공 command 재시도는 stale revision 검사보다 receipt를 먼저 
   assert.equal(retry.idempotent, true);
   assert.equal(harness.writeCount, writesAfterFirst);
   assert.equal(harness.store.get("users/user-a/slots/slot1").digimonStats.careMistakes, 0);
+  assert.equal(harness.store.get("users/user-a/slots/slot1").digimonStats.poopCount, 0);
+  assert.equal(
+    harness.store.get("users/user-a/slots/slot1/logs/clean:1000").type,
+    "CLEAN"
+  );
 });
 
 test("legacy sentinel은 허용 경로에서만 서버 timestamp와 필드 삭제로 변환한다", async () => {

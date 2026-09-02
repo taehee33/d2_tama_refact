@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-09-02] Care Mistake V2 청소 상태·로그 revision 경쟁 제거
+
+- **원인:** 화장실 애니메이션 완료 후 `CLEAN` 로그 저장과 `poopCount: 0` 상태 저장을 동시에 시작했다. Care Mistake V2에서는 로그만 저장하는 `STATE_MUTATION`도 slot revision을 증가시키므로, 로그가 먼저 성공하면 같은 기준 revision을 사용한 청소 상태가 stale command로 거절됐다. 실패한 state outbox는 재접속 시 `TRUE_REMOTE_CONFLICT`를 만들어 서버의 똥이 다시 표시됐다.
+- **원자 저장:** 청소·훈련·수면 방해·중요 먹이 로그는 더 이상 독립 `appendLog` 요청을 시작하지 않고, 해당 stats snapshot의 `activityEvents`로 전달한다. durable outbox 경계에서 event ID와 `slotInstanceId`·`digimonInstanceId`를 보강한 후 하나의 V2 command/Firestore transaction으로 커밋한다. 일반 먹이 로그는 기존 쓰기 절감 정책대로 제외한다.
+- **멱등성·충돌 복구:** 상태와 `CLEAN` 로그가 revision을 한 번만 증가시키며, 같은 command ID 재시도는 기존 transition receipt를 반환하고 추가 write를 만들지 않는다. Firestore 경로·slot 문서 schema·lazy update 규칙은 변경하지 않았다.
+- **검증:** 똥 1개·8개 청소의 overflow 필드 초기화, V2 revision `20 → 21` 단일 command, `CLEAN` 로그 identity, state outbox 정리와 conflict 미발생, 같은 command 재시도의 추가 write 0건을 회귀 테스트로 고정했다. `npm run check`(프런트 226 suite·1,573 tests, 서버 331 tests, production build 포함), Firestore Emulator 9 tests, Arena/Jogress Emulator 26 tests가 모두 통과했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameActions.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `api/_lib/careMistakeV2Service.test.js`, 관련 훅 테스트, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** Firestore를 정본으로 유지하면서 하나의 사용자 액션이 만든 상태와 기록을 하나의 revision 경계에서 확정했다. 액션 단의 임의 지연이나 stale revision 자동 덮어쓰기로 증상만 숨기지 않고, 중복 원격 write를 제거해 경쟁 자체를 없앴다.
+
 ## [2026-09-02] Care Mistake V2 JSON 저장 경계 긴급 복구
 
 - **원인:** `fae01c3`(#58)에서 Firestore 직접 저장용 `serverTimestamp()`·`deleteField()` sentinel을 V2 HTTP JSON payload에 포함했다. JSON 직렬화 뒤 sentinel은 서버 동작이 아니라 `{ "_methodName": ... }` 일반 map이 되었고, 서버가 이를 슬롯 문서에 그대로 저장했다. loader는 오염된 `lastSavedAtServer`를 유효한 숫자 `lastSavedAt`보다 먼저 선택해 신규 슬롯과 V2 저장이 발생한 기존 슬롯을 `LOAD_ERROR`로 차단했다.
