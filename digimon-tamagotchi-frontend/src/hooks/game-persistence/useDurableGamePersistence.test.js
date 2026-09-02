@@ -806,6 +806,145 @@ describe("useDurableGamePersistence", () => {
     );
   });
 
+  test.each([
+    [1, {}],
+    [8, {
+      poopReachedMaxAt: 100,
+      lastPoopPenaltyAt: 200,
+      poopPenaltyFrozenDurationMs: 300,
+    }],
+  ])("V2 똥 %i개 청소는 상태와 CLEAN 로그를 revision 1회에 원자 저장한다", async (
+    poopCount,
+    overflowState
+  ) => {
+    const outbox = createMemoryOutbox([]);
+    const params = createHookParams(outbox);
+    const careMistakeState = {
+      schemaVersion: 2,
+      rootReceiptId: "root-clean",
+      receiptId: "receipt-clean",
+      evolutionStageInstanceId: "stage-clean",
+    };
+    params.persistenceAccessRef.current = {
+      ...params.persistenceAccessRef.current,
+      loadedRevision: 20,
+      careMistakeReconciliationStatus: "verified",
+      careMistakeState,
+    };
+    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
+      revision: 21,
+      idempotent: false,
+      careMistakeState,
+      projection: {},
+    });
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+
+    let receipt;
+    await act(async () => {
+      receipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: {
+          poopCount: 0,
+          poopReachedMaxAt: null,
+          lastPoopPenaltyAt: null,
+          poopPenaltyFrozenDurationMs: 0,
+          ...overflowState,
+          ...(poopCount === 8 ? {
+            poopReachedMaxAt: null,
+            lastPoopPenaltyAt: null,
+            poopPenaltyFrozenDurationMs: 0,
+          } : {}),
+        },
+        activityEvents: [{
+          type: "CLEAN",
+          text: `Cleaned Poop (Full flush, ${poopCount} → 0)`,
+          timestamp: 1000,
+        }],
+        nowMs: 1000,
+      });
+    });
+
+    expect(receipt).toMatchObject({ status: "synced", revision: 21 });
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledTimes(1);
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
+      params.currentUser,
+      1,
+      expect.objectContaining({
+        commandType: "STATE_MUTATION",
+        expectedRevision: 20,
+        payload: expect.objectContaining({
+          updateData: {
+            digimonStats: expect.objectContaining({
+              poopCount: 0,
+              poopReachedMaxAt: null,
+              lastPoopPenaltyAt: null,
+              poopPenaltyFrozenDurationMs: 0,
+            }),
+          },
+          activityEvents: [expect.objectContaining({
+            type: "CLEAN",
+            eventId: expect.any(String),
+            slotInstanceId: TEST_PERSISTENCE_IDENTITY.slotInstanceId,
+            digimonInstanceId: TEST_PERSISTENCE_IDENTITY.digimonInstanceId,
+          })],
+        }),
+      })
+    );
+    expect(await outbox.getStateMutation()).toBeNull();
+    expect(result.current.syncConflict).toBeNull();
+    expect(result.current.stateSyncStatus).toBe("synced");
+  });
+
+  test("IndexedDB가 없어도 V2 청소 fallback command의 CLEAN eventId를 보장한다", async () => {
+    const params = createHookParams(null);
+    const careMistakeState = {
+      schemaVersion: 2,
+      rootReceiptId: "root-clean-fallback",
+      receiptId: "receipt-clean-fallback",
+      evolutionStageInstanceId: "stage-clean-fallback",
+    };
+    params.persistenceAccessRef.current = {
+      ...params.persistenceAccessRef.current,
+      loadedRevision: 20,
+      careMistakeReconciliationStatus: "verified",
+      careMistakeState,
+    };
+    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
+      revision: 21,
+      idempotent: false,
+      careMistakeState,
+      projection: {},
+    });
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+
+    await act(async () => {
+      await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: { poopCount: 0 },
+        activityEvents: [{
+          type: "CLEAN",
+          text: "Cleaned Poop (Full flush, 1 → 0)",
+          timestamp: 1000,
+        }],
+        nowMs: 1000,
+      });
+    });
+
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledTimes(1);
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
+      params.currentUser,
+      1,
+      expect.objectContaining({
+        expectedRevision: 20,
+        payload: expect.objectContaining({
+          activityEvents: [expect.objectContaining({
+            type: "CLEAN",
+            eventId: expect.any(String),
+          })],
+        }),
+      })
+    );
+    expect(result.current.syncConflict).toBeNull();
+  });
+
   test("같은 generation의 저장 A·B는 실행 시점 최신 revision으로 연속 커밋한다", async () => {
     const order = [];
     const outbox = createMemoryOutbox(order);
