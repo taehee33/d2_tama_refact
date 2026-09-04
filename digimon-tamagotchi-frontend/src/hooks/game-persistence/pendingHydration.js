@@ -5,6 +5,7 @@ import {
 
 export const PENDING_HYDRATION_STATUS = {
   NONE: "none",
+  DEFER: "defer",
   CLEANUP: "cleanup",
   APPLY: "apply",
   CONFLICT: "conflict",
@@ -115,6 +116,18 @@ export function resolvePendingHydration({
       actualRevision,
       localSavedAt
     );
+  }
+
+  // NEW_LIFE는 서버가 전환을 확정하기 전까지 기존 생애의 묘지가 정본이다.
+  // 로컬 스냅샷을 hydration에 덮어쓰지 않고 outbox 재시도 대상으로 남긴다.
+  if (stateEnvelope.transition?.transitionType === "NEW_LIFE") {
+    return {
+      status: PENDING_HYDRATION_STATUS.DEFER,
+      expectedRevision,
+      actualRevision,
+      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
+      localSavedAt,
+    };
   }
 
   const hasPendingAtomicEffects =

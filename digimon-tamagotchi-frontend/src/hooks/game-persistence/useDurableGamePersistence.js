@@ -336,6 +336,7 @@ export function useDurableGamePersistence({
   outboxOverride,
   persistenceAccessRef,
   onPersistenceAccessChange,
+  onStateRecordCommitted,
   reloadPage,
 }) {
   const [stateSyncStatus, setStateSyncStatus] = useState(GAME_SYNC_STATUS.SYNCED);
@@ -723,8 +724,39 @@ export function useDurableGamePersistence({
           }));
         }
         let localCleanup = await cleanupCommittedStateRecord(record, { localWriteFailed });
+        if (commandType === "NEW_LIFE") {
+          try {
+            if (outbox?.clearDigimonLifeRecords) {
+              await outbox.clearDigimonLifeRecords({
+                uid: record.uid,
+                slotId: record.slotId,
+                slotInstanceId: record.slotInstanceId,
+                digimonInstanceId: record.digimonInstanceId,
+              });
+            }
+          } catch (cleanupError) {
+            console.warn("이전 생애 IndexedDB outbox 정리에 실패했습니다.", cleanupError);
+            setLocalPersistenceStatus(LOCAL_PERSISTENCE_STATUS.UNAVAILABLE);
+            setStateSyncError("새 생애는 저장되었지만 이 기기의 대기 항목을 정리하지 못했습니다.");
+            localCleanup = GAME_SAVE_LOCAL_CLEANUP.FAILED;
+          }
+          if (typeof onStateRecordCommitted === "function") {
+            try {
+              onStateRecordCommitted({
+                commandType,
+                record,
+                result,
+                committedSnapshot,
+              });
+            } catch (callbackError) {
+              console.warn("새 생애 완료 상태 반영에 실패했습니다.", callbackError);
+            }
+          }
+        }
         setLastStateSyncedAt(Date.now());
-        setStateSyncError("");
+        if (localCleanup !== GAME_SAVE_LOCAL_CLEANUP.FAILED) {
+          setStateSyncError("");
+        }
         setStateSyncStatus(GAME_SYNC_STATUS.SYNCED);
         setNextStateSyncAt(getNextStateSyncAt());
         try {
@@ -1050,6 +1082,7 @@ export function useDurableGamePersistence({
     holdRevisionConflict,
     isFirebaseAvailable,
     normalizeStats,
+    onStateRecordCommitted,
     outbox,
     refreshOutboxStatus,
     selectedDigimon,
@@ -1324,6 +1357,7 @@ export function useDurableGamePersistence({
     updatedLogs,
     nowMs,
     saveContext,
+    commandId = null,
     transition = null,
     activityEvents = [],
     allowCareTransition = false,
@@ -1402,6 +1436,11 @@ export function useDurableGamePersistence({
         ? { careEpoch: getActiveCareV2Epoch(activeAccessRef.current) }
         : {}),
       mutationId: existing?.mutationId || createMutationId(nowMs),
+      commandId:
+        resolvedTransition?.transitionId ||
+        commandId ||
+        existing?.commandId ||
+        null,
       recordVersion: existing?.recordVersion,
       updatedAt: nowMs,
       queuedAt: existing?.queuedAt ?? nowMs,
@@ -1576,6 +1615,7 @@ export function useDurableGamePersistence({
           updatedLogs,
           nowMs,
           saveContext,
+          commandId,
           transition: transitionWithActivityEvents,
           activityEvents: standaloneActivityEvents,
           allowCareTransition,
@@ -1627,6 +1667,7 @@ export function useDurableGamePersistence({
         ? { careEpoch: getActiveCareV2Epoch(activeAccessRef.current) }
         : {}),
       mutationId: createMutationId(nowMs),
+      commandId: commandId || fallbackTransition?.transitionId || null,
       updatedAt: nowMs,
       state: {
         schemaVersion: OUTBOX_SCHEMA_VERSION,

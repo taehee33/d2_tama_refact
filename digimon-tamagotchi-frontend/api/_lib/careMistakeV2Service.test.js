@@ -495,8 +495,25 @@ test("V2 NEW_LIFE는 서버가 생애 identity를 교체하고 slot identity는 
           slotInstanceId: "client-cannot-change-slot",
           digimonInstanceId: "client-cannot-override-life",
           combatRevision: 99,
-          selectedDigimon: "Punimon",
+          selectedDigimon: "DigitamaV3",
+          slotVersion: "Ver.3",
+          digimonStats: {
+            selectedDigimon: "DigitamaV3",
+            evolutionStage: "Egg",
+            isDead: false,
+            deathReason: null,
+            diedAt: null,
+            fullness: 0,
+            strength: 0,
+            activityLogs: [],
+          },
         },
+        activityEvents: [{
+          eventId: "activity:new-life:new-life-command-a",
+          type: "NEW_START",
+          text: "New start: Reborn as DigitamaV3",
+          timestamp: 1_777_000_001_000,
+        }],
       },
     },
     deps: { db: harness.db },
@@ -507,8 +524,14 @@ test("V2 NEW_LIFE는 서버가 생애 identity를 교체하고 slot identity는 
   assert.equal(slot.slotInstanceId, "slot-life-a");
   assert.equal(slot.digimonInstanceId, "digimon-life-b");
   assert.equal(slot.combatRevision, 1);
-  assert.equal(slot.selectedDigimon, "Punimon");
+  assert.equal(slot.selectedDigimon, "DigitamaV3");
+  assert.equal(slot.digimonStats.isDead, false);
+  assert.equal(slot.digimonStats.deathReason, null);
   assert.equal(slot.careMistakeState.rootReceiptId, result.careMistakeState.receiptId);
+  assert.equal(
+    harness.store.get("users/user-a/slots/slot1/logs/activity:new-life:new-life-command-a").type,
+    "NEW_START"
+  );
 });
 
 test("explicit migration은 성공 시 revision을 1 증가시키고 stale 실패는 write 0건이다", async () => {

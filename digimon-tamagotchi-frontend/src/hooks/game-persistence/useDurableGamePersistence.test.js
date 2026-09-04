@@ -66,6 +66,11 @@ function createMemoryOutbox(order) {
       stateRecord = null;
       return true;
     },
+    clearDigimonLifeRecords: jest.fn(async () => {
+      order.push("outbox:clear-life");
+      stateRecord = null;
+      return 1;
+    }),
     async listActivityEvents() { return []; },
     async listBattleEvents() { return []; },
     async listFeedEvents() { return feedEvents; },
@@ -752,6 +757,7 @@ describe("useDurableGamePersistence", () => {
         evolutionStageInstanceId: "stage-a",
       },
     };
+    params.onStateRecordCommitted = jest.fn();
     mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
       revision: 2,
       idempotent: false,
@@ -804,6 +810,87 @@ describe("useDurableGamePersistence", () => {
         }),
       })
     );
+    expect(outbox.clearDigimonLifeRecords).toHaveBeenCalledTimes(1);
+    expect(params.onStateRecordCommitted).toHaveBeenCalledWith(expect.objectContaining({
+      commandType: "NEW_LIFE",
+      committedSnapshot: expect.objectContaining({ selectedDigimon: "Punimon" }),
+    }));
+  });
+
+  test("queued NEW_LIFE는 이전 identity와 outbox를 유지하고 재시도에서 같은 commandId로 한 번만 완료한다", async () => {
+    const order = [];
+    const outbox = createMemoryOutbox(order);
+    outbox.clearDigimonLifeRecords = jest.fn(outbox.clearDigimonLifeRecords);
+    const params = createHookParams(outbox);
+    params.onStateRecordCommitted = jest.fn();
+    params.persistenceAccessRef.current = {
+      ...params.persistenceAccessRef.current,
+      loadedRevision: 8,
+      careMistakeReconciliationStatus: "verified",
+      careMistakeState: {
+        schemaVersion: 2,
+        rootReceiptId: "root-old",
+        receiptId: "receipt-old",
+        evolutionStageInstanceId: "stage-old",
+      },
+    };
+    mockCommitCareMistakeV2ApiCommand
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        revision: 9,
+        idempotent: false,
+        careMistakeState: {
+          schemaVersion: 2,
+          rootReceiptId: "root-new",
+          receiptId: "root-new",
+          evolutionStageInstanceId: "stage-new",
+        },
+        projection: { careMistakes: 0, careMistakeReconciliationStatus: "verified" },
+      });
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+
+    let queuedReceipt;
+    await act(async () => {
+      queuedReceipt = await result.current.persistStateSnapshotReceipt({
+        statsSnapshot: {
+          selectedDigimon: "DigitamaV3",
+          isDead: false,
+          digimonInstanceId: "life-new",
+          evolutionStageInstanceId: "stage-new",
+        },
+        nowMs: 900,
+        commandId: "new-life-same-command",
+        allowCareTransition: true,
+        transition: {
+          transitionId: "new-life-same-command",
+          transitionType: "NEW_LIFE",
+          targetDigimon: "DigitamaV3",
+          nextDigimonInstanceId: "life-new",
+          nextEvolutionStageInstanceId: "stage-new",
+        },
+      });
+    });
+
+    expect(queuedReceipt).toMatchObject({ status: "queued", commandId: "new-life-same-command" });
+    expect((await outbox.getStateMutation()).commandId).toBe("new-life-same-command");
+    expect(params.persistenceAccessRef.current.loadedIdentity.digimonInstanceId)
+      .toBe(TEST_DIGIMON_INSTANCE_ID);
+    expect(outbox.clearDigimonLifeRecords).not.toHaveBeenCalled();
+    expect(params.onStateRecordCommitted).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.flushOutbox();
+    });
+
+    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenNthCalledWith(
+      2,
+      params.currentUser,
+      1,
+      expect.objectContaining({ commandId: "new-life-same-command" })
+    );
+    expect(params.onStateRecordCommitted).toHaveBeenCalledTimes(1);
+    expect(outbox.clearDigimonLifeRecords).toHaveBeenCalledTimes(1);
+    expect(await outbox.getStateMutation()).toBeNull();
   });
 
   test.each([

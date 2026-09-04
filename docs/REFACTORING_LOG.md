@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-09-04] 새 생애 서버 확정 전 identity 전환 회귀 수정
+
+- **원인:** Care Mistake V2 `NEW_LIFE` 요청이 서버에 확정되지 않고 `queued`로 남은 경우에도 클라이언트가 즉시 새 `digimonInstanceId`와 디지타마 형태로 바꾸고 이전 생애 outbox를 정리했다. Firestore에는 여전히 묘지가 정본으로 남아 새로고침과 진화 전 저장에서 사망 상태가 다시 로드됐다.
+- **저장 receipt 계약:** `saveNewLifeTransition` 결과는 `synced`, `queued`, `conflict`, `failed`를 그대로 반환한다. `queued`나 실패에서는 기존 묘지·생애 identity를 유지하고, outbox에 저장한 `commandId`·`transitionId`를 자동·수동 재시도에서 재사용한다.
+- **공통 완료 경계:** 즉시 저장이나 백그라운드 outbox 재시도가 `NEW_LIFE`를 서버에 확정한 때만 공통 callback이 새 생애 identity·스탯·형태를 반영하고 사망 팝업을 닫는다. 그 후에만 이전 생애 outbox를 정리한다.
+- **hydration·UI:** 새로고침 중 대기 중인 `NEW_LIFE`는 일반 형태/사망 충돌로 격리하지 않고, 서버의 묘지를 표시하며 동기화 대상으로 유지한다. `DeathPopup`은 서버 미확정 시 닫히지 않고 한국어 안내와 `다시 시도` 버튼을 표시한다. `사망(일반 Ver.3)` 이름은 이번 범위에서 변경하지 않았다.
+- **검증:** 프런트 전체 226 suite·1,578 tests, 서버 331 tests, lint·JSDoc typecheck·production build를 포함한 `npm run check`, Firestore Emulator 9 tests, Arena/Jogress Emulator 26 tests가 모두 통과했다. Ver.3 payload의 생애 identity 교체·revision 증가·`NEW_START` 로그 원자 저장도 고정했다.
+- **영향 파일:** `src/hooks/useGameData.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `pendingHydration.js`, `src/hooks/game-runtime/useGamePageActionFlows.js`, `src/components/DeathPopup.jsx`, `src/pages/Game.jsx`, `api/_lib/careMistakeV2Service.test.js`, 관련 테스트, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** Firestore를 슬롯 정본으로, IndexedDB를 전송 대기함으로 유지하고, 클라이언트 표시 identity를 서버 transaction 성공의 후행 효과로 제한했다. 기존 PR #60의 상태·활동 로그 원자 저장 경계를 재사용했으며 문서 구조와 공개 API는 바꾸지 않았다.
+
 ## [2026-09-02] Care Mistake V2 청소 상태·로그 revision 경쟁 제거
 
 - **원인:** 화장실 애니메이션 완료 후 `CLEAN` 로그 저장과 `poopCount: 0` 상태 저장을 동시에 시작했다. Care Mistake V2에서는 로그만 저장하는 `STATE_MUTATION`도 slot revision을 증가시키므로, 로그가 먼저 성공하면 같은 기준 revision을 사용한 청소 상태가 stale command로 거절됐다. 실패한 state outbox는 재접속 시 `TRUE_REMOTE_CONFLICT`를 만들어 서버의 똥이 다시 표시됐다.

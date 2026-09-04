@@ -374,6 +374,7 @@ function Game({ immersive = false }){
     setWakeUntil,
     setIsLoadingSlot,
     setDeathReason,
+    setHasSeenDeathPopup,
     toggleModal,
     digimonDataVer1: digimonDataForSlot,
     adaptedDataMapsByVersion,

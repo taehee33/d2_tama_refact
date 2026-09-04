@@ -1359,6 +1359,7 @@ export function useGameData({
   setWakeUntil,
   setIsLoadingSlot,
   setDeathReason,
+  setHasSeenDeathPopup,
   toggleModal,
   digimonDataVer1,
   adaptedDataMapsByVersion,
@@ -1453,6 +1454,82 @@ export function useGameData({
     wakeUntil,
   ]);
 
+  const handleStateRecordCommitted = useCallback(({
+    commandType,
+    record,
+    result,
+    committedSnapshot,
+  } = {}) => {
+    if (commandType !== "NEW_LIFE") return;
+    const transition = record?.state?.transition || {};
+    const operation = Array.isArray(transition.operations)
+      ? transition.operations[0] || {}
+      : {};
+    const targetDigimon =
+      transition.targetDigimon ||
+      operation.targetDigimon ||
+      committedSnapshot?.selectedDigimon ||
+      null;
+    const nextDigimonInstanceId =
+      transition.nextDigimonInstanceId ||
+      operation.nextDigimonInstanceId ||
+      committedSnapshot?.digimonInstanceId ||
+      null;
+    const nextCombatRevision =
+      transition.nextCombatRevision ||
+      operation.nextCombatRevision ||
+      committedSnapshot?.combatRevision ||
+      1;
+    const nextArenaIdentitySchemaVersion =
+      transition.nextArenaIdentitySchemaVersion ||
+      operation.nextArenaIdentitySchemaVersion ||
+      committedSnapshot?.arenaIdentitySchemaVersion ||
+      1;
+    const nextStats = {
+      ...(committedSnapshot || {}),
+      ...(targetDigimon ? { selectedDigimon: targetDigimon } : {}),
+      ...(nextDigimonInstanceId ? { digimonInstanceId: nextDigimonInstanceId } : {}),
+      combatRevision: nextCombatRevision,
+      arenaIdentitySchemaVersion: nextArenaIdentitySchemaVersion,
+      isDead: false,
+      deathReason: null,
+      diedAt: null,
+    };
+
+    updatePersistenceAccess({
+      loadedRevision: result?.revision ?? persistenceAccessRef.current?.loadedRevision,
+      loadedIdentity: {
+        uid: currentUser?.uid || record?.uid || null,
+        slotId,
+        slotInstanceId: record?.slotInstanceId || null,
+        digimonInstanceId: nextDigimonInstanceId,
+      },
+      combatIdentity: {
+        arenaIdentitySchemaVersion: nextArenaIdentitySchemaVersion,
+        digimonInstanceId: nextDigimonInstanceId,
+        combatRevision: nextCombatRevision,
+      },
+    });
+    if (targetDigimon) setSelectedDigimon(targetDigimon);
+    setDigimonStats(nextStats);
+    if (typeof setActivityLogs === "function") {
+      setActivityLogs(nextStats.activityLogs || []);
+    }
+    if (typeof setDeathReason === "function") setDeathReason(null);
+    if (typeof toggleModal === "function") toggleModal("deathModal", false);
+    if (typeof setHasSeenDeathPopup === "function") setHasSeenDeathPopup(false);
+  }, [
+    currentUser?.uid,
+    setActivityLogs,
+    setDeathReason,
+    setDigimonStats,
+    setHasSeenDeathPopup,
+    setSelectedDigimon,
+    slotId,
+    toggleModal,
+    updatePersistenceAccess,
+  ]);
+
   const {
     appendBattleLog: appendBattleLogToSubcollection,
     appendLog: appendLogToSubcollection,
@@ -1503,6 +1580,7 @@ export function useGameData({
     saveQueue: saveQueueRef.current,
     persistenceAccessRef,
     onPersistenceAccessChange: updatePersistenceAccess,
+    onStateRecordCommitted: handleStateRecordCommitted,
   });
 
   const commitCareV2Patch = useCallback(async ({
@@ -1807,7 +1885,6 @@ export function useGameData({
     nowMs = Date.now(),
   } = {}) {
     const saveContext = captureSaveContext();
-    const nextCombatIdentity = createNewLifeCombatIdentity();
     return saveQueueRef.current.enqueue(async () => {
       if (
         !slotId ||
@@ -1817,11 +1894,102 @@ export function useGameData({
         !transition ||
         !canStartGameplayWrite(saveContext)
       ) {
-        const blockedError = new Error("현재 슬롯에서는 새 생애를 저장할 수 없습니다.");
-        blockedError.code = "game/new-life-blocked";
-        throw blockedError;
+        return {
+          status: "failed",
+          commandId: transition?.transitionId || null,
+          errorCode: "game/new-life-blocked",
+        };
       }
 
+      if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
+        const pendingState = await getPendingState(saveContext);
+        const pendingTransition =
+          pendingState?.state?.transition?.transitionType === "NEW_LIFE"
+            ? pendingState.state.transition
+            : null;
+        const pendingOperation = Array.isArray(pendingTransition?.operations)
+          ? pendingTransition.operations[0] || {}
+          : {};
+        const nextCombatIdentity = pendingTransition
+          ? {
+              arenaIdentitySchemaVersion:
+                pendingTransition.nextArenaIdentitySchemaVersion ||
+                pendingOperation.nextArenaIdentitySchemaVersion ||
+                1,
+              digimonInstanceId:
+                pendingTransition.nextDigimonInstanceId ||
+                pendingOperation.nextDigimonInstanceId,
+              combatRevision:
+                pendingTransition.nextCombatRevision ||
+                pendingOperation.nextCombatRevision ||
+                1,
+            }
+          : createNewLifeCombatIdentity();
+        const envelope = pendingTransition || buildNewLifeTransitionEnvelope({
+          ...transition,
+          previousIdentity: {
+            slotInstanceId: saveContext.slotInstanceId,
+            digimonInstanceId: saveContext.digimonInstanceId,
+          },
+          nextCombatIdentity,
+          createdAt: transition.createdAt ?? nowMs,
+        });
+        const effectiveStatsSnapshot =
+          pendingState?.state?.stateSnapshot || statsSnapshot;
+        const targetDigimon =
+          envelope.targetDigimon ||
+          pendingOperation.targetDigimon ||
+          transition.targetDigimon;
+        const nextDigimonInstanceId =
+          envelope.nextDigimonInstanceId ||
+          pendingOperation.nextDigimonInstanceId ||
+          nextCombatIdentity.digimonInstanceId;
+        const nextEvolutionStageInstanceId =
+          envelope.nextEvolutionStageInstanceId ||
+          pendingOperation.nextEvolutionStageInstanceId ||
+          buildEvolutionStageInstanceId({
+            digimonInstanceId: nextDigimonInstanceId,
+            evolutionStageStartedAt:
+              effectiveStatsSnapshot.evolutionStageStartedAt ||
+              effectiveStatsSnapshot.birthTime ||
+              nowMs,
+            evolutionStage: effectiveStatsSnapshot.evolutionStage || targetDigimon,
+          });
+        const receipt = await persistStateSnapshotReceipt({
+          statsSnapshot: {
+            ...effectiveStatsSnapshot,
+            ...nextCombatIdentity,
+            selectedDigimon: targetDigimon,
+            digimonInstanceId: nextDigimonInstanceId,
+            evolutionStageInstanceId: nextEvolutionStageInstanceId,
+          },
+          updatedLogs: effectiveStatsSnapshot.activityLogs || [],
+          nowMs,
+          commandId: envelope.transitionId,
+          saveContext,
+          transition: {
+            ...envelope,
+            transitionType: "NEW_LIFE",
+            newLife: true,
+            targetDigimon,
+            nextDigimonInstanceId,
+            nextEvolutionStageInstanceId,
+          },
+          allowCareTransition: true,
+        });
+        const normalizedReceipt = receipt.status === "blocked"
+          ? { ...receipt, status: "failed" }
+          : receipt;
+        return {
+          ...normalizedReceipt,
+          revision: normalizedReceipt.revision,
+          transitionId: envelope.transitionId,
+          previousDigimonInstanceId: saveContext.digimonInstanceId,
+          nextDigimonInstanceId,
+          idempotent: normalizedReceipt.idempotent === true,
+        };
+      }
+      const nextCombatIdentity = createNewLifeCombatIdentity();
       const envelope = buildNewLifeTransitionEnvelope({
         ...transition,
         previousIdentity: {
@@ -1831,63 +1999,6 @@ export function useGameData({
         nextCombatIdentity,
         createdAt: transition.createdAt ?? nowMs,
       });
-      if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
-        const nextEvolutionStageInstanceId = buildEvolutionStageInstanceId({
-          digimonInstanceId: envelope.nextDigimonInstanceId,
-          evolutionStageStartedAt:
-            statsSnapshot.evolutionStageStartedAt || statsSnapshot.birthTime || nowMs,
-          evolutionStage: statsSnapshot.evolutionStage || envelope.targetDigimon,
-        });
-        const receipt = await persistStateSnapshotReceipt({
-          statsSnapshot: {
-            ...statsSnapshot,
-            ...nextCombatIdentity,
-            evolutionStageInstanceId: nextEvolutionStageInstanceId,
-          },
-          updatedLogs: statsSnapshot.activityLogs || [],
-          nowMs,
-          commandId: envelope.transitionId,
-          saveContext,
-          transition: {
-            ...envelope,
-            transitionType: "NEW_LIFE",
-            newLife: true,
-            nextEvolutionStageInstanceId,
-          },
-          allowCareTransition: true,
-        });
-        if (receipt.status !== "synced" && receipt.status !== "queued") {
-          const error = new Error("새 생애 상태를 저장하지 못했습니다.");
-          error.code = receipt.errorCode || "game/new-life-v2-save-failed";
-          throw error;
-        }
-        updatePersistenceAccess({
-          loadedIdentity: {
-            uid: currentUser.uid,
-            slotId,
-            slotInstanceId: saveContext.slotInstanceId,
-            digimonInstanceId: envelope.nextDigimonInstanceId,
-          },
-          combatIdentity: {
-            arenaIdentitySchemaVersion: envelope.nextArenaIdentitySchemaVersion,
-            digimonInstanceId: envelope.nextDigimonInstanceId,
-            combatRevision: envelope.nextCombatRevision,
-          },
-        });
-        Promise.resolve(clearDigimonLifeOutbox({
-          slotInstanceId: saveContext.slotInstanceId,
-          digimonInstanceId: saveContext.digimonInstanceId,
-        })).catch((cleanupError) => {
-          console.warn("이전 생애 IndexedDB outbox 정리에 실패했습니다.", cleanupError);
-        });
-        return {
-          revision: receipt.revision,
-          transitionId: envelope.transitionId,
-          previousDigimonInstanceId: saveContext.digimonInstanceId,
-          nextDigimonInstanceId: envelope.nextDigimonInstanceId,
-          idempotent: receipt.idempotent === true,
-        };
-      }
       const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
       const result = await commitNewLifeTransition({
         db,
@@ -1918,8 +2029,17 @@ export function useGameData({
       });
       return {
         ...result,
+        status: "synced",
         transitionId: envelope.transitionId,
         previousDigimonInstanceId: saveContext.digimonInstanceId,
+      };
+    }).catch((error) => {
+      const errorCode = error?.code || "game/new-life-save-failed";
+      return {
+        status: String(errorCode).includes("conflict") ? "conflict" : "failed",
+        commandId: transition?.transitionId || null,
+        errorCode,
+        message: error?.message || "새 생애 상태를 저장하지 못했습니다.",
       };
     });
   }
