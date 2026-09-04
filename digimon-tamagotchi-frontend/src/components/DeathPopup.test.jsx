@@ -69,4 +69,25 @@ describe("DeathPopup", () => {
     await waitFor(() => expect(onNewStart).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
+
+  test.each([
+    ["실패 receipt", jest.fn().mockResolvedValue({ status: "failed" })],
+    ["예외", jest.fn().mockRejectedValue(new Error("offline"))],
+  ])("%s에서 팝업을 닫지 않고 오류와 재시도를 표시한다", async (_caseName, onNewStart) => {
+    const onClose = jest.fn();
+    render(
+      <DeathPopup
+        isOpen
+        onClose={onClose}
+        onNewStart={onNewStart}
+        selectedDigimon="Ohakadamon1V3"
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "🥚 새로운 시작" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("새 생애를 저장하지 못했습니다");
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeEnabled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

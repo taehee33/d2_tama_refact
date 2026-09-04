@@ -162,11 +162,6 @@ export function useGamePageActionFlows({
           errorCode: "game/new-life-missing-receipt",
         };
       }
-      setSelectedDigimon(initialDigimonId);
-      setDigimonStats(nextStatsWithLogs);
-      if (typeof setActivityLogs === "function") setActivityLogs(nextActivityLogs);
-      toggleModal("deathModal", false);
-      setHasSeenDeathPopup(false);
       return receipt;
     } catch (error) {
       console.error("[resetDigimon] 오류 발생:", error);
@@ -184,11 +179,6 @@ export function useGamePageActionFlows({
     normalizedSlotVersion,
     selectedDigimon,
     saveNewLifeTransition,
-    setActivityLogs,
-    setDigimonStats,
-    setHasSeenDeathPopup,
-    setSelectedDigimon,
-    toggleModal,
   ]);
 
   return {

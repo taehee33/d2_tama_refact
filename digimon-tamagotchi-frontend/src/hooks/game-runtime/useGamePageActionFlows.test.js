@@ -97,7 +97,7 @@ describe("useGamePageActionFlows", () => {
     expect(eatCycleFromHook).toHaveBeenCalledWith(0, "meat", true);
   });
 
-  test("resetDigimon은 초기화 후 저장과 모달 정리를 실행한다", async () => {
+  test("resetDigimon은 새 생애 저장을 요청하고 완료 상태 반영은 persistence에 위임한다", async () => {
     const applyLazyUpdateBeforeAction = jest.fn().mockResolvedValue({
       evolutionStage: "Adult",
       activityLogs: [],
@@ -138,13 +138,15 @@ describe("useGamePageActionFlows", () => {
       })
     );
 
+    let receipt;
     await act(async () => {
-      await result.current.resetDigimon();
+      receipt = await result.current.resetDigimon();
     });
 
-    expect(setSelectedDigimon).toHaveBeenCalledWith("Digitama");
-    expect(setDigimonStats).toHaveBeenCalled();
-    expect(setActivityLogs).toHaveBeenCalled();
+    expect(receipt).toEqual({ status: "synced" });
+    expect(setSelectedDigimon).not.toHaveBeenCalled();
+    expect(setDigimonStats).not.toHaveBeenCalled();
+    expect(setActivityLogs).not.toHaveBeenCalled();
     expect(saveNewLifeTransition).toHaveBeenCalledWith(expect.objectContaining({
       statsSnapshot: expect.objectContaining({
         selectedDigimon: "Digitama",
@@ -156,8 +158,8 @@ describe("useGamePageActionFlows", () => {
         logEntry: expect.objectContaining({ type: "NEW_START" }),
       }),
     }));
-    expect(toggleModal).toHaveBeenCalledWith("deathModal", false);
-    expect(setHasSeenDeathPopup).toHaveBeenCalledWith(false);
+    expect(toggleModal).not.toHaveBeenCalledWith("deathModal", false);
+    expect(setHasSeenDeathPopup).not.toHaveBeenCalled();
   });
 
   test("NEW_LIFE가 queued이면 묘지 상태와 사망 모달을 유지한다", async () => {

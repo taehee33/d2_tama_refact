@@ -18,6 +18,7 @@ import {
   resolveActionLazyUpdateRuntimeContext,
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
+  resolvePendingNewLifeRetry,
   resolveRootSlotFields,
   raiseGameSaveError,
   sanitizeDigimonStatsForSlotDocument,
@@ -35,6 +36,40 @@ describe("raiseGameSaveError", () => {
 
     expect(() => raiseGameSaveError(error, setError)).toThrow(error);
     expect(setError).toHaveBeenCalledWith(error);
+  });
+});
+
+describe("resolvePendingNewLifeRetry", () => {
+  test("수동 재시도에서 pending의 기존 transitionId·identity·snapshot을 그대로 재사용한다", () => {
+    const pendingTransition = {
+      transitionType: "NEW_LIFE",
+      transitionId: "new-life-original",
+      nextDigimonInstanceId: "life-original",
+      nextCombatRevision: 1,
+    };
+    const pendingSnapshot = {
+      selectedDigimon: "DigitamaV3",
+      digimonInstanceId: "life-original",
+    };
+    const result = resolvePendingNewLifeRetry({
+      pendingState: {
+        state: {
+          transition: pendingTransition,
+          stateSnapshot: pendingSnapshot,
+        },
+      },
+      fallbackTransition: {
+        transitionType: "NEW_LIFE",
+        transitionId: "new-life-replacement",
+        nextDigimonInstanceId: "life-replacement",
+      },
+      fallbackStatsSnapshot: { selectedDigimon: "DigitamaV3" },
+    });
+
+    expect(result.pendingTransition).toBe(pendingTransition);
+    expect(result.transition.transitionId).toBe("new-life-original");
+    expect(result.transition.nextDigimonInstanceId).toBe("life-original");
+    expect(result.statsSnapshot).toBe(pendingSnapshot);
   });
 });
 

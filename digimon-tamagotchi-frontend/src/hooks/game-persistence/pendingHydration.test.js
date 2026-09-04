@@ -123,6 +123,22 @@ describe("resolvePendingHydration", () => {
     });
   });
 
+  test("NEW_LIFE 대기 중 서버 revision이 변해도 충돌로 격리하지 않는다", () => {
+    const params = createParams({ serverRevision: 7 });
+    params.pendingState.state.transition = {
+      transitionType: "NEW_LIFE",
+      transitionId: "new-life-retry",
+      targetDigimon: "DigitamaV3",
+    };
+
+    expect(resolvePendingHydration(params)).toMatchObject({
+      status: PENDING_HYDRATION_STATUS.DEFER,
+      expectedRevision: 4,
+      actualRevision: 7,
+      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
+    });
+  });
+
   test("base revision이 없는 구형 pending도 revision 0으로 추정하지 않는다", () => {
     const params = createParams({ serverRevision: 0 });
     delete params.pendingState.state.baseRevision;

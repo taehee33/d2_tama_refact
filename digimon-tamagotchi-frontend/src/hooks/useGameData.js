@@ -1311,6 +1311,23 @@ export function resolveLazyUpdateBaseStats(
   });
 }
 
+export function resolvePendingNewLifeRetry({
+  pendingState,
+  fallbackTransition,
+  fallbackStatsSnapshot,
+} = {}) {
+  const pendingTransition =
+    pendingState?.state?.transition?.transitionType === "NEW_LIFE"
+      ? pendingState.state.transition
+      : null;
+
+  return {
+    pendingTransition,
+    transition: pendingTransition || fallbackTransition,
+    statsSnapshot: pendingState?.state?.stateSnapshot || fallbackStatsSnapshot,
+  };
+}
+
 /**
  * useGameData Hook
  * 데이터 저장/로딩 로직을 담당하는 Custom Hook
@@ -1903,10 +1920,12 @@ export function useGameData({
 
       if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
         const pendingState = await getPendingState(saveContext);
-        const pendingTransition =
-          pendingState?.state?.transition?.transitionType === "NEW_LIFE"
-            ? pendingState.state.transition
-            : null;
+        const pendingRetry = resolvePendingNewLifeRetry({
+          pendingState,
+          fallbackTransition: transition,
+          fallbackStatsSnapshot: statsSnapshot,
+        });
+        const pendingTransition = pendingRetry.pendingTransition;
         const pendingOperation = Array.isArray(pendingTransition?.operations)
           ? pendingTransition.operations[0] || {}
           : {};
@@ -1934,8 +1953,7 @@ export function useGameData({
           nextCombatIdentity,
           createdAt: transition.createdAt ?? nowMs,
         });
-        const effectiveStatsSnapshot =
-          pendingState?.state?.stateSnapshot || statsSnapshot;
+        const effectiveStatsSnapshot = pendingRetry.statsSnapshot;
         const targetDigimon =
           envelope.targetDigimon ||
           pendingOperation.targetDigimon ||
@@ -2012,15 +2030,22 @@ export function useGameData({
         runTransaction,
       });
 
-      updatePersistenceAccess({
-        loadedIdentity: {
+      handleStateRecordCommitted({
+        commandType: "NEW_LIFE",
+        record: {
           uid: currentUser.uid,
           slotId,
           slotInstanceId: saveContext.slotInstanceId,
+          state: { transition: envelope },
+        },
+        result,
+        committedSnapshot: {
+          ...statsSnapshot,
+          ...nextCombatIdentity,
+          selectedDigimon: envelope.targetDigimon,
           digimonInstanceId: result.nextDigimonInstanceId,
         },
       });
-      setLoadedRevision(result.revision, statsSnapshot);
       Promise.resolve(clearDigimonLifeOutbox({
         slotInstanceId: saveContext.slotInstanceId,
         digimonInstanceId: saveContext.digimonInstanceId,
