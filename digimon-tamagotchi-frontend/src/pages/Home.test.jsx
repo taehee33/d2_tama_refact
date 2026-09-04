@@ -87,7 +87,12 @@ describe("Home 테마 진입점", () => {
     mockGetSlotSpriteSrc.mockReturnValue("/images/11.png");
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test("로그인 홈에서는 최근 슬롯 이어하기 카드가 보인다", () => {
+    jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-04T12:00:00+09:00"));
     mockUseUserSlots.mockReturnValue({
       slots: [
         {
