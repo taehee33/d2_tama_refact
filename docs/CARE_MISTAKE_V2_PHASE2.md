@@ -13,7 +13,7 @@
 
 `NATIVE_INIT`은 새 slot·state·root receipt·transition을 한 transaction에서 생성하며 revision과 `cutoverRevision`은 1이다. 이후 모든 성공 command, migration, repair는 revision을 정확히 1 증가시킨다. incident의 `occurredRevision`은 결과 revision이며 ID는 command scope와 operation index로 결정한다.
 
-V2 `NEW_LIFE`는 전용 새 생애 흐름도 client Firestore transaction을 사용하지 않고 내구성 outbox에 적재한 뒤 trusted command로 commit한다. 서버는 `slotInstanceId`를 보존하고 새 `digimonInstanceId`, `combatRevision=1`, 새 root/stage를 확정하며, 일반 mutation이 identity 필드를 덮어쓰는 것을 무시한다.
+V2 `NEW_LIFE`는 전용 새 생애 흐름도 client Firestore transaction을 사용하지 않고 내구성 outbox에 적재한 뒤 trusted command로 commit한다. 서버는 `slotInstanceId`를 보존하고 새 `digimonInstanceId`, `combatRevision=1`, 새 root/stage를 확정하며, 일반 mutation이 identity 필드를 덮어쓰는 것을 무시한다. 서버 확정 전에는 클라이언트가 기존 묘지와 생애 identity를 유지하고, 수동·백그라운드 재시도는 대기 중인 동일 `transitionId`·`commandId`를 재사용한다. 성공 receipt를 받은 뒤에만 디지타마와 새 identity를 반영하고 이전 생애 outbox를 정리한다.
 
 ## Trusted slot delete
 
@@ -31,7 +31,7 @@ Integrity GET은 Firestore read transaction의 동일 snapshot에서 slot, recei
 
 ## Client outbox
 
-Hydration은 integrity 확정 전에 gameplay mutation을 막는다. V2 epoch은 state, activity/feed/battle event, transition outbox record에 함께 저장한다. pre-V2·old root·old receipt·old stage command는 IndexedDB 하나의 transaction으로 state, event, transition 전체를 `legacy_quarantine`으로 이동한다. 격리 자료는 자동 재전송하거나 삭제하지 않는다.
+Hydration은 integrity 확정 전에 gameplay mutation을 막는다. V2 epoch은 state, activity/feed/battle event, transition outbox record에 함께 저장한다. pre-V2·old root·old receipt·old stage command는 IndexedDB 하나의 transaction으로 state, event, transition 전체를 `legacy_quarantine`으로 이동한다. 격리 자료는 자동 재전송하거나 삭제하지 않는다. 단, 서버가 아직 묘지를 정본으로 반환하는 대기 중 `NEW_LIFE`는 일반 형태/사망 hydration 충돌로 격리하지 않고 outbox 동기화 대상으로 유지한다.
 
 ## Rules 책임
 

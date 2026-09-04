@@ -38,6 +38,7 @@ describe("SlotCard", () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
   });
 
@@ -126,6 +127,7 @@ describe("SlotCard", () => {
   });
 
   test("게임 화면과 같은 수면 조명 경고 상태 칩을 표시한다", () => {
+    jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-04T12:00:00+09:00"));
     render(
       <SlotCard
         slot={{

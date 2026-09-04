@@ -99,6 +99,46 @@ describe("resolvePendingHydration", () => {
     });
   });
 
+  test("대기 중인 NEW_LIFE는 서버 묘지를 표시하며 충돌로 격리하지 않는다", () => {
+    const params = createParams();
+    params.serverHydrationResult.selectedDigimon = "Ohakadamon1V3";
+    params.serverHydrationResult.digimonStats.isDead = true;
+    params.pendingState.state.transition = {
+      transitionType: "NEW_LIFE",
+      transitionId: "new-life-1",
+      targetDigimon: "DigitamaV3",
+    };
+    params.pendingState.state.stateSnapshot.selectedDigimon = "DigitamaV3";
+    params.pendingState.state.stateSnapshot.isDead = false;
+    params.localComparableSnapshot.selectedDigimon = "DigitamaV3";
+    params.localComparableSnapshot.digimonStats.isDead = false;
+    params.serverComparableSnapshot.selectedDigimon = "Ohakadamon1V3";
+    params.serverComparableSnapshot.digimonStats.isDead = true;
+
+    expect(resolvePendingHydration(params)).toMatchObject({
+      status: PENDING_HYDRATION_STATUS.DEFER,
+      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
+      expectedRevision: 4,
+      actualRevision: 4,
+    });
+  });
+
+  test("NEW_LIFE 대기 중 서버 revision이 변해도 충돌로 격리하지 않는다", () => {
+    const params = createParams({ serverRevision: 7 });
+    params.pendingState.state.transition = {
+      transitionType: "NEW_LIFE",
+      transitionId: "new-life-retry",
+      targetDigimon: "DigitamaV3",
+    };
+
+    expect(resolvePendingHydration(params)).toMatchObject({
+      status: PENDING_HYDRATION_STATUS.DEFER,
+      expectedRevision: 4,
+      actualRevision: 7,
+      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
+    });
+  });
+
   test("base revision이 없는 구형 pending도 revision 0으로 추정하지 않는다", () => {
     const params = createParams({ serverRevision: 0 });
     delete params.pendingState.state.baseRevision;

@@ -1,8 +1,16 @@
 // src/components/DeathPopup.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { isDeathFormDigimonId } from "../utils/digimonVersionUtils";
 
 export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selectedDigimon, onNewStart, digimonStats = {} }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newLifeError, setNewLifeError] = useState("");
+  useEffect(() => {
+    if (!isOpen) {
+      setIsSubmitting(false);
+      setNewLifeError("");
+    }
+  }, [isOpen]);
   if (!isOpen) return null;
 
   // 사망 폼(오하카다몬) 여부는 버전 유틸의 단일 기준을 사용한다.
@@ -20,10 +28,27 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
 
   // 사망 확인(안녕..): 오하카다몬으로 환생 처리 (일반 디지몬일 때)
   // 새로운 시작: 디지타마부터 다시 새롭게 시작 (오하카다몬일 때)
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isOhakadamon && onNewStart) {
-      // 오하카다몬일 때: 디지타마로 초기화
-      onNewStart();
+      setIsSubmitting(true);
+      setNewLifeError("");
+      try {
+        const receipt = await onNewStart();
+        if (receipt?.status === "synced") {
+          if (onClose) onClose();
+          return;
+        }
+        setNewLifeError(
+          receipt?.status === "queued"
+            ? "새 생애가 아직 서버에 확정되지 않았습니다. 묘지 상태를 유지하며 같은 전환을 다시 시도합니다."
+            : "새 생애를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        );
+      } catch (_error) {
+        setNewLifeError("새 생애를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
     } else if (onConfirm) {
       // 일반 디지몬일 때: 오하카다몬으로 환생
       onConfirm();
@@ -120,18 +145,32 @@ export default function DeathPopup({ isOpen, onConfirm, onClose, reason, selecte
           </div>
         )}
 
+        {newLifeError && (
+          <p role="alert" className="mb-4 text-sm font-semibold text-red-600">
+            {newLifeError}
+          </p>
+        )}
+
         <div className="flex gap-4 justify-center">
           <button
             onClick={handleStay}
+            disabled={isSubmitting}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-colors"
           >
             {isOhakadamon ? "좀 더 슬퍼하기" : "좀 더 같이 있기"}
           </button>
           <button
             onClick={handleConfirm}
+            disabled={isSubmitting}
             className="px-6 py-3 bg-gray-700 text-white rounded-lg font-bold hover:bg-gray-800 transition-colors"
           >
-            {isOhakadamon ? "🥚 새로운 시작" : "사망 확인 (안녕..)"}
+            {isOhakadamon
+              ? isSubmitting
+                ? "서버 확인 중..."
+                : newLifeError
+                  ? "다시 시도"
+                  : "🥚 새로운 시작"
+              : "사망 확인 (안녕..)"}
           </button>
         </div>
       </div>

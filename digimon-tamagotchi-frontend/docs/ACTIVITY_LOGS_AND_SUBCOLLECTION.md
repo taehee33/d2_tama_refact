@@ -15,7 +15,7 @@
 ```
 
 - **생성 방식**: `useGameLogic.addActivityLog(currentLogs, type, text)` 또는 수동 `{ type, text, timestamp: Date.now() }`.
-- **보관 개수**: 현재 `activityLogs`는 공용 상수 기준으로 최대 **100개**를 유지합니다. `useGameLogic`, `useGameActions`, `GameModals`, 서브컬렉션 로드 쿼리가 모두 같은 값을 사용합니다.
+- **보관 개수**: 현재 `activityLogs`는 공용 상수 기준으로 최대 **50개**를 유지합니다. 서브컬렉션 조회와 런타임 정규화가 동일한 현재 생애 기준을 사용합니다.
 
 ---
 
@@ -56,15 +56,15 @@
 
 | 파일 | 역할 |
 |------|------|
-| **useGameLogic.js** | `addActivityLog()`, `initializeActivityLogs()` — 공용 상수 기준 최대 100개 유지 |
-| **useGameData.js** | 슬롯 문서 저장 시 `activityLogs`는 제외하고, 로드 시 `logs` 서브컬렉션을 `limit(100)`으로 우선 조회한 뒤 fallback으로 `savedStats.activityLogs \|\| slotData.activityLogs` 사용 |
+| **useGameLogic.js** | `addActivityLog()`, `initializeActivityLogs()` — 공용 상수 기준 최대 50개 유지 |
+| **useGameData.js** | 슬롯 문서 저장 시 `activityLogs`는 제외하고, 로드 시 `logs` 서브컬렉션을 `limit(50)`으로 우선 조회한 뒤 fallback으로 `savedStats.activityLogs \|\| slotData.activityLogs` 사용 |
 | **Game.jsx** | 1초 타이머: CALL, SLEEP_START, SLEEP_END, CAREMISTAKE, CARE_MISTAKE, POOP, DEATH |
-| **useGameActions.js** | FEED, CARE_MISTAKE, TRAIN, CLEAN, BATTLE — 수동 `newLog` 추가 후 공용 상수 기준 최대 100개 유지 |
+| **useGameActions.js** | FEED, CARE_MISTAKE, TRAIN, CLEAN, BATTLE — 수동 `newLog` 추가 후 공용 상수 기준 최대 50개 유지 |
 | **useGameAnimations.js** | FEED, CLEAN, CARE_MISTAKE, HEAL — addActivityLog 사용 |
 | **useGameHandlers.js** | ACTION (조명 등) |
 | **useEvolution.js** | EVOLUTION |
 | **useFridge.js** | FRIDGE |
-| **GameModals.jsx** | DIET, REST, DETOX, PLAY_OR_SNACK, CAREMISTAKE — 수면 방해 보조 로그도 공용 상수 기준 최대 100개 유지 |
+| **GameModals.jsx** | DIET, REST, DETOX, PLAY_OR_SNACK, CAREMISTAKE — 수면 방해 보조 로그도 공용 상수 기준 최대 50개 유지 |
 | **StatsPopup.jsx** | ACTION (수동 입력 로그) |
 
 ---
@@ -87,8 +87,8 @@
 | 이벤트 | 로그 여부 | 비고 |
 |--------|-----------|------|
 | 사망 감지 | ✅ DEATH (Game.jsx 1초 타이머) | 정상 |
-| 오하카다몬으로 환생 (사망 확인) | ❌ **누락** | confirmDeath 시 “Reincarnation: …” 로그 없음 → **추가 권장** |
-| 새로운 시작 (디지타마/디지타마V2 초기화) | ❌ **누락** | resetDigimon 시 “New start: …” 로그 없음 → **추가 권장** |
+| 오하카다몬으로 환생 (사망 확인) | ✅ REINCARNATION | confirmDeath가 환생 로그를 현재 생애에 저장 |
+| 새로운 시작 (디지타마/디지타마V2 초기화) | ✅ NEW_START | `NEW_LIFE` 서버 transaction이 새 identity·revision·로그를 원자적으로 확정 |
 | 수면 중 불 30분 케어미스 | ✅ CARE_MISTAKE | TIRED 30분 경과와 동일 경로로 로그 추가됨 (sleepLightOnStart는 UI용) |
 | 훈련 (일반 경로) | ✅ TRAIN | useGameActions.doTraining에서 로그 추가 후 setDigimonStatsAndSave 호출 |
 | 훈련 (TrainPopup fallback) | ⚠️ 주의 | onTrainResult 없을 때 doVer1Training만 쓰고 저장하면 **TRAIN 로그 없음**. Game.jsx는 onTrainResult를 넘기므로 실제로는 fallback 미사용. |
@@ -119,14 +119,14 @@
 
 - 슬롯 문서는 스탯·메타만 유지하고 크기 제한 부담이 줄어듦.
 - 로그 추가는 서브컬렉션에 `addDoc` 한 번으로 가능 (부분 쓰기).
-- 로그만 조회·페이징 가능 (예: `orderBy('timestamp', 'desc').limit(100)`).
+- 로그만 조회·페이징 가능 (예: `orderBy('timestamp', 'desc').limit(50)`).
 
 ### 2.3 영향받는 계층
 
 | 계층 | 현재 | 서브컬렉션 전환 시 |
 |------|------|---------------------|
 | **저장소** | useGameData에서 `updateDoc(slotRef, { digimonStats })` 로 배열 전체 포함 | (1) 슬롯 문서에서는 `digimonStats`에서 `activityLogs` 제거 (2) 로그 추가 시 `collection(slotRef, 'logs')` 에 `addDoc` |
-| **로드** | `slotData.digimonStats.activityLogs` 또는 `slotData.activityLogs` 한 번에 로드 | 슬롯 로드 후 별도 `getDocs(collection(slotRef, 'logs'), orderBy('timestamp', 'desc'), limit(100))` 로 최근 N개 로드 |
+| **로드** | `slotData.digimonStats.activityLogs` 또는 `slotData.activityLogs` 한 번에 로드 | 슬롯 로드 후 별도 `getDocs(collection(slotRef, 'logs'), orderBy('timestamp', 'desc'), limit(50))` 로 최근 N개 로드 |
 | **상태** | `activityLogs` 배열을 useGameState 등에서 보관 | 초기에는 서브컬렉션에서 로드한 배열로 설정. 새 로그 추가 시 로컬에 append + 서브컬렉션에 addDoc |
 | **추가 시점** | setDigimonStats({ ...stats, activityLogs: updatedLogs }) 후 saveStats 호출 | (1) 로컬 setState로 activityLogs만 갱신 (2) 서브컬렉션에 addDoc (선택: saveStats는 digimonStats만 저장하고 activityLogs 제외) |
 
@@ -134,7 +134,7 @@
 
 1. **useGameData.js**
    - **saveStats**: Firestore에 보낼 `digimonStats`에서 `activityLogs` 제거 (이미 루트 중복 제거했던 것처럼).
-   - **loadSlot**: `digimonStats` 로드 후 `logs` 서브컬렉션에서 최근 100개를 쿼리해 `setActivityLogs`에 넣기. 기존 필드 fallback 유지: `savedStats.activityLogs || slotData.activityLogs` (마이그레이션 기간).
+   - **loadSlot**: `digimonStats` 로드 후 `logs` 서브컬렉션에서 최근 50개를 쿼리해 `setActivityLogs`에 넣기. 기존 필드 fallback 유지: `savedStats.activityLogs || slotData.activityLogs` (마이그레이션 기간).
    - **새 함수**: `appendLogToSubcollection(slotId, logEntry)` — `collection(doc(db, 'users', uid, 'slots', 'slot'+slotId), 'logs')` 에 `addDoc` (type, text, timestamp).
 
 2. **로그를 추가하는 모든 호출부**
@@ -163,7 +163,7 @@
    - 이전 후 슬롯 문서에서 `activityLogs` 필드 제거 (필요 시).
 
 3. **상수 통일**  
-   - 현재 최대 활동 로그 개수는 100으로 통일되어 있습니다. 서브컬렉션 조회와 수동 append 경로가 같은 기준을 사용합니다.
+   - 현재 최대 활동 로그 개수는 50으로 통일되어 있습니다. 서브컬렉션 조회와 수동 append 경로가 같은 기준을 사용합니다.
 
 ---
 
@@ -179,7 +179,7 @@
 **구조**
 - 모든 활동 로그를 `users/{uid}/slots/slot{N}/logs/{logId}` 에만 저장.
 - 슬롯 문서의 `digimonStats`에서는 `activityLogs` 필드 제거.
-- 로드: 슬롯 문서 로드 후 `logs` 서브컬렉션에서 `orderBy('timestamp','desc').limit(100)` 쿼리로 최근 N개 로드.
+- 로드: 슬롯 문서 로드 후 `logs` 서브컬렉션에서 `orderBy('timestamp','desc').limit(50)` 쿼리로 최근 N개 로드.
 - 추가: 로그 발생 시마다 로컬 `activityLogs` 갱신 + 서브컬렉션에 `addDoc` 1회.
 
 | 구분 | 내용 |
@@ -254,7 +254,7 @@
 **적용 일자**: 2025-01-28
 
 - **저장**: 슬롯 문서(`users/{uid}/slots/slot{N}`)에는 `activityLogs` 필드를 저장하지 않음. 로그는 **서브컬렉션** `users/{uid}/slots/slot{N}/logs` 에만 `addDoc`으로 추가됨.
-- **로드**: `loadSlot` 시 `logs` 서브컬렉션을 `orderBy('timestamp','desc'), limit(100)` 으로 쿼리해 `activityLogs`로 사용. 실패/빈 결과면 기존 슬롯 문서의 `activityLogs`(또는 `savedStats.activityLogs`)를 fallback으로 사용.
+- **로드**: `loadSlot` 시 `logs` 서브컬렉션을 `orderBy('timestamp','desc'), limit(50)` 으로 쿼리해 `activityLogs`로 사용. 실패/빈 결과면 기존 슬롯 문서의 `activityLogs`(또는 `savedStats.activityLogs`)를 fallback으로 사용.
 - **호출부**: 모든 `addActivityLog` 후 저장하는 지점에서 `appendLogToSubcollection(마지막 로그 한 건)` 호출 (Game.jsx, useGameActions, useGameAnimations, useGameHandlers, useEvolution, useDeath, useFridge, GameModals, StatsPopup).
 
 **기존 슬롯 마이그레이션**  
