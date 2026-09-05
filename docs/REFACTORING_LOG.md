@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-09-05] 새 생애에 이전 사망 pending이 혼입되는 회귀 수정
+
+- **원인:** `saveNewLifeTransition`이 기존 IndexedDB state pending의 전이 종류를 확인하지 않고 그 snapshot을 재시도 입력으로 사용했다. 마지막 사망 저장이 pending인 상태에서 새 생애를 시작하면 새 `NEW_LIFE` identity·디지타마 형태와 이전 `isDead: true` 스탯이 한 서버 transaction에 섞여, revision은 정상 증가하지만 재접속 시 디지타마가 다시 사망 상태로 로드됐다.
+- **수정:** 기존 pending transition이 실제 `NEW_LIFE`일 때만 해당 transition ID·identity·snapshot을 멱등 재시도에 재사용한다. 일반 상태·사망 pending이 있으면 현재 새 생애가 만든 초기화 snapshot을 사용한다. 서버도 `NEW_LIFE`의 nested stats가 `isDead: false`이고 사망 사유·시각이 비어 있지 않으면 transaction을 write 없이 거부한다.
+- **회귀 검증:** `일반 사망 pending + 새 NEW_LIFE fallback` 조합에서 새 생애 snapshot의 `isDead: false`, `deathReason: null`, 디지타마 형태가 선택되는 테스트를 추가했다. 서버에는 사망 snapshot 혼입 요청이 `INVALID_NEW_LIFE_STATS`로 거부되고 revision이 유지되는 테스트를 추가했다. 기존 pending `NEW_LIFE`의 멱등 재시도 계약은 그대로 유지한다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.test.js`, `api/_lib/careMistakeV2Service.js`, `api/_lib/careMistakeV2Service.test.js`, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정 근거:** Firestore 정본, IndexedDB outbox, revision·identity·transaction 구조는 바꾸지 않고 재시도 입력 선택 경계만 바로잡았다.
+
 ## [2026-09-04] 새 생애 서버 확정 전 identity 전환 회귀 수정
 
 - **원인:** Care Mistake V2 `NEW_LIFE` 요청이 서버에 확정되지 않고 `queued`로 남은 경우에도 클라이언트가 즉시 새 `digimonInstanceId`와 디지타마 형태로 바꾸고 이전 생애 outbox를 정리했다. Firestore에는 여전히 묘지가 정본으로 남아 새로고침과 진화 전 저장에서 사망 상태가 다시 로드됐다.

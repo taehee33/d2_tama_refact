@@ -640,6 +640,21 @@ async function commitCareMistakeV2Command({ uid, slotId, command, deps = {} }) {
         latestUnresolvedIncidentId: null,
       };
     } else if (commandType === "NEW_LIFE") {
+      const newLifeStats = rawUpdateData?.digimonStats;
+      if (
+        !newLifeStats ||
+        typeof newLifeStats !== "object" ||
+        Array.isArray(newLifeStats) ||
+        newLifeStats.isDead !== false ||
+        newLifeStats.deathReason != null ||
+        newLifeStats.diedAt != null
+      ) {
+        throw new CareMistakeV2Error(
+          "INVALID_NEW_LIFE_STATS",
+          "새 생애에는 이전 생애의 사망 상태를 포함할 수 없습니다.",
+          400
+        );
+      }
       const nextDigimonInstanceId = requiredId(
         command.payload?.nextDigimonInstanceId,
         "nextDigimonInstanceId"

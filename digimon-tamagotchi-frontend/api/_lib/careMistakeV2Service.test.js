@@ -534,6 +534,49 @@ test("V2 NEW_LIFE는 서버가 생애 identity를 교체하고 slot identity는 
   );
 });
 
+test("V2 NEW_LIFE는 이전 생애의 사망 snapshot 혼입을 write 없이 거부한다", async () => {
+  const harness = createHarness();
+  const initialized = await nativeInitCareMistakeV2Slot({
+    uid: "user-a", slotId: 1, commandId: "native-command-a", slotData: nativeSlot(),
+    deps: { db: harness.db },
+  });
+  const state = initialized.careMistakeState;
+  const writesBefore = harness.writeCount;
+
+  await assert.rejects(
+    commitCareMistakeV2Command({
+      uid: "user-a",
+      slotId: 1,
+      command: {
+        commandId: "new-life-dead-snapshot",
+        commandType: "NEW_LIFE",
+        careSchemaVersion: 2,
+        rootReceiptId: state.rootReceiptId,
+        receiptId: state.receiptId,
+        evolutionStageInstanceId: state.evolutionStageInstanceId,
+        expectedRevision: 1,
+        payload: {
+          nextDigimonInstanceId: "digimon-life-b",
+          nextEvolutionStageInstanceId: "stage-b",
+          updateData: {
+            selectedDigimon: "DigitamaV5",
+            digimonStats: {
+              evolutionStage: "Digitama",
+              isDead: true,
+              deathReason: "STARVATION (굶주림)",
+              diedAt: 1_777_000_000_000,
+            },
+          },
+        },
+      },
+      deps: { db: harness.db },
+    }),
+    (error) => error.code === "INVALID_NEW_LIFE_STATS"
+  );
+  assert.equal(harness.writeCount, writesBefore);
+  assert.equal(harness.store.get("users/user-a/slots/slot1").revision, 1);
+});
+
 test("explicit migration은 성공 시 revision을 1 증가시키고 stale 실패는 write 0건이다", async () => {
   const slotPath = "users/user-a/slots/slot1";
   const legacySlot = {

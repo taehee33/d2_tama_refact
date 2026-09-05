@@ -1324,7 +1324,11 @@ export function resolvePendingNewLifeRetry({
   return {
     pendingTransition,
     transition: pendingTransition || fallbackTransition,
-    statsSnapshot: pendingState?.state?.stateSnapshot || fallbackStatsSnapshot,
+    // 같은 슬롯에 남은 일반 pending(예: 마지막 사망 스냅샷)은 NEW_LIFE
+    // 재시도 자료가 아니다. 전이 자체가 NEW_LIFE일 때만 그 snapshot을 재사용한다.
+    statsSnapshot: pendingTransition
+      ? pendingState.state.stateSnapshot
+      : fallbackStatsSnapshot,
   };
 }
 

@@ -71,6 +71,38 @@ describe("resolvePendingNewLifeRetry", () => {
     expect(result.transition.nextDigimonInstanceId).toBe("life-original");
     expect(result.statsSnapshot).toBe(pendingSnapshot);
   });
+
+  test("일반 사망 pending은 새 생애 snapshot으로 재사용하지 않는다", () => {
+    const deadPendingSnapshot = {
+      selectedDigimon: "Death5",
+      isDead: true,
+      deathReason: "STARVATION (굶주림)",
+    };
+    const newLifeSnapshot = {
+      selectedDigimon: "DigitamaV5",
+      isDead: false,
+      deathReason: null,
+    };
+    const fallbackTransition = {
+      transitionType: "NEW_LIFE",
+      transitionId: "new-life-current",
+      nextDigimonInstanceId: "life-current",
+    };
+
+    const result = resolvePendingNewLifeRetry({
+      pendingState: {
+        state: {
+          stateSnapshot: deadPendingSnapshot,
+        },
+      },
+      fallbackTransition,
+      fallbackStatsSnapshot: newLifeSnapshot,
+    });
+
+    expect(result.pendingTransition).toBeNull();
+    expect(result.transition).toBe(fallbackTransition);
+    expect(result.statsSnapshot).toBe(newLifeSnapshot);
+  });
 });
 
 describe("slot load generation", () => {
