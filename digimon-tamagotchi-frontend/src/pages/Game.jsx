@@ -1302,6 +1302,7 @@ function Game({ immersive = false }){
     maxOverfeed: digimonStats.maxOverfeed || 0,
     proteinOverdose: digimonStats.proteinOverdose || 0,
     isFrozen: digimonStats.isFrozen || false,
+    needsApplicable: statusBadgeProps.needsApplicable,
   };
 
   const sharedStatusBadgesProps = {

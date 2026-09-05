@@ -5182,6 +5182,19 @@ function isStarterDigimonId(digimonId) {
   return STARTER_DIGIMON_IDS.includes(digimonId);
 }
 
+/**
+ * 디지타마에는 배고픔·힘·수면 요구사항을 적용하지 않는다.
+ *
+ * 이 판단은 현재 디지몬 identity만으로 매번 계산한다. 슬롯이나 세션에
+ * 캐시하지 않아 부화·진화 직후 즉시 일반 생리 규칙으로 전환된다.
+ *
+ * @param {string|null|undefined} digimonId
+ * @returns {boolean}
+ */
+function isPhysiologicalNeedsApplicable(digimonId) {
+  return !isStarterDigimonId(digimonId);
+}
+
 function getDeathFormIds(version = "Ver.1") {
   return [...getDigimonVersionConfig(version).deathFormIds];
 }
@@ -5812,6 +5825,103 @@ function recoverEnergy(stats, {
   return updatedStats;
 }
 
+;// ./src/logic/stats/physiologicalNeeds.js
+/**
+ * 생리 요구사항이 적용되지 않는 디지타마의 과거 저장 잔여 상태를 정리한다.
+ * 감사용 케어미스/incident/활동 로그와 누적값은 절대 건드리지 않는다.
+ */
+
+function emptyNeedCall() {
+  return { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false };
+}
+
+function isSameValue(left, right) {
+  return left === right;
+}
+
+function hasNeedCallState(entry = {}) {
+  return Boolean(
+    entry?.isActive ||
+    entry?.startedAt != null ||
+    entry?.sleepStartAt != null ||
+    entry?.isLogged
+  );
+}
+
+/**
+ * @param {Object} stats
+ * @param {boolean} [needsApplicable=true]
+ * @returns {{stats:Object, changed:boolean}}
+ */
+function cleanupInapplicablePhysiologicalNeeds(stats = {}, needsApplicable = true) {
+  if (needsApplicable) return { stats, changed: false };
+
+  const callStatus = stats.callStatus || {};
+  const needsCallCleanup = ["hunger", "strength", "sleep"].some((key) =>
+    hasNeedCallState(callStatus[key])
+  );
+  const scalarKeys = [
+    "hungerMistakeDeadline",
+    "strengthMistakeDeadline",
+    "lastHungerZeroAt",
+    "lastStrengthZeroAt",
+    "hungerZeroFrozenDurationMs",
+    "strengthZeroFrozenDurationMs",
+    "napUntil",
+    "fastSleepStart",
+    "sleepLightOnStart",
+    "wakeUntil",
+  ];
+  const needsScalarCleanup = scalarKeys.some((key) => !isSameValue(stats[key], null));
+
+  if (!needsCallCleanup && !needsScalarCleanup) {
+    return { stats, changed: false };
+  }
+
+  return {
+    stats: {
+      ...stats,
+      callStatus: {
+        ...callStatus,
+        hunger: emptyNeedCall(),
+        strength: emptyNeedCall(),
+        sleep: emptyNeedCall(),
+      },
+      hungerMistakeDeadline: null,
+      strengthMistakeDeadline: null,
+      lastHungerZeroAt: null,
+      lastStrengthZeroAt: null,
+      hungerZeroFrozenDurationMs: null,
+      strengthZeroFrozenDurationMs: null,
+      napUntil: null,
+      fastSleepStart: null,
+      sleepLightOnStart: null,
+      wakeUntil: null,
+    },
+    changed: true,
+  };
+}
+
+/**
+ * root 슬롯의 강제기상도 수면 요구사항 transient 상태이므로 함께 정규화한다.
+ * 이미 정리된 입력은 각 원본 참조를 보존한다.
+ */
+function cleanupPhysiologicalNeedsState({
+  stats = {},
+  rootSlotFields = null,
+  needsApplicable = true,
+} = {}) {
+  const statsResult = cleanupInapplicablePhysiologicalNeeds(stats, needsApplicable);
+  const rootChanged = !needsApplicable && rootSlotFields?.wakeUntil != null;
+  return {
+    stats: statsResult.stats,
+    rootSlotFields: rootChanged
+      ? { ...rootSlotFields, wakeUntil: null }
+      : rootSlotFields,
+    changed: statsResult.changed || rootChanged,
+  };
+}
+
 ;// ./src/logic/stats/death.js
 
 
@@ -5868,10 +5978,10 @@ function getTimedDeathAt(startAt, stats, nowMs, thresholdMs, elapsedMs) {
   return Math.max(startMs, effectiveEndMs - exceededByMs);
 }
 
-function death_evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
+function death_evaluateDeathConditions(stats = {}, nowMs = Date.now(), needsApplicable = true) {
   const safeNowMs = toTimestamp(nowMs) ?? Date.now();
 
-  if (stats.fullness === 0 && stats.lastHungerZeroAt) {
+  if (needsApplicable && stats.fullness === 0 && stats.lastHungerZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastHungerZeroAt,
       stats,
@@ -5887,7 +5997,7 @@ function death_evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
     }
   }
 
-  if (stats.strength === 0 && stats.lastStrengthZeroAt) {
+  if (needsApplicable && stats.strength === 0 && stats.lastStrengthZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastStrengthZeroAt,
       stats,
@@ -6037,6 +6147,7 @@ function buildActivityLogEventId(log = {}) {
 
 ;// ./src/data/stats.js
 // src/data/stats.js
+
 
 
 
@@ -7008,7 +7119,11 @@ function projectState(
     lastSavedAt,
     sleepSchedule = null,
     maxEnergy = null,
+    needsApplicable = true,
   } = options;
+  // Lazy update의 모든 조기 반환 경로보다 먼저 stale 생리 상태를 정리한다.
+  // 이 정리는 현재 시각을 쓰지 않아 hydration 외 1초 루프에서 추가 mutation을 만들지 않는다.
+  stats = cleanupInapplicablePhysiologicalNeeds(stats, needsApplicable).stats;
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error("projectState requires a finite nowMs");
   }
@@ -7074,7 +7189,10 @@ function projectState(
   }
 
   // 경과 시간만큼 한 번에 업데이트
-  let updatedStats = cloneStatsForProjection(stats);
+  let updatedStats = cleanupInapplicablePhysiologicalNeeds(
+    cloneStatsForProjection(stats),
+    needsApplicable
+  ).stats;
   migrateLegacyPoopTimers(updatedStats);
   repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
     statKey: "fullness",
@@ -7102,7 +7220,7 @@ function projectState(
   };
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (updatedStats.hungerTimer > 0) {
+  if (needsApplicable && updatedStats.hungerTimer > 0) {
     const initialFullness = Math.max(0, Number(updatedStats.fullness) || 0);
     const rawHungerCountdown = Number(updatedStats.hungerCountdown);
     const initialHungerCountdown = Number.isFinite(rawHungerCountdown)
@@ -7119,7 +7237,7 @@ function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule,
+      sleepSchedule: needsApplicable ? sleepSchedule : null,
     });
 
     // 활동 시간만큼만 hungerCountdown 감소
@@ -7153,7 +7271,7 @@ function projectState(
   }
 
   // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (updatedStats.strengthTimer > 0) {
+  if (needsApplicable && updatedStats.strengthTimer > 0) {
     const initialStrength = Math.max(0, Number(updatedStats.strength) || 0);
     const rawStrengthCountdown = Number(updatedStats.strengthCountdown);
     const initialStrengthCountdown = Number.isFinite(rawStrengthCountdown)
@@ -7170,7 +7288,7 @@ function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule,
+      sleepSchedule: needsApplicable ? sleepSchedule : null,
     });
 
     // 활동 시간만큼만 strengthCountdown 감소
@@ -7326,7 +7444,7 @@ function projectState(
 
   // 사망 체크는 공통 evaluator를 기준으로 단일화
   if (!updatedStats.isDead) {
-    const deathEvaluation = death_evaluateDeathConditions(updatedStats, nowMs);
+    const deathEvaluation = death_evaluateDeathConditions(updatedStats, nowMs, needsApplicable);
     if (deathEvaluation.isDead) {
       updatedStats = death_applyDeathEvaluationToStats(updatedStats, deathEvaluation);
     }
@@ -7352,6 +7470,7 @@ function projectState(
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
+  if (needsApplicable) {
   const previousSleepCallStartedAt =
     stats_ensureTimestamp(callStatus.sleep.startedAt) ??
     stats_ensureTimestamp(updatedStats.sleepLightOnStart);
@@ -7360,7 +7479,7 @@ function projectState(
     stats: updatedStats,
     startTime: lastSaved.getTime(),
     endTime: nowMs,
-    sleepSchedule,
+    sleepSchedule: needsApplicable ? sleepSchedule : null,
     previousStartedAt: previousSleepCallStartedAt,
     previousLogged: previousSleepCallLogged,
   });
@@ -7612,7 +7731,7 @@ function projectState(
     updatedStats.sleepLightOnStart = null;
   }
 
-  resolvedSleepLightSegments.forEach((segment) => {
+  if (needsApplicable) resolvedSleepLightSegments.forEach((segment) => {
     const effectiveStartedAt = segment.effectiveStartedAt;
     const segmentDurationMs = Math.max(0, segment.endedAt - effectiveStartedAt);
     if (segmentDurationMs < SLEEP_LIGHT_WARNING_TIMEOUT_MS) {
@@ -7661,13 +7780,15 @@ function projectState(
     }
   });
 
+  }
+
   const energyProjectionEndMs = stats.isFrozen && stats.frozenAt
     ? Math.min(nowMs, stats_ensureTimestamp(stats.frozenAt) ?? nowMs)
     : nowMs;
   updatedStats = recoverEnergy(updatedStats, {
     startMs: lastSaved.getTime(),
     endMs: energyProjectionEndMs,
-    sleepSchedule,
+    sleepSchedule: needsApplicable ? sleepSchedule : null,
     maxEnergy,
   });
 
@@ -7707,6 +7828,7 @@ function applyLazyUpdate(
     lastSavedAt,
     sleepSchedule,
     maxEnergy,
+    needsApplicable: options?.needsApplicable ?? true,
   });
 }
 

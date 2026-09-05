@@ -24,11 +24,13 @@ import {
 } from "../utils/sleepUtils";
 import { resolveTamerNamePriority } from "../utils/tamerNameUtils";
 import { shouldPersistActivityLog } from "../utils/activityLogPersistence";
+import { isPhysiologicalNeedsApplicable } from "../utils/digimonVersionUtils";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
  */
 function getSleepSchedule(digimonData, name, digimonStats = null) {
+  if (!isPhysiologicalNeedsApplicable(name)) return null;
   const data = digimonData[name] || {};
   const baseSchedule = normalizeSleepSchedule(data.sleepSchedule || { start: 22, end: 6 });
   
@@ -578,6 +580,7 @@ function getActionSleepState({
     wakeUntil,
     fastSleepStart: digimonStats.fastSleepStart || null,
     napUntil: digimonStats.napUntil || null,
+    needsApplicable: isPhysiologicalNeedsApplicable(selectedDigimon),
     now,
   });
 

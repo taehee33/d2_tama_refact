@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-05] 상태 탭 케어미스 이력 추가
+
+- **목적:** `[ 상태 ]` 탭의 `케어 미스 N회` 행에서 현재 진화 구간의 발생·해소 이력을 읽기 전용으로 확인할 수 있게 했다. 표시 숫자는 기존 `stats.careMistakes`를 그대로 사용하며 이력 보관·표시 한도와 진화 판정 의미는 변경하지 않았다.
+- **표시 모델:** `buildStatsCenterViewModel()`에 `careMistakeHistory`를 추가했다. V2는 hydration 때 전달되는 메모리 전용 incident 투영을 우선 정본으로 삼고, `occurredRevision → operationIndex → incidentId` 순서를 재사용해 최신순으로 표시한다. 활동 로그는 같은 incident의 사유·표시 문구·시각을 보완할 뿐 새 incident를 만들거나 상태를 결정하지 않는다.
+- **레거시 처리:** V2 incident/ledger가 없거나 불완전할 때만 현재 진화 구간의 활동 로그를 fallback으로 선택한다. 이 경우 활성·해소를 추측하지 않고 `상태 확인 불가`로 표시하며, `incidentId → eventId → timestamp + reason` 우선순위로 중복을 제거한다. 범위를 식별할 수 없는 자료는 표시하지 않고 불완전 안내를 노출한다.
+- **UI·접근성:** 케어미스 이력이 하나라도 있으면 숫자가 0회인 해소 이력도 버튼·`aria-expanded`·`role=region`을 갖는 아코디언으로 펼친다. 최신 10건만 표시하고 11건 이상이면 `전체 N건 중 최신 10건`을 안내한다. 이력이 없으면 기존처럼 읽기 전용 행으로 남는다.
+- **진화 조건 조사:** Ver.1~Ver.5 데이터의 케어미스 조건은 최대 1, 최대 3, 최소 4로 구성되며 최고 분기 경계는 4개 이상이다. 이번 변경은 이 조건, `careMistakes`·활성 건수·누적 이력 계산, incident 저장, outbox, evolution 초기화와 checker를 변경하지 않는다.
+- **영향 파일:** `src/components/stats-center/careMistakeHistoryViewModel.js`, `src/components/stats-center/statsCenterViewModel.js`, `src/components/stats-center/StatusTab.jsx`, `src/components/StatsCenterPopup.jsx`, `src/hooks/useGameData.js`, 관련 컴포넌트·selector 테스트.
+- **아키텍처 결정 근거:** Firestore slot 문서와 incident 저장 계약은 변경하지 않고, hydration 결과에만 저장 제외 필드를 붙여 화면이 V2 incident의 상태·순서를 그대로 읽도록 했다.
+
+---
+
+## [2026-09-05] 디지타마 생리 요구사항 도메인 불변식
+
+- **변경:** Ver.1~5 디지타마 starter ID에는 `isPhysiologicalNeedsApplicable()`가 `false`를 반환하도록 고정했다. 수면 스케줄은 `null`로 구분하고, lazy update·실시간 루프·호출 타임아웃·사망 평가에 동일 값을 명시적으로 전달한다.
+- **정리 및 저장:** 순수 cleanup helper가 stale hunger/strength/sleep call, deadline, zero 시각, 낮잠·수면 경고·강제기상 transient만 제거한다. 과거 activity log, incident/ledger, 누적 `careMistakes`는 보존한다. hydration 결과의 `physiologicalCleanupChanged`가 true일 때만 기존 durable persistence 경계에서 한 번 저장한다.
+- **UI:** 하트 행은 유지하되 `해당 없음 (부화 전)`으로 표시하고, 상태 배지·상세 상태에서는 배고픔·힘·수면 부족/충분 메시지를 제거한다. `진화 가능` 등 독립 상태는 계속 표시한다.
+- **영향 파일:** `src/utils/digimonVersionUtils.js`, `src/logic/stats/physiologicalNeeds.js`, `src/data/stats.js`, `src/hooks/useGameData.js`, `src/hooks/game-runtime/useGameRealtimeLoop.js`, `src/hooks/useGameLogic.js`, `src/logic/stats/death.js`, 상태 UI 컴포넌트 및 관련 테스트.
+- **아키텍처 결정 근거:** Firestore slot 경로·문서 스키마·identity/revision 계약은 바꾸지 않았다. 생리 적용 여부는 세션 캐시가 아닌 현재 디지몬 ID에서 매 경로마다 재계산해 부화 후 일반 개체의 규칙을 즉시 복원한다.
+
 ## [2026-09-05] 새 생애에 이전 사망 pending이 혼입되는 회귀 수정
 
 - **원인:** `saveNewLifeTransition`이 기존 IndexedDB state pending의 전이 종류를 확인하지 않고 그 snapshot을 재시도 입력으로 사용했다. 마지막 사망 저장이 pending인 상태에서 새 생애를 시작하면 새 `NEW_LIFE` identity·디지타마 형태와 이전 `isDead: true` 스탯이 한 서버 transaction에 섞여, revision은 정상 증가하지만 재접속 시 디지타마가 다시 사망 상태로 로드됐다.

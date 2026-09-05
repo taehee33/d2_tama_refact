@@ -21,6 +21,7 @@ const DigimonStatusBadges = ({
   wakeUntil = null,
   sleepLightOnStart = null,
   deathReason = null,
+  needsApplicable = true,
 }) => {
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -44,6 +45,7 @@ const DigimonStatusBadges = ({
     sleepLightOnStart,
     deathReason,
     currentTime,
+    needsApplicable,
   });
 
   const displayMessages = getSummaryDigimonStatusMessages(allMessages, 3);

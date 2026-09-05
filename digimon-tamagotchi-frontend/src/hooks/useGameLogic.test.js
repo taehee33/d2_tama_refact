@@ -184,6 +184,26 @@ describe("useGameLogic call helpers", () => {
   });
 });
 
+describe("생리 요구사항 미적용 호출 방어선", () => {
+  test("stale deadline이 지난 호출도 케어미스를 생성하지 않는다", () => {
+    const stats = {
+      fullness: 0,
+      strength: 0,
+      careMistakes: 4,
+      careMistakeLedger: [],
+      callStatus: {
+        hunger: { isActive: true, startedAt: 0, isLogged: false },
+        strength: { isActive: true, startedAt: 0, isLogged: false },
+        sleep: { isActive: true, startedAt: 0, isLogged: false },
+      },
+    };
+    const result = checkCallTimeouts(stats, new Date(60 * 60 * 1000), "SLEEPING_LIGHT_ON", false);
+    expect(result).toBe(stats);
+    expect(result.careMistakes).toBe(4);
+    expect(result.careMistakeLedger).toHaveLength(0);
+  });
+});
+
 describe("useGameLogic evolution helpers", () => {
   test("evaluateEvolutionRangeRequirement는 min/max 범위를 공통 규칙으로 계산한다", () => {
     expect(

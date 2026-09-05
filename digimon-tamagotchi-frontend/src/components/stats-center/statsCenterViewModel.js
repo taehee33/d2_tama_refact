@@ -1,4 +1,5 @@
 import { buildHealthRiskViewModel } from "./healthRiskViewModel";
+import { buildCareMistakeHistoryViewModel } from "./careMistakeHistoryViewModel";
 import { formatTimestamp as formatActivityTimestamp } from "../../utils/dateUtils";
 import { selectCurrentStageSleepDisturbanceLogs } from "../../utils/sleepDisturbanceLogs";
 
@@ -262,7 +263,7 @@ function buildDiagnosticSections(stats) {
  * 원본 변경, 저장 payload 생성, lazy update, 게임 규칙 재계산은 하지 않습니다.
  *
  * @param {{stats?: Object, digimonData?: Object|null, sleepStatus?: string, currentTime?: Date|number|string, activityLogs?: Array<Object>}} input
- * @returns {{statusItems: Array<{key: string, label: string, value: string}>, sleepDisturbanceHistory: Object, healthRiskItems: Array<Object>, lifespanInfo: Object, diagnosticSections: Array<Object>}}
+ * @returns {{statusItems: Array<{key: string, label: string, value: string}>, careMistakeHistory: Object, sleepDisturbanceHistory: Object, healthRiskItems: Array<Object>, lifespanInfo: Object, diagnosticSections: Array<Object>}}
  */
 export function buildStatsCenterViewModel({
   stats = {},
@@ -279,6 +280,10 @@ export function buildStatsCenterViewModel({
       stats: safeStats,
       digimonData,
       sleepStatus,
+    }),
+    careMistakeHistory: buildCareMistakeHistoryViewModel({
+      stats: safeStats,
+      activityLogs,
     }),
     sleepDisturbanceHistory: buildSleepDisturbanceHistory(safeStats, activityLogs),
     ...healthRiskViewModel,

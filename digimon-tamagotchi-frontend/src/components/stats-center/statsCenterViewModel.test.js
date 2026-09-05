@@ -14,6 +14,189 @@ function deepFreeze(value) {
 }
 
 describe("buildStatsCenterViewModel", () => {
+  test("V2 incident를 이력 정본으로 사용하고 연결 활동 로그가 중복 항목을 만들지 않는다", () => {
+    const result = buildStatsCenterViewModel({
+      stats: {
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: [{
+          careSchemaVersion: 2,
+          incidentId: "incident-1",
+          evolutionStageInstanceId: "stage-current",
+          occurredRevision: 4,
+          operationIndex: 0,
+          occurredAt: 1000,
+          reasonKey: "hunger_call",
+          text: "incident 사유",
+          status: "unresolved",
+          resolvedAt: null,
+        }],
+      },
+      activityLogs: [{
+        incidentId: "incident-1",
+        type: "CAREMISTAKE",
+        text: "활동 로그 사유",
+        timestamp: 2000,
+      }],
+    });
+
+    expect(result.careMistakeHistory).toMatchObject({
+      totalCount: 1,
+      isLegacyFallback: false,
+      isIncomplete: false,
+    });
+    expect(result.careMistakeHistory.items).toEqual([expect.objectContaining({
+      incidentId: "incident-1",
+      occurredAt: 1000,
+      reason: "활동 로그 사유",
+      status: "active",
+    })]);
+  });
+
+  test("V2 상태는 incident만으로 활성·해소·확인 불가를 표시한다", () => {
+    const incident = (incidentId, operationIndex, status, resolvedAt) => ({
+      careSchemaVersion: 2,
+      incidentId,
+      evolutionStageInstanceId: "stage-current",
+      occurredRevision: 8,
+      operationIndex,
+      occurredAt: 1000,
+      text: incidentId,
+      status,
+      resolvedAt,
+    });
+    const result = buildStatsCenterViewModel({
+      stats: {
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: [
+          incident("active", 0, "unresolved", null),
+          incident("resolved", 1, "resolved", 3000),
+          incident("unknown", 2, "damaged", null),
+        ],
+      },
+    });
+
+    expect(result.careMistakeHistory.items.map((entry) => entry.status)).toEqual([
+      "unknown", "resolved", "active",
+    ]);
+  });
+
+  test("incidentId가 연결되지 않으면 기존 eventId, 그다음 시각·사유로 활동 로그를 보완한다", () => {
+    const incident = (incidentId, operationIndex, eventId, occurredAt) => ({
+      careSchemaVersion: 2,
+      incidentId,
+      eventId,
+      evolutionStageInstanceId: "stage-current",
+      occurredRevision: 8,
+      operationIndex,
+      occurredAt,
+      reasonKey: "hunger_call",
+      text: "incident 기본 문구",
+      status: "unresolved",
+      resolvedAt: null,
+    });
+    const result = buildStatsCenterViewModel({
+      stats: {
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: [
+          incident("event-linked", 0, "event-1", 1000),
+          incident("legacy-linked", 1, null, 2000),
+        ],
+      },
+      activityLogs: [
+        { eventId: "event-1", type: "CAREMISTAKE", text: "eventId 보완", timestamp: 3000 },
+        { type: "CAREMISTAKE", text: "케어미스(사유: 배고픔 콜 무시)", timestamp: 2000 },
+      ],
+    });
+
+    expect(result.careMistakeHistory.items.map((entry) => entry.reason)).toEqual([
+      "케어미스(사유: 배고픔 콜 무시)",
+      "eventId 보완",
+    ]);
+  });
+
+  test("V2는 revision·operation·incident 순서를 유지하고 이전 진화 구간은 제외한다", () => {
+    const incident = (incidentId, occurredRevision, operationIndex, stageId = "stage-current") => ({
+      careSchemaVersion: 2,
+      incidentId,
+      evolutionStageInstanceId: stageId,
+      occurredRevision,
+      operationIndex,
+      occurredAt: 1000,
+      text: incidentId,
+      status: "unresolved",
+      resolvedAt: null,
+    });
+    const result = buildStatsCenterViewModel({
+      stats: {
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: [
+          incident("b", 7, 0),
+          incident("a", 7, 0),
+          incident("later-operation", 7, 1),
+          incident("later-revision", 8, 0),
+          incident("old-stage", 99, 0, "stage-old"),
+        ],
+      },
+    });
+
+    expect(result.careMistakeHistory.items.map((entry) => entry.incidentId)).toEqual([
+      "later-revision", "later-operation", "b", "a",
+    ]);
+  });
+
+  test("V2 이력은 최신 10건만 표시해도 케어미스 숫자를 바꾸지 않는다", () => {
+    const incidents = Array.from({ length: 11 }, (_, index) => ({
+      careSchemaVersion: 2,
+      incidentId: `incident-${index}`,
+      evolutionStageInstanceId: "stage-current",
+      occurredRevision: index,
+      operationIndex: 0,
+      occurredAt: 1000,
+      text: `기록 ${index}`,
+      status: "unresolved",
+      resolvedAt: null,
+    }));
+    const result = buildStatsCenterViewModel({
+      stats: {
+        careMistakes: 71,
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: incidents,
+      },
+    });
+
+    expect(result.statusItems.find((item) => item.key === "careMistakes").value).toBe("71회");
+    expect(result.careMistakeHistory).toMatchObject({
+      totalCount: 11,
+      displayedCount: 10,
+      isTruncated: true,
+    });
+    expect(result.careMistakeHistory.items[0].incidentId).toBe("incident-10");
+  });
+
+  test("불완전한 레거시 ledger는 현재 구간 활동 로그만 fallback하고 상태를 추측하지 않는다", () => {
+    const result = buildStatsCenterViewModel({
+      stats: {
+        evolutionStageStartedAt: 2000,
+        careMistakeLedger: [{ id: "legacy-without-v2-fields", occurredAt: 3000 }],
+      },
+      activityLogs: [
+        { type: "CAREMISTAKE", text: "현재 구간", timestamp: 3000 },
+        { type: "CAREMISTAKE", text: "현재 구간", timestamp: 3000 },
+        { type: "CAREMISTAKE", text: "이전 구간", timestamp: 1000 },
+      ],
+    });
+
+    expect(result.careMistakeHistory).toMatchObject({
+      totalCount: 1,
+      isLegacyFallback: true,
+      isIncomplete: true,
+    });
+    expect(result.careMistakeHistory.items[0]).toMatchObject({
+      reason: "현재 구간",
+      status: "unknown",
+    });
+  });
+
   test("표시 fallback만 적용하고 원본 게임 상태를 변경하지 않는다", () => {
     const stats = deepFreeze({
       age: "4",
