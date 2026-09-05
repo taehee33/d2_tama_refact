@@ -53,10 +53,10 @@ function getTimedDeathAt(startAt, stats, nowMs, thresholdMs, elapsedMs) {
   return Math.max(startMs, effectiveEndMs - exceededByMs);
 }
 
-export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
+export function evaluateDeathConditions(stats = {}, nowMs = Date.now(), needsApplicable = true) {
   const safeNowMs = toTimestamp(nowMs) ?? Date.now();
 
-  if (stats.fullness === 0 && stats.lastHungerZeroAt) {
+  if (needsApplicable && stats.fullness === 0 && stats.lastHungerZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastHungerZeroAt,
       stats,
@@ -72,7 +72,7 @@ export function evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
     }
   }
 
-  if (stats.strength === 0 && stats.lastStrengthZeroAt) {
+  if (needsApplicable && stats.strength === 0 && stats.lastStrengthZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastStrengthZeroAt,
       stats,

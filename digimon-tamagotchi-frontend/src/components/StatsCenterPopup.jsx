@@ -172,6 +172,7 @@ export default function StatsCenterPopup({
           {visibleActiveTab === STATUS_TAB ? (
             <StatusTab
               items={viewModel.statusItems}
+              careMistakeHistory={viewModel.careMistakeHistory}
               sleepDisturbanceHistory={viewModel.sleepDisturbanceHistory}
             />
           ) : visibleActiveTab === RISK_TAB ? (

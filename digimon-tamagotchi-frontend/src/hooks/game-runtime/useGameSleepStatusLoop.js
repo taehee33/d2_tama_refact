@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { getSleepStatus } from "../useGameLogic";
 import { getSleepSchedule } from "../useGameHandlers";
+import { isPhysiologicalNeedsApplicable } from "../../utils/digimonVersionUtils";
 
 export function useGameSleepStatusLoop({
   selectedDigimon,
@@ -41,6 +42,7 @@ export function useGameSleepStatusLoop({
         wakeUntil: live.wakeUntil,
         fastSleepStart: live.digimonStats.fastSleepStart || null,
         napUntil: live.digimonStats.napUntil || null,
+        needsApplicable: isPhysiologicalNeedsApplicable(live.selectedDigimon),
         now: new Date(),
       });
 

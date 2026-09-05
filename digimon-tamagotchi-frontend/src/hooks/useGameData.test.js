@@ -961,6 +961,7 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Devimon",
       sleepSchedule: { start: 1, end: 9 },
       maxEnergy: 14,
+      needsApplicable: true,
     });
   });
 
@@ -988,6 +989,7 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Agumon",
       sleepSchedule: { start: 21, end: 7 },
       maxEnergy: 10,
+      needsApplicable: true,
     });
   });
 
@@ -1012,6 +1014,7 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Greymon",
       sleepSchedule: { start: 22, end: 6 },
       maxEnergy: 6,
+      needsApplicable: true,
     });
   });
 
@@ -1027,6 +1030,7 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Digitama",
       sleepSchedule: null,
       maxEnergy: null,
+      needsApplicable: false,
     });
   });
 });
@@ -1437,8 +1441,8 @@ describe("buildLoadedSlotHydrationPlan", () => {
     expect(secondReconnect.evolutionStageStartedAt).toBe(createdAt);
     expect(secondReconnect.lifespanSeconds).toBeGreaterThan(firstReconnect.lifespanSeconds);
     expect(secondReconnect.timeToEvolveSeconds).toBeLessThan(firstReconnect.timeToEvolveSeconds);
-    expect(secondReconnect.hungerCountdown).toBeLessThan(firstReconnect.hungerCountdown);
-    expect(secondReconnect.strengthCountdown).toBeLessThan(firstReconnect.strengthCountdown);
+    expect(secondReconnect.hungerCountdown).toBe(firstReconnect.hungerCountdown);
+    expect(secondReconnect.strengthCountdown).toBe(firstReconnect.strengthCountdown);
     expect(secondReconnect.poopCountdown).toBeLessThan(firstReconnect.poopCountdown);
   });
 });

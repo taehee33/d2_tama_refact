@@ -41,6 +41,7 @@ import { evaluateDeathConditions } from "../logic/stats/death";
 import {
   getStarterDigimonId,
   getStarterDigimonIdFromDataMap,
+  isPhysiologicalNeedsApplicable,
   isStarterDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
@@ -87,6 +88,7 @@ import {
   isCareMistakeResolutionActivityLog,
 } from "../logic/stats/careMistakeProjection";
 import { buildCareMistakeLedgerFromIncidents } from "../logic/stats/careMistakeLedger";
+import { cleanupPhysiologicalNeedsState } from "../logic/stats/physiologicalNeeds";
 import {
   buildCareMistakeReconciliationPlan,
   commitCareMistakeReconciliation,
@@ -136,6 +138,7 @@ function createCareV2ClientCommandId(prefix) {
 const CARE_MISTAKE_STATE_FIELDS = Object.freeze([
   "careMistakes",
   "careMistakeLedger",
+  "careMistakeHistoryIncidents",
   "unresolvedCareMistakeCount",
   "latestUnresolvedCareMistakeIncidentId",
   "latestCareMistakeAt",
@@ -399,6 +402,7 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
     selectedDigimon: _dropSelectedDigimon,
     careMistakes: _dropCareMistakes,
     careMistakeLedger: _dropCareMistakeLedger,
+    careMistakeHistoryIncidents: _dropCareMistakeHistoryIncidents,
     unresolvedCareMistakeCount: _dropUnresolvedCareMistakeCount,
     latestUnresolvedCareMistakeIncidentId: _dropLatestCareMistakeIncidentId,
     latestCareMistakeAt: _dropLatestCareMistakeAt,
@@ -663,6 +667,7 @@ export function buildLoadedSlotHydrationResult({
   activityLogs = [],
   selectedDigimon = null,
   digimonStats = {},
+  physiologicalCleanupChanged = false,
 } = {}) {
   const resolvedSelectedDigimon =
     selectedDigimon || digimonStats?.selectedDigimon || null;
@@ -682,6 +687,7 @@ export function buildLoadedSlotHydrationResult({
       ? { ...digimonStats, selectedDigimon: resolvedSelectedDigimon }
       : digimonStats,
     deathReason: digimonStats?.deathReason || null,
+    physiologicalCleanupChanged,
   };
 }
 
@@ -993,11 +999,17 @@ export function buildLoadedSlotRuntimeState({
   runtimeAdaptedDataMaps = {},
   evolutionDataForSlot = null,
 } = {}) {
-  const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
+  const needsApplicable = isPhysiologicalNeedsApplicable(savedName);
+  const cleanupResult = cleanupPhysiologicalNeedsState({
+    stats: resolveLazyUpdateBaseStats(
     savedStats,
     {},
     rootSlotFields
-  );
+    ),
+    rootSlotFields,
+    needsApplicable,
+  });
+  const lazyUpdateBaseStats = cleanupResult.stats;
   const lastSavedAt =
     resolveLastSavedAtSource(slotData, lazyUpdateBaseStats) ?? Date.now();
 
@@ -1035,6 +1047,7 @@ export function buildLoadedSlotRuntimeState({
     dataMap,
     slotRuntimeDataMap,
     runtimeAdaptedDataMaps,
+    needsApplicable,
   });
   const digimonStats = lazyUpdateResult.digimonStats;
   const reconstructedLogsToPersist = lazyUpdateResult.reconstructedLogsToPersist;
@@ -1054,6 +1067,8 @@ export function buildLoadedSlotRuntimeState({
   return {
     digimonStats,
     reconstructedLogsToPersist,
+    rootSlotFields: cleanupResult.rootSlotFields || rootSlotFields,
+    physiologicalCleanupChanged: cleanupResult.changed,
   };
 }
 
@@ -1149,12 +1164,14 @@ export function buildLoadedSlotHydrationPlan({
       slotData,
       slotId,
       slotVersionLabel,
-      rootSlotFields,
+      rootSlotFields: runtimeState.rootSlotFields,
       activityLogs: loadedActivityLogs,
       selectedDigimon: savedName,
       digimonStats: runtimeState.digimonStats,
+      physiologicalCleanupChanged: runtimeState.physiologicalCleanupChanged,
     }),
     reconstructedLogsToPersist: runtimeState.reconstructedLogsToPersist,
+    physiologicalCleanupChanged: runtimeState.physiologicalCleanupChanged,
   };
 }
 
@@ -1184,6 +1201,7 @@ export function buildLazyUpdateRuntimeResult({
   dataMap = null,
   slotRuntimeDataMap = null,
   runtimeAdaptedDataMaps = {},
+  needsApplicable = true,
   nowMs = null,
 } = {}) {
   const prevLogCount = Array.isArray(baseStats.activityLogs)
@@ -1199,6 +1217,7 @@ export function buildLazyUpdateRuntimeResult({
   const digimonStats = normalizeGameTimingFields(
     applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
       digimonSnapshot,
+      needsApplicable,
       ...(nowMs != null && Number.isFinite(Number(nowMs))
         ? { nowMs: Number(nowMs) }
         : {}),
@@ -1234,7 +1253,7 @@ function resolveDefaultSleepScheduleByStage(stage = "Digitama") {
  * @param {Object} params
  * @param {Object} [params.digimonStats]
  * @param {Object|null} [params.slotRuntimeDataMap]
- * @returns {{ currentDigimonName: string, sleepSchedule: Object|null, maxEnergy: number|null }}
+ * @returns {{ currentDigimonName: string, sleepSchedule: Object|null, maxEnergy: number|null, needsApplicable: boolean }}
  */
 export function resolveActionLazyUpdateRuntimeContext({
   digimonStats = {},
@@ -1253,24 +1272,28 @@ export function resolveActionLazyUpdateRuntimeContext({
     : "Digitama";
 
   const digimonData = slotRuntimeDataMap?.[currentDigimonName];
+  const needsApplicable = isPhysiologicalNeedsApplicable(currentDigimonName);
   if (!digimonData) {
     return {
       currentDigimonName,
       sleepSchedule: null,
       maxEnergy: null,
+      needsApplicable,
     };
   }
 
-  const sleepSchedule =
-    digimonData.stats?.sleepSchedule ||
-    digimonData.sleepSchedule ||
-    resolveDefaultSleepScheduleByStage(
-      digimonData.stage || digimonStats.evolutionStage || "Digitama"
-    );
+  const sleepSchedule = needsApplicable
+    ? (digimonData.stats?.sleepSchedule ||
+      digimonData.sleepSchedule ||
+      resolveDefaultSleepScheduleByStage(
+        digimonData.stage || digimonStats.evolutionStage || "Digitama"
+      ))
+    : null;
 
   return {
     currentDigimonName,
     sleepSchedule,
+    needsApplicable,
     maxEnergy:
       digimonData.stats?.maxEnergy ??
       digimonStats.maxEnergy ??
@@ -2140,7 +2163,7 @@ export function useGameData({
         } else {
           const executionNow = Date.now();
           const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
-          const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+          const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
             digimonStats: baseStats,
             slotRuntimeDataMap,
             selectedDigimon,
@@ -2150,6 +2173,7 @@ export function useGameData({
             lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? executionNow,
             sleepSchedule,
             maxEnergy,
+            needsApplicable,
             selectedDigimon:
               baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
             evolutionDataForSlot,
@@ -2242,7 +2266,7 @@ export function useGameData({
       return digimonStats;
     }
 
-    const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+    const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
       digimonStats,
       slotRuntimeDataMap,
       selectedDigimon,
@@ -2272,6 +2296,7 @@ export function useGameData({
           lastSavedAt,
           sleepSchedule,
           maxEnergy,
+          needsApplicable,
           selectedDigimon:
             baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
           evolutionDataForSlot,
@@ -2305,7 +2330,11 @@ export function useGameData({
    */
   function checkDeathStatus(updated) {
     if (!digimonStats.isDead && updated.isDead) {
-      const deathEvaluation = evaluateDeathConditions(updated, Date.now());
+      const deathEvaluation = evaluateDeathConditions(
+        updated,
+        Date.now(),
+        isPhysiologicalNeedsApplicable(updated.selectedDigimon || selectedDigimon)
+      );
       const reason = updated.deathReason ?? deathEvaluation.reason;
       
       if (reason) {
@@ -2666,6 +2695,9 @@ export function useGameData({
                   careMistakeLedger: buildCareMistakeLedgerFromIncidents(
                     careReconciliationPlan.incidents
                   ),
+                  // 상태 탭의 읽기 전용 V2 이력 정본. sanitize 단계에서 제거되어
+                  // 슬롯 문서·outbox·저장 payload에는 포함되지 않는다.
+                  careMistakeHistoryIncidents: careReconciliationPlan.incidents,
                 }
               : {}),
           };
@@ -2733,7 +2765,7 @@ export function useGameData({
                 console.warn("동일한 로컬 pending 정리 오류:", cleanupError);
               }
             } else if (pendingHydration.status === PENDING_HYDRATION_STATUS.APPLY) {
-              const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+              const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
                 digimonStats: pendingHydration.digimonStats,
                 slotRuntimeDataMap,
                 selectedDigimon: pendingHydration.selectedDigimon,
@@ -2743,6 +2775,7 @@ export function useGameData({
                 lastSavedAt: pendingHydration.lastSavedAt ?? Date.now(),
                 sleepSchedule,
                 maxEnergy,
+                needsApplicable,
                 selectedDigimon: pendingHydration.selectedDigimon,
                 evolutionDataForSlot,
                 dataMap,
@@ -2800,7 +2833,7 @@ export function useGameData({
               CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
             ].includes(careProjection.careMistakeReconciliationStatus);
             if (
-              reconstructedLogsToPersist.length > 0 &&
+              (reconstructedLogsToPersist.length > 0 || hydrationResult.physiologicalCleanupChanged) &&
               canPersistHydrationReconstruction
             ) {
               // 재구성 사건이 IndexedDB에 내구성 있게 적재되기 전에는

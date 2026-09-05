@@ -8,15 +8,19 @@ import {
   shiftSleepScheduleByHours,
 } from "../utils/sleepUtils";
 import { getGameMenuById, getMenuDisabledState } from "../constants/gameMenus";
+import { isPhysiologicalNeedsApplicable } from "../utils/digimonVersionUtils";
 
 /**
  * 수면 스케줄 가져오기 (야행성 모드 반영)
  * @param {string} name - 디지몬 이름
  * @param {Object} digimonDataMap - 현재 슬롯의 디지몬 데이터 맵
  * @param {Object|null} digimonStats - 디지몬 스탯 (야행성 모드 확인용, 선택적)
- * @returns {Object} 수면 스케줄 객체 { start, end }
+ * @returns {Object|null} 수면 스케줄 객체 { start, end }. 디지타마는 null.
  */
 export const getSleepSchedule = (name, digimonDataMap, digimonStats = null) => {
+  if (!isPhysiologicalNeedsApplicable(name)) {
+    return null;
+  }
   const data = digimonDataMap?.[name] || {};
   const baseSchedule = normalizeSleepSchedule(data.sleepSchedule || { start: 22, end: 6 });
   
@@ -36,6 +40,7 @@ export const getSleepSchedule = (name, digimonDataMap, digimonStats = null) => {
  * @returns {boolean}
  */
 export const isWithinSleepSchedule = (schedule, nowDate = new Date()) => {
+  if (schedule == null) return false;
   return isTimeWithinSleepSchedule(schedule, nowDate);
 };
 
@@ -62,6 +67,10 @@ export function buildToggledLightsStats({
     ...digimonStats,
     isLightsOn: next,
   };
+
+  if (!isPhysiologicalNeedsApplicable(selectedDigimon)) {
+    return updatedStats;
+  }
 
   if (!next) {
     updatedStats = resetCallStatus(updatedStats, "sleep");

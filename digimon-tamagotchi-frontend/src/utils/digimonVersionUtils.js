@@ -96,6 +96,19 @@ export function isStarterDigimonId(digimonId) {
   return STARTER_DIGIMON_IDS.includes(digimonId);
 }
 
+/**
+ * 디지타마에는 배고픔·힘·수면 요구사항을 적용하지 않는다.
+ *
+ * 이 판단은 현재 디지몬 identity만으로 매번 계산한다. 슬롯이나 세션에
+ * 캐시하지 않아 부화·진화 직후 즉시 일반 생리 규칙으로 전환된다.
+ *
+ * @param {string|null|undefined} digimonId
+ * @returns {boolean}
+ */
+export function isPhysiologicalNeedsApplicable(digimonId) {
+  return !isStarterDigimonId(digimonId);
+}
+
 export function getDeathFormIds(version = "Ver.1") {
   return [...getDigimonVersionConfig(version).deathFormIds];
 }

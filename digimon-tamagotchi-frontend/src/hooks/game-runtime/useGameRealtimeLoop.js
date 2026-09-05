@@ -23,6 +23,8 @@ import {
   evaluateDeathConditions,
 } from "../../logic/stats/death";
 import { buildDigimonLogSnapshot } from "../../utils/digimonLogSnapshot";
+import { isPhysiologicalNeedsApplicable } from "../../utils/digimonVersionUtils";
+import { cleanupInapplicablePhysiologicalNeeds } from "../../logic/stats/physiologicalNeeds";
 
 export function resolveRealtimeTickWindow(previousTickTimeMs, nowMs, maxStepSeconds = 60) {
   const availableSeconds = Math.floor((nowMs - previousTickTimeMs) / 1000);
@@ -186,6 +188,7 @@ export function useGameRealtimeLoop({
           live.selectedDigimon || currentDigimonName,
           live.digimonDataForSlot
         );
+        const needsApplicable = isPhysiologicalNeedsApplicable(currentDigimonName);
         const schedule = getSleepSchedule(
           currentDigimonName,
           live.digimonDataForSlot,
@@ -201,30 +204,38 @@ export function useGameRealtimeLoop({
           wakeUntil: live.wakeUntil,
           fastSleepStart: prevStats.fastSleepStart || null,
           napUntil: prevStats.napUntil || null,
+          needsApplicable,
           now: nowDate,
         });
         const isActuallySleeping = isSleepStatusSleeping(currentSleepStatus);
         const wasSleepStatus = prevSleepStatusRef.current;
         const wasSleepWarning = wasSleepStatus === "SLEEPING_LIGHT_ON";
+        const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
+        const wasNapping = wasSleepStatus === "NAPPING";
+        const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
+        const isNapping = currentSleepStatus === "NAPPING";
 
-        let updatedStats = updateLifespan(
+        let updatedStats = cleanupInapplicablePhysiologicalNeeds(
+          updateLifespan(
           prevStats,
           safeElapsedSeconds,
           isActuallySleeping,
           nowMs
-        );
+          ),
+          needsApplicable
+        ).stats;
         const currentDigimonData =
           live.digimonDataForSlot[currentDigimonName] ||
           live.digimonDataForSlot.Digitama;
 
-        updatedStats = handleHungerTick(
+        if (needsApplicable) updatedStats = handleHungerTick(
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
           isActuallySleeping,
           nowMs
         );
-        updatedStats = handleStrengthTick(
+        if (needsApplicable) updatedStats = handleStrengthTick(
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
@@ -243,12 +254,17 @@ export function useGameRealtimeLoop({
             isLightsOn: live.isLightsOn,
             wakeUntil: live.wakeUntil,
           },
-          schedule,
+          needsApplicable ? schedule : null,
           maxEnergy,
           nowDate
         );
 
         updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
+        if (!needsApplicable) {
+          prevSleepStatusRef.current = "AWAKE";
+          setIsSleeping(false);
+        }
+        if (needsApplicable) {
         updatedStats.fastSleepStart = prevStats.fastSleepStart || null;
         updatedStats.napUntil = prevStats.napUntil || null;
 
@@ -297,10 +313,6 @@ export function useGameRealtimeLoop({
           updatedStats.sleepLightOnStart = null;
         }
 
-        const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
-        const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
-        const wasNapping = wasSleepStatus === "NAPPING";
-        const isNapping = currentSleepStatus === "NAPPING";
         if (wasSleepStatus !== null) {
           const timeStr = new Date(nowMs).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
@@ -334,19 +346,6 @@ export function useGameRealtimeLoop({
 
         setIsSleeping(isSleepingLike);
 
-        if (!updatedStats.isDead) {
-          const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
-          if (deathEvaluation.isDead) {
-            updatedStats = applyDeathEvaluationToStats(
-              updatedStats,
-              deathEvaluation
-            );
-            if (deathEvaluation.reason) {
-              setDeathReason(deathEvaluation.reason);
-            }
-          }
-        }
-
         const sleepSchedule = getSleepSchedule(
           live.selectedDigimon,
           live.digimonDataForSlot,
@@ -358,7 +357,8 @@ export function useGameRealtimeLoop({
           live.isLightsOn,
           sleepSchedule,
           new Date(),
-          currentSleepStatus
+          currentSleepStatus,
+          needsApplicable
         );
 
         if (
@@ -375,6 +375,14 @@ export function useGameRealtimeLoop({
             }
             return nextLogs;
           });
+        }
+
+        if (!updatedStats.isDead) {
+          const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs, needsApplicable);
+          if (deathEvaluation.isDead) {
+            updatedStats = applyDeathEvaluationToStats(updatedStats, deathEvaluation);
+            if (deathEvaluation.reason) setDeathReason(deathEvaluation.reason);
+          }
         }
 
         if (
@@ -423,7 +431,8 @@ export function useGameRealtimeLoop({
         updatedStats = checkCallTimeouts(
           updatedStats,
           new Date(),
-          currentSleepStatus
+          currentSleepStatus,
+          needsApplicable
         );
 
         let nextLedger = initializeCareMistakeLedger(updatedStats.careMistakeLedger);
@@ -475,6 +484,7 @@ export function useGameRealtimeLoop({
 
           setActivityLogs(currentLogs);
           updatedStats = { ...updatedStats, activityLogs: currentLogs };
+        }
         }
 
         const oldPoopCount = prevStats.poopCount || 0;
@@ -566,10 +576,10 @@ export function useGameRealtimeLoop({
         }
 
         updatedStats.isLightsOn = live.isLightsOn;
-        updatedStats.wakeUntil = live.wakeUntil;
+        updatedStats.wakeUntil = needsApplicable ? live.wakeUntil : null;
 
         const sleepLifecycleChanged =
-          wasSleepStatus !== null &&
+          needsApplicable && wasSleepStatus !== null &&
           (wasSleepingLike !== isSleepingLike || wasNapping !== isNapping);
 
         if (

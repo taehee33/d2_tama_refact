@@ -75,6 +75,29 @@ describe("DigimonStatusBadges", () => {
     const allMessages = handleOpenStatusDetail.mock.calls[0][0];
     expect(allMessages.map((message) => message.id)).toContain("time-until-sleep");
   });
+
+  test("부화 전에는 생리 메시지를 숨기고 독립적인 진화 가능 상태는 유지한다", () => {
+    render(
+      <DigimonStatusBadges
+        digimonStats={{
+          fullness: 0,
+          strength: 0,
+          callStatus: {
+            hunger: { isActive: true },
+            strength: { isActive: true },
+            sleep: { isActive: true },
+          },
+        }}
+        sleepStatus="SLEEPING_LIGHT_ON"
+        sleepSchedule={{ start: 22, end: 6 }}
+        canEvolve
+        needsApplicable={false}
+      />
+    );
+
+    expect(screen.getByText("진화 가능 ✨")).toBeInTheDocument();
+    expect(screen.queryByText(/배고픔 호출|힘 호출|수면 조명|배고픔 0|힘 0/)).not.toBeInTheDocument();
+  });
 });
 
 test("게임 저장 동기화 상태를 상단 상태 배지에 표시하지 않는다", () => {

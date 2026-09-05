@@ -127,6 +127,44 @@ describe("StatsCenterPopup 공개 상태", () => {
     expect(screen.getByText("0회")).toBeInTheDocument();
   });
 
+  test("케어미스가 0회여도 현재 구간의 해소 이력은 접근 가능한 아코디언으로 연다", () => {
+    render(<StatsCenterPopup {...createProps({
+      stats: {
+        ...BASE_STATS,
+        careMistakes: 0,
+        evolutionStageInstanceId: "stage-current",
+        careMistakeHistoryIncidents: [{
+          careSchemaVersion: 2,
+          incidentId: "resolved-care",
+          evolutionStageInstanceId: "stage-current",
+          occurredRevision: 3,
+          operationIndex: 0,
+          occurredAt: 1000,
+          text: "배고픔 콜 미응답",
+          status: "resolved",
+          resolvedAt: 2000,
+        }],
+      },
+    })} />);
+
+    const historyButton = screen.getByRole("button", { name: /케어 미스.*0회/ });
+    expect(historyButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(historyButton);
+
+    const history = screen.getByRole("region", { name: "케어 미스 이력" });
+    expect(within(history).getByText("배고픔 콜 미응답")).toBeInTheDocument();
+    expect(within(history).getByText("해소됨")).toBeInTheDocument();
+  });
+
+  test("케어미스 이력이 없으면 해당 행은 읽기 전용으로 유지한다", () => {
+    render(<StatsCenterPopup {...createProps({
+      stats: { ...BASE_STATS, careMistakes: 0, careMistakeHistoryIncidents: [] },
+    })} />);
+
+    expect(screen.queryByRole("button", { name: /케어 미스/ })).not.toBeInTheDocument();
+    expect(screen.getByText("케어 미스")).toBeInTheDocument();
+  });
+
   test("위험 탭에 5개 위험 카드와 상한 없는 누적 수명을 읽기 전용으로 표시한다", () => {
     const props = createProps({
       stats: {
