@@ -454,6 +454,20 @@ describe("useDurableGamePersistence", () => {
     expect(getDoc).not.toHaveBeenCalled();
   });
 
+  test("복구 중 일반 액션은 차단하고 명시한 케어 전이만 기준 상태를 읽는다", async () => {
+    const params = createHookParams(createMemoryOutbox([]));
+    params.persistenceAccessRef.current.careMistakeReconciliationStatus = "in_progress";
+    const { result } = renderHook(() => useDurableGamePersistence(params));
+    await act(async () => {
+      expect(await result.current.getLatestStateSnapshot()).toBeNull();
+      expect(await result.current.getLatestStateSnapshot(null, { allowCareTransition: true }))
+        .toMatchObject({ statsSnapshot: params.digimonStats });
+      const staleContext = { ...result.current.captureSaveContext(), generation: -1 };
+      expect(await result.current.getLatestStateSnapshot(staleContext, { allowCareTransition: true }))
+        .toBeNull();
+    });
+  });
+
   test("Firestore transaction 전에 상태를 outbox에 기록하고 성공 후 같은 mutation을 삭제한다", async () => {
     jest.useFakeTimers();
     jest.setSystemTime(1_000);

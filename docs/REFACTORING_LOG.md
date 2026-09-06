@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-09-06] 동기화 전 돌봄 결과가 다음 액션에서 되돌아가는 문제 수정
+
+- **증상·재현:** 고기·프로틴을 연속으로 줘도 증가분이 누적되지 않고, 청소·치료 후 다음 액션에서 배변과 부상 상태가 되살아났다. 원격 상태를 이전 값으로 고정한 훅 회귀 테스트에서 먹이 3회 후 수치가 4 대신 2, 청소·치료 후 배변 2·부상 true로 돌아가는 것을 확인했다.
+- **원인:** 액션 직전 `applyLazyUpdateForAction`이 Firestore를 매번 다시 읽어, 15분 동기화 사이에 IndexedDB outbox에 저장된 최신 돌봄 결과를 계산 기준에서 제외했다. 이전 저장 시각도 재사용해 경과 시간 계산의 기준이 어긋났다.
+- **수정:** 기존 `getLatestStateSnapshot` 경계가 반환하는 현재 생애의 outbox 또는 마지막 동기화 스냅샷과 그 저장 시각을 함께 사용한다. 읽기 실패·identity 차단 시 오래된 메모리 상태로 액션을 계속하지 않는다. 복구 중인 케어 전이에는 기존 `allowCareTransition` 옵션을 전달하고 일반 액션 차단은 유지한다.
+- **책임·저장 계약:** Firestore 정본, IndexedDB 전송 대기함, identity·revision·transaction 검증, 15분 동기화 주기와 lazy 계산 규칙은 유지했다. 새 저장소·타이머·의존성을 추가하지 않고 기존 저장 경계의 읽기 경로를 재사용했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.actions.test.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `src/hooks/game-persistence/useDurableGamePersistence.test.js` (뒤 세 경로도 동일 프런트엔드 디렉토리 기준), `docs/REFACTORING_LOG.md`.
+- **검증:** 수정 전 핵심 회귀 4개 실패 확인. Node 24.18.0에서 두 lockfile로 `npm ci --no-audit --no-fund`를 실행한 뒤 `npm run check` 통과: 프런트엔드 229 suites·1,613 tests, 서버 307 pass·25 Emulator-only skip, lint·typecheck·API 단일 경계·production build·server projection 성공. 필수 Emulator 명령을 순차 실행해 Firestore 9개, Arena/Jogress 26개 모두 통과. `git diff --check`도 통과했다.
+- **CI 보완:** UTC 호스트에서 테스트의 로컬 정오가 KST 21시 수면으로 해석되는 실패를 재현했다. 회귀 fixture를 `2026-09-06T12:00:00+09:00`으로 고정해 UTC·Asia/Seoul에서 같은 돌봄 시각을 검증한다. 런타임 수면 규칙은 바꾸지 않았다.
+- **범위:** 실제 사용자 슬롯 데이터는 직접 수정하지 않았다. 후속 사용자 요청으로 v0.8.5.0 릴리스와 main 운영 배포를 진행한다. UI 변경이 아니므로 Ponytail UI 보조 리뷰 시험 건수에는 포함하지 않는다.
+
+## [2026-09-06] Ponytail 단순화 원칙 선별 적용
+
+- **후속 설치:** 사용자 요청에 따라 공식 GitHub 마켓플레이스에서 로컬 Codex에 `ponytail@ponytail` 4.9.0을 실제 설치했다. Ponytail 사용자 설정의 `defaultMode`를 `off`로 저장하고, 프로젝트에서는 `ponytail-review`를 선택적으로 사용하도록 지침을 갱신했다. 아래 내용은 최초 지침 반영 당시의 결정 기록이다. 설치·설정은 저장소 밖 로컬 환경에 적용되며, 현재 대화에서 새 스킬이 자동 로드됐다는 의미는 아니다.
+
+- **변경:** 기존 구현·표준 및 브라우저 기능·설치된 의존성을 우선 확인하고, 현재 요구에 없는 확장성을 추가하지 않는 원칙을 `AGENTS.md`에 반영했다. 작은 UI 변경 3건에서 diff 보조 리뷰를 수행하고 발견·반영 여부와 회귀 여부를 평가하도록 정했다.
+- **아키텍처 결정 근거:** 최소 줄 수·파일 수보다 책임 경계와 유지보수성을 우선한다. Firestore 정본·IndexedDB outbox·identity·revision·transaction·실패 복구·lazy update, 필수 검사와 문서화 규칙은 유지한다. 원본 플러그인의 설치·상시 활성화 없이 프로젝트 지침으로 시험한다.
+- **영향 파일:** `AGENTS.md`, `docs/REFACTORING_LOG.md`.
+- **검증:** 문서 diff와 `git diff --check`로 확인한다. 런타임 변경이 없어 테스트·빌드·Emulator 검사는 실행하지 않는다. UI 변경 3건에 대한 시험 결과는 후속 작업에서 기록한다.
+
 ## [2026-09-06] 케어미스 발생 사건의 저장 누락과 lazy 카운터 불일치 수정
 
 - **증상:** 수면 조명 호출에 `케어미스 처리됨`이 남지만 횟수는 0으로 표시되고, 배고픔·힘 방치 사건이 저장 전이에서 누락될 수 있었다. 실제 운영 슬롯의 과거 누락 건수는 이 변경에서 추정하거나 보정하지 않았다.

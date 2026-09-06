@@ -1720,7 +1720,7 @@ export function useGameData({
     };
     
     // lazy update/live 로그를 합치기 전에 내구성 있게 저장된 비교 기준을 잡는다.
-    const persistedState = await getLatestStateSnapshot(saveContext);
+    const persistedState = await getLatestStateSnapshot(saveContext, persistenceOptions);
 
     // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
     let baseStats;
@@ -1728,7 +1728,7 @@ export function useGameData({
       console.log("[saveStats] 새로운 시작 감지 - applyLazyUpdate 건너뜀");
       baseStats = { ...digimonStats, ...newStats };
     } else {
-      baseStats = await applyLazyUpdateForAction();
+      baseStats = await applyLazyUpdateForAction(persistenceOptions);
     }
     if (!canStartGameplayWrite(saveContext, {
       allowCareTransition: persistenceOptions.allowCareTransition === true,
@@ -2271,67 +2271,51 @@ export function useGameData({
    * 액션 전에 Lazy Update 적용하는 헬퍼 함수
    * @returns {Promise<Object>} 업데이트된 스탯
    */
-  async function applyLazyUpdateForAction() {
-    if (!slotId) {
-      return digimonStats;
-    }
-
-    const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
-      digimonStats,
-      slotRuntimeDataMap,
-      selectedDigimon,
-    });
-
-    // Firebase 로그인 필수
-    if (!currentUser || !isFirebaseAvailable) {
+  async function applyLazyUpdateForAction(persistenceOptions = {}) {
+    if (!slotId || !currentUser || !isFirebaseAvailable) {
       return digimonStats;
     }
 
     try {
-      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-      const slotSnap = await getDoc(slotRef);
-      
-      if (slotSnap.exists()) {
-        const slotData = slotSnap.data();
-        const persistedStats = normalizeGameTimingFields(slotData.digimonStats || {});
-        const lastSavedAt =
-          resolveLastSavedAtSource(slotData, persistedStats, digimonStats) ??
-          Date.now();
-        const baseStats = resolveLazyUpdateBaseStats(persistedStats, digimonStats, {
-          isLightsOn,
-          wakeUntil,
-        });
-        const lazyUpdateResult = buildLazyUpdateRuntimeResult({
-          baseStats,
-          lastSavedAt,
-          sleepSchedule,
-          maxEnergy,
-          needsApplicable,
-          selectedDigimon:
-            baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
-          evolutionDataForSlot,
-          slotRuntimeDataMap,
-          runtimeAdaptedDataMaps,
-        });
-        const updated = lazyUpdateResult.digimonStats;
-        if (lazyUpdateResult.reconstructedLogsToPersist.length > 0) {
-          reconstructedLogsRef.current = [
-            ...reconstructedLogsRef.current,
-            ...lazyUpdateResult.reconstructedLogsToPersist,
-          ];
-        }
-
-        // 사망 상태 변경 감지
-        checkDeathStatus(updated);
-
-        return updated;
+      // 동기화 전 액션도 이어 계산하도록 기존 identity 검증을 거친
+      // outbox → 마지막 동기화 스냅샷 경계를 사용한다.
+      const latestState = await getLatestStateSnapshot(captureSaveContext(), persistenceOptions);
+      if (!latestState) {
+        const unavailableError = new Error("슬롯의 최신 저장 상태를 확인할 수 없습니다.");
+        unavailableError.code = "game/action-state-unavailable";
+        throw unavailableError;
       }
+      const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
+      const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
+        digimonStats: baseStats,
+        slotRuntimeDataMap,
+        selectedDigimon,
+      });
+      const lazyUpdateResult = buildLazyUpdateRuntimeResult({
+        baseStats,
+        lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? Date.now(),
+        sleepSchedule,
+        maxEnergy,
+        needsApplicable,
+        selectedDigimon: baseStats.selectedDigimon || selectedDigimon || null,
+        evolutionDataForSlot,
+        slotRuntimeDataMap,
+        runtimeAdaptedDataMaps,
+      });
+      const updated = lazyUpdateResult.digimonStats;
+      if (lazyUpdateResult.reconstructedLogsToPersist.length > 0) {
+        reconstructedLogsRef.current = [
+          ...reconstructedLogsRef.current,
+          ...lazyUpdateResult.reconstructedLogsToPersist,
+        ];
+      }
+      checkDeathStatus(updated);
+      return updated;
     } catch (error) {
       console.error("Lazy Update 적용 오류:", error);
-      setError(error);
+      // 확인되지 않은 이전 상태로 액션을 계속하면 돌봄 결과를 덮어쓸 수 있다.
+      raiseGameSaveError(error, setError);
     }
-
-    return digimonStats;
   }
 
   /**
