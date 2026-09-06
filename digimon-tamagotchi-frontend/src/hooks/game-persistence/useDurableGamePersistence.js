@@ -2464,14 +2464,14 @@ export function useDurableGamePersistence({
     });
   }, [getOutboxIdentity, outbox]);
 
-  const getLatestStateSnapshot = useCallback(async (saveContext = null) => {
-    if (!canStartGameplayWrite(saveContext)) return null;
+  const getLatestStateSnapshot = useCallback(async (saveContext = null, options = {}) => {
+    if (!canStartGameplayWrite(saveContext, options)) return null;
     let pendingState = null;
     const identity = getOutboxIdentity();
     if (outbox && identity) {
       pendingState = await outbox.getStateMutation(identity);
     }
-    if (!canStartGameplayWrite(saveContext)) return null;
+    if (!canStartGameplayWrite(saveContext, options)) return null;
     return {
       statsSnapshot:
         pendingState?.state?.stateSnapshot ||
