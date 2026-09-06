@@ -4,6 +4,7 @@ import {
   createGameSaveQueue,
   enqueueCareV2Patch,
   buildLazyUpdateRuntimeResult,
+  buildCareMistakeTransitionFromStats,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
   buildLoadedSlotHydrationPlan,
@@ -1563,5 +1564,101 @@ describe("resolveLazyUpdateBaseStats", () => {
       wakeUntil: 1712552400000,
       activityLogs: [{ type: "NAP_START" }],
     });
+  });
+});
+
+
+describe("케어미스 저장 경계 회귀", () => {
+  const nowMs = new Date(2026, 8, 5, 12, 20).getTime();
+  const lastSavedAt = nowMs - 20 * 60 * 1000;
+  const makeStats = (logs) => ({
+    ...initializeStats("Agumon"),
+    evolutionStage: "Child",
+    evolutionStageInstanceId: "stage-1",
+    evolutionStageStartedAt: lastSavedAt - 1000,
+    careMistakes: 0,
+    unresolvedCareMistakeCount: 0,
+    fullness: 0,
+    strength: 0,
+    lastHungerZeroAt: lastSavedAt,
+    lastStrengthZeroAt: lastSavedAt,
+    lastSavedAt,
+    activityLogs: logs,
+    callStatus: {
+      hunger: { isActive: true, startedAt: lastSavedAt, isLogged: false },
+      strength: { isActive: true, startedAt: lastSavedAt, isLogged: false },
+      sleep: { isActive: false, startedAt: null, isLogged: false },
+    },
+  });
+  const project = (stats) => buildLazyUpdateRuntimeResult({
+    baseStats: stats, lastSavedAt, nowMs,
+    sleepSchedule: { start: 22, end: 6 },
+  });
+
+  test("배고픔과 힘을 동시에 방치하면 두 카운터 모두 2가 된다", () => {
+    const result = project(makeStats([]));
+    expect(result.digimonStats.careMistakes).toBe(2);
+    expect(result.digimonStats.unresolvedCareMistakeCount).toBe(2);
+  });
+
+  test("기록 50개가 찬 뒤에도 재접속에서 발생한 두 사건을 저장 대상으로 반환한다", () => {
+    const logs = Array.from({ length: 50 }, (_, index) => ({
+      type: "FEED", text: `먹이 ${index}`, timestamp: lastSavedAt - 1000 + index,
+    }));
+    const result = project(makeStats(logs));
+    expect(result.digimonStats.activityLogs).toHaveLength(50);
+    expect(result.reconstructedLogsToPersist.filter((log) => log.type === "CAREMISTAKE")).toHaveLength(2);
+  });
+
+  test("50개 이력에서 수면 조명 처리됨과 저장 전이가 함께 생성된다", () => {
+    const start = new Date(2026, 8, 5, 20, 0).getTime();
+    const logs = Array.from({ length: 50 }, (_, index) => ({
+      type: "FEED", text: `먹이 ${index}`, timestamp: start - 1000 + index,
+    }));
+    const baseStats = {
+      ...makeStats(logs), fullness: 5, strength: 5,
+      lastHungerZeroAt: null, lastStrengthZeroAt: null,
+      isLightsOn: true, lastSavedAt: start,
+      callStatus: {
+        hunger: { isActive: false, startedAt: null, isLogged: false },
+        strength: { isActive: false, startedAt: null, isLogged: false },
+        sleep: { isActive: true, startedAt: start, isLogged: false },
+      },
+    };
+    const result = buildLazyUpdateRuntimeResult({
+      baseStats, lastSavedAt: start, nowMs: start + 40 * 60 * 1000,
+      sleepSchedule: { start: 20, end: 8 },
+    });
+    expect(result.digimonStats.callStatus.sleep.isLogged).toBe(true);
+    expect(result.digimonStats.careMistakes).toBe(1);
+    expect(result.digimonStats.unresolvedCareMistakeCount).toBe(1);
+    const transition = buildCareMistakeTransitionFromStats({
+      previousStats: baseStats, nextStats: result.digimonStats,
+      nextLogs: result.reconstructedLogsToPersist,
+      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" },
+    });
+    expect(transition.operations).toHaveLength(1);
+    expect(transition.operations[0].reasonKey).toBe("sleep_light_warning");
+  });
+
+  test("화면에 이미 있는 새 사건도 저장 완료된 스냅샷과 비교해 전송한다", () => {
+    const savedStats = makeStats([]);
+    const liveStats = project(savedStats).digimonStats;
+    const transition = buildCareMistakeTransitionFromStats({
+      previousStats: liveStats,
+      previousLogs: liveStats.activityLogs,
+      persistedStats: savedStats,
+      nextStats: liveStats,
+      nextLogs: liveStats.activityLogs,
+      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" },
+      nowMs,
+    });
+    expect(transition?.transitionType).toBe("CARE_MISTAKE_OCCURRED");
+    expect(transition.operations).toHaveLength(2);
+    expect(buildCareMistakeTransitionFromStats({
+      previousStats: liveStats, persistedStats: liveStats,
+      nextStats: liveStats, nextLogs: liveStats.activityLogs,
+      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" }, nowMs,
+    })).toBeNull();
   });
 });
