@@ -521,6 +521,7 @@ export function resolveCareMistakeProjectionFromSlot(slotData = {}, stats = {}) 
 export function buildCareMistakeTransitionFromStats({
   previousStats = {},
   nextStats = {},
+  persistedStats = null,
   previousLogs = [],
   nextLogs = [],
   identity = {},
@@ -542,8 +543,11 @@ export function buildCareMistakeTransitionFromStats({
     ...identity,
     evolutionStageInstanceId: stageInstanceId,
   };
+  // 화면/lazy 결과에는 아직 저장하지 않은 사건도 있다. 저장 기준이 있으면
+  // 그 스냅샷의 로그만 이미 전달된 사건으로 취급한다.
+  const committedLogs = persistedStats ? persistedStats.activityLogs || [] : previousLogs;
   const previousLogIds = new Set(
-    (Array.isArray(previousLogs) ? previousLogs : [])
+    (Array.isArray(committedLogs) ? committedLogs : [])
       .map((log) => buildActivityLogEventId(log))
       .filter(Boolean)
   );
@@ -1204,9 +1208,9 @@ export function buildLazyUpdateRuntimeResult({
   needsApplicable = true,
   nowMs = null,
 } = {}) {
-  const prevLogCount = Array.isArray(baseStats.activityLogs)
-    ? baseStats.activityLogs.length
-    : 0;
+  const previousLogIds = new Set(
+    (baseStats.activityLogs || []).map(getActivityLogMergeKey)
+  );
   const digimonSnapshot = buildDigimonLogSnapshot(
     selectedDigimon || baseStats.selectedDigimon || null,
     evolutionDataForSlot,
@@ -1226,7 +1230,9 @@ export function buildLazyUpdateRuntimeResult({
 
   return {
     digimonStats,
-    reconstructedLogsToPersist: (digimonStats.activityLogs || []).slice(prevLogCount),
+    reconstructedLogsToPersist: (digimonStats.activityLogs || []).filter(
+      (log) => !previousLogIds.has(getActivityLogMergeKey(log))
+    ),
   };
 }
 
@@ -1713,6 +1719,9 @@ export function useGameData({
       poopPenaltyFrozenDurationMs: isNewStart ? 0 : undefined,
     };
     
+    // lazy update/live 로그를 합치기 전에 내구성 있게 저장된 비교 기준을 잡는다.
+    const persistedState = await getLatestStateSnapshot(saveContext);
+
     // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
     let baseStats;
     if (isNewStart) {
@@ -1820,6 +1829,7 @@ export function useGameData({
 
     const careTransition = buildCareMistakeTransitionFromStats({
       previousStats: baseStats,
+      persistedStats: persistedState?.statsSnapshot || null,
       nextStats: statsForState,
       previousLogs: baseStats.activityLogs || [],
       nextLogs: finalLogs,

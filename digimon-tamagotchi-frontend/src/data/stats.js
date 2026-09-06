@@ -1424,6 +1424,7 @@ export function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -1530,6 +1531,7 @@ export function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
+            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -1617,6 +1619,7 @@ export function projectState(
       source: "backfill",
     });
     updatedStats.careMistakes = result.nextStats.careMistakes;
+    updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
     updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
     if (
       result.added &&
