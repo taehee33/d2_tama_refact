@@ -22,7 +22,8 @@ jest.mock("./game-persistence/useDurableGamePersistence", () => ({
 }));
 
 const dataMap = { Agumon: { evolutionStage: "Child", hungerTimer: 20, strengthTimer: 20, poopTimer: 20 } };
-const now = new Date(2026, 8, 6, 12, 0).getTime();
+// 수면 판정은 KST이므로 CI 호스트 시간대와 관계없이 낮으로 고정한다.
+const now = new Date("2026-09-06T12:00:00+09:00").getTime();
 function setup() {
   const remote = {
     ...initializeStats("Agumon", {}, dataMap), selectedDigimon: "Agumon",

@@ -12,6 +12,7 @@
 - **책임·저장 계약:** Firestore 정본, IndexedDB 전송 대기함, identity·revision·transaction 검증, 15분 동기화 주기와 lazy 계산 규칙은 유지했다. 새 저장소·타이머·의존성을 추가하지 않고 기존 저장 경계의 읽기 경로를 재사용했다.
 - **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.actions.test.js`, `src/hooks/game-persistence/useDurableGamePersistence.js`, `src/hooks/game-persistence/useDurableGamePersistence.test.js` (뒤 세 경로도 동일 프런트엔드 디렉토리 기준), `docs/REFACTORING_LOG.md`.
 - **검증:** 수정 전 핵심 회귀 4개 실패 확인. Node 24.18.0에서 두 lockfile로 `npm ci --no-audit --no-fund`를 실행한 뒤 `npm run check` 통과: 프런트엔드 229 suites·1,613 tests, 서버 307 pass·25 Emulator-only skip, lint·typecheck·API 단일 경계·production build·server projection 성공. 필수 Emulator 명령을 순차 실행해 Firestore 9개, Arena/Jogress 26개 모두 통과. `git diff --check`도 통과했다.
+- **CI 보완:** UTC 호스트에서 테스트의 로컬 정오가 KST 21시 수면으로 해석되는 실패를 재현했다. 회귀 fixture를 `2026-09-06T12:00:00+09:00`으로 고정해 UTC·Asia/Seoul에서 같은 돌봄 시각을 검증한다. 런타임 수면 규칙은 바꾸지 않았다.
 - **범위:** 실제 사용자 슬롯 데이터는 직접 수정하지 않았다. 후속 사용자 요청으로 v0.8.5.0 릴리스와 main 운영 배포를 진행한다. UI 변경이 아니므로 Ponytail UI 보조 리뷰 시험 건수에는 포함하지 않는다.
 
 ## [2026-09-06] Ponytail 단순화 원칙 선별 적용
