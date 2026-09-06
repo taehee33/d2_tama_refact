@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-09-06] 케어미스 발생 사건의 저장 누락과 lazy 카운터 불일치 수정
+
+- **증상:** 수면 조명 호출에 `케어미스 처리됨`이 남지만 횟수는 0으로 표시되고, 배고픔·힘 방치 사건이 저장 전이에서 누락될 수 있었다. 실제 운영 슬롯의 과거 누락 건수는 이 변경에서 추정하거나 보정하지 않았다.
+- **원인 1:** 일반 `saveStats`가 live 로그와 lazy 재구성 결과를 포함한 `baseStats.activityLogs`를 이미 저장한 사건의 비교 기준으로 사용했다. 같은 사건이 양쪽 배열에 있어 `CARE_MISTAKE_OCCURRED`를 만들지 않고 일반 상태만 저장할 수 있었다.
+- **원인 2:** lazy update가 새 로그를 `slice(이전 배열 길이)`로 찾았다. 최대 50개 보관이나 과거 시각 정렬에서는 새 사건이 있어도 배열 길이가 늘지 않아 재구성 저장 대상이 비었다.
+- **원인 3:** lazy 배고픔·힘·수면 분기가 ledger helper 결과에서 `careMistakes`만 복사하고, 다음 증가 계산이 우선 참조하는 `unresolvedCareMistakeCount`를 갱신하지 않았다. 같은 계산에서 두 사건이 발생해도 카운터가 1에 머무를 수 있었다.
+- **수정:** 일반 저장은 기존 durable persistence의 pending/마지막 동기화 스냅샷을 로그 비교 기준으로 사용한다. 재구성 로그는 길이 대신 사건 ID 차이로 추출한다. lazy 분기는 두 카운터를 함께 갱신한다. 서버 projection bundle도 동일 소스로 재생성했다.
+- **검증:** 최초 회귀 테스트 3개 모두 수정 전 실패·수정 후 통과. 수면 조명 50개 이력 회귀를 추가해 관련 테스트 64개 통과. Node 24 전체 검사에서 프런트 228 suites·1,605 tests, 서버 307 pass·25 skip, lint·typecheck·API 단일 경계·production build 통과. 이후 수면 회귀 1개 추가 검사는 별도로 통과했다. Firestore Emulator 9개와 Arena/Jogress Emulator 26개도 통과했다. `check:server-projection`은 생성 파일의 미커밋 diff 때문에 종료 코드 1이며, 재생성 전후 SHA-256 일치로 산출물 최신 상태를 별도 검증했다.
+- **영향 파일:** `digimon-tamagotchi-frontend/src/hooks/useGameData.js`, `src/hooks/useGameData.test.js`, `src/data/stats.js`, `api/_generated/gameProjection.cjs`, `docs/REFACTORING_LOG.md`.
+- **아키텍처 결정:** Firestore 경로·V2 transaction·identity·진화 리셋·lazy 시간 규칙은 유지하고 기존 저장 입력의 비교 기준만 수정했다. 활동 로그에서 발생 전이를 추출하는 구조 자체를 제거하는 작업은 별도 설계가 필요하며 이번 변경이 모든 경로의 무결성을 보장한다고 주장하지 않는다. 수면 스프라이트는 변경하지 않았다.
+
+
 ## [2026-09-05] 상태 탭 케어미스 이력 추가
 
 - **목적:** `[ 상태 ]` 탭의 `케어 미스 N회` 행에서 현재 진화 구간의 발생·해소 이력을 읽기 전용으로 확인할 수 있게 했다. 표시 숫자는 기존 `stats.careMistakes`를 그대로 사용하며 이력 보관·표시 한도와 진화 판정 의미는 변경하지 않았다.
