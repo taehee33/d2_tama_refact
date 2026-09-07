@@ -40,27 +40,13 @@ __webpack_require__.r(__webpack_exports__);
 // EXPORTS
 __webpack_require__.d(__webpack_exports__, {
   ARENA_BATTLE_RULES_VERSION: () => (/* reexport */ ARENA_BATTLE_RULES_VERSION),
-  CARE_MISTAKE_CHAIN_DIAGNOSTIC: () => (/* reexport */ CARE_MISTAKE_CHAIN_DIAGNOSTIC),
-  CARE_MISTAKE_CHAIN_STATUS: () => (/* reexport */ CARE_MISTAKE_CHAIN_STATUS),
-  CARE_MISTAKE_EFFECTIVE_INTEGRITY: () => (/* reexport */ CARE_MISTAKE_EFFECTIVE_INTEGRITY),
-  CARE_MISTAKE_EPOCH_OPERATION: () => (/* reexport */ CARE_MISTAKE_EPOCH_OPERATION),
-  CARE_MISTAKE_ORDERING_STATUS: () => (/* reexport */ CARE_MISTAKE_ORDERING_STATUS),
-  CARE_MISTAKE_V2_CLASSIFICATION: () => (/* reexport */ CARE_MISTAKE_V2_CLASSIFICATION),
-  CARE_MISTAKE_V2_DIAGNOSTIC: () => (/* reexport */ CARE_MISTAKE_V2_DIAGNOSTIC),
-  CARE_MISTAKE_V2_REPAIR_LIMIT: () => (/* reexport */ CARE_MISTAKE_V2_REPAIR_LIMIT),
-  CARE_MISTAKE_V2_SCHEMA_VERSION: () => (/* reexport */ CARE_MISTAKE_V2_SCHEMA_VERSION),
   DEFAULT_REALTIME_ARENA_RULES_VERSION: () => (/* reexport */ DEFAULT_REALTIME_ARENA_RULES_VERSION),
   adaptDataMapToOldFormat: () => (/* reexport */ adaptDataMapToOldFormat),
-  advanceCareMistakeRevision: () => (/* reexport */ advanceCareMistakeRevision),
   applyLazyUpdate: () => (/* reexport */ applyLazyUpdate),
   assertRealtimeArenaRules: () => (/* reexport */ assertRealtimeArenaRules),
-  auditCareMistakeFullChain: () => (/* reexport */ auditCareMistakeFullChain),
-  buildLinkedHeadRepairPlan: () => (/* reexport */ buildLinkedHeadRepairPlan),
   calculateArenaBattle: () => (/* reexport */ calculateArenaBattle),
   calculateArenaHitRate: () => (/* reexport */ calculateArenaHitRate),
   calculatePower: () => (/* reexport */ calculatePower),
-  classifyCareMistakeSlotV2: () => (/* reexport */ classifyCareMistakeSlotV2),
-  compareCareMistakeIncidentOrder: () => (/* reexport */ compareCareMistakeIncidentOrder),
   createRealtimeArenaCpuCandidates: () => (/* reexport */ createRealtimeArenaCpuCandidates),
   createRealtimeArenaRulesSnapshot: () => (/* reexport */ createRealtimeArenaRulesSnapshot),
   createSeededRandom: () => (/* reexport */ createSeededRandom),
@@ -71,21 +57,14 @@ __webpack_require__.d(__webpack_exports__, {
   getJogressResult: () => (/* reexport */ getJogressResult),
   getStarterDigimonId: () => (/* reexport */ digimonVersionUtils_getStarterDigimonId),
   initializeStats: () => (/* reexport */ initializeStats),
-  isNonNegativeInteger: () => (/* reexport */ isNonNegativeInteger),
   isStarterDigimonId: () => (/* reexport */ isStarterDigimonId),
   normalizeDigimonVersionLabel: () => (/* reexport */ normalizeDigimonVersionLabel),
   projectState: () => (/* reexport */ projectState),
-  resolveCareMistakeV2Identity: () => (/* reexport */ resolveCareMistakeV2Identity),
-  resolveEffectiveCareMistakeIntegrity: () => (/* reexport */ resolveEffectiveCareMistakeIntegrity),
   resolveOnlineJogressPair: () => (/* reexport */ resolveOnlineJogressPair),
   resolveRealtimeArenaRound: () => (/* reexport */ resolveRealtimeArenaRound),
-  selectCareMistakeV2UnresolvedIncidents: () => (/* reexport */ selectCareMistakeV2UnresolvedIncidents),
   selectRealtimeArenaCpuAction: () => (/* reexport */ selectRealtimeArenaCpuAction),
   selectRealtimeArenaCpuOpponent: () => (/* reexport */ selectRealtimeArenaCpuOpponent),
-  selectRealtimeArenaFallbackAction: () => (/* reexport */ selectRealtimeArenaFallbackAction),
-  snapshotLinkedHeadProtectedFields: () => (/* reexport */ snapshotLinkedHeadProtectedFields),
-  validateCareMistakeIncidentOrdering: () => (/* reexport */ validateCareMistakeIncidentOrdering),
-  validateCareMistakeV2Projection: () => (/* reexport */ validateCareMistakeV2Projection)
+  selectRealtimeArenaFallbackAction: () => (/* reexport */ selectRealtimeArenaFallbackAction)
 });
 
 ;// ./src/data/defaultStatsFile.js
@@ -103,13 +82,6 @@ const defaultStats = {
     fullness: 0,
     careMistakes: 0,
     careMistakeLedger: [],
-    unresolvedCareMistakeCount: 0,
-    latestUnresolvedCareMistakeIncidentId: null,
-    latestCareMistakeAt: null,
-    careMistakeSchemaVersion: 1,
-    careMistakeReconciliationVersion: null,
-    careMistakeReconciliationStatus: "not_started",
-    evolutionStageInstanceId: null,
 
     lifespanSeconds: 0,
     timeToEvolveSeconds: 0,
@@ -5182,19 +5154,6 @@ function isStarterDigimonId(digimonId) {
   return STARTER_DIGIMON_IDS.includes(digimonId);
 }
 
-/**
- * 디지타마에는 배고픔·힘·수면 요구사항을 적용하지 않는다.
- *
- * 이 판단은 현재 디지몬 identity만으로 매번 계산한다. 슬롯이나 세션에
- * 캐시하지 않아 부화·진화 직후 즉시 일반 생리 규칙으로 전환된다.
- *
- * @param {string|null|undefined} digimonId
- * @returns {boolean}
- */
-function isPhysiologicalNeedsApplicable(digimonId) {
-  return !isStarterDigimonId(digimonId);
-}
-
 function getDeathFormIds(version = "Ver.1") {
   return [...getDigimonVersionConfig(version).deathFormIds];
 }
@@ -5420,33 +5379,9 @@ function normalizeLedgerEntry(entry) {
     reasonKey,
     text: entry.text || "케어미스 발생",
     source: entry.source || inferCareMistakeSource(entry.text || ""),
-    ...(typeof entry.originalOccurredAtKnown === "boolean"
-      ? { originalOccurredAtKnown: entry.originalOccurredAtKnown }
-      : {}),
-    ...(entry.replayVersion ? { replayVersion: entry.replayVersion } : {}),
-    ...(entry.replayBasisHash ? { replayBasisHash: entry.replayBasisHash } : {}),
-    ...(Number.isInteger(entry.ordinal) ? { ordinal: entry.ordinal } : {}),
     resolvedAt: careMistakeLedger_ensureTimestamp(entry.resolvedAt) ?? null,
     resolvedBy: entry.resolvedBy || null,
   };
-}
-
-function buildCareMistakeLedgerFromIncidents(incidents = []) {
-  return initializeCareMistakeLedger((Array.isArray(incidents) ? incidents : []).map(
-    (incident) => ({
-      id: incident.incidentId,
-      occurredAt: incident.occurredAt,
-      reasonKey: incident.reasonKey,
-      text: incident.text,
-      source: incident.source,
-      originalOccurredAtKnown: incident.originalOccurredAtKnown,
-      replayVersion: incident.replayVersion,
-      replayBasisHash: incident.replayBasisHash,
-      ordinal: incident.ordinal,
-      resolvedAt: incident.resolvedAt,
-      resolvedBy: incident.resolvedBy,
-    })
-  ));
 }
 
 function initializeCareMistakeLedger(existingLedger = []) {
@@ -5466,38 +5401,11 @@ function countActiveCareMistakeEntries(ledger = []) {
 }
 
 function appendCareMistakeEntry(stats = {}, { occurredAt = Date.now(), reasonKey = "other", text = "케어미스 발생", source = "realtime", id = null } = {}) {
-  // 신규 런타임 사건은 기존 카운터나 활동 로그를 근거로 과거 incident를
-  // 임의 해소/생성하지 않는다. 기존 ledger가 있으면 호환 읽기만 사용하고,
-  // 정본 projection은 careMistakeProjection reducer가 계산한다.
-  const repairedStats = {
-    ...stats,
-    careMistakeLedger: initializeCareMistakeLedger(stats.careMistakeLedger),
-  };
-  const ledger = repairedStats.careMistakeLedger;
+  const repairedStats = repairCareMistakeLedger(stats, stats.activityLogs || []).nextStats;
+  const ledger = initializeCareMistakeLedger(repairedStats.careMistakeLedger);
   const timestamp = careMistakeLedger_ensureTimestamp(occurredAt) ?? Date.now();
   const eventId = id || buildCareMistakeEventId(reasonKey, timestamp);
   if (eventId && ledger.some((entry) => entry.id === eventId)) {
-    return {
-      added: false,
-      entry: ledger.find((entry) => entry.id === eventId) || null,
-      nextStats: {
-        ...repairedStats,
-        careMistakeLedger: ledger,
-      },
-    };
-  }
-
-  // 레거시 슬롯은 ledger 없이 CAREMISTAKE 활동 로그만 남아 있을 수 있다.
-  // 같은 reason·시각의 로그가 이미 있으면 lazy update가 동일 사건을 다시
-  // 카운트하지 않도록 한다. 로그를 ledger로 승격하는 작업은 reconciliation이
-  // 담당하므로 여기서는 기존 카운터와 ledger를 그대로 보존한다.
-  const hasMatchingActivityLog = (Array.isArray(stats.activityLogs) ? stats.activityLogs : [])
-    .some((log) =>
-      isCareMistakeLog(log) &&
-      careMistakeLedger_ensureTimestamp(log.timestamp) === timestamp &&
-      getCareMistakeReasonKeyFromText(log.text || "") === reasonKey
-    );
-  if (hasMatchingActivityLog) {
     return {
       added: false,
       entry: ledger.find((entry) => entry.id === eventId) || null,
@@ -5518,29 +5426,21 @@ function appendCareMistakeEntry(stats = {}, { occurredAt = Date.now(), reasonKey
     resolvedBy: null,
   });
   const nextLedger = [...ledger, entry].sort((a, b) => (a.occurredAt || 0) - (b.occurredAt || 0));
-  const nextCareMistakeCount = (repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0) + 1;
 
   return {
     added: true,
     entry,
     nextStats: {
       ...repairedStats,
-      careMistakes: nextCareMistakeCount,
-      unresolvedCareMistakeCount: nextCareMistakeCount,
-      latestCareMistakeAt: timestamp,
+      careMistakes: (repairedStats.careMistakes || 0) + 1,
       careMistakeLedger: nextLedger,
     },
   };
 }
 
 function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.now(), resolvedBy = "play_or_snack" } = {}) {
-  // 해소 대상은 이미 확정된 ledger만 사용한다. 로그 개수와 저장 카운터를
-  // 비교해 대상을 추측하는 동작은 P0 transaction 경계에서 수행한다.
-  const repairedStats = {
-    ...stats,
-    careMistakeLedger: initializeCareMistakeLedger(stats.careMistakeLedger),
-  };
-  const ledger = repairedStats.careMistakeLedger;
+  const repairedStats = repairCareMistakeLedger(stats, stats.activityLogs || []).nextStats;
+  const ledger = initializeCareMistakeLedger(repairedStats.careMistakeLedger);
   const unresolved = getActiveCareMistakeEntries(ledger);
   const target = unresolved[unresolved.length - 1];
 
@@ -5551,14 +5451,7 @@ function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.now(), re
       nextStats: {
         ...repairedStats,
         careMistakeLedger: ledger,
-        careMistakes: Math.max(
-          0,
-          repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0
-        ),
-        unresolvedCareMistakeCount: Math.max(
-          0,
-          repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0
-        ),
+        careMistakes: Math.max(0, repairedStats.careMistakes || 0),
       },
     };
   }
@@ -5579,10 +5472,6 @@ function resolveLatestCareMistakeEntry(stats = {}, { resolvedAt = Date.now(), re
     nextStats: {
       ...repairedStats,
       careMistakes: Math.max(0, (repairedStats.careMistakes || 0) - 1),
-      unresolvedCareMistakeCount: Math.max(
-        0,
-        (repairedStats.unresolvedCareMistakeCount ?? repairedStats.careMistakes ?? 0) - 1
-      ),
       careMistakeLedger: nextLedger,
     },
   };
@@ -5825,103 +5714,6 @@ function recoverEnergy(stats, {
   return updatedStats;
 }
 
-;// ./src/logic/stats/physiologicalNeeds.js
-/**
- * 생리 요구사항이 적용되지 않는 디지타마의 과거 저장 잔여 상태를 정리한다.
- * 감사용 케어미스/incident/활동 로그와 누적값은 절대 건드리지 않는다.
- */
-
-function emptyNeedCall() {
-  return { isActive: false, startedAt: null, sleepStartAt: null, isLogged: false };
-}
-
-function isSameValue(left, right) {
-  return left === right;
-}
-
-function hasNeedCallState(entry = {}) {
-  return Boolean(
-    entry?.isActive ||
-    entry?.startedAt != null ||
-    entry?.sleepStartAt != null ||
-    entry?.isLogged
-  );
-}
-
-/**
- * @param {Object} stats
- * @param {boolean} [needsApplicable=true]
- * @returns {{stats:Object, changed:boolean}}
- */
-function cleanupInapplicablePhysiologicalNeeds(stats = {}, needsApplicable = true) {
-  if (needsApplicable) return { stats, changed: false };
-
-  const callStatus = stats.callStatus || {};
-  const needsCallCleanup = ["hunger", "strength", "sleep"].some((key) =>
-    hasNeedCallState(callStatus[key])
-  );
-  const scalarKeys = [
-    "hungerMistakeDeadline",
-    "strengthMistakeDeadline",
-    "lastHungerZeroAt",
-    "lastStrengthZeroAt",
-    "hungerZeroFrozenDurationMs",
-    "strengthZeroFrozenDurationMs",
-    "napUntil",
-    "fastSleepStart",
-    "sleepLightOnStart",
-    "wakeUntil",
-  ];
-  const needsScalarCleanup = scalarKeys.some((key) => !isSameValue(stats[key], null));
-
-  if (!needsCallCleanup && !needsScalarCleanup) {
-    return { stats, changed: false };
-  }
-
-  return {
-    stats: {
-      ...stats,
-      callStatus: {
-        ...callStatus,
-        hunger: emptyNeedCall(),
-        strength: emptyNeedCall(),
-        sleep: emptyNeedCall(),
-      },
-      hungerMistakeDeadline: null,
-      strengthMistakeDeadline: null,
-      lastHungerZeroAt: null,
-      lastStrengthZeroAt: null,
-      hungerZeroFrozenDurationMs: null,
-      strengthZeroFrozenDurationMs: null,
-      napUntil: null,
-      fastSleepStart: null,
-      sleepLightOnStart: null,
-      wakeUntil: null,
-    },
-    changed: true,
-  };
-}
-
-/**
- * root 슬롯의 강제기상도 수면 요구사항 transient 상태이므로 함께 정규화한다.
- * 이미 정리된 입력은 각 원본 참조를 보존한다.
- */
-function cleanupPhysiologicalNeedsState({
-  stats = {},
-  rootSlotFields = null,
-  needsApplicable = true,
-} = {}) {
-  const statsResult = cleanupInapplicablePhysiologicalNeeds(stats, needsApplicable);
-  const rootChanged = !needsApplicable && rootSlotFields?.wakeUntil != null;
-  return {
-    stats: statsResult.stats,
-    rootSlotFields: rootChanged
-      ? { ...rootSlotFields, wakeUntil: null }
-      : rootSlotFields,
-    changed: statsResult.changed || rootChanged,
-  };
-}
-
 ;// ./src/logic/stats/death.js
 
 
@@ -5978,10 +5770,10 @@ function getTimedDeathAt(startAt, stats, nowMs, thresholdMs, elapsedMs) {
   return Math.max(startMs, effectiveEndMs - exceededByMs);
 }
 
-function death_evaluateDeathConditions(stats = {}, nowMs = Date.now(), needsApplicable = true) {
+function death_evaluateDeathConditions(stats = {}, nowMs = Date.now()) {
   const safeNowMs = toTimestamp(nowMs) ?? Date.now();
 
-  if (needsApplicable && stats.fullness === 0 && stats.lastHungerZeroAt) {
+  if (stats.fullness === 0 && stats.lastHungerZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastHungerZeroAt,
       stats,
@@ -5997,7 +5789,7 @@ function death_evaluateDeathConditions(stats = {}, nowMs = Date.now(), needsAppl
     }
   }
 
-  if (needsApplicable && stats.strength === 0 && stats.lastStrengthZeroAt) {
+  if (stats.strength === 0 && stats.lastStrengthZeroAt) {
     const elapsedSinceZero = getElapsedSince(
       stats.lastStrengthZeroAt,
       stats,
@@ -6159,7 +5951,6 @@ function buildActivityLogEventId(log = {}) {
 
 
 
-
 const stats_FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const stats_NAP_DURATION_MS = 3 * 60 * 60 * 1000;
 const SLEEP_LIGHT_WARNING_TIMEOUT_MS = 30 * 60 * 1000;
@@ -6217,13 +6008,7 @@ function clearActiveInjuryState(stats) {
   };
 }
 
-function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
-  const nowMs = options.nowMs === undefined
-    ? Date.now()
-    : options.nowMs;
-  if (typeof nowMs !== "number" || !Number.isFinite(nowMs) || nowMs < 0) {
-    throw new TypeError("initializeStats nowMs는 0 이상의 유한한 number여야 합니다.");
-  }
+function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
     console.error(`initializeStats: [${digiName}] not found in dataMap!`);
     digiName = getStarterDigimonIdFromDataMap(dataMap); // fallback
@@ -6249,7 +6034,7 @@ function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
   if (isNewStart) {
     merged.age = 0;
-    merged.birthTime = stats_ensureTimestamp(oldStats.birthTime) ?? nowMs;
+    merged.birthTime = stats_ensureTimestamp(oldStats.birthTime) ?? Date.now();
     merged.isDead = false; // 새로운 시작이면 항상 false
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
@@ -6279,7 +6064,7 @@ function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
     merged.poopPenaltyFrozenDurationMs = 0;
   } else {
     merged.age = oldStats.age || merged.age;
-    merged.birthTime = stats_ensureTimestamp(oldStats.birthTime) ?? nowMs;
+    merged.birthTime = stats_ensureTimestamp(oldStats.birthTime) ?? Date.now();
     // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
     // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
   }
@@ -6303,12 +6088,6 @@ function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
   merged.careMistakeLedger = [];
-  merged.unresolvedCareMistakeCount = 0;
-  merged.latestUnresolvedCareMistakeIncidentId = null;
-  merged.latestCareMistakeAt = null;
-  merged.careMistakeSchemaVersion = 1;
-  merged.careMistakeReconciliationVersion = null;
-  merged.careMistakeReconciliationStatus = "verified";
   merged.injuries = isNewStart
     ? 0
     : (oldStats.injuries !== undefined ? oldStats.injuries : (merged.injuries || 0)); // 이번 생 누적 부상 횟수 유지
@@ -6394,11 +6173,10 @@ function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   // 현재 진화 단계 시작 시각 (케어미스 이력 필터: 이 시점 이후 로그만 표시 → 카운터와 일치)
   if (isNewStart) {
     merged.evolutionStageStartedAt =
-      stats_ensureTimestamp(merged.birthTime) ?? nowMs;
+      stats_ensureTimestamp(merged.birthTime) ?? Date.now();
   } else {
-    merged.evolutionStageStartedAt = nowMs;
+    merged.evolutionStageStartedAt = Date.now();
   }
-  merged.evolutionStageInstanceId = null;
 
   delete merged.lastMaxPoopTime;
 
@@ -7119,11 +6897,7 @@ function projectState(
     lastSavedAt,
     sleepSchedule = null,
     maxEnergy = null,
-    needsApplicable = true,
   } = options;
-  // Lazy update의 모든 조기 반환 경로보다 먼저 stale 생리 상태를 정리한다.
-  // 이 정리는 현재 시각을 쓰지 않아 hydration 외 1초 루프에서 추가 mutation을 만들지 않는다.
-  stats = cleanupInapplicablePhysiologicalNeeds(stats, needsApplicable).stats;
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error("projectState requires a finite nowMs");
   }
@@ -7189,10 +6963,7 @@ function projectState(
   }
 
   // 경과 시간만큼 한 번에 업데이트
-  let updatedStats = cleanupInapplicablePhysiologicalNeeds(
-    cloneStatsForProjection(stats),
-    needsApplicable
-  ).stats;
+  let updatedStats = cloneStatsForProjection(stats);
   migrateLegacyPoopTimers(updatedStats);
   repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
     statKey: "fullness",
@@ -7220,7 +6991,7 @@ function projectState(
   };
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (needsApplicable && updatedStats.hungerTimer > 0) {
+  if (updatedStats.hungerTimer > 0) {
     const initialFullness = Math.max(0, Number(updatedStats.fullness) || 0);
     const rawHungerCountdown = Number(updatedStats.hungerCountdown);
     const initialHungerCountdown = Number.isFinite(rawHungerCountdown)
@@ -7237,7 +7008,7 @@ function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule: needsApplicable ? sleepSchedule : null,
+      sleepSchedule,
     });
 
     // 활동 시간만큼만 hungerCountdown 감소
@@ -7271,7 +7042,7 @@ function projectState(
   }
 
   // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (needsApplicable && updatedStats.strengthTimer > 0) {
+  if (updatedStats.strengthTimer > 0) {
     const initialStrength = Math.max(0, Number(updatedStats.strength) || 0);
     const rawStrengthCountdown = Number(updatedStats.strengthCountdown);
     const initialStrengthCountdown = Number.isFinite(rawStrengthCountdown)
@@ -7288,7 +7059,7 @@ function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule: needsApplicable ? sleepSchedule : null,
+      sleepSchedule,
     });
 
     // 활동 시간만큼만 strengthCountdown 감소
@@ -7444,7 +7215,7 @@ function projectState(
 
   // 사망 체크는 공통 evaluator를 기준으로 단일화
   if (!updatedStats.isDead) {
-    const deathEvaluation = death_evaluateDeathConditions(updatedStats, nowMs, needsApplicable);
+    const deathEvaluation = death_evaluateDeathConditions(updatedStats, nowMs);
     if (deathEvaluation.isDead) {
       updatedStats = death_applyDeathEvaluationToStats(updatedStats, deathEvaluation);
     }
@@ -7470,7 +7241,6 @@ function projectState(
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  if (needsApplicable) {
   const previousSleepCallStartedAt =
     stats_ensureTimestamp(callStatus.sleep.startedAt) ??
     stats_ensureTimestamp(updatedStats.sleepLightOnStart);
@@ -7479,7 +7249,7 @@ function projectState(
     stats: updatedStats,
     startTime: lastSaved.getTime(),
     endTime: nowMs,
-    sleepSchedule: needsApplicable ? sleepSchedule : null,
+    sleepSchedule,
     previousStartedAt: previousSleepCallStartedAt,
     previousLogged: previousSleepCallLogged,
   });
@@ -7563,7 +7333,6 @@ function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -7670,7 +7439,6 @@ function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -7733,7 +7501,7 @@ function projectState(
     updatedStats.sleepLightOnStart = null;
   }
 
-  if (needsApplicable) resolvedSleepLightSegments.forEach((segment) => {
+  resolvedSleepLightSegments.forEach((segment) => {
     const effectiveStartedAt = segment.effectiveStartedAt;
     const segmentDurationMs = Math.max(0, segment.endedAt - effectiveStartedAt);
     if (segmentDurationMs < SLEEP_LIGHT_WARNING_TIMEOUT_MS) {
@@ -7758,7 +7526,6 @@ function projectState(
       source: "backfill",
     });
     updatedStats.careMistakes = result.nextStats.careMistakes;
-    updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
     updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
     if (
       result.added &&
@@ -7783,15 +7550,13 @@ function projectState(
     }
   });
 
-  }
-
   const energyProjectionEndMs = stats.isFrozen && stats.frozenAt
     ? Math.min(nowMs, stats_ensureTimestamp(stats.frozenAt) ?? nowMs)
     : nowMs;
   updatedStats = recoverEnergy(updatedStats, {
     startMs: lastSaved.getTime(),
     endMs: energyProjectionEndMs,
-    sleepSchedule: needsApplicable ? sleepSchedule : null,
+    sleepSchedule,
     maxEnergy,
   });
 
@@ -7831,7 +7596,6 @@ function applyLazyUpdate(
     lastSavedAt,
     sleepSchedule,
     maxEnergy,
-    needsApplicable: options?.needsApplicable ?? true,
   });
 }
 
@@ -8454,559 +8218,6 @@ function calculateArenaBattle({
   };
 }
 
-;// ./src/logic/stats/careMistakeV2Domain.js
-const CARE_MISTAKE_V2_SCHEMA_VERSION = 2;
-const CARE_MISTAKE_V2_REPAIR_LIMIT = 400;
-
-const CARE_MISTAKE_V2_CLASSIFICATION = Object.freeze({
-  LEGACY_BASELINE: "legacy_baseline",
-  DEGRADED: "degraded",
-  REPAIR_REQUIRED: "repair_required",
-  VERIFIED_V2: "verified_v2",
-});
-
-const CARE_MISTAKE_EFFECTIVE_INTEGRITY = Object.freeze({
-  VERIFIED: "verified",
-  REPAIR_REQUIRED: "repair_required",
-});
-
-const CARE_MISTAKE_V2_DIAGNOSTIC = Object.freeze({
-  INVALID_LEGACY_CANONICAL_BASELINE: "INVALID_LEGACY_CANONICAL_BASELINE",
-  INCOMPLETE_CARE_IDENTITY: "INCOMPLETE_CARE_IDENTITY",
-  LEGACY_ROOT_COUNTER_MISMATCH: "LEGACY_ROOT_COUNTER_MISMATCH",
-  LEGACY_UNRESOLVED_COUNTER_MISMATCH: "LEGACY_UNRESOLVED_COUNTER_MISMATCH",
-  LEGACY_EVIDENCE_COUNTER_MISMATCH: "LEGACY_EVIDENCE_COUNTER_MISMATCH",
-  INVALID_CARE_MISTAKE_STATE: "INVALID_CARE_MISTAKE_STATE",
-  INVALID_CARE_MISTAKE_COUNT: "INVALID_CARE_MISTAKE_COUNT",
-  CARE_MISTAKE_PROJECTION_MISMATCH: "CARE_MISTAKE_PROJECTION_MISMATCH",
-  CARE_MISTAKE_MIRROR_MISMATCH: "CARE_MISTAKE_MIRROR_MISMATCH",
-  CARE_RECEIPT_NOT_FOUND: "CARE_RECEIPT_NOT_FOUND",
-  CARE_ROOT_RECEIPT_NOT_FOUND: "CARE_ROOT_RECEIPT_NOT_FOUND",
-  CARE_RECEIPT_IDENTITY_MISMATCH: "CARE_RECEIPT_IDENTITY_MISMATCH",
-  CARE_RECEIPT_LINEAGE_BROKEN: "CARE_RECEIPT_LINEAGE_BROKEN",
-  CARE_RECEIPT_LINEAGE_CYCLE: "CARE_RECEIPT_LINEAGE_CYCLE",
-  CARE_HEAD_NULLABILITY_MISMATCH: "CARE_HEAD_NULLABILITY_MISMATCH",
-  CARE_HEAD_INCIDENT_NOT_FOUND: "CARE_HEAD_INCIDENT_NOT_FOUND",
-  CARE_HEAD_INCIDENT_INVALID: "CARE_HEAD_INCIDENT_INVALID",
-});
-
-function normalizeId(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function isNonNegativeInteger(value) {
-  return Number.isInteger(value) && value >= 0;
-}
-
-function uniqueDiagnostics(values = []) {
-  return Array.from(new Set(values.filter(Boolean))).sort();
-}
-
-function getCareMistakeState(slotData = {}) {
-  return slotData?.careMistakeState && typeof slotData.careMistakeState === "object"
-    ? slotData.careMistakeState
-    : null;
-}
-
-function resolveCareMistakeV2Identity(slotData = {}) {
-  const stats = slotData?.digimonStats || {};
-  const state = getCareMistakeState(slotData) || {};
-  return {
-    slotInstanceId: normalizeId(slotData.slotInstanceId ?? stats.slotInstanceId),
-    digimonInstanceId: normalizeId(slotData.digimonInstanceId ?? stats.digimonInstanceId),
-    rootReceiptId: normalizeId(state.rootReceiptId),
-    receiptId: normalizeId(state.receiptId),
-    evolutionStageInstanceId: normalizeId(
-      state.evolutionStageInstanceId ??
-      slotData.evolutionStageInstanceId ??
-      stats.evolutionStageInstanceId
-    ),
-  };
-}
-
-function normalizeReceipt(receipt = {}) {
-  if (!receipt || typeof receipt !== "object") return null;
-  const receiptId = normalizeId(receipt.receiptId ?? receipt.id);
-  return receiptId ? { ...receipt, receiptId } : null;
-}
-
-function validateReceiptLineage({ state, slotData, receipts }) {
-  const diagnostics = [];
-  const receiptMap = new Map(
-    (Array.isArray(receipts) ? receipts : [])
-      .map(normalizeReceipt)
-      .filter(Boolean)
-      .map((receipt) => [receipt.receiptId, receipt])
-  );
-  const currentReceipt = receiptMap.get(state.receiptId);
-  const rootReceipt = receiptMap.get(state.rootReceiptId);
-  if (!currentReceipt) diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_NOT_FOUND);
-  if (!rootReceipt) diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_ROOT_RECEIPT_NOT_FOUND);
-  if (!currentReceipt || !rootReceipt) return diagnostics;
-
-  const identity = resolveCareMistakeV2Identity(slotData);
-  const receiptIdentityMatches = (receipt) =>
-    receipt.rootReceiptId === state.rootReceiptId &&
-    (!receipt.slotInstanceId || receipt.slotInstanceId === identity.slotInstanceId) &&
-    (!receipt.digimonInstanceId || receipt.digimonInstanceId === identity.digimonInstanceId);
-  if (!receiptIdentityMatches(currentReceipt) || !receiptIdentityMatches(rootReceipt)) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_IDENTITY_MISMATCH);
-    return diagnostics;
-  }
-
-  const visited = new Set();
-  let cursor = currentReceipt;
-  while (cursor.receiptId !== state.rootReceiptId) {
-    if (visited.has(cursor.receiptId)) {
-      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_LINEAGE_CYCLE);
-      return diagnostics;
-    }
-    visited.add(cursor.receiptId);
-    const parentId = normalizeId(cursor.supersedesReceiptId);
-    const parent = parentId ? receiptMap.get(parentId) : null;
-    if (!parent || !receiptIdentityMatches(parent)) {
-      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_RECEIPT_LINEAGE_BROKEN);
-      return diagnostics;
-    }
-    cursor = parent;
-  }
-  return diagnostics;
-}
-
-function validateCareMistakeV2Projection({
-  slotData = {},
-  receipts = [],
-} = {}) {
-  const diagnostics = [];
-  const state = getCareMistakeState(slotData);
-  const stats = slotData?.digimonStats || {};
-  if (!state || state.schemaVersion !== CARE_MISTAKE_V2_SCHEMA_VERSION) {
-    return {
-      valid: false,
-      state,
-      diagnosticCodes: [CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_CARE_MISTAKE_STATE],
-    };
-  }
-
-  const identity = resolveCareMistakeV2Identity(slotData);
-  if (!identity.slotInstanceId || !identity.digimonInstanceId ||
-      !identity.rootReceiptId || !identity.receiptId || !identity.evolutionStageInstanceId) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
-  }
-
-  const baseline = state.baselineRemainingCount;
-  const postCutover = state.postCutoverUnresolvedCount;
-  const unresolved = state.unresolvedCareMistakeCount;
-  if (![baseline, postCutover, unresolved].every(isNonNegativeInteger)) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_CARE_MISTAKE_COUNT);
-  } else if (unresolved !== baseline + postCutover) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_MISTAKE_PROJECTION_MISMATCH);
-  }
-
-  const mirrors = [
-    slotData.careMistakes,
-    slotData.unresolvedCareMistakeCount,
-    stats.careMistakes,
-    stats.unresolvedCareMistakeCount,
-  ];
-  if (!mirrors.every((value) => value === unresolved)) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_MISTAKE_MIRROR_MISMATCH);
-  }
-  diagnostics.push(...validateReceiptLineage({ state, slotData, receipts }));
-
-  const diagnosticCodes = uniqueDiagnostics(diagnostics);
-  return { valid: diagnosticCodes.length === 0, state, diagnosticCodes };
-}
-
-function isValidLegacyBaseline(value) {
-  return isNonNegativeInteger(value) && value <= CARE_MISTAKE_V2_REPAIR_LIMIT;
-}
-
-function classifyCareMistakeSlotV2({
-  slotData = {},
-  receipts = [],
-  legacyEvidence = {},
-} = {}) {
-  const state = getCareMistakeState(slotData);
-  if (state?.schemaVersion === CARE_MISTAKE_V2_SCHEMA_VERSION) {
-    const validation = validateCareMistakeV2Projection({ slotData, receipts });
-    return {
-      canonicalBaseline: validation.valid ? state.baselineRemainingCount : null,
-      classification: validation.valid
-        ? CARE_MISTAKE_V2_CLASSIFICATION.VERIFIED_V2
-        : CARE_MISTAKE_V2_CLASSIFICATION.REPAIR_REQUIRED,
-      diagnosticCodes: validation.diagnosticCodes,
-    };
-  }
-
-  const diagnostics = [];
-  const stats = slotData?.digimonStats || {};
-  const canonicalBaseline = stats.careMistakes;
-  const identity = resolveCareMistakeV2Identity(slotData);
-  if (!identity.slotInstanceId || !identity.digimonInstanceId || !identity.evolutionStageInstanceId) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
-  }
-  if (!isValidLegacyBaseline(canonicalBaseline)) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_LEGACY_CANONICAL_BASELINE);
-  }
-  if (slotData.careMistakes != null && slotData.careMistakes !== canonicalBaseline) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_ROOT_COUNTER_MISMATCH);
-  }
-  const unresolvedMirrors = [slotData.unresolvedCareMistakeCount, stats.unresolvedCareMistakeCount]
-    .filter((value) => value != null);
-  if (unresolvedMirrors.some((value) => value !== canonicalBaseline)) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_UNRESOLVED_COUNTER_MISMATCH);
-  }
-  const occurrenceCount = legacyEvidence.occurrenceCount;
-  const resolutionCount = legacyEvidence.resolutionCount;
-  if (isNonNegativeInteger(occurrenceCount) && isNonNegativeInteger(resolutionCount) &&
-      Math.max(0, occurrenceCount - resolutionCount) !== canonicalBaseline) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.LEGACY_EVIDENCE_COUNTER_MISMATCH);
-  }
-
-  const diagnosticCodes = uniqueDiagnostics(diagnostics);
-  const hasBlockingDiagnostic = diagnosticCodes.includes(
-    CARE_MISTAKE_V2_DIAGNOSTIC.INVALID_LEGACY_CANONICAL_BASELINE
-  ) || diagnosticCodes.includes(CARE_MISTAKE_V2_DIAGNOSTIC.INCOMPLETE_CARE_IDENTITY);
-  return {
-    canonicalBaseline: isValidLegacyBaseline(canonicalBaseline) ? canonicalBaseline : null,
-    classification: hasBlockingDiagnostic
-      ? CARE_MISTAKE_V2_CLASSIFICATION.REPAIR_REQUIRED
-      : diagnosticCodes.length > 0
-        ? CARE_MISTAKE_V2_CLASSIFICATION.DEGRADED
-        : CARE_MISTAKE_V2_CLASSIFICATION.LEGACY_BASELINE,
-    diagnosticCodes,
-  };
-}
-
-function findIncidentById(incidents, incidentId) {
-  return (Array.isArray(incidents) ? incidents : []).find(
-    (incident) => normalizeId(incident?.incidentId ?? incident?.id) === incidentId
-  ) || null;
-}
-
-function resolveEffectiveCareMistakeIntegrity({
-  slotData = {},
-  receipts = [],
-  incidents = [],
-} = {}) {
-  const projection = validateCareMistakeV2Projection({ slotData, receipts });
-  if (!projection.valid) {
-    return {
-      effectiveIntegrityStatus: CARE_MISTAKE_EFFECTIVE_INTEGRITY.REPAIR_REQUIRED,
-      diagnosticCodes: projection.diagnosticCodes,
-    };
-  }
-
-  const state = projection.state;
-  const diagnostics = [];
-  const headId = normalizeId(state.latestUnresolvedIncidentId);
-  if (state.postCutoverUnresolvedCount === 0 && headId) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_NULLABILITY_MISMATCH);
-  } else if (state.postCutoverUnresolvedCount > 0 && !headId) {
-    diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_NULLABILITY_MISMATCH);
-  } else if (headId) {
-    const head = findIncidentById(incidents, headId);
-    if (!head) {
-      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_INCIDENT_NOT_FOUND);
-    } else if (
-      head.careSchemaVersion !== CARE_MISTAKE_V2_SCHEMA_VERSION ||
-      head.rootReceiptId !== state.rootReceiptId ||
-      head.evolutionStageInstanceId !== state.evolutionStageInstanceId ||
-      head.status !== "unresolved" ||
-      head.resolvedAt !== null
-    ) {
-      diagnostics.push(CARE_MISTAKE_V2_DIAGNOSTIC.CARE_HEAD_INCIDENT_INVALID);
-    }
-  }
-
-  const diagnosticCodes = uniqueDiagnostics(diagnostics);
-  return {
-    effectiveIntegrityStatus: diagnosticCodes.length
-      ? CARE_MISTAKE_EFFECTIVE_INTEGRITY.REPAIR_REQUIRED
-      : CARE_MISTAKE_EFFECTIVE_INTEGRITY.VERIFIED,
-    diagnosticCodes,
-  };
-}
-
-;// ./src/logic/stats/careMistakeV2Chain.js
-
-
-const CARE_MISTAKE_CHAIN_STATUS = Object.freeze({
-  VALID: "valid",
-  INVALID: "invalid",
-  OVER_REPAIR_BOUNDARY: "over_repair_boundary",
-});
-
-const CARE_MISTAKE_ORDERING_STATUS = Object.freeze({
-  VALID: "valid",
-  INVALID: "invalid",
-});
-
-const CARE_MISTAKE_EPOCH_OPERATION = Object.freeze({
-  MIGRATION: "migration",
-  BASELINE_OVERRIDE: "baseline_override",
-  LINKED_HEAD_REPAIR: "linked_head_repair",
-});
-
-const CARE_MISTAKE_CHAIN_DIAGNOSTIC = Object.freeze({
-  INVALID_INCIDENT_ORDERING: "INVALID_INCIDENT_ORDERING",
-  DUPLICATE_INCIDENT_OPERATION_KEY: "DUPLICATE_INCIDENT_OPERATION_KEY",
-  DUPLICATE_INCIDENT_ID: "DUPLICATE_INCIDENT_ID",
-  OVER_REPAIR_BOUNDARY: "OVER_REPAIR_BOUNDARY",
-  POST_CUTOVER_COUNT_MISMATCH: "POST_CUTOVER_COUNT_MISMATCH",
-  HEAD_CHAIN_CYCLE: "HEAD_CHAIN_CYCLE",
-  HEAD_CHAIN_INCIDENT_MISSING: "HEAD_CHAIN_INCIDENT_MISSING",
-  HEAD_CHAIN_SET_MISMATCH: "HEAD_CHAIN_SET_MISMATCH",
-  HEAD_CHAIN_ORDER_MISMATCH: "HEAD_CHAIN_ORDER_MISMATCH",
-  HEAD_CHAIN_NULLABILITY_MISMATCH: "HEAD_CHAIN_NULLABILITY_MISMATCH",
-  REVISION_CONFLICT: "REVISION_CONFLICT",
-  INVALID_EPOCH_OPERATION: "INVALID_EPOCH_OPERATION",
-  REPAIR_RECEIPT_REQUIRED: "REPAIR_RECEIPT_REQUIRED",
-});
-
-function careMistakeV2Chain_normalizeId(value) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeIncident(incident = {}) {
-  const incidentId = careMistakeV2Chain_normalizeId(incident.incidentId ?? incident.id);
-  return incidentId ? { ...incident, incidentId } : { ...incident, incidentId: null };
-}
-
-function careMistakeV2Chain_uniqueDiagnostics(values = []) {
-  return Array.from(new Set(values.filter(Boolean))).sort();
-}
-
-function selectCareMistakeV2UnresolvedIncidents({ state = {}, incidents = [] } = {}) {
-  return (Array.isArray(incidents) ? incidents : [])
-    .map(normalizeIncident)
-    .filter((incident) =>
-      incident.careSchemaVersion === CARE_MISTAKE_V2_SCHEMA_VERSION &&
-      incident.rootReceiptId === state.rootReceiptId &&
-      incident.evolutionStageInstanceId === state.evolutionStageInstanceId &&
-      incident.status === "unresolved" &&
-      incident.resolvedAt === null
-    );
-}
-
-function compareCareMistakeIncidentOrder(left, right) {
-  return left.occurredRevision - right.occurredRevision ||
-    left.operationIndex - right.operationIndex ||
-    String(left.incidentId).localeCompare(String(right.incidentId));
-}
-
-function validateCareMistakeIncidentOrdering(incidents = []) {
-  const diagnostics = [];
-  const incidentIds = new Set();
-  const operationKeys = new Set();
-  const normalized = (Array.isArray(incidents) ? incidents : []).map(normalizeIncident);
-  normalized.forEach((incident) => {
-    if (!incident.incidentId || !isNonNegativeInteger(incident.occurredRevision) ||
-        !isNonNegativeInteger(incident.operationIndex)) {
-      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.INVALID_INCIDENT_ORDERING);
-      return;
-    }
-    if (incidentIds.has(incident.incidentId)) {
-      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.DUPLICATE_INCIDENT_ID);
-    }
-    incidentIds.add(incident.incidentId);
-    const operationKey = `${incident.occurredRevision}:${incident.operationIndex}`;
-    if (operationKeys.has(operationKey)) {
-      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.DUPLICATE_INCIDENT_OPERATION_KEY);
-    }
-    operationKeys.add(operationKey);
-  });
-  const diagnosticCodes = careMistakeV2Chain_uniqueDiagnostics(diagnostics);
-  return {
-    orderingStatus: diagnosticCodes.length
-      ? CARE_MISTAKE_ORDERING_STATUS.INVALID
-      : CARE_MISTAKE_ORDERING_STATUS.VALID,
-    diagnosticCodes,
-    orderedIncidents: diagnosticCodes.length
-      ? []
-      : [...normalized].sort(compareCareMistakeIncidentOrder),
-  };
-}
-
-function buildExpectedPointers(orderedIncidents) {
-  return orderedIncidents.map((incident, index) => ({
-    incidentId: incident.incidentId,
-    previousUnresolvedIncidentId: orderedIncidents[index - 1]?.incidentId || null,
-  }));
-}
-
-function auditCareMistakeFullChain({ state = {}, incidents = [] } = {}) {
-  const targets = selectCareMistakeV2UnresolvedIncidents({ state, incidents });
-  const storedCount = state.postCutoverUnresolvedCount;
-  if ((isNonNegativeInteger(storedCount) && storedCount > CARE_MISTAKE_V2_REPAIR_LIMIT) ||
-      targets.length > CARE_MISTAKE_V2_REPAIR_LIMIT) {
-    return {
-      chainStatus: CARE_MISTAKE_CHAIN_STATUS.OVER_REPAIR_BOUNDARY,
-      orderingStatus: CARE_MISTAKE_ORDERING_STATUS.INVALID,
-      repairability: "none",
-      diagnosticCodes: [CARE_MISTAKE_CHAIN_DIAGNOSTIC.OVER_REPAIR_BOUNDARY],
-      v2UnresolvedIncidentCount: targets.length,
-      expectedHeadIncidentId: null,
-      pointerChanges: [],
-    };
-  }
-
-  const ordering = validateCareMistakeIncidentOrdering(targets);
-  if (ordering.orderingStatus !== CARE_MISTAKE_ORDERING_STATUS.VALID) {
-    return {
-      chainStatus: CARE_MISTAKE_CHAIN_STATUS.INVALID,
-      orderingStatus: ordering.orderingStatus,
-      repairability: "none",
-      diagnosticCodes: ordering.diagnosticCodes,
-      v2UnresolvedIncidentCount: targets.length,
-      expectedHeadIncidentId: null,
-      pointerChanges: [],
-    };
-  }
-
-  const diagnostics = [];
-  const ordered = ordering.orderedIncidents;
-  const expectedPointers = buildExpectedPointers(ordered);
-  const expectedHeadIncidentId = ordered.at(-1)?.incidentId || null;
-  if (!isNonNegativeInteger(storedCount) || storedCount !== targets.length) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.POST_CUTOVER_COUNT_MISMATCH);
-  }
-  if ((targets.length === 0 && state.latestUnresolvedIncidentId != null) ||
-      (targets.length > 0 && careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId) == null)) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_NULLABILITY_MISMATCH);
-  }
-
-  const byId = new Map(targets.map((incident) => [incident.incidentId, incident]));
-  const visited = new Set();
-  let cursorId = careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId);
-  while (cursorId) {
-    if (visited.has(cursorId)) {
-      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_CYCLE);
-      break;
-    }
-    const incident = byId.get(cursorId);
-    if (!incident) {
-      diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_INCIDENT_MISSING);
-      break;
-    }
-    visited.add(cursorId);
-    cursorId = careMistakeV2Chain_normalizeId(incident.previousUnresolvedIncidentId);
-  }
-  if (visited.size !== targets.length || targets.some((incident) => !visited.has(incident.incidentId))) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_SET_MISMATCH);
-  }
-
-  const pointerChanges = expectedPointers.filter(({ incidentId, previousUnresolvedIncidentId }) => {
-    const current = careMistakeV2Chain_normalizeId(byId.get(incidentId)?.previousUnresolvedIncidentId);
-    return current !== previousUnresolvedIncidentId;
-  });
-  if (careMistakeV2Chain_normalizeId(state.latestUnresolvedIncidentId) !== expectedHeadIncidentId || pointerChanges.length > 0) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.HEAD_CHAIN_ORDER_MISMATCH);
-  }
-
-  const diagnosticCodes = careMistakeV2Chain_uniqueDiagnostics(diagnostics);
-  const countMatches = storedCount === targets.length;
-  const repairable = ordering.orderingStatus === CARE_MISTAKE_ORDERING_STATUS.VALID && countMatches;
-  return {
-    chainStatus: diagnosticCodes.length
-      ? CARE_MISTAKE_CHAIN_STATUS.INVALID
-      : CARE_MISTAKE_CHAIN_STATUS.VALID,
-    orderingStatus: ordering.orderingStatus,
-    repairability: diagnosticCodes.length && repairable ? "linked_head_repair" : "none",
-    diagnosticCodes,
-    v2UnresolvedIncidentCount: targets.length,
-    expectedHeadIncidentId,
-    pointerChanges,
-  };
-}
-
-function advanceCareMistakeRevision({
-  operationType,
-  currentRevision,
-  expectedRevision,
-} = {}) {
-  const validOperations = new Set(Object.values(CARE_MISTAKE_EPOCH_OPERATION));
-  const diagnostics = [];
-  if (!validOperations.has(operationType)) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.INVALID_EPOCH_OPERATION);
-  }
-  if (!isNonNegativeInteger(currentRevision) || expectedRevision !== currentRevision) {
-    diagnostics.push(CARE_MISTAKE_CHAIN_DIAGNOSTIC.REVISION_CONFLICT);
-  }
-  if (diagnostics.length) {
-    return {
-      ok: false,
-      diagnosticCodes: careMistakeV2Chain_uniqueDiagnostics(diagnostics),
-      nextRevision: null,
-    };
-  }
-  return { ok: true, diagnosticCodes: [], nextRevision: currentRevision + 1 };
-}
-
-function buildLinkedHeadRepairPlan({
-  state = {},
-  incidents = [],
-  currentRevision,
-  expectedRevision,
-  nextReceiptId,
-} = {}) {
-  const revision = advanceCareMistakeRevision({
-    operationType: CARE_MISTAKE_EPOCH_OPERATION.LINKED_HEAD_REPAIR,
-    currentRevision,
-    expectedRevision,
-  });
-  const repairReceiptId = careMistakeV2Chain_normalizeId(nextReceiptId);
-  if (!revision.ok || !repairReceiptId) {
-    return {
-      ok: false,
-      diagnosticCodes: careMistakeV2Chain_uniqueDiagnostics([
-        ...revision.diagnosticCodes,
-        repairReceiptId ? null : CARE_MISTAKE_CHAIN_DIAGNOSTIC.REPAIR_RECEIPT_REQUIRED,
-      ]),
-    };
-  }
-  const audit = auditCareMistakeFullChain({ state, incidents });
-  if (audit.chainStatus === CARE_MISTAKE_CHAIN_STATUS.VALID) {
-    return { ok: true, noChange: true, audit, nextRevision: currentRevision };
-  }
-  if (audit.repairability !== "linked_head_repair") {
-    return { ok: false, diagnosticCodes: audit.diagnosticCodes, audit };
-  }
-  return {
-    ok: true,
-    noChange: false,
-    nextRevision: revision.nextRevision,
-    nextReceiptId: repairReceiptId,
-    statePatch: {
-      latestUnresolvedIncidentId: audit.expectedHeadIncidentId,
-      receiptId: repairReceiptId,
-    },
-    incidentPointerUpdates: audit.pointerChanges,
-    audit,
-  };
-}
-
-function snapshotLinkedHeadProtectedFields({ state = {}, incidents = [] } = {}) {
-  return {
-    baselineRemainingCount: state.baselineRemainingCount,
-    postCutoverUnresolvedCount: state.postCutoverUnresolvedCount,
-    unresolvedCareMistakeCount: state.unresolvedCareMistakeCount,
-    incidents: (Array.isArray(incidents) ? incidents : [])
-      .map(normalizeIncident)
-      .sort((left, right) => String(left.incidentId).localeCompare(String(right.incidentId)))
-      .map((incident) => ({
-        incidentId: incident.incidentId,
-        occurredRevision: incident.occurredRevision,
-        operationIndex: incident.operationIndex,
-        rootReceiptId: incident.rootReceiptId,
-        evolutionStageInstanceId: incident.evolutionStageInstanceId,
-        status: incident.status,
-        resolvedAt: incident.resolvedAt ?? null,
-      })),
-  };
-}
-
 ;// ./src/logic/realtime-arena/rulesets.js
 const DEFAULT_REALTIME_ARENA_RULES_VERSION = "mvp-2";
 
@@ -9326,8 +8537,6 @@ function selectRealtimeArenaFallbackAction({ seed, battleId, round, role }) {
 }
 
 ;// ./src/server/gameProjectionEntry.js
-
-
 
 
 

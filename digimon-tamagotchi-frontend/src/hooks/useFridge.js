@@ -3,7 +3,6 @@
 
 import { addActivityLog } from "./useGameLogic";
 import { toTimestamp } from "../utils/fridgeTime";
-import { CARE_MISTAKE_TRANSITION_TYPES } from "../logic/stats/careMistakeProjection";
 
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
 const STRENGTH_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -162,6 +161,7 @@ export function buildTakeOutFridgeLogText(frozenDurationSeconds, message) {
  * @param {Function} params.applyLazyUpdateBeforeAction - Lazy Update 적용 함수
  * @param {Function} params.setActivityLogs - Activity Logs 설정 함수
  * @param {Array} params.activityLogs - Activity Logs 배열
+ * @param {Function} [params.appendLogToSubcollection] - Firestore logs 서브컬렉션에 로그 추가
  * @returns {Object} putInFridge, takeOutFromFridge
  */
 export function useFridge({
@@ -170,6 +170,7 @@ export function useFridge({
   applyLazyUpdateBeforeAction,
   setActivityLogs,
   activityLogs,
+  appendLogToSubcollection,
 }) {
   /**
    * 냉장고에 넣기
@@ -187,22 +188,16 @@ export function useFridge({
       return;
     }
     
-    const nowMs = Date.now();
-    const updatedStats = buildPutInFridgeCommitState(currentStats, nowMs);
+    const updatedStats = buildPutInFridgeCommitState(currentStats);
     
     const updatedLogs = addActivityLog(
       activityLogs || [],
       "FRIDGE",
-      "냉장고에 보관했습니다. 시간이 멈춥니다.",
-      nowMs
+      "냉장고에 보관했습니다. 시간이 멈춥니다."
     );
-    const transition = {
-      transitionType: CARE_MISTAKE_TRANSITION_TYPES.FRIDGE_ENTERED,
-      createdAt: nowMs,
-      operations: [{ frozenAt: nowMs }],
-    };
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     try {
-      await setDigimonStatsAndSave(updatedStats, updatedLogs, transition);
+      await setDigimonStatsAndSave(updatedStats, updatedLogs);
     } catch (saveError) {
       console.error("냉장고 보관 상태 저장 오류:", saveError);
     }
@@ -218,9 +213,8 @@ export function useFridge({
       return;
     }
     
-    const nowMs = Date.now();
     const { frozenDurationSeconds, updatedStats } =
-      buildTakeOutFridgeCommitState(currentStats, nowMs);
+      buildTakeOutFridgeCommitState(currentStats);
     
     // 냉장고 전용 대사
     const messages = [
@@ -234,19 +228,11 @@ export function useFridge({
     const updatedLogs = addActivityLog(
       activityLogs || [],
       "FRIDGE",
-      buildTakeOutFridgeLogText(frozenDurationSeconds, randomMessage),
-      nowMs
+      buildTakeOutFridgeLogText(frozenDurationSeconds, randomMessage)
     );
-    const transition = {
-      transitionType: CARE_MISTAKE_TRANSITION_TYPES.FRIDGE_EXITED,
-      createdAt: nowMs,
-      operations: [{
-        takeOutAt: nowMs,
-        frozenDurationSeconds,
-      }],
-    };
+    if (appendLogToSubcollection) await appendLogToSubcollection(updatedLogs[updatedLogs.length - 1]).catch(() => {});
     try {
-      await setDigimonStatsAndSave(updatedStats, updatedLogs, transition);
+      await setDigimonStatsAndSave(updatedStats, updatedLogs);
     } catch (saveError) {
       console.error("냉장고 해제 상태 저장 오류:", saveError);
     }

@@ -205,14 +205,6 @@
         { "fieldPath": "digimonInstanceId", "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "careMistakeIncidents",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "digimonInstanceId", "order": "ASCENDING" },
-        { "fieldPath": "occurredAt", "order": "ASCENDING" }
-      ]
     }
   ],
   "fieldOverrides": [

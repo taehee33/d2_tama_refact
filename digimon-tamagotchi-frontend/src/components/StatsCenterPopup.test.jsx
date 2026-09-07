@@ -12,7 +12,6 @@ const BASE_STATS = {
   winRate: 50,
   effort: 3,
   careMistakes: 1,
-  sleepDisturbances: 2,
   isInjured: false,
   battles: 4,
   battlesWon: 2,
@@ -27,7 +26,6 @@ const CURRENT_TIME = new Date("2026-08-13T12:00:00.000Z");
 function createProps(overrides = {}) {
   return {
     stats: BASE_STATS,
-    activityLogs: [],
     digimonData: { stats: { energy: 20 } },
     sleepStatus: "AWAKE",
     currentTime: CURRENT_TIME,
@@ -41,7 +39,7 @@ function createProps(overrides = {}) {
 }
 
 describe("StatsCenterPopup 공개 상태", () => {
-  test("일반 사용자에게 상태·위험 탭과 11개 핵심 필드를 표시한다", () => {
+  test("일반 사용자에게 상태·위험 탭과 고정된 10개 핵심 필드를 표시한다", () => {
     render(<StatsCenterPopup {...createProps()} />);
 
     expect(screen.getByRole("dialog", { name: "디지몬 상태" })).toHaveAttribute(
@@ -65,104 +63,13 @@ describe("StatsCenterPopup 공개 상태", () => {
       "승률",
       "노력치",
       "케어 미스",
-      "수면 방해",
       "수면",
       "부상",
     ].forEach((label) => {
       expect(within(panel).getByText(label)).toBeInTheDocument();
     });
-    expect(within(panel).getByText("2회")).toBeInTheDocument();
     expect(within(panel).queryByText("리비전")).not.toBeInTheDocument();
     expect(within(panel).queryByText("케어 미스 상세 기록")).not.toBeInTheDocument();
-  });
-
-  test("수면 방해 행에서 현재 진화 구간 이력을 최신순으로 펼치고 접는다", () => {
-    render(<StatsCenterPopup {...createProps({
-      stats: {
-        ...BASE_STATS,
-        evolutionStageStartedAt: 2000,
-      },
-      activityLogs: [
-        { type: "SLEEP_DISTURBANCE", text: "최신 기록", timestamp: 4000 },
-        { type: "SLEEP_DISTURBANCE", text: "현재 구간 기록", timestamp: 3000 },
-        { type: "SLEEP_START", text: "잠듦", timestamp: 2500 },
-        { type: "SLEEP_DISTURBANCE", text: "이전 구간 기록", timestamp: 1000 },
-      ],
-    })} />);
-
-    const historyButton = screen.getByRole("button", { name: /수면 방해.*2회/ });
-    expect(historyButton).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(historyButton);
-
-    expect(historyButton).toHaveAttribute("aria-expanded", "true");
-    const history = screen.getByRole("region", { name: "수면 방해 이력" });
-    const cards = within(history).getAllByRole("article");
-    expect(cards[0]).toHaveTextContent("최신 기록");
-    expect(cards[1]).toHaveTextContent("현재 구간 기록");
-    expect(within(history).queryByText("이전 구간 기록")).not.toBeInTheDocument();
-    expect(within(history).queryByText("잠듦")).not.toBeInTheDocument();
-
-    fireEvent.click(historyButton);
-    expect(screen.queryByRole("region", { name: "수면 방해 이력" })).not.toBeInTheDocument();
-  });
-
-  test("카운트만 남은 레거시 슬롯에 상세 기록 부재와 범위를 안내한다", () => {
-    render(<StatsCenterPopup {...createProps({ activityLogs: [] })} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /수면 방해.*2회/ }));
-
-    expect(screen.getByText("카운트 2회 · 상세 기록 0건")).toBeInTheDocument();
-    expect(screen.getByText(/단계 시작 시각이 없어/)).toBeInTheDocument();
-    expect(screen.getByText(/수면 방해 상세 기록이 없습니다/)).toBeInTheDocument();
-  });
-
-  test("수면 방해가 0회이면 행을 펼침 버튼으로 만들지 않는다", () => {
-    render(<StatsCenterPopup {...createProps({
-      stats: { ...BASE_STATS, sleepDisturbances: 0 },
-    })} />);
-
-    expect(screen.queryByRole("button", { name: /수면 방해/ })).not.toBeInTheDocument();
-    expect(screen.getByText("수면 방해")).toBeInTheDocument();
-    expect(screen.getByText("0회")).toBeInTheDocument();
-  });
-
-  test("케어미스가 0회여도 현재 구간의 해소 이력은 접근 가능한 아코디언으로 연다", () => {
-    render(<StatsCenterPopup {...createProps({
-      stats: {
-        ...BASE_STATS,
-        careMistakes: 0,
-        evolutionStageInstanceId: "stage-current",
-        careMistakeHistoryIncidents: [{
-          careSchemaVersion: 2,
-          incidentId: "resolved-care",
-          evolutionStageInstanceId: "stage-current",
-          occurredRevision: 3,
-          operationIndex: 0,
-          occurredAt: 1000,
-          text: "배고픔 콜 미응답",
-          status: "resolved",
-          resolvedAt: 2000,
-        }],
-      },
-    })} />);
-
-    const historyButton = screen.getByRole("button", { name: /케어 미스.*0회/ });
-    expect(historyButton).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(historyButton);
-
-    const history = screen.getByRole("region", { name: "케어 미스 이력" });
-    expect(within(history).getByText("배고픔 콜 미응답")).toBeInTheDocument();
-    expect(within(history).getByText("해소됨")).toBeInTheDocument();
-  });
-
-  test("케어미스 이력이 없으면 해당 행은 읽기 전용으로 유지한다", () => {
-    render(<StatsCenterPopup {...createProps({
-      stats: { ...BASE_STATS, careMistakes: 0, careMistakeHistoryIncidents: [] },
-    })} />);
-
-    expect(screen.queryByRole("button", { name: /케어 미스/ })).not.toBeInTheDocument();
-    expect(screen.getByText("케어 미스")).toBeInTheDocument();
   });
 
   test("위험 탭에 5개 위험 카드와 상한 없는 누적 수명을 읽기 전용으로 표시한다", () => {

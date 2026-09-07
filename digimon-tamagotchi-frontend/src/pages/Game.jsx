@@ -72,7 +72,6 @@ import { recordRuntimeMetric } from "../utils/runtimeMetrics";
 import { mergeAcknowledgedRecentCallIds } from "../utils/callStatusUtils";
 import { fetchOperatorStatus } from "../utils/operatorApi";
 import { persistOperatorStatsPatch } from "../logic/stats/operatorStatsEdit";
-import { CARE_MISTAKE_TRANSITION_TYPES } from "../logic/stats/careMistakeProjection";
 
 const DEFAULT_SEASON_ID = 1;
 const MEAT_SPRITES = ["/images/526.png", "/images/527.png", "/images/528.png", "/images/529.png"];
@@ -374,7 +373,6 @@ function Game({ immersive = false }){
     setWakeUntil,
     setIsLoadingSlot,
     setDeathReason,
-    setHasSeenDeathPopup,
     toggleModal,
     digimonDataVer1: digimonDataForSlot,
     adaptedDataMapsByVersion,
@@ -417,19 +415,7 @@ function Game({ immersive = false }){
     selectedDigimon,
   ]);
 
-  const careMistakeReconciliationStatus =
-    digimonStats?.careMistakeReconciliationStatus ||
-    syncInfo?.careMistakeReconciliationStatus ||
-    null;
-  const isCareMistakeReconciliationBlocked =
-    careMistakeReconciliationStatus &&
-    !["verified", "legacy_baseline", "degraded"].includes(
-      careMistakeReconciliationStatus
-    );
-  const isGameplayReady =
-    persistencePhase === "ready" &&
-    syncConflict == null &&
-    !isCareMistakeReconciliationBlocked;
+  const isGameplayReady = persistencePhase === "ready" && syncConflict == null;
   const shouldBlockGameRuntime = !isGameplayReady;
 
   const setSelectedDigimonAndSave = useCallback(async (name, options = {}) => {
@@ -883,11 +869,7 @@ function Game({ immersive = false }){
       };
 
       setDigimonStats(updatedStats);
-      setDigimonStatsAndSave(updatedStats, null, {
-        transitionType: CARE_MISTAKE_TRANSITION_TYPES.CALL_HISTORY_ACKNOWLEDGED,
-        createdAt: Date.now(),
-        operations: [{ callIds: nextIds }],
-      }).catch((error) => {
+      setDigimonStatsAndSave(updatedStats).catch((error) => {
         console.warn("[Game] 최근 호출 확인 상태 저장 실패", error);
       });
     },
@@ -1302,7 +1284,6 @@ function Game({ immersive = false }){
     maxOverfeed: digimonStats.maxOverfeed || 0,
     proteinOverdose: digimonStats.proteinOverdose || 0,
     isFrozen: digimonStats.isFrozen || false,
-    needsApplicable: statusBadgeProps.needsApplicable,
   };
 
   const sharedStatusBadgesProps = {
@@ -1469,19 +1450,6 @@ function Game({ immersive = false }){
       <GameSlotLoadState
         phase="failed"
         error={slotLoadError}
-        onRetry={retrySlotLoad}
-        onBack={() => navigate("/play")}
-      />
-    );
-  }
-
-  if (
-    isCareMistakeReconciliationBlocked
-  ) {
-    return (
-      <GameSlotLoadState
-        phase="reconciliation"
-        reconciliationStatus={careMistakeReconciliationStatus}
         onRetry={retrySlotLoad}
         onBack={() => navigate("/play")}
       />

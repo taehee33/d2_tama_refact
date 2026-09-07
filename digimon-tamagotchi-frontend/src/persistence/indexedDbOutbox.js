@@ -1,11 +1,5 @@
-import {
-  TRANSITION_SEQUENCE_STORE,
-  TRANSITION_STORE,
-  createTransitionQueue,
-} from './transitionQueue';
-
 const DEFAULT_DB_NAME = 'd2-tama-outbox';
-const DEFAULT_DB_VERSION = 3;
+const DEFAULT_DB_VERSION = 2;
 const FEED_RETENTION_DAYS = 30;
 const FEED_RETENTION_MAX_COUNT = 5000;
 const FEED_BUCKET_MINUTES = 15;
@@ -100,17 +94,9 @@ export function createIndexedDbStorage(options = {}) {
       const database = await getDatabase();
       return runAtomicStoreUpdate(database, storeName, key, updater);
     },
-    async atomicUpdateMany(operations) {
-      const database = await getDatabase();
-      return runAtomicStoreUpdates(database, operations);
-    },
     async deleteWhere(storeNames, predicate) {
       const database = await getDatabase();
       return runAtomicDeleteWhere(database, storeNames, predicate);
-    },
-    async quarantineWhere(storeNames, predicate, describe) {
-      const database = await getDatabase();
-      return runAtomicQuarantineWhere(database, storeNames, predicate, describe);
     },
     async migrateLegacyRecords(nowTimestamp = Date.now()) {
       const database = await getDatabase();
@@ -158,8 +144,6 @@ export function createIndexedDbOutbox(options = {}) {
     }
     return migrationPromise;
   };
-
-  const transitionQueue = createTransitionQueue({ storage, now });
 
   const getScopedEvents = async (category, input) => {
     await ensureMigration();
@@ -209,7 +193,6 @@ export function createIndexedDbOutbox(options = {}) {
         input.syncStatus === 'synced' || Number.isFinite(input.syncedAt)
           ? normalizeTimestamp(input.syncedAt, occurredAt)
           : null,
-      ...(input.careEpoch ? { careEpoch: clonePlainData(input.careEpoch) } : {}),
     };
 
     if (category === EVENT_CATEGORY.FEED) {
@@ -250,34 +233,6 @@ export function createIndexedDbOutbox(options = {}) {
   };
 
   return {
-    enqueueTransition(input) {
-      return ensureMigration().then(() => transitionQueue.enqueue(input));
-    },
-
-    getTransition(input) {
-      return ensureMigration().then(() => transitionQueue.get(input));
-    },
-
-    listTransitions(input) {
-      return ensureMigration().then(() => transitionQueue.list(input));
-    },
-
-    getNextTransition(input) {
-      return ensureMigration().then(() => transitionQueue.getNext(input));
-    },
-
-    updateTransitionStatus(input) {
-      return ensureMigration().then(() => transitionQueue.updateStatus(input));
-    },
-
-    blockTransitionChain(input) {
-      return ensureMigration().then(() => transitionQueue.blockFrom(input));
-    },
-
-    discardTransition(input) {
-      return ensureMigration().then(() => transitionQueue.discard(input));
-    },
-
     async putStateMutation(input) {
       await ensureMigration();
       const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
@@ -297,7 +252,6 @@ export function createIndexedDbOutbox(options = {}) {
         updatedAt,
         queuedAt,
         state: clonePlainData(input.state),
-        ...(input.careEpoch ? { careEpoch: clonePlainData(input.careEpoch) } : {}),
       };
 
       return storage.atomicUpdate(STATE_STORE, scopeKey, (existing) => {
@@ -404,7 +358,7 @@ export function createIndexedDbOutbox(options = {}) {
         identity.slotInstanceId
       );
       return storage.deleteWhere(
-        [STATE_STORE, EVENT_STORE, TRANSITION_STORE, TRANSITION_SEQUENCE_STORE],
+        [STATE_STORE, EVENT_STORE],
         (_storeName, record) => record?.scopeKey === scopeKey
       );
     },
@@ -418,7 +372,7 @@ export function createIndexedDbOutbox(options = {}) {
         identity.slotInstanceId
       );
       return storage.deleteWhere(
-        [STATE_STORE, EVENT_STORE, TRANSITION_STORE],
+        [STATE_STORE, EVENT_STORE],
         (_storeName, record) =>
           record?.scopeKey === scopeKey &&
           record?.digimonInstanceId === identity.digimonInstanceId
@@ -428,35 +382,6 @@ export function createIndexedDbOutbox(options = {}) {
     async listLegacyQuarantine() {
       await ensureMigration();
       return (await storage.getAll(QUARANTINE_STORE)).map(clonePlainData);
-    },
-
-    async quarantineStaleCareEpoch(input) {
-      await ensureMigration();
-      const identity = normalizeOutboxIdentity(input, { requireDigimonInstanceId: true });
-      const scopeKey = buildScopeKey(identity.uid, identity.slotId, identity.slotInstanceId);
-      const expected = normalizeCareEpoch(input.currentEpoch);
-      const reason = normalizeRequiredString(input.reason || 'stale-care-epoch', 'reason');
-      return storage.quarantineWhere(
-        [STATE_STORE, EVENT_STORE, TRANSITION_STORE],
-        (_storeName, record) => {
-          if (record?.scopeKey !== scopeKey ||
-              record?.digimonInstanceId !== identity.digimonInstanceId) return false;
-          const epoch = readRecordCareEpoch(record);
-          return !epoch || epoch.careSchemaVersion !== expected.careSchemaVersion ||
-            epoch.rootReceiptId !== expected.rootReceiptId ||
-            epoch.receiptId !== expected.receiptId ||
-            epoch.evolutionStageInstanceId !== expected.evolutionStageInstanceId;
-        },
-        (storeName, record, originalKey) => ({
-          quarantineKey: `care-epoch:${storeName}:${String(originalKey)}:${now()}`,
-          originalStore: storeName,
-          originalKey: String(originalKey),
-          reason,
-          quarantinedAt: now(),
-          serverEpoch: expected,
-          record: clonePlainData(record),
-        })
-      );
     },
 
     async summarizeFeedBuckets(input) {
@@ -544,9 +469,7 @@ function assertStorage(storage) {
     'delete',
     'getAll',
     'atomicUpdate',
-    'atomicUpdateMany',
     'deleteWhere',
-    'quarantineWhere',
     'migrateLegacyRecords',
   ];
 
@@ -555,37 +478,6 @@ function assertStorage(storage) {
       throw new TypeError(`storage.${methodName} 구현이 필요합니다.`);
     }
   });
-}
-
-function normalizeCareEpoch(value = {}) {
-  const careSchemaVersion = Number(value.careSchemaVersion);
-  if (careSchemaVersion !== 2) throw new TypeError('careSchemaVersion 2가 필요합니다.');
-  return {
-    careSchemaVersion,
-    rootReceiptId: normalizeRequiredString(value.rootReceiptId, 'rootReceiptId'),
-    receiptId: normalizeRequiredString(value.receiptId, 'receiptId'),
-    evolutionStageInstanceId: normalizeRequiredString(
-      value.evolutionStageInstanceId,
-      'evolutionStageInstanceId'
-    ),
-  };
-}
-
-function readRecordCareEpoch(record = {}) {
-  const candidates = [
-    record.careEpoch,
-    record.state?.careEpoch,
-    record.transition?.careEpoch,
-    record.transition,
-    record.payload?.careEpoch,
-  ];
-  const value = candidates.find((candidate) => candidate?.careSchemaVersion != null);
-  if (!value) return null;
-  try {
-    return normalizeCareEpoch(value);
-  } catch (_error) {
-    return null;
-  }
 }
 
 function buildScopeKey(uid, slotId, slotInstanceId) {
@@ -732,14 +624,6 @@ function openDatabase(indexedDBApi, dbName, dbVersion) {
       if (!database.objectStoreNames.contains(QUARANTINE_STORE)) {
         database.createObjectStore(QUARANTINE_STORE, { keyPath: 'quarantineKey' });
       }
-
-      if (!database.objectStoreNames.contains(TRANSITION_STORE)) {
-        database.createObjectStore(TRANSITION_STORE, { keyPath: 'transitionId' });
-      }
-
-      if (!database.objectStoreNames.contains(TRANSITION_SEQUENCE_STORE)) {
-        database.createObjectStore(TRANSITION_SEQUENCE_STORE, { keyPath: 'scopeKey' });
-      }
     };
 
     request.onsuccess = () => {
@@ -859,90 +743,6 @@ function runAtomicStoreUpdate(database, storeName, key, updater) {
   });
 }
 
-function runAtomicStoreUpdates(database, operations) {
-  if (!Array.isArray(operations) || operations.length === 0) {
-    throw new TypeError('atomicUpdateMany operations가 필요합니다.');
-  }
-
-  const storeNames = Array.from(new Set(operations.map((operation) => operation.storeName)));
-  return new Promise((resolve, reject) => {
-    let transaction;
-    let settled = false;
-    let remaining = operations.length;
-    const existingValues = new Array(operations.length);
-    const results = new Array(operations.length);
-
-    const abortWithError = (error) => {
-      if (settled) return;
-      settled = true;
-      try {
-        transaction.abort();
-      } catch (_abortError) {
-        // noop
-      }
-      reject(error);
-    };
-
-    try {
-      transaction = database.transaction(storeNames, 'readwrite');
-      transaction.oncomplete = () => {
-        if (!settled) resolve(results);
-      };
-      transaction.onerror = () => {
-        if (!settled) {
-          settled = true;
-          reject(transaction.error ?? new Error('IndexedDB 다중 store transaction이 실패했습니다.'));
-        }
-      };
-      transaction.onabort = () => {
-        if (!settled) {
-          settled = true;
-          reject(transaction.error ?? new Error('IndexedDB 다중 store transaction이 중단되었습니다.'));
-        }
-      };
-
-      operations.forEach((operation, index) => {
-        if (typeof operation?.updater !== 'function') {
-          throw new TypeError('atomicUpdateMany updater가 필요합니다.');
-        }
-        const store = transaction.objectStore(operation.storeName);
-        const request = store.get(operation.key);
-        request.onsuccess = () => {
-          if (settled) return;
-          existingValues[index] = clonePlainData(request.result ?? null);
-          remaining -= 1;
-          if (remaining !== 0) return;
-
-          try {
-            operations.forEach((currentOperation, operationIndex) => {
-              const action = normalizeAtomicAction(
-                currentOperation.updater(existingValues[operationIndex])
-              );
-              results[operationIndex] = clonePlainData(action.result);
-              if (action.action === 'put') {
-                transaction
-                  .objectStore(currentOperation.storeName)
-                  .put(clonePlainData(action.value));
-              } else if (action.action === 'delete') {
-                transaction
-                  .objectStore(currentOperation.storeName)
-                  .delete(currentOperation.key);
-              }
-            });
-          } catch (error) {
-            abortWithError(error);
-          }
-        };
-        request.onerror = () => {
-          abortWithError(request.error ?? new Error('IndexedDB 다중 store 조회가 실패했습니다.'));
-        };
-      });
-    } catch (error) {
-      abortWithError(error);
-    }
-  });
-}
-
 function normalizeStoreNames(storeNames) {
   return Array.isArray(storeNames) ? storeNames : [storeNames];
 }
@@ -997,55 +797,6 @@ function runAtomicDeleteWhere(database, storeNames, predicate) {
     transaction.onabort = () => {
       if (!settled) reject(transaction.error ?? new Error('IndexedDB 범위 정리가 중단되었습니다.'));
     };
-  });
-}
-
-function runAtomicQuarantineWhere(database, storeNames, predicate, describe) {
-  const names = Array.from(new Set([...normalizeStoreNames(storeNames), QUARANTINE_STORE]));
-  return new Promise((resolve, reject) => {
-    let transaction;
-    let quarantinedCount = 0;
-    let pendingReads = names.filter((name) => name !== QUARANTINE_STORE).length;
-    let settled = false;
-    try {
-      transaction = database.transaction(names, 'readwrite');
-      const quarantineStore = transaction.objectStore(QUARANTINE_STORE);
-      names.filter((name) => name !== QUARANTINE_STORE).forEach((storeName) => {
-        const store = transaction.objectStore(storeName);
-        const request = store.getAll();
-        request.onsuccess = () => {
-          try {
-            (request.result || []).forEach((record) => {
-              const originalKey = record?.[store.keyPath];
-              if (!predicate(storeName, clonePlainData(record), originalKey)) return;
-              quarantineStore.put(clonePlainData(describe(storeName, record, originalKey)));
-              store.delete(originalKey);
-              quarantinedCount += 1;
-            });
-            pendingReads -= 1;
-          } catch (error) {
-            settled = true;
-            try { transaction.abort(); } catch (_abortError) { /* noop */ }
-            reject(error);
-          }
-        };
-        request.onerror = () => {
-          settled = true;
-          reject(request.error ?? new Error('stale epoch 조회가 실패했습니다.'));
-        };
-      });
-      transaction.oncomplete = () => {
-        if (!settled && pendingReads === 0) resolve({ quarantinedCount });
-      };
-      transaction.onerror = () => {
-        if (!settled) reject(transaction.error ?? new Error('stale epoch 격리가 실패했습니다.'));
-      };
-      transaction.onabort = () => {
-        if (!settled) reject(transaction.error ?? new Error('stale epoch 격리가 중단되었습니다.'));
-      };
-    } catch (error) {
-      reject(error);
-    }
   });
 }
 

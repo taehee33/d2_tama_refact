@@ -10,7 +10,6 @@ import {
   getDeathFormIds,
   getStarterDigimonId,
   isStarterDigimonId,
-  isPhysiologicalNeedsApplicable,
 } from "../utils/digimonVersionUtils";
 
 export function resolveDeathReincarnationDigimonId({
@@ -157,11 +156,7 @@ export function useDeath({
    * @returns {Object} 사망 여부 및 사유
    */
   function checkDeathCondition(stats) {
-    return evaluateDeathConditions(
-      stats,
-      Date.now(),
-      isPhysiologicalNeedsApplicable(selectedDigimon || stats?.selectedDigimon)
-    );
+    return evaluateDeathConditions(stats, Date.now());
   }
 
   return {

@@ -19,7 +19,6 @@ const TAB_CONFIG = Object.freeze({
 
 export default function StatsCenterPopup({
   stats = {},
-  activityLogs = [],
   digimonData = null,
   sleepStatus = "AWAKE",
   currentTime = null,
@@ -47,14 +46,8 @@ export default function StatsCenterPopup({
     [DIAGNOSTICS_TAB]: diagnosticsTabRef,
   };
   const viewModel = useMemo(
-    () => buildStatsCenterViewModel({
-      stats,
-      activityLogs,
-      digimonData,
-      sleepStatus,
-      currentTime,
-    }),
-    [activityLogs, currentTime, digimonData, sleepStatus, stats]
+    () => buildStatsCenterViewModel({ stats, digimonData, sleepStatus, currentTime }),
+    [currentTime, digimonData, sleepStatus, stats]
   );
 
   useEffect(() => {
@@ -170,11 +163,7 @@ export default function StatsCenterPopup({
           aria-labelledby={TAB_CONFIG[visibleActiveTab].id}
         >
           {visibleActiveTab === STATUS_TAB ? (
-            <StatusTab
-              items={viewModel.statusItems}
-              careMistakeHistory={viewModel.careMistakeHistory}
-              sleepDisturbanceHistory={viewModel.sleepDisturbanceHistory}
-            />
+            <StatusTab items={viewModel.statusItems} />
           ) : visibleActiveTab === RISK_TAB ? (
             <HealthRiskTab
               items={viewModel.healthRiskItems}

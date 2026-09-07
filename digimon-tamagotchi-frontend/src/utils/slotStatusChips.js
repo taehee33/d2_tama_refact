@@ -1,4 +1,4 @@
-import { getDigimonEntryByVersion, isPhysiologicalNeedsApplicable } from "./digimonVersionUtils";
+import { getDigimonEntryByVersion } from "./digimonVersionUtils";
 import { evaluateDeathConditions } from "../logic/stats/death";
 import {
   buildDigimonStatusMessages,
@@ -35,8 +35,7 @@ function hasEvolutionCandidate(slot) {
 
 export function getProjectedSlotStats(slot) {
   const projectedStats = slot?.projectedDigimonStats || slot?.digimonStats || {};
-  const needsApplicable = isPhysiologicalNeedsApplicable(slot?.selectedDigimon);
-  const deathEvaluation = evaluateDeathConditions(projectedStats, Date.now(), needsApplicable);
+  const deathEvaluation = evaluateDeathConditions(projectedStats);
 
   if (deathEvaluation.isDead) {
     return normalizeStatsForStatusMessages({
@@ -51,7 +50,6 @@ export function getProjectedSlotStats(slot) {
 }
 
 function resolveSlotSleepStatus(slot, stats, nowMs) {
-  if (!isPhysiologicalNeedsApplicable(slot?.selectedDigimon)) return "AWAKE";
   if (stats?.isFrozen) return "AWAKE";
 
   const wakeUntil = toEpochMs(stats?.wakeUntil ?? slot?.wakeUntil);
@@ -100,7 +98,6 @@ export function getSlotStatusMessages(slot, { currentTime = Date.now(), limit = 
       hasEvolutionCandidate(slot) &&
       stats.timeToEvolveSeconds != null &&
       Number(stats.timeToEvolveSeconds) <= 0,
-    needsApplicable: isPhysiologicalNeedsApplicable(slot.selectedDigimon),
     sleepSchedule: stats.sleepSchedule || null,
     wakeUntil: stats.wakeUntil ?? slot.wakeUntil ?? null,
     sleepLightOnStart: stats.sleepLightOnStart ?? null,

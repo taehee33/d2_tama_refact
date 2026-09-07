@@ -2,32 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   doc,
   serverTimestamp,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { DEFAULT_IMMERSIVE_SETTINGS } from "../data/immersiveSettings";
-import { initializeStats } from "../data/stats";
-import { adaptDataMapToOldFormat } from "../data/v1/adapter";
 import { userSlotRepository } from "../repositories/UserSlotRepository";
 import { sortSlotsByRecentActivity } from "../utils/slotRecency";
-import {
-  getDigimonDataMapByVersion,
-  getStarterDigimonId,
-} from "../utils/digimonVersionUtils";
+import { getStarterDigimonId } from "../utils/digimonVersionUtils";
 import { buildPlayHubProjectedSlot } from "../utils/playHubSlotProjection";
 import { toEpochMs } from "../utils/time";
 import { createNewLifeCombatIdentity } from "../logic/arena/combatIdentity";
 import { createSlotInstanceIdentity } from "../persistence/slotInstanceIdentity";
 import { createIndexedDbOutbox } from "../persistence/indexedDbOutbox";
 import { clearDeletedSlotOutbox } from "../persistence/slotOutboxLifecycle";
-import { buildEvolutionStageInstanceId } from "../logic/stats/careMistakeProjection";
-import {
-  buildCareMistakeV2Command,
-  commitCareMistakeV2ApiCommand,
-  deleteCareMistakeV2ApiSlot,
-  nativeInitCareMistakeV2ApiSlot,
-} from "../persistence/careMistakeV2Api";
 
 function normalizeSlotOrder(slots) {
   const slotsWithoutOrder = slots
@@ -50,80 +39,6 @@ function normalizeSlotOrder(slots) {
   return [...slotsWithOrder, ...slotsWithoutOrder].sort(
     (left, right) => left.displayOrder - right.displayOrder
   );
-}
-
-function createSlotCommandId(prefix, slotId) {
-  const randomId = typeof window !== "undefined" &&
-    typeof window.crypto?.randomUUID === "function"
-    ? window.crypto.randomUUID()
-    : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
-  return `${prefix}:slot${slotId}:${randomId}`;
-}
-
-export function buildNativeSlotInitializationData({
-  version,
-  device,
-  createdAt,
-  slotIdentity,
-  combatIdentity,
-} = {}) {
-  const startingDigimon = getStarterDigimonId(version);
-  const evolutionStageInstanceId = buildEvolutionStageInstanceId({
-    digimonInstanceId: combatIdentity.digimonInstanceId,
-    evolutionStageStartedAt: createdAt,
-    evolutionStage: startingDigimon,
-  });
-  const dataMap = adaptDataMapToOldFormat(getDigimonDataMapByVersion(version));
-  const digimonStats = {
-    ...initializeStats(startingDigimon, {}, dataMap, { nowMs: createdAt }),
-    lastSavedAt: createdAt,
-  };
-
-  return {
-    ...slotIdentity,
-    ...combatIdentity,
-    logIdentitySchemaVersion: 1,
-    evolutionStageInstanceId,
-    selectedDigimon: startingDigimon,
-    digimonStats,
-    digimonNickname: null,
-    createdAt,
-    device,
-    version,
-    immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
-    displayOrder: 1,
-    lastSavedAt: createdAt,
-  };
-}
-
-/**
- * V1은 기존 클라이언트 삭제를 유지하고 V2만 trusted server 삭제로 보냅니다.
- * 호출자는 이 함수가 성공한 뒤에만 해당 slot instance의 로컬 outbox를 정리해야 합니다.
- */
-export async function deleteSlotByCareSchema({
-  currentUser,
-  slotId,
-  slotData,
-  deleteV2 = deleteCareMistakeV2ApiSlot,
-  deleteLegacy = (uid, id) => userSlotRepository.deleteUserSlot(uid, id),
-} = {}) {
-  if (slotData?.careMistakeState?.schemaVersion !== 2) {
-    await deleteLegacy(currentUser.uid, slotId);
-    return { status: "complete", schemaVersion: 1 };
-  }
-
-  const result = await deleteV2(currentUser, slotId, {
-    slotInstanceId: slotData.slotInstanceId,
-    expectedRevision: slotData.revision,
-  });
-  if (result.status !== "complete") {
-    const pendingError = new Error(
-      "슬롯 삭제가 진행 중입니다. 잠시 후 다시 시도해 주세요."
-    );
-    pendingError.code = "SLOT_DELETION_IN_PROGRESS";
-    throw pendingError;
-  }
-  return result;
 }
 
 export function useUserSlots({ maxSlots = 10 } = {}) {
@@ -179,27 +94,6 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
     loadSlots();
   }, [loadSlots]);
 
-  const saveSlotPatch = useCallback(async (slotId, updateData, slotData = null) => {
-    const currentSlot = slotData || slots.find((slot) => String(slot.id) === String(slotId));
-    if (currentSlot?.careMistakeState?.schemaVersion === 2) {
-      return commitCareMistakeV2ApiCommand(
-        currentUser,
-        slotId,
-        buildCareMistakeV2Command({
-          commandId: createSlotCommandId("slot-metadata", slotId),
-          commandType: "STATE_MUTATION",
-          state: currentSlot.careMistakeState,
-          expectedRevision: currentSlot.revision,
-          payload: { updateData },
-        })
-      );
-    }
-    return updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
-      ...updateData,
-      updatedAt: serverTimestamp(),
-    });
-  }, [currentUser, slots]);
-
   const createSlot = useCallback(
     async ({
       device = "Digital Monster Color 25th",
@@ -236,46 +130,36 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
 
       if (reorderTargets.length > 0) {
         await Promise.all(
-          reorderTargets.map((slot) => {
-            const nextDisplayOrder = (slot.displayOrder || 0) + 1;
-            if (slot.careMistakeState?.schemaVersion === 2) {
-              return commitCareMistakeV2ApiCommand(
-                currentUser,
-                slot.id,
-                buildCareMistakeV2Command({
-                  commandId: createSlotCommandId("slot-reorder", slot.id),
-                  commandType: "STATE_MUTATION",
-                  state: slot.careMistakeState,
-                  expectedRevision: slot.revision,
-                  payload: { updateData: { displayOrder: nextDisplayOrder } },
-                })
-              );
-            }
-            return updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`), {
-              displayOrder: nextDisplayOrder,
+          reorderTargets.map((slot) =>
+            updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`), {
+              displayOrder: (slot.displayOrder || 0) + 1,
               updatedAt: serverTimestamp(),
-            });
-          })
+            })
+          )
         );
       }
 
+      const startingDigimon = getStarterDigimonId(version);
       const createdAt = Date.now();
-      const slotIdentity = createSlotInstanceIdentity();
-      const combatIdentity = createNewLifeCombatIdentity();
-      const slotData = buildNativeSlotInitializationData({
-        version,
-        device,
-        createdAt,
-        slotIdentity,
-        combatIdentity,
-      });
 
-      await nativeInitCareMistakeV2ApiSlot(currentUser, slotId, {
-        commandId: createSlotCommandId("native-init", slotId),
-        slotData: {
-          ...slotData,
-          slotName: `슬롯${slotId}`,
-        },
+      await setDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
+        ...createSlotInstanceIdentity(),
+        ...createNewLifeCombatIdentity(),
+        logIdentitySchemaVersion: 1,
+        revision: 0,
+        selectedDigimon: startingDigimon,
+        digimonStats: {},
+        slotName: `슬롯${slotId}`,
+        digimonNickname: null,
+        createdAt,
+        createdAtServer: serverTimestamp(),
+        device,
+        version,
+        immersiveSettings: DEFAULT_IMMERSIVE_SETTINGS,
+        displayOrder: 1,
+        lastSavedAt: createdAt,
+        lastSavedAtServer: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
 
       await loadSlots();
@@ -291,7 +175,7 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
       }
 
       const deletedSlot = slots.find((slot) => String(slot.id) === String(slotId)) || null;
-      await deleteSlotByCareSchema({ currentUser, slotId, slotData: deletedSlot });
+      await userSlotRepository.deleteUserSlot(currentUser.uid, slotId);
       try {
         await clearDeletedSlotOutbox({
           outbox,
@@ -321,12 +205,15 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         ? nextNickname.trim()
         : "";
 
-      await saveSlotPatch(slotId, { digimonNickname: trimmedNickname || null });
+      await updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
+        digimonNickname: trimmedNickname || null,
+        updatedAt: serverTimestamp(),
+      });
 
       await syncJogressRoomNickname(slotId, trimmedNickname || null);
       await loadSlots();
     },
-    [currentUser, isFirebaseAvailable, loadSlots, saveSlotPatch, syncJogressRoomNickname]
+    [currentUser, isFirebaseAvailable, loadSlots, syncJogressRoomNickname]
   );
 
   const resetNickname = useCallback(
@@ -335,12 +222,15 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
         throw new Error("로그인이 필요합니다.");
       }
 
-      await saveSlotPatch(slotId, { digimonNickname: null });
+      await updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slotId}`), {
+        digimonNickname: null,
+        updatedAt: serverTimestamp(),
+      });
 
       await syncJogressRoomNickname(slotId, null);
       await loadSlots();
     },
-    [currentUser, isFirebaseAvailable, loadSlots, saveSlotPatch, syncJogressRoomNickname]
+    [currentUser, isFirebaseAvailable, loadSlots, syncJogressRoomNickname]
   );
 
   const saveOrder = useCallback(
@@ -351,13 +241,16 @@ export function useUserSlots({ maxSlots = 10 } = {}) {
 
       await Promise.all(
         orderedSlots.map((slot, index) =>
-          saveSlotPatch(slot.id, { displayOrder: index + 1 }, slot)
+          updateDoc(doc(db, "users", currentUser.uid, "slots", `slot${slot.id}`), {
+            displayOrder: index + 1,
+            updatedAt: serverTimestamp(),
+          })
         )
       );
 
       await loadSlots();
     },
-    [currentUser, isFirebaseAvailable, loadSlots, saveSlotPatch]
+    [currentUser, isFirebaseAvailable, loadSlots]
   );
 
   const recentSlots = useMemo(() => sortSlotsByRecentActivity(slots), [slots]);

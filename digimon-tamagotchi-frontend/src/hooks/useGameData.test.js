@@ -2,24 +2,18 @@ import {
   buildFallbackSlotHydrationResult,
   createNextSlotLoadAccess,
   createGameSaveQueue,
-  enqueueCareV2Patch,
   buildLazyUpdateRuntimeResult,
-  buildCareMistakeTransitionFromStats,
   buildLoadedSlotCollectionsState,
   buildLoadedSlotHydrationResult,
   buildLoadedSlotHydrationPlan,
   buildLoadedSlotRuntimeState,
-  hasCompletePersistedGameplayState,
   buildComparableSlotSnapshot,
   buildSlotDocumentUpdatePayload,
   buildDigimonDisplayName,
   loadSlotCollectionsState,
-  loadCareMistakeIncidents,
-  loadCareMistakeReconciliationLogs,
   resolveActionLazyUpdateRuntimeContext,
   resolveLastSavedAtSource,
   resolveLazyUpdateBaseStats,
-  resolvePendingNewLifeRetry,
   resolveRootSlotFields,
   raiseGameSaveError,
   sanitizeDigimonStatsForSlotDocument,
@@ -37,72 +31,6 @@ describe("raiseGameSaveError", () => {
 
     expect(() => raiseGameSaveError(error, setError)).toThrow(error);
     expect(setError).toHaveBeenCalledWith(error);
-  });
-});
-
-describe("resolvePendingNewLifeRetry", () => {
-  test("수동 재시도에서 pending의 기존 transitionId·identity·snapshot을 그대로 재사용한다", () => {
-    const pendingTransition = {
-      transitionType: "NEW_LIFE",
-      transitionId: "new-life-original",
-      nextDigimonInstanceId: "life-original",
-      nextCombatRevision: 1,
-    };
-    const pendingSnapshot = {
-      selectedDigimon: "DigitamaV3",
-      digimonInstanceId: "life-original",
-    };
-    const result = resolvePendingNewLifeRetry({
-      pendingState: {
-        state: {
-          transition: pendingTransition,
-          stateSnapshot: pendingSnapshot,
-        },
-      },
-      fallbackTransition: {
-        transitionType: "NEW_LIFE",
-        transitionId: "new-life-replacement",
-        nextDigimonInstanceId: "life-replacement",
-      },
-      fallbackStatsSnapshot: { selectedDigimon: "DigitamaV3" },
-    });
-
-    expect(result.pendingTransition).toBe(pendingTransition);
-    expect(result.transition.transitionId).toBe("new-life-original");
-    expect(result.transition.nextDigimonInstanceId).toBe("life-original");
-    expect(result.statsSnapshot).toBe(pendingSnapshot);
-  });
-
-  test("일반 사망 pending은 새 생애 snapshot으로 재사용하지 않는다", () => {
-    const deadPendingSnapshot = {
-      selectedDigimon: "Death5",
-      isDead: true,
-      deathReason: "STARVATION (굶주림)",
-    };
-    const newLifeSnapshot = {
-      selectedDigimon: "DigitamaV5",
-      isDead: false,
-      deathReason: null,
-    };
-    const fallbackTransition = {
-      transitionType: "NEW_LIFE",
-      transitionId: "new-life-current",
-      nextDigimonInstanceId: "life-current",
-    };
-
-    const result = resolvePendingNewLifeRetry({
-      pendingState: {
-        state: {
-          stateSnapshot: deadPendingSnapshot,
-        },
-      },
-      fallbackTransition,
-      fallbackStatsSnapshot: newLifeSnapshot,
-    });
-
-    expect(result.pendingTransition).toBeNull();
-    expect(result.transition).toBe(fallbackTransition);
-    expect(result.statsSnapshot).toBe(newLifeSnapshot);
   });
 });
 
@@ -196,68 +124,6 @@ describe("createGameSaveQueue", () => {
     await queue.enqueue(nextTask);
 
     expect(nextTask).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("enqueueCareV2Patch", () => {
-  test("동시에 요청된 V2 patch는 앞 결과의 revision과 state를 이어서 직렬 commit한다", async () => {
-    const saveQueue = createGameSaveQueue();
-    let access = {
-      loadedRevision: 1,
-      loadedIdentity: { digimonInstanceId: "life-a" },
-      careMistakeState: {
-        schemaVersion: 2,
-        rootReceiptId: "root-a",
-        receiptId: "receipt-1",
-        evolutionStageInstanceId: "stage-a",
-      },
-    };
-    const expectedRevisions = [];
-    let activeCommits = 0;
-    let maxActiveCommits = 0;
-    const commitCommand = jest.fn(async (_user, _slotId, command) => {
-      expectedRevisions.push(command.expectedRevision);
-      activeCommits += 1;
-      maxActiveCommits = Math.max(maxActiveCommits, activeCommits);
-      await Promise.resolve();
-      activeCommits -= 1;
-      const revision = command.expectedRevision + 1;
-      return {
-        revision,
-        careMistakeState: {
-          ...access.careMistakeState,
-          receiptId: `receipt-${revision}`,
-        },
-      };
-    });
-    const common = {
-      saveQueue,
-      getAccess: () => access,
-      currentUser: { uid: "canary-user" },
-      slotId: 1,
-      commitCommand,
-      updateAccess: (patch) => { access = { ...access, ...patch }; },
-      setRevision: jest.fn(),
-    };
-
-    const first = enqueueCareV2Patch({
-      ...common,
-      commandId: "background-a",
-      payload: { updateData: { backgroundSettings: { theme: "a" } } },
-    });
-    const second = enqueueCareV2Patch({
-      ...common,
-      commandId: "immersive-a",
-      payload: { updateData: { immersiveSettings: { enabled: true } } },
-    });
-
-    const results = await Promise.all([first, second]);
-
-    expect(expectedRevisions).toEqual([1, 2]);
-    expect(results.map((result) => result.revision)).toEqual([2, 3]);
-    expect(access.loadedRevision).toBe(3);
-    expect(access.careMistakeState.receiptId).toBe("receipt-3");
-    expect(maxActiveCommits).toBe(1);
   });
 });
 
@@ -749,76 +615,6 @@ describe("loadSlotCollectionsState", () => {
   });
 });
 
-describe("loadCareMistakeReconciliationLogs", () => {
-  test("화면 상한 50건과 무관하게 현재 stage 전체 로그를 유지한다", async () => {
-    const currentStageLogs = Array.from({ length: 75 }, (_, index) => ({
-      id: `current-${index}`,
-      type: "CAREMISTAKE",
-      timestamp: 1000 + index,
-      slotInstanceId: "slot-life-1",
-      digimonInstanceId: "digimon-life-1",
-    }));
-
-    const result = await loadCareMistakeReconciliationLogs({
-      slotInstanceId: "slot-life-1",
-      digimonInstanceId: "digimon-life-1",
-      evolutionStageStartedAt: 1000,
-      loadLogs: async () => [
-        { id: "previous-stage", timestamp: 999 },
-        ...currentStageLogs,
-        {
-          id: "other-life",
-          timestamp: 1100,
-          slotInstanceId: "slot-life-1",
-          digimonInstanceId: "digimon-life-old",
-        },
-      ],
-    });
-
-    expect(result).toHaveLength(75);
-    expect(result[0].id).toBe("current-0");
-    expect(result[74].id).toBe("current-74");
-  });
-
-  test("전체 감사 조회 실패를 빈 로그로 숨기지 않는다", async () => {
-    await expect(loadCareMistakeReconciliationLogs({
-      loadLogs: async () => {
-        throw new Error("read failed");
-      },
-    })).rejects.toThrow("read failed");
-  });
-
-  test("timestamp가 손상된 care 로그는 plan 검증을 위해 버리지 않는다", async () => {
-    const result = await loadCareMistakeReconciliationLogs({
-      evolutionStageStartedAt: 1000,
-      loadLogs: async () => [{
-        id: "broken-care",
-        type: "CAREMISTAKE",
-        text: "케어미스",
-        timestamp: "not-a-date",
-      }],
-    });
-
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("broken-care");
-  });
-});
-
-describe("loadCareMistakeIncidents", () => {
-  test("필수 stage/timestamp가 손상된 raw incident를 plan 전에 숨기지 않는다", async () => {
-    const incidents = [{
-      incidentId: "broken-incident",
-      digimonInstanceId: "life-1",
-      occurredAt: null,
-    }];
-    await expect(loadCareMistakeIncidents({
-      digimonInstanceId: "life-1",
-      evolutionStageInstanceId: "stage-1",
-      loadIncidents: async () => incidents,
-    })).resolves.toEqual(incidents);
-  });
-});
-
 describe("buildLoadedSlotCollectionsState", () => {
   test("로드한 activity/battle logs를 저장된 stats에 합치고 cleanup 힌트를 반환한다", () => {
     const result = buildLoadedSlotCollectionsState({
@@ -962,7 +758,6 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Devimon",
       sleepSchedule: { start: 1, end: 9 },
       maxEnergy: 14,
-      needsApplicable: true,
     });
   });
 
@@ -990,7 +785,6 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Agumon",
       sleepSchedule: { start: 21, end: 7 },
       maxEnergy: 10,
-      needsApplicable: true,
     });
   });
 
@@ -1015,7 +809,6 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Greymon",
       sleepSchedule: { start: 22, end: 6 },
       maxEnergy: 6,
-      needsApplicable: true,
     });
   });
 
@@ -1031,7 +824,6 @@ describe("resolveActionLazyUpdateRuntimeContext", () => {
       currentDigimonName: "Digitama",
       sleepSchedule: null,
       maxEnergy: null,
-      needsApplicable: false,
     });
   });
 });
@@ -1154,7 +946,7 @@ describe("buildLoadedSlotRuntimeState", () => {
 });
 
 describe("buildLoadedSlotHydrationPlan", () => {
-  test("저장된 stats가 없으면 자동 초기화 없이 hydration을 차단한다", () => {
+  test("저장된 stats가 없으면 starter hydration 결과를 조립한다", () => {
     const dataMap = {
       Digitama: {
         hungerTimer: 60,
@@ -1164,16 +956,34 @@ describe("buildLoadedSlotHydrationPlan", () => {
         evolutionStage: "Digitama",
       },
     };
-    expect(() => buildLoadedSlotHydrationPlan({
-      slotData: { slotName: "빈 슬롯" },
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(123456789);
+
+    const result = buildLoadedSlotHydrationPlan({
+      slotData: {
+        slotName: "빈 슬롯",
+      },
       slotId: 1,
       slotVersionLabel: "Ver.1",
-      rootSlotFields: { isLightsOn: true, wakeUntil: null },
+      rootSlotFields: {
+        isLightsOn: true,
+        wakeUntil: null,
+      },
       loadedActivityLogs: [{ type: "CARE", timestamp: 1000 }],
       savedName: "Digitama",
       savedStats: {},
       dataMap,
-    })).toThrow(expect.objectContaining({ code: "game/slot-load-incomplete" }));
+    });
+
+    expect(result.reconstructedLogsToPersist).toEqual([]);
+    expect(result.hydrationResult.slotName).toBe("빈 슬롯");
+    expect(result.hydrationResult.selectedDigimon).toBe("Digitama");
+    expect(result.hydrationResult.activityLogs).toEqual([
+      { type: "CARE", timestamp: 1000 },
+    ]);
+    expect(result.hydrationResult.digimonStats.birthTime).toBe(123456789);
+    expect(result.hydrationResult.digimonStats.lastSavedAt).toBe(123456789);
+
+    nowSpy.mockRestore();
   });
 
   test("저장된 stats가 있으면 runtime rebuild를 거친 hydration 결과를 반환한다", () => {
@@ -1211,8 +1021,6 @@ describe("buildLoadedSlotHydrationPlan", () => {
       savedName: "Agumon",
       savedStats: {
         ...baseStats,
-        birthTime: 1000,
-        evolutionStageStartedAt: 1000,
         sprite: 1,
         activityLogs: [{ type: "CARE", timestamp: 900 }],
         battleLogs: [],
@@ -1230,221 +1038,6 @@ describe("buildLoadedSlotHydrationPlan", () => {
 
     warnSpy.mockRestore();
     nowSpy.mockRestore();
-  });
-
-  test("reconciliation projection만 있는 부분 stats는 자동 초기화 없이 차단한다", () => {
-    const dataMap = {
-      Digitama: {
-        sprite: 7,
-        hungerTimer: 60,
-        strengthTimer: 60,
-        poopTimer: 60,
-        stage: "Digitama",
-        evolutionStage: "Digitama",
-        timeToEvolveSeconds: 600,
-      },
-    };
-
-    expect(() => buildLoadedSlotHydrationPlan({
-      slotData: {
-        slotName: "새 슬롯",
-        createdAt: 1000,
-        lastSavedAt: 1000,
-      },
-      slotId: 5,
-      slotVersionLabel: "Ver.1",
-      rootSlotFields: { isLightsOn: true, wakeUntil: null },
-      loadedActivityLogs: [],
-      savedName: "Digitama",
-      savedStats: {
-        careMistakes: 0,
-        unresolvedCareMistakeCount: 0,
-        careMistakeReconciliationStatus: "verified",
-        evolutionStageInstanceId: "stage:life-5:Digitama:1000",
-        activityLogs: [],
-        battleLogs: [],
-      },
-      dataMap,
-    })).toThrow(expect.objectContaining({ code: "game/slot-load-incomplete" }));
-  });
-
-  test.each([
-    ["빈 stats", {}],
-    ["projection-only", {
-      careMistakes: 0,
-      careMistakeSchemaVersion: 2,
-      evolutionStageInstanceId: "stage-a",
-    }],
-    ["일부 gameplay field", { birthTime: 1000 }],
-  ])("%s는 load invariant를 충족하지 않는다", (_name, savedStats) => {
-    expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAt: 1000 },
-      savedStats,
-    })).toBe(false);
-  });
-
-  test("필수 timer 또는 생애·진화 timestamp가 하나라도 없으면 load invariant를 충족하지 않는다", () => {
-    const dataMap = {
-      Digitama: {
-        evolutionStage: "Digitama",
-        hungerTimer: 0,
-        strengthTimer: 0,
-        poopTimer: 999,
-        timeToEvolveSeconds: 8,
-      },
-    };
-    const complete = {
-      ...initializeStats("Digitama", {}, dataMap, { nowMs: 1000 }),
-      lastSavedAt: 1000,
-    };
-    const withoutTimer = { ...complete };
-    delete withoutTimer.hungerCountdown;
-    const withoutBirthTime = { ...complete };
-    delete withoutBirthTime.birthTime;
-    const withoutEvolutionStageStartedAt = { ...complete };
-    delete withoutEvolutionStageStartedAt.evolutionStageStartedAt;
-
-    const variants = [withoutTimer, withoutBirthTime, withoutEvolutionStageStartedAt];
-    variants.forEach((savedStats) => expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAt: 1000 },
-      savedStats,
-    })).toBe(false));
-  });
-
-  test("오염된 server timestamp는 유효한 numeric fallback이 있을 때만 load invariant를 통과한다", () => {
-    const dataMap = {
-      Digitama: {
-        evolutionStage: "Digitama",
-        hungerTimer: 0,
-        strengthTimer: 0,
-        poopTimer: 999,
-        timeToEvolveSeconds: 8,
-      },
-    };
-    const complete = initializeStats("Digitama", {}, dataMap, { nowMs: 1000 });
-    const malformedServerTimestamp = { _methodName: "serverTimestamp" };
-
-    expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAtServer: malformedServerTimestamp, lastSavedAt: 1000 },
-      savedStats: complete,
-    })).toBe(true);
-    expect(hasCompletePersistedGameplayState({
-      slotData: { lastSavedAtServer: malformedServerTimestamp },
-      savedStats: { ...complete, lastSavedAt: Number.NaN },
-    })).toBe(false);
-  });
-
-  test.each([
-    ["V1 legacy", (stats) => ({
-      slotData: { lastSavedAt: 1000 },
-      savedStats: Object.fromEntries(
-        Object.entries(stats).filter(([key]) => key !== "lastSavedAt")
-      ),
-    })],
-    ["V2 migrated", (stats) => ({
-      slotData: { lastSavedAtServer: { toMillis: () => 1000 } },
-      savedStats: {
-        ...stats,
-        careMistakeSchemaVersion: 2,
-        careMistakeReconciliationStatus: "verified",
-      },
-    })],
-    ["V2 native-init", (stats) => ({
-      slotData: { lastSavedAt: 1000, careMistakeState: { schemaVersion: 2 } },
-      savedStats: {
-        ...stats,
-        careMistakeSchemaVersion: 2,
-        careMistakeReconciliationStatus: "verified",
-      },
-    })],
-  ])("정상 %s 슬롯은 기존 timestamp를 보존해 hydration한다", (_name, buildFixture) => {
-    const dataMap = {
-      Digitama: {
-        sprite: 7,
-        evolutionStage: "Digitama",
-        hungerTimer: 0,
-        strengthTimer: 0,
-        poopTimer: 999,
-        timeToEvolveSeconds: 8,
-        stats: { maxEnergy: 0, sleepSchedule: { start: 20, end: 8 } },
-      },
-    };
-    const initialized = {
-      ...initializeStats("Digitama", {}, dataMap, { nowMs: 1000 }),
-      lastSavedAt: 1000,
-    };
-    const fixture = buildFixture(initialized);
-    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(2000);
-
-    const result = buildLoadedSlotHydrationPlan({
-      ...fixture,
-      slotId: 1,
-      slotVersionLabel: "Ver.1",
-      rootSlotFields: { isLightsOn: true, wakeUntil: null },
-      loadedActivityLogs: [],
-      savedName: "Digitama",
-      dataMap,
-      slotRuntimeDataMap: dataMap,
-      runtimeAdaptedDataMaps: { "Ver.1": dataMap },
-      evolutionDataForSlot: dataMap,
-    });
-
-    expect(result.hydrationResult.digimonStats.birthTime).toBe(1000);
-    expect(result.hydrationResult.digimonStats.evolutionStageStartedAt).toBe(1000);
-    expect(result.hydrationResult.digimonStats.lifespanSeconds).toBeGreaterThanOrEqual(1);
-    nowSpy.mockRestore();
-  });
-
-  test("신규 저장 상태를 재접속해도 생애·진화·배고픔·힘·똥 진행값을 초기화하지 않는다", () => {
-    const dataMap = {
-      Digitama: {
-        sprite: 7,
-        evolutionStage: "Digitama",
-        fullness: 5,
-        strength: 5,
-        hungerTimer: 1,
-        strengthTimer: 1,
-        poopTimer: 1,
-        timeToEvolveSeconds: 120,
-        stats: { maxEnergy: 0, sleepSchedule: { start: 23, end: 7 } },
-      },
-    };
-    const createdAt = 1_000;
-    const persistedStats = {
-      ...initializeStats("Digitama", {}, dataMap, { nowMs: createdAt }),
-      lastSavedAt: createdAt,
-    };
-    const hydrateAt = (nowMs) => {
-      const nowSpy = jest.spyOn(Date, "now").mockReturnValue(nowMs);
-      try {
-        return buildLoadedSlotHydrationPlan({
-          slotData: { createdAt, lastSavedAt: createdAt },
-          slotId: 1,
-          slotVersionLabel: "Ver.1",
-          rootSlotFields: { isLightsOn: true, wakeUntil: null },
-          loadedActivityLogs: [],
-          savedName: "Digitama",
-          savedStats: persistedStats,
-          dataMap,
-          slotRuntimeDataMap: dataMap,
-          runtimeAdaptedDataMaps: { "Ver.1": dataMap },
-          evolutionDataForSlot: dataMap,
-        }).hydrationResult.digimonStats;
-      } finally {
-        nowSpy.mockRestore();
-      }
-    };
-
-    const firstReconnect = hydrateAt(31_000);
-    const secondReconnect = hydrateAt(41_000);
-
-    expect(secondReconnect.birthTime).toBe(createdAt);
-    expect(secondReconnect.evolutionStageStartedAt).toBe(createdAt);
-    expect(secondReconnect.lifespanSeconds).toBeGreaterThan(firstReconnect.lifespanSeconds);
-    expect(secondReconnect.timeToEvolveSeconds).toBeLessThan(firstReconnect.timeToEvolveSeconds);
-    expect(secondReconnect.hungerCountdown).toBe(firstReconnect.hungerCountdown);
-    expect(secondReconnect.strengthCountdown).toBe(firstReconnect.strengthCountdown);
-    expect(secondReconnect.poopCountdown).toBeLessThan(firstReconnect.poopCountdown);
   });
 });
 
@@ -1482,32 +1075,6 @@ describe("resolveLastSavedAtSource", () => {
         }
       )
     ).toBe(1500);
-  });
-
-  test("오염된 서버 시각은 건너뛰고 유효한 root lastSavedAt을 사용한다", () => {
-    expect(
-      resolveLastSavedAtSource(
-        {
-          lastSavedAtServer: { _methodName: "serverTimestamp" },
-          lastSavedAt: 2000,
-        },
-        { lastSavedAt: 1500 },
-        { lastSavedAt: 1000 }
-      )
-    ).toBe(2000);
-  });
-
-  test("오염된 서버 시각 뒤에 유효한 시간 기준이 없으면 null을 반환한다", () => {
-    expect(
-      resolveLastSavedAtSource(
-        {
-          lastSavedAtServer: { _methodName: "serverTimestamp" },
-          lastSavedAt: Number.NaN,
-        },
-        { lastSavedAt: -1 },
-        {}
-      )
-    ).toBeNull();
   });
 });
 
@@ -1564,101 +1131,5 @@ describe("resolveLazyUpdateBaseStats", () => {
       wakeUntil: 1712552400000,
       activityLogs: [{ type: "NAP_START" }],
     });
-  });
-});
-
-
-describe("케어미스 저장 경계 회귀", () => {
-  const nowMs = new Date(2026, 8, 5, 12, 20).getTime();
-  const lastSavedAt = nowMs - 20 * 60 * 1000;
-  const makeStats = (logs) => ({
-    ...initializeStats("Agumon"),
-    evolutionStage: "Child",
-    evolutionStageInstanceId: "stage-1",
-    evolutionStageStartedAt: lastSavedAt - 1000,
-    careMistakes: 0,
-    unresolvedCareMistakeCount: 0,
-    fullness: 0,
-    strength: 0,
-    lastHungerZeroAt: lastSavedAt,
-    lastStrengthZeroAt: lastSavedAt,
-    lastSavedAt,
-    activityLogs: logs,
-    callStatus: {
-      hunger: { isActive: true, startedAt: lastSavedAt, isLogged: false },
-      strength: { isActive: true, startedAt: lastSavedAt, isLogged: false },
-      sleep: { isActive: false, startedAt: null, isLogged: false },
-    },
-  });
-  const project = (stats) => buildLazyUpdateRuntimeResult({
-    baseStats: stats, lastSavedAt, nowMs,
-    sleepSchedule: { start: 22, end: 6 },
-  });
-
-  test("배고픔과 힘을 동시에 방치하면 두 카운터 모두 2가 된다", () => {
-    const result = project(makeStats([]));
-    expect(result.digimonStats.careMistakes).toBe(2);
-    expect(result.digimonStats.unresolvedCareMistakeCount).toBe(2);
-  });
-
-  test("기록 50개가 찬 뒤에도 재접속에서 발생한 두 사건을 저장 대상으로 반환한다", () => {
-    const logs = Array.from({ length: 50 }, (_, index) => ({
-      type: "FEED", text: `먹이 ${index}`, timestamp: lastSavedAt - 1000 + index,
-    }));
-    const result = project(makeStats(logs));
-    expect(result.digimonStats.activityLogs).toHaveLength(50);
-    expect(result.reconstructedLogsToPersist.filter((log) => log.type === "CAREMISTAKE")).toHaveLength(2);
-  });
-
-  test("50개 이력에서 수면 조명 처리됨과 저장 전이가 함께 생성된다", () => {
-    const start = new Date(2026, 8, 5, 20, 0).getTime();
-    const logs = Array.from({ length: 50 }, (_, index) => ({
-      type: "FEED", text: `먹이 ${index}`, timestamp: start - 1000 + index,
-    }));
-    const baseStats = {
-      ...makeStats(logs), fullness: 5, strength: 5,
-      lastHungerZeroAt: null, lastStrengthZeroAt: null,
-      isLightsOn: true, lastSavedAt: start,
-      callStatus: {
-        hunger: { isActive: false, startedAt: null, isLogged: false },
-        strength: { isActive: false, startedAt: null, isLogged: false },
-        sleep: { isActive: true, startedAt: start, isLogged: false },
-      },
-    };
-    const result = buildLazyUpdateRuntimeResult({
-      baseStats, lastSavedAt: start, nowMs: start + 40 * 60 * 1000,
-      sleepSchedule: { start: 20, end: 8 },
-    });
-    expect(result.digimonStats.callStatus.sleep.isLogged).toBe(true);
-    expect(result.digimonStats.careMistakes).toBe(1);
-    expect(result.digimonStats.unresolvedCareMistakeCount).toBe(1);
-    const transition = buildCareMistakeTransitionFromStats({
-      previousStats: baseStats, nextStats: result.digimonStats,
-      nextLogs: result.reconstructedLogsToPersist,
-      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" },
-    });
-    expect(transition.operations).toHaveLength(1);
-    expect(transition.operations[0].reasonKey).toBe("sleep_light_warning");
-  });
-
-  test("화면에 이미 있는 새 사건도 저장 완료된 스냅샷과 비교해 전송한다", () => {
-    const savedStats = makeStats([]);
-    const liveStats = project(savedStats).digimonStats;
-    const transition = buildCareMistakeTransitionFromStats({
-      previousStats: liveStats,
-      previousLogs: liveStats.activityLogs,
-      persistedStats: savedStats,
-      nextStats: liveStats,
-      nextLogs: liveStats.activityLogs,
-      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" },
-      nowMs,
-    });
-    expect(transition?.transitionType).toBe("CARE_MISTAKE_OCCURRED");
-    expect(transition.operations).toHaveLength(2);
-    expect(buildCareMistakeTransitionFromStats({
-      previousStats: liveStats, persistedStats: liveStats,
-      nextStats: liveStats, nextLogs: liveStats.activityLogs,
-      identity: { slotInstanceId: "slot-1", digimonInstanceId: "life-1" }, nowMs,
-    })).toBeNull();
   });
 });

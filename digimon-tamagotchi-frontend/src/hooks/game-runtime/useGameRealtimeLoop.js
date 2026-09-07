@@ -16,6 +16,7 @@ import { handleStrengthTick } from "../../logic/stats/strength";
 import { handleEnergyRecovery } from "../../logic/stats/stats";
 import {
   initializeCareMistakeLedger,
+  repairCareMistakeLedger,
 } from "../../logic/stats/careMistakeLedger";
 import { buildTickPoopInjuryLogs } from "../../logic/stats/injuryHistory";
 import {
@@ -23,8 +24,6 @@ import {
   evaluateDeathConditions,
 } from "../../logic/stats/death";
 import { buildDigimonLogSnapshot } from "../../utils/digimonLogSnapshot";
-import { isPhysiologicalNeedsApplicable } from "../../utils/digimonVersionUtils";
-import { cleanupInapplicablePhysiologicalNeeds } from "../../logic/stats/physiologicalNeeds";
 
 export function resolveRealtimeTickWindow(previousTickTimeMs, nowMs, maxStepSeconds = 60) {
   const availableSeconds = Math.floor((nowMs - previousTickTimeMs) / 1000);
@@ -188,7 +187,6 @@ export function useGameRealtimeLoop({
           live.selectedDigimon || currentDigimonName,
           live.digimonDataForSlot
         );
-        const needsApplicable = isPhysiologicalNeedsApplicable(currentDigimonName);
         const schedule = getSleepSchedule(
           currentDigimonName,
           live.digimonDataForSlot,
@@ -204,38 +202,30 @@ export function useGameRealtimeLoop({
           wakeUntil: live.wakeUntil,
           fastSleepStart: prevStats.fastSleepStart || null,
           napUntil: prevStats.napUntil || null,
-          needsApplicable,
           now: nowDate,
         });
         const isActuallySleeping = isSleepStatusSleeping(currentSleepStatus);
         const wasSleepStatus = prevSleepStatusRef.current;
         const wasSleepWarning = wasSleepStatus === "SLEEPING_LIGHT_ON";
-        const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
-        const wasNapping = wasSleepStatus === "NAPPING";
-        const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
-        const isNapping = currentSleepStatus === "NAPPING";
 
-        let updatedStats = cleanupInapplicablePhysiologicalNeeds(
-          updateLifespan(
+        let updatedStats = updateLifespan(
           prevStats,
           safeElapsedSeconds,
           isActuallySleeping,
           nowMs
-          ),
-          needsApplicable
-        ).stats;
+        );
         const currentDigimonData =
           live.digimonDataForSlot[currentDigimonName] ||
           live.digimonDataForSlot.Digitama;
 
-        if (needsApplicable) updatedStats = handleHungerTick(
+        updatedStats = handleHungerTick(
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
           isActuallySleeping,
           nowMs
         );
-        if (needsApplicable) updatedStats = handleStrengthTick(
+        updatedStats = handleStrengthTick(
           updatedStats,
           currentDigimonData,
           safeElapsedSeconds,
@@ -254,17 +244,12 @@ export function useGameRealtimeLoop({
             isLightsOn: live.isLightsOn,
             wakeUntil: live.wakeUntil,
           },
-          needsApplicable ? schedule : null,
+          schedule,
           maxEnergy,
           nowDate
         );
 
         updatedStats.sleepDisturbances = updatedStats.sleepDisturbances || 0;
-        if (!needsApplicable) {
-          prevSleepStatusRef.current = "AWAKE";
-          setIsSleeping(false);
-        }
-        if (needsApplicable) {
         updatedStats.fastSleepStart = prevStats.fastSleepStart || null;
         updatedStats.napUntil = prevStats.napUntil || null;
 
@@ -313,6 +298,10 @@ export function useGameRealtimeLoop({
           updatedStats.sleepLightOnStart = null;
         }
 
+        const wasSleepingLike = isSleepStatusSleeping(wasSleepStatus);
+        const isSleepingLike = isSleepStatusSleeping(currentSleepStatus);
+        const wasNapping = wasSleepStatus === "NAPPING";
+        const isNapping = currentSleepStatus === "NAPPING";
         if (wasSleepStatus !== null) {
           const timeStr = new Date(nowMs).toLocaleTimeString("ko-KR", {
             hour: "2-digit",
@@ -346,6 +335,19 @@ export function useGameRealtimeLoop({
 
         setIsSleeping(isSleepingLike);
 
+        if (!updatedStats.isDead) {
+          const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
+          if (deathEvaluation.isDead) {
+            updatedStats = applyDeathEvaluationToStats(
+              updatedStats,
+              deathEvaluation
+            );
+            if (deathEvaluation.reason) {
+              setDeathReason(deathEvaluation.reason);
+            }
+          }
+        }
+
         const sleepSchedule = getSleepSchedule(
           live.selectedDigimon,
           live.digimonDataForSlot,
@@ -357,8 +359,7 @@ export function useGameRealtimeLoop({
           live.isLightsOn,
           sleepSchedule,
           new Date(),
-          currentSleepStatus,
-          needsApplicable
+          currentSleepStatus
         );
 
         if (
@@ -375,14 +376,6 @@ export function useGameRealtimeLoop({
             }
             return nextLogs;
           });
-        }
-
-        if (!updatedStats.isDead) {
-          const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs, needsApplicable);
-          if (deathEvaluation.isDead) {
-            updatedStats = applyDeathEvaluationToStats(updatedStats, deathEvaluation);
-            if (deathEvaluation.reason) setDeathReason(deathEvaluation.reason);
-          }
         }
 
         if (
@@ -425,14 +418,18 @@ export function useGameRealtimeLoop({
           });
         }
 
-        const oldCareMistakes =
-          prevStats.unresolvedCareMistakeCount ?? prevStats.careMistakes ?? 0;
-        const previousLedger = initializeCareMistakeLedger(prevStats.careMistakeLedger);
+        const repairedPrevStats = repairCareMistakeLedger(
+          prevStats,
+          prevStats.activityLogs || []
+        ).nextStats;
+        const oldCareMistakes = repairedPrevStats.careMistakes || 0;
+        const previousLedger = initializeCareMistakeLedger(
+          repairedPrevStats.careMistakeLedger
+        );
         updatedStats = checkCallTimeouts(
           updatedStats,
           new Date(),
-          currentSleepStatus,
-          needsApplicable
+          currentSleepStatus
         );
 
         let nextLedger = initializeCareMistakeLedger(updatedStats.careMistakeLedger);
@@ -478,13 +475,15 @@ export function useGameRealtimeLoop({
               entry.occurredAt
             );
             const appendedLog = nextLogs[nextLogs.length - 1];
+            const wasAdded = nextLogs.length > currentLogs.length;
             currentLogs = nextLogs;
-            void appendedLog;
+            if (wasAdded && live.appendLogToSubcollection && appendedLog) {
+              live.appendLogToSubcollection(appendedLog).catch(() => {});
+            }
           });
 
           setActivityLogs(currentLogs);
           updatedStats = { ...updatedStats, activityLogs: currentLogs };
-        }
         }
 
         const oldPoopCount = prevStats.poopCount || 0;
@@ -576,10 +575,10 @@ export function useGameRealtimeLoop({
         }
 
         updatedStats.isLightsOn = live.isLightsOn;
-        updatedStats.wakeUntil = needsApplicable ? live.wakeUntil : null;
+        updatedStats.wakeUntil = live.wakeUntil;
 
         const sleepLifecycleChanged =
-          needsApplicable && wasSleepStatus !== null &&
+          wasSleepStatus !== null &&
           (wasSleepingLike !== isSleepingLike || wasNapping !== isNapping);
 
         if (

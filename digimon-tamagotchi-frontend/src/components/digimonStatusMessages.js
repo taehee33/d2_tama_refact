@@ -53,13 +53,6 @@ export const DIGIMON_STATUS_CATEGORY_META = {
 
 const SUMMARY_BLOCKING_CATEGORIES = new Set(["critical", "warning"]);
 const SLEEP_SUMMARY_WINDOW_MS = 2 * 60 * 60 * 1000;
-const PHYSIOLOGICAL_STATUS_IDS = new Set([
-  "call-hunger", "call-strength", "call-sleep", "hunger-zero", "hunger-low",
-  "strength-zero", "strength-low", "sleep-disturbance", "sleep-falling-asleep",
-  "sleep-napping", "sleep-light-on", "sleep-awake-interrupted", "sleeping-nap",
-  "sleeping", "time-until-sleep", "all-good", "fullness-good", "strength-good",
-  "death-history-hunger", "death-history-strength",
-]);
 
 function toTimestamp(value) {
   return toEpochMs(value);
@@ -75,12 +68,6 @@ function createStatusMessage(overrides) {
     priority: 999,
     ...overrides,
   };
-}
-
-function sortVisibleMessages(messages, needsApplicable) {
-  return messages
-    .filter((message) => needsApplicable || !PHYSIOLOGICAL_STATUS_IDS.has(message.id))
-    .sort((a, b) => a.priority - b.priority);
 }
 
 function getProteinOverdoseTone(proteinOverdose) {
@@ -168,7 +155,6 @@ export function buildDigimonStatusMessages({
   sleepLightOnStart = null,
   deathReason = null,
   currentTime = Date.now(),
-  needsApplicable = true,
 } = {}) {
   const {
     fullness = 0,
@@ -223,7 +209,7 @@ export function buildDigimonStatusMessages({
       isInjured,
     }));
 
-    return sortVisibleMessages(messages, needsApplicable);
+    return messages.sort((a, b) => a.priority - b.priority);
   }
 
   if (isInjured) {
@@ -711,7 +697,7 @@ export function buildDigimonStatusMessages({
     }
   }
 
-  return sortVisibleMessages(messages, needsApplicable);
+  return messages.sort((a, b) => a.priority - b.priority);
 }
 
 export function getSummaryDigimonStatusMessages(messages = [], maxVisible = 3) {

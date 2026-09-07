@@ -4,14 +4,11 @@ import {
   canUseGameplayPersistence,
   GAME_PERSISTENCE_PHASE,
   isCurrentConflictIdentity,
-  normalizeStateActivityEvents,
   resolveNewReplayActions,
   useDurableGamePersistence,
 } from "./useDurableGamePersistence";
 
 const mockRunTransaction = jest.fn();
-const mockCommitGameTransition = jest.fn();
-const mockCommitCareMistakeV2ApiCommand = jest.fn();
 const TEST_SLOT_INSTANCE_ID = "slot-instance-1";
 const TEST_DIGIMON_INSTANCE_ID = "digimon-instance-1";
 const TEST_PERSISTENCE_IDENTITY = Object.freeze({
@@ -30,16 +27,6 @@ jest.mock("firebase/firestore", () => ({
 }));
 
 jest.mock("../../firebase", () => ({ db: "DB" }));
-
-jest.mock("../../persistence/careMistakeTransition", () => ({
-  ...jest.requireActual("../../persistence/careMistakeTransition"),
-  commitGameTransition: (...args) => mockCommitGameTransition(...args),
-}));
-
-jest.mock("../../persistence/careMistakeV2Api", () => ({
-  ...jest.requireActual("../../persistence/careMistakeV2Api"),
-  commitCareMistakeV2ApiCommand: (...args) => mockCommitCareMistakeV2ApiCommand(...args),
-}));
 
 function createMemoryOutbox(order) {
   let stateRecord = null;
@@ -66,11 +53,6 @@ function createMemoryOutbox(order) {
       stateRecord = null;
       return true;
     },
-    clearDigimonLifeRecords: jest.fn(async () => {
-      order.push("outbox:clear-life");
-      stateRecord = null;
-      return 1;
-    }),
     async listActivityEvents() { return []; },
     async listBattleEvents() { return []; },
     async listFeedEvents() { return feedEvents; },
@@ -151,44 +133,6 @@ describe("canUseGameplayPersistence", () => {
     })).toBe(true);
   });
 
-  test("reconciliation이 끝나지 않은 동안 gameplay mutation을 막고 대기 전이만 허용한다", () => {
-    const saveContext = {
-      ...TEST_PERSISTENCE_IDENTITY,
-      generation: 3,
-    };
-    expect(canUseGameplayPersistence({
-      access: { ...readyAccess, careMistakeReconciliationStatus: "in_progress" },
-      currentUid: "user-1",
-      currentSlotId: 1,
-      loadedRevision: 4,
-      saveContext,
-    })).toBe(false);
-    expect(canUseGameplayPersistence({
-      access: { ...readyAccess, careMistakeReconciliationStatus: "in_progress" },
-      currentUid: "user-1",
-      currentSlotId: 1,
-      loadedRevision: 4,
-      saveContext,
-      allowCareTransition: true,
-    })).toBe(true);
-    expect(canUseGameplayPersistence({
-      access: { ...readyAccess, careMistakeReconciliationStatus: "ambiguous" },
-      currentUid: "user-1",
-      currentSlotId: 1,
-      loadedRevision: 4,
-      saveContext,
-      allowCareTransition: true,
-    })).toBe(false);
-    expect(canUseGameplayPersistence({
-      access: { ...readyAccess, careMistakeReconciliationStatus: "failed" },
-      currentUid: "user-1",
-      currentSlotId: 1,
-      loadedRevision: 4,
-      saveContext,
-      allowCareTransition: true,
-    })).toBe(false);
-  });
-
   test.each([
     ["loading", { access: { ...readyAccess, phase: GAME_PERSISTENCE_PHASE.LOADING } }],
     ["conflict", { hasConflict: true }],
@@ -204,35 +148,6 @@ describe("canUseGameplayPersistence", () => {
       saveContext: { ...TEST_PERSISTENCE_IDENTITY, generation: 3 },
       ...override,
     })).toBe(false);
-  });
-});
-
-describe("normalizeStateActivityEvents", () => {
-  test("outbox 유무와 관계없이 eventId와 현재 생애 identity를 보강한다", () => {
-    const events = normalizeStateActivityEvents([{
-      type: "CLEAN",
-      text: "Cleaned Poop (Full flush, 1 → 0)",
-      timestamp: 1000,
-    }], TEST_PERSISTENCE_IDENTITY);
-
-    expect(events).toEqual([expect.objectContaining({
-      type: "CLEAN",
-      eventId: expect.any(String),
-      slotInstanceId: TEST_SLOT_INSTANCE_ID,
-      digimonInstanceId: TEST_DIGIMON_INSTANCE_ID,
-    })]);
-  });
-
-  test("같은 eventId는 하나로 중복 제거한다", () => {
-    const event = {
-      eventId: "clean:1000",
-      type: "CLEAN",
-      text: "Cleaned Poop",
-      timestamp: 1000,
-    };
-
-    expect(normalizeStateActivityEvents([event, event], TEST_PERSISTENCE_IDENTITY))
-      .toHaveLength(1);
   });
 });
 
@@ -265,7 +180,6 @@ describe("useDurableGamePersistence", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRunTransaction.mockReset();
-    mockCommitCareMistakeV2ApiCommand.mockReset();
     getDoc.mockReset();
     setDoc.mockReset();
     setDoc.mockResolvedValue(undefined);
@@ -452,20 +366,6 @@ describe("useDurableGamePersistence", () => {
     expect(latest.pendingState.mutationId).toBe("pending-command-base");
     expect(mockRunTransaction).not.toHaveBeenCalled();
     expect(getDoc).not.toHaveBeenCalled();
-  });
-
-  test("복구 중 일반 액션은 차단하고 명시한 케어 전이만 기준 상태를 읽는다", async () => {
-    const params = createHookParams(createMemoryOutbox([]));
-    params.persistenceAccessRef.current.careMistakeReconciliationStatus = "in_progress";
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-    await act(async () => {
-      expect(await result.current.getLatestStateSnapshot()).toBeNull();
-      expect(await result.current.getLatestStateSnapshot(null, { allowCareTransition: true }))
-        .toMatchObject({ statsSnapshot: params.digimonStats });
-      const staleContext = { ...result.current.captureSaveContext(), generation: -1 };
-      expect(await result.current.getLatestStateSnapshot(staleContext, { allowCareTransition: true }))
-        .toBeNull();
-    });
   });
 
   test("Firestore transaction 전에 상태를 outbox에 기록하고 성공 후 같은 mutation을 삭제한다", async () => {
@@ -707,343 +607,6 @@ describe("useDurableGamePersistence", () => {
 
     expect(mockRunTransaction).toHaveBeenCalledTimes(1);
     expect(result.current.stateSyncError).toContain("이전 대기 항목");
-  });
-
-  test("Firestore 검증 commit 성공 후 IndexedDB cleanup 실패여도 playable을 유지한다", async () => {
-    const outbox = createMemoryOutbox([]);
-    outbox.deleteStateMutation = jest.fn().mockResolvedValue(false);
-    mockCommitGameTransition.mockResolvedValue({
-      revision: 1,
-      idempotent: false,
-      projection: {
-        careMistakes: 1,
-        unresolvedCareMistakeCount: 1,
-        latestUnresolvedCareMistakeIncidentId: "incident-1",
-        latestCareMistakeAt: 100,
-        careMistakeSchemaVersion: 1,
-        careMistakeReconciliationVersion: 1,
-        careMistakeReconciliationStatus: "verified",
-        evolutionStageInstanceId: "stage-1",
-      },
-    });
-    const params = createHookParams(outbox);
-    params.persistenceAccessRef.current.careMistakeReconciliationStatus = "in_progress";
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-
-    let receipt;
-    await act(async () => {
-      receipt = await result.current.persistStateSnapshotReceipt({
-        statsSnapshot: {
-          fullness: 5,
-          evolutionStageInstanceId: "stage-1",
-        },
-        nowMs: 500,
-        commandId: "care-commit-cleanup-failure",
-        allowCareTransition: true,
-        transition: {
-          transitionType: "CARE_MISTAKE_OCCURRED",
-          evolutionStageInstanceId: "stage-1",
-          reasonKey: "hunger_call",
-          occurredAt: 100,
-        },
-      });
-    });
-
-    expect(receipt).toMatchObject({ status: "synced", localCleanup: "failed" });
-    expect(params.persistenceAccessRef.current.careMistakeReconciliationStatus).toBe(
-      "verified"
-    );
-    expect(params.setDigimonStats).toHaveBeenCalled();
-    expect(result.current.canStartGameplayWrite()).toBe(true);
-  });
-
-  test("V2 NEW_LIFE는 클라이언트 Firestore transaction 대신 trusted command로 identity를 전달한다", async () => {
-    const outbox = createMemoryOutbox([]);
-    const params = createHookParams(outbox);
-    params.persistenceAccessRef.current = {
-      ...params.persistenceAccessRef.current,
-      loadedRevision: 1,
-      careMistakeReconciliationStatus: "verified",
-      careMistakeState: {
-        schemaVersion: 2,
-        rootReceiptId: "root-a",
-        receiptId: "receipt-a",
-        evolutionStageInstanceId: "stage-a",
-      },
-    };
-    params.onStateRecordCommitted = jest.fn();
-    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
-      revision: 2,
-      idempotent: false,
-      careMistakeState: {
-        ...params.persistenceAccessRef.current.careMistakeState,
-        rootReceiptId: "root-b",
-        receiptId: "root-b",
-        evolutionStageInstanceId: "stage-b",
-      },
-      projection: { careMistakes: 0, careMistakeReconciliationStatus: "verified" },
-    });
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-
-    let receipt;
-    await act(async () => {
-      receipt = await result.current.persistStateSnapshotReceipt({
-        statsSnapshot: {
-          selectedDigimon: "Punimon",
-          evolutionStageInstanceId: "stage-b",
-          digimonInstanceId: "digimon-life-b",
-        },
-        nowMs: 700,
-        commandId: "new-life-command",
-        allowCareTransition: true,
-        transition: {
-          transitionId: "new-life-command",
-          transitionType: "NEW_LIFE",
-          newLife: true,
-          targetDigimon: "Punimon",
-          nextDigimonInstanceId: "digimon-life-b",
-          nextEvolutionStageInstanceId: "stage-b",
-          logEntry: { eventId: "new-life-log", type: "NEW_START", text: "new life" },
-        },
-      });
-    });
-
-    expect(receipt).toMatchObject({ status: "synced", revision: 2 });
-    expect(mockRunTransaction).not.toHaveBeenCalled();
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
-      params.currentUser,
-      1,
-      expect.objectContaining({
-        commandId: "new-life-command",
-        commandType: "NEW_LIFE",
-        expectedRevision: 1,
-        payload: expect.objectContaining({
-          nextDigimonInstanceId: "digimon-life-b",
-          nextEvolutionStageInstanceId: "stage-b",
-          updateData: expect.objectContaining({ selectedDigimon: "Punimon" }),
-        }),
-      })
-    );
-    expect(outbox.clearDigimonLifeRecords).toHaveBeenCalledTimes(1);
-    expect(params.onStateRecordCommitted).toHaveBeenCalledWith(expect.objectContaining({
-      commandType: "NEW_LIFE",
-      committedSnapshot: expect.objectContaining({ selectedDigimon: "Punimon" }),
-    }));
-  });
-
-  test("queued NEW_LIFE는 이전 identity와 outbox를 유지하고 재시도에서 같은 commandId로 한 번만 완료한다", async () => {
-    const order = [];
-    const outbox = createMemoryOutbox(order);
-    outbox.clearDigimonLifeRecords = jest.fn(outbox.clearDigimonLifeRecords);
-    const params = createHookParams(outbox);
-    params.onStateRecordCommitted = jest.fn();
-    params.persistenceAccessRef.current = {
-      ...params.persistenceAccessRef.current,
-      loadedRevision: 8,
-      careMistakeReconciliationStatus: "verified",
-      careMistakeState: {
-        schemaVersion: 2,
-        rootReceiptId: "root-old",
-        receiptId: "receipt-old",
-        evolutionStageInstanceId: "stage-old",
-      },
-    };
-    mockCommitCareMistakeV2ApiCommand
-      .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce({
-        revision: 9,
-        idempotent: false,
-        careMistakeState: {
-          schemaVersion: 2,
-          rootReceiptId: "root-new",
-          receiptId: "root-new",
-          evolutionStageInstanceId: "stage-new",
-        },
-        projection: { careMistakes: 0, careMistakeReconciliationStatus: "verified" },
-      });
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-
-    let queuedReceipt;
-    await act(async () => {
-      queuedReceipt = await result.current.persistStateSnapshotReceipt({
-        statsSnapshot: {
-          selectedDigimon: "DigitamaV3",
-          isDead: false,
-          digimonInstanceId: "life-new",
-          evolutionStageInstanceId: "stage-new",
-        },
-        nowMs: 900,
-        commandId: "new-life-same-command",
-        allowCareTransition: true,
-        transition: {
-          transitionId: "new-life-same-command",
-          transitionType: "NEW_LIFE",
-          targetDigimon: "DigitamaV3",
-          nextDigimonInstanceId: "life-new",
-          nextEvolutionStageInstanceId: "stage-new",
-        },
-      });
-    });
-
-    expect(queuedReceipt).toMatchObject({ status: "queued", commandId: "new-life-same-command" });
-    expect((await outbox.getStateMutation()).commandId).toBe("new-life-same-command");
-    expect(params.persistenceAccessRef.current.loadedIdentity.digimonInstanceId)
-      .toBe(TEST_DIGIMON_INSTANCE_ID);
-    expect(outbox.clearDigimonLifeRecords).not.toHaveBeenCalled();
-    expect(params.onStateRecordCommitted).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await result.current.flushOutbox();
-    });
-
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenNthCalledWith(
-      2,
-      params.currentUser,
-      1,
-      expect.objectContaining({ commandId: "new-life-same-command" })
-    );
-    expect(params.onStateRecordCommitted).toHaveBeenCalledTimes(1);
-    expect(outbox.clearDigimonLifeRecords).toHaveBeenCalledTimes(1);
-    expect(await outbox.getStateMutation()).toBeNull();
-  });
-
-  test.each([
-    [1, {}],
-    [8, {
-      poopReachedMaxAt: 100,
-      lastPoopPenaltyAt: 200,
-      poopPenaltyFrozenDurationMs: 300,
-    }],
-  ])("V2 똥 %i개 청소는 상태와 CLEAN 로그를 revision 1회에 원자 저장한다", async (
-    poopCount,
-    overflowState
-  ) => {
-    const outbox = createMemoryOutbox([]);
-    const params = createHookParams(outbox);
-    const careMistakeState = {
-      schemaVersion: 2,
-      rootReceiptId: "root-clean",
-      receiptId: "receipt-clean",
-      evolutionStageInstanceId: "stage-clean",
-    };
-    params.persistenceAccessRef.current = {
-      ...params.persistenceAccessRef.current,
-      loadedRevision: 20,
-      careMistakeReconciliationStatus: "verified",
-      careMistakeState,
-    };
-    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
-      revision: 21,
-      idempotent: false,
-      careMistakeState,
-      projection: {},
-    });
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-
-    let receipt;
-    await act(async () => {
-      receipt = await result.current.persistStateSnapshotReceipt({
-        statsSnapshot: {
-          poopCount: 0,
-          poopReachedMaxAt: null,
-          lastPoopPenaltyAt: null,
-          poopPenaltyFrozenDurationMs: 0,
-          ...overflowState,
-          ...(poopCount === 8 ? {
-            poopReachedMaxAt: null,
-            lastPoopPenaltyAt: null,
-            poopPenaltyFrozenDurationMs: 0,
-          } : {}),
-        },
-        activityEvents: [{
-          type: "CLEAN",
-          text: `Cleaned Poop (Full flush, ${poopCount} → 0)`,
-          timestamp: 1000,
-        }],
-        nowMs: 1000,
-      });
-    });
-
-    expect(receipt).toMatchObject({ status: "synced", revision: 21 });
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledTimes(1);
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
-      params.currentUser,
-      1,
-      expect.objectContaining({
-        commandType: "STATE_MUTATION",
-        expectedRevision: 20,
-        payload: expect.objectContaining({
-          updateData: {
-            digimonStats: expect.objectContaining({
-              poopCount: 0,
-              poopReachedMaxAt: null,
-              lastPoopPenaltyAt: null,
-              poopPenaltyFrozenDurationMs: 0,
-            }),
-          },
-          activityEvents: [expect.objectContaining({
-            type: "CLEAN",
-            eventId: expect.any(String),
-            slotInstanceId: TEST_PERSISTENCE_IDENTITY.slotInstanceId,
-            digimonInstanceId: TEST_PERSISTENCE_IDENTITY.digimonInstanceId,
-          })],
-        }),
-      })
-    );
-    expect(await outbox.getStateMutation()).toBeNull();
-    expect(result.current.syncConflict).toBeNull();
-    expect(result.current.stateSyncStatus).toBe("synced");
-  });
-
-  test("IndexedDB가 없어도 V2 청소 fallback command의 CLEAN eventId를 보장한다", async () => {
-    const params = createHookParams(null);
-    const careMistakeState = {
-      schemaVersion: 2,
-      rootReceiptId: "root-clean-fallback",
-      receiptId: "receipt-clean-fallback",
-      evolutionStageInstanceId: "stage-clean-fallback",
-    };
-    params.persistenceAccessRef.current = {
-      ...params.persistenceAccessRef.current,
-      loadedRevision: 20,
-      careMistakeReconciliationStatus: "verified",
-      careMistakeState,
-    };
-    mockCommitCareMistakeV2ApiCommand.mockResolvedValue({
-      revision: 21,
-      idempotent: false,
-      careMistakeState,
-      projection: {},
-    });
-    const { result } = renderHook(() => useDurableGamePersistence(params));
-
-    await act(async () => {
-      await result.current.persistStateSnapshotReceipt({
-        statsSnapshot: { poopCount: 0 },
-        activityEvents: [{
-          type: "CLEAN",
-          text: "Cleaned Poop (Full flush, 1 → 0)",
-          timestamp: 1000,
-        }],
-        nowMs: 1000,
-      });
-    });
-
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledTimes(1);
-    expect(mockCommitCareMistakeV2ApiCommand).toHaveBeenCalledWith(
-      params.currentUser,
-      1,
-      expect.objectContaining({
-        expectedRevision: 20,
-        payload: expect.objectContaining({
-          activityEvents: [expect.objectContaining({
-            type: "CLEAN",
-            eventId: expect.any(String),
-          })],
-        }),
-      })
-    );
-    expect(result.current.syncConflict).toBeNull();
   });
 
   test("같은 generation의 저장 A·B는 실행 시점 최신 revision으로 연속 커밋한다", async () => {

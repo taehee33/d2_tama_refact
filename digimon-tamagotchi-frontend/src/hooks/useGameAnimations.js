@@ -15,7 +15,6 @@ import { feedProtein } from "../logic/food/protein";
 import { getSleepSchedule } from "./useGameHandlers";
 import { wakeForInteraction } from "./useGameActions";
 import { clearActiveInjuryState, clearPoopOverflowState } from "../data/stats";
-import { isPhysiologicalNeedsApplicable } from "../utils/digimonVersionUtils";
 
 function getAnimationSleepState({
   digimonStats,
@@ -32,7 +31,6 @@ function getAnimationSleepState({
     wakeUntil,
     fastSleepStart: digimonStats.fastSleepStart || null,
     napUntil: digimonStats.napUntil || null,
-    needsApplicable: isPhysiologicalNeedsApplicable(selectedDigimon),
     now,
   });
 

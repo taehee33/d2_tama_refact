@@ -1,7 +1,6 @@
 import { getSleepSchedule } from "../useGameHandlers";
 import { isJogressPartnerSupportedInApp } from "../../utils/jogressUtils";
 import { resolveDigimonDataFromMap } from "./gamePageActionHelpers";
-import { isPhysiologicalNeedsApplicable } from "../../utils/digimonVersionUtils";
 
 function formatCurrentTime(customTime) {
   return customTime.toLocaleString("ko-KR", {
@@ -75,7 +74,6 @@ export function buildGamePageViewModel({
     digimonDataForSlot,
     digimonStats
   );
-  const needsApplicable = isPhysiologicalNeedsApplicable(selectedDigimon);
   const currentDigimonDataForEvo =
     resolveDigimonDataFromMap(evolutionDataForSlot, selectedDigimon)?.data;
   const canJogressEvolve = Boolean(
@@ -108,7 +106,6 @@ export function buildGamePageViewModel({
       feedType,
       canEvolve: isEvoEnabled,
       sleepSchedule,
-      needsApplicable,
       wakeUntil,
       sleepLightOnStart: digimonStats.sleepLightOnStart || null,
       deathReason: deathReason || digimonStats.deathReason || null,
@@ -136,7 +133,6 @@ export function buildGamePageViewModel({
       isLightsOn,
       digimonStats: displayDigimonStats,
       selectedDigimon,
-      needsApplicable,
       showHealAnimation: modals.healAnimation,
       showCallModal: modals.call,
       isFrozen: digimonStats.isFrozen || false,
