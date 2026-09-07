@@ -29,19 +29,14 @@ import {
   GAME_PERSISTENCE_PHASE,
   useDurableGamePersistence,
 } from "./game-persistence/useDurableGamePersistence";
-import {
-  CARE_MISTAKE_LOAD_ACTION,
-  resolveCareMistakeLoadPolicy,
-  resolveCareMistakeReconciliationRetryDelay,
-} from "./game-persistence/careMistakeLoadPolicy";
 import { buildDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { normalizeImmersiveSettings } from "../utils/immersiveSettings";
 import { resolveSlotNotificationEligible } from "../utils/notificationEligibility";
+import { repairCareMistakeLedger } from "../logic/stats/careMistakeLedger";
 import { evaluateDeathConditions } from "../logic/stats/death";
 import {
   getStarterDigimonId,
   getStarterDigimonIdFromDataMap,
-  isPhysiologicalNeedsApplicable,
   isStarterDigimonId,
   normalizeDigimonVersionLabel,
 } from "../utils/digimonVersionUtils";
@@ -79,28 +74,7 @@ import {
   buildNewLifeTransitionEnvelope,
   commitNewLifeTransition,
 } from "../persistence/newLifeTransition";
-import {
-  buildEvolutionStageInstanceId,
-  CARE_MISTAKE_RECONCILIATION_STATUS,
-  CARE_MISTAKE_TRANSITION_TYPES,
-  buildCareMistakeOccurrenceFromActivityLog,
-  isCareMistakeActivityLog,
-  isCareMistakeResolutionActivityLog,
-} from "../logic/stats/careMistakeProjection";
-import { buildCareMistakeLedgerFromIncidents } from "../logic/stats/careMistakeLedger";
-import { cleanupPhysiologicalNeedsState } from "../logic/stats/physiologicalNeeds";
-import {
-  buildCareMistakeReconciliationPlan,
-  commitCareMistakeReconciliation,
-} from "../persistence/careMistakeReconciliation";
-import { buildActivityLogEventId } from "../utils/activityLogEventId";
-import {
-  CARE_MISTAKE_V2_INTEGRITY,
-  buildCareMistakeV2Command,
-  commitCareMistakeV2ApiCommand,
-  fetchCareMistakeV2Integrity,
-  isCareMistakeV2Slot,
-} from "../persistence/careMistakeV2Api";
+
 const GAME_TIMESTAMP_KEYS = new Set([
   "birthTime",
   "frozenAt",
@@ -127,54 +101,6 @@ const GAME_TIMESTAMP_KEYS = new Set([
   "lastSavedAt",
 ]);
 
-function createCareV2ClientCommandId(prefix) {
-  const randomId = typeof window !== "undefined" &&
-    typeof window.crypto?.randomUUID === "function"
-    ? window.crypto.randomUUID()
-    : `${Date.now()}:${Math.random().toString(36).slice(2)}`;
-  return `${prefix}:${randomId}`;
-}
-
-const CARE_MISTAKE_STATE_FIELDS = Object.freeze([
-  "careMistakes",
-  "careMistakeLedger",
-  "careMistakeHistoryIncidents",
-  "unresolvedCareMistakeCount",
-  "latestUnresolvedCareMistakeIncidentId",
-  "latestCareMistakeAt",
-  "careMistakeSchemaVersion",
-  "careMistakeReconciliationVersion",
-  "careMistakeReconciliationStatus",
-  "evolutionStageInstanceId",
-]);
-
-function omitCareMistakeStateFields(stats = {}) {
-  const result = { ...stats };
-  CARE_MISTAKE_STATE_FIELDS.forEach((field) => delete result[field]);
-  return result;
-}
-
-function getActivityLogMergeKey(log = {}) {
-  const eventId = buildActivityLogEventId(log);
-  if (eventId) return `event:${eventId}`;
-  return `legacy:${String(log.type || "")}:${toEpochMs(log.timestamp) ?? ""}:${String(log.text || "")}`;
-}
-
-function mergeActivityLogs(...sources) {
-  const seen = new Set();
-  const merged = sources
-    .flatMap((source) => (Array.isArray(source) ? source : []))
-    .filter((log) => {
-      const key = getActivityLogMergeKey(log);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  return merged.sort((left, right) =>
-    (toEpochMs(left?.timestamp) || 0) - (toEpochMs(right?.timestamp) || 0)
-  ).slice(-MAX_ACTIVITY_LOGS);
-}
-
 export function raiseGameSaveError(error, setError) {
   if (typeof setError === "function") {
     setError(error);
@@ -188,7 +114,6 @@ export function createNextSlotLoadAccess(currentAccess = {}) {
     phase: GAME_PERSISTENCE_PHASE.LOADING,
     generation: (Number(currentAccess.generation) || 0) + 1,
     loadedIdentity: null,
-    careMistakeReconciliationStatus: null,
   };
 }
 
@@ -214,63 +139,6 @@ export function createGameSaveQueue() {
       return pendingCount > 0;
     },
   };
-}
-
-export function enqueueCareV2Patch({
-  saveQueue,
-  getAccess,
-  currentUser,
-  slotId,
-  commandType = "STATE_MUTATION",
-  commandId,
-  payload,
-  commitCommand = commitCareMistakeV2ApiCommand,
-  updateAccess,
-  setRevision,
-  getStatsSnapshot = () => null,
-}) {
-  return saveQueue.enqueue(async () => {
-    const access = getAccess();
-    const state = access?.careMistakeState;
-    if (state?.schemaVersion !== 2) return null;
-
-    const result = await commitCommand(
-      currentUser,
-      slotId,
-      buildCareMistakeV2Command({
-        commandId,
-        commandType,
-        state,
-        expectedRevision: access.loadedRevision,
-        payload,
-      })
-    );
-    updateAccess({
-      loadedRevision: result.revision,
-      careMistakeState: result.careMistakeState,
-      careMistakeReconciliationStatus: CARE_MISTAKE_V2_INTEGRITY.VERIFIED,
-      ...(result.digimonInstanceId
-        ? {
-            loadedIdentity: {
-              ...access.loadedIdentity,
-              digimonInstanceId: result.digimonInstanceId,
-            },
-          }
-        : {}),
-      ...(payload?.updateData?.arenaIdentitySchemaVersion === 1
-        ? {
-            combatIdentity: {
-              arenaIdentitySchemaVersion: payload.updateData.arenaIdentitySchemaVersion,
-              digimonInstanceId:
-                result.digimonInstanceId || payload.updateData.digimonInstanceId,
-              combatRevision: payload.updateData.combatRevision,
-            },
-          }
-        : {}),
-    });
-    setRevision(result.revision, getStatsSnapshot());
-    return result;
-  });
 }
 
 /**
@@ -327,17 +195,14 @@ export function resolveLastSavedAtSource(
   persistedStats = {},
   liveStats = {}
 ) {
-  const candidates = [
-    slotData.lastSavedAtServer,
-    slotData.lastSavedAt,
-    persistedStats.lastSavedAtServer,
-    persistedStats.lastSavedAt,
-    liveStats.lastSavedAt,
-  ];
-  return candidates.find((candidate) => {
-    const timestamp = toEpochMs(candidate);
-    return timestamp != null && timestamp >= 0;
-  }) ?? null;
+  return (
+    slotData.lastSavedAtServer ||
+    slotData.lastSavedAt ||
+    persistedStats.lastSavedAtServer ||
+    persistedStats.lastSavedAt ||
+    liveStats.lastSavedAt ||
+    null
+  );
 }
 
 /**
@@ -400,16 +265,6 @@ export function sanitizeDigimonStatsForSlotDocument(stats = {}) {
     activityLogs: _dropActivityLogs,
     battleLogs: _dropBattleLogs,
     selectedDigimon: _dropSelectedDigimon,
-    careMistakes: _dropCareMistakes,
-    careMistakeLedger: _dropCareMistakeLedger,
-    careMistakeHistoryIncidents: _dropCareMistakeHistoryIncidents,
-    unresolvedCareMistakeCount: _dropUnresolvedCareMistakeCount,
-    latestUnresolvedCareMistakeIncidentId: _dropLatestCareMistakeIncidentId,
-    latestCareMistakeAt: _dropLatestCareMistakeAt,
-    careMistakeSchemaVersion: _dropCareMistakeSchemaVersion,
-    careMistakeReconciliationVersion: _dropCareMistakeReconciliationVersion,
-    careMistakeReconciliationStatus: _dropCareMistakeReconciliationStatus,
-    evolutionStageInstanceId: _dropEvolutionStageInstanceId,
     ...digimonStatsOnly
   } = stats || {};
 
@@ -489,166 +344,6 @@ export function buildSlotDocumentUpdatePayload({
   return updateData;
 }
 
-export function resolveCareMistakeProjectionFromSlot(slotData = {}, stats = {}) {
-  const projectionSource = {
-    ...stats,
-    ...slotData,
-    ...(slotData.digimonStats || {}),
-  };
-  return {
-    careMistakes: Math.max(0, Number(projectionSource.careMistakes) || 0),
-    unresolvedCareMistakeCount: Math.max(
-      0,
-      Number(projectionSource.unresolvedCareMistakeCount ?? projectionSource.careMistakes) || 0
-    ),
-    latestUnresolvedCareMistakeIncidentId:
-      projectionSource.latestUnresolvedCareMistakeIncidentId ?? null,
-    latestCareMistakeAt: toEpochMs(projectionSource.latestCareMistakeAt),
-    careMistakeSchemaVersion: projectionSource.careMistakeSchemaVersion ?? null,
-    careMistakeReconciliationVersion:
-      projectionSource.careMistakeReconciliationVersion ?? null,
-    careMistakeReconciliationStatus:
-      projectionSource.careMistakeReconciliationStatus || "not_started",
-    evolutionStageInstanceId: projectionSource.evolutionStageInstanceId || null,
-  };
-}
-
-/**
- * 저장 직전 새 케어미스 로그와 projection 변화를 하나의 전이 의도로 묶습니다.
- * 기존 snapshot의 careMistakes 값은 incident 정본이 아니므로 전이 입력으로
- * 사용하지 않고, 로그 delta 또는 명시적인 해소 의도만 사용합니다.
- */
-export function buildCareMistakeTransitionFromStats({
-  previousStats = {},
-  nextStats = {},
-  persistedStats = null,
-  previousLogs = [],
-  nextLogs = [],
-  identity = {},
-  explicitTransition = null,
-  nowMs = Date.now(),
-} = {}) {
-  const stageInstanceId =
-    explicitTransition?.evolutionStageInstanceId ||
-    explicitTransition?.identity?.evolutionStageInstanceId ||
-    nextStats.evolutionStageInstanceId ||
-    previousStats.evolutionStageInstanceId ||
-    buildEvolutionStageInstanceId({
-      digimonInstanceId: identity.digimonInstanceId,
-      evolutionStageStartedAt:
-        nextStats.evolutionStageStartedAt || previousStats.evolutionStageStartedAt,
-      evolutionStage: nextStats.evolutionStage || previousStats.evolutionStage,
-    });
-  const transitionIdentity = {
-    ...identity,
-    evolutionStageInstanceId: stageInstanceId,
-  };
-  // 화면/lazy 결과에는 아직 저장하지 않은 사건도 있다. 저장 기준이 있으면
-  // 그 스냅샷의 로그만 이미 전달된 사건으로 취급한다.
-  const committedLogs = persistedStats ? persistedStats.activityLogs || [] : previousLogs;
-  const previousLogIds = new Set(
-    (Array.isArray(committedLogs) ? committedLogs : [])
-      .map((log) => buildActivityLogEventId(log))
-      .filter(Boolean)
-  );
-  const transitionActivityEvents = (Array.isArray(nextLogs) ? nextLogs : [])
-    .filter((log) =>
-      !isCareMistakeActivityLog(log) &&
-      !isCareMistakeResolutionActivityLog(log)
-    )
-    .map((log) => ({
-      ...log,
-      eventId: buildActivityLogEventId(log),
-    }))
-    .filter((log) => log.eventId && !previousLogIds.has(log.eventId));
-  if (explicitTransition?.transitionType) {
-    return {
-      ...explicitTransition,
-      identity: transitionIdentity,
-      evolutionStageInstanceId: stageInstanceId,
-      ...(transitionActivityEvents.length > 0
-        ? {
-            activityEvents: [
-              ...(explicitTransition.activityEvents || []),
-              ...transitionActivityEvents,
-            ],
-          }
-        : {}),
-    };
-  }
-
-  const previousEventIds = previousLogIds;
-  const stageStartedAt = toEpochMs(
-    nextStats.evolutionStageStartedAt || previousStats.evolutionStageStartedAt
-  );
-  const occurrences = (Array.isArray(nextLogs) ? nextLogs : [])
-    .filter((log) => isCareMistakeActivityLog(log))
-    .filter((log) => {
-      const logStageId = log?.evolutionStageInstanceId;
-      if (logStageId && stageInstanceId && logStageId !== stageInstanceId) return false;
-      const timestamp = toEpochMs(log?.timestamp);
-      return !(stageStartedAt != null && timestamp != null && timestamp < stageStartedAt);
-    })
-    .filter((log) => {
-      const eventId = buildActivityLogEventId(log);
-      return eventId && !previousEventIds.has(eventId);
-    })
-    .map((log, index) => {
-      const occurrence = buildCareMistakeOccurrenceFromActivityLog(
-        log,
-        transitionIdentity,
-        "care-auto",
-        index
-      );
-      if (!occurrence) return null;
-      const { eventId: _eventId, ...operation } = occurrence;
-      return operation;
-    })
-    .filter(Boolean);
-
-  if (occurrences.length > 0) {
-    return {
-      transitionType: CARE_MISTAKE_TRANSITION_TYPES.OCCURRED,
-      createdAt: nowMs,
-      identity: transitionIdentity,
-      evolutionStageInstanceId: stageInstanceId,
-      operations: occurrences,
-      ...(transitionActivityEvents.length > 0
-        ? { activityEvents: transitionActivityEvents }
-        : {}),
-    };
-  }
-
-  const previousCount = Math.max(
-    0,
-    Number(previousStats.unresolvedCareMistakeCount ?? previousStats.careMistakes) || 0
-  );
-  const nextCount = Math.max(
-    0,
-    Number(nextStats.unresolvedCareMistakeCount ?? nextStats.careMistakes) || 0
-  );
-  if (
-    nextCount < previousCount &&
-    (previousStats.latestUnresolvedCareMistakeIncidentId || nextStats.latestUnresolvedCareMistakeIncidentId)
-  ) {
-    return {
-      transitionType: CARE_MISTAKE_TRANSITION_TYPES.RESOLVED,
-      createdAt: nowMs,
-      identity: transitionIdentity,
-      evolutionStageInstanceId: stageInstanceId,
-      operations: [{
-        incidentId:
-          previousStats.latestUnresolvedCareMistakeIncidentId ||
-          nextStats.latestUnresolvedCareMistakeIncidentId,
-        resolvedAt: nowMs,
-        resolvedBy: "play_or_snack",
-      }],
-    };
-  }
-
-  return null;
-}
-
 /**
  * 슬롯 로드 결과를 setter 입력용 hydration object로 조립합니다.
  * 이 단계에서는 setState를 하지 않고, 로드된 문서/로그를 어떤 상태로 반영할지만 계산합니다.
@@ -671,7 +366,6 @@ export function buildLoadedSlotHydrationResult({
   activityLogs = [],
   selectedDigimon = null,
   digimonStats = {},
-  physiologicalCleanupChanged = false,
 } = {}) {
   const resolvedSelectedDigimon =
     selectedDigimon || digimonStats?.selectedDigimon || null;
@@ -691,7 +385,6 @@ export function buildLoadedSlotHydrationResult({
       ? { ...digimonStats, selectedDigimon: resolvedSelectedDigimon }
       : digimonStats,
     deathReason: digimonStats?.deathReason || null,
-    physiologicalCleanupChanged,
   };
 }
 
@@ -869,83 +562,6 @@ export async function loadSlotCollectionsState({
 }
 
 /**
- * 현재 생애의 케어 incident 원본을 모두 읽습니다. stage 필터와 필수 필드
- * 검증은 손상 문서를 숨기지 않도록 reconciliation plan에서 수행합니다.
- */
-export async function loadCareMistakeIncidents({
-  slotRef = null,
-  digimonInstanceId = null,
-  loadIncidents,
-} = {}) {
-  const incidents = loadIncidents
-    ? await loadIncidents()
-    : await (async () => {
-        if (!slotRef || !digimonInstanceId) return [];
-        const incidentsRef = collection(slotRef, "careMistakeIncidents");
-        const incidentsQuery = query(
-          incidentsRef,
-          where("digimonInstanceId", "==", digimonInstanceId)
-        );
-        const incidentsSnap = await getDocs(incidentsQuery);
-        return incidentsSnap.docs.map((snapshot) => ({
-          incidentId: snapshot.id,
-          ...snapshot.data(),
-        }));
-      })();
-
-  // stage 필터링은 raw 필수 필드 검증과 함께 plan에서 수행한다. 여기서
-  // 누락 stage/timestamp 문서를 버리면 손상을 정상 데이터처럼 숨길 수 있다.
-  return Array.isArray(incidents) ? incidents : [];
-}
-
-/**
- * reconciliation은 화면용 최근 50건이 아닌 현재 stage의 전체 로그를 감사한다.
- * 일부만 읽고 verified로 표시하면 오래된 케어미스가 다시 유실될 수 있다.
- */
-export async function loadCareMistakeReconciliationLogs({
-  slotRef = null,
-  slotInstanceId = null,
-  digimonInstanceId = null,
-  evolutionStageStartedAt = null,
-  loadLogs,
-} = {}) {
-  const stageStartedAt = toEpochMs(evolutionStageStartedAt);
-  const logs = loadLogs
-    ? await loadLogs()
-    : await (async () => {
-        if (!slotRef) return [];
-        const logsSnapshot = await getDocs(collection(slotRef, "logs"));
-        return logsSnapshot.docs.map((snapshot) => ({
-          id: snapshot.id,
-          ...snapshot.data(),
-        }));
-      })();
-
-  if (!Array.isArray(logs)) {
-    throw new TypeError("케어미스 reconciliation 로그 결과가 배열이 아닙니다.");
-  }
-
-  return logs
-    .map(normalizeLogTimestamp)
-    .filter((log) => {
-      const timestamp = toEpochMs(log.timestamp);
-      if (stageStartedAt != null && timestamp != null && timestamp < stageStartedAt) {
-        return false;
-      }
-      if (log.slotInstanceId && slotInstanceId && log.slotInstanceId !== slotInstanceId) {
-        return false;
-      }
-      if (log.digimonInstanceId && digimonInstanceId && log.digimonInstanceId !== digimonInstanceId) {
-        return false;
-      }
-      return true;
-    })
-    .sort((left, right) =>
-      (toEpochMs(left.timestamp) || 0) - (toEpochMs(right.timestamp) || 0)
-    );
-}
-
-/**
  * 로드한 activity/battle logs를 저장된 슬롯 스탯에 합칩니다.
  * 이 단계에서는 로그 컬렉션 병합과 legacy proteinCount cleanup 힌트만 반환합니다.
  *
@@ -1003,17 +619,11 @@ export function buildLoadedSlotRuntimeState({
   runtimeAdaptedDataMaps = {},
   evolutionDataForSlot = null,
 } = {}) {
-  const needsApplicable = isPhysiologicalNeedsApplicable(savedName);
-  const cleanupResult = cleanupPhysiologicalNeedsState({
-    stats: resolveLazyUpdateBaseStats(
+  const lazyUpdateBaseStats = resolveLazyUpdateBaseStats(
     savedStats,
     {},
     rootSlotFields
-    ),
-    rootSlotFields,
-    needsApplicable,
-  });
-  const lazyUpdateBaseStats = cleanupResult.stats;
+  );
   const lastSavedAt =
     resolveLastSavedAtSource(slotData, lazyUpdateBaseStats) ?? Date.now();
 
@@ -1051,7 +661,6 @@ export function buildLoadedSlotRuntimeState({
     dataMap,
     slotRuntimeDataMap,
     runtimeAdaptedDataMaps,
-    needsApplicable,
   });
   const digimonStats = lazyUpdateResult.digimonStats;
   const reconstructedLogsToPersist = lazyUpdateResult.reconstructedLogsToPersist;
@@ -1071,50 +680,7 @@ export function buildLoadedSlotRuntimeState({
   return {
     digimonStats,
     reconstructedLogsToPersist,
-    rootSlotFields: cleanupResult.rootSlotFields || rootSlotFields,
-    physiologicalCleanupChanged: cleanupResult.changed,
   };
-}
-
-const REQUIRED_GAMEPLAY_TIMING_FIELDS = Object.freeze([
-  "lifespanSeconds",
-  "timeToEvolveSeconds",
-  "hungerTimer",
-  "hungerCountdown",
-  "strengthTimer",
-  "strengthCountdown",
-  "poopTimer",
-  "poopCountdown",
-]);
-
-export class GameSlotLoadInvariantError extends Error {
-  constructor({ slotData = null } = {}) {
-    super("저장된 게임 상태가 불완전합니다. 슬롯을 삭제한 뒤 다시 생성해 주세요.");
-    this.name = "GameSlotLoadInvariantError";
-    this.code = "game/slot-load-incomplete";
-    this.slotData = slotData;
-  }
-}
-
-export function hasCompletePersistedGameplayState({
-  slotData = {},
-  savedStats = {},
-} = {}) {
-  const hasTimestamp = (value) => toEpochMs(value) != null;
-  const hasNonNegativeNumber = (field) =>
-    typeof savedStats[field] === "number" &&
-    Number.isFinite(savedStats[field]) &&
-    savedStats[field] >= 0;
-
-  return (
-    savedStats != null &&
-    typeof savedStats === "object" &&
-    !Array.isArray(savedStats) &&
-    hasTimestamp(savedStats.birthTime) &&
-    hasTimestamp(savedStats.evolutionStageStartedAt) &&
-    hasTimestamp(resolveLastSavedAtSource(slotData, savedStats)) &&
-    REQUIRED_GAMEPLAY_TIMING_FIELDS.every(hasNonNegativeNumber)
-  );
 }
 
 /**
@@ -1148,8 +714,24 @@ export function buildLoadedSlotHydrationPlan({
   runtimeAdaptedDataMaps = {},
   evolutionDataForSlot = null,
 } = {}) {
-  if (!hasCompletePersistedGameplayState({ slotData, savedStats })) {
-    throw new GameSlotLoadInvariantError({ slotData });
+  if (Object.keys(savedStats).length === 0) {
+    const nowMs = Date.now();
+    const digimonStats = initializeStats(savedName, {}, dataMap);
+    digimonStats.birthTime = nowMs;
+    digimonStats.lastSavedAt = nowMs;
+
+    return {
+      hydrationResult: buildLoadedSlotHydrationResult({
+        slotData,
+        slotId,
+        slotVersionLabel,
+        rootSlotFields,
+        activityLogs: loadedActivityLogs,
+        selectedDigimon: savedName,
+        digimonStats,
+      }),
+      reconstructedLogsToPersist: [],
+    };
   }
 
   const runtimeState = buildLoadedSlotRuntimeState({
@@ -1168,14 +750,12 @@ export function buildLoadedSlotHydrationPlan({
       slotData,
       slotId,
       slotVersionLabel,
-      rootSlotFields: runtimeState.rootSlotFields,
+      rootSlotFields,
       activityLogs: loadedActivityLogs,
       selectedDigimon: savedName,
       digimonStats: runtimeState.digimonStats,
-      physiologicalCleanupChanged: runtimeState.physiologicalCleanupChanged,
     }),
     reconstructedLogsToPersist: runtimeState.reconstructedLogsToPersist,
-    physiologicalCleanupChanged: runtimeState.physiologicalCleanupChanged,
   };
 }
 
@@ -1205,12 +785,11 @@ export function buildLazyUpdateRuntimeResult({
   dataMap = null,
   slotRuntimeDataMap = null,
   runtimeAdaptedDataMaps = {},
-  needsApplicable = true,
   nowMs = null,
 } = {}) {
-  const previousLogIds = new Set(
-    (baseStats.activityLogs || []).map(getActivityLogMergeKey)
-  );
+  const prevLogCount = Array.isArray(baseStats.activityLogs)
+    ? baseStats.activityLogs.length
+    : 0;
   const digimonSnapshot = buildDigimonLogSnapshot(
     selectedDigimon || baseStats.selectedDigimon || null,
     evolutionDataForSlot,
@@ -1219,20 +798,20 @@ export function buildLazyUpdateRuntimeResult({
     ...Object.values(runtimeAdaptedDataMaps)
   );
   const digimonStats = normalizeGameTimingFields(
-    applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
-      digimonSnapshot,
-      needsApplicable,
-      ...(nowMs != null && Number.isFinite(Number(nowMs))
-        ? { nowMs: Number(nowMs) }
-        : {}),
-    })
+    repairCareMistakeLedger(
+      applyLazyUpdate(baseStats, lastSavedAt, sleepSchedule, maxEnergy, {
+        digimonSnapshot,
+        ...(nowMs != null && Number.isFinite(Number(nowMs))
+          ? { nowMs: Number(nowMs) }
+          : {}),
+      }),
+      baseStats.activityLogs || []
+    ).nextStats
   );
 
   return {
     digimonStats,
-    reconstructedLogsToPersist: (digimonStats.activityLogs || []).filter(
-      (log) => !previousLogIds.has(getActivityLogMergeKey(log))
-    ),
+    reconstructedLogsToPersist: (digimonStats.activityLogs || []).slice(prevLogCount),
   };
 }
 
@@ -1259,7 +838,7 @@ function resolveDefaultSleepScheduleByStage(stage = "Digitama") {
  * @param {Object} params
  * @param {Object} [params.digimonStats]
  * @param {Object|null} [params.slotRuntimeDataMap]
- * @returns {{ currentDigimonName: string, sleepSchedule: Object|null, maxEnergy: number|null, needsApplicable: boolean }}
+ * @returns {{ currentDigimonName: string, sleepSchedule: Object|null, maxEnergy: number|null }}
  */
 export function resolveActionLazyUpdateRuntimeContext({
   digimonStats = {},
@@ -1278,28 +857,24 @@ export function resolveActionLazyUpdateRuntimeContext({
     : "Digitama";
 
   const digimonData = slotRuntimeDataMap?.[currentDigimonName];
-  const needsApplicable = isPhysiologicalNeedsApplicable(currentDigimonName);
   if (!digimonData) {
     return {
       currentDigimonName,
       sleepSchedule: null,
       maxEnergy: null,
-      needsApplicable,
     };
   }
 
-  const sleepSchedule = needsApplicable
-    ? (digimonData.stats?.sleepSchedule ||
-      digimonData.sleepSchedule ||
-      resolveDefaultSleepScheduleByStage(
-        digimonData.stage || digimonStats.evolutionStage || "Digitama"
-      ))
-    : null;
+  const sleepSchedule =
+    digimonData.stats?.sleepSchedule ||
+    digimonData.sleepSchedule ||
+    resolveDefaultSleepScheduleByStage(
+      digimonData.stage || digimonStats.evolutionStage || "Digitama"
+    );
 
   return {
     currentDigimonName,
     sleepSchedule,
-    needsApplicable,
     maxEnergy:
       digimonData.stats?.maxEnergy ??
       digimonStats.maxEnergy ??
@@ -1338,27 +913,6 @@ export function resolveLazyUpdateBaseStats(
     selectedDigimon:
       liveStats.selectedDigimon || persistedStats.selectedDigimon || null,
   });
-}
-
-export function resolvePendingNewLifeRetry({
-  pendingState,
-  fallbackTransition,
-  fallbackStatsSnapshot,
-} = {}) {
-  const pendingTransition =
-    pendingState?.state?.transition?.transitionType === "NEW_LIFE"
-      ? pendingState.state.transition
-      : null;
-
-  return {
-    pendingTransition,
-    transition: pendingTransition || fallbackTransition,
-    // 같은 슬롯에 남은 일반 pending(예: 마지막 사망 스냅샷)은 NEW_LIFE
-    // 재시도 자료가 아니다. 전이 자체가 NEW_LIFE일 때만 그 snapshot을 재사용한다.
-    statsSnapshot: pendingTransition
-      ? pendingState.state.stateSnapshot
-      : fallbackStatsSnapshot,
-  };
 }
 
 /**
@@ -1409,7 +963,6 @@ export function useGameData({
   setWakeUntil,
   setIsLoadingSlot,
   setDeathReason,
-  setHasSeenDeathPopup,
   toggleModal,
   digimonDataVer1,
   adaptedDataMapsByVersion,
@@ -1448,17 +1001,13 @@ export function useGameData({
   if (!saveQueueRef.current) {
     saveQueueRef.current = createGameSaveQueue();
   }
-  const latestDigimonStatsRef = useRef(digimonStats);
-  latestDigimonStatsRef.current = digimonStats;
   const saveOperationSequenceRef = useRef(0);
-  const reconstructedLogsRef = useRef([]);
   const statsPopupCommandLedgerRef = useRef(new Map());
   const latestStatsPopupCommandSequenceRef = useRef(new Map());
   useEffect(() => {
     statsPopupCommandLedgerRef.current.clear();
     latestStatsPopupCommandSequenceRef.current.clear();
     saveOperationSequenceRef.current = 0;
-    reconstructedLogsRef.current = [];
   }, [currentUser?.uid, slotId]);
   const slotRuntimeDataMap = digimonDataVer1;
   const runtimeAdaptedDataMaps = useMemo(
@@ -1504,82 +1053,6 @@ export function useGameData({
     wakeUntil,
   ]);
 
-  const handleStateRecordCommitted = useCallback(({
-    commandType,
-    record,
-    result,
-    committedSnapshot,
-  } = {}) => {
-    if (commandType !== "NEW_LIFE") return;
-    const transition = record?.state?.transition || {};
-    const operation = Array.isArray(transition.operations)
-      ? transition.operations[0] || {}
-      : {};
-    const targetDigimon =
-      transition.targetDigimon ||
-      operation.targetDigimon ||
-      committedSnapshot?.selectedDigimon ||
-      null;
-    const nextDigimonInstanceId =
-      transition.nextDigimonInstanceId ||
-      operation.nextDigimonInstanceId ||
-      committedSnapshot?.digimonInstanceId ||
-      null;
-    const nextCombatRevision =
-      transition.nextCombatRevision ||
-      operation.nextCombatRevision ||
-      committedSnapshot?.combatRevision ||
-      1;
-    const nextArenaIdentitySchemaVersion =
-      transition.nextArenaIdentitySchemaVersion ||
-      operation.nextArenaIdentitySchemaVersion ||
-      committedSnapshot?.arenaIdentitySchemaVersion ||
-      1;
-    const nextStats = {
-      ...(committedSnapshot || {}),
-      ...(targetDigimon ? { selectedDigimon: targetDigimon } : {}),
-      ...(nextDigimonInstanceId ? { digimonInstanceId: nextDigimonInstanceId } : {}),
-      combatRevision: nextCombatRevision,
-      arenaIdentitySchemaVersion: nextArenaIdentitySchemaVersion,
-      isDead: false,
-      deathReason: null,
-      diedAt: null,
-    };
-
-    updatePersistenceAccess({
-      loadedRevision: result?.revision ?? persistenceAccessRef.current?.loadedRevision,
-      loadedIdentity: {
-        uid: currentUser?.uid || record?.uid || null,
-        slotId,
-        slotInstanceId: record?.slotInstanceId || null,
-        digimonInstanceId: nextDigimonInstanceId,
-      },
-      combatIdentity: {
-        arenaIdentitySchemaVersion: nextArenaIdentitySchemaVersion,
-        digimonInstanceId: nextDigimonInstanceId,
-        combatRevision: nextCombatRevision,
-      },
-    });
-    if (targetDigimon) setSelectedDigimon(targetDigimon);
-    setDigimonStats(nextStats);
-    if (typeof setActivityLogs === "function") {
-      setActivityLogs(nextStats.activityLogs || []);
-    }
-    if (typeof setDeathReason === "function") setDeathReason(null);
-    if (typeof toggleModal === "function") toggleModal("deathModal", false);
-    if (typeof setHasSeenDeathPopup === "function") setHasSeenDeathPopup(false);
-  }, [
-    currentUser?.uid,
-    setActivityLogs,
-    setDeathReason,
-    setDigimonStats,
-    setHasSeenDeathPopup,
-    setSelectedDigimon,
-    slotId,
-    toggleModal,
-    updatePersistenceAccess,
-  ]);
-
   const {
     appendBattleLog: appendBattleLogToSubcollection,
     appendLog: appendLogToSubcollection,
@@ -1589,14 +1062,12 @@ export function useGameData({
     clearPendingStateAfterHydration,
     flushOutbox,
     getLatestStateSnapshot,
-    getPendingActivityLogs,
-    getPendingCareTransitions,
     getPendingState,
+    persistStateSnapshot,
     persistStateSnapshotReceipt,
     persistEvolutionTransitionReceipt,
     persistActivityLogReceipt,
     quarantinePendingState,
-    quarantineStaleCareEpoch,
     refreshGameRevision,
     resolveSyncConflict,
     setLoadedRevision,
@@ -1630,25 +1101,7 @@ export function useGameData({
     saveQueue: saveQueueRef.current,
     persistenceAccessRef,
     onPersistenceAccessChange: updatePersistenceAccess,
-    onStateRecordCommitted: handleStateRecordCommitted,
   });
-
-  const commitCareV2Patch = useCallback(async ({
-    commandType = "STATE_MUTATION",
-    commandId,
-    payload,
-  }) => enqueueCareV2Patch({
-    saveQueue: saveQueueRef.current,
-    getAccess: () => persistenceAccessRef.current,
-    currentUser,
-    slotId,
-    commandType,
-    commandId,
-    payload,
-    updateAccess: updatePersistenceAccess,
-    setRevision: setLoadedRevision,
-    getStatsSnapshot: () => latestDigimonStatsRef.current,
-  }), [currentUser, setLoadedRevision, slotId, updatePersistenceAccess]);
 
   const retrySlotLoad = useCallback(() => {
     // 현재 요청을 즉시 stale 처리해 effect 재실행 전의 늦은 응답도 반영되지 않게 한다.
@@ -1665,20 +1118,15 @@ export function useGameData({
    * 스탯을 저장하는 함수 (Firestore 또는 localStorage)
    * @param {Object} newStats - 새로운 스탯
    * @param {Array} updatedLogs - 업데이트된 로그 (선택적)
-   * @param {Object|null} transition - 케어미스/냉장고/호출 확인 전이 의도 (선택적)
    */
   async function executeSaveStats(
     newStats,
     updatedLogs = null,
     saveContext = null,
-    legacyMetadata = null,
-    transition = null,
-    persistenceOptions = {}
+    legacyMetadata = null
   ) {
     // 예약 이후 슬롯/사용자/세대가 바뀌었으면 React setter를 포함해 아무 작업도 하지 않는다.
-    if (!canStartGameplayWrite(saveContext, {
-      allowCareTransition: persistenceOptions.allowCareTransition === true,
-    })) return false;
+    if (!canStartGameplayWrite(saveContext)) return false;
     // 새로운 시작인지 확인 (isDead가 false로 명시적으로 설정되고, evolutionStage가 Digitama인 경우)
     const isNewStart = newStats.isDead === false && 
                        newStats.evolutionStage === "Digitama" && 
@@ -1719,20 +1167,15 @@ export function useGameData({
       poopPenaltyFrozenDurationMs: isNewStart ? 0 : undefined,
     };
     
-    // lazy update/live 로그를 합치기 전에 내구성 있게 저장된 비교 기준을 잡는다.
-    const persistedState = await getLatestStateSnapshot(saveContext, persistenceOptions);
-
     // 새로운 시작이면 applyLazyUpdate를 건너뛰고 newStats를 직접 사용
     let baseStats;
     if (isNewStart) {
       console.log("[saveStats] 새로운 시작 감지 - applyLazyUpdate 건너뜀");
       baseStats = { ...digimonStats, ...newStats };
     } else {
-      baseStats = await applyLazyUpdateForAction(persistenceOptions);
+      baseStats = await applyLazyUpdateForAction();
     }
-    if (!canStartGameplayWrite(saveContext, {
-      allowCareTransition: persistenceOptions.allowCareTransition === true,
-    })) return false;
+    if (!canStartGameplayWrite(saveContext)) return false;
     const nowMs = Date.now();
     let effectiveNewStats = newStats;
     if (!isNewStart && legacyMetadata) {
@@ -1749,16 +1192,26 @@ export function useGameData({
       });
     }
     
-    // Activity Logs 처리: 원격 snapshot의 lazy reconstruction 로그와
-    // 호출자가 전달한 최신 로그를 합쳐 오래된 배열이 새 사건을 덮지 않게 한다.
-    const requestedLogs = updatedLogs !== null
-      ? updatedLogs
-      : newStats.activityLogs || activityLogs || [];
-    const finalLogs = mergeActivityLogs(
-      baseStats.activityLogs || [],
-      requestedLogs
-    );
-    setActivityLogs(() => finalLogs);
+    // Activity Logs 처리: 함수형 업데이트로 확실히 누적
+    let finalLogs;
+    if (updatedLogs !== null) {
+      // updatedLogs는 이미 addActivityLog로 생성된 배열 (이전 로그 포함)
+      finalLogs = updatedLogs;
+      // setActivityLogs를 함수형 업데이트로 호출하여 이전 로그 보존 보장
+      setActivityLogs((prevLogs) => {
+        // updatedLogs가 이미 이전 로그를 포함하고 있어야 하지만,
+        // 혹시 모를 상황을 대비해 최신 상태 확인 후 반환
+        // updatedLogs는 addActivityLog로 생성되었으므로 이전 로그를 포함하고 있음
+        return updatedLogs;
+      });
+    } else {
+      // updatedLogs가 null이면 이전 로그 유지
+      finalLogs = baseStats.activityLogs || activityLogs || [];
+      setActivityLogs((prevLogs) => {
+        // 이전 로그가 없으면 빈 배열로 초기화
+        return prevLogs || [];
+      });
+    }
     
     // preservedStats의 값들을 우선 적용 (undefined가 아닌 경우만)
     const mergedStats = { ...baseStats };
@@ -1779,12 +1232,9 @@ export function useGameData({
       wakeUntil,
     });
 
-    const statsForMerge = transition?.transitionType || isNewStart
-      ? effectiveNewStats
-      : omitCareMistakeStateFields(effectiveNewStats);
     const finalStats = {
       ...mergedStats,
-      ...statsForMerge, // 큐 실행 시점의 최신 상태에 호출자의 변경 의도를 적용
+      ...effectiveNewStats, // 큐 실행 시점의 최신 상태에 호출자의 변경 의도를 적용
       // 새로운 시작일 때 사망 관련 필드 강제 보존
       ...(isNewStart ? {
         isDead: false,
@@ -1806,7 +1256,9 @@ export function useGameData({
       ...rootSlotFields,
       lastSavedAt: nowMs,
     };
-    const repairedFinalStats = normalizeGameTimingFields(finalStats);
+    const repairedFinalStats = normalizeGameTimingFields(
+      repairCareMistakeLedger(finalStats, finalLogs).nextStats
+    );
     
     console.log("[saveStats] finalStats:", {
       isNewStart,
@@ -1827,40 +1279,20 @@ export function useGameData({
       ? { ...statsWithoutProteinCount, selectedDigimon: effectiveSelectedDigimon }
       : statsWithoutProteinCount;
 
-    const careTransition = buildCareMistakeTransitionFromStats({
-      previousStats: baseStats,
-      persistedStats: persistedState?.statsSnapshot || null,
-      nextStats: statsForState,
-      previousLogs: baseStats.activityLogs || [],
-      nextLogs: finalLogs,
-      identity: {
-        slotInstanceId: saveContext?.slotInstanceId,
-        digimonInstanceId: saveContext?.digimonInstanceId,
-      },
-      explicitTransition: transition,
-      nowMs,
-    });
-
     setDigimonStats(statsForState);
 
     // Firebase 로그인 필수
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        const persistenceReceipt = await persistStateSnapshotReceipt({
+        const didPersist = await persistStateSnapshot({
           statsSnapshot: statsForState,
           updatedLogs,
           nowMs,
           saveContext,
-          transition: careTransition,
-          activityEvents: persistenceOptions.activityEvents || [],
-          allowCareTransition: persistenceOptions.allowCareTransition === true,
         });
-        if (
-          persistenceReceipt.status !== "synced" &&
-          persistenceReceipt.status !== "queued"
-        ) {
+        if (!didPersist) {
           const conflictError = new Error("다른 기기의 변경사항 확인이 필요합니다.");
-          conflictError.code = persistenceReceipt.errorCode || "game/revision-conflict-pending";
+          conflictError.code = "game/revision-conflict-pending";
           throw conflictError;
         }
         evaluateSlotUrgentNotification(currentUser, slotId).catch((error) => {
@@ -1879,12 +1311,7 @@ export function useGameData({
     return true;
   }
 
-  function saveStats(
-    newStats,
-    updatedLogs = null,
-    transition = null,
-    persistenceOptions = {}
-  ) {
+  function saveStats(newStats, updatedLogs = null) {
     const saveContext = captureSaveContext();
     const sequence = ++saveOperationSequenceRef.current;
     const invocationStats = digimonStats || {};
@@ -1892,7 +1319,7 @@ export function useGameData({
       executeSaveStats(newStats, updatedLogs, saveContext, {
         sequence,
         invocationStats,
-      }, transition, persistenceOptions)
+      })
     );
   }
   saveStats.isInFlight = () => saveQueueRef.current.isBusy();
@@ -1939,6 +1366,7 @@ export function useGameData({
     nowMs = Date.now(),
   } = {}) {
     const saveContext = captureSaveContext();
+    const nextCombatIdentity = createNewLifeCombatIdentity();
     return saveQueueRef.current.enqueue(async () => {
       if (
         !slotId ||
@@ -1948,103 +1376,11 @@ export function useGameData({
         !transition ||
         !canStartGameplayWrite(saveContext)
       ) {
-        return {
-          status: "failed",
-          commandId: transition?.transitionId || null,
-          errorCode: "game/new-life-blocked",
-        };
+        const blockedError = new Error("현재 슬롯에서는 새 생애를 저장할 수 없습니다.");
+        blockedError.code = "game/new-life-blocked";
+        throw blockedError;
       }
 
-      if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
-        const pendingState = await getPendingState(saveContext);
-        const pendingRetry = resolvePendingNewLifeRetry({
-          pendingState,
-          fallbackTransition: transition,
-          fallbackStatsSnapshot: statsSnapshot,
-        });
-        const pendingTransition = pendingRetry.pendingTransition;
-        const pendingOperation = Array.isArray(pendingTransition?.operations)
-          ? pendingTransition.operations[0] || {}
-          : {};
-        const nextCombatIdentity = pendingTransition
-          ? {
-              arenaIdentitySchemaVersion:
-                pendingTransition.nextArenaIdentitySchemaVersion ||
-                pendingOperation.nextArenaIdentitySchemaVersion ||
-                1,
-              digimonInstanceId:
-                pendingTransition.nextDigimonInstanceId ||
-                pendingOperation.nextDigimonInstanceId,
-              combatRevision:
-                pendingTransition.nextCombatRevision ||
-                pendingOperation.nextCombatRevision ||
-                1,
-            }
-          : createNewLifeCombatIdentity();
-        const envelope = pendingTransition || buildNewLifeTransitionEnvelope({
-          ...transition,
-          previousIdentity: {
-            slotInstanceId: saveContext.slotInstanceId,
-            digimonInstanceId: saveContext.digimonInstanceId,
-          },
-          nextCombatIdentity,
-          createdAt: transition.createdAt ?? nowMs,
-        });
-        const effectiveStatsSnapshot = pendingRetry.statsSnapshot;
-        const targetDigimon =
-          envelope.targetDigimon ||
-          pendingOperation.targetDigimon ||
-          transition.targetDigimon;
-        const nextDigimonInstanceId =
-          envelope.nextDigimonInstanceId ||
-          pendingOperation.nextDigimonInstanceId ||
-          nextCombatIdentity.digimonInstanceId;
-        const nextEvolutionStageInstanceId =
-          envelope.nextEvolutionStageInstanceId ||
-          pendingOperation.nextEvolutionStageInstanceId ||
-          buildEvolutionStageInstanceId({
-            digimonInstanceId: nextDigimonInstanceId,
-            evolutionStageStartedAt:
-              effectiveStatsSnapshot.evolutionStageStartedAt ||
-              effectiveStatsSnapshot.birthTime ||
-              nowMs,
-            evolutionStage: effectiveStatsSnapshot.evolutionStage || targetDigimon,
-          });
-        const receipt = await persistStateSnapshotReceipt({
-          statsSnapshot: {
-            ...effectiveStatsSnapshot,
-            ...nextCombatIdentity,
-            selectedDigimon: targetDigimon,
-            digimonInstanceId: nextDigimonInstanceId,
-            evolutionStageInstanceId: nextEvolutionStageInstanceId,
-          },
-          updatedLogs: effectiveStatsSnapshot.activityLogs || [],
-          nowMs,
-          commandId: envelope.transitionId,
-          saveContext,
-          transition: {
-            ...envelope,
-            transitionType: "NEW_LIFE",
-            newLife: true,
-            targetDigimon,
-            nextDigimonInstanceId,
-            nextEvolutionStageInstanceId,
-          },
-          allowCareTransition: true,
-        });
-        const normalizedReceipt = receipt.status === "blocked"
-          ? { ...receipt, status: "failed" }
-          : receipt;
-        return {
-          ...normalizedReceipt,
-          revision: normalizedReceipt.revision,
-          transitionId: envelope.transitionId,
-          previousDigimonInstanceId: saveContext.digimonInstanceId,
-          nextDigimonInstanceId,
-          idempotent: normalizedReceipt.idempotent === true,
-        };
-      }
-      const nextCombatIdentity = createNewLifeCombatIdentity();
       const envelope = buildNewLifeTransitionEnvelope({
         ...transition,
         previousIdentity: {
@@ -2067,22 +1403,15 @@ export function useGameData({
         runTransaction,
       });
 
-      handleStateRecordCommitted({
-        commandType: "NEW_LIFE",
-        record: {
+      updatePersistenceAccess({
+        loadedIdentity: {
           uid: currentUser.uid,
           slotId,
           slotInstanceId: saveContext.slotInstanceId,
-          state: { transition: envelope },
-        },
-        result,
-        committedSnapshot: {
-          ...statsSnapshot,
-          ...nextCombatIdentity,
-          selectedDigimon: envelope.targetDigimon,
           digimonInstanceId: result.nextDigimonInstanceId,
         },
       });
+      setLoadedRevision(result.revision, statsSnapshot);
       Promise.resolve(clearDigimonLifeOutbox({
         slotInstanceId: saveContext.slotInstanceId,
         digimonInstanceId: saveContext.digimonInstanceId,
@@ -2091,17 +1420,8 @@ export function useGameData({
       });
       return {
         ...result,
-        status: "synced",
         transitionId: envelope.transitionId,
         previousDigimonInstanceId: saveContext.digimonInstanceId,
-      };
-    }).catch((error) => {
-      const errorCode = error?.code || "game/new-life-save-failed";
-      return {
-        status: String(errorCode).includes("conflict") ? "conflict" : "failed",
-        commandId: transition?.transitionId || null,
-        errorCode,
-        message: error?.message || "새 생애 상태를 저장하지 못했습니다.",
       };
     });
   }
@@ -2173,7 +1493,7 @@ export function useGameData({
         } else {
           const executionNow = Date.now();
           const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
-          const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
+          const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
             digimonStats: baseStats,
             slotRuntimeDataMap,
             selectedDigimon,
@@ -2183,7 +1503,6 @@ export function useGameData({
             lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? executionNow,
             sleepSchedule,
             maxEnergy,
-            needsApplicable,
             selectedDigimon:
               baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
             evolutionDataForSlot,
@@ -2209,29 +1528,12 @@ export function useGameData({
             ...(effectiveSelectedDigimon ? { selectedDigimon: effectiveSelectedDigimon } : {}),
             lastSavedAt: executionNow,
           });
-          const careTransition = buildCareMistakeTransitionFromStats({
-            previousStats: baseStats,
-            nextStats: finalStats,
-            previousLogs: reconstructedLogsRef.current.length > 0
-              ? []
-              : baseStats.activityLogs || [],
-            nextLogs: reconstructedLogsRef.current.length > 0
-              ? reconstructedLogsRef.current
-              : activityLogs || [],
-            identity: {
-              slotInstanceId: saveContext?.slotInstanceId,
-              digimonInstanceId: saveContext?.digimonInstanceId,
-            },
-            nowMs: executionNow,
-          });
-          reconstructedLogsRef.current = [];
           const stateReceipt = await persistStateSnapshotReceipt({
             statsSnapshot: finalStats,
             updatedLogs: isNocturnalCommand ? activityLogs : null,
             nowMs: executionNow,
             saveContext,
             commandId,
-            transition: careTransition,
           });
 
           if (stateReceipt.status === "synced" || stateReceipt.status === "queued") {
@@ -2243,6 +1545,9 @@ export function useGameData({
               });
             }
             setDigimonStats(finalStats);
+            lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
+              if (log?.type) appendLogToSubcollection(log).catch(() => {});
+            });
             checkDeathStatus(finalStats);
           }
           return stateReceipt;
@@ -2271,51 +1576,65 @@ export function useGameData({
    * 액션 전에 Lazy Update 적용하는 헬퍼 함수
    * @returns {Promise<Object>} 업데이트된 스탯
    */
-  async function applyLazyUpdateForAction(persistenceOptions = {}) {
-    if (!slotId || !currentUser || !isFirebaseAvailable) {
+  async function applyLazyUpdateForAction() {
+    if (!slotId) {
+      return digimonStats;
+    }
+
+    const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
+      digimonStats,
+      slotRuntimeDataMap,
+      selectedDigimon,
+    });
+
+    // Firebase 로그인 필수
+    if (!currentUser || !isFirebaseAvailable) {
       return digimonStats;
     }
 
     try {
-      // 동기화 전 액션도 이어 계산하도록 기존 identity 검증을 거친
-      // outbox → 마지막 동기화 스냅샷 경계를 사용한다.
-      const latestState = await getLatestStateSnapshot(captureSaveContext(), persistenceOptions);
-      if (!latestState) {
-        const unavailableError = new Error("슬롯의 최신 저장 상태를 확인할 수 없습니다.");
-        unavailableError.code = "game/action-state-unavailable";
-        throw unavailableError;
+      const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+      const slotSnap = await getDoc(slotRef);
+      
+      if (slotSnap.exists()) {
+        const slotData = slotSnap.data();
+        const persistedStats = normalizeGameTimingFields(slotData.digimonStats || {});
+        const lastSavedAt =
+          resolveLastSavedAtSource(slotData, persistedStats, digimonStats) ??
+          Date.now();
+        const baseStats = resolveLazyUpdateBaseStats(persistedStats, digimonStats, {
+          isLightsOn,
+          wakeUntil,
+        });
+        const lazyUpdateResult = buildLazyUpdateRuntimeResult({
+          baseStats,
+          lastSavedAt,
+          sleepSchedule,
+          maxEnergy,
+          selectedDigimon:
+            baseStats.selectedDigimon || selectedDigimon || digimonStats?.selectedDigimon || null,
+          evolutionDataForSlot,
+          slotRuntimeDataMap,
+          runtimeAdaptedDataMaps,
+        });
+        const updated = lazyUpdateResult.digimonStats;
+
+        // 과거 재구성 시 추가된 로그(부상/케어미스)를 서브컬렉션에 반영
+        lazyUpdateResult.reconstructedLogsToPersist.forEach((log) => {
+          if (log?.type) appendLogToSubcollection(log).catch(() => {});
+        });
+
+        // 사망 상태 변경 감지
+        checkDeathStatus(updated);
+
+        return updated;
       }
-      const baseStats = normalizeGameTimingFields(latestState.statsSnapshot || {});
-      const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
-        digimonStats: baseStats,
-        slotRuntimeDataMap,
-        selectedDigimon,
-      });
-      const lazyUpdateResult = buildLazyUpdateRuntimeResult({
-        baseStats,
-        lastSavedAt: toEpochMs(baseStats.lastSavedAt) ?? Date.now(),
-        sleepSchedule,
-        maxEnergy,
-        needsApplicable,
-        selectedDigimon: baseStats.selectedDigimon || selectedDigimon || null,
-        evolutionDataForSlot,
-        slotRuntimeDataMap,
-        runtimeAdaptedDataMaps,
-      });
-      const updated = lazyUpdateResult.digimonStats;
-      if (lazyUpdateResult.reconstructedLogsToPersist.length > 0) {
-        reconstructedLogsRef.current = [
-          ...reconstructedLogsRef.current,
-          ...lazyUpdateResult.reconstructedLogsToPersist,
-        ];
-      }
-      checkDeathStatus(updated);
-      return updated;
     } catch (error) {
       console.error("Lazy Update 적용 오류:", error);
-      // 확인되지 않은 이전 상태로 액션을 계속하면 돌봄 결과를 덮어쓸 수 있다.
-      raiseGameSaveError(error, setError);
+      setError(error);
     }
+
+    return digimonStats;
   }
 
   /**
@@ -2324,11 +1643,7 @@ export function useGameData({
    */
   function checkDeathStatus(updated) {
     if (!digimonStats.isDead && updated.isDead) {
-      const deathEvaluation = evaluateDeathConditions(
-        updated,
-        Date.now(),
-        isPhysiologicalNeedsApplicable(updated.selectedDigimon || selectedDigimon)
-      );
+      const deathEvaluation = evaluateDeathConditions(updated, Date.now());
       const reason = updated.deathReason ?? deathEvaluation.reason;
       
       if (reason) {
@@ -2348,8 +1663,6 @@ export function useGameData({
    */
   useEffect(() => {
     if (!slotId) return;
-
-    let reconciliationRetryTimerId = null;
 
     const nextLoadAccess = createNextSlotLoadAccess(persistenceAccessRef.current);
     const generation = nextLoadAccess.generation;
@@ -2408,12 +1721,6 @@ export function useGameData({
           const savedName =
             slotData.selectedDigimon || getStarterDigimonId(slotVersionLabel);
           let savedStats = normalizeGameTimingFields(slotData.digimonStats || {});
-
-          // 불완전 슬롯은 로그 조회나 케어미스 정합성 transaction보다 먼저 차단한다.
-          // 과거 피해 데이터를 현재 시각으로 추정하거나 Firestore에 보정하지 않는다.
-          if (!hasCompletePersistedGameplayState({ slotData, savedStats })) {
-            throw new GameSlotLoadInvariantError({ slotData });
-          }
           
           const slotRefForLogs = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
           const { loadedActivityLogs, loadedBattleLogs } =
@@ -2436,270 +1743,7 @@ export function useGameData({
           });
           savedStats = loadedCollectionsState.savedStats;
 
-          let pendingState = null;
-          let careProjection = null;
-          let careIncidentLoadFailed = false;
-          let careV2Integrity = null;
-          if (isCareMistakeV2Slot(slotData)) {
-            const integrity = await fetchCareMistakeV2Integrity(currentUser, slotId);
-            careV2Integrity = integrity;
-            if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
-            const state = integrity.careMistakeState || slotData.careMistakeState;
-            const effectiveStatus = integrity.effectiveIntegrityStatus ||
-              CARE_MISTAKE_V2_INTEGRITY.UNKNOWN;
-            updatePersistenceAccess({
-              loadedRevision: integrity.revision ?? slotData.revision ?? 0,
-              careMistakeState: state || null,
-              combatIdentity: {
-                arenaIdentitySchemaVersion: slotData.arenaIdentitySchemaVersion,
-                digimonInstanceId: slotData.digimonInstanceId,
-                combatRevision: slotData.combatRevision,
-              },
-              careMistakeReconciliationStatus: effectiveStatus,
-            });
-            careProjection = {
-              careMistakes: state?.unresolvedCareMistakeCount ?? slotData.careMistakes ?? 0,
-              unresolvedCareMistakeCount:
-                state?.unresolvedCareMistakeCount ?? slotData.unresolvedCareMistakeCount ?? 0,
-              latestUnresolvedCareMistakeIncidentId:
-                state?.latestUnresolvedIncidentId ?? null,
-              latestCareMistakeAt: slotData.latestCareMistakeAt ?? null,
-              careMistakeSchemaVersion: 2,
-              careMistakeReconciliationVersion:
-                slotData.careMistakeReconciliationVersion ?? 2,
-              careMistakeReconciliationStatus: effectiveStatus,
-              evolutionStageInstanceId:
-                state?.evolutionStageInstanceId || slotData.evolutionStageInstanceId,
-            };
-            if (state?.rootReceiptId && state?.receiptId && state?.evolutionStageInstanceId) {
-              await quarantineStaleCareEpoch({
-                currentEpoch: {
-                  careSchemaVersion: 2,
-                  rootReceiptId: state.rootReceiptId,
-                  receiptId: state.receiptId,
-                  evolutionStageInstanceId: state.evolutionStageInstanceId,
-                },
-                reason: "STALE_CARE_EPOCH_ON_HYDRATION",
-              });
-            }
-            try {
-              pendingState = await getPendingState();
-            } catch (pendingStateError) {
-              console.warn("V2 미전송 상태 스냅샷 조회 오류:", pendingStateError);
-            }
-            savedStats = {
-              ...savedStats,
-              ...careProjection,
-              careMistakeState: state,
-            };
-          } else {
-
-          // 케어 projection은 슬롯의 숫자나 legacy ledger가 아니라 incident와
-          // 현재 stage 로그를 재생해 계산한다. 읽기 실패 시 기존 값을 보존하고
-          // reconciliation을 ambiguous로 표시해 추측 저장을 막는다.
-          const stageInstanceId =
-            slotData.evolutionStageInstanceId ||
-            savedStats.evolutionStageInstanceId ||
-            buildEvolutionStageInstanceId({
-              digimonInstanceId: slotData.digimonInstanceId,
-              evolutionStageStartedAt:
-                slotData.evolutionStageStartedAt || savedStats.evolutionStageStartedAt,
-              evolutionStage: slotData.evolutionStage || savedStats.evolutionStage,
-            });
-          let loadedCareMistakeIncidents = [];
-          try {
-            loadedCareMistakeIncidents = await loadCareMistakeIncidents({
-              slotRef: slotRefForLogs,
-              digimonInstanceId: slotData.digimonInstanceId,
-            });
-          } catch (careIncidentError) {
-            careIncidentLoadFailed = true;
-            console.warn("케어미스 incident 조회 오류:", careIncidentError);
-          }
-          let reconciliationActivityLogs = [];
-          let reconciliationActivityLogLoadFailed = false;
-          try {
-            reconciliationActivityLogs = await loadCareMistakeReconciliationLogs({
-              slotRef: slotRefForLogs,
-              slotInstanceId: slotData.slotInstanceId,
-              digimonInstanceId: slotData.digimonInstanceId,
-              evolutionStageStartedAt:
-                slotData.evolutionStageStartedAt || savedStats.evolutionStageStartedAt,
-            });
-          } catch (reconciliationLogError) {
-            reconciliationActivityLogLoadFailed = true;
-            console.warn("케어미스 전체 감사 로그 조회 오류:", reconciliationLogError);
-          }
-          let pendingActivityLogs = [];
-          let pendingActivityLogLoadFailed = false;
-          try {
-            pendingActivityLogs = await getPendingActivityLogs();
-          } catch (pendingActivityError) {
-            pendingActivityLogLoadFailed = true;
-            console.warn("미전송 케어미스 활동 로그 조회 오류:", pendingActivityError);
-          }
-          let pendingCareTransitions = [];
-          let pendingCareTransitionLoadFailed = false;
-          try {
-            pendingCareTransitions = await getPendingCareTransitions();
-          } catch (pendingCareTransitionError) {
-            pendingCareTransitionLoadFailed = true;
-            console.warn("미전송 케어미스 전이 조회 오류:", pendingCareTransitionError);
-          }
-          let pendingStateLoadFailed = false;
-          try {
-            pendingState = await getPendingState();
-          } catch (pendingStateError) {
-            pendingStateLoadFailed = true;
-            console.warn("미전송 상태 스냅샷 조회 오류:", pendingStateError);
-          }
-          const pendingStateActivityLogs = Array.isArray(
-            pendingState?.state?.stateSnapshot?.activityLogs
-          )
-            ? pendingState.state.stateSnapshot.activityLogs
-            : [];
-          const pendingActivityLogsForReconciliation = [
-            ...pendingActivityLogs,
-            ...pendingStateActivityLogs,
-          ];
-          const careReconciliationPlan = buildCareMistakeReconciliationPlan({
-            slotData,
-            savedStats,
-            activityLogs: reconciliationActivityLogLoadFailed
-              ? null
-              : reconciliationActivityLogs,
-            incidents: loadedCareMistakeIncidents,
-            pendingActivityLogs: pendingActivityLogLoadFailed
-              ? null
-              : pendingActivityLogsForReconciliation,
-          });
-          const legacyCareProjection = resolveCareMistakeProjectionFromSlot(
-            slotData,
-            savedStats
-          );
-          const hasPendingCareTransitions =
-            pendingCareTransitions.length > 0 ||
-            Boolean(pendingState?.state?.transition?.transitionType);
-          const resolvedStageInstanceId =
-            careReconciliationPlan.identity.evolutionStageInstanceId || stageInstanceId;
-          const remoteReconciliationStatus =
-            slotData.careMistakeReconciliationStatus || null;
-          const remoteProjectionMatchesPlan =
-            legacyCareProjection.careMistakes === careReconciliationPlan.projection.careMistakes &&
-            legacyCareProjection.unresolvedCareMistakeCount ===
-              careReconciliationPlan.projection.unresolvedCareMistakeCount &&
-            legacyCareProjection.latestUnresolvedCareMistakeIncidentId ===
-              careReconciliationPlan.projection.latestUnresolvedCareMistakeIncidentId &&
-            legacyCareProjection.latestCareMistakeAt ===
-              careReconciliationPlan.projection.latestCareMistakeAt;
-          const careLoadPolicy = resolveCareMistakeLoadPolicy({
-            hasReadFailure:
-              careIncidentLoadFailed ||
-              reconciliationActivityLogLoadFailed ||
-              pendingActivityLogLoadFailed ||
-              pendingCareTransitionLoadFailed ||
-              pendingStateLoadFailed,
-            plan: careReconciliationPlan,
-            hasPendingCareTransitions,
-            remoteReconciliationStatus,
-            remoteProjectionMatchesPlan,
-          });
-          if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.BLOCK) {
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus: careLoadPolicy.status,
-              evolutionStageInstanceId: resolvedStageInstanceId,
-            };
-          } else if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.WAIT_FOR_LOCAL) {
-            // 로컬 전이가 남아 있으면 서버 로그만으로 projection을 확정하지
-            // 않는다. 동일한 로컬 체인의 전이를 먼저 원격에 반영한다.
-            careProjection = {
-              ...legacyCareProjection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
-              evolutionStageInstanceId: resolvedStageInstanceId,
-            };
-          } else if (careLoadPolicy.action === CARE_MISTAKE_LOAD_ACTION.ACCEPT_VERIFIED) {
-            careProjection = {
-              ...careReconciliationPlan.projection,
-              careMistakeReconciliationStatus:
-                CARE_MISTAKE_RECONCILIATION_STATUS.VERIFIED,
-            };
-          } else {
-            // 로그와 incident를 모두 읽어 검증할 수 있는 경우에만 로드 중
-            // reconciliation transaction으로 projection을 활성화한다.
-            try {
-              const reconciliationResult = await commitCareMistakeReconciliation({
-                db,
-                slotRef: slotRefForLogs,
-                plan: careReconciliationPlan,
-                baseRevision: slotData.revision ?? 0,
-                runTransaction,
-              });
-              if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
-              slotData = {
-                ...slotData,
-                revision: reconciliationResult.revision,
-                evolutionStageStartedAt:
-                  careReconciliationPlan.recoveredStageStartedAt,
-                evolutionStageInstanceId: resolvedStageInstanceId,
-                ...reconciliationResult.projection,
-                digimonStats: {
-                  ...savedStats,
-                  evolutionStageStartedAt:
-                    careReconciliationPlan.recoveredStageStartedAt,
-                  evolutionStageInstanceId: resolvedStageInstanceId,
-                  ...reconciliationResult.projection,
-                },
-              };
-              careProjection = reconciliationResult.projection;
-            } catch (reconciliationError) {
-              console.warn("케어미스 reconciliation 커밋 오류:", reconciliationError);
-              if (reconciliationError?.code === "game/reconciliation-in-progress") {
-                const retryDelay = resolveCareMistakeReconciliationRetryDelay(
-                  reconciliationError.retryAt
-                );
-                if (retryDelay != null) {
-                  reconciliationRetryTimerId = setTimeout(() => {
-                    if (!isCurrentSlotLoadRequest(
-                      persistenceAccessRef.current,
-                      generation
-                    )) return;
-                    setSlotLoadRetryRevision((revision) => revision + 1);
-                  }, retryDelay);
-                }
-              }
-              careProjection = {
-                ...legacyCareProjection,
-                careMistakeReconciliationStatus:
-                  reconciliationError?.code === "game/reconciliation-in-progress"
-                    ? CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS
-                    : CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
-                evolutionStageInstanceId: resolvedStageInstanceId,
-              };
-            }
-          }
-          savedStats = {
-            ...savedStats,
-            ...careProjection,
-            // incident 정본을 화면용 legacy ledger 형태로만 투영한다.
-            // sanitize 단계에서 제거되므로 활동 로그나 슬롯 정본에 재저장되지 않는다.
-            ...(!careIncidentLoadFailed && careReconciliationPlan.canActivateProjection
-              ? {
-                  careMistakeLedger: buildCareMistakeLedgerFromIncidents(
-                    careReconciliationPlan.incidents
-                  ),
-                  // 상태 탭의 읽기 전용 V2 이력 정본. sanitize 단계에서 제거되어
-                  // 슬롯 문서·outbox·저장 payload에는 포함되지 않는다.
-                  careMistakeHistoryIncidents: careReconciliationPlan.incidents,
-                }
-              : {}),
-          };
-          }
-
-          // lazy reconstruction 결과는 여기서 단독 로그로 저장하지 않는다.
-          // 다만 검증 가능한 기존 care evidence의 reconciliation transaction은
-          // 위에서 projection·incident와 함께 이미 원자적으로 확정될 수 있다.
+          // hydration 중에는 정리 쓰기를 하지 않는다. 다음 정상 저장 payload에서 제거된다.
 
           const hydrationPlan = buildLoadedSlotHydrationPlan({
             slotData,
@@ -2724,6 +1768,12 @@ export function useGameData({
             ...(hydrationPlan.reconstructedLogsToPersist || []),
           ];
           {
+            let pendingState = null;
+            try {
+              pendingState = await getPendingState();
+            } catch (localPersistenceError) {
+              console.warn("로컬 pending 조회 오류:", localPersistenceError);
+            }
             if (!isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) return;
             const pendingHydration = resolvePendingHydration({
               pendingState,
@@ -2759,7 +1809,7 @@ export function useGameData({
                 console.warn("동일한 로컬 pending 정리 오류:", cleanupError);
               }
             } else if (pendingHydration.status === PENDING_HYDRATION_STATUS.APPLY) {
-              const { sleepSchedule, maxEnergy, needsApplicable } = resolveActionLazyUpdateRuntimeContext({
+              const { sleepSchedule, maxEnergy } = resolveActionLazyUpdateRuntimeContext({
                 digimonStats: pendingHydration.digimonStats,
                 slotRuntimeDataMap,
                 selectedDigimon: pendingHydration.selectedDigimon,
@@ -2769,7 +1819,6 @@ export function useGameData({
                 lastSavedAt: pendingHydration.lastSavedAt ?? Date.now(),
                 sleepSchedule,
                 maxEnergy,
-                needsApplicable,
                 selectedDigimon: pendingHydration.selectedDigimon,
                 evolutionDataForSlot,
                 dataMap,
@@ -2822,74 +1871,13 @@ export function useGameData({
               setDeathReason(hydrationResult.deathReason);
             }
 
-            const canPersistHydrationReconstruction = ![
-              CARE_MISTAKE_RECONCILIATION_STATUS.AMBIGUOUS,
-              CARE_MISTAKE_RECONCILIATION_STATUS.FAILED,
-            ].includes(careProjection.careMistakeReconciliationStatus);
-            if (
-              (reconstructedLogsToPersist.length > 0 || hydrationResult.physiologicalCleanupChanged) &&
-              canPersistHydrationReconstruction
-            ) {
-              // 재구성 사건이 IndexedDB에 내구성 있게 적재되기 전에는
-              // READY phase여도 reconciliation 차단 UI를 유지한다.
-              updatePersistenceAccess({
-                phase: GAME_PERSISTENCE_PHASE.READY,
-                loadedIdentity: loadedPersistenceIdentity,
-                careMistakeReconciliationStatus:
-                  CARE_MISTAKE_RECONCILIATION_STATUS.IN_PROGRESS,
-              });
-              const hydrationCareTransition = buildCareMistakeTransitionFromStats({
-                previousStats: savedStats,
-                nextStats: hydrationResult.digimonStats,
-                previousLogs: [],
-                nextLogs: reconstructedLogsToPersist,
-                identity: loadedPersistenceIdentity,
-                nowMs: Date.now(),
-              });
-              const hydrationActivityEvents = reconstructedLogsToPersist.filter(
-                (log) =>
-                  !isCareMistakeActivityLog(log) &&
-                  !isCareMistakeResolutionActivityLog(log)
-              );
-              try {
-                await saveStats(
-                  hydrationResult.digimonStats,
-                  mergeActivityLogs(
-                    hydrationResult.activityLogs,
-                    reconstructedLogsToPersist
-                  ),
-                  hydrationCareTransition,
-                  {
-                    activityEvents: hydrationCareTransition
-                      ? []
-                      : hydrationActivityEvents,
-                    allowCareTransition: true,
-                  }
-                );
-                updatePersistenceAccess({
-                  careMistakeReconciliationStatus:
-                    careProjection.careMistakeReconciliationStatus,
-                });
-              } catch (hydrationSaveError) {
-                console.warn("hydration 재구성 전이 저장이 대기열에 남았습니다.", hydrationSaveError);
-              }
-            } else {
-              updatePersistenceAccess({
-                phase: GAME_PERSISTENCE_PHASE.READY,
-                loadedIdentity: loadedPersistenceIdentity,
-                loadedRevision: slotData.revision ?? 0,
-                careMistakeState: isCareMistakeV2Slot(slotData)
-                  ? (careV2Integrity?.careMistakeState || slotData.careMistakeState)
-                  : null,
-                combatIdentity: {
-                  arenaIdentitySchemaVersion: slotData.arenaIdentitySchemaVersion,
-                  digimonInstanceId: slotData.digimonInstanceId,
-                  combatRevision: slotData.combatRevision,
-                },
-                careMistakeReconciliationStatus:
-                  careProjection.careMistakeReconciliationStatus,
-              });
-            }
+            updatePersistenceAccess({
+              phase: GAME_PERSISTENCE_PHASE.READY,
+              loadedIdentity: loadedPersistenceIdentity,
+            });
+            reconstructedLogsToPersist.forEach((log) => {
+              if (log?.type) appendLogToSubcollection(log).catch(() => {});
+            });
           }
         } else {
           const notFoundError = new Error("슬롯 문서를 찾을 수 없습니다.");
@@ -2915,9 +1903,6 @@ export function useGameData({
 
     loadSlot();
     return () => {
-      if (reconciliationRetryTimerId != null) {
-        clearTimeout(reconciliationRetryTimerId);
-      }
       if (isCurrentSlotLoadRequest(persistenceAccessRef.current, generation)) {
         persistenceAccessRef.current = {
           ...persistenceAccessRef.current,
@@ -2940,18 +1925,11 @@ export function useGameData({
 
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
-          await commitCareV2Patch({
-            commandId: createCareV2ClientCommandId("background-settings"),
-            payload: { updateData: { backgroundSettings: newBackgroundSettings } },
-          });
-        } else {
-          const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
-          await updateDoc(slotRef, {
-            backgroundSettings: newBackgroundSettings,
-            updatedAt: serverTimestamp(),
-          });
-        }
+        const slotRef = doc(db, 'users', currentUser.uid, 'slots', `slot${slotId}`);
+        await updateDoc(slotRef, {
+          backgroundSettings: newBackgroundSettings,
+          updatedAt: serverTimestamp(),
+        });
         console.log('[saveBackgroundSettings] Firebase 저장 완료');
       } catch (error) {
         console.error("배경화면 설정 저장 오류:", error);
@@ -2961,7 +1939,7 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [canStartGameplayWrite, captureSaveContext, commitCareV2Patch, slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
 
   const saveImmersiveSettings = useCallback(async (newImmersiveSettings) => {
     const saveContext = captureSaveContext();
@@ -2971,18 +1949,11 @@ export function useGameData({
 
     if (slotId && currentUser && isFirebaseAvailable) {
       try {
-        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
-          await commitCareV2Patch({
-            commandId: createCareV2ClientCommandId("immersive-settings"),
-            payload: { updateData: { immersiveSettings: normalizedSettings } },
-          });
-        } else {
-          const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
-          await updateDoc(slotRef, {
-            immersiveSettings: normalizedSettings,
-            updatedAt: serverTimestamp(),
-          });
-        }
+        const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
+        await updateDoc(slotRef, {
+          immersiveSettings: normalizedSettings,
+          updatedAt: serverTimestamp(),
+        });
         console.log("[saveImmersiveSettings] Firebase 저장 완료");
       } catch (saveError) {
         console.error("몰입형 설정 저장 오류:", saveError);
@@ -2992,7 +1963,7 @@ export function useGameData({
       console.error("Firebase 로그인이 필요합니다.");
       setError(new Error("Firebase 로그인이 필요합니다."));
     }
-  }, [canStartGameplayWrite, captureSaveContext, commitCareV2Patch, slotId, currentUser, isFirebaseAvailable]);
+  }, [canStartGameplayWrite, captureSaveContext, slotId, currentUser, isFirebaseAvailable]);
 
   /**
    * 선택된 디지몬 이름과 표시명을 슬롯 루트 문서에 저장합니다.
@@ -3015,51 +1986,6 @@ export function useGameData({
       }
 
       try {
-        if (persistenceAccessRef.current?.careMistakeState?.schemaVersion === 2) {
-          const sameForm = selectedDigimon === nextSelectedDigimon;
-          const combatIdentity = options.newLife === true
-            ? createNewLifeCombatIdentity()
-            : sameForm
-              ? {}
-              : buildFormTransitionCombatIdentity(
-                  persistenceAccessRef.current.combatIdentity
-                );
-          const nextDigimonInstanceId = options.newLife === true
-            ? combatIdentity.digimonInstanceId
-            : persistenceAccessRef.current.loadedIdentity?.digimonInstanceId;
-          const nextEvolutionStageInstanceId = buildEvolutionStageInstanceId({
-            digimonInstanceId: nextDigimonInstanceId,
-            evolutionStageStartedAt:
-              digimonStats?.evolutionStageStartedAt || digimonStats?.lastSavedAt || Date.now(),
-            evolutionStage: digimonStats?.evolutionStage || nextSelectedDigimon,
-          });
-          await commitCareV2Patch({
-            commandId: createCareV2ClientCommandId(
-              options.newLife === true ? "new-life" : "selected-digimon"
-            ),
-            commandType: options.newLife === true
-              ? "NEW_LIFE"
-              : sameForm ? "STATE_MUTATION" : "EVOLUTION",
-            payload: {
-              updateData: {
-                ...combatIdentity,
-                selectedDigimon: nextSelectedDigimon,
-                digimonDisplayName: buildDigimonDisplayName(
-                  nextSelectedDigimon,
-                  digimonNickname,
-                  evolutionDataForSlot
-                ),
-                isLightsOn,
-                wakeUntil,
-              },
-              ...(options.newLife === true ? { nextDigimonInstanceId } : {}),
-              ...(!sameForm || options.newLife === true
-                ? { nextEvolutionStageInstanceId }
-                : {}),
-            },
-          });
-          return;
-        }
         const slotRef = doc(db, "users", currentUser.uid, "slots", `slot${slotId}`);
         await runTransaction(db, async (transaction) => {
           const slotSnapshot = await transaction.get(slotRef);
@@ -3110,9 +2036,6 @@ export function useGameData({
       wakeUntil,
       canStartGameplayWrite,
       captureSaveContext,
-      commitCareV2Patch,
-      digimonStats,
-      selectedDigimon,
     ]
   );
 

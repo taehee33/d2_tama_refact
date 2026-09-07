@@ -8,9 +8,6 @@ import {
 import { MAX_ACTIVITY_LOGS } from "../constants/activityLogs";
 import { buildActivityLogEventId } from "../utils/activityLogEventId";
 import { toEpochMs } from "../utils/time";
-import { isSleepDisturbanceLog } from "../utils/sleepDisturbanceLogs";
-
-export { isSleepDisturbanceLog } from "../utils/sleepDisturbanceLogs";
 
 const FALLING_ASLEEP_DELAY_MS = 15 * 1000;
 const HUNGER_CALL_TIMEOUT_MS = 10 * 60 * 1000;
@@ -32,6 +29,20 @@ const SLEEP_STATUS = {
  */
 function ensureTimestamp(val) {
   return toEpochMs(val);
+}
+
+/**
+ * 수면 방해 로그 여부를 판별한다.
+ * 신규 타입(SLEEP_DISTURBANCE)과 기존 CARE_MISTAKE 기반 로그를 모두 인식한다.
+ * @param {Object} log
+ * @returns {boolean}
+ */
+export function isSleepDisturbanceLog(log) {
+  if (!log) return false;
+  if (log.type === 'SLEEP_DISTURBANCE') return true;
+  const text = (log.text || '').trim();
+  if (!text.includes('수면 방해')) return false;
+  return log.type === 'CARE_MISTAKE' || log.type === 'CAREMISTAKE';
 }
 
 /**
@@ -388,10 +399,7 @@ export function formatEvolutionRangeCondition({
  * @param {Date} [params.now] - 현재 시간 (테스트용)
  * @returns {'AWAKE'|'FALLING_ASLEEP'|'NAPPING'|'SLEEPING'|'SLEEPING_LIGHT_ON'|'AWAKE_INTERRUPTED'}
  */
-export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, napUntil = null, needsApplicable = true, now = new Date() }) {
-  if (!needsApplicable || sleepSchedule == null) {
-    return SLEEP_STATUS.AWAKE;
-  }
+export function getSleepStatus({ sleepSchedule, isLightsOn, wakeUntil, fastSleepStart = null, napUntil = null, now = new Date() }) {
   const normalizedSleepSchedule = normalizeSleepSchedule(sleepSchedule || { start: 22, end: 6 });
   const nowMs = now.getTime();
 
@@ -791,8 +799,7 @@ export function checkCalls(
   isLightsOn,
   sleepSchedule,
   now = new Date(),
-  sleepStatus = SLEEP_STATUS.AWAKE,
-  needsApplicable = true
+  sleepStatus = SLEEP_STATUS.AWAKE
 ) {
   void isLightsOn;
   void sleepSchedule;
@@ -800,9 +807,6 @@ export function checkCalls(
     ...stats,
     callStatus: buildInitialCallStatus(stats.callStatus),
   };
-  if (!needsApplicable) {
-    return stats;
-  }
   const normalizedSleepStatus = normalizeSleepStatusValue(sleepStatus);
   const isSleepingLike = isSleepStatusSleeping(normalizedSleepStatus);
   const isSleepLightWarning = normalizedSleepStatus === SLEEP_STATUS.SLEEPING_LIGHT_ON;
@@ -916,8 +920,7 @@ export function resetCallStatus(stats, callType) {
 export function checkCallTimeouts(
   stats,
   now = new Date(),
-  sleepStatus = SLEEP_STATUS.AWAKE,
-  needsApplicable = true
+  sleepStatus = SLEEP_STATUS.AWAKE
 ) {
   if (!stats || !stats.callStatus) {
     return stats;
@@ -925,12 +928,6 @@ export function checkCallTimeouts(
 
   // 냉장고 상태에서는 호출 타임아웃을 무시 (케어 실수 발생하지 않음)
   if (stats.isFrozen) {
-    return stats;
-  }
-
-  // 호출 생성자 밖의 최종 방어선: stale call이 남아도 디지타마의
-  // 케어미스 ledger/누적 careMistakes를 절대 늘리지 않는다.
-  if (!needsApplicable) {
     return stats;
   }
 

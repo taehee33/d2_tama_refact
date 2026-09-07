@@ -12,13 +12,6 @@ export const defaultStats = {
     fullness: 0,
     careMistakes: 0,
     careMistakeLedger: [],
-    unresolvedCareMistakeCount: 0,
-    latestUnresolvedCareMistakeIncidentId: null,
-    latestCareMistakeAt: null,
-    careMistakeSchemaVersion: 1,
-    careMistakeReconciliationVersion: null,
-    careMistakeReconciliationStatus: "not_started",
-    evolutionStageInstanceId: null,
   
     lifespanSeconds: 0,
     timeToEvolveSeconds: 0,

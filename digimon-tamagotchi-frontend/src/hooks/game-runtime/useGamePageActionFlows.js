@@ -100,7 +100,7 @@ export function useGamePageActionFlows({
     try {
       const isDeathForm = DEATH_FORM_IDS.includes(selectedDigimon);
       if (!isDeathForm && !confirmDialog("정말로 초기화?")) {
-        return { status: "blocked", errorCode: "game/new-life-cancelled" };
+        return;
       }
 
       const currentStats = await applyLazyUpdateBeforeAction();
@@ -145,7 +145,7 @@ export function useGamePageActionFlows({
       if (typeof saveNewLifeTransition !== "function" || !latestNewStartLog) {
         throw new Error("새 생애 원자 저장 경계를 사용할 수 없습니다.");
       }
-      const receipt = await saveNewLifeTransition({
+      await saveNewLifeTransition({
         statsSnapshot: nextStatsWithLogs,
         transition: {
           transitionId,
@@ -156,20 +156,13 @@ export function useGamePageActionFlows({
         },
         nowMs: transitionCreatedAt,
       });
-      if (receipt?.status !== "synced") {
-        return receipt || {
-          status: "failed",
-          errorCode: "game/new-life-missing-receipt",
-        };
-      }
-      return receipt;
+      setSelectedDigimon(initialDigimonId);
+      setDigimonStats(nextStatsWithLogs);
+      if (typeof setActivityLogs === "function") setActivityLogs(nextActivityLogs);
+      toggleModal("deathModal", false);
+      setHasSeenDeathPopup(false);
     } catch (error) {
       console.error("[resetDigimon] 오류 발생:", error);
-      return {
-        status: "failed",
-        errorCode: error?.code || "game/new-life-failed",
-        message: error?.message || "새 생애를 저장하지 못했습니다.",
-      };
     }
   }, [
     applyLazyUpdateBeforeAction,
@@ -179,6 +172,11 @@ export function useGamePageActionFlows({
     normalizedSlotVersion,
     selectedDigimon,
     saveNewLifeTransition,
+    setActivityLogs,
+    setDigimonStats,
+    setHasSeenDeathPopup,
+    setSelectedDigimon,
+    toggleModal,
   ]);
 
   return {

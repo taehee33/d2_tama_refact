@@ -15,7 +15,7 @@ describe("ImmersiveDeviceShell", () => {
     rerender(
       <ImmersiveDeviceShell
         layoutMode="landscape"
-        skinId="tama-classic-pink"
+        skinId="tama-mint"
         showRotateHint
         landscapeSide="left"
         landscapeSideMode="auto"

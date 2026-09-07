@@ -5,7 +5,6 @@ import {
 
 export const PENDING_HYDRATION_STATUS = {
   NONE: "none",
-  DEFER: "defer",
   CLEANUP: "cleanup",
   APPLY: "apply",
   CONFLICT: "conflict",
@@ -99,19 +98,6 @@ export function resolvePendingHydration({
     Number.isSafeInteger(rawBaseRevision) && rawBaseRevision >= 0;
   const expectedRevision = normalizeGameRevision(stateEnvelope.baseRevision);
   const actualRevision = normalizeGameRevision(serverRevision);
-
-  // NEW_LIFE는 revision이 진행됐더라도 일반 hydration 충돌로 격리하지 않는다.
-  // 서버가 동일 command를 멱등적으로 판정하도록 outbox 재시도 대상으로 남긴다.
-  if (stateEnvelope.transition?.transitionType === "NEW_LIFE") {
-    return {
-      status: PENDING_HYDRATION_STATUS.DEFER,
-      expectedRevision,
-      actualRevision,
-      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
-      localSavedAt,
-    };
-  }
-
   if (!hasValidBaseRevision) {
     return conflict(
       "invalid_base_revision",
@@ -131,41 +117,12 @@ export function resolvePendingHydration({
     );
   }
 
-  const hasPendingAtomicEffects =
-    (Array.isArray(stateEnvelope.activityEvents) &&
-      stateEnvelope.activityEvents.length > 0) ||
-    Boolean(stateEnvelope.transition);
-  if (
-    areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot) &&
-    !hasPendingAtomicEffects
-  ) {
+  if (areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot)) {
     return {
       status: PENDING_HYDRATION_STATUS.CLEANUP,
       expectedRevision,
       actualRevision,
       localSavedAt,
-    };
-  }
-
-  if (
-    areComparableSnapshotsEqual(localComparableSnapshot, serverComparableSnapshot) &&
-    hasPendingAtomicEffects
-  ) {
-    return {
-      status: PENDING_HYDRATION_STATUS.APPLY,
-      expectedRevision,
-      actualRevision,
-      classification: PENDING_CONFLICT_CLASSIFICATION.UNSENT_LOCAL_SAVE,
-      lastSavedAt: localSavedAt,
-      selectedDigimon:
-        localSnapshot.selectedDigimon || serverHydrationResult.selectedDigimon || null,
-      activityLogs: localSnapshot.activityLogs || serverHydrationResult.activityLogs || [],
-      digimonStats: {
-        ...localSnapshot,
-        ...(serverHydrationResult.selectedDigimon
-          ? { selectedDigimon: serverHydrationResult.selectedDigimon }
-          : {}),
-      },
     };
   }
 

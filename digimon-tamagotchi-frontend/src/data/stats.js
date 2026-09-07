@@ -10,7 +10,6 @@ import { sanitizeDigimonLogSnapshot } from "../utils/digimonLogSnapshot";
 import { KST_DAY_MS, getStartOfKstDayMs, isSameKstDay } from "../utils/time";
 import { appendCareMistakeEntry } from "../logic/stats/careMistakeLedger";
 import { recoverEnergy } from "../logic/stats/energyRecovery";
-import { cleanupInapplicablePhysiologicalNeeds } from "../logic/stats/physiologicalNeeds";
 import {
   applyDeathEvaluationToStats,
   evaluateDeathConditions,
@@ -78,13 +77,7 @@ export function clearActiveInjuryState(stats) {
   };
 }
 
-export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
-  const nowMs = options.nowMs === undefined
-    ? Date.now()
-    : options.nowMs;
-  if (typeof nowMs !== "number" || !Number.isFinite(nowMs) || nowMs < 0) {
-    throw new TypeError("initializeStats nowMs는 0 이상의 유한한 number여야 합니다.");
-  }
+export function initializeStats(digiName, oldStats={}, dataMap={}){
   if(!dataMap[digiName]){
     console.error(`initializeStats: [${digiName}] not found in dataMap!`);
     digiName = getStarterDigimonIdFromDataMap(dataMap); // fallback
@@ -110,7 +103,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   // 새로운 시작이면 age를 0으로, 그렇지 않으면 기존 값 유지
   if (isNewStart) {
     merged.age = 0;
-    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? nowMs;
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
     merged.isDead = false; // 새로운 시작이면 항상 false
     // 새로운 시작: 사망 관련 필드 완전 초기화
     merged.lastHungerZeroAt = null;
@@ -140,7 +133,7 @@ export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
     merged.poopPenaltyFrozenDurationMs = 0;
   } else {
     merged.age = oldStats.age || merged.age;
-    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? nowMs;
+    merged.birthTime = ensureTimestamp(oldStats.birthTime) ?? Date.now();
     // 진화 시에는 isDead를 명시적으로 false로 설정하지 않음 (기존 값 유지)
     // 하지만 defaultStats에 이미 false가 있으므로 문제 없음
   }
@@ -164,12 +157,6 @@ export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   merged.battlesForEvolution = 0;
   merged.careMistakes = 0;
   merged.careMistakeLedger = [];
-  merged.unresolvedCareMistakeCount = 0;
-  merged.latestUnresolvedCareMistakeIncidentId = null;
-  merged.latestCareMistakeAt = null;
-  merged.careMistakeSchemaVersion = 1;
-  merged.careMistakeReconciliationVersion = null;
-  merged.careMistakeReconciliationStatus = "verified";
   merged.injuries = isNewStart
     ? 0
     : (oldStats.injuries !== undefined ? oldStats.injuries : (merged.injuries || 0)); // 이번 생 누적 부상 횟수 유지
@@ -255,11 +242,10 @@ export function initializeStats(digiName, oldStats={}, dataMap={}, options={}){
   // 현재 진화 단계 시작 시각 (케어미스 이력 필터: 이 시점 이후 로그만 표시 → 카운터와 일치)
   if (isNewStart) {
     merged.evolutionStageStartedAt =
-      ensureTimestamp(merged.birthTime) ?? nowMs;
+      ensureTimestamp(merged.birthTime) ?? Date.now();
   } else {
-    merged.evolutionStageStartedAt = nowMs;
+    merged.evolutionStageStartedAt = Date.now();
   }
-  merged.evolutionStageInstanceId = null;
 
   delete merged.lastMaxPoopTime;
 
@@ -980,11 +966,7 @@ export function projectState(
     lastSavedAt,
     sleepSchedule = null,
     maxEnergy = null,
-    needsApplicable = true,
   } = options;
-  // Lazy update의 모든 조기 반환 경로보다 먼저 stale 생리 상태를 정리한다.
-  // 이 정리는 현재 시각을 쓰지 않아 hydration 외 1초 루프에서 추가 mutation을 만들지 않는다.
-  stats = cleanupInapplicablePhysiologicalNeeds(stats, needsApplicable).stats;
   if (!Number.isFinite(Number(nowMs))) {
     throw new Error("projectState requires a finite nowMs");
   }
@@ -1050,10 +1032,7 @@ export function projectState(
   }
 
   // 경과 시간만큼 한 번에 업데이트
-  let updatedStats = cleanupInapplicablePhysiologicalNeeds(
-    cloneStatsForProjection(stats),
-    needsApplicable
-  ).stats;
+  let updatedStats = cloneStatsForProjection(stats);
   migrateLegacyPoopTimers(updatedStats);
   repairFutureZeroTiming(updatedStats, nowMs, lastSaved.getTime(), {
     statKey: "fullness",
@@ -1081,7 +1060,7 @@ export function projectState(
   };
 
   // 배고픔 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (needsApplicable && updatedStats.hungerTimer > 0) {
+  if (updatedStats.hungerTimer > 0) {
     const initialFullness = Math.max(0, Number(updatedStats.fullness) || 0);
     const rawHungerCountdown = Number(updatedStats.hungerCountdown);
     const initialHungerCountdown = Number.isFinite(rawHungerCountdown)
@@ -1098,7 +1077,7 @@ export function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule: needsApplicable ? sleepSchedule : null,
+      sleepSchedule,
     });
     
     // 활동 시간만큼만 hungerCountdown 감소
@@ -1132,7 +1111,7 @@ export function projectState(
   }
 
   // 힘 감소 처리 (수면 중에는 타이머 감소하지 않음)
-  if (needsApplicable && updatedStats.strengthTimer > 0) {
+  if (updatedStats.strengthTimer > 0) {
     const initialStrength = Math.max(0, Number(updatedStats.strength) || 0);
     const rawStrengthCountdown = Number(updatedStats.strengthCountdown);
     const initialStrengthCountdown = Number.isFinite(rawStrengthCountdown)
@@ -1149,7 +1128,7 @@ export function projectState(
       lastSavedAtMs: lastSaved.getTime(),
       nowMs,
       stats: updatedStats,
-      sleepSchedule: needsApplicable ? sleepSchedule : null,
+      sleepSchedule,
     });
     
     // 활동 시간만큼만 strengthCountdown 감소
@@ -1305,7 +1284,7 @@ export function projectState(
 
   // 사망 체크는 공통 evaluator를 기준으로 단일화
   if (!updatedStats.isDead) {
-    const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs, needsApplicable);
+    const deathEvaluation = evaluateDeathConditions(updatedStats, nowMs);
     if (deathEvaluation.isDead) {
       updatedStats = applyDeathEvaluationToStats(updatedStats, deathEvaluation);
     }
@@ -1331,7 +1310,6 @@ export function projectState(
   const callStatus = updatedStats.callStatus;
   const HUNGER_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
   const STRENGTH_CALL_TIMEOUT = 10 * 60 * 1000; // 10분
-  if (needsApplicable) {
   const previousSleepCallStartedAt =
     ensureTimestamp(callStatus.sleep.startedAt) ??
     ensureTimestamp(updatedStats.sleepLightOnStart);
@@ -1340,7 +1318,7 @@ export function projectState(
     stats: updatedStats,
     startTime: lastSaved.getTime(),
     endTime: nowMs,
-    sleepSchedule: needsApplicable ? sleepSchedule : null,
+    sleepSchedule,
     previousStartedAt: previousSleepCallStartedAt,
     previousLogged: previousSleepCallLogged,
   });
@@ -1424,7 +1402,6 @@ export function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -1531,7 +1508,6 @@ export function projectState(
               source: careMistakePayload.source,
             });
             updatedStats.careMistakes = result.nextStats.careMistakes;
-            updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
             updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
             if (result.added &&
                 !alreadyHasBackdatedLog(
@@ -1594,7 +1570,7 @@ export function projectState(
     updatedStats.sleepLightOnStart = null;
   }
 
-  if (needsApplicable) resolvedSleepLightSegments.forEach((segment) => {
+  resolvedSleepLightSegments.forEach((segment) => {
     const effectiveStartedAt = segment.effectiveStartedAt;
     const segmentDurationMs = Math.max(0, segment.endedAt - effectiveStartedAt);
     if (segmentDurationMs < SLEEP_LIGHT_WARNING_TIMEOUT_MS) {
@@ -1619,7 +1595,6 @@ export function projectState(
       source: "backfill",
     });
     updatedStats.careMistakes = result.nextStats.careMistakes;
-    updatedStats.unresolvedCareMistakeCount = result.nextStats.unresolvedCareMistakeCount;
     updatedStats.careMistakeLedger = result.nextStats.careMistakeLedger;
     if (
       result.added &&
@@ -1644,15 +1619,13 @@ export function projectState(
     }
   });
 
-  }
-
   const energyProjectionEndMs = stats.isFrozen && stats.frozenAt
     ? Math.min(nowMs, ensureTimestamp(stats.frozenAt) ?? nowMs)
     : nowMs;
   updatedStats = recoverEnergy(updatedStats, {
     startMs: lastSaved.getTime(),
     endMs: energyProjectionEndMs,
-    sleepSchedule: needsApplicable ? sleepSchedule : null,
+    sleepSchedule,
     maxEnergy,
   });
 
@@ -1692,6 +1665,5 @@ export function applyLazyUpdate(
     lastSavedAt,
     sleepSchedule,
     maxEnergy,
-    needsApplicable: options?.needsApplicable ?? true,
   });
 }
